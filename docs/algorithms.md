@@ -109,3 +109,66 @@ As a proof utility,
 `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Eager.lean` defines an eager
 variant that does not cancel siblings after an error, which bridges the spec
 executor and the canceling ungrouped executor.
+
+## Breadth Execution
+
+`GraphQL.Algorithms.ExecutionBreadth` models the concrete-scope breadth-first
+execution strategy used by `gmac/graphql-breadth-js`. The Lean names intentionally
+track the TypeScript executor names while keeping the pure model deterministic:
+`ResolverMap`, `collectFieldsByKey`, `parentTypeIsPossible`, `scheduleScope`,
+`executeScheduleItem`, `drainLoop`, `ExecutionTrace`, `TraceFrame`, and
+`ValueSlot`.
+
+A scope has one concrete parent type and a list of source objects. Field
+collection runs once for that concrete type, and each grouped response name is
+resolved across the whole source list with a batch resolver that returns one
+result per source.
+
+Composite values are recorded as child slots during the resolution pass. Child
+source lists are grouped by runtime object type and child selection set before
+the child selections execute. This captures the core scheduling idea from the
+TypeScript implementation: a field at one selection level sees the whole breadth
+of that level, and abstract positions are expanded into concrete child work only
+after runtime type resolution.
+
+The Lean model uses a two-phase algorithm instead of JavaScript-style mutable
+result objects. `drainLoop` starts at the root queue and emits a forward
+breadth-first trace. Queue items are grouped by `ScheduleKey`: concrete resolver
+parent type, response name, field name, and arguments. The child selection set is
+kept on each `ScheduleSegment`, so cousin fields with the same resolver call can
+share a batch even when their continuations differ. Composite results become
+`PendingChildWork`, which is later scheduled by runtime object type and child
+selection continuation.
+
+The reverse completion pass, `completeExecutionTrace`, consumes `TraceFrame`s
+from the end of the trace. Field frames complete value slots and push
+segment-aligned field-result blocks keyed by `ScheduleKey`; scope frames consume
+those field blocks from the field store and push completed object values onto
+the positional value stack.
+
+The Lean model intentionally omits JavaScript-specific concerns such as planning
+hooks, lazy promise queues, mutation root partitioning, and detailed formatted
+error maps. It also does not model lazy field resumption or the JavaScript
+abort/purge side effects used to skip queued work after non-null propagation;
+null propagation is applied during reverse completion with the proof-facing
+`Execution.Result`.
+
+`ResolverMap` does not require a proof that the resolver returns one result per
+source. Cardinality mismatch is modeled as field errors for the current scope, a
+coarse analogue of the JavaScript `ResultCountMismatchError` path without
+formatted error details.
+
+The public preservation statement is
+`GraphQL.Algorithms.ExecutionBreadth.breadthExecutionPreservesSpecExecution`.
+It states exact response-envelope equality against the spec-facing executor when
+the breadth `ResolverMap` is `ResolverMap.fromSpecResolvers` and both executors
+are run with `preservationFuelBound schema operation`, the max of the spec
+depth-oriented fuel bound and the breadth scheduler-oriented fuel bound. The
+proof modules under `Proofs/GraphQL/Algorithms/ExecutionBreadth/Semantics/`
+prove the collection, resolver, slot, scope, queue, and final query-envelope
+layers.
+
+The theorem intentionally avoids all-fuel equality. The spec executor spends
+fuel as recursive completion depth, while breadth execution spends fuel as
+scheduler queue steps, so low-fuel executions can diverge even when both report
+the same execution-error count.
