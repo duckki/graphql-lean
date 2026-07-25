@@ -201,8 +201,9 @@ def abstractRuntimeForFieldDeep? (schema : Schema) (targetParent targetField : N
     : Name -> List Selection -> Option Name
   | _currentParent, [] => none
   | currentParent,
-      Selection.field _responseName candidateFieldName _arguments
-        _directives childSelectionSet :: rest =>
+    Selection.field _responseName candidateFieldName _arguments
+      _directives childSelectionSet
+    :: rest =>
       let current :=
         if currentParent == targetParent && candidateFieldName == targetField then
           firstInlineFragmentTypeCondition? childSelectionSet
@@ -211,9 +212,8 @@ def abstractRuntimeForFieldDeep? (schema : Schema) (targetParent targetField : N
       match current with
       | some runtimeType => some runtimeType
       | none =>
-          match
-            abstractRuntimeForFieldDeep? schema targetParent targetField
-              currentParent rest with
+          match abstractRuntimeForFieldDeep? schema targetParent targetField
+                  currentParent rest with
           | some runtimeType => some runtimeType
           | none =>
               match schema.lookupField currentParent candidateFieldName with
@@ -222,20 +222,17 @@ def abstractRuntimeForFieldDeep? (schema : Schema) (targetParent targetField : N
                   abstractRuntimeForFieldDeep? schema targetParent targetField
                     fieldDefinition.outputType.namedType childSelectionSet
   | currentParent,
-      Selection.inlineFragment none _directives childSelectionSet :: rest =>
-      match
-        abstractRuntimeForFieldDeep? schema targetParent targetField
-          currentParent rest with
+    Selection.inlineFragment none _directives childSelectionSet :: rest =>
+      match abstractRuntimeForFieldDeep? schema targetParent targetField
+              currentParent rest with
       | some runtimeType => some runtimeType
       | none =>
           abstractRuntimeForFieldDeep? schema targetParent targetField
             currentParent childSelectionSet
   | currentParent,
-      Selection.inlineFragment (some typeCondition) _directives
-        childSelectionSet :: rest =>
-      match
-        abstractRuntimeForFieldDeep? schema targetParent targetField
-          currentParent rest with
+    Selection.inlineFragment (some typeCondition) _directives childSelectionSet :: rest =>
+      match abstractRuntimeForFieldDeep? schema targetParent targetField
+              currentParent rest with
       | some runtimeType => some runtimeType
       | none =>
           abstractRuntimeForFieldDeep? schema targetParent targetField
@@ -2515,19 +2512,18 @@ theorem executeSelectionSetAsResponse_singleton_named_object_of_resolve
 def selectionSetDeepProbeFuel (schema : Schema) (parentType : Name)
     : List Selection -> Nat
   | [] => 1
-  | Selection.field _responseName fieldName _arguments _directives
-      childSelectionSet :: rest =>
+  | Selection.field _responseName fieldName _arguments _directives childSelectionSet
+    :: rest =>
       match schema.lookupField parentType fieldName with
       | none => selectionSetDeepProbeFuel schema parentType rest
       | some fieldDefinition =>
           max
             (leafProbeFuel fieldDefinition.outputType
               + selectionSetDeepProbeFuel schema
-                fieldDefinition.outputType.namedType childSelectionSet
+                  fieldDefinition.outputType.namedType childSelectionSet
               + 1)
             (selectionSetDeepProbeFuel schema parentType rest)
-  | Selection.inlineFragment (some typeCondition) _directives
-      childSelectionSet :: rest =>
+  | Selection.inlineFragment (some typeCondition) _directives childSelectionSet :: rest =>
       max (selectionSetDeepProbeFuel schema typeCondition childSelectionSet)
         (selectionSetDeepProbeFuel schema parentType rest)
   | Selection.inlineFragment none _directives childSelectionSet :: rest =>
@@ -2908,8 +2904,8 @@ theorem leafProbeResponseValue_not_semanticEquivalent_wrapped_object_of_composit
           schema leftInner rightType value rightValue rightErrors fields
           errors hleftLeaf hrightComposite hwrapped
           (by simpa [leafProbeResponseValue] using hsemantic)
-termination_by leftType rightType _value _rightValue _rightErrors _fields
-  _errors => sizeOf leftType + sizeOf rightType
+termination_by leftType rightType _value _rightValue _rightErrors _fields _errors =>
+  sizeOf leftType + sizeOf rightType
 decreasing_by
   all_goals
     simp_wf

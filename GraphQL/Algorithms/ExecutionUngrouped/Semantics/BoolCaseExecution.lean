@@ -1679,10 +1679,14 @@ mutual
                           hvars
                     simpa [completeValue] using
                       congrArg Execution.nonNullCompletion hrec
-  termination_by
-    depth parentType selectionSet value previous _hvars =>
-      (SelectionSet.size selectionSet, depth, sizeOf parentType, sizeOf value,
-        sizeOf previous)
+  termination_by depth parentType selectionSet value previous _hvars =>
+    (
+      SelectionSet.size selectionSet,
+      depth,
+      sizeOf parentType,
+      sizeOf value,
+      sizeOf previous
+    )
   decreasing_by
     all_goals
       simp_wf
@@ -2067,10 +2071,14 @@ mutual
                         simp [NormalForm.filterSelectionSetBoolCase,
                           hallowCase, hfiltered, visitSubfields,
                           hinlineHead, horiginalInlineHead, htailAfterChild]
-  termination_by
-    depth parentType source selectionSet output _hvars =>
-      (SelectionSet.size selectionSet, depth, sizeOf parentType, sizeOf source,
-        sizeOf output)
+  termination_by depth parentType source selectionSet output _hvars =>
+    (
+      SelectionSet.size selectionSet,
+      depth,
+      sizeOf parentType,
+      sizeOf source,
+      sizeOf output
+    )
   decreasing_by
     all_goals
       simp_wf

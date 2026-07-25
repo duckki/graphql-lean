@@ -58,9 +58,8 @@ mutual
                   collectFields_inlineSelectionSet_eq_map schema
                     remainingFragments.val fragment.typeCondition
                     fragment.selectionSet]
-  termination_by
-    _schema fragments _parentType selection =>
-      (fragments.length, sizeOf selection, 0)
+  termination_by _schema fragments _parentType selection =>
+    (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       try subst fragments
@@ -94,9 +93,8 @@ mutual
           collectFields_inlineSelectionSet_eq_map schema fragments parentType
             rest,
           List.map_append]
-  termination_by
-    _schema fragments _parentType selectionSet =>
-      (fragments.length, sizeOf selectionSet, 1)
+  termination_by _schema fragments _parentType selectionSet =>
+    (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       try subst fragments

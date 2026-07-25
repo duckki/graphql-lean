@@ -223,14 +223,15 @@ mutual
             (Validation.selectionValid_inlineFragment_some_selectionSetValid
               hvalid)
 
-theorem selectionSetLookupValid_of_selectionSetValid_possibleObject
-    (schema : Schema) (variableDefinitions : List VariableDefinition)
-    (parentType objectType : Name)
-    : SchemaWellFormedness.schemaWellFormed schema
-      -> objectType ∈ schema.getPossibleTypes parentType
-      -> ∀ selectionSet,
-          Validation.selectionSetValid schema variableDefinitions parentType selectionSet
-          -> selectionSetLookupValid schema objectType selectionSet
+  theorem selectionSetLookupValid_of_selectionSetValid_possibleObject
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      (parentType objectType : Name)
+      : SchemaWellFormedness.schemaWellFormed schema
+        -> objectType ∈ schema.getPossibleTypes parentType
+        -> ∀ selectionSet,
+            Validation.selectionSetValid schema variableDefinitions parentType
+              selectionSet
+            -> selectionSetLookupValid schema objectType selectionSet
     | _hschema, _hpossible, [], _hvalid => by
         exact selectionSetLookupValid_nil schema objectType
     | hschema, hpossible, selection :: rest, hvalid => by

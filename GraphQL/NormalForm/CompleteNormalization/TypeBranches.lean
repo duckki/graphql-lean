@@ -50,8 +50,7 @@ def staticCollectForGround
   | [] => []
   | selection :: rest =>
       let collectedRest :=
-        staticCollectForGround schema variables lookupParent groundType
-          boolCase rest
+        staticCollectForGround schema variables lookupParent groundType boolCase rest
       match selection with
       | .field responseName fieldName arguments directives selectionSet =>
           if directivesAllowIn boolCase directives then
@@ -60,22 +59,21 @@ def staticCollectForGround
                 let normalizedSelectionSet :=
                   staticCollectForGround schema variables lookupParent
                     lookupParent boolCase selectionSet
-                .field responseName fieldName arguments []
-                  normalizedSelectionSet :: collectedRest
+                .field responseName fieldName arguments [] normalizedSelectionSet
+                :: collectedRest
             | some fieldDefinition =>
                 let returnType := fieldDefinition.outputType.namedType
                 let normalizedSelectionSet :=
-                  normalizeBoolCaseForType schema boolCase returnType
-                    selectionSet
-                .field responseName fieldName arguments []
-                  normalizedSelectionSet :: collectedRest
+                  normalizeBoolCaseForType schema boolCase returnType selectionSet
+                .field responseName fieldName arguments [] normalizedSelectionSet
+                :: collectedRest
           else
             collectedRest
       | .inlineFragment none directives selectionSet =>
           if directivesAllowIn boolCase directives then
             staticCollectForGround schema variables lookupParent
               groundType boolCase selectionSet
-              ++ collectedRest
+            ++ collectedRest
           else
             collectedRest
       | .inlineFragment (some typeCondition) directives selectionSet =>
@@ -83,11 +81,10 @@ def staticCollectForGround
               && schema.typeIncludesObjectBool typeCondition groundType then
             staticCollectForGround schema variables typeCondition
               groundType boolCase selectionSet
-              ++ collectedRest
+            ++ collectedRest
           else
             collectedRest
-termination_by
-  selectionSet => SelectionSet.size selectionSet
+termination_by selectionSet => SelectionSet.size selectionSet
 decreasing_by
   all_goals
     first

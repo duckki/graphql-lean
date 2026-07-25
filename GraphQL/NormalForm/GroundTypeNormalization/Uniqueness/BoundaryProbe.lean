@@ -417,19 +417,17 @@ decreasing_by
 def runtimePrunedSelectionSet (schema : Schema) (runtimeType : Name)
     : List Selection -> List Selection
   | [] => []
-  | Selection.field responseName fieldName arguments directives
-      childSelectionSet :: rest =>
-      Selection.field responseName fieldName arguments directives
-        childSelectionSet ::
-      runtimePrunedSelectionSet schema runtimeType rest
+  | Selection.field responseName fieldName arguments directives childSelectionSet
+    :: rest =>
+      Selection.field responseName fieldName arguments directives childSelectionSet
+      :: runtimePrunedSelectionSet schema runtimeType rest
   | Selection.inlineFragment none _directives childSelectionSet :: rest =>
-      runtimePrunedSelectionSet schema runtimeType childSelectionSet ++
-      runtimePrunedSelectionSet schema runtimeType rest
-  | Selection.inlineFragment (some typeCondition) _directives childSelectionSet ::
-      rest =>
+      runtimePrunedSelectionSet schema runtimeType childSelectionSet
+      ++ runtimePrunedSelectionSet schema runtimeType rest
+  | Selection.inlineFragment (some typeCondition) _directives childSelectionSet :: rest =>
       if schema.typeIncludesObjectBool typeCondition runtimeType then
-        runtimePrunedSelectionSet schema runtimeType childSelectionSet ++
-        runtimePrunedSelectionSet schema runtimeType rest
+        runtimePrunedSelectionSet schema runtimeType childSelectionSet
+        ++ runtimePrunedSelectionSet schema runtimeType rest
       else
         runtimePrunedSelectionSet schema runtimeType rest
 termination_by selectionSet => SelectionSet.size selectionSet

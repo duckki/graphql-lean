@@ -27,8 +27,7 @@ mutual
                 simp [selectionInlined,
                   inlineSelectionSet_inlined remainingFragments.val
                     fragment.selectionSet]
-  termination_by
-    fragments selection => (fragments.length, sizeOf selection, 0)
+  termination_by fragments selection => (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       simp_wf
@@ -52,8 +51,7 @@ mutual
         simp [Inline.inlineSelectionSet, selectionSetInlined,
           inlineSelection_inlined fragments selection,
           inlineSelectionSet_inlined fragments rest]
-  termination_by
-    fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
+  termination_by fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       simp_wf

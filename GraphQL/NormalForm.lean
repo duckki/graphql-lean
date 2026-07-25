@@ -234,8 +234,7 @@ def normalizeSelectionSet (schema : Schema) (parentType : Name)
           | some fieldDefinition =>
               let matching :=
                 fieldSelectionsWithResponseNameInScope schema parentType responseName rest
-              let mergedSubselections :=
-                subselections ++ mergeSelectionSets matching
+              let mergedSubselections := subselections ++ mergeSelectionSets matching
               let returnType := fieldDefinition.outputType.namedType
               let normalizedSubselections :=
                 if objectTypeNameBool schema returnType then
@@ -244,13 +243,13 @@ def normalizeSelectionSet (schema : Schema) (parentType : Name)
                   (schema.getPossibleTypes returnType).filterMap
                     (fun objectType =>
                       match normalizeSelectionSet schema objectType
-                          mergedSubselections with
+                              mergedSubselections with
                       | [] => none
                       | selection :: rest =>
-                          some (.inlineFragment (some objectType) []
-                            (selection :: rest)))
+                          some (.inlineFragment (some objectType) [] (selection :: rest)))
               normalizedField schema returnType responseName fieldName
-                arguments directives normalizedSubselections :: normalizedRest
+                arguments directives normalizedSubselections
+              :: normalizedRest
       | .inlineFragment none _directives subselections =>
           normalizeSelectionSet schema parentType (subselections ++ rest)
       | .inlineFragment (some typeCondition) _directives subselections =>
@@ -834,13 +833,11 @@ end FilterSelectionSetBoolCaseTermination
 def filterSelectionSetBoolCase (boolCase : BoolCase) : List Selection -> List Selection
   | [] => []
   | selection :: rest =>
-      let collectedRest :=
-        filterSelectionSetBoolCase boolCase rest
+      let collectedRest := filterSelectionSetBoolCase boolCase rest
       match selection with
       | .field responseName fieldName arguments directives selectionSet =>
           if directivesAllowIn boolCase directives then
-            let filteredSelectionSet :=
-              filterSelectionSetBoolCase boolCase selectionSet
+            let filteredSelectionSet := filterSelectionSetBoolCase boolCase selectionSet
             match selectionSet, filteredSelectionSet with
             | [], _ =>
                 .field responseName fieldName arguments [] [] :: collectedRest
@@ -848,7 +845,7 @@ def filterSelectionSetBoolCase (boolCase : BoolCase) : List Selection -> List Se
                 .field responseName fieldName arguments [] [] :: collectedRest
             | _ :: _, child :: children =>
                 .field responseName fieldName arguments [] (child :: children)
-                  :: collectedRest
+                :: collectedRest
           else
             collectedRest
       | .inlineFragment typeCondition directives selectionSet =>
@@ -856,8 +853,7 @@ def filterSelectionSetBoolCase (boolCase : BoolCase) : List Selection -> List Se
             match filterSelectionSetBoolCase boolCase selectionSet with
             | [] => collectedRest
             | child :: children =>
-                .inlineFragment typeCondition [] (child :: children)
-                  :: collectedRest
+                .inlineFragment typeCondition [] (child :: children) :: collectedRest
           else
             collectedRest
 termination_by selectionSet => SelectionSet.size selectionSet

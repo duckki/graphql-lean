@@ -1501,12 +1501,12 @@ mutual
     | .inlineFragment (some _typeCondition) _directives selectionSet =>
         executionSelectionSetLookupValid schema parentType selectionSet
 
-    def executionSelectionSetLookupValid (schema : Schema)
-        (parentType : Name) (selectionSet : List Selection)
-        : Prop :=
-      ∀ selection,
-        selection ∈ selectionSet
-        -> executionSelectionLookupValid schema parentType selection
+  def executionSelectionSetLookupValid (schema : Schema)
+      (parentType : Name) (selectionSet : List Selection)
+      : Prop :=
+    ∀ selection,
+      selection ∈ selectionSet
+      -> executionSelectionLookupValid schema parentType selection
 end
 
 mutual

@@ -48,42 +48,43 @@ mutual
   def collectSelection (schema : Schema) (variableValues : VariableValues)
       : List FragmentDefinition -> Name -> ResolverValue ObjectRef -> Selection
         -> List (Name × List ExecutableField)
-    | fragments, parentType, _source,
-        .field responseName fieldName arguments directives selectionSet =>
-        if GraphQL.Execution.selectionDirectivesAllowBool variableValues
-            directives then
-          [(responseName, [{
-            parentType := parentType,
-            responseName := responseName,
-            fieldName := fieldName,
-            arguments := arguments,
-            selectionSet := selectionSet,
-            availableFragments := fragments
-          }])]
+    | fragments,
+      parentType,
+      _source,
+      .field responseName fieldName arguments directives selectionSet =>
+        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
+          [(
+            responseName,
+            [{
+              parentType := parentType,
+              responseName := responseName,
+              fieldName := fieldName,
+              arguments := arguments,
+              selectionSet := selectionSet,
+              availableFragments := fragments
+            }]
+          )]
         else
           []
     | fragments, parentType, source, .inlineFragment none directives selectionSet =>
-        if GraphQL.Execution.selectionDirectivesAllowBool variableValues
-            directives then
-          collectFields schema variableValues fragments parentType source
-            selectionSet
+        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
+          collectFields schema variableValues fragments parentType source selectionSet
         else
           []
-    | fragments, parentType, source,
-        .inlineFragment (some typeCondition) directives selectionSet =>
-        if GraphQL.Execution.selectionDirectivesAllowBool variableValues
-            directives then
+    | fragments,
+      parentType,
+      source,
+      .inlineFragment (some typeCondition) directives selectionSet =>
+        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
           if GraphQL.Execution.doesFragmentTypeApplyBool schema parentType
               source typeCondition then
-            collectFields schema variableValues fragments parentType source
-              selectionSet
+            collectFields schema variableValues fragments parentType source selectionSet
           else
             []
         else
           []
     | fragments, parentType, source, .fragmentSpread fragmentName directives =>
-        if GraphQL.Execution.selectionDirectivesAllowBool variableValues
-            directives then
+        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
           match lookupFragmentAndRestLt? fragmentName fragments with
           | none => []
           | some (fragment, remainingFragments) =>
@@ -95,9 +96,8 @@ mutual
                 []
         else
           []
-  termination_by
-    fragments _parentType _source selection =>
-      (fragments.length, sizeOf selection, 0)
+  termination_by fragments _parentType _source selection =>
+    (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       simp_wf
@@ -118,12 +118,10 @@ mutual
     | _fragments, _parentType, _source, [] => []
     | fragments, parentType, source, selection :: rest =>
         mergeExecutableGroups
-          (collectSelection schema variableValues fragments parentType source
-            selection)
+          (collectSelection schema variableValues fragments parentType source selection)
           (collectFields schema variableValues fragments parentType source rest)
-  termination_by
-    fragments _parentType _source selectionSet =>
-      (fragments.length, sizeOf selectionSet, 1)
+  termination_by fragments _parentType _source selectionSet =>
+    (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       simp_wf

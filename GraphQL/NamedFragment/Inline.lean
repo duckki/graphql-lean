@@ -22,8 +22,7 @@ mutual
         | some (fragment, remainingFragments) =>
             .inlineFragment (some fragment.typeCondition) directives
               (inlineSelectionSet remainingFragments.val fragment.selectionSet)
-  termination_by
-    fragments selection => (fragments.length, sizeOf selection, 0)
+  termination_by fragments selection => (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       try subst fragments
@@ -42,10 +41,8 @@ mutual
   def inlineSelectionSet : List FragmentDefinition -> List Selection -> List Selection
     | _fragments, [] => []
     | fragments, selection :: rest =>
-        inlineSelection fragments selection
-          :: inlineSelectionSet fragments rest
-  termination_by
-    fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
+        inlineSelection fragments selection :: inlineSelectionSet fragments rest
+  termination_by fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       try subst fragments

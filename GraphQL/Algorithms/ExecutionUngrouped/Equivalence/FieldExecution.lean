@@ -2923,34 +2923,34 @@ mutual
             | some _typeCondition =>
                 exact ⟨fields, by unfold visitSelection; simp [hblocked]⟩
 
-    theorem visitSubfields_preserves_object_core
-        {ObjectIdentity : Type}
-        (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-        (variableValues : VariableValues)
-        (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-        : ∀ (selectionSet : List Selection) (fields : List (Name × ResponseValue)),
-            ∃ outputFields,
-              (visitSubfields schema resolvers variableValues depth parentType source
-                selectionSet (.object fields)).fst
-              = .object outputFields := by
-      intro selectionSet fields
-      cases selectionSet with
-      | nil =>
-          exact ⟨fields, by simp [visitSubfields]⟩
-      | cons selection rest =>
-          rcases
-            visitSelection_preserves_object_core schema resolvers variableValues
-              depth parentType source selection fields
-          with ⟨headFields, hhead⟩
-          rcases
-            visitSubfields_preserves_object_core schema resolvers variableValues
-              depth parentType source rest headFields
-          with ⟨tailFields, htail⟩
-          exact
-            ⟨tailFields, by
-              simp [visitSubfields]
-              rw [hhead]
-              simpa using htail⟩
+  theorem visitSubfields_preserves_object_core
+      {ObjectIdentity : Type}
+      (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+      (variableValues : VariableValues)
+      (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
+      : ∀ (selectionSet : List Selection) (fields : List (Name × ResponseValue)),
+          ∃ outputFields,
+            (visitSubfields schema resolvers variableValues depth parentType source
+              selectionSet (.object fields)).fst
+            = .object outputFields := by
+    intro selectionSet fields
+    cases selectionSet with
+    | nil =>
+        exact ⟨fields, by simp [visitSubfields]⟩
+    | cons selection rest =>
+        rcases
+          visitSelection_preserves_object_core schema resolvers variableValues
+            depth parentType source selection fields
+        with ⟨headFields, hhead⟩
+        rcases
+          visitSubfields_preserves_object_core schema resolvers variableValues
+            depth parentType source rest headFields
+        with ⟨tailFields, htail⟩
+        exact
+          ⟨tailFields, by
+            simp [visitSubfields]
+            rw [hhead]
+            simpa using htail⟩
 end
 
 theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_flattened_spec

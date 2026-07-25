@@ -31,9 +31,8 @@ mutual
             responseName fields,
           executeCollectedFields_toSpec schema resolvers variableValues fuel
             source rest]
-  termination_by
-    _schema _resolvers _variableValues fuel _source groups =>
-      (fuel, 4, 0, sizeOf groups)
+  termination_by _schema _resolvers _variableValues fuel _source groups =>
+    (fuel, 4, 0, sizeOf groups)
 
   theorem executeField_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -69,10 +68,8 @@ mutual
                   executableFieldToSpec, hfield, hresolved,
                   completeValue_toSpec schema resolvers variableValues fuel
                     fieldDefinition.outputType (field :: fields) resolved]
-  termination_by
-    _schema _resolvers _variableValues fuel _source _responseName
-      fields =>
-      (fuel, 3, 0, sizeOf fields)
+  termination_by _schema _resolvers _variableValues fuel _source _responseName fields =>
+    (fuel, 3, 0, sizeOf fields)
 
   theorem completeValue_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -129,9 +126,8 @@ mutual
     | schema, resolvers, variableValues, fuel + 1, .list inner,
         fields, .object runtimeType ref => by
         simp [Execution.completeValue, GraphQL.Execution.completeValue]
-  termination_by
-    _schema _resolvers _variableValues fuel fieldType fields _value =>
-      (fuel, 1, sizeOf fieldType, sizeOf fields)
+  termination_by _schema _resolvers _variableValues fuel fieldType fields _value =>
+    (fuel, 1, sizeOf fieldType, sizeOf fields)
 
   theorem completeValueList_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -152,9 +148,8 @@ mutual
             itemType fields value,
           completeValueList_toSpec schema resolvers variableValues fuel
             itemType fields values]
-  termination_by
-    _schema _resolvers _variableValues fuel itemType _fields values =>
-      (fuel, 2, sizeOf itemType, sizeOf values)
+  termination_by _schema _resolvers _variableValues fuel itemType _fields values =>
+    (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals
       simp_wf

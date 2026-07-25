@@ -227,9 +227,8 @@ mutual
                     selectionToSpecAfterInline, inlinedSelectionToSpec,
                     Inline.inlineSelection, hdirectives, hlookup,
                     executableGroupsToSpec]
-  termination_by
-    _schema _variableValues fragments _parentType _source selection =>
-      (fragments.length, sizeOf selection, 0)
+  termination_by _schema _variableValues fragments _parentType _source selection =>
+    (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       simp_wf
@@ -268,9 +267,8 @@ mutual
           collectFields_toSpec schema variableValues fragments parentType source
             rest,
           translate_inlineSelectionSet_map fragments rest]
-  termination_by
-    _schema _variableValues fragments _parentType _source selectionSet =>
-      (fragments.length, sizeOf selectionSet, 1)
+  termination_by _schema _variableValues fragments _parentType _source selectionSet =>
+    (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       simp_wf

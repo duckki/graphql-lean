@@ -134,8 +134,9 @@ deriving Repr
 mutual
   def collectSelection (schema : Schema)
       : List FragmentDefinition -> Name -> Selection -> List ScopedField
-    | fragments, parentType,
-        .field responseName fieldName arguments _directives selectionSet =>
+    | fragments,
+      parentType,
+      .field responseName fieldName arguments _directives selectionSet =>
         match schema.lookupField parentType fieldName with
         | none => []
         | some fieldDefinition =>
@@ -148,21 +149,24 @@ mutual
               selectionSet := selectionSet,
               availableFragments := fragments
             }]
-    | fragments, parentType,
-        .inlineFragment none _directives selectionSet =>
+    | fragments,
+      parentType,
+      .inlineFragment none _directives selectionSet =>
         collectFields schema fragments parentType selectionSet
-    | fragments, _parentType,
-        .inlineFragment (some typeCondition) _directives selectionSet =>
+    | fragments,
+      _parentType,
+      .inlineFragment (some typeCondition) _directives selectionSet =>
         collectFields schema fragments typeCondition selectionSet
-    | fragments, _parentType,
-        .fragmentSpread fragmentName _directives =>
+    | fragments,
+      _parentType,
+      .fragmentSpread fragmentName _directives =>
         match lookupFragmentAndRestLt? fragmentName fragments with
         | none => []
         | some (fragment, remainingFragments) =>
             collectFields schema remainingFragments.val fragment.typeCondition
               fragment.selectionSet
-  termination_by
-    fragments _parentType selection => (fragments.length, sizeOf selection, 0)
+  termination_by fragments _parentType selection =>
+    (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
       simp_wf
@@ -182,10 +186,9 @@ mutual
     | _fragments, _parentType, [] => []
     | fragments, parentType, selection :: rest =>
         collectSelection schema fragments parentType selection
-          ++ collectFields schema fragments parentType rest
-  termination_by
-    fragments _parentType selectionSet =>
-      (fragments.length, sizeOf selectionSet, 1)
+        ++ collectFields schema fragments parentType rest
+  termination_by fragments _parentType selectionSet =>
+    (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
       simp_wf
