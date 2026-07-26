@@ -6,6 +6,23 @@ fragment.
 Canonical GraphQL specification reference:
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
 
+## Repository Layout
+
+The Lean code is split by role:
+
+- `GraphQL/`: public definitions for the scoped GraphQL model and public
+  project-theory definitions.
+- `Proofs/GraphQL/`: theorem modules and proof-facing helper definitions,
+  mirroring the public definition areas.
+- `Tests/GraphQL/`: ordinary tests for public definitions and proof-facing APIs,
+  grouped by the same topic paths.
+- `Tests/Conformance/`: generated or fixture-driven conformance tests.
+- `Lint/`: project-local tooling, including import-closure checks.
+
+The root import files are intentionally small. `GraphQL.lean` imports public
+definition surfaces, `Proofs.lean` imports theorem surfaces, and `Tests.lean`
+imports only `Tests.GraphQL` and `Tests.Conformance`.
+
 ## Dependency Diagram
 
 ```mermaid
@@ -23,6 +40,11 @@ flowchart TD
   ProofAlgorithms["Proofs.GraphQL.Algorithms.ExecutionUngrouped"]
   GraphQLRoot["GraphQL"]
   ProofRoot["Proofs"]
+  TestsGraphQL["Tests.GraphQL"]
+  TestsConformance["Tests.Conformance"]
+  TestsRoot["Tests"]
+  ImportClosure["Lint.ImportClosure"]
+  LintRoot["Lint"]
 
   Schema --> SchemaWF
   Schema --> Operation
@@ -48,11 +70,18 @@ flowchart TD
   Algorithms --> GraphQLRoot
   NormalForm --> GraphQLRoot
   Execution --> GraphQLRoot
+  GraphQLRoot --> TestsGraphQL
+  ProofRoot --> TestsGraphQL
+  GraphQLRoot --> TestsConformance
+  TestsGraphQL --> TestsRoot
+  TestsConformance --> TestsRoot
+  ImportClosure --> LintRoot
 ```
 
 ## Modules
 
 The plain GraphQL layer is organized under the top-level `GraphQL` library root.
+It should remain definition-only.
 
 - `GraphQL.Schema`: shared names, type references, input values, constant input
   values, built-in scalars, custom scalars, enums, objects, interfaces, unions,
@@ -66,7 +95,7 @@ The plain GraphQL layer is organized under the top-level `GraphQL` library root.
 - `GraphQL.Operation`: operation syntax, field arguments, variable definitions,
   built-in directive applications, selections, inline fragments, operation size,
   and shared selection helpers. Named fragment definitions and fragment spreads
-  are intentionally out of scope.
+  are separated into `GraphQL.NamedFragment`.
 - `GraphQL.Validation`: validation as a proposition over a schema and operation,
   including variable definitions/defaults, variable-use compatibility, argument
   checks, recursive input/output type checks, required non-empty selection sets,
@@ -113,6 +142,13 @@ The plain GraphQL layer is organized under the top-level `GraphQL` library root.
 - `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for the
   ungrouped algorithm. Its public theorem preserves response data and error
   presence against `GraphQL.Execution`, but not exact execution-error counts.
+- `Tests.GraphQL`: ordinary test aggregator. Its modules live under
+  `Tests/GraphQL/` and mirror the corresponding GraphQL or proof topic,
+  including `Algorithms/ExecutionUngrouped` and `Theories/NormalForm`.
+- `Tests.Conformance`: generated and fixture-driven conformance test
+  aggregator. Its modules live under `Tests/Conformance/`.
+- `Lint`: local project tooling. `Lint.ImportClosure` checks that tracked Lean
+  files are reachable from the configured public roots.
 
 ## Flow
 

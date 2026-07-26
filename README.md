@@ -15,6 +15,17 @@ For project-specific normal forms and verified algorithms, see
 [docs/normal-form.md](docs/normal-form.md) and
 [docs/algorithms.md](docs/algorithms.md).
 
+## Layout
+
+The main Lean roots are organized by role:
+
+- `GraphQL`: public definitions for the scoped GraphQL model and public
+  project-theory definitions.
+- `Proofs`: theorem modules and proof-facing helper definitions.
+- `Tests`: ordinary GraphQL tests under `Tests/GraphQL/` plus conformance tests
+  under `Tests/Conformance/`.
+- `Lint`: project-local tooling.
+
 ## Build
 
 Build all Lean targets:
@@ -59,8 +70,9 @@ declaration names, a 1500-line soft file limit, and no tracked Lean files
 outside the transitive import closure of `GraphQL`, `Proofs`, `Tests`, `Lint`,
 and `Lint.ImportClosureMain`.
 
-The main top-level libraries are:
+The main top-level Lean roots are:
 
 - `GraphQL`
 - `Proofs`
 - `Tests`
+- `Lint`

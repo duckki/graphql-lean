@@ -22,7 +22,8 @@ The current conformance target includes:
   inline-fragment applicability, and field merge compatibility,
 - inline fragments,
 - named fragment definitions and fragment spreads in the separate
-  `GraphQL.NamedFragment` proof-facing layer,
+  `GraphQL.NamedFragment` public layer, with theorem bridges under
+  `Proofs.GraphQL.NamedFragment`,
 - variables and the built-in executable directives `@skip` and `@include`,
 - possible-object semantics for abstract types,
 - execution field errors as resolver failure counts in the query response
@@ -102,11 +103,9 @@ The main modules are:
 - `GraphQL.Execution`: bounded resolver-based execution with compatibility data
   projection, response null bubbling through non-null output wrappers, and a
   query response envelope containing data plus a `Nat` execution-error count.
-- `GraphQL.NamedFragment`: separate fragment-aware operation syntax,
-  validation, direct fragment-aware execution, and inlining support for later
-  equivalence proofs. This layer intentionally does not modify the existing
-  fragment-free `GraphQL.Operation`, `GraphQL.Validation`, or
-  `GraphQL.Execution` definitions.
+- `GraphQL.NamedFragment`: separate fragment-aware public operation syntax,
+  validation, direct fragment-aware execution, and inlining support for
+  equivalence proofs under `Proofs.GraphQL.NamedFragment`.
 
 Conformance testing now includes graphql-js execution projections under
 `conformance/graphql-js/`. The fixtures intentionally compare only the behavior

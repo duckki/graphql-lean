@@ -3,6 +3,20 @@
 This repo separates definition surfaces from proof modules. The goal is to keep
 the core GraphQL model easy to read while letting proof files grow by topic.
 
+## Repository Roots
+
+The main Lean roots have distinct roles:
+
+- `GraphQL`: public definitions for the scoped GraphQL model and public
+  project-theory definitions.
+- `Proofs`: theorem modules and proof-facing helper definitions.
+- `Tests`: executable checks, examples, and generated conformance assertions.
+- `Lint`: local project tooling.
+
+Keep the root modules thin. `GraphQL.lean` imports public definition surfaces,
+`Proofs.lean` imports proof surfaces, and `Tests.lean` imports only the test
+aggregators `Tests.GraphQL` and `Tests.Conformance`.
+
 ## Top-Level Files
 
 `GraphQL/` files should contain public definitions only:
@@ -26,6 +40,8 @@ Examples:
 - Proofs about execution belong under `Proofs/GraphQL/Execution/`.
 - Public project-theory definitions belong under `GraphQL/Theories/`.
 - Proofs about project theory belong under `Proofs/GraphQL/Theories/`.
+- Tests for GraphQL definitions or proof-facing APIs belong under
+  `Tests/GraphQL/`, following the same topic path where practical.
 
 ## Termination Proof Exception
 
@@ -77,6 +93,28 @@ Proof modules may import:
 
 The root import surface `GraphQL.lean` imports public definition modules only.
 The root import surface `Proofs.lean` imports theorem/proof-facing modules.
+The root import surface `Tests.lean` imports test aggregators only.
+
+## Test Modules
+
+Ordinary tests live under `Tests/GraphQL/` and should mirror the corresponding
+definition or proof topic:
+
+- `Tests/GraphQL/Execution.lean`
+- `Tests/GraphQL/Algorithms/ExecutionUngrouped.lean`
+- `Tests/GraphQL/Theories/NormalForm/GroundTypeNormalization.lean`
+- `Tests/GraphQL/Theories/NormalForm/CompleteNormalization.lean`
+
+Conformance tests live under `Tests/Conformance/`, with generated or
+fixture-driven modules grouped by source and feature area.
+
+Keep top-level `Tests/*.lean` files sparse. The intended top-level files are:
+
+- `Tests/GraphQL.lean`
+- `Tests/Conformance.lean`
+
+Add a new top-level `Tests/*.lean` file only when it is a durable aggregator for
+a new major test family.
 
 ## Normal Form Proofs
 
