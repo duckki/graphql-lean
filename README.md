@@ -46,8 +46,8 @@ Check that every tracked Lean file is reachable from the public roots:
 lake exe import-closure
 ```
 
-This package uses LeanFmt from
-[duckki/LeanFmt](https://github.com/duckki/LeanFmt) as a Lake dependency.
+This package uses leanfmt from
+[duckki/leanfmt](https://github.com/duckki/leanfmt) as a Lake dependency.
 
 Format all Lean sources:
 
