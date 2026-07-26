@@ -112,7 +112,7 @@ contraposition of uniqueness.
 
 ## 2. Public Statements
 
-The public proposition definitions live in `GraphQL/NormalForm.lean`. Their theorem
+The public proposition definitions live in `GraphQL/Theories/NormalForm.lean`. Their theorem
 witnesses live in the corresponding uniqueness proof modules.
 
 ### Ground-Type Normalization
@@ -406,10 +406,10 @@ holes. Axiom audits for their public theorem witnesses report only `propext`,
 Run:
 
 ```sh
-lake env lean GraphQL/NormalForm/GroundTypeNormalization/Uniqueness.lean
-lake env lean Tests/NormalForm/GroundTypeNormalization.lean
-lake env lean GraphQL/NormalForm/CompleteNormalization/Uniqueness.lean
-lake env lean Tests/NormalForm/CompleteNormalization.lean
+lake env lean Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/Uniqueness.lean
+lake env lean Tests/GraphQL/Theories/NormalForm/GroundTypeNormalization.lean
+lake env lean Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/Uniqueness.lean
+lake env lean Tests/GraphQL/Theories/NormalForm/CompleteNormalization.lean
 lake build
 lake lint
 ```

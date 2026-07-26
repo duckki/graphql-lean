@@ -1,0 +1,6 @@
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationNormality
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness

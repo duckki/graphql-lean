@@ -14,13 +14,15 @@ flowchart TD
   SchemaWF["GraphQL.SchemaWellFormedness"]
   Operation["GraphQL.Operation"]
   Validation["GraphQL.Validation"]
-  NormalForm["GraphQL.NormalForm"]
-  NormalFormGround["GraphQL.NormalForm.GroundTypeNormalization"]
-  CompleteNormalization["GraphQL.NormalForm.CompleteNormalization"]
+  NormalForm["GraphQL.Theories.NormalForm"]
+  NormalFormGround["Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization"]
+  CompleteNormalization["Proofs.GraphQL.Theories.NormalForm.CompleteNormalization"]
   Execution["GraphQL.Execution"]
-  NamedFragment["GraphQL.NamedFragment"]
+  NamedFragment["GraphQL.NamedFragment/*"]
   Algorithms["GraphQL.Algorithms.ExecutionUngrouped"]
+  ProofAlgorithms["Proofs.GraphQL.Algorithms.ExecutionUngrouped"]
   GraphQLRoot["GraphQL"]
+  ProofRoot["Proofs"]
 
   Schema --> SchemaWF
   Schema --> Operation
@@ -35,14 +37,16 @@ flowchart TD
   Execution --> Algorithms
   NamedFragment --> GraphQLRoot
   NormalForm --> Algorithms
+  NormalFormGround --> ProofRoot
+  CompleteNormalization --> ProofRoot
+  Algorithms --> ProofAlgorithms
+  ProofAlgorithms --> ProofRoot
 
   SchemaWF --> GraphQLRoot
   Operation --> GraphQLRoot
   Validation --> GraphQLRoot
   Algorithms --> GraphQLRoot
   NormalForm --> GraphQLRoot
-  NormalFormGround --> GraphQLRoot
-  CompleteNormalization --> GraphQLRoot
   Execution --> GraphQLRoot
 ```
 
@@ -68,8 +72,8 @@ The plain GraphQL layer is organized under the top-level `GraphQL` library root.
   checks, recursive input/output type checks, required non-empty selection sets,
   modeled `@skip`/`@include`, same-response-name field merge checks, and
   inline-fragment applicability.
-- `GraphQL.NormalForm`: ground-typed normal form and non-redundancy predicates over
-  operation selection sets, a normalization pass for field merging and
+- `GraphQL.Theories.NormalForm`: ground-typed normal form and non-redundancy
+  predicates over operation selection sets, a normalization pass for field merging and
   abstract-type grounding, and the public resolver-parametric semantic
   preservation predicates for directive-free ground-type normalization and
   directive-aware complete normalization. Its validity-preservation predicates
@@ -77,9 +81,9 @@ The plain GraphQL layer is organized under the top-level `GraphQL` library root.
   type-condition feasibility after grounding. The complete-normalization
   validity predicate combines Boolean directive filtering with the
   type-condition feasibility obligation in a BoolCase-indexed assumption.
-- `GraphQL.NormalForm.GroundTypeNormalization`: proof-facing lemmas for the
-  directive-free ground-type normalizer.
-- `GraphQL.NormalForm.CompleteNormalization`: proof-facing lemmas for complete
+- `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`: proof-facing
+  lemmas for the directive-free ground-type normalizer.
+- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`: proof-facing lemmas for complete
   normalization, which lifts modeled `@skip`/`@include` behavior into Boolean
   case branches and keeps bottom-branch fields directive-free. Its proof
   modules separate variable/directive facts, BoolCase wrappers, static
@@ -98,14 +102,17 @@ The plain GraphQL layer is organized under the top-level `GraphQL` library root.
   resolver-owned opaque object reference; final responses do not carry object
   identity or detailed error metadata. Internal fuel exhaustion is represented
   by `Execution.outOfFuel`, a polymorphic `.error 1`.
-- `GraphQL.NamedFragment`: fragment-aware operation syntax, validation,
-  direct fragment-aware execution, inlining, translation to the fragment-free
-  operation syntax, and proof witnesses connecting fragment-aware validity and
-  execution with the inlined fragment-free representation.
-- `GraphQL.Algorithms.ExecutionUngrouped`: alternative proof-facing execution
+- `GraphQL.NamedFragment/*`: fragment-aware operation syntax, validation,
+  direct fragment-aware execution, inlining, and translation to the
+  fragment-free operation syntax.
+- `Proofs.GraphQL.NamedFragment`: proof witnesses connecting fragment-aware
+  validity and execution with the inlined fragment-free representation.
+- `GraphQL.Algorithms.ExecutionUngrouped`: public alternative execution
   algorithm that visits selections directly and merges response slices as it
-  goes. Its public theorem preserves response data and error presence against
-  `GraphQL.Execution`, but not exact execution-error counts.
+  goes.
+- `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for the
+  ungrouped algorithm. Its public theorem preserves response data and error
+  presence against `GraphQL.Execution`, but not exact execution-error counts.
 
 ## Flow
 
@@ -117,17 +124,18 @@ The current flow is:
 3. `GraphQL.Execution` gives fuel-bounded execution over operation selections
    by collecting fields by response name, resolving each response name once,
    completing values, and accumulating modeled execution-error counts.
-4. `GraphQL.NormalForm` provides project-specific normalization definitions and
-   public resolver-parametric correctness predicates.
+4. `GraphQL.Theories.NormalForm` provides project-specific normalization
+   definitions and public resolver-parametric correctness predicates.
 5. `GraphQL.Algorithms.ExecutionUngrouped` provides a verified alternative
    execution algorithm over the same operation syntax.
-6. `GraphQL.NamedFragment` provides a fragment-aware proof-facing layer with
-   direct named-fragment execution and equivalence/validity bridges through
-   inlining and translation to the fragment-free syntax.
-7. `GraphQL.NormalForm.GroundTypeNormalization` provides proof-facing
-   ground-type lemmas.
-8. `GraphQL.NormalForm.CompleteNormalization` provides proof-facing lemmas for
-   directive-aware Boolean case branch normalization.
+6. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
+   validation, execution, inlining, and translation definitions.
+7. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
+   through inlining and translation to the fragment-free syntax.
+8. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
+   proof-facing ground-type lemmas.
+9. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
+   proof-facing lemmas for directive-aware Boolean case branch normalization.
 
 Normal forms consume `GraphQL.Operation` directly. The directive-free
 `normalizeOperation` proof path assumes source operations have no modeled

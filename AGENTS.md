@@ -37,9 +37,10 @@ modeled with `Execution.Result`.
 The ground-type normalizer has no fuel parameter; it terminates by structural
 descent on selection-set size while merging fields and grounding abstract
 returns. Public normal-form predicates belong in top-level
-`GraphQL/NormalForm.lean`; proof work belongs under `GraphQL/NormalForm/`,
+`GraphQL/Theories/NormalForm.lean`; proof work belongs under
+`Proofs/GraphQL/Theories/NormalForm/`,
 with directive-free ground-type proof modules under
-`GraphQL/NormalForm/GroundTypeNormalization/`.
+`Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/`.
 
 The latest successful checks were:
 
@@ -57,7 +58,7 @@ lake lint
   directive-free ground-type normal form correctness proof.
 - `docs/overview.md`: module map and architecture overview.
 - `docs/references.md`: GraphCoQL reference notes and proof-strategy context.
-- `GraphQL/NormalForm.lean`: ground normal form scaffold.
+- `GraphQL/Theories/NormalForm.lean`: ground normal form scaffold.
 - `GraphQL/Execution.lean`: resolver-parametric execution model.
 - `GraphQL/Validation.lean`: current operation validity assumptions.
 
@@ -67,8 +68,8 @@ Keep raw syntax permissive and put invariants in validation or well-formedness
 predicates. Prefer small, proof-friendly definitions over feature expansion.
 When adding scope, update `docs/spec-conformance-plan.md` first.
 
-Keep top-level `GraphQL/*.lean` files definition-only. Put ordinary theorems in
-topic-specific subdirectory modules, following `docs/lean-organization.md`.
+Keep `GraphQL/` files definition-only. Put ordinary theorems in topic-specific
+`Proofs/GraphQL/` modules, following `docs/lean-organization.md`.
 
 Review workflow: do not commit before review. Prepare one reviewable slice at a
 time, run the relevant checks, summarize the diff, and wait for the user to ask

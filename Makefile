@@ -4,7 +4,7 @@ all: build check
 build:
 	time lake build
 
-FMT_TARGETS=*.lean GraphQL Tests Lint
+FMT_TARGETS=*.lean GraphQL Proofs Tests Lint
 
 check:
 	time lake lint

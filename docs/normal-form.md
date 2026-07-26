@@ -5,9 +5,9 @@ proved about them. Normal forms are not GraphQL specification features; they are
 proof and algorithm artifacts used to relate different operation
 representations to the same resolver-parametric execution semantics.
 
-The public definitions live in `GraphQL/NormalForm.lean`. Proof witnesses live
-under `GraphQL/NormalForm/GroundTypeNormalization/` and
-`GraphQL/NormalForm/CompleteNormalization/`.
+The public definitions live in `GraphQL/Theories/NormalForm.lean`. Proof witnesses live
+under `Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/` and
+`Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/`.
 
 ## The Two Normal Forms
 
@@ -52,10 +52,12 @@ validity preservation, and uniqueness up to reordering.
 Normality says the output has the intended syntactic shape.
 
 - `NormalForm.normalizeOperationNormal` is witnessed by
-  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_normal`.
+  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_normal` in
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   It assumes only `SchemaWellFormedness.schemaWellFormed schema`.
 - `NormalForm.completeNormalizeOperationNormal` is witnessed by
-  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_normal`.
+  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_normal`
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It assumes schema well-formedness and operation validity, because the complete
   normal shape depends on the operation's modeled directive variables and
   validated root shape.
@@ -67,11 +69,13 @@ the same response for every resolver environment, explicit fuel value, source va
 and variable assignment in the theorem's stated runtime domain.
 
 - `NormalForm.groundTypeNormalFormSemanticsPreservation` is witnessed by
-  `GraphQL.NormalForm.GroundTypeNormalization.groundTypeNormalFormSemanticsPreservation`.
+  `GraphQL.NormalForm.GroundTypeNormalization.groundTypeNormalFormSemanticsPreservation`
+  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   It assumes schema well-formedness, operation validity, and
   `operationDirectiveFree operation`.
 - `NormalForm.completeNormalizationSemanticsPreserved` is witnessed by
-  `GraphQL.NormalForm.CompleteNormalization.completeNormalizationSemanticsPreserved`.
+  `GraphQL.NormalForm.CompleteNormalization.completeNormalizationSemanticsPreserved`
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It assumes schema well-formedness, operation validity, and
   `operationBoolVarsComplete operation variableValues`, so every modeled
   directive variable used by the operation has a Boolean runtime value.
@@ -88,12 +92,14 @@ Validity preservation says the normalized output is also accepted by
 assumptions that are not GraphQL validation rules.
 
 - `NormalForm.normalizeOperationValid` is witnessed by
-  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid`.
+  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid` in
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   In addition to schema well-formedness, operation validity, and
   directive-freeness, it assumes `operationFieldsValidInPossibleTypes` and
   `operationTypeConditionFeasible`.
 - `NormalForm.completeNormalizeOperationValid` is witnessed by
-  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_valid`.
+  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_valid`
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   In addition to schema well-formedness and operation validity, it assumes
   `operationFieldsValidInPossibleTypes` and
   `operationBoolTypeConditionFeasible`.
@@ -207,31 +213,33 @@ have the same syntax modulo order that execution does not observe.
 
 - `NormalForm.normalOperationsEqualUpToReorderingSemanticallyEquivalent` is witnessed
   by `normal_operations_equalUpToReordering_semanticallyEquivalent` in
-  `GraphQL.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   It lifts selection-set reordering soundness to operation execution.
 - `NormalForm.normalizeOperationsEqualUpToReorderingSemanticallyEquivalent` is
   witnessed by `normalizeOperations_equalUpToReordering_semanticallyEquivalent` in
-  `GraphQL.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   It lifts normalized-operation reordering equality back to source-operation semantics.
 - `NormalForm.normalOperationsSemanticallyEquivalentEqualUpToReordering` is witnessed
   by `normal_operations_semanticallyEquivalent_equalUpToReordering` in
-  `GraphQL.NormalForm.GroundTypeNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
   It compares directive-free ground-normal siblings up to reordering.
 - `NormalForm.normalizeOperationUniqueUpToReordering` is witnessed by
-  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`.
+  `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`
+  in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
-  in `GraphQL.NormalForm.CompleteNormalization`.
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It additionally ignores complete Boolean branch order and minterm stem order.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
   is witnessed by
   `completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent` in
-  `GraphQL.NormalForm.CompleteNormalization`.
+  `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   Its semantic conclusion is restricted to complete Boolean environments, with
   source Boolean-support equivalence stated explicitly because normalized equality
   only compares normalized support.
 - `NormalForm.completeNormalizeOperationUniqueUpToReordering` is witnessed by
-  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`.
+  `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
+  in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It uses the same possible-type and Boolean/type-condition feasibility assumptions as
   complete-normalization validity, and compares operations with equivalent Boolean
   variable support.

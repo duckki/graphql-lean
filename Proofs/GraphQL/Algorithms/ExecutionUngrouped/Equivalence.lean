@@ -1,0 +1,9 @@
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Final
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.AppendSelection.Validity
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.GroupComplete
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.GroupList.NormalizationTree
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Recursive
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Reorder
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.ReorderState
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.SliceFold
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Validation

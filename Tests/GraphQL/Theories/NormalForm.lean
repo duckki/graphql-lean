@@ -1,0 +1,2 @@
+import Tests.GraphQL.Theories.NormalForm.GroundTypeNormalization
+import Tests.GraphQL.Theories.NormalForm.CompleteNormalization

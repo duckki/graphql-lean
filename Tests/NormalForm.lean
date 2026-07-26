@@ -1,2 +1,0 @@
-import Tests.NormalForm.GroundTypeNormalization
-import Tests.NormalForm.CompleteNormalization

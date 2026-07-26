@@ -33,7 +33,7 @@ The main public statement is
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution`.
 Its proof witness is
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof`
-in `GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
+in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
 
 The theorem is resolver-parametric: for every resolver environment, variable
 assignment, explicit fuel value, and source value, a well-formed schema and

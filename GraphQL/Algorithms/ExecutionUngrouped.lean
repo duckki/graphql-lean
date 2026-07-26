@@ -1,5 +1,5 @@
 import GraphQL.Execution
-import GraphQL.NormalForm
+import GraphQL.Theories.NormalForm
 
 /-!
 Alternative GraphQL query execution semantics.
@@ -375,7 +375,8 @@ def responseDataAndErrorPresenceEquivalent (ungrouped spec : GraphQL.Execution.R
 -- Resolver-parametric correctness statement for ungrouped execution. Ungrouped execution
 -- preserves response data and whether execution errors are present, but it may count
 -- fewer sub-field errors after a null-bubble has already set the response position to
--- `null`. See example `duplicateHeroNullBubbleQuery` in `Tests/ExecutionUngrouped.lean`.
+-- `null`. See example `duplicateHeroNullBubbleQuery` in
+-- `Tests/GraphQL/Algorithms/ExecutionUngrouped.lean`.
 -- Proof witness: ungroupedExecutionPreservesSpecExecution_proof in
 -- `Semantics/Final.lean`.
 def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Operation)

@@ -1,0 +1,14 @@
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.NormalizeBridge
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.ReorderingSoundness
+
+/-!
+Complete-normalization uniqueness theorem surface.
+
+This module exports the reordering-soundness witness
+`complete_normal_operations_equalUpToReordering_semanticallyEquivalent`, the
+normalization corollary
+`completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent`, the
+already-normal witness
+`complete_normal_operations_semanticallyEquivalent_equalUpToReordering` and the
+normalizer witness `completeNormalizeOperation_uniqueUpToReordering`.
+-/

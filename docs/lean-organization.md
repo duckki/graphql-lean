@@ -5,7 +5,7 @@ the core GraphQL model easy to read while letting proof files grow by topic.
 
 ## Top-Level Files
 
-Top-level `GraphQL/*.lean` files should contain definitions only:
+`GraphQL/` files should contain public definitions only:
 
 - syntax types,
 - structures,
@@ -15,15 +15,17 @@ Top-level `GraphQL/*.lean` files should contain definitions only:
 - notation or small definition-facing helpers.
 
 Do not add ordinary `theorem` or `lemma` declarations to top-level files.
-Theorems should live under a subdirectory named for the definition area they
-support.
+Theorems should live under `Proofs/GraphQL/`, in a path named for the definition
+area they support.
 
 Examples:
 
 - Definitions for validation belong in `GraphQL/Validation.lean`.
-- Proofs about validation belong under `GraphQL/Validation/`.
+- Proofs about validation belong under `Proofs/GraphQL/Validation/`.
 - Definitions for execution belong in `GraphQL/Execution.lean`.
-- Proofs about execution belong under `GraphQL/Execution/`.
+- Proofs about execution belong under `Proofs/GraphQL/Execution/`.
+- Public project-theory definitions belong under `GraphQL/Theories/`.
+- Proofs about project theory belong under `Proofs/GraphQL/Theories/`.
 
 ## Termination Proof Exception
 
@@ -52,11 +54,11 @@ Proof modules should be named by topic. Avoid generic file names such as:
 
 Prefer names that say what the proofs are about:
 
-- `GraphQL/Execution/FieldCollection.lean`
-- `GraphQL/Validation/SelectionValidity.lean`
-- `GraphQL/Validation/FieldMerge.lean`
-- `GraphQL/SchemaWellFormedness/PossibleTypes.lean`
-- `GraphQL/NormalForm/GroundTypeNormalization/FieldSemantics.lean`
+- `Proofs/GraphQL/Execution/FieldCollection.lean`
+- `Proofs/GraphQL/Validation/SelectionValidity.lean`
+- `Proofs/GraphQL/Validation/FieldMerge.lean`
+- `Proofs/GraphQL/SchemaWellFormedness/PossibleTypes.lean`
+- `Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/FieldSemantics.lean`
 
 If a file name starts to need "misc", "helper", or "common", split by the
 nearest domain concept instead.
@@ -73,13 +75,14 @@ Proof modules may import:
 - downstream definition modules only when the theorem topic explicitly bridges
   those areas.
 
-The root import surface `GraphQL.lean` may import both definition modules and
-proof modules, in reading order.
+The root import surface `GraphQL.lean` imports public definition modules only.
+The root import surface `Proofs.lean` imports theorem/proof-facing modules.
 
 ## Normal Form Proofs
 
 Ground-type normalization proofs should stay under
-`GraphQL/NormalForm/GroundTypeNormalization/` and be split by the proof role:
+`Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/` and be split by
+the proof role:
 
 - directive-freeness preservation,
 - schema and possible-type facts,
@@ -94,9 +97,9 @@ Ground-type normalization proofs should stay under
 - operation/store semantic lifts,
 - normality and non-redundancy.
 
-The top-level `GraphQL/NormalForm.lean` file should keep only the normal-form
-definitions, predicates, normalizer functions, and public correctness
-propositions.
+The public `GraphQL/Theories/NormalForm.lean` file should keep only the
+normal-form definitions, predicates, normalizer functions, and public
+correctness propositions.
 
 ## Layered Proof Modules
 
@@ -121,7 +124,7 @@ Prefer explicit imports at these layer boundaries. Do not rely on long
 transitive imports when a module directly mentions a proof layer's declarations.
 
 The ungrouped execution equivalence modules under
-`GraphQL/Algorithms/ExecutionUngrouped/Equivalence/` follow this pattern:
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/Equivalence/` follow this pattern:
 
 - `AppendSelection.lean` keeps response/key and one-step append execution facts,
   while `AppendSelection/Validity.lean` and `AppendSelection/State.lean` hold

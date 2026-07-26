@@ -10,10 +10,10 @@ def commentWidth : Nat := lineWidth
 def fileLineLimit : Nat := 1500
 
 def rootLeanFiles : List FilePath :=
-  ["GraphQL.lean", "Lint.lean"]
+  ["GraphQL.lean", "Proofs.lean", "Lint.lean"]
 
 def sourceDirs : List FilePath :=
-  ["GraphQL", "Lint"]
+  ["GraphQL", "Proofs", "Lint"]
 
 def textFiles : List FilePath :=
   ["README.md"]

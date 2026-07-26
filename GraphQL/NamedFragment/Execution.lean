@@ -1,5 +1,4 @@
 import GraphQL.Execution
-import GraphQL.Execution.SemanticEquivalence
 import GraphQL.NamedFragment.Operation
 
 /-! Fragment-aware execution for named-fragment operations. -/
