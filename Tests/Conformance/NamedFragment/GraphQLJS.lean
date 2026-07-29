@@ -34,7 +34,6 @@ def named_fragment_basic_spreadSchema : GraphQL.Schema :=
 def named_fragment_basic_spreadOperation : GraphQL.NamedFragment.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     fragmentDefinitions :=

@@ -27,7 +27,6 @@ def directives_scalar_include_falseSchema : GraphQL.Schema :=
 def directives_scalar_include_falseOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -86,7 +85,6 @@ def directives_inline_fragment_skip_falseSchema : GraphQL.Schema :=
 def directives_inline_fragment_skip_falseOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -149,7 +147,6 @@ def directives_anonymous_inline_fragment_include_variableSchema : GraphQL.Schema
 def directives_anonymous_inline_fragment_include_variableOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [{ name := "withB", typeRef := .nonNull (.named "Boolean"), defaultValue := none }],
     selectionSet :=
@@ -218,7 +215,6 @@ def directives_variable_default_trueSchema : GraphQL.Schema :=
 def directives_variable_default_trueOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [{
         name := "withB",
@@ -281,7 +277,6 @@ def directives_skip_variable_default_trueSchema : GraphQL.Schema :=
 def directives_skip_variable_default_trueOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [{
         name := "skipB",
@@ -366,7 +361,6 @@ def nested_objects_aliases_and_listsSchema : GraphQL.Schema :=
 def nested_objects_aliases_and_listsOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "DataType",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -485,7 +479,6 @@ def non_null_nested_null_bubbles_to_nullable_parentSchema : GraphQL.Schema :=
 def non_null_nested_null_bubbles_to_nullable_parentOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -562,7 +555,6 @@ def non_null_root_bubbles_to_data_nullSchema : GraphQL.Schema :=
 def non_null_root_bubbles_to_data_nullOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -620,7 +612,6 @@ def list_nullable_items_contains_nullSchema : GraphQL.Schema :=
 def list_nullable_items_contains_nullOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -681,7 +672,6 @@ def list_non_null_items_contains_nullSchema : GraphQL.Schema :=
 def list_non_null_items_contains_nullOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -742,7 +732,6 @@ def list_non_null_list_contains_nullSchema : GraphQL.Schema :=
 def list_non_null_list_contains_nullOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=
@@ -828,7 +817,6 @@ def abstract_interface_inline_fragmentsSchema : GraphQL.Schema :=
 def abstract_interface_inline_fragmentsOperation : GraphQL.Operation :=
   {
     name := none,
-    rootType := "Query",
     variableDefinitions :=
       [],
     selectionSet :=

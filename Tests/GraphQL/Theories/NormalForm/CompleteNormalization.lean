@@ -287,7 +287,6 @@ def completeFeasibilitySchema : Schema :=
 def completeFeasibilityOperation (directives : List DirectiveApplication) : Operation :=
   {
     name := some "CompleteFeasibility"
-    rootType := "Query"
     variableDefinitions := [booleanVariableDefinition "x"]
     selectionSet := [.field "value" "value" [] directives []]
   }
@@ -321,19 +320,21 @@ theorem completeFeasibilitySchema_crossTypeConditionInfeasible
 theorem completeNormalizationBooleanConditionFeasible
     : operationBoolTypeConditionFeasible completeFeasibilitySchema
         (completeFeasibilityOperation [.include (.variable "x")]) := by
+  have hqueryRoot : completeFeasibilitySchema.queryType = "Query" := by
+    rfl
   simp [operationBoolTypeConditionFeasible, completeFeasibilityOperation,
     operationBoolVars, selectionSetBooleanVariables,
     selectionBooleanVariables, directivesBooleanVariables,
     directiveBooleanVariables, inputValueBooleanVariables, dedupBoolVars,
     boolVariableMem, allBoolCases, selectionBoolTypeConditionFeasible,
     directivesAllowIn, directiveAllowsIn,
-    inputValueBoolIn?, BoolCase.lookup?,
+    inputValueBoolIn?, BoolCase.lookup?, Operation.rootType,
+    OperationType.rootType, hqueryRoot,
     completeFeasibilitySchema_queryTypeConditionFeasible]
 
 def completeNormalizationContradictoryFieldInputQuery : Operation :=
   {
     name := some "CompleteContradictoryField"
-    rootType := "Query"
     variableDefinitions := [booleanVariableDefinition "x"]
     selectionSet :=
       [
@@ -358,7 +359,6 @@ theorem completeNormalizationContradictoryFieldInfeasible
 def completeNormalizationInfeasibleTypeConditionInputQuery : Operation :=
   {
     name := some "CompleteInfeasibleTypeCondition"
-    rootType := "Query"
     variableDefinitions := []
     selectionSet :=
       [.inlineFragment (some "Other") [] [.field "value" "value" [] [] []]]
@@ -367,6 +367,8 @@ def completeNormalizationInfeasibleTypeConditionInputQuery : Operation :=
 theorem completeNormalizationTypeConditionInfeasible
     : ¬ operationBoolTypeConditionFeasible completeFeasibilitySchema
           completeNormalizationInfeasibleTypeConditionInputQuery := by
+  have hqueryRoot : completeFeasibilitySchema.queryType = "Query" := by
+    rfl
   simp [operationBoolTypeConditionFeasible,
     completeNormalizationInfeasibleTypeConditionInputQuery,
     operationBoolVars, selectionSetBooleanVariables,
@@ -374,7 +376,7 @@ theorem completeNormalizationTypeConditionInfeasible
     dedupBoolVars, allBoolCases,
     selectionBoolTypeConditionFeasible,
     selectionSetBoolTypeConditionFeasible, selectionAllowsIn,
-    directivesAllowIn,
+    directivesAllowIn, Operation.rootType, OperationType.rootType, hqueryRoot,
     completeFeasibilitySchema_crossTypeConditionInfeasible]
 
 theorem completeNormalizationDirectiveVariablesUsed

@@ -129,7 +129,7 @@ theorem inlineOperation_valid_of_inlinedSelectionSetValidWithFragments
       : GraphQL.NamedFragment.Validation.selectionSetValid schema
           (Inline.inlineOperation operation).variableDefinitions
           operation.fragmentDefinitions
-          (Inline.inlineOperation operation).rootType
+          ((Inline.inlineOperation operation).rootType schema)
           (Inline.inlineOperation operation).selectionSet)
     : GraphQL.NamedFragment.Validation.operationDefinitionValid schema
         (Inline.inlineOperation operation) := by

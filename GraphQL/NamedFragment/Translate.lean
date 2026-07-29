@@ -24,7 +24,7 @@ end
 def reduceOperation (operation : Operation) : GraphQL.Operation :=
   {
     name := operation.name
-    rootType := operation.rootType
+    operationType := operation.operationType
     variableDefinitions := operation.variableDefinitions
     selectionSet := reduceSelectionSet operation.selectionSet
   }

@@ -21,7 +21,8 @@ theorem normalizeOperation_name (schema : Schema) (operation : Operation)
   rfl
 
 theorem normalizeOperation_rootType (schema : Schema) (operation : Operation)
-    : (normalizeOperation schema operation).rootType = operation.rootType := by
+    : ((normalizeOperation schema operation).rootType schema)
+      = (operation.rootType schema) := by
   rfl
 
 theorem normalizeOperation_variableDefinitions (schema : Schema) (operation : Operation)
@@ -31,7 +32,8 @@ theorem normalizeOperation_variableDefinitions (schema : Schema) (operation : Op
 
 theorem normalizeOperation_selectionSet (schema : Schema) (operation : Operation)
     : (normalizeOperation schema operation).selectionSet
-      = normalizeSelectionSet schema operation.rootType operation.selectionSet := by
+      = normalizeSelectionSet schema (operation.rootType schema)
+          operation.selectionSet := by
   rfl
 
 theorem rootSourceAppliesBool_normalizeOperation (schema : Schema)
@@ -68,9 +70,9 @@ theorem groundTypeNormalFormSemanticsPreserved_of_executeSelectionSet
           variableValues depth (source : Execution.ResolverValue ObjectRef),
         Execution.rootSourceAppliesBool schema operation source = true
         -> Execution.executeSelectionSet schema resolvers variableValues
-              depth operation.rootType source operation.selectionSet
+              depth (operation.rootType schema) source operation.selectionSet
             = Execution.executeSelectionSet schema resolvers variableValues
-                depth (normalizeOperation schema operation).rootType source
+                depth ((normalizeOperation schema operation).rootType schema) source
                 (normalizeOperation schema operation).selectionSet)
       -> operationsEquivalent schema operation (normalizeOperation schema operation) := by
   intro hselection
@@ -113,9 +115,9 @@ theorem normalizeOperation_executeQuery (schema : Schema) (operation : Operation
           variableValues depth (source : Execution.ResolverValue ObjectRef),
         Execution.rootSourceAppliesBool schema operation source = true
         -> Execution.executeSelectionSet schema resolvers variableValues
-              depth operation.rootType source operation.selectionSet
+              depth (operation.rootType schema) source operation.selectionSet
             = Execution.executeSelectionSet schema resolvers variableValues
-                depth (normalizeOperation schema operation).rootType source
+                depth ((normalizeOperation schema operation).rootType schema) source
                 (normalizeOperation schema operation).selectionSet)
       -> operationsEquivalent schema operation (normalizeOperation schema operation) := by
   exact groundTypeNormalFormSemanticsPreserved_of_executeSelectionSet schema
@@ -131,9 +133,9 @@ theorem groundTypeNormalFormSemanticsPreservation_of_selectionSet
               (source : Execution.ResolverValue ObjectRef),
             Execution.rootSourceAppliesBool schema operation source = true
             -> Execution.executeSelectionSet schema resolvers variableValues
-                  depth operation.rootType source operation.selectionSet
+                  depth (operation.rootType schema) source operation.selectionSet
                 = Execution.executeSelectionSet schema resolvers variableValues
-                    depth (normalizeOperation schema operation).rootType source
+                    depth ((normalizeOperation schema operation).rootType schema) source
                     (normalizeOperation schema operation).selectionSet)
       -> NormalForm.groundTypeNormalFormSemanticsPreservation schema operation := by
   intro hselection hschema hvalid hfree
@@ -146,38 +148,39 @@ theorem groundTypeNormalFormSemanticsPreservation
   intro hschema hvalid hfree
   apply normalizeOperation_executeQuery schema operation
   intro ObjectRef resolvers variableValues depth source hroot
-  have hrootObject : schema.objectType operation.rootType := by
+  have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
     exact hschema.2.1
   have hobject :
-      objectTypeNameBool schema operation.rootType = true :=
+      objectTypeNameBool schema (operation.rootType schema) = true :=
     objectTypeNameBool_eq_true_of_objectType schema hrootObject
   have hsource :
       ∃ runtimeType ref,
         source = Execution.ResolverValue.object runtimeType ref
-          ∧ schema.typeIncludesObjectBool operation.rootType runtimeType =
+          ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType =
             true :=
     rootSourceAppliesBool_true_object schema operation source hroot
   have hselectionValid :
       Validation.selectionSetValid schema operation.variableDefinitions
-        operation.rootType operation.selectionSet :=
+        (operation.rootType schema) operation.selectionSet :=
     Validation.operationDefinitionValid_selectionSetValid hvalid
   have hready :
-      selectionSetSemanticsReady schema operation.rootType
+      selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions operation.rootType hschema hrootObject
+      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
       operation.selectionSet hselectionValid
   have hmerge :
-      FieldMerge.fieldsInSetCanMerge schema operation.rootType
+      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
         operation.selectionSet :=
     Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
   have hpreserved :=
     normalizeSelectionSet_executeSelectionSet schema resolvers variableValues
-      hschema depth operation.rootType source operation.selectionSet hobject
+      hschema depth (operation.rootType schema) source operation.selectionSet hobject
       hsource hfree hready hmerge
-  simpa [normalizeOperation] using hpreserved.symm
+  simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
+    hpreserved.symm
 
 end GroundTypeNormalization
 

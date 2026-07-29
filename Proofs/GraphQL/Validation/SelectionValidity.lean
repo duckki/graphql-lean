@@ -252,14 +252,14 @@ theorem selectionSetValid_field_head_lookup_none_false
 
 theorem operationDefinitionValid_rootType_eq {schema : Schema} {operation : Operation}
     : operationDefinitionValid schema operation
-      -> operation.rootType = schema.queryType := by
+      -> (operation.rootType schema) = schema.queryType := by
   intro hvalid
-  exact hvalid.1
+  simp [Operation.rootType, OperationType.rootType]
 
 theorem operationDefinitionValid_rootTypeComposite
     {schema : Schema} {operation : Operation}
     : operationDefinitionValid schema operation
-      -> schema.isCompositeType operation.rootType := by
+      -> schema.isCompositeType (operation.rootType schema) := by
   intro hvalid
   exact hvalid.2.1
 
@@ -273,8 +273,8 @@ theorem operationDefinitionValid_variableDefinitionsValid
 theorem operationDefinitionValid_selectionSetValid
     {schema : Schema} {operation : Operation}
     : operationDefinitionValid schema operation
-      -> selectionSetValid schema operation.variableDefinitions operation.rootType
-          operation.selectionSet := by
+      -> selectionSetValid schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet := by
   intro hvalid
   exact hvalid.2.2.2.2.1
 
@@ -287,7 +287,7 @@ theorem operationDefinitionValid_selectionSet_nonempty
 theorem operationDefinitionValid_fieldsInSetCanMerge
     {schema : Schema} {operation : Operation}
     : operationDefinitionValid schema operation
-      -> FieldMerge.fieldsInSetCanMerge schema operation.rootType
+      -> FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
           operation.selectionSet := by
   intro hvalid
   exact hvalid.2.2.2.2.2.1

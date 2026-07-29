@@ -19,7 +19,6 @@ def characterNameFragment : GraphQL.NamedFragment.FragmentDefinition :=
 def heroWithNamedFragment : GraphQL.NamedFragment.Operation :=
   {
     name := some "HeroWithNamedFragment"
-    rootType := "Query"
     fragmentDefinitions := [characterNameFragment]
     selectionSet :=
       [.field "mainHero" "hero" [] [] [.fragmentSpread "CharacterName" []]]
@@ -50,7 +49,6 @@ theorem executeNamedFragmentQuerySmoke
 def variableDefaultQuery : GraphQL.NamedFragment.Operation :=
   {
     name := some "VariableDefault"
-    rootType := "Query"
     variableDefinitions :=
       [{
         name := "includeName"
@@ -88,7 +86,6 @@ def transitiveVariableFragment : GraphQL.NamedFragment.FragmentDefinition :=
 def transitivelyUsedVariableOperation : GraphQL.NamedFragment.Operation :=
   {
     name := some "TransitivelyUsedVariable"
-    rootType := "Query"
     variableDefinitions :=
       [{ name := "included", typeRef := .nonNull (.named "Boolean") }]
     fragmentDefinitions := [transitiveVariableFragment, variableUsingFragment]
@@ -111,7 +108,6 @@ theorem transitivelyReferencedFragmentVariableCountsAsUsed
 def variableOnlyInUnusedFragmentOperation : GraphQL.NamedFragment.Operation :=
   {
     name := some "VariableOnlyInUnusedFragment"
-    rootType := "Query"
     variableDefinitions :=
       [{ name := "included", typeRef := .nonNull (.named "Boolean") }]
     fragmentDefinitions := [variableUsingFragment]
@@ -134,8 +130,9 @@ theorem variableOnlyInUnusedFragmentOperationRejected
   intro hvalid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      _hselectionValid, _hmerge, hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, _hselectionValid,
+      _hmerge, hvariablesUsed⟩
   exact variableUseInUnreferencedFragmentDoesNotCount hvariablesUsed
 
 def cyclicFragments : List GraphQL.NamedFragment.FragmentDefinition :=
@@ -159,7 +156,6 @@ theorem cyclicFragmentsRejectedSmoke
 def undefinedFragmentOperation : GraphQL.NamedFragment.Operation :=
   {
     name := some "UndefinedFragment"
-    rootType := "Query"
     fragmentDefinitions := []
     selectionSet :=
       [.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []]]
@@ -171,13 +167,14 @@ theorem undefinedFragmentOperationRejectedSmoke
   intro hvalid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge, _hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, hselectionValid, _hmerge,
+      _hvariablesUsed⟩
   have hrootFieldValid :
       GraphQL.NamedFragment.Validation.selectionValid Execution.sampleSchema
         undefinedFragmentOperation.variableDefinitions
         undefinedFragmentOperation.fragmentDefinitions
-        undefinedFragmentOperation.rootType
+        (undefinedFragmentOperation.rootType Execution.sampleSchema)
         (.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []]) :=
     by
       unfold GraphQL.NamedFragment.Validation.selectionSetValid at hselectionValid

@@ -589,7 +589,7 @@ structure RecursiveGroupedOperationState
   root : rootSourceAppliesBool schema operation source = true
   selectionSet
     : RecursiveGroupedSelectionSetState schema resolvers variableValues depth
-        operation.rootType source operation.selectionSet
+        (operation.rootType schema) source operation.selectionSet
 
 namespace RecursiveGroupedOperationState
 
@@ -647,12 +647,12 @@ def of_localInvariants
     (hroot : rootSourceAppliesBool schema operation source = true)
     (invariants
       : SelectionSetLocalInvariants schema resolvers variableValues depth
-          operation.rootType source operation.selectionSet)
+          (operation.rootType schema) source operation.selectionSet)
     (hchildren
       : ∀ responseName field fields prefixTail,
           (responseName, field :: fields)
             ∈ GraphQL.Execution.collectFields schema variableValues
-                operation.rootType source operation.selectionSet
+                (operation.rootType schema) source operation.selectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
@@ -668,7 +668,7 @@ def of_localInvariants
       : ∀ responseName field fields prefixTail,
           (responseName, field :: fields)
             ∈ GraphQL.Execution.collectFields schema variableValues
-                operation.rootType source operation.selectionSet
+                (operation.rootType schema) source operation.selectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
@@ -697,12 +697,12 @@ def of_localFreshPrefixInvariants
     (hroot : rootSourceAppliesBool schema operation source = true)
     (invariants
       : SelectionSetLocalFreshPrefixInvariants schema resolvers variableValues
-          depth operation.rootType source operation.selectionSet)
+          depth (operation.rootType schema) source operation.selectionSet)
     (hchildren
       : ∀ responseName field fields prefixTail,
           (responseName, field :: fields)
             ∈ GraphQL.Execution.collectFields schema variableValues
-                operation.rootType source operation.selectionSet
+                (operation.rootType schema) source operation.selectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
@@ -718,7 +718,7 @@ def of_localFreshPrefixInvariants
       : ∀ responseName field fields prefixTail,
           (responseName, field :: fields)
             ∈ GraphQL.Execution.collectFields schema variableValues
-                operation.rootType source operation.selectionSet
+                (operation.rootType schema) source operation.selectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
@@ -747,7 +747,7 @@ def of_globalInvariants
     root := hroot
     selectionSet :=
       RecursiveGroupedSelectionSetState.of_globalInvariants invariants depth
-        operation.rootType source operation.selectionSet
+        (operation.rootType schema) source operation.selectionSet
   }
 
 def of_globalFreshPrefixInvariants

@@ -302,7 +302,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_operation_canM
     (variableValues : VariableValues) (depth : Nat)
     (operation : Operation) (runtimeType : Name)
     (identity : ObjectIdentity) (initial : ResponseValue)
-    (hparentRuntime : ScopedParentRuntimeApplies schema runtimeType operation.rootType)
+    (hparentRuntime
+      : ScopedParentRuntimeApplies schema runtimeType (operation.rootType schema))
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hresolvers
       : ResolversRespectValidFieldAndArgumentEquivalence resolvers
@@ -315,14 +316,14 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_operation_canM
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := .object runtimeType identity
               selectionSet := operation.selectionSet
             }
           initial := initial
         } := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_canMerge
-    schema resolvers variableValues depth operation.rootType runtimeType
+    schema resolvers variableValues depth (operation.rootType schema) runtimeType
     identity operation.selectionSet initial operation.variableDefinitions
     hparentRuntime
   · exact Validation.operationDefinitionValid_selectionSetValid hvalid
@@ -348,7 +349,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_root_operation_canMer
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := .object runtimeType identity
               selectionSet := operation.selectionSet
             }
@@ -379,7 +380,7 @@ theorem ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := .object runtimeType identity
               selectionSet := operation.selectionSet
             }
@@ -464,7 +465,7 @@ theorem
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := .object runtimeType identity
               selectionSet := operation.selectionSet
             }
@@ -472,8 +473,8 @@ theorem
         } := by
   apply
     ExecutionCollectedFieldInvariant.of_valid_object_selectionSet_canMerge_argumentEquivalence
-      schema resolvers variableValues depth operation.rootType
-      operation.rootType runtimeType identity operation.selectionSet initial
+      schema resolvers variableValues depth (operation.rootType schema)
+      (operation.rootType schema) runtimeType identity operation.selectionSet initial
       operation.variableDefinitions
       (ScopedParentRuntimeApplies.of_rootSourceAppliesBool schema operation
         runtimeType identity hroot)
@@ -484,12 +485,13 @@ theorem OperationNoAliasCollision.of_valid_sameScopedParent
     (schema : Schema) (operation : Operation)
     : Validation.operationDefinitionValid schema operation
       -> ScopedFieldsSameResponseParent
-          (FieldMerge.collectFields schema operation.rootType operation.selectionSet)
+          (FieldMerge.collectFields schema (operation.rootType schema)
+            operation.selectionSet)
       -> OperationNoAliasCollision schema operation := by
   intro hvalid hsameParent
   unfold OperationNoAliasCollision ScopedFieldsNoAliasCollision
   exact fieldsInSetCanMerge_scoped_collectFields_fieldCompatible_of_sameParent
-    schema operation.rootType operation.selectionSet
+    schema (operation.rootType schema) operation.selectionSet
     (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
     hsameParent
 
@@ -510,7 +512,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_noAliasColl
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := source
               selectionSet := operation.selectionSet
             }
@@ -522,14 +524,14 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_noAliasColl
         resolvers := resolvers
         variableValues := variableValues
         depth := depth
-        parentType := operation.rootType
+        parentType := (operation.rootType schema)
         source := source
         selectionSet := operation.selectionSet }
       initial := initial }
     operation.variableDefinitions
   · exact Validation.operationDefinitionValid_selectionSetValid hvalid
   · exact ScopedFieldsNoAliasCollision.fieldCompatible
-      (FieldMerge.collectFields schema operation.rootType operation.selectionSet)
+      (FieldMerge.collectFields schema (operation.rootType schema) operation.selectionSet)
       hnoAlias
   · exact hresolvers
 
@@ -542,7 +544,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_sameScopedP
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hsameParent
       : ScopedFieldsSameResponseParent
-          (FieldMerge.collectFields schema operation.rootType operation.selectionSet))
+          (FieldMerge.collectFields schema (operation.rootType schema)
+            operation.selectionSet))
     (hresolvers : ResolversRespectValidFieldAndArgumentEquivalence resolvers source)
     : ExecutionValidFieldSemanticStateInvariant
         {
@@ -552,7 +555,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_sameScopedP
               resolvers := resolvers
               variableValues := variableValues
               depth := depth
-              parentType := operation.rootType
+              parentType := (operation.rootType schema)
               source := source
               selectionSet := operation.selectionSet
             }

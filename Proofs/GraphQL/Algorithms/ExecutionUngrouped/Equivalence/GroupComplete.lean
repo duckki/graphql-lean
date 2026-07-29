@@ -528,12 +528,12 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_containedAppendInvarian
     (hcollect
       : GraphQL.Execution.collectFields schema
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         = groups)
     (hflat
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          (depth + 1) operation.rootType source operation.selectionSet
+          (depth + 1) (operation.rootType schema) source operation.selectionSet
           (.object []))
     (hcollected
       : ExecutionCollectedFieldInvariant
@@ -545,13 +545,13 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_containedAppendInvarian
                 variableValues :=
                   GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
-                parentType := operation.rootType
+                parentType := (operation.rootType schema)
                 source := source
                 selectionSet := operation.selectionSet
               }
             initial := .object []
           })
-    (hlookups : CollectedGroupsFieldLookupValid schema operation.rootType groups)
+    (hlookups : CollectedGroupsFieldLookupValid schema (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupContainedAppendInvariant schema resolvers
@@ -577,12 +577,12 @@ theorem executeQuery_eq_spec_of_collected_groups_containedAppendInvariant
     (hcollect
       : GraphQL.Execution.collectFields schema
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         = groups)
     (hflat
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          (depth + 1) operation.rootType source operation.selectionSet
+          (depth + 1) (operation.rootType schema) source operation.selectionSet
           (.object []))
     (hcollected
       : ExecutionCollectedFieldInvariant
@@ -594,13 +594,13 @@ theorem executeQuery_eq_spec_of_collected_groups_containedAppendInvariant
                 variableValues :=
                   GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
-                parentType := operation.rootType
+                parentType := (operation.rootType schema)
                 source := source
                 selectionSet := operation.selectionSet
               }
             initial := .object []
           })
-    (hlookups : CollectedGroupsFieldLookupValid schema operation.rootType groups)
+    (hlookups : CollectedGroupsFieldLookupValid schema (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupContainedAppendInvariant schema resolvers

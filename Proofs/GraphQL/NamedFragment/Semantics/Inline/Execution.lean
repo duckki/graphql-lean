@@ -188,7 +188,8 @@ theorem executeQueryWithFuel_toSpec_inlineOperation
           (Translate.reduceOperation (Inline.inlineOperation operation))
           fuel source := by
   cases operation with
-  | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
+  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
+      cases operationType
       cases source with
       | null =>
           simp [Execution.executeQueryWithFuel,
@@ -210,32 +211,37 @@ theorem executeQueryWithFuel_toSpec_inlineOperation
             GraphQL.Execution.runtimeObjectType?]
       | object objectName ref =>
           by_cases hroot :
-              schema.typeIncludesObjectBool rootType objectName = true
+              schema.typeIncludesObjectBool schema.queryType objectName = true
           · simp [Execution.executeQueryWithFuel,
               Execution.rootSourceAppliesBool,
               GraphQL.Execution.executeQueryWithFuel,
               GraphQL.Execution.rootSourceAppliesBool,
               GraphQL.Execution.runtimeObjectType?,
-              Translate.reduceOperation, Inline.inlineOperation, hroot]
+              Operation.rootType, OperationType.rootType,
+              GraphQL.Operation.rootType, GraphQL.OperationType.rootType,
+              hroot]
             rw [executeRootSelectionSet_toSpec schema resolvers
               (Execution.coerceVariableValues
                 {
                   name := name
-                  rootType := rootType
                   variableDefinitions := variableDefinitions
                   fragmentDefinitions := fragmentDefinitions
                   selectionSet := selectionSet
                 }
                 variableValues)
-              fuel rootType (Execution.ResolverValue.object objectName ref)
+              fuel schema.queryType (Execution.ResolverValue.object objectName ref)
               fragmentDefinitions selectionSet]
+            simp [Execution.coerceVariableValues,
+              GraphQL.Execution.coerceVariableValues]
             rfl
           · simp [Execution.executeQueryWithFuel,
               Execution.rootSourceAppliesBool,
               GraphQL.Execution.executeQueryWithFuel,
               GraphQL.Execution.rootSourceAppliesBool,
               GraphQL.Execution.runtimeObjectType?,
-              Translate.reduceOperation, Inline.inlineOperation, hroot]
+              Operation.rootType, OperationType.rootType,
+              GraphQL.Operation.rootType, GraphQL.OperationType.rootType,
+              hroot]
 
 theorem executeQueryWithFuel_eq_spec_of_inlined
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)

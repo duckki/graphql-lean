@@ -218,15 +218,17 @@ theorem inlineOperation_fieldMerge_of_valid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     : GraphQL.NamedFragment.Validation.FieldMerge.fieldsInSetCanMerge schema
         (Inline.inlineOperation operation).fragmentDefinitions
-        (Inline.inlineOperation operation).rootType
+        ((Inline.inlineOperation operation).rootType schema)
         (Inline.inlineOperation operation).selectionSet := by
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      _hselectionValid, hmerge, _hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, _hselectionValid, hmerge,
+      _hvariablesUsed⟩
   cases operation with
-  | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
-      simp [Inline.inlineOperation]
+  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
+      cases operationType
+      simp [Inline.inlineOperation, Operation.rootType, OperationType.rootType]
       exact FieldMergeInline.fieldsInSetCanMerge_inlineSelectionSet hmerge
 
 theorem inlineOperation_fragmentSideConditions (schema : Schema) (operation : Operation)
@@ -234,15 +236,18 @@ theorem inlineOperation_fragmentSideConditions (schema : Schema) (operation : Op
         (Inline.inlineOperation operation).fragmentDefinitions
       ∧ GraphQL.NamedFragment.Validation.fragmentsAcyclic
           (Inline.inlineOperation operation).fragmentDefinitions
+      ∧ GraphQL.NamedFragment.Validation.allFragmentDefinitionsUsed
+          (Inline.inlineOperation operation)
       ∧ GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
           (Inline.inlineOperation operation).variableDefinitions
           (Inline.inlineOperation operation).fragmentDefinitions := by
   cases operation with
-  | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
+  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
       simp [Inline.inlineOperation,
         GraphQL.NamedFragment.Validation.fragmentNamesUnique,
         GraphQL.NamedFragment.Validation.fragmentsAcyclic,
         GraphQL.NamedFragment.Validation.fragmentsAcyclicBool,
+        GraphQL.NamedFragment.Validation.allFragmentDefinitionsUsed,
         GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid]
 
 theorem inlineOperation_valid_of_selectionSetValid
@@ -252,27 +257,32 @@ theorem inlineOperation_valid_of_selectionSetValid
       : GraphQL.NamedFragment.Validation.selectionSetValid schema
           (Inline.inlineOperation operation).variableDefinitions
           (Inline.inlineOperation operation).fragmentDefinitions
-          (Inline.inlineOperation operation).rootType
+          ((Inline.inlineOperation operation).rootType schema)
           (Inline.inlineOperation operation).selectionSet)
     : GraphQL.NamedFragment.Validation.operationDefinitionValid schema
         (Inline.inlineOperation operation) := by
   have hvalidOriginal := hvalid
   rcases hvalid with
-    ⟨hroot, hrootComposite, hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      _originalSelectionValid, _originalMerge, hvariablesUsed⟩
+    ⟨_hroot, hrootComposite, hvariables, _huniqueFragments,
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, _originalSelectionValid,
+      _originalMerge, hvariablesUsed⟩
   rcases inlineOperation_fragmentSideConditions schema operation with
-    ⟨hfragmentNamesUnique, hfragmentsAcyclic, hallFragmentDefinitionsValid⟩
+    ⟨hfragmentNamesUnique, hfragmentsAcyclic, hallFragmentDefinitionsUsed,
+      hallFragmentDefinitionsValid⟩
   constructor
-  · simpa [Inline.inlineOperation] using hroot
+  · simp [Inline.inlineOperation]
   constructor
-  · simpa [Inline.inlineOperation] using hrootComposite
+  · simpa [Inline.inlineOperation, Operation.rootType,
+      OperationType.rootType] using hrootComposite
   constructor
   · simpa [Inline.inlineOperation] using hvariables
   constructor
   · exact hfragmentNamesUnique
   constructor
   · exact hfragmentsAcyclic
+  constructor
+  · exact hallFragmentDefinitionsUsed
   constructor
   · exact hallFragmentDefinitionsValid
   constructor

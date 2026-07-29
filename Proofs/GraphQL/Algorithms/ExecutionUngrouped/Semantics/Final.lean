@@ -354,12 +354,14 @@ theorem executeQueryWithFuel_eq_spec_of_allFieldsNormal
     : NormalForm.selectionsAllFields operation.selectionSet
       -> NormalForm.operationDirectiveFree operation
       -> NormalForm.operationNormal schema operation
-      -> executionSelectionSetLookupValid schema operation.rootType operation.selectionSet
+      -> executionSelectionSetLookupValid schema (operation.rootType schema)
+          operation.selectionSet
       -> (∀ responseName fieldName arguments directives childSelectionSet,
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ operation.selectionSet
             -> childReady
-                ((schema.fieldReturnType? operation.rootType fieldName).getD fieldName)
+                ((schema.fieldReturnType? (operation.rootType schema) fieldName).getD
+                  fieldName)
                 childSelectionSet)
       -> executeQueryWithFuel schema resolvers variableValues operation depth source
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -372,7 +374,7 @@ theorem executeQueryWithFuel_eq_spec_of_allFieldsNormal
     rw [
       executeRootSelectionSet_eq_spec_of_allFieldsNormal schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
           childReady hchild hall hfree hnormal hlookup hchildren]
   · simp [hsource]
 
@@ -661,10 +663,11 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
     : SchemaWellFormedness.schemaWellFormed schema
       -> NormalForm.operationBoolVarsComplete operation
           (Execution.coerceVariableValues operation variableValues)
-      -> NormalForm.objectTypeNameBool schema operation.rootType = true
+      -> NormalForm.objectTypeNameBool schema (operation.rootType schema) = true
       -> (∃ runtimeType ref,
             source = .object runtimeType ref
-            ∧ schema.typeIncludesObjectBool operation.rootType runtimeType = true)
+            ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType
+              = true)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
@@ -678,7 +681,7 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
                 (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> NormalForm.selectionSetSemanticsReady schema operation.rootType
+            -> NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -686,7 +689,7 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
                 (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> FieldMerge.fieldsInSetCanMerge schema operation.rootType
+            -> FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -696,12 +699,12 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
                 (NormalForm.operationBoolVars operation)
             -> executeRootSelectionSet schema resolvers
                   (Execution.coerceVariableValues operation variableValues) depth
-                  operation.rootType source
+                  (operation.rootType schema) source
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet)
                 = Execution.executeRootSelectionSet schema resolvers
                     (Execution.coerceVariableValues operation variableValues)
-                    depth operation.rootType source
+                    depth (operation.rootType schema) source
                     (NormalForm.filterSelectionSetBoolCase runtimeCase
                       operation.selectionSet))
       -> executeQueryWithFuel schema resolvers variableValues operation depth source
@@ -713,7 +716,7 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   have hsourceObject :
       ∃ runtimeType ref,
         source = Execution.ResolverValue.object runtimeType ref
-          ∧ schema.typeIncludesObjectBool operation.rootType runtimeType =
+          ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType =
             true :=
     ⟨runtimeType, ref, hsourceEq, hinclude⟩
   have hroot :
@@ -734,19 +737,19 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   let filtered :=
     NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet
   let normalized :=
-    NormalForm.normalizeSelectionSet schema operation.rootType filtered
+    NormalForm.normalizeSelectionSet schema (operation.rootType schema) filtered
   have hfilteredRoot :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered
+          (operation.rootType schema) source filtered
         =
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source operation.selectionSet := by
+          (operation.rootType schema) source operation.selectionSet := by
     simpa [filtered] using
       executeRootSelectionSet_filterSelectionSetBoolCase_eq schema resolvers
         (Execution.coerceVariableValues operation variableValues) operation
-        runtimeCase hagrees depth operation.rootType
+        runtimeCase hagrees depth (operation.rootType schema)
         source operation.selectionSet
         (by
           intro varName hmem
@@ -754,24 +757,24 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   have hfilteredSpec :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered
+          (operation.rootType schema) source filtered
         =
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered := by
+          (operation.rootType schema) source filtered := by
     simpa [filtered] using hsourceSpec runtimeCase hruntime hagrees
   have hgroundSpec :
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized
+          (operation.rootType schema) source normalized
         =
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered := by
+          (operation.rootType schema) source filtered := by
     simpa [Execution.executeSelectionSet, filtered, normalized] using
       NormalForm.GroundTypeNormalization.normalizeSelectionSet_executeSelectionSet
         schema resolvers (Execution.coerceVariableValues operation variableValues)
-        hschema depth operation.rootType source
+        hschema depth (operation.rootType schema) source
         filtered hobject hsourceObject
         (hfree runtimeCase hruntime hagrees)
         (hready runtimeCase hruntime hagrees)
@@ -779,38 +782,38 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   have hnormalizedSpec :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized
+          (operation.rootType schema) source normalized
         =
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized := by
+          (operation.rootType schema) source normalized := by
     simpa [filtered, normalized] using
       executeRootSelectionSet_eq_spec_of_normalizeSelectionSet schema
         resolvers (Execution.coerceVariableValues operation variableValues)
-        depth operation.rootType source filtered
+        depth (operation.rootType schema) source filtered
         hschema hobject (hfree runtimeCase hruntime hagrees)
   have hcompleteRoot :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source
+          (operation.rootType schema) source
           (NormalForm.completeNormalizeOperation schema operation).selectionSet
         =
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized := by
+          (operation.rootType schema) source normalized := by
     simpa [NormalForm.completeNormalizeOperation, filtered, normalized] using
       executeRootSelectionSet_completeNormalizeRootSelectionSet_runtime schema
         resolvers (Execution.coerceVariableValues operation variableValues)
-        operation depth operation.rootType source
+        operation depth (operation.rootType schema) source
         runtimeCase operation.selectionSet hruntime hagrees
   have hrootResult :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         =
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source
+          (operation.rootType schema) source
           (NormalForm.completeNormalizeOperation schema operation).selectionSet :=
     hfilteredRoot.symm.trans
       (hfilteredSpec.trans
@@ -819,7 +822,8 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   unfold executeQueryWithFuel
   simp only [hroot, hrootComplete, ↓reduceIte]
   rw [hrootResult]
-  simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation]
+  simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation,
+    Operation.rootType, OperationType.rootType]
 
 theorem
     executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_recursiveGroupedStates
@@ -829,10 +833,11 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> NormalForm.operationBoolVarsComplete operation
           (Execution.coerceVariableValues operation variableValues)
-      -> NormalForm.objectTypeNameBool schema operation.rootType = true
+      -> NormalForm.objectTypeNameBool schema (operation.rootType schema) = true
       -> (∃ runtimeType ref,
             source = .object runtimeType ref
-            ∧ schema.typeIncludesObjectBool operation.rootType runtimeType = true)
+            ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType
+              = true)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
@@ -846,7 +851,7 @@ theorem
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
                 (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> NormalForm.selectionSetSemanticsReady schema operation.rootType
+            -> NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -854,7 +859,7 @@ theorem
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
                 (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> FieldMerge.fieldsInSetCanMerge schema operation.rootType
+            -> FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -864,7 +869,7 @@ theorem
                 (NormalForm.operationBoolVars operation)
             -> RecursiveGroupedSelectionSetState schema resolvers
                 (Execution.coerceVariableValues operation variableValues) depth
-                operation.rootType source
+                (operation.rootType schema) source
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
@@ -887,12 +892,14 @@ theorem executeQueryWithFuel_eq_spec_of_generatedNormalOperation
       -> NormalForm.selectionsAllFields operation.selectionSet
       -> NormalForm.operationDirectiveFree operation
       -> NormalForm.operationNormal schema operation
-      -> executionSelectionSetLookupValid schema operation.rootType operation.selectionSet
+      -> executionSelectionSetLookupValid schema (operation.rootType schema)
+          operation.selectionSet
       -> (∀ responseName fieldName arguments directives childSelectionSet,
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ operation.selectionSet
             -> generatedNormalizedFieldChild schema
-                ((schema.fieldReturnType? operation.rootType fieldName).getD fieldName)
+                ((schema.fieldReturnType? (operation.rootType schema) fieldName).getD
+                  fieldName)
                 childSelectionSet)
       -> executeQueryWithFuel schema resolvers variableValues operation depth source
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -936,20 +943,22 @@ theorem executeQueryWithFuel_normalizeOperation_eq_spec
     depth source hschema
   · simpa [NormalForm.normalizeOperation] using
       NormalForm.GroundTypeNormalization.normalizeSelectionSet_allFields
-        schema operation.rootType operation.selectionSet
+        schema (operation.rootType schema) operation.selectionSet
   · exact hnormalizedFree
   · exact
       NormalForm.GroundTypeNormalization.normalizeOperation_normal schema
         operation hschema hvalid
-  · simpa [NormalForm.normalizeOperation] using
+  · simpa [NormalForm.normalizeOperation, Operation.rootType,
+      OperationType.rootType] using
       executionSelectionSetLookupValid_normalizeSelectionSet schema
-        operation.rootType operation.selectionSet
+        (operation.rootType schema) operation.selectionSet
   · intro responseName fieldName arguments directives childSelectionSet hmem
     exact
       (by
-        simpa [NormalForm.normalizeOperation] using
+        simpa [NormalForm.normalizeOperation, Operation.rootType,
+          OperationType.rootType] using
           normalizeSelectionSet_field_child_generated schema
-            operation.rootType operation.selectionSet responseName fieldName
+            (operation.rootType schema) operation.selectionSet responseName fieldName
             arguments directives childSelectionSet hfree
             (by simpa [NormalForm.normalizeOperation] using hmem))
 
@@ -960,10 +969,10 @@ theorem executeQueryWithFuel_eq_spec_of_executeRootSelectionSet_eq
     (depth : Nat) (source : Execution.ResolverValue ObjectRef)
     : executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         = Execution.executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source operation.selectionSet
+            (operation.rootType schema) source operation.selectionSet
       -> executeQueryWithFuel schema resolvers variableValues operation depth source
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               depth source := by
@@ -982,7 +991,7 @@ theorem executeQueryWithFuel_eq_spec_depth_zero
     (source : Execution.ResolverValue ObjectRef)
     : CollectedSelectionSetGroupsSingleton schema
         (Execution.coerceVariableValues operation variableValues)
-        operation.rootType source operation.selectionSet
+        (operation.rootType schema) source operation.selectionSet
       -> executeQueryWithFuel schema resolvers variableValues operation 0 source
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               0 source := by
@@ -994,7 +1003,7 @@ theorem executeQueryWithFuel_eq_spec_depth_zero
          selectionSet :=
           ExecutedGroupedSelectionSetState.depth_zero schema resolvers
             (Execution.coerceVariableValues operation variableValues)
-            operation.rootType source operation.selectionSet
+            (operation.rootType schema) source operation.selectionSet
             hsingletons } :
         ExecutedGroupedOperationState schema resolvers
           (Execution.coerceVariableValues operation variableValues) operation 0
@@ -1017,7 +1026,7 @@ theorem executeQueryWithFuel_eq_spec_depth_zero_general
          selectionSet :=
           ExecutedGroupedSelectionSetState.depth_zero_general schema resolvers
             (Execution.coerceVariableValues operation variableValues)
-            operation.rootType source operation.selectionSet } :
+            (operation.rootType schema) source operation.selectionSet } :
         ExecutedGroupedOperationState schema resolvers
           (Execution.coerceVariableValues operation variableValues) operation 0
           source).executeQueryWithFuel_eq_spec
@@ -1035,34 +1044,34 @@ theorem executeRootSelectionSet_completeNormalizeOperation_eq_spec_of_runtime_bo
           variableValues runtimeCase
           (NormalForm.operationBoolVars operation)
       -> executeRootSelectionSet schema resolvers variableValues depth
-            operation.rootType source
-            (NormalForm.normalizeSelectionSet schema operation.rootType
+            (operation.rootType schema) source
+            (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
               (NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet))
           = Execution.executeRootSelectionSet schema resolvers variableValues depth
-              operation.rootType source
-              (NormalForm.normalizeSelectionSet schema operation.rootType
+              (operation.rootType schema) source
+              (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> executeRootSelectionSet schema resolvers variableValues depth
-            operation.rootType source
+            (operation.rootType schema) source
             (NormalForm.completeNormalizeOperation schema operation).selectionSet
           = Execution.executeRootSelectionSet schema resolvers variableValues depth
-              operation.rootType source
+              (operation.rootType schema) source
               (NormalForm.completeNormalizeOperation schema operation).selectionSet := by
   intro hruntime hagrees hbody
   have hungrouped :
       executeRootSelectionSet schema resolvers variableValues depth
-          operation.rootType source
+          (operation.rootType schema) source
           (NormalForm.completeNormalizeOperation schema operation).selectionSet
         =
       executeRootSelectionSet schema resolvers variableValues depth
-          operation.rootType source
-          (NormalForm.normalizeSelectionSet schema operation.rootType
+          (operation.rootType schema) source
+          (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
             (NormalForm.filterSelectionSetBoolCase runtimeCase
               operation.selectionSet)) := by
     have hvisit :=
       visitSubfields_completeNormalizeRootSelectionSet_runtime schema
-        resolvers variableValues operation depth operation.rootType source
+        resolvers variableValues operation depth (operation.rootType schema) source
         runtimeCase operation.selectionSet (Execution.ResponseValue.object [])
         hruntime hagrees
     let toRootResult :
@@ -1079,18 +1088,18 @@ theorem executeRootSelectionSet_completeNormalizeOperation_eq_spec_of_runtime_bo
     exact congrArg toRootResult hvisit
   have hspec :
       Execution.executeRootSelectionSet schema resolvers variableValues depth
-          operation.rootType source
+          (operation.rootType schema) source
           (NormalForm.completeNormalizeOperation schema operation).selectionSet
         =
       Execution.executeRootSelectionSet schema resolvers variableValues depth
-          operation.rootType source
-          (NormalForm.normalizeSelectionSet schema operation.rootType
+          (operation.rootType schema) source
+          (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
             (NormalForm.filterSelectionSetBoolCase runtimeCase
               operation.selectionSet)) := by
     simpa [Execution.executeSelectionSet,
       NormalForm.completeNormalizeOperation] using
       NormalForm.CompleteNormalization.executeSelectionSet_completeNormalizeRootSelectionSet_runtime
-        schema resolvers variableValues operation depth operation.rootType
+        schema resolvers variableValues operation depth (operation.rootType schema)
         source runtimeCase operation.selectionSet hruntime hagrees
   exact hungrouped.trans (hbody.trans hspec.symm)
 
@@ -1106,13 +1115,13 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_spec_of_runtime_body
           (NormalForm.operationBoolVars operation)
       -> executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source
-            (NormalForm.normalizeSelectionSet schema operation.rootType
+            (operation.rootType schema) source
+            (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
               (NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet))
           = Execution.executeRootSelectionSet schema resolvers
               (Execution.coerceVariableValues operation variableValues) depth
-              operation.rootType source
-              (NormalForm.normalizeSelectionSet schema operation.rootType
+              (operation.rootType schema) source
+              (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> executeQueryWithFuel schema resolvers variableValues
@@ -1123,7 +1132,8 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_spec_of_runtime_body
   intro hruntime hagrees hbody
   apply executeQueryWithFuel_eq_spec_of_executeRootSelectionSet_eq
   simpa [Execution.coerceVariableValues,
-    NormalForm.completeNormalizeOperation] using
+    NormalForm.completeNormalizeOperation, Operation.rootType,
+    OperationType.rootType] using
     executeRootSelectionSet_completeNormalizeOperation_eq_spec_of_runtime_body
       schema operation resolvers
       (Execution.coerceVariableValues operation variableValues) depth source runtimeCase
@@ -1137,7 +1147,7 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_spec
     : SchemaWellFormedness.schemaWellFormed schema
       -> NormalForm.operationBoolVarsComplete operation
           (Execution.coerceVariableValues operation variableValues)
-      -> NormalForm.objectTypeNameBool schema operation.rootType = true
+      -> NormalForm.objectTypeNameBool schema (operation.rootType schema) = true
       -> executeQueryWithFuel schema resolvers variableValues
             (NormalForm.completeNormalizeOperation schema operation) depth source
           = Execution.executeQueryWithFuel schema resolvers variableValues
@@ -1154,7 +1164,7 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_spec
     hagrees
   apply executeRootSelectionSet_eq_spec_of_normalizeSelectionSet schema resolvers
     (Execution.coerceVariableValues operation variableValues) depth
-    operation.rootType source
+    (operation.rootType schema) source
     (NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet)
     hschema hobject
   exact NormalForm.CompleteNormalization.filterSelectionSetBoolCase_directiveFree
@@ -1168,7 +1178,7 @@ theorem specExecution_eq_ungroupedExecution_of_completeNormalizeOperation
     : SchemaWellFormedness.schemaWellFormed schema
       -> NormalForm.operationBoolVarsComplete operation
           (Execution.coerceVariableValues operation variableValues)
-      -> NormalForm.objectTypeNameBool schema operation.rootType = true
+      -> NormalForm.objectTypeNameBool schema (operation.rootType schema) = true
       -> Execution.executeQueryWithFuel schema resolvers variableValues
             (NormalForm.completeNormalizeOperation schema operation) depth source
           = executeQueryWithFuel schema resolvers variableValues
@@ -1192,12 +1202,12 @@ theorem executeQueryWithFuel_completeNormalizeOperation_semanticsPreserved
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               depth source := by
   intro hschema hvalid hcomplete
-  have hrootObject : schema.objectType operation.rootType := by
+  have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
     exact hschema.2.1
   have hrootObjectBool :
-      NormalForm.objectTypeNameBool schema operation.rootType = true :=
+      NormalForm.objectTypeNameBool schema (operation.rootType schema) = true :=
     NormalForm.GroundTypeNormalization.objectTypeNameBool_eq_true_of_objectType
       schema hrootObject
   have hcompleteUngrouped :
@@ -1247,10 +1257,10 @@ theorem executeQueryWithFuel_responseEquivalent_of_rootSelectionResult
       -> RootSelectionResultDataAndErrorPresenceEquivalent
           (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source operation.selectionSet)
+            (operation.rootType schema) source operation.selectionSet)
           (Execution.executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source operation.selectionSet)
+            (operation.rootType schema) source operation.selectionSet)
       -> responseDataAndErrorPresenceEquivalent
           (executeQueryWithFuel schema resolvers variableValues operation depth source)
           (Execution.executeQueryWithFuel schema resolvers variableValues
@@ -1263,11 +1273,11 @@ theorem executeQueryWithFuel_responseEquivalent_of_rootSelectionResult
   cases hleft :
       executeRootSelectionSet schema resolvers
         (Execution.coerceVariableValues operation variableValues) depth
-        operation.rootType source operation.selectionSet <;>
+        (operation.rootType schema) source operation.selectionSet <;>
     cases hright :
       Execution.executeRootSelectionSet schema resolvers
         (Execution.coerceVariableValues operation variableValues) depth
-        operation.rootType source operation.selectionSet <;>
+        (operation.rootType schema) source operation.selectionSet <;>
     simp [hroot, hleft, hright, responseDataAndErrorPresenceEquivalent,
       Execution.selectionSetResultToResponse, rootSelectionResultData,
       resultErrorCount] at hdata hzero hpositive ⊢
@@ -1284,10 +1294,10 @@ theorem executeQueryWithFuel_responseEquivalent_of_ungroupedRootSelectionResult
       -> RootSelectionResultDataAndErrorPresenceEquivalent
           (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues leftOperation variableValues) depth
-            leftOperation.rootType source leftOperation.selectionSet)
+            (leftOperation.rootType schema) source leftOperation.selectionSet)
           (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues rightOperation variableValues) depth
-            rightOperation.rootType source rightOperation.selectionSet)
+            (rightOperation.rootType schema) source rightOperation.selectionSet)
       -> responseDataAndErrorPresenceEquivalent
           (executeQueryWithFuel schema resolvers variableValues leftOperation
             depth source)
@@ -1301,11 +1311,11 @@ theorem executeQueryWithFuel_responseEquivalent_of_ungroupedRootSelectionResult
   cases hleft :
       executeRootSelectionSet schema resolvers
         (Execution.coerceVariableValues leftOperation variableValues) depth
-        leftOperation.rootType source leftOperation.selectionSet <;>
+        (leftOperation.rootType schema) source leftOperation.selectionSet <;>
     cases hright :
       executeRootSelectionSet schema resolvers
         (Execution.coerceVariableValues rightOperation variableValues) depth
-        rightOperation.rootType source rightOperation.selectionSet <;>
+        (rightOperation.rootType schema) source rightOperation.selectionSet <;>
     simp [hleftRoot, hrightRoot, hleft, hright,
       responseDataAndErrorPresenceEquivalent,
       Execution.selectionSetResultToResponse, rootSelectionResultData,
@@ -1321,10 +1331,11 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> NormalForm.operationBoolVarsComplete operation
           (Execution.coerceVariableValues operation variableValues)
-      -> NormalForm.objectTypeNameBool schema operation.rootType = true
+      -> NormalForm.objectTypeNameBool schema (operation.rootType schema) = true
       -> (∃ runtimeType ref,
             source = .object runtimeType ref
-            ∧ schema.typeIncludesObjectBool operation.rootType runtimeType = true)
+            ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType
+              = true)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
@@ -1340,7 +1351,7 @@ theorem
                 (Execution.coerceVariableValues operation variableValues)
                 runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> NormalForm.selectionSetSemanticsReady schema operation.rootType
+            -> NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -1349,7 +1360,7 @@ theorem
                 (Execution.coerceVariableValues operation variableValues)
                 runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> FieldMerge.fieldsInSetCanMerge schema operation.rootType
+            -> FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
                 (NormalForm.filterSelectionSetBoolCase runtimeCase
                   operation.selectionSet))
       -> (∀ runtimeCase,
@@ -1361,12 +1372,12 @@ theorem
             -> RootSelectionResultDataAndErrorPresenceEquivalent
                 (executeRootSelectionSet schema resolvers
                   (Execution.coerceVariableValues operation variableValues) depth
-                  operation.rootType source
+                  (operation.rootType schema) source
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet))
                 (Execution.executeRootSelectionSet schema resolvers
                   (Execution.coerceVariableValues operation variableValues) depth
-                  operation.rootType source
+                  (operation.rootType schema) source
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet)))
       -> responseDataAndErrorPresenceEquivalent
@@ -1379,7 +1390,7 @@ theorem
   have hsourceObject :
       ∃ runtimeType ref,
         source = Execution.ResolverValue.object runtimeType ref
-          ∧ schema.typeIncludesObjectBool operation.rootType runtimeType =
+          ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType =
             true :=
     ⟨runtimeType, ref, hsourceEq, hinclude⟩
   have hroot :
@@ -1400,19 +1411,19 @@ theorem
   let filtered :=
     NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet
   let normalized :=
-    NormalForm.normalizeSelectionSet schema operation.rootType filtered
+    NormalForm.normalizeSelectionSet schema (operation.rootType schema) filtered
   have hfilteredRoot :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered
+          (operation.rootType schema) source filtered
         =
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source operation.selectionSet := by
+          (operation.rootType schema) source operation.selectionSet := by
     simpa [filtered] using
       executeRootSelectionSet_filterSelectionSetBoolCase_eq schema resolvers
         (Execution.coerceVariableValues operation variableValues) operation
-        runtimeCase hagrees depth operation.rootType
+        runtimeCase hagrees depth (operation.rootType schema)
         source operation.selectionSet
         (by
           intro varName hmem
@@ -1421,62 +1432,62 @@ theorem
       RootSelectionResultDataAndErrorPresenceEquivalent
         (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source filtered)
+            (operation.rootType schema) source filtered)
         (Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered) := by
+          (operation.rootType schema) source filtered) := by
     simpa [filtered] using hsourceRoot runtimeCase hruntime hagrees
   have hgroundSpec :
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized
+          (operation.rootType schema) source normalized
         =
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source filtered := by
+          (operation.rootType schema) source filtered := by
     simpa [Execution.executeSelectionSet, filtered, normalized] using
       NormalForm.GroundTypeNormalization.normalizeSelectionSet_executeSelectionSet
         schema resolvers
         (Execution.coerceVariableValues operation variableValues) hschema depth
-        operation.rootType source filtered hobject hsourceObject
+        (operation.rootType schema) source filtered hobject hsourceObject
         (hfree runtimeCase hruntime hagrees)
         (hready runtimeCase hruntime hagrees)
         (hmerge runtimeCase hruntime hagrees)
   have hnormalizedSpec :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized
+          (operation.rootType schema) source normalized
         =
       Execution.executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized := by
+          (operation.rootType schema) source normalized := by
     simpa [filtered, normalized] using
       executeRootSelectionSet_eq_spec_of_normalizeSelectionSet schema
         resolvers (Execution.coerceVariableValues operation variableValues)
-        depth operation.rootType source filtered
+        depth (operation.rootType schema) source filtered
         hschema hobject (hfree runtimeCase hruntime hagrees)
   have hcompleteRoot :
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source
+          (operation.rootType schema) source
           (NormalForm.completeNormalizeOperation schema operation).selectionSet
         =
       executeRootSelectionSet schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType source normalized := by
+          (operation.rootType schema) source normalized := by
     simpa [NormalForm.completeNormalizeOperation, filtered, normalized] using
       executeRootSelectionSet_completeNormalizeRootSelectionSet_runtime schema
         resolvers (Execution.coerceVariableValues operation variableValues)
-        operation depth operation.rootType source runtimeCase
+        operation depth (operation.rootType schema) source runtimeCase
         operation.selectionSet hruntime hagrees
   have hrootResult :
       RootSelectionResultDataAndErrorPresenceEquivalent
         (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source operation.selectionSet)
+            (operation.rootType schema) source operation.selectionSet)
         (executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType source
+            (operation.rootType schema) source
             (NormalForm.completeNormalizeOperation schema operation).selectionSet) :=
     RootSelectionResultDataAndErrorPresenceEquivalent.trans
       (RootSelectionResultDataAndErrorPresenceEquivalent.of_eq
@@ -1495,7 +1506,8 @@ theorem
       schema operation (NormalForm.completeNormalizeOperation schema operation)
       resolvers variableValues depth source hroot hrootComplete
   simpa [Execution.coerceVariableValues,
-    NormalForm.completeNormalizeOperation] using hrootResult
+    NormalForm.completeNormalizeOperation, Operation.rootType,
+    OperationType.rootType] using hrootResult
 
 theorem ungroupedExecutionPreservesSpecExecution_proof
     (schema : Schema) (operation : Operation)
@@ -1504,26 +1516,26 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
     hcomplete
   by_cases hroot :
       Execution.rootSourceAppliesBool schema operation source = true
-  · have hrootObject : schema.objectType operation.rootType :=
+  · have hrootObject : schema.objectType (operation.rootType schema) :=
       by
         have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
         rw [hrootEq]
         exact hschema.2.1
     have hoperationReady :
-        NormalForm.selectionSetSemanticsReady schema operation.rootType
+        NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
           operation.selectionSet :=
       NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
-        operation.variableDefinitions operation.rootType hschema hrootObject
+        operation.variableDefinitions (operation.rootType schema) hschema hrootObject
         operation.selectionSet
         (Validation.operationDefinitionValid_selectionSetValid hvalid)
     have hobjectBool :
-        NormalForm.objectTypeNameBool schema operation.rootType = true :=
+        NormalForm.objectTypeNameBool schema (operation.rootType schema) = true :=
       NormalForm.GroundTypeNormalization.objectTypeNameBool_eq_true_of_objectType
         schema hrootObject
     have hsourceObject :
         ∃ runtimeType ref,
           source = Execution.ResolverValue.object runtimeType ref
-            ∧ schema.typeIncludesObjectBool operation.rootType runtimeType =
+            ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType =
               true :=
       NormalForm.GroundTypeNormalization.rootSourceAppliesBool_true_object
         schema operation source hroot
@@ -1545,7 +1557,7 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
       · intro runtimeCase _hruntime _hagrees
         exact
           NormalForm.CompleteNormalization.selectionSetSemanticsReady_filterSelectionSetBoolCase
-            schema runtimeCase operation.rootType operation.selectionSet
+            schema runtimeCase (operation.rootType schema) operation.selectionSet
             hoperationReady
       · intro runtimeCase _hruntime _hagrees
         exact
@@ -1555,18 +1567,18 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
       · intro runtimeCase _hruntime _hagrees
         rcases hsourceObject with ⟨runtimeType, ref, hsourceEq, hinclude⟩
         have hparentRuntime :
-            ScopedParentRuntimeApplies schema runtimeType operation.rootType :=
+            ScopedParentRuntimeApplies schema runtimeType (operation.rootType schema) :=
           ScopedParentRuntimeApplies.of_typeIncludesObjectBool schema runtimeType
-            operation.rootType hinclude
+            (operation.rootType schema) hinclude
         have hfilteredReady :
-            NormalForm.selectionSetSemanticsReady schema operation.rootType
+            NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
               (NormalForm.filterSelectionSetBoolCase runtimeCase
                 operation.selectionSet) :=
           NormalForm.CompleteNormalization.selectionSetSemanticsReady_filterSelectionSetBoolCase
-            schema runtimeCase operation.rootType operation.selectionSet
+            schema runtimeCase (operation.rootType schema) operation.selectionSet
             hoperationReady
         have hfilteredMerge :
-            FieldMerge.fieldsInSetCanMerge schema operation.rootType
+            FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
               (NormalForm.filterSelectionSetBoolCase runtimeCase
                 operation.selectionSet) :=
           NormalForm.CompleteNormalization.fieldsInSetCanMerge_filterSelectionSetBoolCase_forSemantics
@@ -1576,7 +1588,7 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
           executedGroupedSelectionSetAlignedState_of_selectionSetSemanticsReady_object
             schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType runtimeType ref
+            (operation.rootType schema) runtimeType ref
             (NormalForm.filterSelectionSetBoolCase runtimeCase
               operation.selectionSet)
             hschema hrootObject hparentRuntime hfilteredReady hfilteredMerge
@@ -1657,12 +1669,12 @@ theorem
     (hcollect
       : Execution.collectFields schema
           (Execution.coerceVariableValues operation variableValues)
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         = groups)
     (hflat
       : VisitSubfieldsFlatCollects schema resolvers
           (Execution.coerceVariableValues operation variableValues) (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+          (operation.rootType schema) source operation.selectionSet (.object []))
     (hcollected
       : ExecutionCollectedFieldInvariant
           {
@@ -1673,13 +1685,13 @@ theorem
                 variableValues :=
                   Execution.coerceVariableValues operation variableValues
                 depth := depth
-                parentType := operation.rootType
+                parentType := (operation.rootType schema)
                 source := source
                 selectionSet := operation.selectionSet
               }
             initial := .object []
           })
-    (hlookups : CollectedGroupsFieldLookupValid schema operation.rootType groups)
+    (hlookups : CollectedGroupsFieldLookupValid schema (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers
@@ -1950,12 +1962,14 @@ theorem completeNormalizationPreservesUngroupedExecution_of_generatedNormalOpera
       -> NormalForm.selectionsAllFields operation.selectionSet
       -> NormalForm.operationDirectiveFree operation
       -> NormalForm.operationNormal schema operation
-      -> executionSelectionSetLookupValid schema operation.rootType operation.selectionSet
+      -> executionSelectionSetLookupValid schema (operation.rootType schema)
+          operation.selectionSet
       -> (∀ responseName fieldName arguments directives childSelectionSet,
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ operation.selectionSet
             -> generatedNormalizedFieldChild schema
-                ((schema.fieldReturnType? operation.rootType fieldName).getD fieldName)
+                ((schema.fieldReturnType? (operation.rootType schema) fieldName).getD
+                  fieldName)
                 childSelectionSet)
       -> executeQueryWithFuel schema resolvers variableValues operation depth source
           = executeQueryWithFuel schema resolvers variableValues
@@ -1987,22 +2001,22 @@ theorem completeNormalizationPreservesUngroupedExecution_of_normalizeOperation
               (NormalForm.completeNormalizeOperation schema
                 (NormalForm.normalizeOperation schema operation)) depth source := by
   intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
-  have hrootObject : schema.objectType operation.rootType := by
+  have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
     exact hschema.2.1
   have hready :
-      NormalForm.selectionSetSemanticsReady schema operation.rootType
+      NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions operation.rootType hschema hrootObject
+      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
       operation.selectionSet
       (Validation.operationDefinitionValid_selectionSetValid hvalid)
   have hnormalizedNonempty :
-      NormalForm.normalizeSelectionSet schema operation.rootType
+      NormalForm.normalizeSelectionSet schema (operation.rootType schema)
         operation.selectionSet ≠ [] :=
     NormalForm.GroundTypeNormalization.normalizeSelectionSet_ne_nil_of_everyNormalizerScope
-      schema hfeasibleAll operation.rootType operation.selectionSet hrootObject
+      schema hfeasibleAll (operation.rootType schema) operation.selectionSet hrootObject
       hready (Validation.operationDefinitionValid_selectionSet_nonempty hvalid)
   have hnormalizedValid :
       Validation.operationDefinitionValid schema
@@ -2044,22 +2058,22 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
           = Execution.executeQueryWithFuel schema resolvers variableValues operation
               depth source := by
   intro hschema hvalid hfields hfree hfeasibleAll hvariablesUsed
-  have hrootObject : schema.objectType operation.rootType := by
+  have hrootObject : schema.objectType (operation.rootType schema) := by
     have hrootEq := Validation.operationDefinitionValid_rootType_eq hvalid
     rw [hrootEq]
     exact hschema.2.1
   have hready :
-      NormalForm.selectionSetSemanticsReady schema operation.rootType
+      NormalForm.selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     NormalForm.selectionSetSemanticsReady_of_selectionSetValid_object schema
-      operation.variableDefinitions operation.rootType hschema hrootObject
+      operation.variableDefinitions (operation.rootType schema) hschema hrootObject
       operation.selectionSet
       (Validation.operationDefinitionValid_selectionSetValid hvalid)
   have hnormalizedNonempty :
-      NormalForm.normalizeSelectionSet schema operation.rootType
+      NormalForm.normalizeSelectionSet schema (operation.rootType schema)
         operation.selectionSet ≠ [] :=
     NormalForm.GroundTypeNormalization.normalizeSelectionSet_ne_nil_of_everyNormalizerScope
-      schema hfeasibleAll operation.rootType operation.selectionSet hrootObject
+      schema hfeasibleAll (operation.rootType schema) operation.selectionSet hrootObject
       hready (Validation.operationDefinitionValid_selectionSet_nonempty hvalid)
   have hnormalizedValid :
       Validation.operationDefinitionValid schema

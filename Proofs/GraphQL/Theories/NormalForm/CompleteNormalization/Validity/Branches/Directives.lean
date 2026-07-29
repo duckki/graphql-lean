@@ -205,7 +205,7 @@ theorem directiveForBit_directivesValid_of_operationBoolVars
       Validation.directiveIfArgumentValid schema operation.variableDefinitions
         (.variable varName) :=
     directiveIfArgumentValid_of_selectionSetBooleanVariables schema
-      operation.variableDefinitions varName operation.rootType
+      operation.variableDefinitions varName (operation.rootType schema)
       operation.selectionSet hsourceMem
       (Validation.operationDefinitionValid_selectionSetValid hvalid)
   constructor

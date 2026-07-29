@@ -159,13 +159,16 @@ theorem strictTypeConditionFeasibilitySmoke
       groundTypingSchema.lookupField "Query" "hero"
         = some (objectFieldDefinition "hero" "Human") := by
     rfl
+  have hqueryRoot : groundTypingSchema.queryType = "Query" := by
+    rfl
   simp [operationTypeConditionFeasible, selectionSetTypeConditionFeasible,
     selectionTypeConditionFeasible, typeConditionStackFeasible,
     allBranchesFeasibleAbstractFieldInputQuery, abstractFieldInputQuery,
-    nonOverlappingInlineFragmentInputQuery, rootType,
+    nonOverlappingInlineFragmentInputQuery, Operation.rootType,
+    OperationType.rootType,
     objectFieldDefinition, operationWith,
     TypeRef.namedType,
-    hqueryPossible, hcharacterPossible, hhumanPossible, hdroidPossible,
+    hqueryRoot, hqueryPossible, hcharacterPossible, hhumanPossible, hdroidPossible,
     hsearchLookup, hheroLookup]
 
 def abstractFieldEmptyGroundBranchInputQuery : Operation :=

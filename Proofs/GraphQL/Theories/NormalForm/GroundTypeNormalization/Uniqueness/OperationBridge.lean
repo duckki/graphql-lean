@@ -14,11 +14,11 @@ namespace GroundTypeNormalization
 
 theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
     {schema : Schema} {left right : Operation}
-    : left.rootType = right.rootType
+    : (left.rootType schema) = (right.rootType schema)
       -> selectionSetDirectiveFree left.selectionSet
       -> selectionSetDirectiveFree right.selectionSet
       -> operationsSemanticallyEquivalent schema left right
-      -> selectionSetsSemanticallyEquivalent schema left.rootType
+      -> selectionSetsSemanticallyEquivalent schema (left.rootType schema)
           left.selectionSet right.selectionSet := by
   intro hroot hleftFree hrightFree hsem ObjectRef resolvers variableValues fuel
     source hsource
@@ -28,7 +28,7 @@ theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
     simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
       hsourceEq, hinclude]
   have hrightInclude :
-      schema.typeIncludesObjectBool right.rootType runtimeType = true := by
+      schema.typeIncludesObjectBool (right.rootType schema) runtimeType = true := by
     simpa [← hroot] using hinclude
   have hrightRoot :
       Execution.rootSourceAppliesBool schema right source = true := by
@@ -38,10 +38,10 @@ theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
       Execution.Response.semanticEquivalent
         (Execution.executeSelectionSetAsResponse schema resolvers
           (Execution.coerceVariableValues left variableValues) fuel
-          left.rootType source left.selectionSet)
+          (left.rootType schema) source left.selectionSet)
         (Execution.executeSelectionSetAsResponse schema resolvers
           (Execution.coerceVariableValues right variableValues) fuel
-          left.rootType source right.selectionSet) := by
+          (left.rootType schema) source right.selectionSet) := by
     simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
       Execution.executeSelectionSetAsResponse,
       Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
@@ -50,23 +50,23 @@ theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
   have hleftValues :=
     CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
       schema resolvers variableValues
-      (Execution.coerceVariableValues left variableValues) fuel left.rootType
+      (Execution.coerceVariableValues left variableValues) fuel (left.rootType schema)
       source left.selectionSet hleftFree
   have hrightValues :=
     CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
       schema resolvers variableValues
-      (Execution.coerceVariableValues right variableValues) fuel left.rootType
+      (Execution.coerceVariableValues right variableValues) fuel (left.rootType schema)
       source right.selectionSet hrightFree
   simpa [Execution.executeSelectionSetAsResponse, hleftValues, hrightValues] using
     heffective
 
 theorem selectionSetsDataEquivalent_of_operationsSemanticallyEquivalent
     {schema : Schema} {left right : Operation}
-    : left.rootType = right.rootType
+    : (left.rootType schema) = (right.rootType schema)
       -> selectionSetDirectiveFree left.selectionSet
       -> selectionSetDirectiveFree right.selectionSet
       -> operationsSemanticallyEquivalent schema left right
-      -> selectionSetsDataEquivalent schema left.rootType
+      -> selectionSetsDataEquivalent schema (left.rootType schema)
           left.selectionSet right.selectionSet := by
   intro hroot hleftFree hrightFree hsem
   exact selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
@@ -77,7 +77,7 @@ theorem operation_rootType_eq_of_operationDefinitionValid
     {schema : Schema} {left right : Operation}
     : Validation.operationDefinitionValid schema left
       -> Validation.operationDefinitionValid schema right
-      -> left.rootType = right.rootType := by
+      -> (left.rootType schema) = (right.rootType schema) := by
   intro hleft hright
   rw [Validation.operationDefinitionValid_rootType_eq hleft,
     Validation.operationDefinitionValid_rootType_eq hright]
@@ -86,11 +86,11 @@ theorem operation_root_objectTypeNameBool_of_wf_valid
     {schema : Schema} {operation : Operation}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
-      -> objectTypeNameBool schema operation.rootType = true := by
+      -> objectTypeNameBool schema (operation.rootType schema) = true := by
   intro hschema hvalid
-  have hroot : operation.rootType = schema.queryType :=
+  have hroot : (operation.rootType schema) = schema.queryType :=
     Validation.operationDefinitionValid_rootType_eq hvalid
-  have hrootObject : schema.objectType operation.rootType := by
+  have hrootObject : schema.objectType (operation.rootType schema) := by
     simpa [hroot] using hschema.2.1
   exact objectTypeNameBool_eq_true_of_objectType_forNormality schema
     hrootObject
@@ -103,24 +103,27 @@ theorem operationsEqualUpToReordering_of_selectionSet
       -> operationsEqualUpToReordering left right := by
   intro hleft hright hselectionSet
   exact
-    ⟨operation_rootType_eq_of_operationDefinitionValid hleft hright,
+    ⟨by
+      cases left.operationType
+      cases right.operationType
+      rfl,
       hselectionSet⟩
 
 theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_selectionSet
     {schema : Schema} {left right : Operation}
     : normalSelectionSetsSemanticallyEquivalentEqualUpToReordering schema
-        left.rootType left.selectionSet right.selectionSet
+        (left.rootType schema) left.selectionSet right.selectionSet
       -> normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
   intro hselection hschema hleftValid hrightValid hleftFree hrightFree
     hleftNormal hrightNormal hsem
   have hroot :
-      left.rootType = right.rootType :=
+      (left.rootType schema) = (right.rootType schema) :=
     operation_rootType_eq_of_operationDefinitionValid hleftValid hrightValid
   have hrightSelectionNormal :
-      selectionSetNormal schema left.rootType right.selectionSet := by
+      selectionSetNormal schema (left.rootType schema) right.selectionSet := by
     simpa [operationNormal, hroot] using hrightNormal
   have hselectionSem :
-      selectionSetsSemanticallyEquivalent schema left.rootType
+      selectionSetsSemanticallyEquivalent schema (left.rootType schema)
         left.selectionSet right.selectionSet :=
     selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
       hroot hleftFree hrightFree hsem
@@ -135,24 +138,24 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_selectio
 theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_selectionSet
     {schema : Schema} {left right : Operation}
     : validNormalSelectionSetsSemanticallyEquivalentEqualUpToReordering schema
-        left.variableDefinitions right.variableDefinitions left.rootType
+        left.variableDefinitions right.variableDefinitions (left.rootType schema)
         left.selectionSet right.selectionSet
       -> normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
   intro hselection hschema hleftValid hrightValid hleftFree hrightFree
     hleftNormal hrightNormal hsem
   have hroot :
-      left.rootType = right.rootType :=
+      (left.rootType schema) = (right.rootType schema) :=
     operation_rootType_eq_of_operationDefinitionValid hleftValid hrightValid
   have hrightSelectionValid :
       Validation.selectionSetValid schema right.variableDefinitions
-        left.rootType right.selectionSet := by
+        (left.rootType schema) right.selectionSet := by
     simpa [hroot] using
       Validation.operationDefinitionValid_selectionSetValid hrightValid
   have hrightSelectionNormal :
-      selectionSetNormal schema left.rootType right.selectionSet := by
+      selectionSetNormal schema (left.rootType schema) right.selectionSet := by
     simpa [operationNormal, hroot] using hrightNormal
   have hselectionSem :
-      selectionSetsSemanticallyEquivalent schema left.rootType
+      selectionSetsSemanticallyEquivalent schema (left.rootType schema)
         left.selectionSet right.selectionSet :=
     selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
       hroot hleftFree hrightFree hsem
@@ -170,47 +173,47 @@ theorem
     normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_data_separates
     {schema : Schema} {left right : Operation}
     : (SchemaWellFormedness.schemaWellFormed schema
-        -> Validation.selectionSetValid schema left.variableDefinitions left.rootType
-            left.selectionSet
-        -> Validation.selectionSetValid schema right.variableDefinitions left.rootType
-            right.selectionSet
+        -> Validation.selectionSetValid schema left.variableDefinitions
+            (left.rootType schema) left.selectionSet
+        -> Validation.selectionSetValid schema right.variableDefinitions
+            (left.rootType schema) right.selectionSet
         -> selectionSetDirectiveFree left.selectionSet
         -> selectionSetDirectiveFree right.selectionSet
-        -> selectionSetNormal schema left.rootType left.selectionSet
-        -> selectionSetNormal schema left.rootType right.selectionSet
-        -> objectTypeNameBool schema left.rootType = true
-        -> NormalSelectionSetDiff schema left.rootType left.selectionSet
+        -> selectionSetNormal schema (left.rootType schema) left.selectionSet
+        -> selectionSetNormal schema (left.rootType schema) right.selectionSet
+        -> objectTypeNameBool schema (left.rootType schema) = true
+        -> NormalSelectionSetDiff schema (left.rootType schema) left.selectionSet
             right.selectionSet
-        -> ¬ selectionSetsDataEquivalent schema left.rootType left.selectionSet
+        -> ¬ selectionSetsDataEquivalent schema (left.rootType schema) left.selectionSet
               right.selectionSet)
       -> normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
   intro hdiffSeparates hschema hleftValid hrightValid hleftFree hrightFree
     hleftNormal hrightNormal hsem
   have hroot :
-      left.rootType = right.rootType :=
+      (left.rootType schema) = (right.rootType schema) :=
     operation_rootType_eq_of_operationDefinitionValid hleftValid hrightValid
   have hrightSelectionValid :
       Validation.selectionSetValid schema right.variableDefinitions
-        left.rootType right.selectionSet := by
+        (left.rootType schema) right.selectionSet := by
     simpa [hroot] using
       Validation.operationDefinitionValid_selectionSetValid hrightValid
   have hrightSelectionNormal :
-      selectionSetNormal schema left.rootType right.selectionSet := by
+      selectionSetNormal schema (left.rootType schema) right.selectionSet := by
     simpa [operationNormal, hroot] using hrightNormal
   have hobject :
-      objectTypeNameBool schema left.rootType = true :=
+      objectTypeNameBool schema (left.rootType schema) = true :=
     operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid
   by_cases hequal :
       SelectionSetEqualUpToReordering left.selectionSet right.selectionSet
   · exact operationsEqualUpToReordering_of_selectionSet hleftValid hrightValid
       hequal
   · have hdiff :
-        NormalSelectionSetDiff schema left.rootType left.selectionSet
+        NormalSelectionSetDiff schema (left.rootType schema) left.selectionSet
           right.selectionSet :=
       normalSelectionSetDiff_of_not_equalUpToReordering hleftFree hrightFree
         hleftNormal hrightSelectionNormal hequal
     have hdata :
-        selectionSetsDataEquivalent schema left.rootType left.selectionSet
+        selectionSetsDataEquivalent schema (left.rootType schema) left.selectionSet
           right.selectionSet :=
       selectionSetsDataEquivalent_of_operationsSemanticallyEquivalent
         hroot hleftFree hrightFree hsem

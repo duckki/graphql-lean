@@ -8,9 +8,9 @@ Spec reference: GraphQL September 2025.
   syntax is represented structurally, with aliases encoded as `responseName`.
 - 2.10-2.13 Values, Variables, Type References, and Directives: variables and only the
   built-in executable directives `@skip` and `@include` are modeled.
-- Fidelity note: named fragment definitions and fragment spreads are intentionally out of
-  scope. This keeps the core closer to GraphCoQL's query fragment and avoids a separate
-  fragment-expansion semantic layer.
+- Layering note: this core operation syntax is fragment-free. Named fragment definitions
+  and fragment spreads live in `GraphQL.NamedFragment` and can be translated to this core
+  surface after inlining.
 -/
 
 namespace GraphQL
@@ -54,36 +54,6 @@ inductive DirectiveApplication where
   | include (ifArgument : InputValue)
 deriving Repr
 
-namespace DirectiveApplication
-
--- Spec 3.13.1/3.13.2 directive runtime meaning: partial; faithful only for statically
--- known Boolean literals, not variables.
-def allows : DirectiveApplication -> Prop
-  | .skip ifArgument => ifArgument.staticBoolean? = some false
-  | .include ifArgument => ifArgument.staticBoolean? = some true
-
--- Spec 3.13.1/3.13.2 directive runtime meaning: partial; variables are treated as false
--- here and handled more faithfully by `Execution.directiveAllowsSelectionBool`.
-def allowsBool : DirectiveApplication -> Bool
-  | .skip ifArgument =>
-      match ifArgument.staticBoolean? with
-      | some value => !value
-      | none => false
-  | .include ifArgument =>
-      match ifArgument.staticBoolean? with
-      | some value => value
-      | none => false
-
-end DirectiveApplication
-
--- Spec 3.13.1/3.13.2 directive runtime meaning lifted to directive lists.
-def directivesAllow (directives : List DirectiveApplication) : Prop :=
-  ∀ directive, directive ∈ directives -> directive.allows
-
--- Boolean counterpart to `directivesAllow`.
-def directivesAllowBool (directives : List DirectiveApplication) : Bool :=
-  directives.all (fun directive => directive.allowsBool)
-
 -- Spec 2.5 `SelectionSet`, 2.6 `Field`, 2.8 `Alias`, and 2.9.2 `InlineFragment`:
 -- partial; source grammar, named fragment spreads, and custom directives are omitted,
 -- aliases are precomputed into response names.
@@ -100,15 +70,36 @@ inductive Selection where
     (selectionSet : List Selection)
 deriving Repr
 
--- Spec 2.4 `OperationDefinition`: partial; operation kind and document-level operation
--- selection are omitted, with `rootType` standing in for the selected root operation
--- type.
+-- Spec 2.4 `OperationType`: scoped to query operations for now.
+inductive OperationType where
+  | query
+deriving Repr, DecidableEq
+
+namespace OperationType
+
+-- Spec 3.3.1 root operation type lookup, restricted to `query`.
+def rootType (operationType : OperationType) (schema : Schema) : Name :=
+  match operationType with
+  | .query => schema.queryType
+
+end OperationType
+
+-- Spec 2.4 `OperationDefinition`: partial; document-level operation selection and
+-- mutation/subscription operation kinds are omitted.
 structure Operation where
   name : Option Name := none
-  rootType : Name
+  operationType : OperationType := .query
   variableDefinitions : List VariableDefinition := []
   selectionSet : List Selection
 deriving Repr
+
+namespace Operation
+
+-- Spec 3.3.1 root operation type lookup for the operation's kind.
+def rootType (operation : Operation) (schema : Schema) : Name :=
+  operation.operationType.rootType schema
+
+end Operation
 
 mutual
   -- Non-spec structural metric used by recursive operation transformations.

@@ -1132,13 +1132,13 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
     : completeNormalizeOperationNormal schema operation := by
   intro hschema hvalid
   have hrootEq :
-      operation.rootType = schema.queryType :=
+      (operation.rootType schema) = schema.queryType :=
     Validation.operationDefinitionValid_rootType_eq hvalid
   have hrootObject :
-      schema.objectType operation.rootType := by
+      schema.objectType (operation.rootType schema) := by
     simpa [hrootEq] using hschema.2.1
   have hrootObjectBool :
-      objectTypeNameBool schema operation.rootType = true :=
+      objectTypeNameBool schema (operation.rootType schema) = true :=
     GroundTypeNormalization.objectTypeNameBool_eq_true_of_objectType_forNormality
       schema hrootObject
   unfold completeNormalizeOperation
@@ -1146,13 +1146,13 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
   | nil =>
       simp
       let normalizedSelectionSet :=
-        completeNormalizeRootSelectionSet schema [] operation.rootType
+        completeNormalizeRootSelectionSet schema [] (operation.rootType schema)
           operation.selectionSet
       have hrootNormal :
-          completeNormalSelectionSet schema [] operation.rootType
+          completeNormalSelectionSet schema [] (operation.rootType schema)
             normalizedSelectionSet :=
         completeNormalizeRootSelectionSet_normal_nil schema hschema
-          operation.rootType operation.selectionSet normalizedSelectionSet
+          (operation.rootType schema) operation.selectionSet normalizedSelectionSet
           hrootObjectBool rfl
       have hnormalizedFree :
           selectionSetDirectiveFree normalizedSelectionSet := by
@@ -1166,7 +1166,12 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
         simp [selectionSetDirectiveFree_booleanVariables_nil
           normalizedSelectionSet hnormalizedFree, dedupBoolVars]
       unfold completeNormalOperation
-      simpa [normalizedSelectionSet, hnormalizedVars] using hrootNormal
+      change completeNormalSelectionSet schema
+        (operationBoolVars { operation with selectionSet := normalizedSelectionSet })
+        (({ operation with selectionSet := normalizedSelectionSet }).rootType schema)
+        normalizedSelectionSet
+      rw [hnormalizedVars]
+      simpa [Operation.rootType, OperationType.rootType] using hrootNormal
   | cons varName variables =>
       simp
       have hsourceVarsNodup : (varName :: variables).Nodup := by
@@ -1177,21 +1182,28 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
         simpa [hvariables] using hopVarsNodup
       let normalizedSelectionSet :=
         completeNormalizeRootSelectionSet schema (varName :: variables)
-          operation.rootType operation.selectionSet
+          (operation.rootType schema) operation.selectionSet
       have hrootNormal :
           completeNormalSelectionSet schema (varName :: variables)
-            operation.rootType normalizedSelectionSet :=
+            (operation.rootType schema) normalizedSelectionSet :=
         completeNormalizeRootSelectionSet_normal_cons schema hschema
-          varName variables hsourceVarsNodup operation.rootType
+          varName variables hsourceVarsNodup (operation.rootType schema)
           operation.selectionSet normalizedSelectionSet hrootObjectBool rfl
       by_cases hnormalizedEmpty : normalizedSelectionSet = []
       · unfold completeNormalOperation operationBoolVars
+        have hnormalizedEmptyRoot :
+            completeNormalizeRootSelectionSet schema (varName :: variables)
+                schema.queryType operation.selectionSet =
+              [] := by
+          simpa [normalizedSelectionSet, Operation.rootType,
+            OperationType.rootType] using hnormalizedEmpty
         simp [completeNormalSelectionSet, selectionSetNormal,
-          selectionSetGroundTyped, selectionsAllFields, hrootObjectBool,
+          selectionSetGroundTyped, selectionsAllFields,
           selectionSetNonRedundant, responseNamesNodup,
           inlineFragmentTypeConditionsNodup, selectionSetBooleanVariables,
-          selectionSetDirectiveFree, dedupBoolVars,
-          normalizedSelectionSet, hnormalizedEmpty]
+          selectionSetDirectiveFree, selectionsAllInlineFragments,
+          dedupBoolVars, Operation.rootType, OperationType.rootType,
+          hnormalizedEmptyRoot]
       · have hnormalizedVarsNodup :
             (operationBoolVars
               { operation with selectionSet := normalizedSelectionSet }).Nodup := by

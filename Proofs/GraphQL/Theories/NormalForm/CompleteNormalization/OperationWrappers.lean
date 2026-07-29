@@ -13,7 +13,8 @@ namespace CompleteNormalization
 variable {ObjectRef : Type}
 
 theorem completeNormalizeOperation_rootType (schema : Schema) (operation : Operation)
-    : (completeNormalizeOperation schema operation).rootType = operation.rootType := by
+    : (completeNormalizeOperation schema operation).rootType schema
+      = (operation.rootType schema) := by
   rfl
 
 theorem completeNormalizeOperation_name (schema : Schema) (operation : Operation)
@@ -29,7 +30,7 @@ theorem completeNormalizeOperation_variableDefinitions
 theorem completeNormalizeOperation_selectionSet (schema : Schema) (operation : Operation)
     : (completeNormalizeOperation schema operation).selectionSet
       = completeNormalizeRootSelectionSet schema (operationBoolVars operation)
-          operation.rootType operation.selectionSet := by
+          (operation.rootType schema) operation.selectionSet := by
   rfl
 
 theorem completeNormalizeOperation_rootSourceAppliesBool (schema : Schema)
@@ -49,9 +50,9 @@ theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
             operationBoolVarsComplete operation variableValues
             -> Execution.rootSourceAppliesBool schema operation source = true
             -> Execution.executeSelectionSet schema resolvers variableValues depth
-                  operation.rootType source operation.selectionSet
+                  (operation.rootType schema) source operation.selectionSet
                 = Execution.executeSelectionSet schema resolvers variableValues depth
-                    operation.rootType source
+                    (operation.rootType schema) source
                     (completeNormalizeOperation schema operation).selectionSet)
       -> SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
@@ -82,8 +83,8 @@ theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
         simpa [completeNormalizeOperation_rootSourceAppliesBool
           schema operation source] using hroot
       have hnormalizedRootType :
-          (completeNormalizeOperation schema operation).rootType =
-            operation.rootType :=
+          (completeNormalizeOperation schema operation).rootType schema =
+            (operation.rootType schema) :=
         completeNormalizeOperation_rootType schema operation
       have hselectionEq :=
         hselection hschema hvalid resolvers
@@ -92,10 +93,10 @@ theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
       have hrootSelectionEq :
           Execution.executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues)
-            depth operation.rootType source operation.selectionSet =
+            depth (operation.rootType schema) source operation.selectionSet =
           Execution.executeRootSelectionSet schema resolvers
             (Execution.coerceVariableValues operation variableValues)
-            depth operation.rootType source
+            depth (operation.rootType schema) source
             (completeNormalizeOperation schema operation).selectionSet := by
         simpa [Execution.executeSelectionSet] using hselectionEq
       have hcoercedValues :
@@ -116,9 +117,9 @@ theorem completeNormalizationSemanticsPreserved_of_selectionSet
             operationBoolVarsComplete operation variableValues
             -> Execution.rootSourceAppliesBool schema operation source = true
             -> Execution.executeSelectionSet schema resolvers variableValues depth
-                  operation.rootType source operation.selectionSet
+                  (operation.rootType schema) source operation.selectionSet
                 = Execution.executeSelectionSet schema resolvers variableValues depth
-                    operation.rootType source
+                    (operation.rootType schema) source
                     (completeNormalizeOperation schema operation).selectionSet)
       -> completeNormalizationSemanticsPreserved schema operation := by
   intro hselection hschema hvalid ObjectRef resolvers variableValues depth

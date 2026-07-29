@@ -269,7 +269,8 @@ def rootSourceAppliesBool
     (source : ResolverValue ObjectRef)
     : Bool :=
   match GraphQL.Execution.runtimeObjectType? source with
-  | some objectName => schema.typeIncludesObjectBool operation.rootType objectName
+  | some objectName =>
+      schema.typeIncludesObjectBool (operation.rootType schema) objectName
   | none => false
 
 def executeQueryWithFuel
@@ -281,7 +282,7 @@ def executeQueryWithFuel
   if rootSourceAppliesBool schema operation source then
     let completed :=
       executeRootSelectionSet schema resolvers coercedVariableValues
-        fuel operation.rootType source operation.fragmentDefinitions
+        fuel (operation.rootType schema) source operation.fragmentDefinitions
         operation.selectionSet
     match completed with
     | .error errors => { data := .null, errors := errors }

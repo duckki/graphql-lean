@@ -2238,15 +2238,15 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
                 (NormalForm.operationBoolVars operation)
             -> visitSubfields schema resolvers
                   (Execution.coerceVariableValues operation variableValues)
-                  depth operation.rootType
+                  depth (operation.rootType schema)
                   source
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet)
                   (Execution.ResponseValue.object [])
                 = visitSubfields schema resolvers
                     (Execution.coerceVariableValues operation variableValues) depth
-                    operation.rootType source
-                    (NormalForm.normalizeSelectionSet schema operation.rootType
+                    (operation.rootType schema) source
+                    (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
                       (NormalForm.filterSelectionSetBoolCase runtimeCase
                         operation.selectionSet))
                     (Execution.ResponseValue.object []))
@@ -2268,20 +2268,20 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
     have hvisit :
         visitSubfields schema resolvers
             (Execution.coerceVariableValues operation variableValues) depth
-            operation.rootType
+            (operation.rootType schema)
             source operation.selectionSet (Execution.ResponseValue.object [])
           =
         visitSubfields schema resolvers
           (Execution.coerceVariableValues operation variableValues) depth
-          operation.rootType
+          (operation.rootType schema)
           source
           (NormalForm.completeNormalizeRootSelectionSet schema
-            (NormalForm.operationBoolVars operation) operation.rootType
+            (NormalForm.operationBoolVars operation) (operation.rootType schema)
             operation.selectionSet)
           (Execution.ResponseValue.object []) :=
       visitSubfields_completeNormalizeRootSelectionSet_eq_of_filter_normalization
         schema resolvers (Execution.coerceVariableValues operation variableValues)
-        operation depth operation.rootType
+        operation depth (operation.rootType schema)
         source runtimeCase operation.selectionSet (Execution.ResponseValue.object [])
         hruntime hagrees
         (by
@@ -2291,7 +2291,8 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
     simp only [↓reduceIte]
     simp only [executeRootSelectionSet]
     rw [hvisit]
-    simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation]
+    simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation,
+      Operation.rootType, OperationType.rootType]
 
 theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_freshPlanNormalizes
     (schema : Schema) (operation : Operation)
@@ -2307,9 +2308,9 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_freshPlanNo
                 (NormalForm.operationBoolVars operation)
             -> SelectionSetFreshPlanNormalizes schema resolvers
                 (Execution.coerceVariableValues operation variableValues) depth
-                operation.rootType source
+                (operation.rootType schema) source
                 (NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet)
-                (NormalForm.normalizeSelectionSet schema operation.rootType
+                (NormalForm.normalizeSelectionSet schema (operation.rootType schema)
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet)))
       -> executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source

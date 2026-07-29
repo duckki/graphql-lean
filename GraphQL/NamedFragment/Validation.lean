@@ -46,6 +46,31 @@ def fragmentsAcyclicBool (fragments : List FragmentDefinition) : Bool :=
 def fragmentsAcyclic (fragments : List FragmentDefinition) : Prop :=
   fragmentsAcyclicBool fragments = true
 
+def fragmentSpreadNameReachableFromSelectionSetBool (fragments : List FragmentDefinition)
+    : Nat -> List Name -> Name -> Bool
+  | 0, _frontier, _target => false
+  | fuel + 1, frontier, target =>
+      frontier.any (fun name => name == target)
+      || frontier.any
+          (fun name =>
+            match GraphQL.NamedFragment.lookupFragment? fragments name with
+            | none => false
+            | some fragment =>
+                fragmentSpreadNameReachableFromSelectionSetBool fragments fuel
+                  (selectionSetFragmentSpreadNames fragment.selectionSet) target)
+
+def fragmentDefinitionUsed (operation : Operation) (fragment : FragmentDefinition)
+    : Prop :=
+  fragmentSpreadNameReachableFromSelectionSetBool operation.fragmentDefinitions
+    operation.fragmentDefinitions.length
+    (selectionSetFragmentSpreadNames operation.selectionSet)
+    fragment.name
+  = true
+
+def allFragmentDefinitionsUsed (operation : Operation) : Prop :=
+  ∀ fragment,
+    fragment ∈ operation.fragmentDefinitions -> fragmentDefinitionUsed operation fragment
+
 mutual
   -- Spec 5.8.4 variable uses in an operation scope. Following a fragment spread
   -- removes the found definition just as inlining does, so this traversal is
@@ -307,18 +332,19 @@ def fieldsInSetCanMerge (schema : Schema)
 end FieldMerge
 
 def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
-  operation.rootType = schema.queryType
-  ∧ schema.isCompositeType operation.rootType
+  operation.operationType = .query
+  ∧ schema.isCompositeType (operation.rootType schema)
   ∧ GraphQL.Validation.variableDefinitionsValid schema operation.variableDefinitions
   ∧ fragmentNamesUnique operation.fragmentDefinitions
   ∧ fragmentsAcyclic operation.fragmentDefinitions
+  ∧ allFragmentDefinitionsUsed operation
   ∧ allFragmentDefinitionsValid schema operation.variableDefinitions
       operation.fragmentDefinitions
   ∧ operation.selectionSet ≠ []
   ∧ selectionSetValid schema operation.variableDefinitions
-      operation.fragmentDefinitions operation.rootType operation.selectionSet
+      operation.fragmentDefinitions (operation.rootType schema) operation.selectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema operation.fragmentDefinitions
-      operation.rootType operation.selectionSet
+      (operation.rootType schema) operation.selectionSet
   ∧ operationVariablesUsed operation
 
 end Validation

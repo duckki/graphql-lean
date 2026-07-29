@@ -17,12 +17,16 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : normalOperationsEqualUpToReorderingSemanticallyEquivalent schema left right := by
   intro hleftFree hrightFree hleftNormal hrightNormal hequal
-  rcases hequal with ⟨hroot, hselectionEqual⟩
+  rcases hequal with ⟨_hroot, hselectionEqual⟩
+  have hrootType : (left.rootType schema) = (right.rootType schema) := by
+    cases left.operationType
+    cases right.operationType
+    rfl
   have hrightSelectionNormal :
-      selectionSetNormal schema left.rootType right.selectionSet := by
-    simpa [operationNormal, hroot] using hrightNormal
+    selectionSetNormal schema (left.rootType schema) right.selectionSet := by
+    simpa [operationNormal, hrootType] using hrightNormal
   have hselectionSem :
-      selectionSetsSemanticallyEquivalent schema left.rootType
+      selectionSetsSemanticallyEquivalent schema (left.rootType schema)
         left.selectionSet right.selectionSet :=
     selectionSetsSemanticallyEquivalent_of_equalUpToReordering
       hleftFree hrightFree hleftNormal hrightSelectionNormal hselectionEqual
@@ -30,7 +34,7 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
-    simp [Execution.rootSourceAppliesBool, hroot]
+    simp [Execution.rootSourceAppliesBool, hrootType]
   cases hleftRoot : Execution.rootSourceAppliesBool schema left source with
   | false =>
       have hrightRoot :
@@ -49,12 +53,12 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
       have hleftValues :=
         CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
           schema resolvers variableValues
-          (Execution.coerceVariableValues left variableValues) fuel left.rootType
+          (Execution.coerceVariableValues left variableValues) fuel (left.rootType schema)
           source left.selectionSet hleftFree
       have hrightValues :=
         CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
           schema resolvers variableValues
-          (Execution.coerceVariableValues right variableValues) fuel left.rootType
+          (Execution.coerceVariableValues right variableValues) fuel (left.rootType schema)
           source right.selectionSet hrightFree
       have hselectionResponse :=
         hselectionSem resolvers variableValues fuel source hsource
@@ -62,7 +66,7 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
       rw [hleftValues, hrightValues] at hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
         Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hroot] using hselectionResponse
+        Execution.executeSelectionSet, hrootType] using hselectionResponse
 
 theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}

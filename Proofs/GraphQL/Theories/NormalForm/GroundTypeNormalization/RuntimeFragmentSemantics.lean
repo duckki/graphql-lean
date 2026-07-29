@@ -165,7 +165,8 @@ theorem rootSourceAppliesBool_true_object (schema : Schema) (operation : Operati
     : Execution.rootSourceAppliesBool schema operation source = true
       -> ∃ runtimeType ref,
           source = .object runtimeType ref
-          ∧ schema.typeIncludesObjectBool operation.rootType runtimeType = true := by
+          ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType
+            = true := by
     intro hroot
     cases source with
     | null =>

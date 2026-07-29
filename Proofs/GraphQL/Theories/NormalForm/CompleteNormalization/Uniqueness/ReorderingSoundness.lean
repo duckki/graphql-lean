@@ -261,8 +261,12 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
   have hvariables :=
     operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering
       hequal
-  rcases hequal with ⟨hroot, hselectionEqual⟩
-  have hselectionSem : selectionSetsSemanticallyEquivalent schema left.rootType
+  rcases hequal with ⟨_hroot, hselectionEqual⟩
+  have hrootType : (left.rootType schema) = (right.rootType schema) := by
+    cases left.operationType
+    cases right.operationType
+    rfl
+  have hselectionSem : selectionSetsSemanticallyEquivalent schema (left.rootType schema)
       left.selectionSet right.selectionSet := by
     cases hleftVars : operationBoolVars left with
     | nil =>
@@ -275,8 +279,8 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
         simp [completeNormalOperation, completeNormalSelectionSet, hrightVars]
           at hrightShape
         have hrightSelectionNormal :
-            selectionSetNormal schema left.rootType right.selectionSet := by
-          simpa only [hroot] using hrightShape.1
+            selectionSetNormal schema (left.rootType schema) right.selectionSet := by
+          simpa only [hrootType] using hrightShape.1
         have hselectionEqualGround :
             SelectionSetEqualUpToReordering left.selectionSet
               right.selectionSet := by
@@ -294,11 +298,11 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
             simp [hrightVars] at hleftVarRight
         | cons rightVar rightVariables =>
             have hleftComplete : completeNormalSelectionSet schema
-                (leftVar :: leftVariables) left.rootType left.selectionSet := by
+                (leftVar :: leftVariables) (left.rootType schema) left.selectionSet := by
               simpa [completeNormalOperation, hleftVars] using hleftNormal
             have hrightComplete : completeNormalSelectionSet schema
-                (rightVar :: rightVariables) left.rootType right.selectionSet := by
-              simpa [completeNormalOperation, hrightVars, hroot] using
+                (rightVar :: rightVariables) (left.rootType schema) right.selectionSet := by
+              simpa [completeNormalOperation, hrightVars, hrootType] using
                 hrightNormal
             have hselectionEqualComplete :
                 CompleteNormalSelectionSetEqualUpToReordering
@@ -322,7 +326,7 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
-    simp [Execution.rootSourceAppliesBool, hroot]
+    simp [Execution.rootSourceAppliesBool, hrootType]
   cases hleftRoot : Execution.rootSourceAppliesBool schema left source with
   | false =>
       have hrightRoot :
@@ -342,7 +346,7 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
         hcoercedValues,
         Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hroot] using
+        Execution.executeSelectionSet, hrootType] using
           hselectionSem resolvers
             (Execution.coerceVariableValues left variableValues)
             fuel source hsource

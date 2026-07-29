@@ -950,7 +950,7 @@ def ScopedFieldsNoAliasCollision (fields : List FieldMerge.ScopedField) : Prop :
 
 def OperationNoAliasCollision (schema : Schema) (operation : Operation) : Prop :=
   ScopedFieldsNoAliasCollision
-    (FieldMerge.collectFields schema operation.rootType operation.selectionSet)
+    (FieldMerge.collectFields schema (operation.rootType schema) operation.selectionSet)
 
 def ScopedFieldRuntimeApplies
     (schema : Schema) (runtimeType : Name)
@@ -966,7 +966,7 @@ theorem ScopedParentRuntimeApplies.of_rootSourceAppliesBool
     (schema : Schema) (operation : Operation)
     (runtimeType : Name) (identity : ObjectIdentity)
     : rootSourceAppliesBool schema operation (.object runtimeType identity) = true
-      -> ScopedParentRuntimeApplies schema runtimeType operation.rootType := by
+      -> ScopedParentRuntimeApplies schema runtimeType (operation.rootType schema) := by
   intro hroot
   simpa [ScopedParentRuntimeApplies, rootSourceAppliesBool, runtimeObjectType?]
     using hroot
@@ -1040,9 +1040,9 @@ theorem OperationNoAliasCollision.prefix_selection
     : OperationNoAliasCollision schema operation
       -> operation.selectionSet = prefixSelections ++ selection :: suffix
       -> ScopedFieldsNoAliasCollision
-          (FieldMerge.collectFields schema operation.rootType [selection]) := by
+          (FieldMerge.collectFields schema (operation.rootType schema) [selection]) := by
   intro hnoAlias hselectionSet
-  exact ScopedFieldsNoAliasCollision.prefix_selection schema operation.rootType
+  exact ScopedFieldsNoAliasCollision.prefix_selection schema (operation.rootType schema)
     operation.selectionSet prefixSelections suffix selection hnoAlias
     hselectionSet
 
@@ -1053,12 +1053,12 @@ structure ValidOperationPrefixSelectionState
     : Prop where
   selectionValid
     : Validation.selectionValid schema operation.variableDefinitions
-        operation.rootType selection
+        (operation.rootType schema) selection
   fieldsInSetCanMerge
-    : FieldMerge.fieldsInSetCanMerge schema operation.rootType [selection]
+    : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) [selection]
   noAlias
     : ScopedFieldsNoAliasCollision
-        (FieldMerge.collectFields schema operation.rootType [selection])
+        (FieldMerge.collectFields schema (operation.rootType schema) [selection])
 
 theorem ValidOperationPrefixSelectionState.of_valid_noAlias
     (schema : Schema) (operation : Operation)
@@ -1071,22 +1071,22 @@ theorem ValidOperationPrefixSelectionState.of_valid_noAlias
   exact
     { selectionValid :=
         by
-          have hselSet : Validation.selectionSetValid schema operation.variableDefinitions operation.rootType (prefixSelections ++ selection :: suffix) := by
+          have hselSet : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
             rw [← hselectionSet]
             exact Validation.operationDefinitionValid_selectionSetValid hvalid
-          have hright : Validation.selectionSetValid schema operation.variableDefinitions operation.rootType (selection :: suffix) :=
+          have hright : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (selection :: suffix) :=
             Validation.selectionSetValid_append_right hselSet
           exact (by
             simp [Validation.selectionSetValid] at hright
             exact hright.1)
       fieldsInSetCanMerge :=
         by
-          have hmergeAll : FieldMerge.fieldsInSetCanMerge schema operation.rootType (prefixSelections ++ selection :: suffix) := by
+          have hmergeAll : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
             rw [← hselectionSet]
             exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
-          have hright : FieldMerge.fieldsInSetCanMerge schema operation.rootType (selection :: suffix) :=
-            GraphQL.NormalForm.fieldsInSetCanMerge_append_right schema operation.rootType prefixSelections (selection :: suffix) hmergeAll
-          exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema operation.rootType [selection] suffix hright
+          have hright : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (selection :: suffix) :=
+            GraphQL.NormalForm.fieldsInSetCanMerge_append_right schema (operation.rootType schema) prefixSelections (selection :: suffix) hmergeAll
+          exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema (operation.rootType schema) [selection] suffix hright
       noAlias :=
         OperationNoAliasCollision.prefix_selection schema operation
           prefixSelections suffix selection hnoAlias hselectionSet }
@@ -1100,7 +1100,7 @@ theorem ValidOperationPrefixSelectionState.field_lookup
         (.field responseName fieldName arguments directives selectionSet)
         suffix
       -> ∃ fieldDefinition,
-          schema.lookupField operation.rootType fieldName = some fieldDefinition
+          schema.lookupField (operation.rootType schema) fieldName = some fieldDefinition
           ∧ Validation.argumentsValid schema fieldDefinition.arguments
               operation.variableDefinitions arguments
           ∧ Validation.fieldSelectionSetValid schema
@@ -1115,7 +1115,7 @@ theorem ValidOperationPrefixSelectionState.inline_none_selectionSetValid
     : ValidOperationPrefixSelectionState schema operation prefixSelections
         (.inlineFragment none directives selectionSet) suffix
       -> Validation.selectionSetValid schema operation.variableDefinitions
-          operation.rootType selectionSet := by
+          (operation.rootType schema) selectionSet := by
   intro hstate
   exact
     Validation.selectionValid_inlineFragment_none_selectionSetValid

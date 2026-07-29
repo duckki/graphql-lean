@@ -940,7 +940,7 @@ theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_opera
     (responseName : Name) (fields : List ExecutableField)
     : rootSourceAppliesBool schema operation (.object runtimeType identity) = true
       -> Validation.operationDefinitionValid schema operation
-      -> GraphQL.Execution.collectFields schema variableValues operation.rootType
+      -> GraphQL.Execution.collectFields schema variableValues (operation.rootType schema)
             (.object runtimeType identity) operation.selectionSet
           = groups
       -> (responseName, fields) ∈ groups
@@ -949,8 +949,8 @@ theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_opera
             (GraphQL.Execution.mergedFieldSelectionSet fields) := by
   intro hroot hvalid hcollect hgroup
   apply collectFields_group_mergedFieldSelectionSet_canMerge_runtimeScoped
-    schema operation.variableDefinitions variableValues operation.rootType
-    operation.rootType runtimeType identity operation.selectionSet groups
+    schema operation.variableDefinitions variableValues (operation.rootType schema)
+    (operation.rootType schema) runtimeType identity operation.selectionSet groups
     responseName fields
   · exact Validation.operationDefinitionValid_selectionSetValid hvalid
   · exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
@@ -959,7 +959,7 @@ theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_opera
   · exact hcollect
   · exact hgroup
   · rw [← hcollect]
-    exact collectFields_responseName schema variableValues operation.rootType
+    exact collectFields_responseName schema variableValues (operation.rootType schema)
       (.object runtimeType identity) operation.selectionSet
 
 theorem collectFields_fieldCompatible_of_selectionSetValid_scopedCompatible

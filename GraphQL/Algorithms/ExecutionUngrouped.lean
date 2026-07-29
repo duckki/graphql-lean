@@ -348,7 +348,7 @@ def executeQueryWithFuel {ObjectRef : Type}
   if rootSourceAppliesBool schema operation source then
     Execution.selectionSetResultToResponse
       (executeRootSelectionSet schema resolvers coercedVariableValues
-        fuel operation.rootType source operation.selectionSet)
+        fuel (operation.rootType schema) source operation.selectionSet)
   else
     { data := .null, errors := 1 }
 

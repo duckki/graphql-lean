@@ -284,7 +284,7 @@ def normalizeOperation (schema : Schema) (operation : Operation) : Operation :=
   {
     operation with
       selectionSet :=
-        normalizeSelectionSet schema operation.rootType operation.selectionSet
+        normalizeSelectionSet schema (operation.rootType schema) operation.selectionSet
   }
 
 -----------------------------------------------------------------------------------------
@@ -407,7 +407,7 @@ def selectionSetNormal (schema : Schema)
 
 -- Spec-inspired operation normality.
 def operationNormal (schema : Schema) (operation : Operation) : Prop :=
-  selectionSetNormal schema operation.rootType operation.selectionSet
+  selectionSetNormal schema (operation.rootType schema) operation.selectionSet
 
 -- Public normality statement for the ground-type normalizer. The theorem witness is
 -- `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_normal`.
@@ -470,7 +470,7 @@ end
 def operationFieldsValidInPossibleTypes (schema : Schema) (operation : Operation)
     : Prop :=
   selectionSetValidInPossibleTypes schema
-    operation.variableDefinitions operation.rootType operation.selectionSet
+    operation.variableDefinitions (operation.rootType schema) operation.selectionSet
 
 -- Type-condition feasibility for one field occurrence: the inline-fragment type
 -- conditions between the field and its nearest parent field/root selection set,
@@ -522,8 +522,8 @@ end
 -- enclosing type-condition stack in every concrete scope introduced by ground
 -- normalization, and every nonempty child has a possible concrete scope.
 def operationTypeConditionFeasible (schema : Schema) (operation : Operation) : Prop :=
-  selectionSetTypeConditionFeasible schema operation.rootType
-    [operation.rootType] operation.selectionSet
+  selectionSetTypeConditionFeasible schema (operation.rootType schema)
+    [operation.rootType schema] operation.selectionSet
 
 -- Public validity-preservation statement for the ground-type normalizer. The theorem
 -- witness is `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid`.
@@ -588,7 +588,7 @@ end
 
 -- Operation syntactic equality (`≡`) up to reordering.
 def operationsEqualUpToReordering (left right : Operation) : Prop :=
-  left.rootType = right.rootType
+  left.operationType = right.operationType
   ∧ SelectionSetEqualUpToReordering left.selectionSet right.selectionSet
 
 -- States: Two syntactically equal normal operations are semantically equivalent.
@@ -879,7 +879,7 @@ def completeNormalizeOperation (schema : Schema) (operation : Operation) : Opera
   {
     operation with
       selectionSet :=
-        completeNormalizeRootSelectionSet schema variables operation.rootType
+        completeNormalizeRootSelectionSet schema variables (operation.rootType schema)
           operation.selectionSet
   }
 
@@ -991,7 +991,7 @@ def completeNormalSelectionSet
 
 def completeNormalOperation (schema : Schema) (operation : Operation) : Prop :=
   completeNormalSelectionSet schema
-    (operationBoolVars operation) operation.rootType operation.selectionSet
+    (operationBoolVars operation) (operation.rootType schema) operation.selectionSet
 
 end CompleteNormalization
 
@@ -1116,8 +1116,8 @@ retains a child in each case where its parent survives.
 def operationBoolTypeConditionFeasible (schema : Schema) (operation : Operation) : Prop :=
   ∀ selection,
     selection ∈ operation.selectionSet
-    -> selectionBoolTypeConditionFeasible schema operation.rootType
-        [operation.rootType]
+    -> selectionBoolTypeConditionFeasible schema (operation.rootType schema)
+        [operation.rootType schema]
         (allBoolCases (operationBoolVars operation)) selection
 
 end CompleteNormalization
@@ -1185,7 +1185,7 @@ def CompleteNormalSelectionSetEqualUpToReordering
 -- Syntactic equality (`≡`) up to reordering for complete-normal operations. Matching
 -- complete cases structurally determine equivalence of the Boolean-variable support.
 def completeNormalOperationsEqualUpToReordering (left right : Operation) : Prop :=
-  left.rootType = right.rootType
+  left.operationType = right.operationType
   ∧ match operationBoolVars left with
     | [] =>
         SelectionSetEqualUpToReordering left.selectionSet right.selectionSet

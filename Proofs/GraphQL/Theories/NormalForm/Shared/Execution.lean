@@ -169,7 +169,7 @@ theorem selectionDirectivesAllowBool_nil (variableValues : Execution.VariableVal
     : Execution.selectionDirectivesAllowBool variableValues [] = true := by
   rfl
 
-theorem selectionDirectiveFree_directivesAllowBool
+theorem selectionDirectiveFree_selectionDirectivesAllowBool
     (variableValues : Execution.VariableValues) {selection : Selection}
     : selectionDirectiveFree selection
       -> match selection with

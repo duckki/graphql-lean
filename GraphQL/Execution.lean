@@ -450,7 +450,8 @@ def rootSourceAppliesBool
     (source : ResolverValue ObjectRef)
     : Bool :=
   match runtimeObjectType? source with
-  | some objectName => schema.typeIncludesObjectBool operation.rootType objectName
+  | some objectName =>
+      schema.typeIncludesObjectBool (operation.rootType schema) objectName
   | none => false
 
 -- Spec 6.1.2 `CoerceVariableValues` followed by spec 6.2.1 `ExecuteQuery`, at an
@@ -465,7 +466,7 @@ def executeQueryWithFuel
   if rootSourceAppliesBool schema operation source then
     selectionSetResultToResponse
       (executeRootSelectionSet schema resolvers coercedVariableValues
-        fuel operation.rootType source operation.selectionSet)
+        fuel (operation.rootType schema) source operation.selectionSet)
   else
     { data := .null, errors := 1 }
 

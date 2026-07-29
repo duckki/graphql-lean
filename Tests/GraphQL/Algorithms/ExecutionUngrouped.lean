@@ -10,7 +10,6 @@ open GraphQL.Tests.Execution
 def duplicateHeroMergedSubfieldsQuery : Operation :=
   {
     name := some "DuplicateHeroMergedSubfields"
-    rootType := "Query"
     selectionSet :=
       [
         .field "mainHero" "hero" [] [] [.field "name" "name" [] [] []],
@@ -22,7 +21,6 @@ def duplicateHeroMergedSubfieldsQuery : Operation :=
 def duplicateRootNameQuery : Operation :=
   {
     name := some "DuplicateRootName"
-    rootType := "Query"
     selectionSet :=
       [.field "name" "name" [] [] [], .field "name" "name" [] [] []]
   }
@@ -75,7 +73,6 @@ def duplicateHeroLaterNullBubbleSchema : Schema :=
 def duplicateHeroNullBubbleQuery : Operation :=
   {
     name := some "DuplicateHeroNullBubble"
-    rootType := "Query"
     selectionSet :=
       [
         .field "hero" "hero" [] [] [.field "name" "name" [] [] []],

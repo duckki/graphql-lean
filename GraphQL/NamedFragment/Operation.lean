@@ -32,14 +32,21 @@ structure FragmentDefinition where
   selectionSet : List Selection
 deriving Repr
 
--- Single query-like operation plus the fragment definitions it can reference.
+-- Single query operation plus the fragment definitions it can reference.
 structure Operation where
   name : Option Name := none
-  rootType : Name
+  operationType : OperationType := .query
   variableDefinitions : List VariableDefinition := []
   fragmentDefinitions : List FragmentDefinition := []
   selectionSet : List Selection
 deriving Repr
+
+namespace Operation
+
+def rootType (operation : Operation) (schema : Schema) : Name :=
+  operation.operationType.rootType schema
+
+end Operation
 
 mutual
   -- Non-spec structural metric used by bounded transformations.

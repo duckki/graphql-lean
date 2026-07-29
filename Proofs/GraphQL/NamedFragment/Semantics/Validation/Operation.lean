@@ -25,15 +25,17 @@ theorem inlineOperation_selectionSetValid_of_fragmentBodiesValid
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
         (Inline.inlineOperation operation).variableDefinitions
         (Inline.inlineOperation operation).fragmentDefinitions
-        (Inline.inlineOperation operation).rootType
+        ((Inline.inlineOperation operation).rootType schema)
         (Inline.inlineOperation operation).selectionSet := by
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge, _hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, hselectionValid, _hmerge,
+      _hvariablesUsed⟩
   cases operation with
-  | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
-      simp [Inline.inlineOperation]
+  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
+      cases operationType
+      simp [Inline.inlineOperation, Operation.rootType, OperationType.rootType]
       exact selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
         (fun {fragmentName} {fragment} {remaining} hlookup =>
           hfragmentBodies hlookup)
@@ -79,15 +81,17 @@ theorem inlineOperation_selectionSetValid_of_localFragmentBodiesValid
     : GraphQL.NamedFragment.Validation.selectionSetValid schema
         (Inline.inlineOperation operation).variableDefinitions
         (Inline.inlineOperation operation).fragmentDefinitions
-        (Inline.inlineOperation operation).rootType
+        ((Inline.inlineOperation operation).rootType schema)
         (Inline.inlineOperation operation).selectionSet := by
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge, _hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, _hselectionNonempty, hselectionValid, _hmerge,
+      _hvariablesUsed⟩
   cases operation with
-  | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
-      simp [Inline.inlineOperation]
+  | mk name operationType variableDefinitions fragmentDefinitions selectionSet =>
+      cases operationType
+      simp [Inline.inlineOperation, Operation.rootType, OperationType.rootType]
       exact selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
         (fun hmem hlookup => hfragmentBodies hmem hlookup)
         hselectionValid
@@ -123,8 +127,9 @@ theorem inlineOperation_valid_of_reachable_removals
   have hvalidOriginal := hvalid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, huniqueFragments,
-      hfragmentsAcyclic, hfragmentDefinitionsValid, _hselectionNonempty,
-      _hselectionValid, _hmerge, _hvariablesUsed⟩
+      hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      hfragmentDefinitionsValid, _hselectionNonempty, _hselectionValid, _hmerge,
+      _hvariablesUsed⟩
   exact inlineOperation_valid_of_localFragmentBodiesValid hvalidOriginal
     (fun {_fragmentName} {_fragment} {_remaining} _hrootSpread hlookup =>
       fragmentInlineSelectionSetValid_after_reachable_removals
@@ -177,7 +182,7 @@ theorem fragmentAwareValidityPreservedToInline_of_inlineSelectionSetValid
         -> GraphQL.NamedFragment.Validation.selectionSetValid schema
             (Inline.inlineOperation operation).variableDefinitions
             (Inline.inlineOperation operation).fragmentDefinitions
-            (Inline.inlineOperation operation).rootType
+            ((Inline.inlineOperation operation).rootType schema)
             (Inline.inlineOperation operation).selectionSet)
     : fragmentAwareValidityPreservedToInline schema operation := by
   intro hvalid
@@ -213,7 +218,7 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_selectionSetValid
       : GraphQL.NamedFragment.Validation.selectionSetValid schema
           (Inline.inlineOperation operation).variableDefinitions
           (Inline.inlineOperation operation).fragmentDefinitions
-          (Inline.inlineOperation operation).rootType
+          ((Inline.inlineOperation operation).rootType schema)
           (Inline.inlineOperation operation).selectionSet)
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))

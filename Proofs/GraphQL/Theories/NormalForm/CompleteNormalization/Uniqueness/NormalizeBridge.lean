@@ -21,23 +21,23 @@ theorem completeNormalizeOperation_boolVarsEquivalent
     (hboolFeasible : operationBoolTypeConditionFeasible schema operation)
     : operationBoolVarsEquivalent operation
         (completeNormalizeOperation schema operation) := by
-  have hrootObject : objectTypeNameBool schema operation.rootType = true :=
+  have hrootObject : objectTypeNameBool schema (operation.rootType schema) = true :=
     GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
       hschema hvalid
   intro candidate
   cases hvariables : operationBoolVars operation with
   | nil =>
       have hnormal :
-          completeNormalSelectionSet schema [] operation.rootType
-            (completeNormalizeRootSelectionSet schema [] operation.rootType
+          completeNormalSelectionSet schema [] (operation.rootType schema)
+            (completeNormalizeRootSelectionSet schema [] (operation.rootType schema)
               operation.selectionSet) :=
         completeNormalizeRootSelectionSet_normal_nil schema hschema
-          operation.rootType operation.selectionSet
-          (completeNormalizeRootSelectionSet schema [] operation.rootType
+          (operation.rootType schema) operation.selectionSet
+          (completeNormalizeRootSelectionSet schema [] (operation.rootType schema)
             operation.selectionSet) hrootObject rfl
       have hnormalizedFree :
           selectionSetDirectiveFree
-            (completeNormalizeRootSelectionSet schema [] operation.rootType
+            (completeNormalizeRootSelectionSet schema [] (operation.rootType schema)
               operation.selectionSet) :=
         hnormal.2.2
       have hnormalizedVariables :
@@ -53,17 +53,17 @@ theorem completeNormalizeOperation_boolVarsEquivalent
         simpa [hvariables] using operationBoolVars_nodup operation
       have hnormal :
           completeNormalSelectionSet schema (varName :: variables)
-            operation.rootType
+            (operation.rootType schema)
             (completeNormalizeRootSelectionSet schema
-              (varName :: variables) operation.rootType
+              (varName :: variables) (operation.rootType schema)
               operation.selectionSet) :=
         completeNormalizeRootSelectionSet_normal_cons schema hschema varName
-          variables hvariablesNodup operation.rootType operation.selectionSet
+          variables hvariablesNodup (operation.rootType schema) operation.selectionSet
           (completeNormalizeRootSelectionSet schema (varName :: variables)
-            operation.rootType operation.selectionSet) hrootObject rfl
+            (operation.rootType schema) operation.selectionSet) hrootObject rfl
       have hnormalizedNonempty :
           completeNormalizeRootSelectionSet schema (varName :: variables)
-            operation.rootType operation.selectionSet ≠ [] := by
+            (operation.rootType schema) operation.selectionSet ≠ [] := by
         simpa [hvariables] using
           completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible schema
             operation hschema hvalid hboolFeasible

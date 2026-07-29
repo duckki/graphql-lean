@@ -656,12 +656,13 @@ theorem operationDefinitionValid_toSpec_of_inlined
   rcases hinlined with ⟨hfragments, hselectionInlined⟩
   rcases hvalid with
     ⟨hroot, hrootComposite, hvariables, _huniqueFragments,
-      _hfragmentsAcyclic, _hfragmentDefinitionsValid, hselectionNonempty,
-      hselectionValid, hmerge, hvariablesUsed⟩
+      _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
+      _hfragmentDefinitionsValid, hselectionNonempty, hselectionValid, hmerge,
+      hvariablesUsed⟩
   rw [hfragments] at hselectionValid hmerge
   simp [Translate.reduceOperation,
     GraphQL.Validation.operationDefinitionValid]
-  exact ⟨hroot, hrootComposite, hvariables,
+  exact ⟨hrootComposite, hvariables,
     reduceSelectionSet_nonempty_of_inlined hselectionNonempty
       hselectionInlined,
     selectionSetValid_toSpec_of_inlined hselectionValid hselectionInlined,

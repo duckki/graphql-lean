@@ -12,7 +12,6 @@ def episodeVariableDefinition : VariableDefinition :=
 def unusedVariableQuery : Operation :=
   {
     name := some "UnusedVariable"
-    rootType := "Query"
     variableDefinitions := [episodeVariableDefinition]
     selectionSet :=
       [.field "hero" "hero" [] [] [.field "name" "name" [] [] []]]
@@ -35,7 +34,6 @@ theorem unusedQueryVariableRejected
 def usedVariableLocationsQuery : Operation :=
   {
     name := some "UsedVariableLocations"
-    rootType := "Query"
     variableDefinitions :=
       [
         episodeVariableDefinition,
@@ -82,7 +80,7 @@ theorem duplicateArgumentNamesRejected
 
 theorem duplicateArgumentOperationSelectionSetRejected
     : ¬ GraphQL.Validation.selectionSetValid sampleSchema []
-          sampleDuplicateArgumentQuery.rootType
+          (sampleDuplicateArgumentQuery.rootType sampleSchema)
           sampleDuplicateArgumentQuery.selectionSet := by
   simp [GraphQL.Validation.selectionSetValid,
     GraphQL.Validation.selectionValid,
@@ -142,7 +140,6 @@ def interfaceImplementationArgumentSchema : Schema :=
 def missingImplementationArgumentQuery : Operation :=
   {
     name := some "MissingImplementationArgument"
-    rootType := "Query"
     selectionSet :=
       [.field "node" "node" [] [] [.field "value" "value" [] [] []]]
   }
@@ -159,7 +156,8 @@ theorem interfaceImplementationArgumentsRejectedByPossibleTypesAssumption
             .field "value" "value" [] [] []
           ] ] := by
     simpa [GraphQL.NormalForm.operationFieldsValidInPossibleTypes,
-      missingImplementationArgumentQuery] using hfields
+      missingImplementationArgumentQuery, Operation.rootType,
+      OperationType.rootType, interfaceImplementationArgumentSchema] using hfields
   have hnodeImpl :
       GraphQL.Validation.selectionValidInPossibleTypes
         interfaceImplementationArgumentSchema [] "Query"

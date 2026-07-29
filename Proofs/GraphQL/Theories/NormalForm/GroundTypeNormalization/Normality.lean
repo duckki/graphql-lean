@@ -273,7 +273,7 @@ theorem normalizeOperation_directiveFree (schema : Schema) (operation : Operatio
       -> operationDirectiveFree (normalizeOperation schema operation) := by
   intro hfree
   simp [normalizeOperation, operationDirectiveFree]
-  exact normalizeSelectionSet_directiveFree schema operation.rootType
+  exact normalizeSelectionSet_directiveFree schema (operation.rootType schema)
     operation.selectionSet hfree
 
 theorem normalizeSelectionSet_allFields (schema : Schema)
@@ -912,16 +912,17 @@ theorem normalizeOperation_normal (schema : Schema) (operation : Operation)
     : normalizeOperationNormal schema operation := by
   intro hschema hvalid
   have hrootEq :
-      operation.rootType = schema.queryType :=
+      (operation.rootType schema) = schema.queryType :=
     Validation.operationDefinitionValid_rootType_eq hvalid
   have hrootObject :
-      schema.objectType operation.rootType := by
+      schema.objectType (operation.rootType schema) := by
     simpa [hrootEq] using hschema.2.1
   have hrootObjectBool :
-      objectTypeNameBool schema operation.rootType = true :=
+      objectTypeNameBool schema (operation.rootType schema) = true :=
     objectTypeNameBool_eq_true_of_objectType_forNormality schema hrootObject
-  simpa [normalizeOperation, operationNormal] using
-    normalizeSelectionSet_normal schema hschema operation.rootType
+  simpa [normalizeOperation, operationNormal, Operation.rootType,
+    OperationType.rootType] using
+    normalizeSelectionSet_normal schema hschema (operation.rootType schema)
       operation.selectionSet hrootObjectBool
 
 end GroundTypeNormalization

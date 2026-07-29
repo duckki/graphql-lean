@@ -68,7 +68,6 @@ def booleanVariableDefinition (name : Name) : VariableDefinition :=
 def operationWith (selectionSet : List Selection) : Operation :=
   {
     name := some "NormalFormSmoke"
-    rootType := rootType
     variableDefinitions :=
       [booleanVariableDefinition "x", booleanVariableDefinition "y"]
     selectionSet := selectionSet
@@ -208,7 +207,7 @@ end
 
 def operationEqBool (left right : Operation) : Bool :=
   optionNameEqBool left.name right.name
-  && (left.rootType == right.rootType)
+  && (left.operationType == right.operationType)
   && listEqBool variableDefinitionEqBool
       left.variableDefinitions right.variableDefinitions
   && selectionSetEqBool left.selectionSet right.selectionSet

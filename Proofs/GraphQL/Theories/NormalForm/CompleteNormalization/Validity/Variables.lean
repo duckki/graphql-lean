@@ -425,11 +425,9 @@ theorem selectionSetVariables_flatten_of_mem
 theorem operation_root_object_of_valid {schema : Schema} {operation : Operation}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
-      -> schema.objectType operation.rootType := by
+      -> schema.objectType (operation.rootType schema) := by
   intro hschema hoperation
-  rcases hschema with
-    ⟨_hnames, hqueryObject, _htypes, _hpossibleObjects,
-      _hpossibleNodup, _himplements⟩
+  have hqueryObject := hschema.2.1
   have hrootEq :=
     Validation.operationDefinitionValid_rootType_eq hoperation
   rw [hrootEq]
@@ -439,10 +437,11 @@ theorem operation_selectionSetSemanticsReady_of_valid
     {schema : Schema} {operation : Operation}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
-      -> selectionSetSemanticsReady schema operation.rootType operation.selectionSet := by
+      -> selectionSetSemanticsReady schema (operation.rootType schema)
+          operation.selectionSet := by
   intro hschema hoperation
   exact selectionSetSemanticsReady_of_selectionSetValid_object schema
-    operation.variableDefinitions operation.rootType hschema
+    operation.variableDefinitions (operation.rootType schema) hschema
     (operation_root_object_of_valid hschema hoperation)
     operation.selectionSet
     (Validation.operationDefinitionValid_selectionSetValid hoperation)
@@ -452,10 +451,10 @@ theorem operationBoolTypeConditionFeasible_inCase
     (hfeasible : operationBoolTypeConditionFeasible schema operation)
     {boolCase : BoolCase}
     (hcase : boolCase ∈ allBoolCases (operationBoolVars operation))
-    : selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
-        [operation.rootType] boolCase operation.selectionSet :=
+    : selectionSetBoolTypeConditionFeasibleInCase schema (operation.rootType schema)
+        [(operation.rootType schema)] boolCase operation.selectionSet :=
   selectionSetBoolTypeConditionFeasibleInCase_of_all schema
-    operation.rootType [operation.rootType]
+    (operation.rootType schema) [(operation.rootType schema)]
     (allBoolCases (operationBoolVars operation)) boolCase
     operation.selectionSet hfeasible hcase
 
@@ -494,20 +493,20 @@ theorem completeNormalizeOperation_operationVariablesUsed
       -> Validation.operationVariablesUsed
           (completeNormalizeOperation schema operation) := by
   intro hschema hoperation hboolFeasible
-  have hrootObject : schema.objectType operation.rootType :=
+  have hrootObject : schema.objectType (operation.rootType schema) :=
     operation_root_object_of_valid hschema hoperation
   have hready :
-      selectionSetSemanticsReady schema operation.rootType
+      selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     operation_selectionSetSemanticsReady_of_valid hschema hoperation
   have hmerge :
-      FieldMerge.fieldsInSetCanMerge schema operation.rootType
+      FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
         operation.selectionSet :=
     Validation.operationDefinitionValid_fieldsInSetCanMerge hoperation
   have hrootStack :
       GroundTypeNormalization.objectSatisfiesTypeConditionStack schema
-        operation.rootType
-        [operation.rootType] :=
+        (operation.rootType schema)
+        [(operation.rootType schema)] :=
     GroundTypeNormalization.objectSatisfiesTypeConditionStack_singleton_of_object_forValidity
       schema hrootObject
   have hsourceVariablesUsed :
@@ -524,7 +523,7 @@ theorem completeNormalizeOperation_operationVariablesUsed
   change variableDefinition.name
     ∈ Validation.selectionSetVariables
         (completeNormalizeRootSelectionSet schema (operationBoolVars operation)
-          operation.rootType operation.selectionSet)
+          (operation.rootType schema) operation.selectionSet)
   by_cases hboolean :
       variableDefinition.name ∈ operationBoolVars operation
   · have hselectionSetNonempty : operation.selectionSet ≠ [] :=
@@ -538,43 +537,43 @@ theorem completeNormalizeOperation_operationVariablesUsed
           exact ⟨selection, rest, rfl⟩
     rcases hselectionSetCons with ⟨selection, rest, hselectionSet⟩
     have hselectionFeasible :
-        selectionBoolTypeConditionFeasible schema operation.rootType
-          [operation.rootType]
+        selectionBoolTypeConditionFeasible schema (operation.rootType schema)
+          [(operation.rootType schema)]
           (allBoolCases (operationBoolVars operation)) selection :=
       hboolFeasible selection (by rw [hselectionSet]; simp)
     rcases selectionBoolTypeConditionFeasible_exists_allowed
         hselectionFeasible with
       ⟨boolCase, hcase, hallow⟩
     have hselectionContains :
-        selectionBoolTypeConditionHasFieldInCase schema operation.rootType
-          [operation.rootType] boolCase selection :=
+        selectionBoolTypeConditionHasFieldInCase schema (operation.rootType schema)
+          [(operation.rootType schema)] boolCase selection :=
       selectionBoolTypeConditionHasFieldInCase_of_feasible schema
-        operation.rootType [operation.rootType]
+        (operation.rootType schema) [(operation.rootType schema)]
         (allBoolCases (operationBoolVars operation)) boolCase selection
         hselectionFeasible hcase hallow
     have hcontainsBool :
-        selectionSetBoolTypeConditionHasFieldInCase schema operation.rootType
-          [operation.rootType] boolCase operation.selectionSet :=
+        selectionSetBoolTypeConditionHasFieldInCase schema (operation.rootType schema)
+          [(operation.rootType schema)] boolCase operation.selectionSet :=
       selectionSetBoolTypeConditionHasFieldInCase_of_mem
         operation.selectionSet (by rw [hselectionSet]; simp)
         hselectionContains
     have hfilteredReady :
-        selectionSetSemanticsReady schema operation.rootType
+        selectionSetSemanticsReady schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       filterSelectionSetBoolCase_selectionSetSemanticsReady schema boolCase
-        operation.rootType operation.selectionSet hready
+        (operation.rootType schema) operation.selectionSet hready
     have hfilteredContains :
         GroundTypeNormalization.selectionSetContainsTypeConditionFeasibleField
-          schema [operation.rootType]
+          schema [(operation.rootType schema)]
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       selectionSetContainsTypeConditionFeasibleField_filterSelectionSetBoolCase
-        schema boolCase operation.rootType [operation.rootType]
+        schema boolCase (operation.rootType schema) [(operation.rootType schema)]
         operation.selectionSet hcontainsBool
     have hnormalizedNonempty :
-        normalizeSelectionSet schema operation.rootType
+        normalizeSelectionSet schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) ≠ [] :=
       GroundTypeNormalization.normalizeSelectionSet_ne_nil_of_contains schema
-        operation.rootType
+        (operation.rootType schema)
         (filterSelectionSetBoolCase boolCase operation.selectionSet)
         hrootObject hfilteredReady hfilteredContains
     have hcaseVariable :
@@ -585,7 +584,7 @@ theorem completeNormalizeOperation_operationVariablesUsed
       hcase rfl hnormalizedNonempty
       (selectionSetVariables_wrapWithBoolCase_of_case
         variableDefinition.name boolCase
-        (normalizeSelectionSet schema operation.rootType
+        (normalizeSelectionSet schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet))
         hcaseVariable)
   · have hsourceNotBoolean :
@@ -598,19 +597,19 @@ theorem completeNormalizeOperation_operationVariablesUsed
             hsourceBoolean)
     rcases
         selectionSetVariables_filterSelectionSetBoolCase_of_feasible
-          schema variableDefinition.name operation.rootType
-          [operation.rootType]
+          schema variableDefinition.name (operation.rootType schema)
+          [(operation.rootType schema)]
           (allBoolCases (operationBoolVars operation))
           operation.selectionSet hboolFeasible hsourceVariable
           hsourceNotBoolean with
       ⟨boolCase, hcase, hfilteredVariable⟩
     have hfilteredReady :
-        selectionSetSemanticsReady schema operation.rootType
+        selectionSetSemanticsReady schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       filterSelectionSetBoolCase_selectionSetSemanticsReady schema boolCase
-        operation.rootType operation.selectionSet hready
+        (operation.rootType schema) operation.selectionSet hready
     have hfilteredMerge :
-        FieldMerge.fieldsInSetCanMerge schema operation.rootType
+        FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       fieldsInSetCanMerge_filterSelectionSetBoolCase schema boolCase hmerge
     have hfilteredFree :
@@ -619,30 +618,30 @@ theorem completeNormalizeOperation_operationVariablesUsed
       filterSelectionSetBoolCase_directiveFree schema boolCase
         operation.selectionSet
     have hfilteredBoolFeasible :
-        selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
-          [operation.rootType] boolCase operation.selectionSet :=
+        selectionSetBoolTypeConditionFeasibleInCase schema (operation.rootType schema)
+          [(operation.rootType schema)] boolCase operation.selectionSet :=
       operationBoolTypeConditionFeasible_inCase hboolFeasible hcase
     have hfilteredFeasible :
-        selectionSetTypeConditionFeasible schema operation.rootType
-          [operation.rootType]
+        selectionSetTypeConditionFeasible schema (operation.rootType schema)
+          [(operation.rootType schema)]
           (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
       selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
-        boolCase operation.rootType [operation.rootType]
+        boolCase (operation.rootType schema) [(operation.rootType schema)]
         operation.selectionSet hfilteredBoolFeasible
     have hnormalizedVariable :
         variableDefinition.name
           ∈ Validation.selectionSetVariables
-              (normalizeSelectionSet schema operation.rootType
+              (normalizeSelectionSet schema (operation.rootType schema)
                 (filterSelectionSetBoolCase boolCase
                   operation.selectionSet)) :=
       GroundTypeNormalization.normalizeSelectionSet_variables_mem schema
-        variableDefinition.name hschema operation.rootType
+        variableDefinition.name hschema (operation.rootType schema)
         (filterSelectionSetBoolCase boolCase operation.selectionSet)
-        [operation.rootType] hrootObject (by simp) hrootStack
+        [(operation.rootType schema)] hrootObject (by simp) hrootStack
         hfilteredReady hfilteredMerge hfilteredFree hfilteredFeasible
         hfilteredVariable
     have hnormalizedNonempty :
-        normalizeSelectionSet schema operation.rootType
+        normalizeSelectionSet schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet) ≠ [] := by
       intro hnil
       rw [hnil] at hnormalizedVariable
@@ -651,7 +650,7 @@ theorem completeNormalizeOperation_operationVariablesUsed
       hcase rfl hnormalizedNonempty
       (selectionSetVariables_wrapWithBoolCase_of_body
         variableDefinition.name boolCase
-        (normalizeSelectionSet schema operation.rootType
+        (normalizeSelectionSet schema (operation.rootType schema)
           (filterSelectionSetBoolCase boolCase operation.selectionSet))
         hnormalizedVariable)
 

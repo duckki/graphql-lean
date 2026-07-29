@@ -48,7 +48,6 @@ def sampleSchema : Schema :=
 def sampleHeroQuery : Operation :=
   {
     name := some "HeroName"
-    rootType := "Query"
     selectionSet :=
       [.field "mainHero" "hero" [] [] [.field "name" "name" [] [] []]]
   }
@@ -56,7 +55,6 @@ def sampleHeroQuery : Operation :=
 def sampleDuplicateArgumentQuery : Operation :=
   {
     name := some "DuplicateArgument"
-    rootType := "Query"
     selectionSet :=
       [.field "hero" "hero"
         [

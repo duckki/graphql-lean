@@ -7800,15 +7800,15 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
         -> (∀ boolCase,
               boolCase ∈ cases
               -> GroundTypeNormalization.NormalizedSelectionSetValid schema
-                  operation.variableDefinitions operation.rootType
-                  (normalizeSelectionSet schema operation.rootType
+                  operation.variableDefinitions (operation.rootType schema)
+                  (normalizeSelectionSet schema (operation.rootType schema)
                     (filterSelectionSetBoolCase boolCase operation.selectionSet)))
         -> Validation.selectionSetValid schema operation.variableDefinitions
-            operation.rootType
+            (operation.rootType schema)
             (List.flatten
               (cases.map
                 (fun boolCase =>
-                  match normalizeSelectionSet schema operation.rootType
+                  match normalizeSelectionSet schema (operation.rootType schema)
                           (filterSelectionSetBoolCase boolCase
                             operation.selectionSet) with
                   | [] => []
@@ -7822,9 +7822,9 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
         hcases boolCase (by simp)
       have hrest :
           Validation.selectionSetValid schema operation.variableDefinitions
-            operation.rootType
+            (operation.rootType schema)
             (List.flatten (restCases.map (fun boolCase =>
-              match normalizeSelectionSet schema operation.rootType
+              match normalizeSelectionSet schema (operation.rootType schema)
                   (filterSelectionSetBoolCase boolCase
                     operation.selectionSet) with
               | [] => []
@@ -7839,7 +7839,7 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
             intro candidate hcandidate
             exact hbranches candidate (by simp [hcandidate]))
       cases hnormalized :
-          normalizeSelectionSet schema operation.rootType
+          normalizeSelectionSet schema (operation.rootType schema)
             (filterSelectionSetBoolCase boolCase
               operation.selectionSet) with
       | nil =>
@@ -7847,7 +7847,7 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
       | cons selection normalizedRest =>
           have hbranchValid :
               GroundTypeNormalization.NormalizedSelectionSetValid schema
-                operation.variableDefinitions operation.rootType
+                operation.variableDefinitions (operation.rootType schema)
                 (selection :: normalizedRest) := by
             simpa [hnormalized] using hbranches boolCase (by simp)
           have hvars :
@@ -7858,11 +7858,11 @@ theorem completeNormalizeBranches_selectionSetValid_of_normalizedBranches
             simpa [hfst] using hvar
           have hwrapped :
               Validation.selectionSetValid schema operation.variableDefinitions
-                operation.rootType
+                (operation.rootType schema)
                 (wrapWithBoolCase boolCase
                   (selection :: normalizedRest)) :=
             wrapWithBoolCase_selectionSetValid schema operation
-              operation.rootType boolCase (selection :: normalizedRest)
+              (operation.rootType schema) boolCase (selection :: normalizedRest)
               hoperation hvars (by simp) hbranchValid.selectionSetValid
           simpa [hnormalized] using
             Validation.selectionSetValid_append hwrapped hrest
@@ -7871,26 +7871,30 @@ theorem completeNormalizeBranches_selectionSetValid
     (schema : Schema) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    (hrootObject : schema.objectType operation.rootType)
-    (hready : selectionSetSemanticsReady schema operation.rootType operation.selectionSet)
+    (hrootObject : schema.objectType (operation.rootType schema))
+    (hready
+      : selectionSetSemanticsReady schema (operation.rootType schema)
+          operation.selectionSet)
     (himplementation
-      : Validation.selectionSetValidInPossibleTypes schema
-          operation.variableDefinitions operation.rootType operation.selectionSet)
+      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet)
     (hmerge
-      : FieldMerge.fieldsInSetCanMerge schema operation.rootType operation.selectionSet)
+      : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+          operation.selectionSet)
     : ∀ cases : List BoolCase,
         (∀ boolCase,
           boolCase ∈ cases -> boolCase ∈ allBoolCases (operationBoolVars operation))
         -> (∀ boolCase,
               boolCase ∈ cases
-              -> selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
-                  [operation.rootType] boolCase operation.selectionSet)
+              -> selectionSetBoolTypeConditionFeasibleInCase schema
+                  (operation.rootType schema) [(operation.rootType schema)] boolCase
+                  operation.selectionSet)
         -> Validation.selectionSetValid schema operation.variableDefinitions
-            operation.rootType
+            (operation.rootType schema)
             (List.flatten
               (cases.map
                 (fun boolCase =>
-                  match normalizeSelectionSet schema operation.rootType
+                  match normalizeSelectionSet schema (operation.rootType schema)
                           (filterSelectionSetBoolCase boolCase
                             operation.selectionSet) with
                   | [] => []
@@ -7903,27 +7907,27 @@ theorem completeNormalizeBranches_selectionSetValid
           intro boolCase hcase
           exact normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
             schema operation.variableDefinitions hschema
-            operation.rootType operation.selectionSet boolCase
+            (operation.rootType schema) operation.selectionSet boolCase
             hrootObject hready
             himplementation hmerge
             (hboolFeasibleCases boolCase hcase))
 
 theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
     (schema : Schema) (operation : Operation)
-    (hrootObject : schema.objectType operation.rootType)
+    (hrootObject : schema.objectType (operation.rootType schema))
     : ∀ cases : List BoolCase,
         (∀ boolCase,
           boolCase ∈ cases
           -> GroundTypeNormalization.NormalizedSelectionSetValid schema
-              operation.variableDefinitions operation.rootType
-              (normalizeSelectionSet schema operation.rootType
+              operation.variableDefinitions (operation.rootType schema)
+              (normalizeSelectionSet schema (operation.rootType schema)
                 (filterSelectionSetBoolCase boolCase operation.selectionSet)))
         -> Validation.selectionSetValidInPossibleTypes schema
-            operation.variableDefinitions operation.rootType
+            operation.variableDefinitions (operation.rootType schema)
             (List.flatten
               (cases.map
                 (fun boolCase =>
-                  match normalizeSelectionSet schema operation.rootType
+                  match normalizeSelectionSet schema (operation.rootType schema)
                           (filterSelectionSetBoolCase boolCase
                             operation.selectionSet) with
                   | [] => []
@@ -7934,9 +7938,9 @@ theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
   | boolCase :: restCases, hbranches => by
       have hrest :
           Validation.selectionSetValidInPossibleTypes schema
-            operation.variableDefinitions operation.rootType
+            operation.variableDefinitions (operation.rootType schema)
             (List.flatten (restCases.map (fun boolCase =>
-              match normalizeSelectionSet schema operation.rootType
+              match normalizeSelectionSet schema (operation.rootType schema)
                   (filterSelectionSetBoolCase boolCase
                     operation.selectionSet) with
               | [] => []
@@ -7948,7 +7952,7 @@ theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
             intro candidate hcandidate
             exact hbranches candidate (by simp [hcandidate]))
       cases hnormalized :
-          normalizeSelectionSet schema operation.rootType
+          normalizeSelectionSet schema (operation.rootType schema)
             (filterSelectionSetBoolCase boolCase
               operation.selectionSet) with
       | nil =>
@@ -7956,16 +7960,16 @@ theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
       | cons selection normalizedRest =>
           have hbranchValid :
               GroundTypeNormalization.NormalizedSelectionSetValid schema
-                operation.variableDefinitions operation.rootType
+                operation.variableDefinitions (operation.rootType schema)
                 (selection :: normalizedRest) := by
             simpa [hnormalized] using hbranches boolCase (by simp)
           have hwrapped :
               Validation.selectionSetValidInPossibleTypes schema
-                operation.variableDefinitions operation.rootType
+                operation.variableDefinitions (operation.rootType schema)
                 (wrapWithBoolCase boolCase
                   (selection :: normalizedRest)) :=
             wrapWithBoolCase_selectionSetValidInPossibleTypes schema
-              operation.variableDefinitions operation.rootType hrootObject boolCase
+              operation.variableDefinitions (operation.rootType schema) hrootObject boolCase
               (selection :: normalizedRest) hbranchValid.validInPossibleTypes
           simpa [hnormalized] using
             GroundTypeNormalization.selectionSetValidInPossibleTypes_append
@@ -7974,24 +7978,28 @@ theorem completeNormalizeBranches_validInPossibleTypes_of_normalizedBranches
 theorem completeNormalizeBranches_validInPossibleTypes
     (schema : Schema) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hrootObject : schema.objectType operation.rootType)
-    (hready : selectionSetSemanticsReady schema operation.rootType operation.selectionSet)
+    (hrootObject : schema.objectType (operation.rootType schema))
+    (hready
+      : selectionSetSemanticsReady schema (operation.rootType schema)
+          operation.selectionSet)
     (himplementation
-      : Validation.selectionSetValidInPossibleTypes schema
-          operation.variableDefinitions operation.rootType operation.selectionSet)
+      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet)
     (hmerge
-      : FieldMerge.fieldsInSetCanMerge schema operation.rootType operation.selectionSet)
+      : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+          operation.selectionSet)
     : ∀ cases : List BoolCase,
         (∀ boolCase,
           boolCase ∈ cases
-          -> selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
-              [operation.rootType] boolCase operation.selectionSet)
+          -> selectionSetBoolTypeConditionFeasibleInCase schema
+              (operation.rootType schema) [(operation.rootType schema)] boolCase
+              operation.selectionSet)
         -> Validation.selectionSetValidInPossibleTypes schema
-            operation.variableDefinitions operation.rootType
+            operation.variableDefinitions (operation.rootType schema)
             (List.flatten
               (cases.map
                 (fun boolCase =>
-                  match normalizeSelectionSet schema operation.rootType
+                  match normalizeSelectionSet schema (operation.rootType schema)
                           (filterSelectionSetBoolCase boolCase
                             operation.selectionSet) with
                   | [] => []
@@ -8004,7 +8012,7 @@ theorem completeNormalizeBranches_validInPossibleTypes
           intro boolCase hcase
           exact normalizeSelectionSet_filterSelectionSetBoolCase_normalizedValid
             schema operation.variableDefinitions hschema
-            operation.rootType operation.selectionSet boolCase
+            (operation.rootType schema) operation.selectionSet boolCase
             hrootObject hready
             himplementation hmerge
             (hboolFeasibleCases boolCase hcase))

@@ -97,7 +97,6 @@ def sampleSchema : Schema :=
 def sampleHeroQuery : Operation :=
   {
     name := some "HeroName"
-    rootType := "Query"
     selectionSet :=
       [.field "mainHero" "hero" [] [] [.field "name" "name" [] [] []]]
   }
@@ -263,7 +262,6 @@ theorem executeRootSelectionSetSmoke
 def variableDefaultQuery : Operation :=
   {
     name := some "VariableDefault"
-    rootType := "Query"
     variableDefinitions :=
       [{
         name := "includeName"

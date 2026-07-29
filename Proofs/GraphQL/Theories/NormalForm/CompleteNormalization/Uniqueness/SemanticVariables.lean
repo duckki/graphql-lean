@@ -87,7 +87,7 @@ private theorem executeQueryWithFuel_zero_data_eq_null_of_collectFields_ne_nil
     (hcollect
       : Execution.collectFields schema
           (Execution.coerceVariableValues operation variableValues)
-          operation.rootType source operation.selectionSet
+          (operation.rootType schema) source operation.selectionSet
         ≠ [])
     : (Execution.executeQueryWithFuel schema resolvers variableValues operation
         0 source).data
@@ -95,9 +95,9 @@ private theorem executeQueryWithFuel_zero_data_eq_null_of_collectFields_ne_nil
   let coercedValues := Execution.coerceVariableValues operation variableValues
   have hwellFormed :=
     GroundTypeNormalization.collectFields_wellFormed schema coercedValues
-      operation.rootType source operation.selectionSet
+      (operation.rootType schema) source operation.selectionSet
   generalize hgroups :
-      Execution.collectFields schema coercedValues operation.rootType source
+      Execution.collectFields schema coercedValues (operation.rootType schema) source
         operation.selectionSet = groups at hwellFormed
   have hgroupsNonempty : groups ≠ [] := by
     intro hnil
@@ -127,7 +127,7 @@ private theorem exists_values_missing_for_left_active_for_right
     {schema : Schema} {left right : Operation} {varName : BoolVar}
     (hrightValid : Validation.operationDefinitionValid schema right)
     (hrightNormal : completeNormalOperation schema right)
-    (hobject : objectTypeNameBool schema right.rootType = true)
+    (hobject : objectTypeNameBool schema (right.rootType schema) = true)
     (hnotRight : varName ∉ operationBoolVars right)
     (source : Execution.ResolverValue ObjectRef)
     : ∃ variableValues,
@@ -137,7 +137,7 @@ private theorem exists_values_missing_for_left_active_for_right
           = none
         ∧ Execution.collectFields schema
             (Execution.coerceVariableValues right variableValues)
-            right.rootType source right.selectionSet
+            (right.rootType schema) source right.selectionSet
           ≠ [] := by
   have hrightNonempty :=
     Validation.operationDefinitionValid_selectionSet_nonempty hrightValid
@@ -155,11 +155,11 @@ private theorem exists_values_missing_for_left_active_for_right
       · exact collectFields_ne_nil_of_normal_object_nonempty schema
           (Execution.coerceVariableValues right
             (boolCaseVariableValues [] [(varName, .null)]))
-          right.rootType source hobject hshape.1 hshape.2 hrightNonempty
+          (right.rootType schema) source hobject hshape.1 hshape.2 hrightNonempty
   | cons rightVar rightVariables =>
       have hcomplete :
           completeNormalSelectionSet schema (rightVar :: rightVariables)
-            right.rootType right.selectionSet := by
+            (right.rootType schema) right.selectionSet := by
         simpa [completeNormalOperation, hrightVars] using hrightNormal
       cases hselectionSet : right.selectionSet with
       | nil =>
@@ -169,7 +169,7 @@ private theorem exists_values_missing_for_left_active_for_right
             ⟨boolCase, body, hcase, hstem, hbodyNormal, hbodyFree⟩
           have hselectionValid :
               Validation.selectionValid schema right.variableDefinitions
-                right.rootType selection := by
+                (right.rootType schema) selection := by
             unfold Validation.selectionSetValid at hrightSelectionValid
             exact hrightSelectionValid selection (by simp [hselectionSet])
           have hbodyValidNonempty :=
@@ -200,26 +200,26 @@ private theorem exists_values_missing_for_left_active_for_right
           have hcollectBody :
               Execution.collectFields schema
                   (Execution.coerceVariableValues right variableValues)
-                  right.rootType source right.selectionSet
+                  (right.rootType schema) source right.selectionSet
                 =
               Execution.collectFields schema
                   (Execution.coerceVariableValues right variableValues)
-                  right.rootType source body := by
+                  (right.rootType schema) source body := by
             exact
               collectFields_completeNormalSelectionSet_eq_body_of_equivalent_of_agrees
                 schema (Execution.coerceVariableValues right variableValues)
-                right.rootType source hcomplete (by simp [hselectionSet])
+                (right.rootType schema) source hcomplete (by simp [hselectionSet])
                 hcase hcase hagrees
                 (completeNormalBoolCasesEquivalent_refl boolCase)
                 hstem hbodyFree
           have hbodyCollectNonempty :
               Execution.collectFields schema
                   (Execution.coerceVariableValues right variableValues)
-                  right.rootType source body
+                  (right.rootType schema) source body
                 ≠ [] :=
             collectFields_ne_nil_of_normal_object_nonempty schema
               (Execution.coerceVariableValues right variableValues)
-              right.rootType source hobject hbodyNormal hbodyFree
+              (right.rootType schema) source hobject hbodyNormal hbodyFree
               hbodyValidNonempty.2
           refine ⟨variableValues, ?_, ?_⟩
           · exact
@@ -250,10 +250,10 @@ private theorem operationBoolVars_subset_of_completeNormal_semantics
     GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
       hschema hleftValid
   have hrightObject :
-      objectTypeNameBool schema right.rootType = true := by
+      objectTypeNameBool schema (right.rootType schema) = true := by
     simpa [← hroot] using hleftObject
   let source : Execution.ResolverValue PUnit :=
-    .object left.rootType PUnit.unit
+    .object (left.rootType schema) PUnit.unit
   rcases
       exists_values_missing_for_left_active_for_right
         (left := left) hrightValid hrightNormal hrightObject hrightMem source with
@@ -264,20 +264,20 @@ private theorem operationBoolVars_subset_of_completeNormal_semantics
   | cons leftVar leftVariables =>
       have hleftComplete :
           completeNormalSelectionSet schema (leftVar :: leftVariables)
-            left.rootType left.selectionSet := by
+            (left.rootType schema) left.selectionSet := by
         simpa [completeNormalOperation, hleftVars] using hleftNormal
       have hleftVarMem : varName ∈ leftVar :: leftVariables := by
         simpa [hleftVars] using hleftMem
       have hleftCollect :
           Execution.collectFields schema
               (Execution.coerceVariableValues left variableValues)
-              left.rootType source left.selectionSet
+              (left.rootType schema) source left.selectionSet
             = [] :=
         collectFields_completeNormalSelectionSet_eq_nil_of_missing_variable
           schema (Execution.coerceVariableValues left variableValues)
-          left.rootType source hleftComplete hleftVarMem hleftMissing
+          (left.rootType schema) source hleftComplete hleftVarMem hleftMissing
       have hrootIncludes :
-          schema.typeIncludesObjectBool left.rootType left.rootType = true :=
+          schema.typeIncludesObjectBool (left.rootType schema) (left.rootType schema) = true :=
         GroundTypeNormalization.typeIncludesObjectBool_self_of_objectTypeNameBool
           schema hleftObject
       have hleftRoot :

@@ -528,13 +528,14 @@ namespace Validation
 -- Spec 5.2 Operation validation plus referenced executable validation rules: partial
 -- aggregate predicate over the modeled single-operation representation.
 def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
-  operation.rootType = schema.queryType
-  ∧ schema.isCompositeType operation.rootType
+  operation.operationType = .query
+  ∧ schema.isCompositeType (operation.rootType schema)
   ∧ variableDefinitionsValid schema operation.variableDefinitions
   ∧ operation.selectionSet ≠ []
   ∧ selectionSetValid schema operation.variableDefinitions
-      operation.rootType operation.selectionSet
-  ∧ FieldMerge.fieldsInSetCanMerge schema operation.rootType operation.selectionSet
+      (operation.rootType schema) operation.selectionSet
+  ∧ FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
+      operation.selectionSet
   ∧ operationVariablesUsed operation
 
 end Validation
