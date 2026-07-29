@@ -8,8 +8,8 @@ Canonical GraphQL specification reference:
 For the project structure, dependency diagram, and module overview, see
 [docs/overview.md](docs/overview.md).
 
-For the current spec-conformance scope and proof plan, see
-[docs/spec-conformance-plan.md](docs/spec-conformance-plan.md).
+For the current spec-conformance scope summary, see
+[docs/spec-conformance.md](docs/spec-conformance.md).
 
 For project-specific normal forms and verified algorithms, see
 [docs/normal-form.md](docs/normal-form.md) and

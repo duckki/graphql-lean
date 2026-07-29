@@ -2,12 +2,11 @@
 
 This repo is a Lean formalization workspace for a scoped plain GraphQL fragment.
 
-## Current Priority
+## Spec Conformance Status
 
-Spec conformance is the current priority, following
-`docs/spec-conformance-plan.md`.
+Spec conformance is summarized in `docs/spec-conformance.md`.
 
-Current explicit skips:
+Explicit skips include:
 
 - mutation,
 - subscription,
@@ -19,10 +18,6 @@ Current explicit skips:
 - response-shape analysis,
 - minimization,
 - federation.
-
-The immediate proof goal is to formalize schema, operation validation,
-resolver-parametric execution, and ground normal form enough to support later
-semantic operation transformation algorithms.
 
 ## Current Status
 
@@ -60,7 +55,8 @@ lake lint
 
 ## Where To Look
 
-- `docs/spec-conformance-plan.md`: current goals, skips, status, and proof status.
+- `docs/spec-conformance.md`: implemented spec-conformance scope,
+  out-of-scope boundaries, module summary, and conformance fixture workflow.
 - `docs/lean-organization.md`: module organization rules for keeping
   top-level Lean files definition-only and theorem files topic-specific.
 - `docs/overview.md`: module map and architecture overview.
@@ -79,7 +75,7 @@ lake lint
 
 Keep raw syntax permissive and put invariants in validation or well-formedness
 predicates. Prefer small, proof-friendly definitions over feature expansion.
-When adding scope, update `docs/spec-conformance-plan.md` first.
+When changing spec scope, update `docs/spec-conformance.md`.
 
 Keep `GraphQL/` files definition-only. Put ordinary theorems in topic-specific
 `Proofs/GraphQL/` modules, following `docs/lean-organization.md`.
