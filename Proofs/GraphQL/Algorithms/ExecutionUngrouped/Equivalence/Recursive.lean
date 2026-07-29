@@ -614,8 +614,9 @@ theorem executeQueryWithFuel_eq_spec
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     (state
-      : RecursiveGroupedOperationState schema resolvers variableValues operation
-          depth source)
+      : RecursiveGroupedOperationState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation depth source)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -627,8 +628,9 @@ theorem executeQuery_eq_spec
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     (state
-      : RecursiveGroupedOperationState schema resolvers variableValues operation
-          depth source)
+      : RecursiveGroupedOperationState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation depth source)
     (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -768,8 +770,9 @@ theorem executeQueryWithFuel_eq_spec_of_recursiveGroupedOperationState
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     (state
-      : RecursiveGroupedOperationState schema resolvers variableValues operation
-          depth source)
+      : RecursiveGroupedOperationState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation depth source)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -781,8 +784,9 @@ theorem executeQuery_eq_spec_of_recursiveGroupedOperationState
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     (state
-      : RecursiveGroupedOperationState schema resolvers variableValues operation
-          depth source)
+      : RecursiveGroupedOperationState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation depth source)
     (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation source :=

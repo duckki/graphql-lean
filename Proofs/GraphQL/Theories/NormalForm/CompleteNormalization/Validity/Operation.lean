@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Branches
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Variables
 
 /-! Operation-level validity preservation for complete normalization. -/
 
@@ -56,39 +56,14 @@ theorem flatten_map_ne_nil_of_mem_ne_nil
       rw [hflatten] at hselection
       cases hselection
 
-theorem operation_root_object_of_valid {schema : Schema} {operation : Operation}
-    : SchemaWellFormedness.schemaWellFormed schema
-      -> Validation.operationDefinitionValid schema operation
-      -> schema.objectType operation.rootType := by
-  intro hschema hoperation
-  rcases hschema with
-    ⟨_hnames, hqueryObject, _htypes, _hpossibleObjects,
-      _hpossibleNodup, _himplements⟩
-  have hrootEq :=
-    Validation.operationDefinitionValid_rootType_eq hoperation
-  rw [hrootEq]
-  exact hqueryObject
-
-theorem operation_selectionSetSemanticsReady_of_valid
-    {schema : Schema} {operation : Operation}
-    : SchemaWellFormedness.schemaWellFormed schema
-      -> Validation.operationDefinitionValid schema operation
-      -> selectionSetSemanticsReady schema operation.rootType operation.selectionSet := by
-  intro hschema hoperation
-  exact selectionSetSemanticsReady_of_selectionSetValid_object schema
-    operation.variableDefinitions operation.rootType hschema
-    (operation_root_object_of_valid hschema hoperation)
-    operation.selectionSet
-    (Validation.operationDefinitionValid_selectionSetValid hoperation)
-
 theorem completeNormalizeRootSelectionSet_selectionSetValid
     (schema : Schema) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hboolFeasibleCases
       : ∀ boolCase,
           boolCase ∈ allBoolCases (operationBoolVars operation)
-          -> selectionSetBoolTypeConditionFeasible schema operation.rootType
-              [operation.rootType] boolCase .allFields operation.selectionSet)
+          -> selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
+              [operation.rootType] boolCase operation.selectionSet)
     (hoperation : Validation.operationDefinitionValid schema operation)
     (hfields : operationFieldsValidInPossibleTypes schema operation)
     : Validation.selectionSetValid schema operation.variableDefinitions
@@ -147,7 +122,8 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
     hoperation hrootObject hready himplementation hmerge
     (allBoolCases (operationBoolVars operation))
     (by intro boolCase hcase; exact hcase)
-    (fun boolCase hcase => hboolFeasible.2 boolCase hcase)
+    (fun _boolCase hcase =>
+      operationBoolTypeConditionFeasible_inCase hboolFeasible hcase)
 
 theorem completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible
     (schema : Schema) (operation : Operation)
@@ -159,7 +135,36 @@ theorem completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible
             operation.selectionSet
           ≠ [] := by
   intro hschema hoperation hboolFeasible
-  rcases hboolFeasible.1 with ⟨boolCase, hcase, hcontainsBool⟩
+  have hselectionSetNonempty : operation.selectionSet ≠ [] :=
+    Validation.operationDefinitionValid_selectionSet_nonempty hoperation
+  have hselectionSetCons :
+      ∃ selection rest, operation.selectionSet = selection :: rest := by
+    cases hselectionSet : operation.selectionSet with
+    | nil =>
+        exact False.elim (hselectionSetNonempty hselectionSet)
+    | cons selection rest =>
+        exact ⟨selection, rest, rfl⟩
+  rcases hselectionSetCons with ⟨selection, rest, hselectionSet⟩
+  have hselectionFeasible :
+      selectionBoolTypeConditionFeasible schema operation.rootType
+        [operation.rootType]
+        (allBoolCases (operationBoolVars operation)) selection :=
+    hboolFeasible selection (by rw [hselectionSet]; simp)
+  rcases selectionBoolTypeConditionFeasible_exists_allowed
+      hselectionFeasible with
+    ⟨boolCase, hcase, hallow⟩
+  have hselectionContains :
+      selectionBoolTypeConditionHasFieldInCase schema operation.rootType
+        [operation.rootType] boolCase selection :=
+    selectionBoolTypeConditionHasFieldInCase_of_feasible schema
+      operation.rootType [operation.rootType]
+      (allBoolCases (operationBoolVars operation)) boolCase selection
+      hselectionFeasible hcase hallow
+  have hcontainsBool :
+      selectionSetBoolTypeConditionHasFieldInCase schema operation.rootType
+        [operation.rootType] boolCase operation.selectionSet :=
+    selectionSetBoolTypeConditionHasFieldInCase_of_mem
+      operation.selectionSet (by rw [hselectionSet]; simp) hselectionContains
   have hrootObject : schema.objectType operation.rootType :=
     operation_root_object_of_valid hschema hoperation
   have hready :
@@ -172,7 +177,7 @@ theorem completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible
     filterSelectionSetBoolCase_selectionSetSemanticsReady schema boolCase
       operation.rootType operation.selectionSet hready
   have hfilteredContains :
-      selectionSetContainsTypeConditionFeasibleField schema
+      GroundTypeNormalization.selectionSetContainsTypeConditionFeasibleField schema
         [operation.rootType]
         (filterSelectionSetBoolCase boolCase operation.selectionSet) :=
     selectionSetContainsTypeConditionFeasibleField_filterSelectionSetBoolCase
@@ -281,13 +286,13 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
     completeFilteredBoolCasesFieldsCanMerge schema operation hoperation
       leftCase hleftCase rightCase hrightCase
   have hleftBoolFeasible :
-      selectionSetBoolTypeConditionFeasible schema operation.rootType
-        [operation.rootType] leftCase .allFields operation.selectionSet :=
-    hboolFeasible.2 leftCase hleftCase
+      selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
+        [operation.rootType] leftCase operation.selectionSet :=
+    operationBoolTypeConditionFeasible_inCase hboolFeasible hleftCase
   have hrightBoolFeasible :
-      selectionSetBoolTypeConditionFeasible schema operation.rootType
-        [operation.rootType] rightCase .allFields operation.selectionSet :=
-    hboolFeasible.2 rightCase hrightCase
+      selectionSetBoolTypeConditionFeasibleInCase schema operation.rootType
+        [operation.rootType] rightCase operation.selectionSet :=
+    operationBoolTypeConditionFeasible_inCase hboolFeasible hrightCase
   have hleftSource :
       selectionSetFilteredCurrentSourceValid schema operation.variableDefinitions
         operation.rootType
@@ -316,14 +321,14 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
       hrootObject operation.selectionSet himplementation
   have hleftFeasible :
       selectionSetTypeConditionFeasible schema operation.rootType
-        [operation.rootType] .allFields
+        [operation.rootType]
         (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
     selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
       leftCase operation.rootType [operation.rootType] operation.selectionSet
       hleftBoolFeasible
   have hrightFeasible :
       selectionSetTypeConditionFeasible schema operation.rootType
-        [operation.rootType] .allFields
+        [operation.rootType]
         (filterSelectionSetBoolCase rightCase operation.selectionSet) :=
     selectionSetTypeConditionFeasible_filterSelectionSetBoolCase schema
       rightCase operation.rootType [operation.rootType] operation.selectionSet
@@ -386,6 +391,11 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
     completeNormalizeRootSelectionSet_fieldsInSetCanMerge_of_branchPairs
       schema (operationBoolVars operation) operation.rootType
       operation.selectionSet hbranchPairs
+  have hvariablesUsed :
+      Validation.operationVariablesUsed
+        (completeNormalizeOperation schema operation) :=
+    completeNormalizeOperation_operationVariablesUsed schema operation
+      hschema hoperation hboolFeasible
   exact ⟨
     by simp [completeNormalizeOperation,
       Validation.operationDefinitionValid_rootType_eq hoperation],
@@ -404,7 +414,8 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
         completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
           schema operation hschema hboolFeasible hoperation hfields,
     by
-      simpa [completeNormalizeOperation] using hnormalizedMerge⟩
+      simpa [completeNormalizeOperation] using hnormalizedMerge,
+    hvariablesUsed⟩
 
 end CompleteNormalization
 

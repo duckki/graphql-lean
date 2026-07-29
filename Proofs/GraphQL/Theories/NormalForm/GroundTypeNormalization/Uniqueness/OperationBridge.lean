@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Statements
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.SyntaxDiff
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.VariableIndependence
 
 /-!
 Operation-level wrappers for the selection-set uniqueness proof surface.
@@ -14,10 +15,13 @@ namespace GroundTypeNormalization
 theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : left.rootType = right.rootType
+      -> selectionSetDirectiveFree left.selectionSet
+      -> selectionSetDirectiveFree right.selectionSet
       -> operationsSemanticallyEquivalent schema left right
       -> selectionSetsSemanticallyEquivalent schema left.rootType
           left.selectionSet right.selectionSet := by
-  intro hroot hsem ObjectRef resolvers variableValues fuel source hsource
+  intro hroot hleftFree hrightFree hsem ObjectRef resolvers variableValues fuel
+    source hsource
   rcases hsource with ⟨runtimeType, _ref, hsourceEq, hinclude⟩
   have hleftRoot :
       Execution.rootSourceAppliesBool schema left source = true := by
@@ -30,21 +34,44 @@ theorem selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
       Execution.rootSourceAppliesBool schema right source = true := by
     simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
       hsourceEq, hrightInclude]
-  simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
-    Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-    Execution.executeSelectionSet, hroot] using
-      hsem resolvers variableValues fuel source
+  have heffective :
+      Execution.Response.semanticEquivalent
+        (Execution.executeSelectionSetAsResponse schema resolvers
+          (Execution.coerceVariableValues left variableValues) fuel
+          left.rootType source left.selectionSet)
+        (Execution.executeSelectionSetAsResponse schema resolvers
+          (Execution.coerceVariableValues right variableValues) fuel
+          left.rootType source right.selectionSet) := by
+    simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
+      Execution.executeSelectionSetAsResponse,
+      Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
+      hroot] using
+        hsem resolvers variableValues fuel source
+  have hleftValues :=
+    CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
+      schema resolvers variableValues
+      (Execution.coerceVariableValues left variableValues) fuel left.rootType
+      source left.selectionSet hleftFree
+  have hrightValues :=
+    CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
+      schema resolvers variableValues
+      (Execution.coerceVariableValues right variableValues) fuel left.rootType
+      source right.selectionSet hrightFree
+  simpa [Execution.executeSelectionSetAsResponse, hleftValues, hrightValues] using
+    heffective
 
 theorem selectionSetsDataEquivalent_of_operationsSemanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : left.rootType = right.rootType
+      -> selectionSetDirectiveFree left.selectionSet
+      -> selectionSetDirectiveFree right.selectionSet
       -> operationsSemanticallyEquivalent schema left right
       -> selectionSetsDataEquivalent schema left.rootType
           left.selectionSet right.selectionSet := by
-  intro hroot hsem
+  intro hroot hleftFree hrightFree hsem
   exact selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
     (selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
-      hroot hsem)
+      hroot hleftFree hrightFree hsem)
 
 theorem operation_rootType_eq_of_operationDefinitionValid
     {schema : Schema} {left right : Operation}
@@ -96,7 +123,7 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_selectio
       selectionSetsSemanticallyEquivalent schema left.rootType
         left.selectionSet right.selectionSet :=
     selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
-      hroot hsem
+      hroot hleftFree hrightFree hsem
   have hselectionSet :
       SelectionSetEqualUpToReordering left.selectionSet
         right.selectionSet :=
@@ -128,7 +155,7 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_se
       selectionSetsSemanticallyEquivalent schema left.rootType
         left.selectionSet right.selectionSet :=
     selectionSetsSemanticallyEquivalent_of_operationsSemanticallyEquivalent
-      hroot hsem
+      hroot hleftFree hrightFree hsem
   have hselectionSet :
       SelectionSetEqualUpToReordering left.selectionSet
         right.selectionSet :=
@@ -185,7 +212,7 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_ob
         selectionSetsDataEquivalent schema left.rootType left.selectionSet
           right.selectionSet :=
       selectionSetsDataEquivalent_of_operationsSemanticallyEquivalent
-        hroot hsem
+        hroot hleftFree hrightFree hsem
     exact False.elim
       ((hdiffSeparates hschema
         (Validation.operationDefinitionValid_selectionSetValid hleftValid)

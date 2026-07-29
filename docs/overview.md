@@ -97,19 +97,25 @@ It should remain definition-only.
   and shared selection helpers. Named fragment definitions and fragment spreads
   are separated into `GraphQL.NamedFragment`.
 - `GraphQL.Validation`: validation as a proposition over a schema and operation,
-  including variable definitions/defaults, variable-use compatibility, argument
-  checks, recursive input/output type checks, required non-empty selection sets,
-  modeled `@skip`/`@include`, same-response-name field merge checks, and
-  inline-fragment applicability.
+  including variable definitions/defaults, all declared variables used in the
+  operation scope, variable-use compatibility, argument checks, recursive
+  input/output type checks, required non-empty selection sets, modeled
+  `@skip`/`@include`, same-response-name field merge checks, and inline-fragment
+  applicability.
 - `GraphQL.Theories.NormalForm`: ground-typed normal form and non-redundancy
   predicates over operation selection sets, a normalization pass for field merging and
   abstract-type grounding, and the public resolver-parametric semantic
   preservation predicates for directive-free ground-type normalization and
   directive-aware complete normalization. Its validity-preservation predicates
   also expose operation-specific assumptions for possible-type validity and
-  type-condition feasibility after grounding. The complete-normalization
-  validity predicate combines Boolean directive filtering with the
-  type-condition feasibility obligation in a BoolCase-indexed assumption.
+  strict all-field type-condition feasibility after grounding. This strict
+  ground assumption also lets the proof derive preservation of the
+  all-variables-used validation rule. The complete-normalization
+  validity predicate uses a mode-free, path-sensitive feasibility assumption:
+  every selection has a compatible Boolean case, all type-condition stacks are
+  feasible, and every admitted case retains a child in nonempty nested
+  selection sets. This also lets the proof derive preservation of the
+  all-variables-used validation rule.
 - `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`: proof-facing
   lemmas for the directive-free ground-type normalizer.
 - `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`: proof-facing lemmas for complete
@@ -123,10 +129,11 @@ It should remain definition-only.
   branch, stem, and sibling reordering.
 - `GraphQL.Execution`: fuel-bounded query execution over operation selections,
   parameterized by abstract resolver functions. It
-  collects executable fields by response name, resolves each response name
-  once, passes field arguments to resolvers, applies `@skip` / `@include`
-  filtering, completes values with list/object/non-null null bubbling, and
-  returns a response envelope with data plus a `Nat` execution-error count.
+  materializes missing operation variable defaults, collects executable fields
+  by response name, resolves each response name once, passes field arguments to
+  resolvers, applies `@skip` / `@include` filtering with the effective variable
+  map, completes values with list/object/non-null null bubbling, and returns a
+  response envelope with data plus a `Nat` execution-error count.
   Runtime object values carry their GraphQL object type plus an optional
   resolver-owned opaque object reference; final responses do not carry object
   identity or detailed error metadata. Internal fuel exhaustion is represented

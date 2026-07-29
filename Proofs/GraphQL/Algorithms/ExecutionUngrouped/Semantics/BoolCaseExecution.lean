@@ -2229,18 +2229,22 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (depth : Nat) (source : Execution.ResolverValue ObjectRef)
-    : NormalForm.operationBoolVarsComplete operation variableValues
+    : NormalForm.operationBoolVarsComplete operation
+        (Execution.coerceVariableValues operation variableValues)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
-                variableValues runtimeCase
+                (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> visitSubfields schema resolvers variableValues depth operation.rootType
+            -> visitSubfields schema resolvers
+                  (Execution.coerceVariableValues operation variableValues)
+                  depth operation.rootType
                   source
                   (NormalForm.filterSelectionSetBoolCase runtimeCase
                     operation.selectionSet)
                   (Execution.ResponseValue.object [])
-                = visitSubfields schema resolvers variableValues depth
+                = visitSubfields schema resolvers
+                    (Execution.coerceVariableValues operation variableValues) depth
                     operation.rootType source
                     (NormalForm.normalizeSelectionSet schema operation.rootType
                       (NormalForm.filterSelectionSetBoolCase runtimeCase
@@ -2258,41 +2262,51 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
   · simp
   · rcases
       NormalForm.CompleteNormalization.operationBoolVarsComplete_caseForVariableValues
-        variableValues operation hcomplete with
+        (Execution.coerceVariableValues operation variableValues) operation
+        hcomplete with
       ⟨runtimeCase, hruntime, hagrees⟩
     have hvisit :
-        visitSubfields schema resolvers variableValues depth operation.rootType
+        visitSubfields schema resolvers
+            (Execution.coerceVariableValues operation variableValues) depth
+            operation.rootType
             source operation.selectionSet (Execution.ResponseValue.object [])
           =
-        visitSubfields schema resolvers variableValues depth operation.rootType
+        visitSubfields schema resolvers
+          (Execution.coerceVariableValues operation variableValues) depth
+          operation.rootType
           source
           (NormalForm.completeNormalizeRootSelectionSet schema
             (NormalForm.operationBoolVars operation) operation.rootType
             operation.selectionSet)
           (Execution.ResponseValue.object []) :=
       visitSubfields_completeNormalizeRootSelectionSet_eq_of_filter_normalization
-        schema resolvers variableValues operation depth operation.rootType
+        schema resolvers (Execution.coerceVariableValues operation variableValues)
+        operation depth operation.rootType
         source runtimeCase operation.selectionSet (Execution.ResponseValue.object [])
         hruntime hagrees
         (by
           intro varName hmem
           exact hmem)
         (hnormalizeBranch runtimeCase hruntime hagrees)
-    simp [executeRootSelectionSet, NormalForm.completeNormalizeOperation,
-      hvisit]
+    simp only [↓reduceIte]
+    simp only [executeRootSelectionSet]
+    rw [hvisit]
+    simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation]
 
 theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_freshPlanNormalizes
     (schema : Schema) (operation : Operation)
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (depth : Nat) (source : Execution.ResolverValue ObjectRef)
-    : NormalForm.operationBoolVarsComplete operation variableValues
+    : NormalForm.operationBoolVarsComplete operation
+        (Execution.coerceVariableValues operation variableValues)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
-                variableValues runtimeCase
+                (Execution.coerceVariableValues operation variableValues) runtimeCase
                 (NormalForm.operationBoolVars operation)
-            -> SelectionSetFreshPlanNormalizes schema resolvers variableValues depth
+            -> SelectionSetFreshPlanNormalizes schema resolvers
+                (Execution.coerceVariableValues operation variableValues) depth
                 operation.rootType source
                 (NormalForm.filterSelectionSetBoolCase runtimeCase operation.selectionSet)
                 (NormalForm.normalizeSelectionSet schema operation.rootType

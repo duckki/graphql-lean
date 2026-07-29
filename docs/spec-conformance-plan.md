@@ -17,14 +17,16 @@ The current conformance target includes:
   default-value validity, non-empty type member/field lists, and
   object/interface implementation compatibility,
 - field selection validation, argument name validation, required argument
-  presence, variable-use compatibility at input locations, leaf and composite
-  selection shape, non-empty operation and composite selection sets,
+  presence, all declared variables used in operation scope, variable-use
+  compatibility at input locations, leaf and composite selection shape,
+  non-empty operation and composite selection sets,
   inline-fragment applicability, and field merge compatibility,
 - inline fragments,
 - named fragment definitions and fragment spreads in the separate
   `GraphQL.NamedFragment` public layer, with theorem bridges under
   `Proofs.GraphQL.NamedFragment`,
-- variables and the built-in executable directives `@skip` and `@include`,
+- variables, operation variable defaults, and the built-in executable
+  directives `@skip` and `@include`,
 - possible-object semantics for abstract types,
 - execution field errors as resolver failure counts in the query response
   envelope,
@@ -38,7 +40,8 @@ These are out of scope for the current conformance pass:
 - subscription execution,
 - custom directives and directive definitions beyond modeled `@skip` and
   `@include`,
-- full input coercion and result coercion,
+- full input coercion and result coercion beyond materializing operation variable
+  defaults,
 - scalar and enum literal coercion details; validation records structural
   input-object and variable/input-type compatibility, while assuming values are
   already coerced where scalar semantics would matter,
@@ -47,15 +50,27 @@ These are out of scope for the current conformance pass:
   and error locations,
 - serialization details,
 
-The working assumption is that values entering validation/execution are already
-coerced and type-conformant. The proof-facing model should state that assumption
-explicitly instead of trying to recover full coercion behavior.
+The working assumption is that supplied variable values and operation defaults
+entering execution are already coerced and type-conformant. Execution models the
+default-value branch of spec 6.1.2 `CoerceVariableValues`: a missing supplied
+variable receives its operation default, including an explicit `null` default,
+while any supplied value, including supplied `null`, takes precedence. The model
+does not yet perform type coercion or produce request errors for missing/null
+required variables.
+
+This defaulting step is observable for the modeled directives. Their `if`
+argument has type `Boolean!`, while spec 5.8.5 permits a nullable `Boolean`
+variable at that location when its operation definition has a non-null default.
+When the request omits that variable, spec 6.1.2 materializes the default before
+field collection, so `@skip` and `@include` evaluate the defaulted Boolean.
 
 ## Execution Alignment Notes
 
 `GraphQL.Execution` follows the September 2025 execution algorithm names where
 practical:
 
+- `coerceVariableValues` models the default-value portion of spec 6.1.2 before
+  query execution and therefore before `@skip` / `@include` evaluation.
 - `collectFields` / `collectSubfields` model spec 6.3.2 field collection with
   ordered list-backed response-name groups.
 - `executeRootSelectionSet`, `executeCollectedFields`, `executeField`,
@@ -96,16 +111,19 @@ The main modules are:
 - `GraphQL.Operation`: operation syntax, variables, inline fragments, and
   modeled directive applications.
 - `GraphQL.Validation`: operation validity predicates for the current fragment,
-  including recursive input-object validation and spec-style variable-use
-  compatibility with the nullable-variable default exception, plus
-  required non-empty root/composite selection sets and same-response-name merge
-  compatibility checks.
+  including recursive input-object validation, the spec 5.8.4
+  all-variables-used rule, and spec-style variable-use compatibility with the
+  nullable-variable default exception, plus required non-empty root/composite
+  selection sets and same-response-name merge compatibility checks.
 - `GraphQL.Execution`: bounded resolver-based execution with compatibility data
-  projection, response null bubbling through non-null output wrappers, and a
-  query response envelope containing data plus a `Nat` execution-error count.
+  projection, operation-variable default materialization, response null
+  bubbling through non-null output wrappers, and a query response envelope
+  containing data plus a `Nat` execution-error count.
 - `GraphQL.NamedFragment`: separate fragment-aware public operation syntax,
   validation, direct fragment-aware execution, and inlining support for
-  equivalence proofs under `Proofs.GraphQL.NamedFragment`.
+  equivalence proofs under `Proofs.GraphQL.NamedFragment`. Its
+  all-variables-used check follows fragment spreads transitively and does not
+  count uses in unreferenced fragments.
 
 Conformance testing now includes graphql-js execution projections under
 `conformance/graphql-js/`. The fixtures intentionally compare only the behavior
@@ -113,8 +131,9 @@ represented by `GraphQL.Execution` and `GraphQL.NamedFragment.Execution`:
 ordered response data and execution-error count. The graphql-js oracle script
 projects `errors.length` and drops messages, paths, locations, extensions,
 async scheduling details, and resolver info metadata. Generated Lean tests for
-the fragment-free execution model live under `Tests/Conformance/Execution/` and
-are regenerated with:
+the fragment-free execution model live under `Tests/Conformance/Execution/`.
+They include omitted nullable Boolean variables with non-null defaults used by
+both `@skip` and `@include`. The tests are regenerated with:
 
 ```sh
 npm --prefix conformance run gen:graphql-js

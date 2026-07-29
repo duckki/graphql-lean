@@ -107,6 +107,23 @@ assumptions that are not GraphQL validation rules.
 The extra assumptions are important because they expose a real gap between
 GraphQL operation validity and runtime semantics.
 
+Spec 5.8.4 requires every declared variable to remain syntactically used. The
+ground feasibility assumption requires every selected field's complete
+type-condition stack to be feasible in each concrete scope introduced by
+grounding. Every nonempty composite child must also have at least one possible
+concrete type. Consequently ground normalization preserves every variable use;
+`normalizeOperation_operationVariablesUsed` derives the normalized operation's
+all-variables-used property from input validity.
+
+For complete normalization, `operationBoolTypeConditionFeasible` additionally
+requires every selection to survive in at least one Boolean case compatible
+with its ancestors. It also requires every admitted case for a nonempty child
+selection set to retain a child. Thus every original variable use is preserved
+in at least one normalized branch: Boolean directive variables occur in the
+generated case wrappers, while other variables remain in a surviving branch.
+`completeNormalizeOperation_operationVariablesUsed` therefore derives the
+normalized all-variables-used property from input validity and feasibility.
+
 First, GraphQL operation validity rejects syntactically empty selection sets,
 but a syntactically nonempty selection set can be semantically empty for a
 particular scope. For example, all child selections of a composite field may be
@@ -151,10 +168,12 @@ type Query {
 implements `I`, but the intersection of `A` and `B` is empty. Execution never
 reaches `data` for any runtime object returned by `f`, but normalization may
 drop the infeasible scopes and therefore expose an empty composite child
-selection set. The
-`operationTypeConditionFeasible` and `operationBoolTypeConditionFeasible`
-assumptions rule out exactly the cases where validity preservation would fail
-because every child is semantically unreachable.
+selection set. `operationTypeConditionFeasible` rules this out for ground
+normalization by requiring every field stack to be feasible. The mode-free
+`operationBoolTypeConditionFeasible` strengthens that condition for complete
+normalization: all selection paths have feasible type conditions, every
+selection has a compatible Boolean case, and every case admitted by a surviving
+composite selection retains at least one child.
 
 Second, a field selected under an interface type condition is validated against
 the interface field definition. Ground normalization makes concrete
@@ -229,14 +248,17 @@ have the same syntax modulo order that execution does not observe.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
-  It additionally ignores complete Boolean branch order and minterm stem order.
+  It additionally ignores complete Boolean branch order and minterm stem order;
+  Boolean-support equivalence is derived from validity, complete normality, and
+  unrestricted execution equivalence.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
   is witnessed by
   `completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent` in
   `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   Its semantic conclusion is restricted to complete Boolean environments, with
   source Boolean-support equivalence stated explicitly because normalized equality
-  only compares normalized support.
+  only compares normalized support. It also requires identical variable
+  definitions, since public execution applies operation-specific defaults.
 - `NormalForm.completeNormalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.

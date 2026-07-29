@@ -12,6 +12,85 @@ namespace CompleteNormalization
 
 variable {ObjectRef : Type}
 
+private theorem lookupVariableValue?_foldlDefaults_eq_some
+    (variableDefinitions : List VariableDefinition)
+    (variableValues : Execution.VariableValues)
+    {name : Name} {value : InputValue}
+    (hlookup : Execution.lookupVariableValue? variableValues name = some value)
+    : Execution.lookupVariableValue?
+        (variableDefinitions.foldl
+          (fun coercedValues variableDefinition =>
+            match Execution.lookupVariableValue?
+                    coercedValues variableDefinition.name with
+            | some _value => coercedValues
+            | none =>
+                match variableDefinition.defaultValue with
+                | some defaultValue =>
+                    (variableDefinition.name, defaultValue.toInputValue) :: coercedValues
+                | none => coercedValues)
+          variableValues)
+        name
+      = some value := by
+  induction variableDefinitions generalizing variableValues with
+  | nil =>
+      exact hlookup
+  | cons variableDefinition variableDefinitions ih =>
+      simp only [List.foldl_cons]
+      apply ih
+      split
+      · exact hlookup
+      · rename_i hmissing
+        split
+        · simp only [Execution.lookupVariableValue?]
+          split
+          · rename_i heq
+            subst name
+            rw [hlookup] at hmissing
+            contradiction
+          · exact hlookup
+        · exact hlookup
+
+theorem lookupVariableValue?_coerceVariableValues_eq_some
+    (operation : Operation)
+    (variableValues : Execution.VariableValues)
+    {name : Name} {value : InputValue}
+    (hlookup : Execution.lookupVariableValue? variableValues name = some value)
+    : Execution.lookupVariableValue?
+        (Execution.coerceVariableValues operation variableValues) name
+      = some value := by
+  exact lookupVariableValue?_foldlDefaults_eq_some
+    operation.variableDefinitions variableValues hlookup
+
+theorem inputValueBoolean?_coerceVariableValues_eq_some
+    (operation : Operation)
+    (variableValues : Execution.VariableValues)
+    {name : Name} {value : Bool}
+    (hlookup : Execution.inputValueBoolean? variableValues (.variable name) = some value)
+    : Execution.inputValueBoolean?
+        (Execution.coerceVariableValues operation variableValues) (.variable name)
+      = some value := by
+  cases hvariable :
+      Execution.lookupVariableValue? variableValues name with
+  | none =>
+      simp [Execution.inputValueBoolean?, hvariable] at hlookup
+  | some inputValue =>
+      have hcoerced :=
+        lookupVariableValue?_coerceVariableValues_eq_some
+          operation variableValues hvariable
+      simpa [Execution.inputValueBoolean?, hvariable, hcoerced] using hlookup
+
+theorem operationBoolVarsComplete_coerceVariableValues
+    (operation : Operation)
+    (variableValues : Execution.VariableValues)
+    (hcomplete : operationBoolVarsComplete operation variableValues)
+    : operationBoolVarsComplete operation
+        (Execution.coerceVariableValues operation variableValues) := by
+  intro name hmem
+  rcases hcomplete name hmem with ⟨value, hlookup⟩
+  exact ⟨value,
+    inputValueBoolean?_coerceVariableValues_eq_some
+      operation variableValues hlookup⟩
+
 theorem completeNormalizeOperation_uses_global_variables (operation : Operation)
     : operationBoolVars operation
       = dedupBoolVars (selectionSetBooleanVariables operation.selectionSet) := by

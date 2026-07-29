@@ -47,6 +47,63 @@ def fragmentsAcyclic (fragments : List FragmentDefinition) : Prop :=
   fragmentsAcyclicBool fragments = true
 
 mutual
+  -- Spec 5.8.4 variable uses in an operation scope. Following a fragment spread
+  -- removes the found definition just as inlining does, so this traversal is
+  -- structurally terminating and includes transitively referenced fragments.
+  def selectionVariables : List FragmentDefinition -> Selection -> List Name
+    | fragments,
+      .field _responseName _fieldName arguments directives selectionSet =>
+        GraphQL.Validation.argumentsVariables arguments
+        ++ GraphQL.Validation.directivesVariables directives
+        ++ selectionSetVariables fragments selectionSet
+    | fragments, .inlineFragment _typeCondition directives selectionSet =>
+        GraphQL.Validation.directivesVariables directives
+        ++ selectionSetVariables fragments selectionSet
+    | fragments, .fragmentSpread fragmentName directives =>
+        GraphQL.Validation.directivesVariables directives
+        ++ match lookupFragmentAndRestLt? fragmentName fragments with
+            | none => []
+            | some (fragment, remainingFragments) =>
+                selectionSetVariables remainingFragments.val fragment.selectionSet
+  termination_by fragments selection => (fragments.length, sizeOf selection, 0)
+  decreasing_by
+    all_goals
+      try subst fragments
+      simp_wf
+      try
+        first
+        | apply Prod.Lex.left
+          exact remainingFragments.property
+        | apply Prod.Lex.right
+          apply Prod.Lex.left
+          omega
+        | apply Prod.Lex.right
+          apply Prod.Lex.right
+          omega
+
+  def selectionSetVariables : List FragmentDefinition -> List Selection -> List Name
+    | _fragments, [] => []
+    | fragments, selection :: rest =>
+        selectionVariables fragments selection ++ selectionSetVariables fragments rest
+  termination_by fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
+  decreasing_by
+    all_goals
+      try subst fragments
+      simp_wf
+      repeat first
+        | apply Prod.Lex.left; omega
+        | apply Prod.Lex.right
+      try omega
+end
+
+-- Spec 5.8.4 All Variables Used, including transitively referenced fragments.
+def operationVariablesUsed (operation : Operation) : Prop :=
+  ∀ variableDefinition,
+    variableDefinition ∈ operation.variableDefinitions
+    -> variableDefinition.name
+        ∈ selectionSetVariables operation.fragmentDefinitions operation.selectionSet
+
+mutual
   def selectionValid (schema : Schema)
       (variableDefinitions : List VariableDefinition)
       (fragments : List FragmentDefinition)
@@ -262,6 +319,7 @@ def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
       operation.fragmentDefinitions operation.rootType operation.selectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema operation.fragmentDefinitions
       operation.rootType operation.selectionSet
+  ∧ operationVariablesUsed operation
 
 end Validation
 end NamedFragment

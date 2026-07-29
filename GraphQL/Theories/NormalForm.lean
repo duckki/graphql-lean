@@ -480,77 +480,50 @@ def typeConditionStackFeasible (schema : Schema) (typeConditions : List Name) : 
     ∀ typeCondition,
       typeCondition ∈ typeConditions -> objectType ∈ schema.getPossibleTypes typeCondition
 
-/-- Feasibility has two proof roles: `existsField` witnesses one feasible field
-through inline fragments, while `allFields` recursively checks every selected
-composite field that ground normalization may process. -/
-inductive TypeConditionFeasibilityMode where
-  | existsField
-  | allFields
-
--- Recursive validity-preservation assumption: every selected composite field whose
--- enclosing type-condition stack is feasible must have at least one feasible child
--- field after following inline fragments. The recursive obligation then follows the
--- implementation field output type through every possible object branch that ground
--- normalization may introduce.
+-- Recursive validity-preservation assumption: every selected field has a feasible
+-- enclosing type-condition stack. Every nonempty child selection set has at least
+-- one possible concrete object type and satisfies the condition in every concrete
+-- object scope introduced by ground normalization.
 mutual
   def selectionTypeConditionFeasible (schema : Schema)
       (parentType : Name) (typeConditions : List Name)
-      : TypeConditionFeasibilityMode -> Selection -> Prop
-    | .existsField,
-      .field _responseName _fieldName _arguments _directives _selectionSet =>
+      : Selection -> Prop
+    | .field _responseName fieldName _arguments _directives selectionSet =>
         typeConditionStackFeasible schema typeConditions
-    | .allFields,
-      .field _responseName fieldName _arguments _directives selectionSet =>
-        match selectionSet with
-        | [] => True
-        | _ :: _ =>
-            typeConditionStackFeasible schema typeConditions
-            -> match schema.lookupField parentType fieldName with
-                | none => False
-                | some fieldDefinition =>
-                    selectionSetTypeConditionFeasible schema
-                      fieldDefinition.outputType.namedType
-                      [fieldDefinition.outputType.namedType] .existsField
-                      selectionSet
-                    ∧ ∀ objectType,
-                        objectType
-                          ∈ schema.getPossibleTypes fieldDefinition.outputType.namedType
-                        -> selectionSetTypeConditionFeasible schema objectType
-                            [objectType] .allFields selectionSet
-    | mode, .inlineFragment none _directives selectionSet =>
+        ∧ match selectionSet with
+          | [] => True
+          | _ :: _ =>
+              match schema.lookupField parentType fieldName with
+              | none => False
+              | some fieldDefinition =>
+                  let possibleTypes :=
+                    schema.getPossibleTypes fieldDefinition.outputType.namedType
+                  possibleTypes ≠ []
+                  ∧ ∀ objectType,
+                      objectType ∈ possibleTypes
+                      -> selectionSetTypeConditionFeasible schema objectType
+                          [objectType] selectionSet
+    | .inlineFragment none _directives selectionSet =>
+        selectionSetTypeConditionFeasible schema parentType typeConditions selectionSet
+    | .inlineFragment (some typeCondition) _directives selectionSet =>
         selectionSetTypeConditionFeasible schema parentType
-          typeConditions mode selectionSet
-    | mode, .inlineFragment (some typeCondition) _directives selectionSet =>
-        selectionSetTypeConditionFeasible schema parentType
-          (typeCondition :: typeConditions) mode selectionSet
+          (typeCondition :: typeConditions) selectionSet
 
   def selectionSetTypeConditionFeasible (schema : Schema)
       (parentType : Name) (typeConditions : List Name)
-      : TypeConditionFeasibilityMode -> List Selection -> Prop
-    | .existsField, [] => False
-    | .existsField, selection :: rest =>
-        selectionTypeConditionFeasible schema parentType typeConditions
-          .existsField selection
-        ∨ selectionSetTypeConditionFeasible schema parentType typeConditions
-            .existsField rest
-    | .allFields, [] => True
-    | .allFields, selection :: rest =>
-        selectionTypeConditionFeasible schema parentType typeConditions
-          .allFields selection
-        ∧ selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields rest
+      : List Selection -> Prop
+    | [] => True
+    | selection :: rest =>
+        selectionTypeConditionFeasible schema parentType typeConditions selection
+        ∧ selectionSetTypeConditionFeasible schema parentType typeConditions rest
 end
 
--- Operation assumption for validity preservation: the root has a feasible surviving
--- field, and every selected field whose enclosing type-condition stack is feasible
--- keeps a feasible child field when it has child selections. Recursive obligations
--- follow implementation field output types, which are the scopes introduced by
--- ground normalization.
+-- Operation assumption for validity preservation: every selected field has a feasible
+-- enclosing type-condition stack in every concrete scope introduced by ground
+-- normalization, and every nonempty child has a possible concrete scope.
 def operationTypeConditionFeasible (schema : Schema) (operation : Operation) : Prop :=
   selectionSetTypeConditionFeasible schema operation.rootType
-    [operation.rootType] .existsField operation.selectionSet
-  ∧ selectionSetTypeConditionFeasible schema operation.rootType
-      [operation.rootType] .allFields operation.selectionSet
+    [operation.rootType] operation.selectionSet
 
 -- Public validity-preservation statement for the ground-type normalizer. The theorem
 -- witness is `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_valid`.
@@ -1040,104 +1013,117 @@ def completeNormalizeOperationNormal (schema : Schema) (operation : Operation) :
 
 namespace CompleteNormalization
 
-/-- Complete normalization uses the same feasibility modes as ground normalization,
-with boolean filtering layered into each selection obligation. -/
-abbrev BoolTypeConditionFeasibilityMode := TypeConditionFeasibilityMode
+def selectionAllowsIn (boolCase : BoolCase) : Selection -> Bool
+  | .field _responseName _fieldName _arguments directives _selectionSet =>
+      directivesAllowIn boolCase directives
+  | .inlineFragment _typeCondition directives _selectionSet =>
+      directivesAllowIn boolCase directives
+
+private theorem selection_size_le_selectionSet_size_of_mem
+    {selection : Selection} {selectionSet : List Selection}
+    (hmem : selection ∈ selectionSet)
+    : selection.size ≤ SelectionSet.size selectionSet := by
+  induction selectionSet with
+  | nil =>
+      cases hmem
+  | cons head rest ih =>
+      rcases List.mem_cons.mp hmem with rfl | hrest
+      · simp [SelectionSet.size]
+      · have := ih hrest
+        simp [SelectionSet.size]
+        omega
 
 mutual
+  /--
+  Every selection has a feasible type-condition stack and survives in at least one
+  Boolean case still admitted by its ancestors. Composite child sets are checked in
+  exactly the cases where their parent survives.
+  -/
   def selectionBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCase : BoolCase)
-      : BoolTypeConditionFeasibilityMode -> Selection -> Prop
-    | .existsField,
-      .field _responseName _fieldName _arguments directives _selectionSet =>
-        directivesAllowIn boolCase directives = true
+      (typeConditions : List Name) (boolCases : List BoolCase)
+      : Selection -> Prop
+    | .field _responseName fieldName _arguments directives selectionSet =>
+        let allowedCases :=
+          boolCases.filter (fun boolCase => directivesAllowIn boolCase directives)
+        allowedCases ≠ []
         ∧ typeConditionStackFeasible schema typeConditions
-    | .allFields,
-      .field _responseName fieldName _arguments directives selectionSet =>
-        directivesAllowIn boolCase directives = true
-        -> match selectionSet with
-            | [] => True
-            | _ :: _ =>
-                typeConditionStackFeasible schema typeConditions
-                -> match schema.lookupField parentType fieldName with
-                    | none => False
-                    | some fieldDefinition =>
-                        selectionSetBoolTypeConditionFeasible schema
-                          fieldDefinition.outputType.namedType
-                          [fieldDefinition.outputType.namedType] boolCase
-                          .existsField selectionSet
-                        ∧ ∀ objectType,
-                            objectType
-                              ∈ schema.getPossibleTypes
-                                  fieldDefinition.outputType.namedType
-                            -> selectionSetBoolTypeConditionFeasible schema
-                                objectType [objectType] boolCase .allFields
-                                selectionSet
-    | .existsField, .inlineFragment none directives selectionSet =>
-        directivesAllowIn boolCase directives = true
+        ∧ (selectionSet = []
+            ∨ match schema.lookupField parentType fieldName with
+              | none => False
+              | some fieldDefinition =>
+                  let possibleTypes :=
+                    schema.getPossibleTypes fieldDefinition.outputType.namedType
+                  possibleTypes ≠ []
+                  ∧ ∀ objectType,
+                      objectType ∈ possibleTypes
+                      -> selectionSetBoolTypeConditionFeasible schema objectType
+                          [objectType] allowedCases selectionSet)
+    | .inlineFragment none directives selectionSet =>
+        let allowedCases :=
+          boolCases.filter (fun boolCase => directivesAllowIn boolCase directives)
+        allowedCases ≠ []
         ∧ selectionSetBoolTypeConditionFeasible schema parentType
-            typeConditions boolCase .existsField selectionSet
-    | .allFields, .inlineFragment none directives selectionSet =>
-        directivesAllowIn boolCase directives = true
-        -> selectionSetBoolTypeConditionFeasible schema parentType
-            typeConditions boolCase .allFields selectionSet
-    | .existsField, .inlineFragment (some typeCondition) directives selectionSet =>
-        directivesAllowIn boolCase directives = true
+            typeConditions allowedCases selectionSet
+    | .inlineFragment (some typeCondition) directives selectionSet =>
+        let allowedCases :=
+          boolCases.filter (fun boolCase => directivesAllowIn boolCase directives)
+        allowedCases ≠ []
         ∧ selectionSetBoolTypeConditionFeasible schema parentType
-            (typeCondition :: typeConditions) boolCase .existsField
-            selectionSet
-    | .allFields, .inlineFragment (some typeCondition) directives selectionSet =>
-        directivesAllowIn boolCase directives = true
-        -> selectionSetBoolTypeConditionFeasible schema parentType
-            (typeCondition :: typeConditions) boolCase .allFields
-            selectionSet
+            (typeCondition :: typeConditions) allowedCases selectionSet
+  termination_by selection => 2 * selection.size
+  decreasing_by
+    all_goals
+      simp [Selection.size]
+      omega
 
+  /--
+  Every child selection is feasible, and every Boolean case admitted by the parent
+  leaves at least one child selection. The caller supplies a nonempty list of
+  admitted cases, so case coverage also establishes that the selection set is
+  nonempty.
+  -/
   def selectionSetBoolTypeConditionFeasible
       (schema : Schema) (parentType : Name)
-      (typeConditions : List Name) (boolCase : BoolCase)
-      : BoolTypeConditionFeasibilityMode -> List Selection -> Prop
-    -- This is the structural form of a fold over the selection set; keeping the
-    -- cons/nil cases explicit lets Lean see the mutual recursion decreases.
-    | .existsField, [] => False
-    | .existsField, selection :: rest =>
-        selectionBoolTypeConditionFeasible schema parentType typeConditions
-          boolCase .existsField selection
-        ∨ selectionSetBoolTypeConditionFeasible schema parentType
-            typeConditions boolCase .existsField rest
-    | .allFields, [] => True
-    | .allFields, selection :: rest =>
-        selectionBoolTypeConditionFeasible schema parentType typeConditions
-          boolCase .allFields selection
-        ∧ selectionSetBoolTypeConditionFeasible schema parentType
-            typeConditions boolCase .allFields rest
+      (typeConditions : List Name) (boolCases : List BoolCase)
+      (selectionSet : List Selection)
+      : Prop :=
+    (∀ selection,
+      selection ∈ selectionSet
+      -> selectionBoolTypeConditionFeasible schema parentType
+          typeConditions boolCases selection)
+    ∧ ∀ boolCase,
+        boolCase ∈ boolCases
+        -> ∃ selection,
+            selection ∈ selectionSet ∧ selectionAllowsIn boolCase selection = true
+  termination_by 2 * SelectionSet.size selectionSet + 1
+  decreasing_by
+    have hsize :=
+        selection_size_le_selectionSet_size_of_mem
+          (selection := selection) (selectionSet := selectionSet)
+          ‹selection ∈ selectionSet›
+    omega
 end
 
 /--
 Operation-local feasibility assumption for complete-normalization validity.
 
-The first conjunct witnesses a complete BoolCase whose filtered root contains a
-feasible field, which keeps the normalized operation root non-empty. The second
-conjunct says every complete BoolCase has enough feasible child fields for every
-surviving feasible composite field. This joins Boolean directive filtering and
-type-condition feasibility in one assumption, instead of pairing independent
-survival and type-condition predicates.
+Every root selection has a feasible type-condition stack and survives under at
+least one complete Boolean case. Recursively, every source selection survives
+some case admitted by its ancestors, and every surviving composite selection
+retains a child in each case where its parent survives.
 -/
 def operationBoolTypeConditionFeasible (schema : Schema) (operation : Operation) : Prop :=
-  (∃ boolCase,
-    boolCase ∈ allBoolCases (operationBoolVars operation)
-    ∧ selectionSetBoolTypeConditionFeasible schema operation.rootType
-        [operation.rootType] boolCase .existsField
-        operation.selectionSet)
-  ∧ (∀ boolCase,
-      boolCase ∈ allBoolCases (operationBoolVars operation)
-      -> selectionSetBoolTypeConditionFeasible schema operation.rootType
-          [operation.rootType] boolCase .allFields operation.selectionSet)
+  ∀ selection,
+    selection ∈ operation.selectionSet
+    -> selectionBoolTypeConditionFeasible schema operation.rootType
+        [operation.rootType]
+        (allBoolCases (operationBoolVars operation)) selection
 
 end CompleteNormalization
 
 export CompleteNormalization (
-  BoolTypeConditionFeasibilityMode operationBoolTypeConditionFeasible
+  operationBoolTypeConditionFeasible selectionAllowsIn
   selectionBoolTypeConditionFeasible
   selectionSetBoolTypeConditionFeasible
 )
@@ -1196,10 +1182,10 @@ def CompleteNormalSelectionSetEqualUpToReordering
         -> CompleteNormalSelectionEqualUpToReordering
             leftVariables rightVariables pair.1 pair.2
 
--- Syntactic equality (`≡`) up to reordering for complete-normal operations.
+-- Syntactic equality (`≡`) up to reordering for complete-normal operations. Matching
+-- complete cases structurally determine equivalence of the Boolean-variable support.
 def completeNormalOperationsEqualUpToReordering (left right : Operation) : Prop :=
   left.rootType = right.rootType
-  ∧ operationBoolVarsEquivalent left right
   ∧ match operationBoolVars left with
     | [] =>
         SelectionSetEqualUpToReordering left.selectionSet right.selectionSet
@@ -1217,6 +1203,7 @@ def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
     : Prop :=
   completeNormalOperation schema left
   -> completeNormalOperation schema right
+  -> left.variableDefinitions = right.variableDefinitions
   -> completeNormalOperationsEqualUpToReordering left right
   -> operationsSemanticallyEquivalent schema left right
 
@@ -1245,6 +1232,7 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> left.variableDefinitions = right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> completeNormalOperationsEqualUpToReordering
       (completeNormalizeOperation schema left)
@@ -1264,7 +1252,6 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReordering left right
 

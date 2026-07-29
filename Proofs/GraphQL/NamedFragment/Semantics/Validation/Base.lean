@@ -23,7 +23,7 @@ theorem inlineOperation_selectionSet_nonempty_of_valid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsValid, hselectionNonempty,
-      _hselectionValid, _hmerge⟩
+      _hselectionValid, _hmerge, _hvariablesUsed⟩
   cases operation with
   | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
       simp [Inline.inlineOperation]

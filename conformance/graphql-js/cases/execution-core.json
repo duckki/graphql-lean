@@ -183,6 +183,133 @@
       }
     },
     {
+      "id": "directives_variable_default_true",
+      "sourceTest": "src/execution/__tests__/directives-test.ts",
+      "graphqlSource": "query ($withB: Boolean = true) { a b @include(if: $withB) }",
+      "schema": {
+        "queryType": "Query",
+        "types": [
+          {
+            "kind": "object",
+            "name": "Query",
+            "fields": [
+              { "name": "a", "type": { "kind": "named", "name": "String" } },
+              { "name": "b", "type": { "kind": "named", "name": "String" } }
+            ]
+          }
+        ]
+      },
+      "operation": {
+        "rootType": "Query",
+        "variableDefinitions": [
+          {
+            "name": "withB",
+            "type": { "kind": "named", "name": "Boolean" },
+            "defaultValue": { "kind": "boolean", "value": true }
+          }
+        ],
+        "selectionSet": [
+          { "kind": "field", "responseName": "a", "fieldName": "a" },
+          {
+            "kind": "field",
+            "responseName": "b",
+            "fieldName": "b",
+            "directives": [
+              { "kind": "include", "if": { "kind": "variable", "name": "withB" } }
+            ]
+          }
+        ]
+      },
+      "source": { "kind": "object", "typeName": "Query", "ref": "root" },
+      "resolvers": [
+        {
+          "parentType": "Query",
+          "fieldName": "a",
+          "sourceRef": "root",
+          "returns": { "kind": "scalar", "value": "a" }
+        },
+        {
+          "parentType": "Query",
+          "fieldName": "b",
+          "sourceRef": "root",
+          "returns": { "kind": "scalar", "value": "b" }
+        }
+      ],
+      "expected": {
+        "data": {
+          "kind": "object",
+          "fields": [
+            { "name": "a", "value": { "kind": "scalar", "value": "a" } },
+            { "name": "b", "value": { "kind": "scalar", "value": "b" } }
+          ]
+        },
+        "errorCount": 0
+      }
+    },
+    {
+      "id": "directives_skip_variable_default_true",
+      "sourceTest": "src/execution/__tests__/directives-test.ts",
+      "graphqlSource": "query ($skipB: Boolean = true) { a b @skip(if: $skipB) }",
+      "schema": {
+        "queryType": "Query",
+        "types": [
+          {
+            "kind": "object",
+            "name": "Query",
+            "fields": [
+              { "name": "a", "type": { "kind": "named", "name": "String" } },
+              { "name": "b", "type": { "kind": "named", "name": "String" } }
+            ]
+          }
+        ]
+      },
+      "operation": {
+        "rootType": "Query",
+        "variableDefinitions": [
+          {
+            "name": "skipB",
+            "type": { "kind": "named", "name": "Boolean" },
+            "defaultValue": { "kind": "boolean", "value": true }
+          }
+        ],
+        "selectionSet": [
+          { "kind": "field", "responseName": "a", "fieldName": "a" },
+          {
+            "kind": "field",
+            "responseName": "b",
+            "fieldName": "b",
+            "directives": [
+              { "kind": "skip", "if": { "kind": "variable", "name": "skipB" } }
+            ]
+          }
+        ]
+      },
+      "source": { "kind": "object", "typeName": "Query", "ref": "root" },
+      "resolvers": [
+        {
+          "parentType": "Query",
+          "fieldName": "a",
+          "sourceRef": "root",
+          "returns": { "kind": "scalar", "value": "a" }
+        },
+        {
+          "parentType": "Query",
+          "fieldName": "b",
+          "sourceRef": "root",
+          "returns": { "kind": "scalar", "value": "b" }
+        }
+      ],
+      "expected": {
+        "data": {
+          "kind": "object",
+          "fields": [
+            { "name": "a", "value": { "kind": "scalar", "value": "a" } }
+          ]
+        },
+        "errorCount": 0
+      }
+    },
+    {
       "id": "nested_objects_aliases_and_lists",
       "sourceTest": "src/execution/__tests__/executor-test.ts",
       "graphqlSource": "{ a b x: c f deep { a b c deeper { a b } } }",

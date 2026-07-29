@@ -290,7 +290,13 @@ theorem operationDefinitionValid_fieldsInSetCanMerge
       -> FieldMerge.fieldsInSetCanMerge schema operation.rootType
           operation.selectionSet := by
   intro hvalid
-  exact hvalid.2.2.2.2.2
+  exact hvalid.2.2.2.2.2.1
+
+theorem operationDefinitionValid_operationVariablesUsed
+    {schema : Schema} {operation : Operation}
+    : operationDefinitionValid schema operation -> operationVariablesUsed operation := by
+  intro hvalid
+  exact hvalid.2.2.2.2.2.2
 
 end Validation
 

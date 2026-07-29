@@ -53,6 +53,16 @@ theorem reduceSelectionSet_append (left right : List Selection)
   | cons selection rest ih =>
       simp [Translate.reduceSelectionSet, ih, List.append_assoc]
 
+theorem specSelectionSetVariables_append (left right : List GraphQL.Selection)
+    : GraphQL.Validation.selectionSetVariables (left ++ right)
+      = GraphQL.Validation.selectionSetVariables left
+        ++ GraphQL.Validation.selectionSetVariables right := by
+  induction left with
+  | nil =>
+      simp [GraphQL.Validation.selectionSetVariables]
+  | cons selection rest ih =>
+      simp [GraphQL.Validation.selectionSetVariables, ih, List.append_assoc]
+
 mutual
   theorem inlineSelection_nil_eq_of_inlined
       : ∀ (selection : Selection),
@@ -81,6 +91,50 @@ mutual
         simp [Inline.inlineSelectionSet,
           inlineSelection_nil_eq_of_inlined selection hinlined.1,
           inlineSelectionSet_nil_eq_of_inlined rest hinlined.2]
+end
+
+mutual
+  theorem selectionVariables_toSpec_of_inlined
+      : ∀ (selection : Selection),
+          Semantics.selectionInlined selection
+          -> GraphQL.Validation.selectionSetVariables
+                (Translate.reduceSelection selection)
+              = GraphQL.NamedFragment.Validation.selectionVariables [] selection
+    | .field responseName fieldName arguments directives selectionSet,
+        hinlined => by
+        simp [Semantics.selectionInlined] at hinlined
+        simp [Translate.reduceSelection,
+          GraphQL.Validation.selectionSetVariables,
+          GraphQL.Validation.selectionVariables,
+          GraphQL.NamedFragment.Validation.selectionVariables,
+          selectionSetVariables_toSpec_of_inlined selectionSet hinlined]
+    | .inlineFragment typeCondition directives selectionSet, hinlined => by
+        simp [Semantics.selectionInlined] at hinlined
+        simp [Translate.reduceSelection,
+          GraphQL.Validation.selectionSetVariables,
+          GraphQL.Validation.selectionVariables,
+          GraphQL.NamedFragment.Validation.selectionVariables,
+          selectionSetVariables_toSpec_of_inlined selectionSet hinlined]
+    | .fragmentSpread fragmentName directives, hinlined => by
+        simp [Semantics.selectionInlined] at hinlined
+
+  theorem selectionSetVariables_toSpec_of_inlined
+      : ∀ (selectionSet : List Selection),
+          Semantics.selectionSetInlined selectionSet
+          -> GraphQL.Validation.selectionSetVariables
+                (Translate.reduceSelectionSet selectionSet)
+              = GraphQL.NamedFragment.Validation.selectionSetVariables [] selectionSet
+    | [], _hinlined => by
+        simp [Translate.reduceSelectionSet,
+          GraphQL.Validation.selectionSetVariables,
+          GraphQL.NamedFragment.Validation.selectionSetVariables]
+    | selection :: rest, hinlined => by
+        simp [Semantics.selectionSetInlined] at hinlined
+        rw [Translate.reduceSelectionSet,
+          specSelectionSetVariables_append,
+          selectionVariables_toSpec_of_inlined selection hinlined.1,
+          selectionSetVariables_toSpec_of_inlined rest hinlined.2]
+        simp only [GraphQL.NamedFragment.Validation.selectionSetVariables]
 end
 
 mutual
@@ -603,7 +657,7 @@ theorem operationDefinitionValid_toSpec_of_inlined
   rcases hvalid with
     ⟨hroot, hrootComposite, hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsValid, hselectionNonempty,
-      hselectionValid, hmerge⟩
+      hselectionValid, hmerge, hvariablesUsed⟩
   rw [hfragments] at hselectionValid hmerge
   simp [Translate.reduceOperation,
     GraphQL.Validation.operationDefinitionValid]
@@ -611,7 +665,14 @@ theorem operationDefinitionValid_toSpec_of_inlined
     reduceSelectionSet_nonempty_of_inlined hselectionNonempty
       hselectionInlined,
     selectionSetValid_toSpec_of_inlined hselectionValid hselectionInlined,
-    fieldsInSetCanMerge_toSpec_of_inlined hselectionInlined hmerge⟩
+    fieldsInSetCanMerge_toSpec_of_inlined hselectionInlined hmerge,
+    by
+      intro variableDefinition hvariableDefinition
+      have husedName := hvariablesUsed variableDefinition hvariableDefinition
+      rw [hfragments] at husedName
+      simpa [GraphQL.Validation.operationVariablesUsed,
+        selectionSetVariables_toSpec_of_inlined operation.selectionSet
+          hselectionInlined] using husedName⟩
 
 end TranslateValidation
 end Validation

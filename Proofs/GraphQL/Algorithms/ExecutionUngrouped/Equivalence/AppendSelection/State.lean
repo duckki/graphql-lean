@@ -611,9 +611,11 @@ theorem executeQueryWithFuel_eq_spec_of_root_fields_eq
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hfields
-      : executeRootSelectionSet schema resolvers variableValues depth
+      : executeRootSelectionSet schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source operation.selectionSet
-        = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+        = GraphQL.Execution.executeRootSelectionSet schema resolvers
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
             depth operation.rootType source operation.selectionSet)
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -646,7 +648,8 @@ theorem executeQueryWithFuel_eq_spec_of_state_equivalent
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
                 parentType := operation.rootType
                 source := source
@@ -663,7 +666,8 @@ theorem executeQueryWithFuel_eq_spec_of_state_equivalent
     executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
       { schema := schema
         resolvers := resolvers
-        variableValues := variableValues
+        variableValues :=
+          GraphQL.Execution.coerceVariableValues operation variableValues
         depth := depth
         parentType := operation.rootType
         source := source
@@ -677,7 +681,8 @@ theorem executeQueryWithFuel_eq_spec_of_selectionSet_state
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hstate
-      : AppendSelectionSetState schema resolvers variableValues depth
+      : AppendSelectionSetState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source [] operation.selectionSet)
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -693,7 +698,8 @@ theorem executeQueryWithFuel_eq_spec_of_selectionSet_prefix_state
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hstate
-      : AppendSelectionSetPrefixState schema resolvers variableValues depth
+      : AppendSelectionSetPrefixState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source [] operation.selectionSet)
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -709,13 +715,16 @@ theorem executeQueryWithFuel_eq_spec_of_flattened_collectFields_eq
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hflat
-      : executeRootSelectionSet schema resolvers variableValues depth
+      : executeRootSelectionSet schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source operation.selectionSet
-        = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+        = GraphQL.Execution.executeRootSelectionSet schema resolvers
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
             depth operation.rootType source
             (executableFieldSelections
               (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues
+                (GraphQL.Execution.collectFields schema
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
                   operation.rootType source operation.selectionSet))))
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -723,7 +732,8 @@ theorem executeQueryWithFuel_eq_spec_of_flattened_collectFields_eq
   apply executeQueryWithFuel_eq_spec_of_root_fields_eq schema resolvers
     variableValues operation depth source hroot
   exact executeRootSelectionSet_eq_spec_of_flattened_collectFields_eq schema
-    resolvers variableValues depth operation.rootType source
+    resolvers (GraphQL.Execution.coerceVariableValues operation variableValues)
+    depth operation.rootType source
     operation.selectionSet hflat
 
 theorem executeQueryWithFuel_eq_spec_of_flat_predicates
@@ -733,13 +743,16 @@ theorem executeQueryWithFuel_eq_spec_of_flat_predicates
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues depth
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source operation.selectionSet (.object []))
     (hflatSpec
-      : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues depth
+      : ExecutableFieldsFlatSpecEquivalent schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source
           (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues
+            (GraphQL.Execution.collectFields schema
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
               operation.rootType source operation.selectionSet)))
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -747,7 +760,9 @@ theorem executeQueryWithFuel_eq_spec_of_flat_predicates
   apply executeQueryWithFuel_eq_spec_of_root_fields_eq schema resolvers
     variableValues operation depth source hroot
   exact executeRootSelectionSet_eq_spec_of_flatCollects_and_flatSpecEquivalent
-    schema resolvers variableValues depth operation.rootType source
+    schema resolvers
+    (GraphQL.Execution.coerceVariableValues operation variableValues)
+    depth operation.rootType source
     operation.selectionSet hdirect hflatSpec
 
 theorem executeQueryWithFuel_eq_spec_of_group_flat_predicates
@@ -757,12 +772,16 @@ theorem executeQueryWithFuel_eq_spec_of_group_flat_predicates
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues depth
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source operation.selectionSet (.object []))
     (hgroups
-      : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues depth
+      : ExecutableGroupsFlatSpecEquivalent schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source
-          (GraphQL.Execution.collectFields schema variableValues operation.rootType
+          (GraphQL.Execution.collectFields schema
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
+            operation.rootType
             source operation.selectionSet))
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
@@ -771,7 +790,9 @@ theorem executeQueryWithFuel_eq_spec_of_group_flat_predicates
     variableValues operation depth source hroot
   exact
     executeRootSelectionSet_eq_spec_of_flatCollects_and_groupFlatSpecEquivalent
-      schema resolvers variableValues depth operation.rootType source
+      schema resolvers
+      (GraphQL.Execution.coerceVariableValues operation variableValues)
+      depth operation.rootType source
       operation.selectionSet hdirect hgroups
 
 theorem executeQueryWithFuel_eq_spec_of_exact_empty_group
@@ -781,18 +802,22 @@ theorem executeQueryWithFuel_eq_spec_of_exact_empty_group
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType
           source operation.selectionSet
         = [])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues depth
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           operation.rootType source operation.selectionSet (.object []))
     : executeQueryWithFuel schema resolvers variableValues operation depth source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues operation
           depth source := by
   apply executeQueryWithFuel_eq_spec_of_state_equivalent schema resolvers
     variableValues operation depth source hroot
-  exact stateEquivalent_of_exact_empty_group schema resolvers variableValues
+  exact stateEquivalent_of_exact_empty_group schema resolvers
+    (GraphQL.Execution.coerceVariableValues operation variableValues)
     depth operation.rootType source operation.selectionSet hcollect hdirect
 
 theorem executeQuery_eq_spec_of_root_fields_eq
@@ -802,10 +827,12 @@ theorem executeQuery_eq_spec_of_root_fields_eq
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hfields
-      : executeRootSelectionSet schema resolvers variableValues
+      : executeRootSelectionSet schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source operation.selectionSet
-        = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+        = GraphQL.Execution.executeRootSelectionSet schema resolvers
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
             (GraphQL.Execution.executeQueryFuelBound operation)
             operation.rootType source operation.selectionSet)
     : executeQuery schema resolvers variableValues operation source
@@ -829,7 +856,8 @@ theorem executeQuery_eq_spec_of_state_equivalent
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := GraphQL.Execution.executeQueryFuelBound operation
                 parentType := operation.rootType
                 source := source
@@ -852,7 +880,8 @@ theorem executeQuery_eq_spec_of_selectionSet_state
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hstate
-      : AppendSelectionSetState schema resolvers variableValues
+      : AppendSelectionSetState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source [] operation.selectionSet)
     : executeQuery schema resolvers variableValues operation source
@@ -870,7 +899,8 @@ theorem executeQuery_eq_spec_of_selectionSet_prefix_state
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hstate
-      : AppendSelectionSetPrefixState schema resolvers variableValues
+      : AppendSelectionSetPrefixState schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source [] operation.selectionSet)
     : executeQuery schema resolvers variableValues operation source
@@ -889,15 +919,18 @@ theorem executeQuery_eq_spec_of_flattened_collectFields_eq
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hflat
-      : executeRootSelectionSet schema resolvers variableValues
+      : executeRootSelectionSet schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source operation.selectionSet
-        = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+        = GraphQL.Execution.executeRootSelectionSet schema resolvers
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
             (GraphQL.Execution.executeQueryFuelBound operation)
             operation.rootType source
             (executableFieldSelections
               (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues
+                (GraphQL.Execution.collectFields schema
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
                   operation.rootType source operation.selectionSet))))
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -914,15 +947,18 @@ theorem executeQuery_eq_spec_of_flat_predicates
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source operation.selectionSet (.object []))
     (hflatSpec
-      : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues
+      : ExecutableFieldsFlatSpecEquivalent schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source
           (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues
+            (GraphQL.Execution.collectFields schema
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
               operation.rootType source operation.selectionSet)))
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -939,14 +975,18 @@ theorem executeQuery_eq_spec_of_group_flat_predicates
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source operation.selectionSet (.object []))
     (hgroups
-      : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
+      : ExecutableGroupsFlatSpecEquivalent schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source
-          (GraphQL.Execution.collectFields schema variableValues operation.rootType
+          (GraphQL.Execution.collectFields schema
+            (GraphQL.Execution.coerceVariableValues operation variableValues)
+            operation.rootType
             source operation.selectionSet))
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -963,11 +1003,14 @@ theorem executeQuery_eq_spec_of_exact_empty_group
     (source : ResolverValue ObjectIdentity)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType
           source operation.selectionSet
         = [])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
           (GraphQL.Execution.executeQueryFuelBound operation)
           operation.rootType source operation.selectionSet (.object []))
     : executeQuery schema resolvers variableValues operation source

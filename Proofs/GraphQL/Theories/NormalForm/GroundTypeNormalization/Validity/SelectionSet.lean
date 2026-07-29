@@ -20,8 +20,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
             variableDefinitions parentType selectionSet
         -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
         -> selectionSetDirectiveFree selectionSet
-        -> selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields selectionSet
+        -> selectionSetTypeConditionFeasible schema parentType typeConditions selectionSet
         -> NormalizedSelectionSetValid schema variableDefinitions parentType
             (normalizeSelectionSet schema parentType selectionSet) := by
   intro parentType selectionSet
@@ -75,7 +74,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
           hrestFree
       have hfilteredFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields
+
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
         selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest
@@ -140,11 +139,11 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
           hrestFree
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields rest :=
+             rest :=
         selectionSetTypeConditionFeasible_tail hfeasible
       have hfilteredFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields
+
             (withoutFieldSelectionsWithResponseName schema responseName rest) :=
         selectionSetTypeConditionFeasible_withoutFieldSelectionsWithResponseName
           schema responseName parentType typeConditions rest htailFeasible
@@ -174,7 +173,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
           (selectionSetDirectiveFree_mergeSelectionSets hmatchingFree)
       have hheadFeasible :
           selectionTypeConditionFeasible schema parentType typeConditions
-            .allFields
+
             (Selection.field responseName fieldName arguments []
               subselections) := by
         simpa [selectionSetTypeConditionFeasible] using hfeasible.1
@@ -182,17 +181,17 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
           ∀ objectType,
             objectType ∈ schema.getPossibleTypes returnType ->
               selectionSetTypeConditionFeasible schema objectType [objectType]
-                .allFields mergedSubselections := by
+                 mergedSubselections := by
         intro objectType hobjectType
         have hheadChildFeasible :
             selectionSetTypeConditionFeasible schema objectType [objectType]
-              .allFields subselections :=
+               subselections :=
           selectionTypeConditionFeasible_field_child_branch_forObject
             schema hheadFeasible hstack hlookup
             (by simpa [returnType] using hobjectType)
         have hmatchingChildFeasible :
             selectionSetTypeConditionFeasible schema objectType [objectType]
-              .allFields (mergeSelectionSets matching) := by
+               (mergeSelectionSets matching) := by
           subst matching
           apply
             selectionSetTypeConditionFeasible_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
@@ -499,26 +498,41 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
         have hsubselectionsNonempty :
             subselections ≠ [] :=
           hsubselectionsNonemptyOfComposite hcomposite
-        have hheadChildContains :
-            selectionSetContainsTypeConditionFeasibleField schema [returnType]
-              subselections :=
-          by
-            simpa [returnType] using
-              selectionTypeConditionFeasible_field_child_contains_forObject
-                schema hheadFeasible hstack hlookup
-                hsubselectionsNonempty
+        have hsubselectionsInlineNonempty :
+            selectionSetInlineFragmentsNonempty subselections := by
+          have hsourceImplementation :=
+            selectionSetValidInPossibleTypes_head himplementation
+          have hheadInline :=
+            selectionInlineFragmentsNonempty_of_selectionValid schema
+              variableDefinitions parentType
+              (Selection.field responseName fieldName arguments []
+                subselections)
+              hsourceImplementation.1
+          simpa [selectionInlineFragmentsNonempty] using hheadInline
+        rcases
+            selectionTypeConditionFeasible_field_child_contains_forPossibleType
+              schema hheadFeasible hstack hlookup
+              hsubselectionsNonempty hsubselectionsInlineNonempty with
+          ⟨childObjectType, hchildObjectType, hheadChildContains⟩
         have hmergedContains :
-            selectionSetContainsTypeConditionFeasibleField schema [returnType]
+            selectionSetContainsTypeConditionFeasibleField schema
+              [childObjectType]
               mergedSubselections := by
           subst mergedSubselections
           exact
             selectionSetContainsTypeConditionFeasibleField_append_left_forValidity
-              schema [returnType] hheadChildContains
+              schema [childObjectType] hheadChildContains
         subst normalizedSubselections
         by_cases hreturnObject : objectTypeNameBool schema returnType = true
         · have hreturnObjectType :
               schema.objectType returnType :=
             objectType_of_objectTypeNameBool_eq_true schema hreturnObject
+          have hchildObjectEq :
+              childObjectType = returnType :=
+            object_typeIncludesObjectBool_eq_self schema hreturnObjectType
+              (List.contains_iff_mem.mpr
+                (by simpa [returnType] using hchildObjectType))
+          subst childObjectType
           have hinclude :
               schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType returnType = true := by
@@ -541,29 +555,29 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
             · rfl
             · contradiction
           simp [hreturnObjectFalse]
-          rcases
-            selectionSetContainsTypeConditionFeasibleField_replace_base_with_object
-              schema hschema returnType [] mergedSubselections
-              (by simpa using hmergedContains) with
-            ⟨objectType, hobjectType, hbranchObject, hbranchContains⟩
+          have hbranchObject :
+              schema.objectType childObjectType :=
+            SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
+              hschema returnType childObjectType
+              (by simpa [returnType] using hchildObjectType)
           have hinclude :
               schema.typeIncludesObjectBool
-                fieldDefinition.outputType.namedType objectType = true :=
+                fieldDefinition.outputType.namedType childObjectType = true :=
             List.contains_iff_mem.mpr
-              (by simpa [returnType] using hobjectType)
+              hchildObjectType
           have hchildReady :
-              selectionSetSemanticsReady schema objectType
+              selectionSetSemanticsReady schema childObjectType
                 mergedSubselections :=
             selectionSetSemanticsReady_fieldHead_merged_of_child_object
-              schema parentType responseName fieldName objectType arguments
+              schema parentType responseName fieldName childObjectType arguments
               subselections rest fieldDefinition hobject hready hlookupValid
-              hmerge hlookup (by simpa [returnType] using hinclude)
+              hmerge hlookup hinclude
           exact
             possibleTypeNormalizations_ne_nil_of_branch_forValidity schema
-              (by simpa [returnType] using hobjectType)
+              (by simpa [returnType] using hchildObjectType)
               (normalizeSelectionSet_ne_nil_of_contains schema
-                objectType mergedSubselections hbranchObject hchildReady
-                (by simpa using hbranchContains))
+                childObjectType mergedSubselections hbranchObject hchildReady
+                hmergedContains)
       have hconsNormalizedValid
           (hnonempty :
             schema.isCompositeType fieldDefinition.outputType.namedType ->
@@ -735,16 +749,16 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
         selectionSetDirectiveFree_append hselectionFree.2 hrestFree
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields subselections := by
+             subselections := by
         simpa [selectionSetTypeConditionFeasible,
           selectionTypeConditionFeasible] using hfeasible.1
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields rest :=
+             rest :=
         selectionSetTypeConditionFeasible_tail hfeasible
       have hbodyTailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields
+
             (subselections ++ rest) :=
         selectionSetTypeConditionFeasible_append hbodyFeasible htailFeasible
       simpa [normalizeSelectionSet] using
@@ -832,33 +846,27 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
         selectionSetDirectiveFree_append hselectionFree.2 hrestFree
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType
-            (typeCondition :: typeConditions) .allFields subselections := by
+            (typeCondition :: typeConditions)  subselections := by
         simpa [selectionSetTypeConditionFeasible,
           selectionTypeConditionFeasible] using hfeasible.1
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields rest :=
+             rest :=
         selectionSetTypeConditionFeasible_tail hfeasible
-      have htailFeasibleInBodyStack :
-          selectionSetTypeConditionFeasible schema parentType
-            (typeCondition :: typeConditions) .allFields rest :=
+      have hbodyFeasibleInOuterStack :
+          selectionSetTypeConditionFeasible schema parentType typeConditions
+             subselections :=
         selectionSetTypeConditionFeasible_of_stack_subset schema
           (fun candidate hcandidate =>
             List.mem_cons_of_mem typeCondition hcandidate)
-          rest htailFeasible
+          subselections hbodyFeasible
       have hbodyTailFeasible :
-          selectionSetTypeConditionFeasible schema parentType
-            (typeCondition :: typeConditions) .allFields
+          selectionSetTypeConditionFeasible schema parentType typeConditions
             (subselections ++ rest) :=
-        selectionSetTypeConditionFeasible_append hbodyFeasible
-          htailFeasibleInBodyStack
-      have hstackBody :
-          objectSatisfiesTypeConditionStack schema parentType
-            (typeCondition :: typeConditions) :=
-        objectSatisfiesTypeConditionStack_cons_of_overlap_forValidity
-          schema hobject hstack hoverlap
+        selectionSetTypeConditionFeasible_append hbodyFeasibleInOuterStack
+          htailFeasible
       simpa [normalizeSelectionSet, hoverlap] using
-        happend (typeCondition :: typeConditions) hobject hstackBody
+        happend typeConditions hobject hstack
           hbodyTailReady hbodyTailImplementation hbodyTailMerge
           hbodyTailFree hbodyTailFeasible
   | case6 parentType rest typeCondition directives subselections hoverlap
@@ -879,7 +887,7 @@ theorem normalizeSelectionSet_normalizedValid_of_typeConditionFeasible
         selectionSetDirectiveFree_tail hfree
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
-            .allFields rest :=
+             rest :=
         selectionSetTypeConditionFeasible_tail hfeasible
       have hfalse :
           schema.typesOverlapBool parentType typeCondition = false := by
@@ -910,7 +918,7 @@ theorem normalizeSelectionSet_normalizedValid
       schema hobject
   have hfeasible :
       selectionSetTypeConditionFeasible schema parentType [parentType]
-        .allFields selectionSet := by
+         selectionSet := by
     cases selectionSet with
     | nil =>
         simp [selectionSetTypeConditionFeasible]
@@ -920,72 +928,6 @@ theorem normalizeSelectionSet_normalizedValid
     normalizeSelectionSet_normalizedValid_of_typeConditionFeasible schema
       variableDefinitions hschema parentType selectionSet [parentType] hobject
       hstack hready himplementation hmerge hfree hfeasible
-
-mutual
-  def selectionInlineFragmentsNonempty : Selection -> Prop
-    | .field _responseName _fieldName _arguments _directives selectionSet =>
-        selectionSetInlineFragmentsNonempty selectionSet
-    | .inlineFragment _typeCondition _directives selectionSet =>
-        selectionSet ≠ [] ∧ selectionSetInlineFragmentsNonempty selectionSet
-
-  def selectionSetInlineFragmentsNonempty (selectionSet : List Selection) : Prop :=
-    ∀ selection, selection ∈ selectionSet -> selectionInlineFragmentsNonempty selection
-end
-
-mutual
-  theorem selectionInlineFragmentsNonempty_of_selectionValid
-      (schema : Schema) (variableDefinitions : List VariableDefinition)
-      : ∀ parentType selection,
-          Validation.selectionValid schema variableDefinitions parentType selection
-          -> selectionInlineFragmentsNonempty selection
-    | parentType,
-      .field _responseName _fieldName _arguments _directives selectionSet,
-      hvalid => by
-        unfold selectionInlineFragmentsNonempty
-        rcases Validation.selectionValid_field_lookup hvalid with
-          ⟨fieldDefinition, _hlookup, _harguments, hchild⟩
-        simp [Validation.fieldSelectionSetValid] at hchild
-        rcases hchild.2 with hleaf | hcomposite
-        · rw [hleaf.2]
-          unfold selectionSetInlineFragmentsNonempty
-          intro selection hselection
-          cases hselection
-        · exact
-            selectionSetInlineFragmentsNonempty_of_selectionSetValid
-              schema variableDefinitions
-              fieldDefinition.outputType.namedType selectionSet
-              hcomposite.2.2
-    | parentType,
-      .inlineFragment none _directives selectionSet, hvalid => by
-        unfold selectionInlineFragmentsNonempty
-        have hvalid' := hvalid
-        simp [Validation.selectionValid] at hvalid'
-        exact ⟨hvalid'.2.1,
-          selectionSetInlineFragmentsNonempty_of_selectionSetValid
-            schema variableDefinitions parentType selectionSet hvalid'.2.2⟩
-    | _parentType,
-      .inlineFragment (some typeCondition) _directives selectionSet,
-      hvalid => by
-        unfold selectionInlineFragmentsNonempty
-        have hvalid' := hvalid
-        simp [Validation.selectionValid] at hvalid'
-        exact ⟨hvalid'.2.2.2.1,
-          selectionSetInlineFragmentsNonempty_of_selectionSetValid
-            schema variableDefinitions typeCondition selectionSet
-            hvalid'.2.2.2.2⟩
-
-  theorem selectionSetInlineFragmentsNonempty_of_selectionSetValid
-      (schema : Schema) (variableDefinitions : List VariableDefinition)
-      : ∀ parentType selectionSet,
-          Validation.selectionSetValid schema variableDefinitions parentType selectionSet
-          -> selectionSetInlineFragmentsNonempty selectionSet
-    | parentType, selectionSet, hvalid => by
-        unfold selectionSetInlineFragmentsNonempty
-        unfold Validation.selectionSetValid at hvalid
-        intro selection hselection
-        exact selectionInlineFragmentsNonempty_of_selectionValid schema
-          variableDefinitions parentType selection (hvalid selection hselection)
-end
 
 end GroundTypeNormalization
 

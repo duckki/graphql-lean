@@ -47,6 +47,97 @@ theorem executeNamedFragmentQuerySmoke
       = true := by
   native_decide
 
+def variableDefaultQuery : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "VariableDefault"
+    rootType := "Query"
+    variableDefinitions :=
+      [{
+        name := "includeName"
+        typeRef := .named "Boolean"
+        defaultValue := some (.boolean true)
+      }]
+    selectionSet :=
+      [.field "name" "name" [] [.include (.variable "includeName")] []]
+  }
+
+theorem executeQueryUsesVariableDefaultSmoke
+    : Execution.responseEqBool
+        (GraphQL.NamedFragment.Execution.executeQuery Execution.sampleSchema
+          Execution.rootNameResolvers [] variableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("name", .scalar "Query")])
+      = true := by
+  native_decide
+
+def variableUsingFragment : GraphQL.NamedFragment.FragmentDefinition :=
+  {
+    name := "VariableUsing"
+    typeCondition := "Query"
+    selectionSet :=
+      [.field "name" "name" [] [.include (.variable "included")] []]
+  }
+
+def transitiveVariableFragment : GraphQL.NamedFragment.FragmentDefinition :=
+  {
+    name := "Transitive"
+    typeCondition := "Query"
+    selectionSet := [.fragmentSpread "VariableUsing" []]
+  }
+
+def transitivelyUsedVariableOperation : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "TransitivelyUsedVariable"
+    rootType := "Query"
+    variableDefinitions :=
+      [{ name := "included", typeRef := .nonNull (.named "Boolean") }]
+    fragmentDefinitions := [transitiveVariableFragment, variableUsingFragment]
+    selectionSet := [.fragmentSpread "Transitive" []]
+  }
+
+theorem transitivelyReferencedFragmentVariableCountsAsUsed
+    : GraphQL.NamedFragment.Validation.operationVariablesUsed
+        transitivelyUsedVariableOperation := by
+  simp [GraphQL.NamedFragment.Validation.operationVariablesUsed,
+    transitivelyUsedVariableOperation, transitiveVariableFragment,
+    variableUsingFragment,
+    GraphQL.NamedFragment.Validation.selectionSetVariables,
+    GraphQL.NamedFragment.Validation.selectionVariables,
+    GraphQL.NamedFragment.lookupFragmentAndRestLt?,
+    GraphQL.Validation.directivesVariables,
+    GraphQL.Validation.directiveVariables,
+    GraphQL.Validation.inputValueVariables]
+
+def variableOnlyInUnusedFragmentOperation : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "VariableOnlyInUnusedFragment"
+    rootType := "Query"
+    variableDefinitions :=
+      [{ name := "included", typeRef := .nonNull (.named "Boolean") }]
+    fragmentDefinitions := [variableUsingFragment]
+    selectionSet := [.field "name" "name" [] [] []]
+  }
+
+theorem variableUseInUnreferencedFragmentDoesNotCount
+    : ¬ GraphQL.NamedFragment.Validation.operationVariablesUsed
+          variableOnlyInUnusedFragmentOperation := by
+  simp [GraphQL.NamedFragment.Validation.operationVariablesUsed,
+    variableOnlyInUnusedFragmentOperation,
+    GraphQL.NamedFragment.Validation.selectionSetVariables,
+    GraphQL.NamedFragment.Validation.selectionVariables,
+    GraphQL.Validation.argumentsVariables,
+    GraphQL.Validation.directivesVariables]
+
+theorem variableOnlyInUnusedFragmentOperationRejected
+    : ¬ GraphQL.NamedFragment.Validation.operationDefinitionValid
+          Execution.sampleSchema variableOnlyInUnusedFragmentOperation := by
+  intro hvalid
+  rcases hvalid with
+    ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
+      _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
+      _hselectionValid, _hmerge, hvariablesUsed⟩
+  exact variableUseInUnreferencedFragmentDoesNotCount hvariablesUsed
+
 def cyclicFragments : List GraphQL.NamedFragment.FragmentDefinition :=
   [
     {
@@ -81,7 +172,7 @@ theorem undefinedFragmentOperationRejectedSmoke
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge⟩
+      hselectionValid, _hmerge, _hvariablesUsed⟩
   have hrootFieldValid :
       GraphQL.NamedFragment.Validation.selectionValid Execution.sampleSchema
         undefinedFragmentOperation.variableDefinitions

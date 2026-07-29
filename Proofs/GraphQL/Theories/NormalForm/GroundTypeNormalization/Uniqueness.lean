@@ -46,10 +46,23 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
         simpa [hleftRoot] using hrootApplies.symm
       have hsource :=
         rootSourceAppliesBool_true_object schema left source hleftRoot
+      have hleftValues :=
+        CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
+          schema resolvers variableValues
+          (Execution.coerceVariableValues left variableValues) fuel left.rootType
+          source left.selectionSet hleftFree
+      have hrightValues :=
+        CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
+          schema resolvers variableValues
+          (Execution.coerceVariableValues right variableValues) fuel left.rootType
+          source right.selectionSet hrightFree
+      have hselectionResponse :=
+        hselectionSem resolvers variableValues fuel source hsource
+      simp only [Execution.executeSelectionSetAsResponse] at hselectionResponse
+      rw [hleftValues, hrightValues] at hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
         Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hroot] using
-          hselectionSem resolvers variableValues fuel source hsource
+        Execution.executeSelectionSet, hroot] using hselectionResponse
 
 theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}

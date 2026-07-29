@@ -7,8 +7,7 @@ Spec reference: GraphQL September 2025.
   schema and operation syntax.
 - Fidelity note: the model is intentionally partial. It omits document-level
   multi-operation rules, mutation/subscription rules, custom directive definitions, full
-  input coercion and literal type checking, all-variables-used, fragment-must-be-used,
-  and meta-field rules.
+  input coercion and literal type checking, fragment-must-be-used, and meta-field rules.
 -/
 
 namespace GraphQL
@@ -274,8 +273,8 @@ def variableDefinitionValid (schema : Schema) (variableDefinition : VariableDefi
     | some defaultValue =>
         constValueIsCorrectType schema defaultValue variableDefinition.typeRef
 
--- Spec 5.8.1 Variable Uniqueness and 5.8.2 Variables Are Input Types: partial; omits
--- all-variables-used. Usage compatibility is checked at each value location.
+-- Spec 5.8.1 Variable Uniqueness and 5.8.2 Variables Are Input Types. Usage
+-- compatibility is checked separately at each value location.
 def variableDefinitionsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
     : Prop :=
@@ -283,6 +282,64 @@ def variableDefinitionsValid (schema : Schema)
   ∧ ∀ variableDefinition,
       variableDefinition ∈ variableDefinitions
       -> variableDefinitionValid schema variableDefinition
+
+mutual
+  -- Spec 5.8.4 variable uses nested within an input value.
+  def inputValueVariables : InputValue -> List Name
+    | .variable name => [name]
+    | .list values => inputValuesVariables values
+    | .object fields => inputObjectFieldsVariables fields
+    | _ => []
+
+  def inputValuesVariables : List InputValue -> List Name
+    | [] => []
+    | value :: rest =>
+        inputValueVariables value ++ inputValuesVariables rest
+
+  def inputObjectFieldsVariables : List (Name × InputValue) -> List Name
+    | [] => []
+    | (_name, value) :: rest =>
+        inputValueVariables value ++ inputObjectFieldsVariables rest
+end
+
+def argumentVariables (argument : Argument) : List Name :=
+  inputValueVariables argument.value
+
+def argumentsVariables : List Argument -> List Name
+  | [] => []
+  | argument :: rest =>
+      argumentVariables argument ++ argumentsVariables rest
+
+def directiveVariables : DirectiveApplication -> List Name
+  | .skip ifArgument => inputValueVariables ifArgument
+  | .include ifArgument => inputValueVariables ifArgument
+
+def directivesVariables : List DirectiveApplication -> List Name
+  | [] => []
+  | directive :: rest =>
+      directiveVariables directive ++ directivesVariables rest
+
+mutual
+  -- Spec 5.8.4 variable uses in field arguments, directives, and nested selections.
+  def selectionVariables : Selection -> List Name
+    | .field _responseName _fieldName arguments directives selectionSet =>
+        argumentsVariables arguments
+        ++ directivesVariables directives
+        ++ selectionSetVariables selectionSet
+    | .inlineFragment _typeCondition directives selectionSet =>
+        directivesVariables directives ++ selectionSetVariables selectionSet
+
+  def selectionSetVariables : List Selection -> List Name
+    | [] => []
+    | selection :: rest =>
+        selectionVariables selection ++ selectionSetVariables rest
+end
+
+-- Spec 5.8.4 All Variables Used for the fragment-free operation syntax.
+def operationVariablesUsed (operation : Operation) : Prop :=
+  ∀ variableDefinition,
+    variableDefinition ∈ operation.variableDefinitions
+    -> variableDefinition.name ∈ selectionSetVariables operation.selectionSet
 
 -- Spec 5.4.1 Argument Names, 5.6.1 Values of Correct Type, and 5.8.5 variable usage:
 -- validates defined argument names and value compatibility at the argument location.
@@ -478,6 +535,7 @@ def operationDefinitionValid (schema : Schema) (operation : Operation) : Prop :=
   ∧ selectionSetValid schema operation.variableDefinitions
       operation.rootType operation.selectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema operation.rootType operation.selectionSet
+  ∧ operationVariablesUsed operation
 
 end Validation
 

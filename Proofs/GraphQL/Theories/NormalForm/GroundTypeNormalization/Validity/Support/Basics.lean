@@ -13,6 +13,93 @@ namespace NormalForm
 namespace GroundTypeNormalization
 
 mutual
+  def selectionContainsTypeConditionFeasibleField (schema : Schema)
+      (typeConditions : List Name)
+      : Selection -> Prop
+    | .field _responseName _fieldName _arguments _directives _selectionSet =>
+        typeConditionStackFeasible schema typeConditions
+    | .inlineFragment none _directives selectionSet =>
+        selectionSetContainsTypeConditionFeasibleField schema typeConditions selectionSet
+    | .inlineFragment (some typeCondition) _directives selectionSet =>
+        selectionSetContainsTypeConditionFeasibleField schema
+          (typeCondition :: typeConditions) selectionSet
+
+  def selectionSetContainsTypeConditionFeasibleField (schema : Schema)
+      (typeConditions : List Name)
+      : List Selection -> Prop
+    | [] => False
+    | selection :: rest =>
+        selectionContainsTypeConditionFeasibleField schema typeConditions selection
+        ∨ selectionSetContainsTypeConditionFeasibleField schema typeConditions rest
+end
+
+mutual
+  def selectionInlineFragmentsNonempty : Selection -> Prop
+    | .field _responseName _fieldName _arguments _directives selectionSet =>
+        selectionSetInlineFragmentsNonempty selectionSet
+    | .inlineFragment _typeCondition _directives selectionSet =>
+        selectionSet ≠ [] ∧ selectionSetInlineFragmentsNonempty selectionSet
+
+  def selectionSetInlineFragmentsNonempty (selectionSet : List Selection) : Prop :=
+    ∀ selection, selection ∈ selectionSet -> selectionInlineFragmentsNonempty selection
+end
+
+mutual
+  theorem selectionInlineFragmentsNonempty_of_selectionValid
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      : ∀ parentType selection,
+          Validation.selectionValid schema variableDefinitions parentType selection
+          -> selectionInlineFragmentsNonempty selection
+    | parentType,
+      .field _responseName _fieldName _arguments _directives selectionSet,
+      hvalid => by
+        unfold selectionInlineFragmentsNonempty
+        rcases Validation.selectionValid_field_lookup hvalid with
+          ⟨fieldDefinition, _hlookup, _harguments, hchild⟩
+        simp [Validation.fieldSelectionSetValid] at hchild
+        rcases hchild.2 with hleaf | hcomposite
+        · rw [hleaf.2]
+          unfold selectionSetInlineFragmentsNonempty
+          intro selection hselection
+          cases hselection
+        · exact
+            selectionSetInlineFragmentsNonempty_of_selectionSetValid
+              schema variableDefinitions
+              fieldDefinition.outputType.namedType selectionSet
+              hcomposite.2.2
+    | parentType,
+      .inlineFragment none _directives selectionSet, hvalid => by
+        unfold selectionInlineFragmentsNonempty
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        exact ⟨hvalid'.2.1,
+          selectionSetInlineFragmentsNonempty_of_selectionSetValid
+            schema variableDefinitions parentType selectionSet hvalid'.2.2⟩
+    | _parentType,
+      .inlineFragment (some typeCondition) _directives selectionSet,
+      hvalid => by
+        unfold selectionInlineFragmentsNonempty
+        have hvalid' := hvalid
+        simp [Validation.selectionValid] at hvalid'
+        exact ⟨hvalid'.2.2.2.1,
+          selectionSetInlineFragmentsNonempty_of_selectionSetValid
+            schema variableDefinitions typeCondition selectionSet
+            hvalid'.2.2.2.2⟩
+
+  theorem selectionSetInlineFragmentsNonempty_of_selectionSetValid
+      (schema : Schema) (variableDefinitions : List VariableDefinition)
+      : ∀ parentType selectionSet,
+          Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetInlineFragmentsNonempty selectionSet
+    | parentType, selectionSet, hvalid => by
+        unfold selectionSetInlineFragmentsNonempty
+        unfold Validation.selectionSetValid at hvalid
+        intro selection hselection
+        exact selectionInlineFragmentsNonempty_of_selectionValid schema
+          variableDefinitions parentType selection (hvalid selection hselection)
+end
+
+mutual
   theorem inputValue_structuralEquivalent_refl
       : ∀ value, InputValue.structuralEquivalent value value
     | .null => by simp [InputValue.structuralEquivalent]

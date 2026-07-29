@@ -38,7 +38,9 @@ in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
 The theorem is resolver-parametric: for every resolver environment, variable
 assignment, explicit fuel value, and source value, a well-formed schema and
 valid operation give equivalent ungrouped and spec-facing executions, assuming
-`NormalForm.operationBoolVarsComplete operation variableValues`.
+`NormalForm.operationBoolVarsComplete operation
+(Execution.coerceVariableValues operation variableValues)`. Both public
+executors materialize operation defaults before field collection.
 
 The equivalence relation is `responseDataAndErrorPresenceEquivalent`, not exact
 response equality:

@@ -217,7 +217,16 @@ theorem executeQueryWithFuel_toSpec_inlineOperation
               GraphQL.Execution.rootSourceAppliesBool,
               GraphQL.Execution.runtimeObjectType?,
               Translate.reduceOperation, Inline.inlineOperation, hroot]
-            rw [executeRootSelectionSet_toSpec schema resolvers variableValues
+            rw [executeRootSelectionSet_toSpec schema resolvers
+              (Execution.coerceVariableValues
+                {
+                  name := name
+                  rootType := rootType
+                  variableDefinitions := variableDefinitions
+                  fragmentDefinitions := fragmentDefinitions
+                  selectionSet := selectionSet
+                }
+                variableValues)
               fuel rootType (Execution.ResolverValue.object objectName ref)
               fragmentDefinitions selectionSet]
             rfl

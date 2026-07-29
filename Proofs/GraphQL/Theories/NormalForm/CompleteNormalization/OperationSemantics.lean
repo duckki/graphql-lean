@@ -9,11 +9,20 @@ namespace NormalForm
 
 namespace CompleteNormalization
 
-theorem completeNormalizationSemanticsPreserved (schema : Schema) (operation : Operation)
-    : NormalForm.completeNormalizationSemanticsPreserved schema operation := by
-  apply completeNormalizationSemanticsPreserved_of_selectionSet schema operation
-  intro hschema hvalid ObjectRef resolvers variableValues depth source hcomplete
-    hroot
+theorem completeNormalizationSelectionSetSemanticsPreserved
+    (schema : Schema) (operation : Operation)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hvalid : Validation.operationDefinitionValid schema operation)
+    {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
+    (variableValues : Execution.VariableValues) (depth : Nat)
+    (source : Execution.ResolverValue ObjectRef)
+    (hcomplete : operationBoolVarsComplete operation variableValues)
+    (hroot : Execution.rootSourceAppliesBool schema operation source = true)
+    : Execution.executeSelectionSet schema resolvers variableValues depth
+        operation.rootType source operation.selectionSet
+      = Execution.executeSelectionSet schema resolvers variableValues depth
+          operation.rootType source
+          (completeNormalizeOperation schema operation).selectionSet := by
   rcases
     operationBoolVarsComplete_caseForVariableValues variableValues operation
       hcomplete with
@@ -103,6 +112,30 @@ theorem completeNormalizationSemanticsPreserved (schema : Schema) (operation : O
         intro varName hmem
         exact hmem)
   exact (hrootSelect.trans (hground.trans hfilter)).symm
+
+theorem completeNormalizationEffectiveSemanticsPreserved
+    (schema : Schema) (operation : Operation)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hvalid : Validation.operationDefinitionValid schema operation)
+    {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
+    (variableValues : Execution.VariableValues) (depth : Nat)
+    (source : Execution.ResolverValue ObjectRef)
+    (hcomplete
+      : operationBoolVarsComplete operation
+          (Execution.coerceVariableValues operation variableValues))
+    : Execution.executeQueryWithFuel schema resolvers variableValues operation
+        depth source
+      = Execution.executeQueryWithFuel schema resolvers variableValues
+          (completeNormalizeOperation schema operation) depth source := by
+  exact completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
+    schema operation
+    (completeNormalizationSelectionSetSemanticsPreserved schema operation)
+    hschema hvalid resolvers variableValues depth source hcomplete
+
+theorem completeNormalizationSemanticsPreserved (schema : Schema) (operation : Operation)
+    : NormalForm.completeNormalizationSemanticsPreserved schema operation := by
+  apply completeNormalizationSemanticsPreserved_of_selectionSet schema operation
+  exact completeNormalizationSelectionSetSemanticsPreserved schema operation
 
 end CompleteNormalization
 

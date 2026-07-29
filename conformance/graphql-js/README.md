@@ -17,6 +17,11 @@ npm --prefix conformance run gen:graphql-js
 lake build Tests.Conformance.Execution
 ```
 
+The core fixture suite includes execution of `@skip` and `@include` with
+omitted nullable Boolean variables whose operation definitions provide
+non-null defaults. This checks that variable preparation happens before
+directive evaluation.
+
 Named-fragment execution fixtures live under `named-fragment-cases/` and target
 the separate `GraphQL.NamedFragment.Execution` model:
 

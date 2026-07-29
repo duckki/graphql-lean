@@ -1,5 +1,7 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseBodies
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.SemanticVariables
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness
 
 /-!
 Operation-level assembly for complete-normalization uniqueness.
@@ -16,26 +18,35 @@ private theorem selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operat
     : left.rootType = right.rootType
       -> operationsSemanticallyEquivalentForCompleteBoolVars schema variables left right
       -> selectionSetsSemanticallyEquivalentForCompleteBoolVars schema variables
+          (Execution.coerceVariableValues left)
+          (Execution.coerceVariableValues right)
           left.rootType left.selectionSet right.selectionSet := by
-  intro hroot hsem ObjectRef resolvers variableValues fuel source hcomplete
-    hsource
-  rcases hsource with ⟨runtimeType, _ref, hsourceEq, hinclude⟩
-  have hleftRoot :
-      Execution.rootSourceAppliesBool schema left source = true := by
-    simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
-      hsourceEq, hinclude]
-  have hrightInclude :
-      schema.typeIncludesObjectBool right.rootType runtimeType = true := by
-    simpa [← hroot] using hinclude
-  have hrightRoot :
-      Execution.rootSourceAppliesBool schema right source = true := by
-    simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
-      hsourceEq, hrightInclude]
-  simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
-    Execution.executeSelectionSetAsResponse,
-    Execution.selectionSetResultToResponse,
-    Execution.executeSelectionSet, hroot] using
-      hsem resolvers variableValues fuel source hcomplete
+  intro hroot hsem
+  refine ⟨?_, ?_, ?_⟩
+  · intro variableValues name value hvalue
+    exact inputValueBoolean?_coerceVariableValues_eq_some
+      left variableValues hvalue
+  · intro variableValues name value hvalue
+    exact inputValueBoolean?_coerceVariableValues_eq_some
+      right variableValues hvalue
+  · intro ObjectRef resolvers variableValues fuel source hcomplete hsource
+    rcases hsource with ⟨runtimeType, _ref, hsourceEq, hinclude⟩
+    have hleftRoot :
+        Execution.rootSourceAppliesBool schema left source = true := by
+      simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
+        hsourceEq, hinclude]
+    have hrightInclude :
+        schema.typeIncludesObjectBool right.rootType runtimeType = true := by
+      simpa [← hroot] using hinclude
+    have hrightRoot :
+        Execution.rootSourceAppliesBool schema right source = true := by
+      simp [Execution.rootSourceAppliesBool, Execution.runtimeObjectType?,
+        hsourceEq, hrightInclude]
+    simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
+      Execution.executeSelectionSetAsResponse,
+      Execution.selectionSetResultToResponse,
+      Execution.executeSelectionSet, hroot] using
+        hsem resolvers variableValues fuel source hcomplete
 
 private theorem completeNormalBoolCase_of_operationBoolVarsEquivalent
     {left right : Operation} {boolCase : BoolCase}
@@ -93,7 +104,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
   have hroot : left.rootType = right.rootType :=
     GroundTypeNormalization.operation_rootType_eq_of_operationDefinitionValid
       hleftValid hrightValid
-  refine ⟨hroot, hvariables, ?_⟩
+  refine ⟨hroot, ?_⟩
   cases hleftVars : operationBoolVars left with
   | nil =>
       have hrightVars : operationBoolVars right = [] :=
@@ -144,17 +155,13 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
               hschema hleftValid
           have hselectionSem :
               selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-                (leftVar :: leftVariables) left.rootType left.selectionSet
-                right.selectionSet := by
-            intro ObjectRef resolvers variableValues fuel source hcomplete
-              hsource
-            have hcompleteAtOperation :
-                boolVarsComplete (operationBoolVars left) variableValues := by
-              simpa only [hleftVars] using hcomplete
-            exact
+                (leftVar :: leftVariables)
+                (Execution.coerceVariableValues left)
+                (Execution.coerceVariableValues right)
+                left.rootType left.selectionSet right.selectionSet := by
+            simpa only [hleftVars] using
               selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operations
-                hroot hsem resolvers variableValues fuel source
-                hcompleteAtOperation hsource
+                hroot hsem
           have hcaseLeftToRight : ∀ boolCase,
               completeNormalBoolCase (leftVar :: leftVariables) boolCase ->
                 completeNormalBoolCase (rightVar :: rightVariables)
@@ -203,8 +210,11 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                       rightSelection leftSelection := by
             have hselectionSemReverse :
                 selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-                  (rightVar :: rightVariables) left.rootType
-                  right.selectionSet left.selectionSet := by
+                  (rightVar :: rightVariables)
+                  (Execution.coerceVariableValues right)
+                  (Execution.coerceVariableValues left)
+                  left.rootType right.selectionSet left.selectionSet := by
+              refine ⟨hselectionSem.2.1, hselectionSem.1, ?_⟩
               intro ObjectRef resolvers variableValues fuel source
                 hrightCompleteValues hsource
               have hleftCompleteValues :
@@ -220,7 +230,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                     (hvariables varName).1 hleftOperationMem
                   simpa [hrightVars] using hrightOperationMem
                 exact hrightCompleteValues varName hrightMem
-              have hresponse := hselectionSem resolvers variableValues fuel
+              have hresponse := hselectionSem.2.2 resolvers variableValues fuel
                 source hleftCompleteValues hsource
               exact ⟨hresponse.1.symm, hresponse.2.symm⟩
             intro rightSelection hrightMem
@@ -309,8 +319,10 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
-  intro hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
-    hsem
+  intro hschema hleftValid hrightValid hleftNormal hrightNormal hsem
+  have hvariables :=
+    operationBoolVarsEquivalent_of_completeNormal_semantics hschema
+      hleftValid hrightValid hleftNormal hrightNormal hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hvariables

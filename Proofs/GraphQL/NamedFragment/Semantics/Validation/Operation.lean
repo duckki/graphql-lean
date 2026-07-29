@@ -30,7 +30,7 @@ theorem inlineOperation_selectionSetValid_of_fragmentBodiesValid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge⟩
+      hselectionValid, _hmerge, _hvariablesUsed⟩
   cases operation with
   | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
       simp [Inline.inlineOperation]
@@ -84,7 +84,7 @@ theorem inlineOperation_selectionSetValid_of_localFragmentBodiesValid
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, _huniqueFragments,
       _hfragmentsAcyclic, _hfragmentDefinitionsValid, _hselectionNonempty,
-      hselectionValid, _hmerge⟩
+      hselectionValid, _hmerge, _hvariablesUsed⟩
   cases operation with
   | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
       simp [Inline.inlineOperation]
@@ -124,7 +124,7 @@ theorem inlineOperation_valid_of_reachable_removals
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, huniqueFragments,
       hfragmentsAcyclic, hfragmentDefinitionsValid, _hselectionNonempty,
-      _hselectionValid, _hmerge⟩
+      _hselectionValid, _hmerge, _hvariablesUsed⟩
   exact inlineOperation_valid_of_localFragmentBodiesValid hvalidOriginal
     (fun {_fragmentName} {_fragment} {_remaining} _hrootSpread hlookup =>
       fragmentInlineSelectionSetValid_after_reachable_removals

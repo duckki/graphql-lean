@@ -40,7 +40,7 @@ theorem completeNormalizeOperation_rootSourceAppliesBool (schema : Schema)
   have hroot := completeNormalizeOperation_rootType schema operation
   simp [Execution.rootSourceAppliesBool, hroot]
 
-theorem completeNormalizationSemanticsPreserved_of_selectionSet
+theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
     (schema : Schema) (operation : Operation)
     : (SchemaWellFormedness.schemaWellFormed schema
         -> Validation.operationDefinitionValid schema operation
@@ -53,7 +53,16 @@ theorem completeNormalizationSemanticsPreserved_of_selectionSet
                 = Execution.executeSelectionSet schema resolvers variableValues depth
                     operation.rootType source
                     (completeNormalizeOperation schema operation).selectionSet)
-      -> completeNormalizationSemanticsPreserved schema operation := by
+      -> SchemaWellFormedness.schemaWellFormed schema
+      -> Validation.operationDefinitionValid schema operation
+      -> ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
+            variableValues depth (source : Execution.ResolverValue ObjectRef),
+          operationBoolVarsComplete operation
+            (Execution.coerceVariableValues operation variableValues)
+          -> Execution.executeQueryWithFuel schema resolvers variableValues operation
+                depth source
+              = Execution.executeQueryWithFuel schema resolvers variableValues
+                  (completeNormalizeOperation schema operation) depth source := by
   intro hselection hschema hvalid ObjectRef resolvers variableValues depth
     source hcomplete
   cases hroot : Execution.rootSourceAppliesBool schema operation source with
@@ -77,17 +86,48 @@ theorem completeNormalizationSemanticsPreserved_of_selectionSet
             operation.rootType :=
         completeNormalizeOperation_rootType schema operation
       have hselectionEq :=
-        hselection hschema hvalid resolvers variableValues depth source
+        hselection hschema hvalid resolvers
+          (Execution.coerceVariableValues operation variableValues) depth source
           hcomplete hroot
       have hrootSelectionEq :
-          Execution.executeRootSelectionSet schema resolvers variableValues
+          Execution.executeRootSelectionSet schema resolvers
+            (Execution.coerceVariableValues operation variableValues)
             depth operation.rootType source operation.selectionSet =
-          Execution.executeRootSelectionSet schema resolvers variableValues
+          Execution.executeRootSelectionSet schema resolvers
+            (Execution.coerceVariableValues operation variableValues)
             depth operation.rootType source
             (completeNormalizeOperation schema operation).selectionSet := by
         simpa [Execution.executeSelectionSet] using hselectionEq
+      have hcoercedValues :
+          Execution.coerceVariableValues
+              (completeNormalizeOperation schema operation) variableValues =
+            Execution.coerceVariableValues operation variableValues := by
+        simp [Execution.coerceVariableValues,
+          completeNormalizeOperation_variableDefinitions]
       simp [Execution.executeQueryWithFuel, hroot, hnormalizedRoot,
-        hnormalizedRootType, hrootSelectionEq]
+        hnormalizedRootType, hcoercedValues, hrootSelectionEq]
+
+theorem completeNormalizationSemanticsPreserved_of_selectionSet
+    (schema : Schema) (operation : Operation)
+    : (SchemaWellFormedness.schemaWellFormed schema
+        -> Validation.operationDefinitionValid schema operation
+        -> ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
+              variableValues depth (source : Execution.ResolverValue ObjectRef),
+            operationBoolVarsComplete operation variableValues
+            -> Execution.rootSourceAppliesBool schema operation source = true
+            -> Execution.executeSelectionSet schema resolvers variableValues depth
+                  operation.rootType source operation.selectionSet
+                = Execution.executeSelectionSet schema resolvers variableValues depth
+                    operation.rootType source
+                    (completeNormalizeOperation schema operation).selectionSet)
+      -> completeNormalizationSemanticsPreserved schema operation := by
+  intro hselection hschema hvalid ObjectRef resolvers variableValues depth
+    source hcomplete
+  exact completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
+    schema operation hselection hschema hvalid resolvers variableValues depth
+    source
+    (operationBoolVarsComplete_coerceVariableValues
+      operation variableValues hcomplete)
 
 end CompleteNormalization
 

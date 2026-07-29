@@ -541,10 +541,8 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_anyParent
         -> FieldMerge.fieldsInSetCanMerge schema parentType (leftSet ++ rightSet)
         -> selectionSetDirectiveFree leftSet
         -> selectionSetDirectiveFree rightSet
-        -> selectionSetTypeConditionFeasible schema parentType [parentType]
-            .allFields leftSet
-        -> selectionSetTypeConditionFeasible schema parentType [parentType]
-            .allFields rightSet
+        -> selectionSetTypeConditionFeasible schema parentType [parentType] leftSet
+        -> selectionSetTypeConditionFeasible schema parentType [parentType] rightSet
         -> ∀ mergeParent,
             FieldMerge.fieldsInSetCanMerge schema mergeParent
               (normalizeSelectionSet schema parentType leftSet
@@ -634,14 +632,14 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_anyParent
           (by simpa [← hrightReturn] using hreturnPossible)
       have hleftChildFeasible :
           selectionSetTypeConditionFeasible schema returnType [returnType]
-            .allFields leftGroup.childSource :=
+             leftGroup.childSource :=
         leftGroup.childFeasible returnType
           (by
             dsimp [returnType] at hreturnPossible
             exact hreturnPossible)
       have hrightChildFeasible :
           selectionSetTypeConditionFeasible schema returnType [returnType]
-            .allFields rightGroup.childSource :=
+             rightGroup.childSource :=
         rightGroup.childFeasible returnType
           (by simpa [← hrightReturn] using hreturnPossible)
       have hchildSourcePair :
@@ -718,14 +716,14 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_anyParent
             (by simpa [← hrightReturn] using hpossible)
         have hleftChildFeasible :
             selectionSetTypeConditionFeasible schema objectType [objectType]
-              .allFields leftGroup.childSource :=
+               leftGroup.childSource :=
           leftGroup.childFeasible objectType
             (by
               dsimp [returnType] at hpossible
               exact hpossible)
         have hrightChildFeasible :
             selectionSetTypeConditionFeasible schema objectType [objectType]
-              .allFields rightGroup.childSource :=
+               rightGroup.childSource :=
           rightGroup.childFeasible objectType
             (by simpa [← hrightReturn] using hpossible)
         have hchildSourcePair :

@@ -50,8 +50,10 @@ to variable environments containing complete Boolean assignments. This is exactl
 the domain on which complete normalization preserves source-operation execution.
 
 For operations that are already complete-normal, equality up to reordering implies
-unrestricted semantic equivalence. The restriction enters only when transporting
-that result back through normalization to the original source operations.
+unrestricted semantic equivalence when the operations have identical variable
+definitions. That extra condition is necessary because public execution applies
+operation-specific defaults, while the syntactic reordering relation does not
+compare variable definitions.
 
 ### Normalization As A Decision Procedure
 
@@ -74,8 +76,9 @@ up to reordering into a deterministic decision procedure for the corresponding
 semantic equivalence.
 
 Thus the current theorem supplies the semantic completeness and soundness of that
-future procedure. The remaining work is computational rather than semantic: decide
-the finite syntactic relation and prove the checker correct.
+future procedure for operations with the same variable definitions. The remaining
+work is computational rather than semantic: decide the finite syntactic relation
+and prove the checker correct.
 
 ### Normalization As A Proof Principle
 
@@ -192,21 +195,30 @@ The corresponding theorem witnesses are
 `GroundTypeNormalization.normalizeOperations_equalUpToReordering_semanticallyEquivalent`,
 `GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering`,
 and `GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`.
+The stricter ground type-condition feasibility assumptions ensure all source
+field uses survive normalization, so the normalized operations'
+all-variables-used facts are derived rather than assumed.
 
 ### Complete Normalization
 
 Complete normalization builds on the ground result by making Boolean directive cases
 explicit. Complete normal-form equality additionally ignores root branch order and
 the order used to encode each complete Boolean minterm's directive stem.
+It does not carry a separate Boolean-support conjunct: ground selection equality
+preserves directive variables, while equivalent complete minterms determine the same
+support. The proof theorem
+`operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering`
+recovers that fact from the structural relation.
 
 For operations that are already complete-normal, reordering soundness is
-unrestricted:
+unrestricted once their variable definitions are identical:
 
 ```lean
 def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
     (schema : Schema) (left right : Operation) : Prop :=
   completeNormalOperation schema left
   -> completeNormalOperation schema right
+  -> left.variableDefinitions = right.variableDefinitions
   -> completeNormalOperationsEqualUpToReordering left right
   -> operationsSemanticallyEquivalent schema left right
 ```
@@ -235,6 +247,7 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
+  -> left.variableDefinitions = right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> completeNormalOperationsEqualUpToReordering
       (completeNormalizeOperation schema left)
@@ -258,10 +271,17 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReordering left right
 ```
+
+For valid operations that are already complete-normal, unrestricted semantic
+equivalence determines Boolean support. If a variable occurred on only one side, a
+runtime environment can leave that variable non-Boolean while assigning the other
+side's support. The first operation then collects no complete branch, while the
+other still has a nonempty executable branch. The proof theorem
+`operationBoolVarsEquivalent_of_completeNormal_semantics` supplies the derived
+support equivalence used by the uniqueness witness.
 
 The normalization uniqueness theorem, and the main result of this document, is:
 
@@ -286,6 +306,14 @@ Its witness is
 `CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`.
 The possible-type and Boolean/type-condition feasibility assumptions ensure complete
 normalization preserves validity and does not create semantically empty branches.
+The stricter, mode-free feasibility predicate ensures every Boolean condition
+and type-condition path is feasible, so all source field and variable uses
+survive in at least one complete branch. The normalized operations'
+all-variables-used facts are therefore derived from input validity rather than
+assumed.
+Unlike the already-normal result, this source-level theorem retains explicit Boolean
+support equivalence: semantically redundant directive variables can disappear only
+after normalization unless a separate minimization pass is added.
 
 ## 3. Proof Development
 
@@ -362,7 +390,9 @@ The complete proof files follow these layers:
 - `BoolCases.lean`: Boolean case agreement and disagreement;
 - `RestrictedSemantics.lean`: proof-only complete-environment equivalence;
 - `StemExecution.lean`: matching and nonmatching stem execution;
-- `GroundBridge.lean`: variable independence and access to ground uniqueness;
+- `VariableIndependence.lean`: directive-free execution independence from the
+  variable map;
+- `GroundBridge.lean`: access to ground uniqueness;
 - `CaseBodies.lean`: branch readiness, matching, and body equality;
 - `OperationBridge.lean`: branch pairing and already-normal uniqueness;
 - `ReorderingSoundness.lean`: the reverse semantic direction; and

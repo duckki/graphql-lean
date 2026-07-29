@@ -343,9 +343,11 @@ def executeQueryWithFuel {ObjectRef : Type}
     (variableValues : VariableValues) (operation : Operation)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     : Response :=
+  let coercedVariableValues :=
+    GraphQL.Execution.coerceVariableValues operation variableValues
   if rootSourceAppliesBool schema operation source then
     Execution.selectionSetResultToResponse
-      (executeRootSelectionSet schema resolvers variableValues
+      (executeRootSelectionSet schema resolvers coercedVariableValues
         fuel operation.rootType source operation.selectionSet)
   else
     { data := .null, errors := 1 }
@@ -385,7 +387,8 @@ def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Oper
   -> Validation.operationDefinitionValid schema operation
   -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
         variableValues fuel (source : ResolverValue ObjectRef),
-      NormalForm.operationBoolVarsComplete operation variableValues
+      NormalForm.operationBoolVarsComplete operation
+        (GraphQL.Execution.coerceVariableValues operation variableValues)
       -> responseDataAndErrorPresenceEquivalent
           (executeQueryWithFuel schema resolvers variableValues operation fuel source)
           (GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues

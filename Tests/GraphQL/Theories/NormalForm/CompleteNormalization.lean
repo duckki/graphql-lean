@@ -264,6 +264,132 @@ theorem completeNormalizationIncludeSkipSmoke
       = true := by
   native_decide
 
+def completeFeasibilitySchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .object
+          {
+            name := "Query"
+            fields := [stringFieldDefinition "value"]
+            interfaces := []
+          },
+        .object
+          {
+            name := "Other"
+            fields := [stringFieldDefinition "value"]
+            interfaces := []
+          }
+      ]
+  }
+
+def completeFeasibilityOperation (directives : List DirectiveApplication) : Operation :=
+  {
+    name := some "CompleteFeasibility"
+    rootType := "Query"
+    variableDefinitions := [booleanVariableDefinition "x"]
+    selectionSet := [.field "value" "value" [] directives []]
+  }
+
+theorem completeFeasibilitySchema_queryPossibleTypes
+    : completeFeasibilitySchema.getPossibleTypes "Query" = ["Query"] := by
+  native_decide
+
+theorem completeFeasibilitySchema_otherPossibleTypes
+    : completeFeasibilitySchema.getPossibleTypes "Other" = ["Other"] := by
+  native_decide
+
+theorem completeFeasibilitySchema_queryTypeConditionFeasible
+    : typeConditionStackFeasible completeFeasibilitySchema ["Query"] := by
+  refine ⟨"Query", ?_⟩
+  intro typeCondition htypeCondition
+  simp at htypeCondition
+  subst typeCondition
+  simp [completeFeasibilitySchema_queryPossibleTypes]
+
+theorem completeFeasibilitySchema_crossTypeConditionInfeasible
+    : ¬ typeConditionStackFeasible completeFeasibilitySchema ["Other", "Query"] := by
+  intro hfeasible
+  rcases hfeasible with ⟨objectType, hall⟩
+  have hother := hall "Other" (by simp)
+  have hquery := hall "Query" (by simp)
+  simp [completeFeasibilitySchema_otherPossibleTypes] at hother
+  simp [completeFeasibilitySchema_queryPossibleTypes] at hquery
+  exact (by decide : ("Other" : Name) ≠ "Query") (hother.symm.trans hquery)
+
+theorem completeNormalizationBooleanConditionFeasible
+    : operationBoolTypeConditionFeasible completeFeasibilitySchema
+        (completeFeasibilityOperation [.include (.variable "x")]) := by
+  simp [operationBoolTypeConditionFeasible, completeFeasibilityOperation,
+    operationBoolVars, selectionSetBooleanVariables,
+    selectionBooleanVariables, directivesBooleanVariables,
+    directiveBooleanVariables, inputValueBooleanVariables, dedupBoolVars,
+    boolVariableMem, allBoolCases, selectionBoolTypeConditionFeasible,
+    directivesAllowIn, directiveAllowsIn,
+    inputValueBoolIn?, BoolCase.lookup?,
+    completeFeasibilitySchema_queryTypeConditionFeasible]
+
+def completeNormalizationContradictoryFieldInputQuery : Operation :=
+  {
+    name := some "CompleteContradictoryField"
+    rootType := "Query"
+    variableDefinitions := [booleanVariableDefinition "x"]
+    selectionSet :=
+      [
+        .field "value" "value" [] [] [],
+        .field "conditionalValue" "value" []
+          [.include (.variable "x"), .skip (.variable "x")] []
+      ]
+  }
+
+theorem completeNormalizationContradictoryFieldInfeasible
+    : ¬ operationBoolTypeConditionFeasible completeFeasibilitySchema
+          completeNormalizationContradictoryFieldInputQuery := by
+  simp [operationBoolTypeConditionFeasible,
+    completeNormalizationContradictoryFieldInputQuery,
+    operationBoolVars, selectionSetBooleanVariables,
+    selectionBooleanVariables, directivesBooleanVariables,
+    directiveBooleanVariables, inputValueBooleanVariables, dedupBoolVars,
+    boolVariableMem, allBoolCases, selectionBoolTypeConditionFeasible,
+    directivesAllowIn, directiveAllowsIn,
+    inputValueBoolIn?, BoolCase.lookup?]
+
+def completeNormalizationInfeasibleTypeConditionInputQuery : Operation :=
+  {
+    name := some "CompleteInfeasibleTypeCondition"
+    rootType := "Query"
+    variableDefinitions := []
+    selectionSet :=
+      [.inlineFragment (some "Other") [] [.field "value" "value" [] [] []]]
+  }
+
+theorem completeNormalizationTypeConditionInfeasible
+    : ¬ operationBoolTypeConditionFeasible completeFeasibilitySchema
+          completeNormalizationInfeasibleTypeConditionInputQuery := by
+  simp [operationBoolTypeConditionFeasible,
+    completeNormalizationInfeasibleTypeConditionInputQuery,
+    operationBoolVars, selectionSetBooleanVariables,
+    selectionBooleanVariables, directivesBooleanVariables,
+    dedupBoolVars, allBoolCases,
+    selectionBoolTypeConditionFeasible,
+    selectionSetBoolTypeConditionFeasible, selectionAllowsIn,
+    directivesAllowIn,
+    completeFeasibilitySchema_crossTypeConditionInfeasible]
+
+theorem completeNormalizationDirectiveVariablesUsed
+    (hschema : SchemaWellFormedness.schemaWellFormed completeFeasibilitySchema)
+    (hvalid
+      : Validation.operationDefinitionValid completeFeasibilitySchema
+          (completeFeasibilityOperation [.include (.variable "x")]))
+    : Validation.operationVariablesUsed
+        (completeNormalizeOperation completeFeasibilitySchema
+          (completeFeasibilityOperation [.include (.variable "x")])) :=
+  CompleteNormalization.completeNormalizeOperation_operationVariablesUsed
+    completeFeasibilitySchema
+    (completeFeasibilityOperation [.include (.variable "x")]) hschema hvalid
+    completeNormalizationBooleanConditionFeasible
+
 def completeNormalizationResolvers : Execution.Resolvers :=
   { resolve := fun parentType fieldName _arguments _source =>
       some <|
@@ -340,6 +466,8 @@ theorem completeNormalizationSmokeInputsHaveCompleteNormalTheorem
   completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
 #check
   CompleteNormalization.complete_normal_operations_equalUpToReordering_semanticallyEquivalent
+#check
+  CompleteNormalization.operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering
 #check operationsSemanticallyEquivalentForCompleteBoolVars
 #check
   completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
@@ -348,6 +476,7 @@ theorem completeNormalizationSmokeInputsHaveCompleteNormalTheorem
 #check completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
 #check
   CompleteNormalization.complete_normal_operations_semanticallyEquivalent_equalUpToReordering
+#check CompleteNormalization.operationBoolVarsEquivalent_of_completeNormal_semantics
 #check completeNormalizeOperationUniqueUpToReordering
 #check
   CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering

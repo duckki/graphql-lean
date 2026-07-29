@@ -126,6 +126,82 @@ theorem inlineOperation_inlined (operation : Operation)
       · rfl
       · exact inlineSelectionSet_inlined fragmentDefinitions selectionSet
 
+mutual
+  theorem selectionVariables_inlineSelection
+      : ∀ (fragments : List FragmentDefinition) (selection : Selection),
+          GraphQL.NamedFragment.Validation.selectionVariables []
+            (Inline.inlineSelection fragments selection)
+          = GraphQL.NamedFragment.Validation.selectionVariables fragments selection
+    | fragments,
+        .field responseName fieldName arguments directives selectionSet => by
+        simp [Inline.inlineSelection,
+          GraphQL.NamedFragment.Validation.selectionVariables,
+          selectionSetVariables_inlineSelectionSet fragments selectionSet]
+    | fragments, .inlineFragment typeCondition directives selectionSet => by
+        simp [Inline.inlineSelection,
+          GraphQL.NamedFragment.Validation.selectionVariables,
+          selectionSetVariables_inlineSelectionSet fragments selectionSet]
+    | fragments, .fragmentSpread fragmentName directives => by
+        simp [Inline.inlineSelection,
+          GraphQL.NamedFragment.Validation.selectionVariables]
+        cases hlookup : lookupFragmentAndRestLt? fragmentName fragments with
+        | none =>
+            simp [GraphQL.NamedFragment.Validation.selectionVariables,
+              GraphQL.NamedFragment.Validation.selectionSetVariables]
+        | some pair =>
+            cases pair with
+            | mk fragment remainingFragments =>
+                simp [GraphQL.NamedFragment.Validation.selectionVariables,
+                  selectionSetVariables_inlineSelectionSet
+                    remainingFragments.val fragment.selectionSet]
+  termination_by fragments selection => (fragments.length, sizeOf selection, 0)
+  decreasing_by
+    all_goals
+      simp_wf
+      try
+        first
+        | apply Prod.Lex.left
+          exact remainingFragments.property
+        | apply Prod.Lex.right
+          apply Prod.Lex.left
+          omega
+        | apply Prod.Lex.right
+          apply Prod.Lex.right
+          omega
+
+  theorem selectionSetVariables_inlineSelectionSet
+      : ∀ (fragments : List FragmentDefinition) (selectionSet : List Selection),
+          GraphQL.NamedFragment.Validation.selectionSetVariables []
+            (Inline.inlineSelectionSet fragments selectionSet)
+          = GraphQL.NamedFragment.Validation.selectionSetVariables fragments selectionSet
+    | fragments, [] => by
+        simp [GraphQL.NamedFragment.Validation.selectionSetVariables]
+    | fragments, selection :: rest => by
+        simp [Inline.inlineSelectionSet,
+          GraphQL.NamedFragment.Validation.selectionSetVariables,
+          selectionVariables_inlineSelection fragments selection,
+          selectionSetVariables_inlineSelectionSet fragments rest]
+  termination_by fragments selectionSet => (fragments.length, sizeOf selectionSet, 1)
+  decreasing_by
+    all_goals
+      simp_wf
+      repeat first
+        | apply Prod.Lex.left; omega
+        | apply Prod.Lex.right
+      try omega
+end
+
+theorem inlineOperation_operationVariablesUsed
+    {operation : Operation}
+    (hused : GraphQL.NamedFragment.Validation.operationVariablesUsed operation)
+    : GraphQL.NamedFragment.Validation.operationVariablesUsed
+        (Inline.inlineOperation operation) := by
+  intro variableDefinition hvariableDefinition
+  have husedName := hused variableDefinition (by
+    simpa [Inline.inlineOperation] using hvariableDefinition)
+  simpa [Inline.inlineOperation,
+    selectionSetVariables_inlineSelectionSet] using husedName
+
 end Semantics
 end NamedFragment
 end GraphQL

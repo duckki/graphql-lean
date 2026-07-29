@@ -21,6 +21,22 @@ abbrev VariableValues := GraphQL.Execution.VariableValues
 
 variable {ObjectRef : Type}
 
+-- Fragment-aware operation entry point for the modeled default-value portion of spec
+-- 6.1.2 `CoerceVariableValues`.
+def coerceVariableValues (operation : Operation) (variableValues : VariableValues)
+    : VariableValues :=
+  operation.variableDefinitions.foldl
+    (fun coercedValues variableDefinition =>
+      match GraphQL.Execution.lookupVariableValue? coercedValues
+              variableDefinition.name with
+      | some _value => coercedValues
+      | none =>
+          match variableDefinition.defaultValue with
+          | some defaultValue =>
+              (variableDefinition.name, defaultValue.toInputValue) :: coercedValues
+          | none => coercedValues)
+    variableValues
+
 structure ExecutableField where
   parentType : Name
   responseName : Name
@@ -261,9 +277,10 @@ def executeQueryWithFuel
     (variableValues : VariableValues) (operation : Operation)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     : Response :=
+  let coercedVariableValues := coerceVariableValues operation variableValues
   if rootSourceAppliesBool schema operation source then
     let completed :=
-      executeRootSelectionSet schema resolvers variableValues
+      executeRootSelectionSet schema resolvers coercedVariableValues
         fuel operation.rootType source operation.fragmentDefinitions
         operation.selectionSet
     match completed with

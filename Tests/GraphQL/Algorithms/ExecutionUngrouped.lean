@@ -184,6 +184,15 @@ theorem duplicateCompositeLaterNullBubbleOverridesPreviousDataSmoke
       ∧ responseEqBool spec.data ungrouped.data = true := by
   native_decide
 
+theorem executeQueryUsesVariableDefaultSmoke
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionUngrouped.executeQuery sampleSchema
+          rootNameResolvers [] variableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("name", .scalar "Query")])
+      = true := by
+  native_decide
+
 end ExecutionUngrouped
 end Tests
 end GraphQL

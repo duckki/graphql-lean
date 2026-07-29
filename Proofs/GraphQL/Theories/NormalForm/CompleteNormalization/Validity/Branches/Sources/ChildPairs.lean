@@ -91,10 +91,8 @@ theorem normalizedFields_childSources_canMerge
       -> FieldMerge.fieldsInSetCanMerge schema parentType (leftSet ++ rightSet)
       -> selectionSetDirectiveFree leftSet
       -> selectionSetDirectiveFree rightSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields leftSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields rightSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] leftSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] rightSet
       -> leftField
           ∈ FieldMerge.collectFields schema parentType
               (normalizeSelectionSet schema parentType leftSet)
@@ -369,10 +367,8 @@ theorem normalizedFields_fieldsForNameCanMerge_of_childPairs
       -> FieldMerge.fieldsInSetCanMerge schema parentType (leftSet ++ rightSet)
       -> selectionSetDirectiveFree leftSet
       -> selectionSetDirectiveFree rightSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields leftSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields rightSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] leftSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] rightSet
       -> leftField
           ∈ FieldMerge.collectFields schema parentType
               (normalizeSelectionSet schema parentType leftSet)
@@ -444,10 +440,8 @@ theorem normalizedFields_fieldsForNameCanMerge_of_childPairs_anyParent
       -> FieldMerge.fieldsInSetCanMerge schema parentType (leftSet ++ rightSet)
       -> selectionSetDirectiveFree leftSet
       -> selectionSetDirectiveFree rightSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields leftSet
-      -> selectionSetTypeConditionFeasible schema parentType [parentType]
-          .allFields rightSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] leftSet
+      -> selectionSetTypeConditionFeasible schema parentType [parentType] rightSet
       -> leftField
           ∈ FieldMerge.collectFields schema mergeParent
               (normalizeSelectionSet schema parentType leftSet)
@@ -709,12 +703,12 @@ theorem normalizedFieldGroupSources_objectReturn_childPairs
       (by simpa [← hrightReturn] using hreturnPossible)
   have hleftFeasible :
       selectionSetTypeConditionFeasible schema returnType [returnType]
-        .allFields hleftGroup.childSource :=
+         hleftGroup.childSource :=
     hleftGroup.childFeasible returnType
       (by simpa [← hleftReturn] using hreturnPossible)
   have hrightFeasible :
       selectionSetTypeConditionFeasible schema returnType [returnType]
-        .allFields hrightGroup.childSource :=
+         hrightGroup.childSource :=
     hrightGroup.childFeasible returnType
       (by simpa [← hrightReturn] using hreturnPossible)
   have hchildSourcePair :

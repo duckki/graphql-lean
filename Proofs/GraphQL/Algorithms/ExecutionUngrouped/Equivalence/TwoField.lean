@@ -649,14 +649,17 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
     (responseName : Name) (first later : ExecutableField)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hinvariant
       : ExecutionCollectedFieldInvariant
           {
@@ -664,7 +667,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
                 parentType := operation.rootType
                 source := source
@@ -685,7 +689,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -696,21 +701,30 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
     (hobjectSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsAbsorbsFrom schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity)
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsAbsorbsFrom schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
               later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -722,7 +736,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -737,7 +752,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant_step
     variableValues operation (depth + 1) source hroot
   exact
     stateEquivalent_of_collected_two_field_group_invariant_steps schema
-      resolvers variableValues depth operation.rootType source
+      resolvers (GraphQL.Execution.coerceVariableValues operation variableValues)
+      depth operation.rootType source
       operation.selectionSet groups responseName first later hcollect hgroup
       hexact hdirect hinvariant hcompatible hfieldLookup hfirstChildren hobjectSteps
       herrors hchildren
@@ -752,14 +768,17 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
     (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hinvariant
       : ExecutionCollectedFieldInvariant
           {
@@ -767,7 +786,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
                 parentType := operation.rootType
                 source := source
@@ -788,7 +808,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -799,21 +820,30 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
     (hobjectSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsAbsorbsFrom schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity)
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsAbsorbsFrom schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
               later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -825,7 +855,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -962,14 +993,17 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
     (responseName : Name) (first later : ExecutableField)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hinvariant
       : ExecutionCollectedFieldInvariant
           {
@@ -977,7 +1011,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
                 parentType := operation.rootType
                 source := source
@@ -998,7 +1033,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1010,20 +1046,30 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
+                (visitSubfields schema resolvers
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
+                  childDepth
                   runtimeType (.object runtimeType identity) first.selectionSet
                   (.object []))))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -1035,7 +1081,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1050,7 +1097,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_invariant
     variableValues operation (depth + 1) source hroot
   exact
     stateEquivalent_of_collected_two_field_group_invariant schema resolvers
-      variableValues depth operation.rootType source operation.selectionSet
+      (GraphQL.Execution.coerceVariableValues operation variableValues) depth
+      operation.rootType source operation.selectionSet
       groups responseName first later hcollect hgroup hexact hdirect hinvariant
       hcompatible hfieldLookup hfirstChildren hobjects herrors hchildren
 
@@ -1064,14 +1112,17 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
     (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hinvariant
       : ExecutionCollectedFieldInvariant
           {
@@ -1079,7 +1130,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
               {
                 schema := schema
                 resolvers := resolvers
-                variableValues := variableValues
+                variableValues :=
+                  GraphQL.Execution.coerceVariableValues operation variableValues
                 depth := depth
                 parentType := operation.rootType
                 source := source
@@ -1100,7 +1152,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1112,20 +1165,30 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
+                (visitSubfields schema resolvers
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
+                  childDepth
                   runtimeType (.object runtimeType identity) first.selectionSet
                   (.object []))))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -1137,7 +1200,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1559,14 +1623,17 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
     (responseName : Name) (first later : ExecutableField)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent operation.rootType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
@@ -1583,7 +1650,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1595,20 +1663,30 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
+                (visitSubfields schema resolvers
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
+                  childDepth
                   runtimeType (.object runtimeType identity) first.selectionSet
                   (.object []))))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -1620,7 +1698,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1635,7 +1714,9 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
     variableValues operation (depth + 1) source hroot
   exact
     executeRootSelectionSet_eq_spec_of_collected_two_field_group_appendPlan
-      schema resolvers variableValues depth operation.rootType source
+      schema resolvers
+      (GraphQL.Execution.coerceVariableValues operation variableValues) depth
+      operation.rootType source
       operation.selectionSet groups responseName first later hcollect hgroup
       hexact hdirect hresponses hparents hcompatible hstable hfieldLookup
       hfirstChildren hobjects herrors hchildren
@@ -1650,14 +1731,17 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
     (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
-      : GraphQL.Execution.collectFields schema variableValues operation.rootType
-          source operation.selectionSet
+      : GraphQL.Execution.collectFields schema
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation.rootType source operation.selectionSet
         = groups)
     (hgroup : (responseName, [first, later]) ∈ groups)
     (hexact : groups = [(responseName, [first, later])])
     (hdirect
-      : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
-          operation.rootType source operation.selectionSet (.object []))
+      : VisitSubfieldsFlatCollects schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          (depth + 1) operation.rootType source operation.selectionSet
+          (.object []))
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent operation.rootType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
@@ -1674,7 +1758,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity
@@ -1686,20 +1771,30 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object []))
-              (visitSubfields schema resolvers variableValues childDepth
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
+                (visitSubfields schema resolvers
+                  (GraphQL.Execution.coerceVariableValues operation variableValues)
+                  childDepth
                   runtimeType (.object runtimeType identity) first.selectionSet
                   (.object []))))
     (herrors
       : ∀ childDepth runtimeType identity,
           childDepth < depth
-          -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
-              runtimeType (.object runtimeType identity) later.selectionSet
-              (visitSubfields schema resolvers variableValues childDepth
+          -> VisitSubfieldsErrorNeutral schema resolvers
+              (GraphQL.Execution.coerceVariableValues operation variableValues)
+              childDepth runtimeType (.object runtimeType identity)
+              later.selectionSet
+              (visitSubfields schema resolvers
+                (GraphQL.Execution.coerceVariableValues operation variableValues)
+                childDepth
                 runtimeType (.object runtimeType identity) first.selectionSet
                 (.object [])))
     (hchildren
@@ -1711,7 +1806,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
                   {
                     schema := schema
                     resolvers := resolvers
-                    variableValues := variableValues
+                    variableValues :=
+                      GraphQL.Execution.coerceVariableValues operation variableValues
                     depth := childDepth
                     parentType := runtimeType
                     source := .object runtimeType identity

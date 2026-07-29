@@ -197,6 +197,133 @@ theorem directives_anonymous_inline_fragment_include_variable_matches_graphql_js
         = true := by
   native_decide
 
+-- Source: src/execution/__tests__/directives-test.ts
+def directives_variable_default_trueSchema : GraphQL.Schema :=
+  {
+    queryType := "Query",
+    types :=
+      [.object
+        {
+          name := "Query",
+          fields :=
+            [
+              { name := "a", outputType := .named "String", arguments := [] },
+              { name := "b", outputType := .named "String", arguments := [] }
+            ],
+          interfaces := []
+        }]
+  }
+
+def directives_variable_default_trueOperation : GraphQL.Operation :=
+  {
+    name := none,
+    rootType := "Query",
+    variableDefinitions :=
+      [{
+        name := "withB",
+        typeRef := .named "Boolean",
+        defaultValue := some (GraphQL.ConstInputValue.boolean true)
+      }],
+    selectionSet :=
+      [.field "a" "a" [] [] [], .field "b" "b" [] [.include (.variable "withB")] []]
+  }
+
+def directives_variable_default_trueVariables : GraphQL.Execution.VariableValues :=
+  []
+
+def directives_variable_default_trueSource : GraphQL.Execution.ResolverValue String :=
+  .object "Query" "root"
+
+def directives_variable_default_trueResolvers : GraphQL.Execution.Resolvers String :=
+  { resolve := fun parentType fieldName _arguments source =>
+      match parentType, fieldName, source with
+      | "Query", "a", .object _ "root" => some (.scalar "a")
+      | "Query", "b", .object _ "root" => some (.scalar "b")
+      | _, _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl
+  }
+
+def directives_variable_default_trueExpectedData : GraphQL.Execution.ResponseValue :=
+  .object ([("a", .scalar "a"), ("b", .scalar "b")])
+
+theorem directives_variable_default_true_matches_graphql_js_projection
+    : let response :=
+        GraphQL.Execution.executeQueryWithFuel directives_variable_default_trueSchema
+          directives_variable_default_trueResolvers
+          directives_variable_default_trueVariables
+          directives_variable_default_trueOperation 100
+          directives_variable_default_trueSource
+      response.errors = 0
+      ∧ responseEqBool response.data directives_variable_default_trueExpectedData
+        = true := by
+  native_decide
+
+-- Source: src/execution/__tests__/directives-test.ts
+def directives_skip_variable_default_trueSchema : GraphQL.Schema :=
+  {
+    queryType := "Query",
+    types :=
+      [.object
+        {
+          name := "Query",
+          fields :=
+            [
+              { name := "a", outputType := .named "String", arguments := [] },
+              { name := "b", outputType := .named "String", arguments := [] }
+            ],
+          interfaces := []
+        }]
+  }
+
+def directives_skip_variable_default_trueOperation : GraphQL.Operation :=
+  {
+    name := none,
+    rootType := "Query",
+    variableDefinitions :=
+      [{
+        name := "skipB",
+        typeRef := .named "Boolean",
+        defaultValue := some (GraphQL.ConstInputValue.boolean true)
+      }],
+    selectionSet :=
+      [.field "a" "a" [] [] [], .field "b" "b" [] [.skip (.variable "skipB")] []]
+  }
+
+def directives_skip_variable_default_trueVariables : GraphQL.Execution.VariableValues :=
+  []
+
+def directives_skip_variable_default_trueSource
+    : GraphQL.Execution.ResolverValue String :=
+  .object "Query" "root"
+
+def directives_skip_variable_default_trueResolvers : GraphQL.Execution.Resolvers String :=
+  { resolve := fun parentType fieldName _arguments source =>
+      match parentType, fieldName, source with
+      | "Query", "a", .object _ "root" => some (.scalar "a")
+      | "Query", "b", .object _ "root" => some (.scalar "b")
+      | _, _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl
+  }
+
+def directives_skip_variable_default_trueExpectedData : GraphQL.Execution.ResponseValue :=
+  .object ([("a", .scalar "a")])
+
+theorem directives_skip_variable_default_true_matches_graphql_js_projection
+    : let response :=
+        GraphQL.Execution.executeQueryWithFuel directives_skip_variable_default_trueSchema
+          directives_skip_variable_default_trueResolvers
+          directives_skip_variable_default_trueVariables
+          directives_skip_variable_default_trueOperation 100
+          directives_skip_variable_default_trueSource
+      response.errors = 0
+      ∧ responseEqBool response.data directives_skip_variable_default_trueExpectedData
+        = true := by
+  native_decide
+
 -- Source: src/execution/__tests__/executor-test.ts
 def nested_objects_aliases_and_listsSchema : GraphQL.Schema :=
   {

@@ -95,8 +95,11 @@ theorem groundTypeNormalFormSemanticsPreserved_of_executeSelectionSet
             ({ data := Execution.ResponseValue.object fields, errors := errors } :
               Execution.Response))
       (by
-        simpa [Execution.executeSelectionSet] using
-          hselection resolvers variableValues depth source hroot)
+        simpa [Execution.executeSelectionSet, Execution.coerceVariableValues,
+          normalizeOperation_variableDefinitions] using
+          hselection resolvers
+            (Execution.coerceVariableValues operation variableValues)
+            depth source hroot)
   · have hrootFalse :
         Execution.rootSourceAppliesBool schema operation source = false := by
       cases hmatch : Execution.rootSourceAppliesBool schema operation source

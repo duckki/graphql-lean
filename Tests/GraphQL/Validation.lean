@@ -6,6 +6,69 @@ namespace GraphQL
 namespace Tests
 namespace Validation
 
+def episodeVariableDefinition : VariableDefinition :=
+  { name := "episode", typeRef := .named "Episode" }
+
+def unusedVariableQuery : Operation :=
+  {
+    name := some "UnusedVariable"
+    rootType := "Query"
+    variableDefinitions := [episodeVariableDefinition]
+    selectionSet :=
+      [.field "hero" "hero" [] [] [.field "name" "name" [] [] []]]
+  }
+
+theorem unusedQueryVariableRejected
+    : ¬ GraphQL.Validation.operationDefinitionValid sampleSchema unusedVariableQuery := by
+  intro hvalid
+  have hused :=
+    GraphQL.Validation.operationDefinitionValid_operationVariablesUsed hvalid
+  have husedEpisode :=
+    hused episodeVariableDefinition (by
+      simp [unusedVariableQuery, episodeVariableDefinition])
+  simp [unusedVariableQuery,
+    GraphQL.Validation.selectionSetVariables,
+    GraphQL.Validation.selectionVariables,
+    GraphQL.Validation.argumentsVariables,
+    GraphQL.Validation.directivesVariables] at husedEpisode
+
+def usedVariableLocationsQuery : Operation :=
+  {
+    name := some "UsedVariableLocations"
+    rootType := "Query"
+    variableDefinitions :=
+      [
+        episodeVariableDefinition,
+        { name := "included", typeRef := .nonNull (.named "Boolean") },
+        { name := "nested", typeRef := .named "Episode" }
+      ]
+    selectionSet :=
+      [.field "hero" "hero"
+        [{ name := "episode", value := .variable "episode" }]
+        [.include (.variable "included")]
+        [.inlineFragment none []
+          [.field "name" "name"
+            [{
+              name := "syntacticNestedInput"
+              value := .object [("episodes", .list [.variable "nested"])]
+            }]
+            [] []]]]
+  }
+
+theorem fieldDirectiveAndNestedInputVariablesCountAsUsed
+    : GraphQL.Validation.operationVariablesUsed usedVariableLocationsQuery := by
+  simp [GraphQL.Validation.operationVariablesUsed, usedVariableLocationsQuery,
+    episodeVariableDefinition,
+    GraphQL.Validation.selectionSetVariables,
+    GraphQL.Validation.selectionVariables,
+    GraphQL.Validation.argumentsVariables,
+    GraphQL.Validation.argumentVariables,
+    GraphQL.Validation.directiveVariables,
+    GraphQL.Validation.directivesVariables,
+    GraphQL.Validation.inputValueVariables,
+    GraphQL.Validation.inputValuesVariables,
+    GraphQL.Validation.inputObjectFieldsVariables]
+
 def duplicateEpisodeArguments : List Argument :=
   [
     { name := "episode", value := .enum "NEWHOPE" },

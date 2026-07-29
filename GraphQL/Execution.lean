@@ -108,8 +108,9 @@ structure Resolvers (ObjectRef : Type := PUnit) where
         -> resolve parentType fieldName firstArguments source
             = resolve parentType fieldName laterArguments source
 
--- Spec 6.1.2 `CoerceVariableValues`: partial; variables are assumed already supplied as
--- modeled input values without coercion or validation.
+-- Spec 6.1.2 `CoerceVariableValues`: supplied variables and the resulting variable map
+-- share one representation. Explicit supplied values are assumed already coerced and
+-- type-conformant where scalar semantics would matter.
 abbrev VariableValues := List (Name × InputValue)
 
 variable {ObjectRef : Type}
@@ -124,6 +125,24 @@ def lookupVariableValue? (variableValues : VariableValues) (name : Name)
   | [] => none
   | (variableName, value) :: rest =>
       if variableName = name then some value else lookupVariableValue? rest name
+
+-- Spec 6.1.2 `CoerceVariableValues`, default-value branch: partial; for every missing
+-- variable, materialize its constant operation default, including an explicit `null`
+-- default. Supplied values, including supplied `null`, take precedence. Full input
+-- coercion and request errors remain outside the modeled execution result, so supplied
+-- values are retained and assumed already coerced and type-conformant.
+def coerceVariableValues (operation : Operation) (variableValues : VariableValues)
+    : VariableValues :=
+  operation.variableDefinitions.foldl
+    (fun coercedValues variableDefinition =>
+      match lookupVariableValue? coercedValues variableDefinition.name with
+      | some _value => coercedValues
+      | none =>
+          match variableDefinition.defaultValue with
+          | some defaultValue =>
+              (variableDefinition.name, defaultValue.toInputValue) :: coercedValues
+          | none => coercedValues)
+    variableValues
 
 -- Spec 3.13.1 `@skip` / 3.13.2 `@include`: partial; resolves only Boolean literals or
 -- variables bound to Boolean literals.
@@ -434,15 +453,18 @@ def rootSourceAppliesBool
   | some objectName => schema.typeIncludesObjectBool operation.rootType objectName
   | none => false
 
--- Spec 6.2.1 `ExecuteQuery` / 7.1 response envelope at an explicit recursion fuel.
+-- Spec 6.1.2 `CoerceVariableValues` followed by spec 6.2.1 `ExecuteQuery`, at an
+-- explicit recursion fuel. Supplied values are prepared with operation defaults before
+-- field collection.
 def executeQueryWithFuel
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (operation : Operation)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     : Response :=
+  let coercedVariableValues := coerceVariableValues operation variableValues
   if rootSourceAppliesBool schema operation source then
     selectionSetResultToResponse
-      (executeRootSelectionSet schema resolvers variableValues
+      (executeRootSelectionSet schema resolvers coercedVariableValues
         fuel operation.rootType source operation.selectionSet)
   else
     { data := .null, errors := 1 }

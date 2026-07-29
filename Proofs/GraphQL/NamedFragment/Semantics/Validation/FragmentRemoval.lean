@@ -969,7 +969,7 @@ theorem operationFragmentInlineSelectionSetValid_after_lookup_removal
   rcases hvalid with
     ⟨_hroot, _hrootComposite, _hvariables, huniqueFragments,
       hfragmentsAcyclic, hfragmentDefinitionsValid, _hselectionNonempty,
-      _hselectionValid, _hmerge⟩
+      _hselectionValid, _hmerge, _hvariablesUsed⟩
   exact fragmentInlineSelectionSetValid_after_lookup_removal_of_localFragmentBodiesValid
     huniqueFragments hfragmentsAcyclic hfragmentDefinitionsValid
     hlookup hremainingBodies

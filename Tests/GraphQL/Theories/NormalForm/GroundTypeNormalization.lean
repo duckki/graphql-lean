@@ -20,6 +20,7 @@ open GraphQL.NormalForm.GroundTypeNormalization
 #check normal_operations_semanticallyEquivalent_equalUpToReordering
 #check normalizeOperationUniqueUpToReordering
 #check normalizeOperation_uniqueUpToReordering
+#check normalizeOperation_operationVariablesUsed
 
 /-! Ground-typed normalization smoke tests use `*InputQuery` and `*OutputSnapshot` pairs. -/
 
@@ -62,6 +63,9 @@ theorem abstractFieldGroundTypingSmoke
           abstractFieldOutputSnapshot
         = true := by
   native_decide
+
+def allBranchesFeasibleAbstractFieldInputQuery : Operation :=
+  query { field "search" { field "id", field "name" } }
 
 def duplicateFieldInputQuery : Operation :=
   query { field "hero" { field "id" }, field "hero" { field "name" } }
@@ -128,6 +132,41 @@ theorem nonOverlappingInlineFragmentGroundTypingSmoke
           nonOverlappingInlineFragmentOutputSnapshot
         = true := by
   native_decide
+
+theorem strictTypeConditionFeasibilitySmoke
+    : operationTypeConditionFeasible groundTypingSchema
+        allBranchesFeasibleAbstractFieldInputQuery
+      ∧ ¬ operationTypeConditionFeasible groundTypingSchema abstractFieldInputQuery
+      ∧ ¬ operationTypeConditionFeasible groundTypingSchema
+            nonOverlappingInlineFragmentInputQuery := by
+  have hqueryPossible :
+      groundTypingSchema.getPossibleTypes "Query" = ["Query"] := by
+    native_decide
+  have hcharacterPossible :
+      groundTypingSchema.getPossibleTypes "Character" = ["Human", "Droid"] := by
+    native_decide
+  have hhumanPossible :
+      groundTypingSchema.getPossibleTypes "Human" = ["Human"] := by
+    native_decide
+  have hdroidPossible :
+      groundTypingSchema.getPossibleTypes "Droid" = ["Droid"] := by
+    native_decide
+  have hsearchLookup :
+      groundTypingSchema.lookupField "Query" "search"
+        = some (objectFieldDefinition "search" "Character") := by
+    rfl
+  have hheroLookup :
+      groundTypingSchema.lookupField "Query" "hero"
+        = some (objectFieldDefinition "hero" "Human") := by
+    rfl
+  simp [operationTypeConditionFeasible, selectionSetTypeConditionFeasible,
+    selectionTypeConditionFeasible, typeConditionStackFeasible,
+    allBranchesFeasibleAbstractFieldInputQuery, abstractFieldInputQuery,
+    nonOverlappingInlineFragmentInputQuery, rootType,
+    objectFieldDefinition, operationWith,
+    TypeRef.namedType,
+    hqueryPossible, hcharacterPossible, hhumanPossible, hdroidPossible,
+    hsearchLookup, hheroLookup]
 
 def abstractFieldEmptyGroundBranchInputQuery : Operation :=
   query { field "search" { on "Human" { field "homePlanet" } } }

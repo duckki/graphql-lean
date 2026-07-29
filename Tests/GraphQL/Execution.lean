@@ -260,6 +260,115 @@ theorem executeRootSelectionSetSmoke
       = true := by
   native_decide
 
+def variableDefaultQuery : Operation :=
+  {
+    name := some "VariableDefault"
+    rootType := "Query"
+    variableDefinitions :=
+      [{
+        name := "includeName"
+        typeRef := .named "Boolean"
+        defaultValue := some (.boolean true)
+      }]
+    selectionSet :=
+      [.field "name" "name" [] [.include (.variable "includeName")] []]
+  }
+
+def nullVariableDefaultQuery : Operation :=
+  {
+    variableDefaultQuery with
+      variableDefinitions :=
+        [{
+          name := "includeName"
+          typeRef := .named "Boolean"
+          defaultValue := some .null
+        }]
+  }
+
+def skipVariableDefaultQuery : Operation :=
+  {
+    variableDefaultQuery with
+      name := some "SkipVariableDefault"
+      selectionSet :=
+        [.field "name" "name" [] [.skip (.variable "includeName")] []]
+  }
+
+def rootNameResolvers : GraphQL.Execution.Resolvers :=
+  { resolve := fun parentType fieldName _arguments _source =>
+      match parentType, fieldName with
+      | "Query", "name" => some (.scalar "Query")
+      | _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl }
+
+theorem coerceVariableValuesUsesMissingDefault
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.Execution.coerceVariableValues variableDefaultQuery []) "includeName"
+      = some (.boolean true) := by
+  rfl
+
+theorem coerceVariableValuesKeepsExplicitValue
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.Execution.coerceVariableValues variableDefaultQuery
+          [("includeName", .boolean false)])
+        "includeName"
+      = some (.boolean false) := by
+  rfl
+
+theorem coerceVariableValuesKeepsExplicitNull
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.Execution.coerceVariableValues variableDefaultQuery
+          [("includeName", .null)])
+        "includeName"
+      = some .null := by
+  rfl
+
+theorem coerceVariableValuesIncludesNullDefault
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.Execution.coerceVariableValues nullVariableDefaultQuery [])
+        "includeName"
+      = some .null := by
+  rfl
+
+theorem executeQueryUsesVariableDefault
+    : responseEqBool
+        (GraphQL.Execution.executeQuery sampleSchema rootNameResolvers []
+          variableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("name", .scalar "Query")])
+      = true := by
+  native_decide
+
+theorem executeQueryUsesSkipVariableDefault
+    : responseEqBool
+        (GraphQL.Execution.executeQuery sampleSchema rootNameResolvers []
+          skipVariableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [])
+      = true := by
+  native_decide
+
+theorem executeQueryExplicitVariableOverridesDefault
+    : responseEqBool
+        (GraphQL.Execution.executeQuery sampleSchema rootNameResolvers
+          [("includeName", .boolean false)]
+          variableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [])
+      = true := by
+  native_decide
+
+theorem executeQueryExplicitNullDoesNotUseDefault
+    : responseEqBool
+        (GraphQL.Execution.executeQuery sampleSchema rootNameResolvers
+          [("includeName", .null)]
+          variableDefaultQuery
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [])
+      = true := by
+  native_decide
+
 end Execution
 end Tests
 end GraphQL

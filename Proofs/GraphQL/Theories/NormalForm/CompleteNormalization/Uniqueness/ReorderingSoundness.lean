@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseBodies
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.ReorderingVariables
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.StemExecution
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness
@@ -256,8 +257,11 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
         schema left right := by
-  intro hleftNormal hrightNormal hequal
-  rcases hequal with ⟨hroot, hvariables, hselectionEqual⟩
+  intro hleftNormal hrightNormal hdefinitions hequal
+  have hvariables :=
+    operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering
+      hequal
+  rcases hequal with ⟨hroot, hselectionEqual⟩
   have hselectionSem : selectionSetsSemanticallyEquivalent schema left.rootType
       left.selectionSet right.selectionSet := by
     cases hleftVars : operationBoolVars left with
@@ -311,6 +315,10 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
               hleftComplete hrightComplete hvariablesAtSupports
               hselectionEqualComplete resolvers variableValues fuel source hsource
   intro ObjectRef resolvers variableValues fuel source
+  have hcoercedValues :
+      Execution.coerceVariableValues right variableValues =
+        Execution.coerceVariableValues left variableValues := by
+    simp [Execution.coerceVariableValues, hdefinitions]
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
@@ -332,26 +340,33 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
         GroundTypeNormalization.rootSourceAppliesBool_true_object schema left
           source hleftRoot
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
+        hcoercedValues,
         Execution.executeSelectionSetAsResponse,
         Execution.executeSelectionSet, hroot] using
-          hselectionSem resolvers variableValues fuel source hsource
+          hselectionSem resolvers
+            (Execution.coerceVariableValues left variableValues)
+            fuel source hsource
 
 theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
         schema left right := by
-  intro hschema hleftValid hrightValid hvariables hequal
+  intro hschema hleftValid hrightValid hdefinitions hvariables hequal
   have hleftNormal : completeNormalOperation schema
       (completeNormalizeOperation schema left) :=
     completeNormalizeOperation_normal schema left hschema hleftValid
   have hrightNormal : completeNormalOperation schema
       (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_normal schema right hschema hrightValid
+  have hnormalizedDefinitions :
+      (completeNormalizeOperation schema left).variableDefinitions =
+        (completeNormalizeOperation schema right).variableDefinitions := by
+    simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
   have hnormalizedSemantics : operationsSemanticallyEquivalent schema
       (completeNormalizeOperation schema left)
       (completeNormalizeOperation schema right) :=
     complete_normal_operations_equalUpToReordering_semanticallyEquivalent
-      hleftNormal hrightNormal hequal
+      hleftNormal hrightNormal hnormalizedDefinitions hequal
   intro ObjectRef resolvers variableValues fuel source hleftComplete
   have hrightComplete : operationBoolVarsComplete right variableValues := by
     intro varName hmem
