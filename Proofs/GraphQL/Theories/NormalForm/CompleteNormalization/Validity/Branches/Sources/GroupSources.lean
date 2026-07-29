@@ -109,7 +109,8 @@ decreasing_by
     simp [SelectionSet.size, Selection.size]
     omega
 
-private theorem size_mergeSelectionSets_fieldSelectionsWithResponseNameInScope_le_for_completeValidity
+private theorem
+    size_mergeSelectionSets_fieldSelectionsWithResponseNameInScope_le_for_completeValidity
     (schema : Schema) (parentType responseName : Name)
     : ∀ selectionSet,
         SelectionSet.size

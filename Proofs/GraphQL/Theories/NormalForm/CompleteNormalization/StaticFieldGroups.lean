@@ -225,7 +225,8 @@ theorem collectedResponseSelectionSet_collectFields_staticScopedFieldsWithRespon
             variableValues lookupParent
             (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref) rest
 
-theorem collectedResponseSelectionSet_collectFields_completeScopedSelectionSetStaticFieldsWithResponseName
+theorem
+    collectedResponseSelectionSet_collectFields_completeScopedSelectionSetStaticFieldsWithResponseName
     (schema : Schema) (variableValues : Execution.VariableValues) (operation : Operation)
     (execParent groundType responseName : Name) (boolCase : BoolCase)
     (scopedSelections : List CompleteScopedSelection) (ref : ObjectRef)
@@ -632,7 +633,8 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_directives
           rw [GroundTypeNormalization.withoutExecutableGroupsWithResponseName_mergeExecutableGroups]
           rw [hselection, hrest]
 
-theorem collectFields_withoutFieldSelectionsWithResponseName_eq_sourceRest_of_cons_directives
+theorem
+    collectFields_withoutFieldSelectionsWithResponseName_eq_sourceRest_of_cons_directives
     (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) (responseName : Name)
     (fields : List Execution.ExecutableField)
@@ -658,7 +660,8 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_eq_sourceRest_of_co
     (GroundTypeNormalization.withoutExecutableGroupsWithResponseName_cons_self_of_namesNodup
       responseName fields sourceRest hnodup)
 
-theorem collectFields_withoutFieldSelectionsWithResponseName_fieldHead_rest_eq_sourceRest_directives
+theorem
+    collectFields_withoutFieldSelectionsWithResponseName_fieldHead_rest_eq_sourceRest_directives
     (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) (responseName fieldName : Name)
     (arguments : List Argument) (directives : List DirectiveApplication)
@@ -705,12 +708,12 @@ theorem executeCollectedFields_staticCollect_fieldHead_filtered_tails_eq
     (normalizedTail sourceTail : List (Name × List Execution.ExecutableField))
     : sourceField
         = {
-            parentType := lookupParent,
-            responseName := responseName,
-            fieldName := fieldName,
-            arguments := arguments,
-            selectionSet := selectionSet
-          }
+          parentType := lookupParent,
+          responseName := responseName,
+          fieldName := fieldName,
+          arguments := arguments,
+          selectionSet := selectionSet
+        }
       -> Execution.collectFields schema variableValues lookupParent source
             (staticCollectForGround schema variables lookupParent
               groundType boolCase
@@ -776,7 +779,8 @@ theorem executeCollectedFields_staticCollect_fieldHead_filtered_tails_eq
     hnormalizedTail, hsourceTail]
     using hfiltered
 
-theorem executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_case
+theorem
+    executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_case
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (lookupParent groundType : Name) (source : Execution.ResolverValue ObjectRef)
@@ -949,7 +953,8 @@ theorem executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some
     normalizedTail sourceTail hallow hlookup hnormalizedCollect hsourceCollect
     hcompleteGrouped htail
 
-theorem executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_projected_case
+theorem
+    executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_projected_case
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (lookupParent groundType : Name) (ref : ObjectRef) (boolCase : BoolCase)

@@ -72,7 +72,8 @@ theorem responseData_not_semanticEquivalent_of_taggedSelectionSetResponseDiffWit
       hleft, hright, hnot⟩
   exact hnot (by simpa [hleft, hright] using hsemantic)
 
-theorem taggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_promoted_fuel_ge
+theorem
+    taggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -168,7 +169,8 @@ theorem taggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem taggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_promoted_fuel_ge
+theorem
+    taggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema

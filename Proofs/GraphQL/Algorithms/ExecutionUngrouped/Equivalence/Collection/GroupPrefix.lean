@@ -232,7 +232,8 @@ theorem collectFields_group_prefix_childFieldSemanticsReady_of_selectionSetValid
           hruntime))
       candidate.selectionSet hselectionSetValid
 
-theorem collectFields_group_prefix_mergedFieldSelectionSet_lookupValid_of_selectionSetValid_object
+theorem
+    collectFields_group_prefix_mergedFieldSelectionSet_lookupValid_of_selectionSetValid_object
     {ObjectIdentity : Type} (schema : Schema)
     (variableDefinitions : List VariableDefinition) (variableValues : VariableValues)
     (collectParent validParent runtimeType : Name) (identity : ObjectIdentity)
@@ -525,7 +526,8 @@ mutual
                   hmatch hruntime)
 end
 
-theorem collectFields_group_prefix_mergedFieldSelectionSet_lookupValid_of_selectionSetValidInPossibleTypes_object
+theorem
+    collectFields_group_prefix_mergedFieldSelectionSet_lookupValid_of_selectionSetValidInPossibleTypes_object
     {ObjectIdentity : Type} (schema : Schema)
     (variableDefinitions : List VariableDefinition) (variableValues : VariableValues)
     (collectParent validParent runtimeType : Name) (identity : ObjectIdentity)
@@ -766,7 +768,8 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_validInPossibleTypes
     selectionSetValidInPossibleTypes_mergedFieldSelectionSet schema
       variableDefinitions childRuntime (field :: prefixTail) hfields
 
-theorem collectFields_group_prefix_mergedFieldSelectionSet_validInPossibleTypes_of_selectionSetValidInPossibleTypes_object
+theorem
+    collectFields_group_prefix_mergedFieldSelectionSet_validInPossibleTypes_of_selectionSetValidInPossibleTypes_object
     {ObjectIdentity : Type} (schema : Schema)
     (variableDefinitions : List VariableDefinition) (variableValues : VariableValues)
     (collectParent validParent runtimeType : Name) (identity : ObjectIdentity)

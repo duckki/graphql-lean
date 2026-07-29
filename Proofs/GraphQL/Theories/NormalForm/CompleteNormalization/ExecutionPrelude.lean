@@ -109,7 +109,8 @@ theorem collectedResponseSelectionSet_collectFields_allFields_topNoDirectives
       | inlineFragment typeCondition directives selectionSet =>
           simp [Selection.isField] at hheadField
 
-theorem mergedFieldSelectionSet_field_head_eq_fieldSelectionsWithResponseNameInScope_topNoDirectives
+theorem
+    mergedFieldSelectionSet_field_head_eq_fieldSelectionsWithResponseNameInScope_topNoDirectives
     (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) (responseName fieldName : Name)
     (arguments : List Argument) (subselections rest : List Selection)

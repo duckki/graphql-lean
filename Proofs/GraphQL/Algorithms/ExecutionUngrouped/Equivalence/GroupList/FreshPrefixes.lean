@@ -69,7 +69,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes.of_allOutputs
   intro hflat fields _hfresh
   exact hflat (.object fields)
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_executableFieldSelections_collectedCollectFields
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_executableFieldSelections_collectedCollectFields
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)

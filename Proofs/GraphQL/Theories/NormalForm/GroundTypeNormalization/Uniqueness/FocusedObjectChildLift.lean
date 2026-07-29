@@ -115,7 +115,8 @@ noncomputable def focusedObjectChildSupportSelectionSets
   ++ focusedSupportTargetChildSelectionSets targetField leftArguments
       rightArguments supportSelectionSets
 
-theorem focusedSelectionSetTargetChildSelectionSets_subset_supportTargetChildSelectionSets_of_mem
+theorem
+    focusedSelectionSetTargetChildSelectionSets_subset_supportTargetChildSelectionSets_of_mem
     {targetField : Name} {leftArguments rightArguments : List Argument}
     {supportSelectionSets : List (List Selection)}
     {selectionSet childSelectionSet : List Selection}
@@ -260,7 +261,8 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
     simpa [hreturnType] using hchildValid
   exact ⟨hchildValidReturn, hchildFree, hchildNormal⟩
 
-theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal_of_field_subset
+theorem
+    focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal_of_field_subset
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType targetField returnType : Name}
     {leftArguments rightArguments : List Argument}
@@ -615,7 +617,8 @@ theorem focusedObjectChildSupportSelectionSets_child_exists_valid_free_normal
         (fieldDefinition := fieldDefinition)
         hsupportValid hlookup hreturnType hcomposite hsupport
 
-theorem not_selectionSetsDataEquivalent_of_object_child_contextualRuntimeDiff_fieldCases_withFuelGe_focused
+theorem
+    not_selectionSetsDataEquivalent_of_object_child_contextualRuntimeDiff_fieldCases_withFuelGe_focused
     {schema : Schema} (rootSelectionSet : List Selection)
     {parentType returnType responseName fieldName runtimeType : Name}
     {leftArguments rightArguments : List Argument}
@@ -952,7 +955,8 @@ theorem not_selectionSetsDataEquivalent_of_object_child_contextualRuntimeDiff_fi
         hrightSuffixFieldsOk⟩
       hchildNot
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType returnType responseName fieldName runtimeType : Name}
@@ -1254,7 +1258,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualR
                   rightChildSelectionSet) hmem)))
       (by simpa [leftSelectionSet, rightSelectionSet] using hwitness)
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_targetSupport_focused
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_targetSupport_focused
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType returnType responseName fieldName runtimeType : Name}
@@ -1386,7 +1391,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualR
         simp [focusedSplitTargetChildSelectionSets, htarget])
       hwitness
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_child_contextualRuntimeDiff_split_focusedFiniteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_child_contextualRuntimeDiff_split_focusedFiniteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType returnType responseName fieldName runtimeType : Name}

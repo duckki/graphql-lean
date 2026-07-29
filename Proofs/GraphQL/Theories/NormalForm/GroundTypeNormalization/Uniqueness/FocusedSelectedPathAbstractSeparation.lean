@@ -323,7 +323,8 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_taggedWitness_sameFuel
         exact hdataNot
           (by simpa [hleftResponse, hrightResponse] using hsemantic))
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -419,7 +420,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
         source bodySelectionSet [] happly
   simp [Execution.executeSelectionSetAsResponse, resolvers, source, hmiddle, hflatten]
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_abstract_sameTypeCondition_bodyWitness
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_abstract_sameTypeCondition_bodyWitness
     {schema : Schema}
     {rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection}
     {leftInitialSpine rightInitialSpine leftSpine rightSpine
@@ -481,7 +483,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_abstract_sameTypeC
       by simpa [hleftEq] using hleftBodyResponse,
       by simpa [hrightEq] using hrightBodyResponse, hnot⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -547,7 +550,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
     projectionTargetResolverValue, projectionResolverValue,
     hcollectObject, Execution.executeCollectedFields]
 
-theorem selectedPathTaggedSelectionSetsRightPrunedResponseDiffWitness_of_left_abstract_body_nonempty_right_missing
+theorem
+    selectedPathTaggedSelectionSetsRightPrunedResponseDiffWitness_of_left_abstract_body_nonempty_right_missing
     {schema : Schema} {leftVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -673,7 +677,8 @@ theorem selectedPathTaggedSelectionSetsRightPrunedResponseDiffWitness_of_left_ab
         intro hsemantic
         exact hbodyNot (by simpa [hleftBodyResponse] using hsemantic)⟩
 
-theorem selectedPathTaggedSelectionSetsLeftPrunedResponseDiffWitness_of_right_abstract_body_nonempty_left_missing
+theorem
+    selectedPathTaggedSelectionSetsLeftPrunedResponseDiffWitness_of_right_abstract_body_nonempty_left_missing
     {schema : Schema} {rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -799,7 +804,8 @@ theorem selectedPathTaggedSelectionSetsLeftPrunedResponseDiffWitness_of_right_ab
         intro hsemantic
         exact hbodyNot (by simpa [hrightBodyResponse] using hsemantic)⟩
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_abstract_inlineFragment_body_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_abstract_inlineFragment_body_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1017,7 +1023,8 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_inlineFragmen
             hleftMem
         exact hbodyNot (by simpa [hleftEq] using hsemantic))
 
-theorem selectedPathSelectionSetsResponseDataDiff_of_observableResponsePath_valid_normal_pair_contextReady_fuel_ge
+theorem
+    selectedPathSelectionSetsResponseDataDiff_of_observableResponsePath_valid_normal_pair_contextReady_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1329,7 +1336,8 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runti
             hleftFree hleftNormal hleftMissing
         exact hrightNotEmpty (by simpa [hleftEq] using hsemantic))
 
-theorem responseData_not_semanticEquivalent_empty_object_of_fieldPairOrDeepSuccess_selectedPathProbe_object_valid_normal_contextReady_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_empty_object_of_fieldPairOrDeepSuccess_selectedPathProbe_object_valid_normal_contextReady_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine spine
@@ -1399,7 +1407,8 @@ theorem responseData_not_semanticEquivalent_empty_object_of_fieldPairOrDeepSucce
             spine)))
       hobject hfree hnormal hnonempty hresponse
 
-theorem responseData_empty_object_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_object_valid_normal_contextReady_fuel_ge
+theorem
+    responseData_empty_object_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_object_valid_normal_contextReady_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine spine
@@ -1469,7 +1478,8 @@ theorem responseData_empty_object_not_semanticEquivalent_of_fieldPairOrDeepSucce
             spine)))
       hobject hfree hnormal hnonempty hresponse
 
-theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_missing_runtime_left_object_nonempty
+theorem
+    selectedPathSelectionSetsResponseDataDiff_of_right_abstract_missing_runtime_left_object_nonempty
     {schema : Schema}
     {rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection}
     {leftInitialSpine rightInitialSpine leftSpine rightSpine
@@ -1563,7 +1573,8 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_missing_runt
       hrightInclude hleftSpineValid hrightSpineValid hrightNonObject
       hrightFree hrightNormal hrightMissing hleftNotEmpty
 
-theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runtime_right_object_nonempty
+theorem
+    selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runtime_right_object_nonempty
     {schema : Schema}
     {rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection}
     {leftInitialSpine rightInitialSpine leftSpine rightSpine
@@ -1833,7 +1844,8 @@ theorem selectedPathSelectionSetsResponseDataDiffLeftPruned_of_right_object_none
         hrightObject)
       hrightSpineValid hrightNotEmpty
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstract_missing_ok_of_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstract_missing_ok_of_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)

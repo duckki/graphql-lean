@@ -14,7 +14,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_trace_data_separates
+theorem
+    normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_trace_data_separates
     {schema : Schema} {left right : Operation}
     : (SchemaWellFormedness.schemaWellFormed schema
         -> Validation.selectionSetValid schema left.variableDefinitions left.rootType
@@ -48,7 +49,8 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_ob
             hrightFree hleftNormal hrightNormal hobject responsePath
             htrace)
 
-theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_observable_trace_data_separates
+theorem
+    normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_observable_trace_data_separates
     {schema : Schema} {left right : Operation}
     : (SchemaWellFormedness.schemaWellFormed schema
         -> Validation.selectionSetValid schema left.variableDefinitions left.rootType

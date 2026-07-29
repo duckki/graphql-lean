@@ -2164,7 +2164,8 @@ theorem executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_p
   simp [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
     hfullCollect]
 
-theorem executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_object_runtime_source
+theorem
+    executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_object_runtime_source
     {ObjectRef : Type} (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     {normalParentType runtimeType : Name} (ref : ObjectRef)
@@ -2309,7 +2310,8 @@ theorem executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_object_ru
   simp [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
     hfullCollect]
 
-theorem executeSelectionSet_deepSelectionSetSuccessWithRef_abstract_of_inlineFragment_body_deepFieldReady
+theorem
+    executeSelectionSet_deepSelectionSetSuccessWithRef_abstract_of_inlineFragment_body_deepFieldReady
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues) (fuel : Nat)
     {normalParentType runtimeType : Name} {selectionSet : List Selection}
@@ -2903,7 +2905,8 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
       (by omega) (by omega) hvalid hfree hnormal hobject hpromote
       responseName fieldName arguments directives childSelectionSet hmem
 
-theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge
+theorem
+    executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema

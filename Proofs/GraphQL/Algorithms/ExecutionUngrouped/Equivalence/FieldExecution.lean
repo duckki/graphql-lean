@@ -1633,7 +1633,8 @@ theorem visitSelection_inline_some_type_not_apply
   unfold visitSelection
   simp [hallowed, hnotApply]
 
-theorem visitSelection_inline_none_eq_visitSubfields_collectedExecutableFields_collectSelection
+theorem
+    visitSelection_inline_none_eq_visitSubfields_collectedExecutableFields_collectSelection
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (directives : List DirectiveApplication)
@@ -1671,7 +1672,8 @@ theorem visitSelection_inline_none_eq_visitSubfields_collectedExecutableFields_c
     simp [visitSubfields, GraphQL.Execution.collectSelection,
       collectedExecutableFields, executableFieldSelections, hfalse]
 
-theorem visitSelection_inline_some_eq_visitSubfields_collectedExecutableFields_collectSelection
+theorem
+    visitSelection_inline_some_eq_visitSubfields_collectedExecutableFields_collectSelection
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (typeCondition : Name)

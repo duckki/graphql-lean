@@ -571,7 +571,8 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
       | some value =>
           simpa [hlookup, hresolved] using hcomplete) htail
 
-theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_no_duplicate_case
+theorem
+    executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_no_duplicate_case
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (lookupParent groundType : Name) (source : Execution.ResolverValue ObjectRef)
@@ -720,7 +721,8 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_no_
       using hcomplete
   · exact htailCollected
 
-theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_no_duplicate_case
+theorem
+    executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_no_duplicate_case
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (lookupParent groundType : Name) (source : Execution.ResolverValue ObjectRef)

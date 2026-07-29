@@ -222,7 +222,8 @@ theorem object_child_observable_trace_separator_of_split_separator
       hrightChildValid hleftChildFree hrightChildFree hleftChildNormal
       hrightChildNormal htrace
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection} {responsePath : List Name}
@@ -395,7 +396,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_t
       rw [hobject] at hnonObject
       simp at hnonObject
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_split_child_separators
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_split_child_separators
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection} {responsePath : List Name}

@@ -1136,7 +1136,8 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
   · rw [combineVisitStatus_comm middleStatus laterStatus]
     rw [← combineVisitStatus_assoc]
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_after_same_response_prefix
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_after_same_response_prefix
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -1536,7 +1537,8 @@ theorem collectFields_group_duplicate_field_middle_append_eq_collected_middle
     source normalizedBlock suffix]
   rw [hblock]
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (first later : ExecutableField)
@@ -1643,7 +1645,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of
       apply hfresh field
       simpa [rawBlock, List.append_assoc] using hfieldRaw)
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -1782,7 +1785,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_of_allOut
     (VisitSubfieldsFlatCollectsFreshPrefixes.of_allOutputs schema resolvers
       variableValues (completionDepth + 1) parentType source middle hmiddle)
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (first later : ExecutableField)
@@ -1831,7 +1835,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of
         executableFieldSelections [later])
       suffix hdisjoint hblock hsuffix
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_headDisjointTrees
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_headDisjointTrees
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (first later : ExecutableField)

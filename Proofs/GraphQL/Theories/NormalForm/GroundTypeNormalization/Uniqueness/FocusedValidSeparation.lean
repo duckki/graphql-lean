@@ -17,7 +17,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_observable_trace
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_observable_trace
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -614,7 +615,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
             hleftValid hrightValid hleftFree hrightFree hleftNormal
             hrightNormal hnonObject hsupportValid hchildWitness⟩
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_observable_trace_split_focused
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_child_observable_trace_split_focused
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType returnType responseName fieldName : Name}
@@ -804,7 +806,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_child_observable_
       hparentObject
       (by simpa [leftSelectionSet, rightSelectionSet] using hwitness)
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_left_leaf_right_composite
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_left_leaf_right_composite
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -867,7 +870,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
     not_selectionSetsDataEquivalent_of_contextualRuntimeDataDiffWitnessWithFuelGe
       hobject hwitness
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_left_composite_right_leaf
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_left_composite_right_leaf
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -938,7 +942,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
     not_selectionSetsDataEquivalent_of_contextualRuntimeDataDiffWitnessWithFuelGe
       hobject hwitness
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_pairedPath
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_pairedPath
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection} {responsePath : List Name}

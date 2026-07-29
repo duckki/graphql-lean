@@ -239,7 +239,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_object_of_field_chil
       (.object sourceRuntimeType (some tag)) selectionSet hfree hnormal
       hobject hfieldOk
 
-theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_abstract_of_inlineFragment_body_children
+theorem
+    executeSelectionSetAsResponse_fieldPairProbe_tagged_abstract_of_inlineFragment_body_children
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField : Name)
@@ -424,7 +425,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_abstract_of_inlineFr
       Execution.executeSelectionSet, Execution.executeRootSelectionSet,
       hcollect, Execution.executeCollectedFields]
 
-theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
+theorem
+    executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1005,7 +1007,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_prom
                 Or.inr ⟨hreturnComposite, hreturnNonObject, hruntime⟩
             · simpa [hchildFuelEq] using hchildResponse
 
-theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_deepProbeFuel
+theorem
+    executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_deepProbeFuel
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1065,7 +1068,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_prom
       hinclude hpromote
       hheadPromote
 
-theorem executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
+theorem
+    executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1331,7 +1335,8 @@ theorem executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promo
       · exact Or.inr ⟨hreturnComposite, hreturnNonObject, hruntime⟩
       · simpa [hchildFuelEq] using hchildResponse
 
-theorem executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_deepProbeFuel
+theorem
+    executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_deepProbeFuel
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema

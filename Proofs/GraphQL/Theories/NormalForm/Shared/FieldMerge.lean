@@ -233,7 +233,8 @@ theorem fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped
                   hselectionSet, hscopedOverlap⟩
                 simp [FieldMerge.collectFields, hscoped]
 
-theorem fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_source_object
+theorem
+    fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_source_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (filterParent collectParent responseName : Name)
     : ∀ selectionSet fieldName arguments directives subselections,

@@ -483,7 +483,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_chil
         schema resolvers variableValues depth parentType source responseName
         fieldName arguments [] selectionSet resolved rfl hresolve hchildren
 
-theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_guarded_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_guarded_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (field : ExecutableField)
@@ -526,7 +527,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_guar
         schema resolvers variableValues depth parentType source responseName
         fieldName arguments [] selectionSet resolved rfl hresolve hchildren
 
-theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_contained_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_contained_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (field : ExecutableField)
@@ -570,7 +572,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_cont
         schema resolvers variableValues depth parentType source responseName
         fieldName arguments [] selectionSet resolved rfl hresolve hchildren
 
-theorem executeRootSelectionSet_executableFieldSelections_single_aligned_of_contained_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_aligned_of_contained_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (field : ExecutableField)
@@ -867,7 +870,8 @@ theorem executeRootSelectionSet_executableFieldSelections_group_eq_spec_of_merge
         GraphQL.Execution.Result.combine, hfield]
   exact hungrouped.trans (hspecRoot.trans hspecField).symm
 
-theorem executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -938,7 +942,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_merged_compl
         GraphQL.Execution.Result.combine, hfield]
   exact hroot.trans (hspecRoot.trans hspecField)
 
-theorem executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_contained_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_contained_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -1015,7 +1020,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_merged_compl
         GraphQL.Execution.Result.combine, hfield]
   exact hroot.trans (hspecRoot.trans hspecField)
 
-theorem executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_guarded_child_states
+theorem
+    executeRootSelectionSet_executableFieldSelections_single_eq_merged_complete_of_guarded_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)

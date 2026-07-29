@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem selectedPathSelectionSetFieldChildrenReady_of_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    selectedPathSelectionSetFieldChildrenReady_of_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -388,7 +389,8 @@ theorem selectedPathSelectionSetFieldChildrenReady_of_valid_normal_runtimeSpine_
                 hruntimeCase, hchildInclude, ?_⟩
               simpa [hchildFuelEq] using hchildResponse
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -556,7 +558,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_v
   exact hnotData (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_runtimeSpine_pair_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_runtimeSpine_pair_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -732,7 +735,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_v
   exact hnotData (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -934,7 +938,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_object_child_field_
   exact hdataNot (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1116,7 +1121,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFrag
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpineAtSelectedRuntime_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpineAtSelectedRuntime_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1512,7 +1518,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpin
               (bodySelectionSet := bodySelectionSet) bodyMem)
           hmem hbodyWitness
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpineAtSelectedRuntime_valid_normal_runtimeSpine_pair_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpineAtSelectedRuntime_valid_normal_runtimeSpine_pair_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -2010,7 +2017,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableFieldSpin
               (bodySelectionSet := bodySelectionSet) bodyMem)
           hmem hbodyWitness
 
-theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableResponsePath_valid_normal_pair_support_context_fuel_ge
+theorem
+    selectedPathTaggedSelectionSetResponseDiffWitness_of_observableResponsePath_valid_normal_pair_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -2095,7 +2103,8 @@ theorem selectedPathTaggedSelectionSetResponseDiffWitness_of_observableResponseP
       hleftObjectContext hrightObjectContext hleftAbstractContext
       hrightAbstractContext
 
-theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_support_context_fuel_ge
+theorem
+    pathLocalTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -2238,7 +2247,8 @@ theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_vali
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_support_context_fuel_ge
+theorem
+    pathLocalTaggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -2468,7 +2478,8 @@ theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_object_child_field_val
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body_valid_normal_support_context_fuel_ge
+theorem
+    pathLocalTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -2625,7 +2636,8 @@ theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragmen
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_observableLeafAtRuntime_valid_normal_support_context_fuel_ge
+theorem
+    pathLocalTaggedSelectionSetResponseDiffWitness_of_observableLeafAtRuntime_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -2964,7 +2976,8 @@ theorem pathLocalTaggedSelectionSetResponseDiffWitness_of_observableLeafAtRuntim
               (bodySelectionSet := bodySelectionSet) hbodyMem)
           hmem hbodyWitness
 
-theorem responseData_not_semanticEquivalent_of_pathLocalProbe_observableLeafAtRuntime_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_pathLocalProbe_observableLeafAtRuntime_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -3040,7 +3053,8 @@ theorem responseData_not_semanticEquivalent_of_pathLocalProbe_observableLeafAtRu
   exact hnot (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
 
-theorem not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_observableLeafAtRuntime
+theorem
+    not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_observableLeafAtRuntime
     {schema : Schema}
     {parentType responseName fieldName childParentType childRuntimeType : Name}
     {leftArguments rightArguments : List Argument}
@@ -3290,7 +3304,8 @@ theorem not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_ob
       hparentFuelLeaf hargumentsDiff hleftChildResponse hrightChildResponse
       hchildNot hleftFieldsOk hrightFieldsOk
 
-theorem not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_child_object_leaf
+theorem
+    not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_child_object_leaf
     {schema : Schema} {parentType responseName fieldName childParentType : Name}
     {leftArguments rightArguments childArguments : List Argument}
     {childSelectionSet grandChildSelectionSet : List Selection}

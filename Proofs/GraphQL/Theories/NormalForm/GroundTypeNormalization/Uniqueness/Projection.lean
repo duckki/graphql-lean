@@ -633,7 +633,8 @@ theorem fieldPairOrDeepSuccessResolvers_filler_object
       lowerProjectionResolverValue?, projectionTargetRef?]
 
 mutual
-  theorem executeCollectedFields_fieldPairOrDeepSuccessResolvers_filler_object_eq_deepSuccessWithRef
+  theorem
+      executeCollectedFields_fieldPairOrDeepSuccessResolvers_filler_object_eq_deepSuccessWithRef
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
@@ -896,7 +897,8 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWi
             congrArg (Execution.singleFieldResult responseName) hcomplete
 
 mutual
-  theorem executeCollectedFields_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
+  theorem
+      executeCollectedFields_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
@@ -1126,7 +1128,8 @@ theorem executeSelectionSet_fieldPairOrDeepSuccessResolvers_projectionTargetReso
       (Execution.collectFields schema variableValues parentType source
         selectionSet)
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField : Name)

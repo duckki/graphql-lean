@@ -346,7 +346,8 @@ theorem fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
   simpa [group, headSelection, matching, mergeSelectionSets,
     Selection.subselections] using hgroupMerge
 
-theorem fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
     (schema : Schema) (parentType responseName fieldName : Name)
     (arguments : List Argument) (subselections rest : List Selection)
     : schema.objectType parentType
@@ -420,7 +421,8 @@ theorem fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_o
     rfl
   exact hmatchedField.symm.trans (hidentity.1.symm.trans hheadField)
 
-theorem fieldSelectionsWithResponseNameInScope_matching_field_shape_of_canMerge_object_lookupValid
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_field_shape_of_canMerge_object_lookupValid
     (schema : Schema) (parentType responseName fieldName : Name)
     (arguments : List Argument) (subselections rest : List Selection)
     : schema.objectType parentType
@@ -449,7 +451,8 @@ theorem fieldSelectionsWithResponseNameInScope_matching_field_shape_of_canMerge_
   subst matchedFieldName
   exact ⟨matchedArguments, matchedDirectives, matchedSubselections, rfl⟩
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_lookupValid_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_lookupValid_of_child_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType responseName fieldName runtimeType : Name) (arguments : List Argument)
     (subselections rest : List Selection) (fieldDefinition : FieldDefinition)
@@ -577,7 +580,8 @@ theorem fieldSelectionsWithResponseNameInScope_matching_subselections_lookupVali
     variableDefinitions matchedDefinition.outputType.namedType runtimeType
     hschema hmatchedPossible matchedSubselections hmatchedSelectionValid
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_semanticsReady_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_semanticsReady_of_child_object
     (schema : Schema) (parentType responseName fieldName runtimeType : Name)
     (arguments : List Argument) (subselections rest : List Selection)
     (fieldDefinition : FieldDefinition)

@@ -1164,7 +1164,8 @@ theorem of_allFields_directiveFree_responseNamesNodup
       parentType source fields hfieldsNodup hparents
   rwa [hselectionSet] at hderivation
 
-theorem selectionSetCollectFieldsHeadDisjointTree_executableFieldSelections_responseNamesNodup
+theorem
+    selectionSetCollectFieldsHeadDisjointTree_executableFieldSelections_responseNamesNodup
     {ObjectIdentity : Type} (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List ExecutableField)
@@ -1860,7 +1861,8 @@ theorem of_normalizeSelectionSet
 
 end FreshPrefixSelectionPlan
 
-theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_allFields_directiveFree_responseNamesNodup
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_of_allFields_directiveFree_responseNamesNodup
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)

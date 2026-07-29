@@ -30,7 +30,8 @@ theorem PathLocalSelectionSetCurrentContext.of_mem_flatten
       · rcases ih htail with ⟨pref, suff, hcontext⟩
         exact ⟨head ++ pref, suff, by simp [hcontext, List.append_assoc]⟩
 
-theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_root_of_valid_normal_member
+theorem
+    selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_root_of_valid_normal_member
     {schema : Schema} {parentType leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument} {leftRuntime rightRuntime : Name}
     {leftFieldDefinition rightFieldDefinition : FieldDefinition}
@@ -312,7 +313,8 @@ theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_roo
       hrightLookup hleftInclude hrightInclude hleftLeafFuel hrightLeafFuel
       hleftTarget hrightTarget hother
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_field_head_child_response_diff_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_field_head_child_response_diff_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftSpine rightSpine : List NormalSelectionSetObservableFieldStep) (parentFuel : Nat)
@@ -588,7 +590,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
       hvalueNot hleftFieldOk hrightFieldOk
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -1062,7 +1065,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
   · simpa [source, projectionRootResolverValue, projectionResolverValue]
       using hdataNot
 
-theorem not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_child_data_diff
+theorem
+    not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_child_data_diff
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType responseName fieldName leftRuntime rightRuntime : Name}
@@ -1581,7 +1585,8 @@ theorem not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_chil
       hleftChildResponse hrightChildResponse hchildNot hleftLeftTarget
       hleftRightTarget hrightLeftTarget hrightRightTarget hleftDeep hrightDeep
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_composite_pairedPath
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_composite_pairedPath
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType responseName fieldName : Name}
@@ -1845,7 +1850,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_co
         simpa [parentFuel, rootSelectionSet, leftInitialSelectionSet,
           rightInitialSelectionSet, variableValues] using hchildDataNot)
 
-theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_composite_pairedPath
+theorem
+    not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_composite_pairedPath
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType responseName leftFieldName rightFieldName : Name}

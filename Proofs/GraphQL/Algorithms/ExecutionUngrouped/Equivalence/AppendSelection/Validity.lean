@@ -38,7 +38,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet
       hselectionSet
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_validationCompatible
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_validationCompatible
     {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     (variableDefinitions : List VariableDefinition)
     (hselectionSet
@@ -88,7 +89,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_scopedCo
       state.window.selectionSet hselectionSet hscopedCompatible
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_sameScopedParent
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_sameScopedParent
     {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     (variableDefinitions : List VariableDefinition)
     (hselectionSet
@@ -112,7 +114,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge
       hmerge hsameParent
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeApplies
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeApplies
     {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     (runtimeType : Name) (variableDefinitions : List VariableDefinition)
     (hselectionSet
@@ -139,7 +142,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge
         state.window.selectionSet hmerge hruntimeApplies
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeScoped
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeScoped
     {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     (runtimeType : Name) (variableDefinitions : List VariableDefinition)
     (hselectionSet
@@ -168,7 +172,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge
       state.window.selectionSet hmerge hruntimeScoped
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeScopedBy
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_canMerge_runtimeScopedBy
     {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     (validParent runtimeType : Name) (variableDefinitions : List VariableDefinition)
     (hselectionSet
@@ -247,7 +252,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_c
       identity selectionSet hparentRuntime hselectionSet
   · exact hresolvers
 
-theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_canMerge_optional
+theorem
+    ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_canMerge_optional
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType runtimeType : Name)
     (identity : ObjectIdentity) (selectionSet : List Selection) (initial : ResponseValue)
@@ -384,7 +390,8 @@ theorem ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge
     schema resolvers variableValues depth operation runtimeType identity
     initial hroot hvalid hresolvers
 
-theorem ExecutionCollectedFieldInvariant.of_valid_object_selectionSet_canMerge_argumentEquivalence
+theorem
+    ExecutionCollectedFieldInvariant.of_valid_object_selectionSet_canMerge_argumentEquivalence
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (collectParent validParent runtimeType : Name) (identity : ObjectIdentity)
@@ -442,7 +449,8 @@ theorem ExecutionCollectedFieldInvariant.of_valid_object_selectionSet_canMerge_a
           (.object runtimeType identity) selectionSet)
         hvalidationCompatible
 
-theorem ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge_argumentEquivalence
+theorem
+    ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge_argumentEquivalence
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (operation : Operation)
     (runtimeType : Name) (identity : ObjectIdentity) (initial : ResponseValue)

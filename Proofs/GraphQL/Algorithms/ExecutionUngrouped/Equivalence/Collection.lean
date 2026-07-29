@@ -210,7 +210,8 @@ theorem collectedExecutableFields_merge_group_duplicate_around_disjoint
   simp [GraphQL.Execution.addExecutableGroup, collectedExecutableFields,
     List.append_assoc]
 
-theorem executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
+theorem
+    executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
     {ObjectIdentity : Type} (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (first later : ExecutableField) (middle : List Selection)
@@ -294,7 +295,8 @@ theorem executableFieldSelections_collectedExecutableFields_collectFields_duplic
   simp [executableFieldSelections, executableFieldSelection, firstCollected,
     laterCollected, executableField, middleGroups, hsame]
 
-theorem executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
+theorem
+    executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
     {ObjectIdentity : Type} (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity) (responseName : Name)
     (prefixFields : List ExecutableField) (later : ExecutableField)
@@ -556,7 +558,8 @@ theorem specExecuteRootSelectionSet_executableFieldSelections_collectedExecutabl
       variableValues parentType source groups hnodup hnonempty hresponse
       hparent]
 
-theorem specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
+theorem
+    specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)

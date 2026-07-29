@@ -1089,7 +1089,8 @@ theorem fieldPairPathLocalProbeHeadResolverValue_leaf_eq_leafProbeResolverValue
           schema currentSelectionSet parentType fieldName arguments tag inner
           (by simpa [TypeRef.namedType] using hleaf)
 
-theorem fieldPairPathLocalProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
+theorem
+    fieldPairPathLocalProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (currentSelectionSet : List Selection) (parentType fieldName : Name)
     (arguments : List Argument) (tag : FieldPairProbeTag)
     : ∀ outputType,
@@ -1130,7 +1131,8 @@ theorem fieldPairPathLocalProbeHeadResolverValue_object_eq_objectProbeResolverVa
           schema currentSelectionSet parentType fieldName arguments tag inner
           (by simpa [TypeRef.namedType] using hobject)
 
-theorem fieldPairPathLocalProbeHeadResolverValue_abstract_eq_objectProbeResolverValueWithRuntime
+theorem
+    fieldPairPathLocalProbeHeadResolverValue_abstract_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (currentSelectionSet : List Selection)
     (parentType fieldName runtimeType : Name) (arguments : List Argument)
     (tag : FieldPairProbeTag)
@@ -1634,7 +1636,8 @@ theorem executeField_fieldPairPathLocalProbe_tagged_object_objectProbe_response_
           fieldName arguments currentSelectionSet))
       hlookup hresolve hinclude hfuel
 
-theorem executeField_fieldPairPathLocalProbe_tagged_object_objectProbe_ok_of_child_response
+theorem
+    executeField_fieldPairPathLocalProbe_tagged_object_objectProbe_ok_of_child_response
     (schema : Schema)
     (leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -1710,7 +1713,8 @@ theorem executeField_fieldPairPathLocalProbe_tagged_object_objectProbe_ok_of_chi
   rw [hfield, hchildResponse, hwrapped]
   simp [Execution.singleFieldResult]
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_response_of_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_response_of_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -1807,7 +1811,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectP
       childSelectionSet
   simpa [base, hbase, hchildProjection] using hprojection
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_ok_of_child_response
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_ok_of_child_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -1889,7 +1894,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectP
   rw [hfield, hchildResponse, hwrapped]
   simp [Execution.singleFieldResult]
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2002,7 +2008,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_o
       ⟨responseValue, fieldErrors, hexecute, _hnonNull⟩
     exact ⟨responseValue, fieldErrors, hexecute⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_of_field_children
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_of_field_children
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2510,7 +2517,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_
   simpa [base, resolvers, projectionTargetResolverValue,
     projectionResolverValue] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_object_response
+theorem
+    executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_object_response
     (schema : Schema) (rootSelectionSet childRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField responseName : Name)
@@ -2589,7 +2597,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_o
       fieldDefinition harguments hlookup hinclude]
   simp [hchildRaw, hwrapped, Execution.singleFieldResult]
 
-theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_ok_of_child_object_response
+theorem
+    executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_ok_of_child_object_response
     (schema : Schema) (rootSelectionSet childRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField responseName : Name)
@@ -2670,7 +2679,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_ok_of_child_
       fieldDefinition hnotLeft harguments hlookup hinclude]
   simp [hchildRaw, hwrapped, Execution.singleFieldResult]
 
-theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_object_response_fuel_ge
     (schema : Schema) (rootSelectionSet childRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
     (targetParent leftField rightField responseName : Name)
@@ -2732,7 +2742,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_o
     omega
   simpa [hfuelEq] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_ok_of_child_object_response_fuel_ge
     (schema : Schema) (rootSelectionSet childRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
     (targetParent leftField rightField responseName : Name)
@@ -2892,7 +2903,8 @@ theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_response
   simpa [base, resolvers, projectionTargetResolverValue,
     projectionResolverValue] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_response_of_not_left
+theorem
+    executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_response_of_not_left
     (schema : Schema)
     (rootSelectionSet leftChildRootSelectionSet rightChildRootSelectionSet
       : List Selection)
@@ -3200,7 +3212,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_o
   simpa [base, resolvers, projectionTargetResolverValue,
     projectionResolverValue] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -3297,7 +3310,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_ok_of_child
   simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
     using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -3396,7 +3410,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_ok_of_chil
   simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
     using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftChildRootSelectionSet rightChildRootSelectionSet
       : List Selection)
@@ -3489,7 +3504,8 @@ theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_ok_of_chi
   simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
     using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftChildRootSelectionSet rightChildRootSelectionSet
       : List Selection)
@@ -4522,7 +4538,8 @@ theorem executeSelectionSetAsResponse_fieldPairSideRuntimeProbe_tagged_eq_fieldP
       (Execution.collectFields schema variableValues parentType
         (.object runtimeType (some tag)) selectionSet)]
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimeProbe_taggedWitness
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimeProbe_taggedWitness
     {schema : Schema} {rootSelectionSet childRootSelectionSet : List Selection}
     {variableValues : Execution.VariableValues} {fuel : Nat}
     {parentType runtimeType targetParent leftField rightField : Name}
@@ -4601,7 +4618,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimePro
     simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
       using hsemantic)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimeProbe_taggedPair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimeProbe_taggedPair
     {schema : Schema} {rootSelectionSet childRootSelectionSet : List Selection}
     {variableValues : Execution.VariableValues} {leftFuel rightFuel : Nat}
     {leftParentType rightParentType leftRuntime rightRuntime targetParent
@@ -4675,7 +4693,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimePro
     simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
       using hsemantic)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_sideRuntimeProbe_taggedPair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_sideRuntimeProbe_taggedPair
     {schema : Schema}
     {rootSelectionSet leftChildRootSelectionSet rightChildRootSelectionSet
       : List Selection}

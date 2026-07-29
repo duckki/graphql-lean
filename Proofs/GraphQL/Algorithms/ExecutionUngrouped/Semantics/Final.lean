@@ -821,7 +821,8 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_source_eq_s
   rw [hrootResult]
   simp [Execution.coerceVariableValues, NormalForm.completeNormalizeOperation]
 
-theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_recursiveGroupedStates
+theorem
+    executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_recursiveGroupedStates
     (schema : Schema) (operation : Operation) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (depth : Nat)
     (source : Execution.ResolverValue ObjectRef)
@@ -1312,7 +1313,8 @@ theorem executeQueryWithFuel_responseEquivalent_of_ungroupedRootSelectionResult
   · exact ⟨hzero, hpositive⟩
   · exact ⟨hdata, hzero, hpositive⟩
 
-theorem executeQueryWithFuel_completeNormalizeOperation_responseEquivalent_of_filter_source_rootEquivalent
+theorem
+    executeQueryWithFuel_completeNormalizeOperation_responseEquivalent_of_filter_source_rootEquivalent
     (schema : Schema) (operation : Operation) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (depth : Nat)
     (source : Execution.ResolverValue ObjectRef)
@@ -1645,7 +1647,8 @@ theorem completeNormalizationPreservesUngroupedExecution_of_executedGroupedOpera
     hcomplete
   exact state.executeQueryWithFuel_eq_spec
 
-theorem completeNormalizationPreservesUngroupedExecution_of_collected_groups_recursiveAppendState
+theorem
+    completeNormalizationPreservesUngroupedExecution_of_collected_groups_recursiveAppendState
     (schema : Schema) (operation : Operation) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (depth : Nat)
     (source : Execution.ResolverValue ObjectRef)
@@ -1720,7 +1723,8 @@ theorem completeNormalizationPreservesUngroupedExecution_of_recursiveGroupedOper
       schema operation resolvers variableValues (depth + 1) source
       state.toExecutedGroupedOperationState hschema hvalid hcomplete
 
-theorem executeQueryWithFuel_semanticsPreserved_via_completeNormalization_of_recursiveGroupedOperationState
+theorem
+    executeQueryWithFuel_semanticsPreserved_via_completeNormalization_of_recursiveGroupedOperationState
     (schema : Schema) (operation : Operation) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (depth : Nat)
     (source : Execution.ResolverValue ObjectRef)

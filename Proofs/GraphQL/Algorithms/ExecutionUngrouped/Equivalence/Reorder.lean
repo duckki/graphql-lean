@@ -476,7 +476,8 @@ theorem visitFieldSliceFold_succ_middle_existing_last_swap_after_prefix_of_trace
       resolvers variableValues completionDepth source middle later rest fields
       hlater hnotMiddle hleftTrace hrightTrace
 
-theorem visitSubfields_executableFieldSelections_middle_existing_last_swap_after_prefix_of_traces
+theorem
+    visitSubfields_executableFieldSelections_middle_existing_last_swap_after_prefix_of_traces
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (pre middle : List ExecutableField)

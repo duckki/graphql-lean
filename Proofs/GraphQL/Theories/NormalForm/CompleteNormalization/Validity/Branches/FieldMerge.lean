@@ -185,7 +185,8 @@ theorem fieldsInSetCanMerge_mergeSelectionSets_pair_of_scoped_source_object
     object_typeIncludesObjectBool_eq_self schema hscopedObject hsource
   simpa [hparentEq] using object_typesOverlapBool_self schema hobject
 
-theorem fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid_source_object
+theorem
+    fieldSelectionsWithResponseNameInScope_field_mem_collectFields_scoped_lookupValid_source_object
     (schema : Schema) (filterParent collectParent responseName : Name)
     : ∀ selectionSet fieldName arguments directives subselections,
         (schema.objectType filterParent

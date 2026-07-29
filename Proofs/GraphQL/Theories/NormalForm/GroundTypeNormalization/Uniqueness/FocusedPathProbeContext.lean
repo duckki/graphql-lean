@@ -90,7 +90,8 @@ theorem PathLocalSelectionSetHeadReady.of_valid_normal_self
     abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
       hvalid hnormal hmem hlookup hcomposite hnonObject
 
-theorem abstractRuntimeForFieldHeadDeep?_member_flatten_promote_some_of_valid_normal_members
+theorem
+    abstractRuntimeForFieldHeadDeep?_member_flatten_promote_some_of_valid_normal_members
     {schema : Schema} {currentParent targetField targetRuntimeType : Name}
     {targetArguments : List Argument} {selectionSet : List Selection}
     {members : List (List Selection)} {targetFieldDefinition : FieldDefinition}
@@ -1229,7 +1230,8 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
                 childSelectionSet) (by simp)
           simp [Selection.isField] at hheadField
 
-theorem PathLocalCurrentRuntimeSound.fieldPairPathLocalNextSelectionSet_of_valid_normal_object
+theorem
+    PathLocalCurrentRuntimeSound.fieldPairPathLocalNextSelectionSet_of_valid_normal_object
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {currentRuntimeType childRuntimeType targetField : Name}
     {targetArguments : List Argument} {currentSelectionSet : List Selection}
@@ -1584,7 +1586,8 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstra
             hchildValid hchildFree hchildNormal hinclude hchildObject
         simpa [hmemberEq] using hmemberSupport)
 
-theorem PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_field_child_of_valid_normal_object_output
+theorem
+    PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_field_child_of_valid_normal_object_output
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {currentRuntimeType childRuntimeType targetField responseName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
@@ -1744,7 +1747,8 @@ theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_vali
         hbodyValid hbodyNormal)
   simpa [hprunedContext] using hreadyContext
 
-theorem PathLocalSelectionSetCurrentContext.runtimePruned_inlineFragment_body_of_valid_normal
+theorem
+    PathLocalSelectionSetCurrentContext.runtimePruned_inlineFragment_body_of_valid_normal
     {schema : Schema} {normalParentType runtimeType : Name}
     {directives : List DirectiveApplication}
     {bodySelectionSet selectionSet : List Selection}
@@ -1778,7 +1782,8 @@ theorem PathLocalSelectionSetCurrentContext.runtimePruned_inlineFragment_body_of
   simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
     hincludeSelf, hbodyPruned, List.append_assoc]
 
-theorem PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_abstract_body_of_valid_normal_object
+theorem
+    PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_abstract_body_of_valid_normal_object
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {currentRuntimeType childRuntimeType targetField responseName : Name}
     {targetArguments arguments : List Argument}
@@ -1864,7 +1869,8 @@ theorem PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_abstra
           using hsoundNext)
       hmemberRoot hlocalReady
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_response_of_sound_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_response_of_sound_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -1941,7 +1947,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectP
       leftRuntime rightRuntime tag childSelectionSet fieldDefinition
       runtimeType hlookup hruntime hinclude hfuel
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_ok_of_child_response_of_sound
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_ok_of_child_response_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2026,7 +2033,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectP
       runtimeType responseFields childErrors hlookup hruntime hinclude
       hfuel hchildResponse
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children_of_sound
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_ok_of_field_children_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2140,7 +2148,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_field_o
         ⟨childRuntimeType, responseFields, childErrors, hruntime,
           hinclude, hchildResponse⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_of_field_children_of_sound
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_of_field_children_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2249,7 +2258,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagg
         ⟨childRuntimeType, responseFields, childErrors, hruntime,
           hinclude, hchildResponse⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_inlineFragment_body_children_of_sound
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_inlineFragment_body_children_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2485,7 +2495,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagg
       Execution.executeSelectionSet, Execution.executeRootSelectionSet,
       hcollectObject, Execution.executeCollectedFields]
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_runtime_inlineFragment_body_children_of_sound
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_runtime_inlineFragment_body_children_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2720,7 +2731,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagg
       Execution.executeSelectionSet, Execution.executeRootSelectionSet,
       hcollectObject, Execution.executeCollectedFields]
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_runtime_inlineFragment_body_response
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_of_runtime_inlineFragment_body_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2982,7 +2994,8 @@ theorem normalSelectionSetResponsePath_of_fieldPairPathLocalNextSelectionSet_fie
     simp [fieldPairPathLocalNextSelectionSet, hmerged]
   simpa [hnext] using hmergedPath
 
-theorem normalSelectionSetResponsePath_runtime_of_fieldPairPathLocalNextSelectionSet_field_mem
+theorem
+    normalSelectionSetResponsePath_runtime_of_fieldPairPathLocalNextSelectionSet_field_mem
     {schema : Schema} {currentRuntimeType childParentType targetField responseName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
     {variableDefinitions : List VariableDefinition}
@@ -3015,7 +3028,8 @@ theorem normalSelectionSetResponsePath_runtime_of_fieldPairPathLocalNextSelectio
         (childRuntimeType := childRuntimeType) (targetField := targetField)
         hmem harguments hprunedPath⟩
 
-theorem normalSelectionSetObservableResponsePath_of_firstFieldChildByHeadAtRuntime?_field_mem
+theorem
+    normalSelectionSetObservableResponsePath_of_firstFieldChildByHeadAtRuntime?_field_mem
     {schema : Schema}
     {currentRuntimeType childRuntimeType targetField responseName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
@@ -3044,7 +3058,8 @@ theorem normalSelectionSetObservableResponsePath_of_firstFieldChildByHeadAtRunti
     (NormalSelectionSetObservableResponsePath.append_context
       (pref := pref) (suff := suff) hpath)
 
-theorem normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
+theorem
+    normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
     {schema : Schema}
     {currentRuntimeType childRuntimeType targetField responseName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
@@ -3073,7 +3088,8 @@ theorem normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelect
     simp [fieldPairPathLocalNextSelectionSet, hmerged]
   simpa [hnext] using hmergedPath
 
-theorem normalSelectionSetObservableResponsePath_runtime_of_fieldPairPathLocalNextSelectionSet_field_mem
+theorem
+    normalSelectionSetObservableResponsePath_runtime_of_fieldPairPathLocalNextSelectionSet_field_mem
     {schema : Schema} {currentRuntimeType childParentType targetField responseName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
     {variableDefinitions : List VariableDefinition}
@@ -3154,7 +3170,8 @@ theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_f
     ⟨pref, suff, by
       rw [hnext, hmergedContext, hpruned]⟩
 
-theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_inlineFragment_body
+theorem
+    PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_inlineFragment_body
     {schema : Schema}
     {currentRuntimeType childRuntimeType childParentType targetField responseName : Name}
     {targetArguments arguments : List Argument}

@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem pathLocalSelectionSetObservableLeafAtRuntime_object_child_of_valid_normal_support_context
+theorem
+    pathLocalSelectionSetObservableLeafAtRuntime_object_child_of_valid_normal_support_context
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType responseName fieldName : Name} {arguments : List Argument}
     {directives : List DirectiveApplication}
@@ -162,7 +163,8 @@ def SelectedPathTaggedSelectionSetResponseDiffWitness
             (Execution.ResponseValue.object leftFields)
             (Execution.ResponseValue.object rightFields)
 
-theorem responseData_not_semanticEquivalent_of_selectedPathTaggedSelectionSetResponseDiffWitness
+theorem
+    responseData_not_semanticEquivalent_of_selectedPathTaggedSelectionSetResponseDiffWitness
     {schema : Schema}
     {rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection}
     {leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep}
@@ -212,7 +214,8 @@ theorem responseData_not_semanticEquivalent_of_selectedPathTaggedSelectionSetRes
       hleft, hright, hnot⟩
   exact hnot (by simpa [hleft, hright] using hsemantic)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf_field_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf_field_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -393,7 +396,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_child_field_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_child_field_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -666,7 +670,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
       hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -740,7 +745,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathPr
       hsource hleftResponse hrightResponse hleftNodup hrightNodup
       hleftMem hrightMem hvalue
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_child_response_diff_of_field_ok
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_child_response_diff_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1079,7 +1085,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathPr
       (by simpa [resolvers, source] using hrightResponse)
       hleftNodup hrightNodup hleftValueMem hrightValueMem hvalueNot
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_child_response_diff_of_field_ok
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_child_response_diff_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1409,7 +1416,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathPr
       (by simpa [resolvers, source] using hrightResponse)
       hleftNodup hrightNodup hleftValueMem hrightValueMem hvalueNot
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_child_response_diff_of_field_cases
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_child_response_diff_of_field_cases
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1783,7 +1791,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathPr
       hfuel hargumentsDiff hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_child_response_diff_of_field_cases
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_child_response_diff_of_field_cases
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -2176,7 +2185,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathPr
       hfieldDiff hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2359,7 +2369,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_field_children
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_field_children
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2607,7 +2618,8 @@ def SelectedPathSelectionSetFieldChildrenReady
                       }
                       : Execution.Response)))
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2714,7 +2726,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_fiel
       ⟨responseValue, fieldErrors, hexecute, _hnonNull⟩
     exact ⟨responseValue, fieldErrors, hexecute⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_field_children
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_field_children
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2842,7 +2855,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
             spine)))
       selectionSet hfree hnormal hobject hfieldOk
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_selectedPathFieldChildrenReady
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_selectedPathFieldChildrenReady
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2920,7 +2934,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
             spine)))
       selectionSet hfree hnormal hobject hfieldOk
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_of_runtime_inlineFragment_body_response
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_of_runtime_inlineFragment_body_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3105,7 +3120,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
       Execution.executeSelectionSet, Execution.executeRootSelectionSet,
       hcollectObject, Execution.executeCollectedFields]
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_nil_of_valid_normal_support_context_fuel_ge_size
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_nil_of_valid_normal_support_context_fuel_ge_size
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -3490,7 +3506,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
           ⟨bodyFields, bodyErrors, hbodyResponse⟩
         exact ⟨bodyFields, bodyErrors, hbodyResponse⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -4006,7 +4023,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
           ⟨bodyFields, bodyErrors, hbodyResponse⟩
         exact ⟨bodyFields, bodyErrors, hbodyResponse⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -4069,7 +4087,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
       hfuel hvalid hfree hnormal hspineValid hsupport hobjectContext
       habstractContext
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_left_argument_target_child_of_valid_normal_field_mem
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_left_argument_target_child_of_valid_normal_field_mem
     (schema : Schema) (rootSelectionSet rightInitialSelectionSet : List Selection)
     (rightInitialSpine : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues)
@@ -4223,7 +4242,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_l
         spine hfuel hchildValid hchildFree hchildNormal hspineValid
         hchildSupport hobjectContext habstractContext
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_right_argument_target_child_of_valid_normal_field_mem
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_right_argument_target_child_of_valid_normal_field_mem
     (schema : Schema) (rootSelectionSet leftInitialSelectionSet : List Selection)
     (leftInitialSpine : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues)
@@ -4377,7 +4397,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_r
         spine hfuel hchildValid hchildFree hchildNormal hspineValid
         hchildSupport hobjectContext habstractContext
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_argument_target_child_of_valid_normal_support_context_field_mem
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_argument_target_child_of_valid_normal_support_context_field_mem
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -4529,7 +4550,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_t
         spine hfuel hchildValid hchildFree hchildNormal hspineValid
         hchildSupport hobjectContext habstractContext
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_target_child_of_valid_normal_support_context_field_mem
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_target_child_of_valid_normal_support_context_field_mem
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)

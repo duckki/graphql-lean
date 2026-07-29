@@ -166,7 +166,8 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_se
   exact operationsEqualUpToReordering_of_selectionSet hleftValid hrightValid
     hselectionSet
 
-theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_data_separates
+theorem
+    normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_data_separates
     {schema : Schema} {left right : Operation}
     : (SchemaWellFormedness.schemaWellFormed schema
         -> Validation.selectionSetValid schema left.variableDefinitions left.rootType
@@ -235,7 +236,8 @@ theorem normalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_se
         hleftNormal hrightNormal hequal
     exact False.elim ((hdiffSeparates hdiff) hsem)
 
-theorem normalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
+theorem
+    normalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
     {schema : Schema} {parentType : Name} {left right : List Selection}
     : (NormalSelectionSetDiff schema parentType left right
         -> ¬ selectionSetsDataEquivalent schema parentType left right)
@@ -254,7 +256,8 @@ theorem normalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_da
         (selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
           hsem))
 
-theorem feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_separates
+theorem
+    feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_separates
     {schema : Schema} {parentType : Name} {left right : List Selection}
     : (selectionSetFeasibleInScope schema parentType left
         -> selectionSetFeasibleInScope schema parentType right
@@ -273,7 +276,8 @@ theorem feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of
     exact False.elim
       ((hdiffSeparates hleftFeasible hrightFeasible hdiff) hsem)
 
-theorem feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
+theorem
+    feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
     {schema : Schema} {parentType : Name} {left right : List Selection}
     : (selectionSetFeasibleInScope schema parentType left
         -> selectionSetFeasibleInScope schema parentType right
@@ -294,7 +298,8 @@ theorem feasibleNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of
         (selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
           hsem))
 
-theorem validNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_separates
+theorem
+    validNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_separates
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -321,7 +326,8 @@ theorem validNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_di
       ((hdiffSeparates hschema hleftValid hrightValid hleftFree hrightFree
         hleftNormal hrightNormal hdiff) hsem)
 
-theorem validNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
+theorem
+    validNormalSelectionSetsSemanticallyEquivalent_equalUpToReordering_of_diff_data_separates
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}

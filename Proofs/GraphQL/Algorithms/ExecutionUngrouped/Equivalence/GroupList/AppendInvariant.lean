@@ -511,7 +511,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
               exact hlater)
           childDepth runtimeType identity hlt hcontains hincludes }
 
-theorem ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
+theorem
+    ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
     {ObjectIdentity : Type} {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {source : ResolverValue ObjectIdentity} {groups : List (Name × List ExecutableField)}

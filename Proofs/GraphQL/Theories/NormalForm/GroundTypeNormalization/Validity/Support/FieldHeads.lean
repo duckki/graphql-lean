@@ -518,7 +518,8 @@ theorem fieldSelectionsWithResponseNameInScope_field_validInPossibleTypes
                     hobject rest htailImplementation fieldName arguments
                     directives subselections hfield
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_validInPossibleTypes_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_validInPossibleTypes_of_child_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType responseName fieldName runtimeType : Name) (arguments : List Argument)
     (subselections rest : List Selection) (fieldDefinition : FieldDefinition)
@@ -577,7 +578,8 @@ theorem fieldSelectionsWithResponseNameInScope_matching_subselections_validInPos
   exact hmatchedBody runtimeType
     (List.contains_iff_mem.mp hinclude)
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_lookupValid_of_returnType
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_lookupValid_of_returnType
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType responseName fieldName : Name) (arguments : List Argument)
     (subselections rest : List Selection) (fieldDefinition : FieldDefinition)

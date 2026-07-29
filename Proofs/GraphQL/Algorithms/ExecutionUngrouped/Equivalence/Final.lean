@@ -826,7 +826,8 @@ theorem alignedAppendSteps
 
 end CollectedFieldGroupRecursiveAlignedAppendState
 
-def ExecutedGroupedSelectionSetAlignedState.of_collected_groups_recursiveAlignedAppendState
+def
+    ExecutedGroupedSelectionSetAlignedState.of_collected_groups_recursiveAlignedAppendState
     {ObjectIdentity : Type} {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {completionDepth : Nat} {parentType : Name}
     {source : ResolverValue ObjectIdentity} {selectionSet : List Selection}

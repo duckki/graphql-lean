@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -262,7 +263,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
       hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -554,7 +556,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hrightFree hleftMem hrightMem hleftTarget hrightTarget hvalueNot
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_ok_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_ok_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -846,7 +849,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
       hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1081,7 +1085,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hrightInclude hleftFuel hrightFuel hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1318,7 +1323,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hrightFuel hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1533,7 +1539,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hleftChildResponse hrightChildResponse hchildNot hleftChildren
       hrightChildren
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1748,7 +1755,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hleftChildResponse hrightChildResponse hchildNot hleftChildren
       hrightChildren
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_child_of_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_child_of_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2072,7 +2080,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hleftSupport hrightSupport hleftContext hrightContext hleftMem
         hrightResponseName
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_child_of_valid_normal_support_context_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_child_of_valid_normal_support_context_fuel_ge_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2398,7 +2407,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hleftFuel hrightFuel hleftSupport hrightSupport hleftContext
         hrightContext hleftMem hrightResponseName
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_object_child_of_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_object_child_of_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2722,7 +2732,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hleftSupport hrightSupport hleftContext hrightContext hrightMem
         hleftResponseName
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_object_child_of_valid_normal_support_context_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_object_child_of_valid_normal_support_context_fuel_ge_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -3048,7 +3059,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hleftFuel hrightFuel hleftSupport hrightSupport hleftContext
         hrightContext hrightMem hleftResponseName
 
-theorem responseData_not_semanticEquivalent_empty_object_of_valid_normal_object_nonempty_response
+theorem
+    responseData_not_semanticEquivalent_empty_object_of_valid_normal_object_nonempty_response
     {ObjectRef : Type} (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (fuel : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) {selectionSet : List Selection}
@@ -3102,7 +3114,8 @@ theorem responseData_not_semanticEquivalent_empty_object_of_valid_normal_object_
           (field := field) (fields := fields)
           (by simpa [hresponse] using hsemantic)
 
-theorem responseData_empty_object_not_semanticEquivalent_of_valid_normal_object_nonempty_response
+theorem
+    responseData_empty_object_not_semanticEquivalent_of_valid_normal_object_nonempty_response
     {ObjectRef : Type} (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (fuel : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) {selectionSet : List Selection}
@@ -3128,7 +3141,8 @@ theorem responseData_empty_object_not_semanticEquivalent_of_valid_normal_object_
         unfold Execution.ResponseValue.semanticEquivalent at hsemantic ⊢
         exact hsemantic.symm)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_of_field_ok_of_sound
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_of_field_ok_of_sound
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3298,7 +3312,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       hobject hmem hlookup hruntime hinclude hfuel hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_inlineFragment_body
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_abstract_inlineFragment_body
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3473,7 +3488,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3662,7 +3678,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair_current_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair_current_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -3852,7 +3869,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -4004,7 +4022,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hleftFlatten] using hsemantic'
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -4156,7 +4175,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hrightMiddle, hrightFlatten] using hsemantic'
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body_current_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body_current_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -4309,7 +4329,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hleftMiddle, hleftFlatten] using hsemantic'
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body_current_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body_current_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -4462,7 +4483,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
     hrightMiddle, hrightFlatten] using hsemantic'
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -4573,7 +4595,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hruntimeObject hleftFree hrightFree hleftNormal hrightNormal
         hleftMem hrightTypeCondition (hmissing hrightTypeCondition)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -4684,7 +4707,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hruntimeObject hleftFree hrightFree hleftNormal hrightNormal
         hrightMem hleftTypeCondition (hmissing hleftTypeCondition)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal_current_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal_current_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -4798,7 +4822,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hrightFree hleftNormal hrightNormal hleftMem hrightTypeCondition
         (hmissing hrightTypeCondition)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal_current_pair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal_current_pair
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -4912,7 +4937,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
         hrightFree hleftNormal hrightNormal hrightMem hleftTypeCondition
         (hmissing hleftTypeCondition)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -5093,7 +5119,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
       leftRuntime rightRuntime hnonObject hruntimeObject hleftFree
       hrightFree hleftNormal hrightNormal hleftMem hmissing hmatching
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal_support_context_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_inlineFragment_of_valid_normal_support_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet

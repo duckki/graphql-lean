@@ -13,7 +13,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_abstract_matching_inlineFragment_nonempty
+theorem
+    executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_abstract_matching_inlineFragment_nonempty
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues) (fuel : Nat)
     {normalParentType runtimeType : Name} {selectionSet bodySelectionSet : List Selection}
@@ -149,7 +150,8 @@ theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_abstract_ma
       simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
         hmiddle, hflatten, hbodyExecute]
 
-theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
+theorem
+    executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -381,7 +383,8 @@ theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_norma
             Execution.executeSelectionSet, Execution.executeRootSelectionSet,
             hcollect, Execution.executeCollectedFields]
 
-theorem executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_deepProbeFuel
+theorem
+    executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_deepProbeFuel
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema

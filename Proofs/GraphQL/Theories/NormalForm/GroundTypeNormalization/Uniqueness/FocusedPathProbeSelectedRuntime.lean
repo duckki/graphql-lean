@@ -300,7 +300,8 @@ inductive PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime (schema : S
       -> PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime schema
           parentName runtimeType currentSelectionSet selectionSet childSpine
 
-theorem selectionSet_nonempty_of_pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime
+theorem
+    selectionSet_nonempty_of_pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime
     {schema : Schema} {normalParentType runtimeType : Name}
     {currentSelectionSet selectionSet : List Selection}
     {fieldSpine : List NormalSelectionSetObservableFieldStep}
@@ -492,7 +493,8 @@ theorem selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
         SelectedFieldSpineRuntimeValid.abstractRuntime hnonObject
           hruntimeObject hinclude ih
 
-theorem pathLocalSelectionSetObservableLeafAtSelectedRuntime_of_observableResponsePath_valid_normal
+theorem
+    pathLocalSelectionSetObservableLeafAtSelectedRuntime_of_observableResponsePath_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition} {parentType : Name}
     {selectionSet : List Selection} {responsePath : List Name}
     : NormalSelectionSetObservableResponsePath schema parentType selectionSet responsePath
@@ -585,7 +587,8 @@ theorem pathLocalSelectionSetObservableLeafAtSelectedRuntime_of_observableRespon
               hnonObject htypeObjectBool hinclude hmem
               (hchildObservable currentSelectionSet)⟩
 
-theorem pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
+theorem
+    pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition} {parentType : Name}
     {selectionSet : List Selection} {responsePath : List Name}
     : NormalSelectionSetObservableResponsePath schema parentType selectionSet responsePath
@@ -877,7 +880,8 @@ theorem fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
           schema currentSelectionSet parentType fieldName tag spine
           hequivalent inner
 
-theorem fieldPairSelectedPathProbeHeadResolverValue_selected_eq_objectProbeResolverValueWithRuntime
+theorem
+    fieldPairSelectedPathProbeHeadResolverValue_selected_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (currentSelectionSet : List Selection)
     (parentType fieldName runtimeType : Name) (arguments : List Argument)
     (tag : FieldPairProbeTag) (spine tail : List NormalSelectionSetObservableFieldStep)
@@ -949,7 +953,8 @@ theorem fieldPairSelectedPathProbeHeadResolverValue_selected_eq_objectProbeResol
           arguments tag spine tail inner hselected
           (by simpa [TypeRef.namedType] using hcase)
 
-theorem fieldPairSelectedPathProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
+theorem
+    fieldPairSelectedPathProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (currentSelectionSet : List Selection) (parentType fieldName : Name)
     (arguments : List Argument) (tag : FieldPairProbeTag)
     (spine : List NormalSelectionSetObservableFieldStep)
@@ -994,7 +999,8 @@ theorem fieldPairSelectedPathProbeHeadResolverValue_object_eq_objectProbeResolve
           schema currentSelectionSet parentType fieldName arguments tag
           spine inner (by simpa [TypeRef.namedType] using hobject)
 
-theorem fieldPairSelectedPathProbeHeadResolverValue_abstractFallback_eq_objectProbeResolverValueWithRuntime
+theorem
+    fieldPairSelectedPathProbeHeadResolverValue_abstractFallback_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (currentSelectionSet : List Selection)
     (parentType fieldName runtimeType : Name) (arguments : List Argument)
     (tag : FieldPairProbeTag) (spine : List NormalSelectionSetObservableFieldStep)
@@ -1528,7 +1534,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
   simpa [base, resolvers, projectionTargetResolverValue,
     projectionResolverValue] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_response_of_not_left
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_response_of_not_left
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1642,7 +1649,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_respons
   simpa [base, resolvers, projectionTargetResolverValue,
     projectionResolverValue] using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_deepSuccessWithRef_ok
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_deepSuccessWithRef_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1703,7 +1711,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_d
     hnotProjection parentFuel]
   exact hdeep
 
-theorem selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_of_deepSuccessWithRef_ok
+theorem
+    selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_of_deepSuccessWithRef_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1773,7 +1782,8 @@ theorem selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProb
         responseName fieldName childSelectionSet responseValue fieldErrors
         hnotProjection hdeepOk⟩
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1876,7 +1886,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_ok_of_ch
   simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
     using hfield
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_ok_of_child_object_response_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_ok_of_child_object_response_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -1981,7 +1992,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_ok_of_c
   simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
     using hfield
 
-theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_of_field_cases
+theorem
+    selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_of_field_cases
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (leftInitialSpine rightInitialSpine : List NormalSelectionSetObservableFieldStep)
@@ -2404,7 +2416,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
       childSelectionSet fieldDefinition hlookup hfuel hleaf
   simpa [base, hbase] using hprojection
 
-theorem executeField_fieldPairSelectedPathProbe_tagged_object_objectOutput_response_of_fuel_ge
+theorem
+    executeField_fieldPairSelectedPathProbe_tagged_object_objectOutput_response_of_fuel_ge
     (schema : Schema)
     (leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2510,7 +2523,8 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_objectOutput_respo
           fieldDefinition.outputType.namedType fieldName arguments spine))
       hlookup hresolve hinclude hfuel
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectOutput_response_of_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectOutput_response_of_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2612,7 +2626,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_obje
       childSelectionSet
   simpa [base, hbase, hchildProjection] using hprojection
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectOutput_ok_of_child_response
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectOutput_ok_of_child_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2693,7 +2708,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_obje
   rw [hfield, hchildResponse, hwrapped]
   simp [Execution.singleFieldResult]
 
-theorem executeField_fieldPairSelectedPathProbe_tagged_object_abstractFallback_response_of_fuel_ge
+theorem
+    executeField_fieldPairSelectedPathProbe_tagged_object_abstractFallback_response_of_fuel_ge
     (schema : Schema)
     (leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2797,7 +2813,8 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_abstractFallback_r
         [])
       hlookup hresolve hinclude hfuel
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_response_of_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_response_of_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2903,7 +2920,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abst
       childSelectionSet
   simpa [base, hbase, hchildProjection] using hprojection
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_ok_of_child_response
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_ok_of_child_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -2992,7 +3010,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abst
   rw [hfield, hchildResponse, hwrapped]
   simp [Execution.singleFieldResult]
 
-theorem executeField_fieldPairSelectedPathProbe_tagged_object_objectProbe_response_of_fuel_ge
+theorem
+    executeField_fieldPairSelectedPathProbe_tagged_object_objectProbe_response_of_fuel_ge
     (schema : Schema)
     (leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3092,7 +3111,8 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_objectProbe_respon
         tail)
       hlookup hresolve hinclude hfuel
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectProbe_response_of_fuel_ge
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectProbe_response_of_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -3197,7 +3217,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_obje
       childSelectionSet
   simpa [base, hbase, hchildProjection] using hprojection
 
-theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectProbe_ok_of_child_response
+theorem
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_objectProbe_ok_of_child_response
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)

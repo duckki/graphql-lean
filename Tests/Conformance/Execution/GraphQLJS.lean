@@ -183,7 +183,8 @@ def directives_anonymous_inline_fragment_include_variableExpectedData
     : GraphQL.Execution.ResponseValue :=
   .object ([("a", .scalar "a"), ("b", .scalar "b")])
 
-theorem directives_anonymous_inline_fragment_include_variable_matches_graphql_js_projection
+theorem
+    directives_anonymous_inline_fragment_include_variable_matches_graphql_js_projection
     : let response :=
         GraphQL.Execution.executeQueryWithFuel
           directives_anonymous_inline_fragment_include_variableSchema

@@ -392,7 +392,8 @@ theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
     exact resolvers.resolve_argumentsEquivalent parentType later.fieldName
       first.arguments later.arguments source harguments
 
-noncomputable def executedGroupedSelectionSetAlignedState_of_selectionSetSemanticsReady_object
+noncomputable def
+    executedGroupedSelectionSetAlignedState_of_selectionSetSemanticsReady_object
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     : ∀ depth parentType runtimeType (identity : ObjectRef)

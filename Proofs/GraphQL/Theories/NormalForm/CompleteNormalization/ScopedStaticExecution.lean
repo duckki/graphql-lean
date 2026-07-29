@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace CompleteNormalization
 
-theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_skipped_execution_case
+theorem
+    executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_skipped_execution_case
     (schema : Schema) (resolvers : Execution.Resolvers)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (execParent lookupParent groundType : Name) (boolCase : BoolCase)
@@ -89,7 +90,8 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_
       directives selectionSet (eraseCompleteScopedSelectionSet rest)
       hexecSkip).symm
 
-theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_field_skipped_execution_case
+theorem
+    executeSelectionSet_staticCollectCompleteScopedSelectionSet_field_skipped_execution_case
     (schema : Schema) (resolvers : Execution.Resolvers)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (execParent lookupParent groundType : Name) (boolCase : BoolCase)
@@ -175,7 +177,8 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_field_skippe
       responseName fieldName arguments directives selectionSet
       (eraseCompleteScopedSelectionSet rest) hexecSkip).symm
 
-theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_allowed_flatten_case
+theorem
+    executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_allowed_flatten_case
     (schema : Schema) (resolvers : Execution.Resolvers)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (execParent lookupParent groundType : Name) (boolCase : BoolCase)
@@ -287,7 +290,8 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_none_
         (.object groundType ()) directives selectionSet
         (eraseCompleteScopedSelectionSet rest) hexecAllow).symm
 
-theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_some_skipped_execution_case
+theorem
+    executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_some_skipped_execution_case
     (schema : Schema) (resolvers : Execution.Resolvers)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (execParent lookupParent groundType typeCondition : Name) (boolCase : BoolCase)
@@ -372,7 +376,8 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_some_
       typeCondition () directives selectionSet
       (eraseCompleteScopedSelectionSet rest) hexecSkip).symm
 
-theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_some_allowed_flatten_case
+theorem
+    executeSelectionSet_staticCollectCompleteScopedSelectionSet_inline_some_allowed_flatten_case
     (schema : Schema) (resolvers : Execution.Resolvers)
     (variableValues : Execution.VariableValues) (operation : Operation) (depth : Nat)
     (execParent lookupParent groundType typeCondition : Name) (boolCase : BoolCase)

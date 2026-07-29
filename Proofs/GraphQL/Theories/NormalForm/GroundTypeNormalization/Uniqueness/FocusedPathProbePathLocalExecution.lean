@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_of_valid_normal_support_context_fuel_ge_size
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_of_valid_normal_support_context_fuel_ge_size
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -550,7 +551,8 @@ theorem PathLocalSelectionSetFieldChildrenReady.response_of_mem_lookup_runtime
     subst childRuntimeType
     exact ⟨responseFields, childErrors, hinclude, hfuel, hresponse⟩
 
-theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+theorem
+    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       : List Selection)
@@ -722,7 +724,8 @@ theorem executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_targ
     exact ⟨responseFields, childErrors, by
       simpa [hchildFuelEq] using hresponse⟩
 
-theorem pathLocalSelectionSetFieldChildrenReady_of_valid_normal_support_context_fuel_ge_size
+theorem
+    pathLocalSelectionSetFieldChildrenReady_of_valid_normal_support_context_fuel_ge_size
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
@@ -1129,7 +1132,8 @@ theorem normalSelectionSetObservableLeaf_of_valid_normal_composite_field_mem
         childSelectionSet hcompositeKind.2.2 hchildNormal
         hcompositeKind.2.1
 
-theorem normalSelectionSetObservableLeaf_of_fieldPairPathLocalNextSelectionSet_object_output_of_valid_normal_field_mem
+theorem
+    normalSelectionSetObservableLeaf_of_fieldPairPathLocalNextSelectionSet_object_output_of_valid_normal_field_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {currentRuntimeType responseName fieldName : Name}
     {targetArguments arguments : List Argument} {directives : List DirectiveApplication}
@@ -1272,7 +1276,8 @@ theorem not_fieldProbeTarget_of_arguments_not_equivalent
     (argumentsEquivalent_trans
       (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_taggedPair
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_taggedPair
     {schema : Schema}
     {rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection}
     {variableValues : Execution.VariableValues} {leftFuel rightFuel : Nat}
@@ -1353,7 +1358,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalP
   exact hraw (by
     simpa [hleftProjection, hrightProjection] using hsemantic)
 
-theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deepSuccessWithRef_ok
+theorem
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deepSuccessWithRef_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -1411,7 +1417,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deep
     hnotProjection parentFuel]
   exact hdeep
 
-theorem selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_pathLocalProbe_of_deepSuccessWithRef_ok
+theorem
+    selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_pathLocalProbe_of_deepSuccessWithRef_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -1478,7 +1485,8 @@ theorem selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_pathLocalProbe_o
         leftRuntime rightRuntime responseName fieldName childSelectionSet
         responseValue fieldErrors hnotProjection hdeepOk⟩
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_ok
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -1773,7 +1781,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe
       hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
       hleftTarget hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_ok
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -2061,7 +2070,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe
       hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
       hleftTarget hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_cases
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_cases
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -2412,7 +2422,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe
       hargumentsDiff hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_cases
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_cases
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (parentFuel : Nat)
@@ -2789,7 +2800,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe
       hrightInclude hleftFuel hrightFuel hfieldDiff hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_data_diff_of_valid_normal_append_context_fuel_ge
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_data_diff_of_valid_normal_append_context_fuel_ge
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType responseName fieldName leftRuntime rightRuntime : Name}
@@ -3216,7 +3228,8 @@ theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe
       hchildNot hleftLeftTarget hleftRightTarget hrightLeftTarget
       hrightRightTarget hleftDeep hrightDeep
 
-theorem not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_data_diff_of_valid_normal_append_context_fuel_ge
+theorem
+    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_data_diff_of_valid_normal_append_context_fuel_ge
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType responseName leftFieldName rightFieldName leftRuntime rightRuntime : Name}

@@ -72,7 +72,8 @@ theorem zeroDepthResponseNameResult_eq_visitSelection_executableField
         selectionDirectivesAllowBool_empty, zeroDepthResponseNameResult,
         hprevious, mergeResponseFieldResult, resultValueOrNull, resultStatus]
 
-theorem visitSubfields_executableFieldSelections_depth_zero_eq_zeroDepthExecutableFieldsResult
+theorem
+    visitSubfields_executableFieldSelections_depth_zero_eq_zeroDepthExecutableFieldsResult
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (parentType : Name)
     (source : ResolverValue ObjectIdentity)

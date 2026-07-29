@@ -546,7 +546,8 @@ theorem selectionSetTypeConditionFeasible_mergeSelectionSets_of_field_subselecti
   simpa [Selection.subselections] using
     hfields fieldName arguments directives subselections hselection
 
-theorem selectionSetTypeConditionFeasible_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+theorem
+    selectionSetTypeConditionFeasible_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {parentType responseName childType : Name}
     {typeConditions : List Name} (selectionSet : List Selection)
     : (∀ fieldName arguments directives subselections,

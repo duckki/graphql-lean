@@ -1635,7 +1635,8 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
       refine ⟨responseValue, errors, ?_, hnonNull⟩
       simpa [hcomplete, Execution.singleFieldResult] using hfield
 
-theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok
+theorem
+    executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues) (fuel : Nat)
     (source : Execution.ResolverValue ObjectRef)
@@ -1757,7 +1758,8 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_
       parentType fieldName arguments childSelectionSet fieldDefinition
       hlookup hcollectedKind
 
-theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok_fuel_ge
+theorem
+    executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok_fuel_ge
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (objectRef : ObjectRef) (variableValues : Execution.VariableValues) (fuel : Nat)
     (source : Execution.ResolverValue ObjectRef)
@@ -2468,18 +2470,18 @@ theorem executeSelectionSetAsResponse_singleton_named_object_of_resolve
             (fuel + 2) parentType source
             [Selection.field responseName fieldName arguments [] childSelectionSet]
           = {
-              data :=
-                .object
-                  [(
-                    responseName,
-                    (Execution.executeSelectionSetAsResponse schema resolvers
-                      variableValues fuel runtimeType (.object runtimeType ref)
-                      childSelectionSet).data
-                  )]
-              errors :=
-                (Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  fuel runtimeType (.object runtimeType ref) childSelectionSet).errors
-            } := by
+            data :=
+              .object
+                [(
+                  responseName,
+                  (Execution.executeSelectionSetAsResponse schema resolvers
+                    variableValues fuel runtimeType (.object runtimeType ref)
+                    childSelectionSet).data
+                )]
+            errors :=
+              (Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                fuel runtimeType (.object runtimeType ref) childSelectionSet).errors
+          } := by
   intro hlookup hinclude hresolve
   have hfield :
       Execution.executeField schema resolvers variableValues (fuel + 2)

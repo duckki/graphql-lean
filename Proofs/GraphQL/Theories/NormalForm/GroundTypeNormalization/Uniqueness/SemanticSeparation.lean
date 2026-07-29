@@ -653,7 +653,8 @@ theorem responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_
       hobject hrightNormal hleftNormal hrightFree hleftFree hrightMem
       hleftNoResponseName hrightFieldOk hleftFieldOk hsemantic.symm
 
-theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair
+theorem
+    responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair
     {schema : Schema} {leftParentType rightParentType : Name}
     {left right : List Selection} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}
@@ -757,7 +758,8 @@ theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_o
         hleftKey hrightNoKey)
       (by simpa [hleftExec, hrightExec] using hsemantic)
 
-theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair_fuels
+theorem
+    responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair_fuels
     {schema : Schema} {leftParentType rightParentType : Name}
     {left right : List Selection} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}
@@ -861,7 +863,8 @@ theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_o
       hleftKey hrightNoKey)
       (by simpa [hleftExec, hrightExec] using hsemantic)
 
-theorem responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair
+theorem
+    responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair
     {schema : Schema} {leftParentType rightParentType : Name}
     {left right : List Selection} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}
@@ -923,7 +926,8 @@ theorem responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_
       hleftFree hrightMem hleftNoResponseName hrightFieldOk hleftFieldOk
       hsemantic.symm
 
-theorem responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair_fuels
+theorem
+    responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair_fuels
     {schema : Schema} {leftParentType rightParentType : Name}
     {left right : List Selection} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}

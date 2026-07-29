@@ -974,7 +974,8 @@ theorem operationFragmentInlineSelectionSetValid_after_lookup_removal
     huniqueFragments hfragmentsAcyclic hfragmentDefinitionsValid
     hlookup hremainingBodies
 
-theorem childFragmentInlineSelectionSetValid_after_lookup_removals_of_localFragmentBodiesValid
+theorem
+    childFragmentInlineSelectionSetValid_after_lookup_removals_of_localFragmentBodiesValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {fragments : List FragmentDefinition} {sourceName childName : Name}
     {source child : FragmentDefinition}
@@ -1084,7 +1085,8 @@ theorem childFragmentInlineSelectionSetValid_after_lookup_removals_of_localFragm
     selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
       hchildBodies hchildSelectionValidAfterChildRemoval⟩
 
-theorem descendantFragmentInlineSelectionSetValid_after_lookup_removals_of_localFragmentBodiesValid
+theorem
+    descendantFragmentInlineSelectionSetValid_after_lookup_removals_of_localFragmentBodiesValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {fragments : List FragmentDefinition} {ancestorName targetName : Name}
     {ancestor target : FragmentDefinition}
@@ -1179,7 +1181,8 @@ theorem descendantFragmentInlineSelectionSetValid_after_lookup_removals_of_local
     selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
       htargetBodies htargetSelectionValidAfterTargetRemoval⟩
 
-theorem descendantFragmentInlineSelectionSetValid_after_two_ancestor_lookup_removals_of_localFragmentBodiesValid
+theorem
+    descendantFragmentInlineSelectionSetValid_after_two_ancestor_lookup_removals_of_localFragmentBodiesValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {fragments : List FragmentDefinition} {firstName secondName targetName : Name}
     {first second target : FragmentDefinition}

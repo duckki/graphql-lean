@@ -18,7 +18,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
+theorem
+    selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
     {schema : Schema} {parentType : Name} {members : List (List Selection)}
     {selectionSet : List Selection} (variableValues : Execution.VariableValues)
     (fuel : Nat) (leftField rightField : Name)
@@ -221,7 +222,8 @@ theorem selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_nor
         (fuel + 1)]
       exact hdeep
 
-theorem selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
+theorem
+    selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
     {schema : Schema} {parentType : Name} {members : List (List Selection)}
     {selectionSet : List Selection} (variableValues : Execution.VariableValues)
     (fuel : Nat) (leftField rightField : Name)
@@ -509,7 +511,8 @@ theorem selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite
         (fuel + 1)]
       exact hdeep
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_arguments_diff_leaf_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_arguments_diff_leaf_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -813,7 +816,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
   · simpa [source, projectionRootResolverValue, projectionResolverValue]
       using hdataNot
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -1133,7 +1137,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
   · simpa [source, projectionRootResolverValue, projectionResolverValue]
       using hdataNot
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -1580,7 +1585,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
   · simpa [source, projectionRootResolverValue, projectionResolverValue]
       using hdataNot
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -1776,7 +1782,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
       (SemanticSeparation.responseValue_object_left_key_mismatch_not_semanticallyEquivalent
         hleftKey hrightNoKey) hobjects
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -1833,7 +1840,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_o
         intro hsemantic
         exact hnot (responseValue_semanticEquivalent_symm hsemantic))⟩
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -2104,7 +2112,8 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_a
       SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_empty_object
         hobjects
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_right_typeCondition_diff_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_right_typeCondition_diff_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection}
@@ -2422,7 +2431,8 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
                     rightChildSelectionSet) hchildMem))
           hrightValid hrightFree hrightNormal hrightSuffix⟩
 
-theorem selectionSetTargetInlineFragmentSelectionSets_subset_supportTargetInlineFragmentSelectionSets_of_mem
+theorem
+    selectionSetTargetInlineFragmentSelectionSets_subset_supportTargetInlineFragmentSelectionSets_of_mem
     {typeCondition : Name} {supportSelectionSets : List (List Selection)}
     {selectionSet childSelectionSet : List Selection}
     : selectionSet ∈ supportSelectionSets
@@ -2480,7 +2490,8 @@ theorem supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
             exact hsupportValid tailSupportSelectionSet
               (by simp [htailSupport])) htail
 
-theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_child_contextualRuntimeDiff_split_finiteSupport
+theorem
+    selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_child_contextualRuntimeDiff_split_finiteSupport
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType typeCondition runtimeType : Name}

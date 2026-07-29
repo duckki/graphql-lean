@@ -713,8 +713,7 @@ theorem fieldsInSetCanMerge_scoped_collectFields_fieldCompatible_of_sameParent
         selectionSet hmerge)
 
 theorem fieldsInSetCanMerge_scoped_collectFields_fieldCompatible_of_runtimeApplies
-    (schema : Schema) (parentType runtimeType : Name)
-    (selectionSet : List Selection)
+    (schema : Schema) (parentType runtimeType : Name) (selectionSet : List Selection)
     : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
       -> (∀ scopedField,
             scopedField ∈ FieldMerge.collectFields schema parentType selectionSet
@@ -1233,8 +1232,7 @@ theorem ExecutionFieldSemanticStateInvariant.groupedFieldsResolveStable
       responseName fields hmem
 
 theorem ExecutionValidFieldSemanticStateInvariant.groupedFieldsResolveStable
-    {ObjectIdentity : Type}
-    (state : ExecutionEquivalenceState ObjectIdentity)
+    {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
     : ExecutionValidFieldSemanticStateInvariant state
       -> ∀ responseName fields,
           (responseName, fields)

@@ -1712,7 +1712,8 @@ theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_
                             simpa [Schema.fieldReturnType?, hlookup]
                               using hincludes))
 
-theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
+theorem
+    ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -2073,7 +2074,8 @@ theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_
                             simpa [Schema.fieldReturnType?, hlookup]
                               using hincludes))
 
-theorem ExecutableFieldsMergedVisit_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
+theorem
+    ExecutableFieldsMergedVisit_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)

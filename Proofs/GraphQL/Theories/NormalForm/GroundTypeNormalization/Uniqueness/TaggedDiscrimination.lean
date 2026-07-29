@@ -637,7 +637,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of
       hrightMem hleftTarget hrightTarget hvalueNot hleftFieldOk
       hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of_valid_normal_child_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of_valid_normal_child_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1309,7 +1310,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_abstract_inlineFragment_bo
   simpa [Execution.executeSelectionSetAsResponse, resolvers, hleftMiddle, hrightMiddle,
     hleftFlatten, hrightFlatten] using hsemantic
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1496,7 +1498,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid
         fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_deepProbeFuel
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_deepProbeFuel
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1571,7 +1574,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid
       hheadPromote
       (by omega) hmem hlookup hleaf
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1725,7 +1729,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_d
       hobject hleftNormal hrightNormal hleftFree hrightFree hleftMem
       hrightNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -1879,7 +1884,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_
       hobject hleftNormal hrightNormal hleftFree hrightFree hrightMem
       hleftNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2033,7 +2039,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_d
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hleftMem hrightNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2187,7 +2194,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hrightMem hleftNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2344,7 +2352,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_d
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hleftMem hrightNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2501,7 +2510,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hrightMem hleftNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
     (schema : Schema) (leftRootSelectionSet rightRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2664,7 +2674,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_left_responseName_d
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hleftMem hrightNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_right_responseName_diff_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
     (schema : Schema) (leftRootSelectionSet rightRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -2827,7 +2838,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_right_responseName_
       hleftObject hrightObject hleftNormal hrightNormal hleftFree
       hrightFree hrightMem hleftNoResponseName hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -3063,7 +3075,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_
         (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema
@@ -3306,7 +3319,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_
         (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
+theorem
+    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
     (schema : Schema) (leftRootSelectionSet rightRootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     : SchemaWellFormedness.schemaWellFormed schema

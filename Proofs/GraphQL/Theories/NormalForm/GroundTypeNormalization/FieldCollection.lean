@@ -40,13 +40,13 @@ theorem executableFieldScoped?_some
           schema.lookupField field.parentType field.fieldName = some fieldDefinition
           ∧ scopedField
             = {
-                parentType := field.parentType,
-                responseName := field.responseName,
-                fieldName := field.fieldName,
-                arguments := field.arguments,
-                outputType := fieldDefinition.outputType,
-                selectionSet := field.selectionSet
-              } := by
+              parentType := field.parentType,
+              responseName := field.responseName,
+              fieldName := field.fieldName,
+              arguments := field.arguments,
+              outputType := fieldDefinition.outputType,
+              selectionSet := field.selectionSet
+            } := by
   intro hscoped
   unfold executableFieldScoped? at hscoped
   cases hlookup : schema.lookupField field.parentType field.fieldName with

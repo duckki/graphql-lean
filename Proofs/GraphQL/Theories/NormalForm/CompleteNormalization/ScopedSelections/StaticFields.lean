@@ -559,7 +559,8 @@ theorem typesOverlapBool_true_of_common_ground
   exact List.any_eq_true.mpr
     ⟨groundType, List.contains_iff_mem.mp hleft, hright⟩
 
-theorem erase_staticScopedFieldsWithResponseName_mem_fieldSelectionsWithResponseNameInScope
+theorem
+    erase_staticScopedFieldsWithResponseName_mem_fieldSelectionsWithResponseNameInScope
     (schema : Schema) (boolCase : BoolCase) (lookupParent groundType responseName : Name)
     : ∀ selectionSet selection,
         schema.typeIncludesObjectBool lookupParent groundType = true
@@ -846,8 +847,7 @@ theorem collectFields_scoped_mem_lookupValid (schema : Schema) (parentType : Nam
                   rest scopedField htailLookup hrest
 
 theorem staticScopedFieldsWithResponseName_mem_fieldMergeCollectFields_lookupValid
-    (schema : Schema) (boolCase : BoolCase)
-    (lookupParent groundType responseName : Name)
+    (schema : Schema) (boolCase : BoolCase) (lookupParent groundType responseName : Name)
     : ∀ selectionSet scopedSelection fieldResponseName fieldName arguments
           directives subselections,
         selectionSetLookupValid schema lookupParent selectionSet

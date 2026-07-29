@@ -2114,7 +2114,8 @@ theorem visitFieldSliceFold_succ_empty_eq_mergeResponseSliceFold_of_responseName
     (FieldSliceMergeTrace.of_responseNamesNodup_empty schema resolvers
       variableValues completionDepth source fields hnodup)
 
-theorem visitSubfields_executableFieldSelections_succ_empty_eq_mergeResponseSliceFold_of_responseNamesNodup
+theorem
+    visitSubfields_executableFieldSelections_succ_empty_eq_mergeResponseSliceFold_of_responseNamesNodup
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (fields : List ExecutableField)

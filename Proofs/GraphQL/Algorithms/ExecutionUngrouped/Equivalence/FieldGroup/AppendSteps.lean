@@ -351,7 +351,8 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
           hnextResponses htailLookups
       simpa [List.append_assoc] using htail
 
-theorem ExecutableFieldsFlatSpecAlignedEquivalent_nonempty_group_of_alignedAppendSteps_positive
+theorem
+    ExecutableFieldsFlatSpecAlignedEquivalent_nonempty_group_of_alignedAppendSteps_positive
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)

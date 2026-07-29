@@ -266,7 +266,8 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
       hinclude
   simpa [parentBase, hchildResponse] using hparentField
 
-theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_ok_of_child_object_response
+theorem
+    executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_ok_of_child_object_response
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent targetField responseName : Name)
@@ -315,7 +316,8 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_ok_of_ch
       hinclude]
   simp [hchildResponse, hwrapped, Execution.singleFieldResult]
 
-theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_ok_of_child_object_response
+theorem
+    executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_ok_of_child_object_response
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent targetField responseName : Name)
@@ -364,7 +366,8 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_ok_of_c
       hinclude]
   simp [hchildResponse, hwrapped, Execution.singleFieldResult]
 
-theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
+theorem
+    selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent targetField : Name)
@@ -478,7 +481,8 @@ theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_
         hother responseName fieldName arguments directives childSelectionSet
           hmem hnotProjection
 
-theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_other_root_ok_of_deepSuccessWithRef_ok
+theorem
+    executeField_fieldPairOrDeepSuccess_parentObjectProbe_other_root_ok_of_deepSuccessWithRef_ok
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (parentFuel : Nat) (targetParent targetField childRuntimeType : Name)
@@ -530,7 +534,8 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_other_root_ok_of_d
     hnotProjection parentFuel]
   exact hdeep
 
-theorem selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_deepSuccessWithRef_ok
+theorem
+    selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_deepSuccessWithRef_ok
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (parentFuel : Nat) (targetParent targetField childRuntimeType : Name)
@@ -1503,7 +1508,8 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
     wrapTypeRefSelectionSetDataValue_semanticEquivalent_injective
       fieldDefinition.outputType hwrapped
 
-theorem responseData_semanticEquivalent_object_child_of_parent_responseData_split_context_ok
+theorem
+    responseData_semanticEquivalent_object_child_of_parent_responseData_split_context_ok
     {ObjectRef : Type} {schema : Schema} (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent responseName fieldName : Name)

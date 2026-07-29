@@ -239,7 +239,8 @@ decreasing_by
     simp [SelectionSet.size, Selection.size]
     omega
 
-private theorem size_mergeSelectionSets_fieldSelectionsWithResponseNameInScope_le_for_filterValidity
+private theorem
+    size_mergeSelectionSets_fieldSelectionsWithResponseNameInScope_le_for_filterValidity
     (schema : Schema) (parentType responseName : Name)
     : ∀ selectionSet,
         SelectionSet.size
@@ -920,8 +921,7 @@ theorem selectionSetFilteredCurrentSourceValid_withoutFieldSelectionsWithRespons
     hvalid
 
 theorem selectionSetFilteredCurrentSourceValid_mergeSelectionSets_of_subselections
-    {schema : Schema} {variableDefinitions : List VariableDefinition}
-    {parentType : Name}
+    {schema : Schema} {variableDefinitions : List VariableDefinition} {parentType : Name}
     : ∀ selections,
         (∀ selection,
           selection ∈ selections
@@ -966,7 +966,8 @@ theorem selectionSetFilteredCurrentSourceValid_mergeSelectionSets_of_field_subse
   simpa [Selection.subselections] using
     hfields fieldName arguments directives subselections hselection
 
-theorem selectionSetFilteredCurrentSourceValid_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+theorem
+    selectionSetFilteredCurrentSourceValid_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType responseName childType : Name} (selectionSet : List Selection)
     : (∀ fieldName arguments directives subselections,
@@ -1094,7 +1095,8 @@ theorem fieldSelectionsWithResponseNameInScope_field_filteredCurrentSourceValid
                     schema variableDefinitions parentType responseName rest htail
                     fieldName arguments directives subselections hfield
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_filteredCurrentSourceValid_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_filteredCurrentSourceValid_of_child_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType responseName fieldName runtimeType : Name) (arguments : List Argument)
     (subselections rest : List Selection) (fieldDefinition : FieldDefinition)
@@ -1392,7 +1394,8 @@ theorem selectionSetFilteredReturnLookupValid_mergeSelectionSets_of_subselection
               intro candidate hcandidate
               exact hvalid candidate (by simp [hcandidate]))
 
-theorem selectionSetFilteredReturnLookupValid_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+theorem
+    selectionSetFilteredReturnLookupValid_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {parentType responseName childType : Name}
     (selectionSet : List Selection)
     : (∀ fieldName arguments directives subselections,
@@ -1516,7 +1519,8 @@ theorem fieldSelectionsWithResponseNameInScope_field_filteredReturnLookupValid
                     schema parentType responseName hobject rest htail
                     fieldName arguments directives subselections hfield
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_filteredReturnLookupValid_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_filteredReturnLookupValid_of_child_object
     (schema : Schema) (parentType responseName fieldName runtimeType : Name)
     (arguments : List Argument) (subselections rest : List Selection)
     (fieldDefinition : FieldDefinition)
@@ -1809,7 +1813,8 @@ mutual
             schema parentType hsubset rest htail⟩
 end
 
-theorem selectionSetFilteredCompositeChildrenNonempty_withoutFieldSelectionsWithResponseName
+theorem
+    selectionSetFilteredCompositeChildrenNonempty_withoutFieldSelectionsWithResponseName
     (schema : Schema) (responseName parentType : Name) (typeConditions : List Name)
     : ∀ selectionSet,
         selectionSetFilteredCompositeChildrenNonempty schema parentType
@@ -1919,7 +1924,8 @@ theorem selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_of_subs
               intro candidate hcandidate
               exact hvalid candidate (by simp [hcandidate]))
 
-theorem selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_of_field_subselections
+theorem
+    selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_of_field_subselections
     {schema : Schema} {parentType responseName : Name} {typeConditions : List Name}
     (selections : List Selection)
     : (∀ selection,
@@ -1944,7 +1950,8 @@ theorem selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_of_fiel
   simpa [Selection.subselections] using
     hfields fieldName arguments directives subselections hselection
 
-theorem selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+theorem
+    selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {parentType responseName childType : Name}
     {typeConditions : List Name} (selectionSet : List Selection)
     : (∀ fieldName arguments directives subselections,
@@ -1968,8 +1975,7 @@ theorem selectionSetFilteredCompositeChildrenNonempty_mergeSelectionSets_fieldSe
     exact hfields fieldName arguments directives subselections hselection
 
 theorem fieldSelectionsWithResponseNameInScope_field_filteredCompositeChildrenNonempty
-    (schema : Schema) (parentType responseName : Name)
-    (typeConditions : List Name)
+    (schema : Schema) (parentType responseName : Name) (typeConditions : List Name)
     : schema.objectType parentType
       -> GroundTypeNormalization.objectSatisfiesTypeConditionStack schema
           parentType typeConditions
@@ -2095,7 +2101,8 @@ theorem fieldSelectionsWithResponseNameInScope_field_filteredCompositeChildrenNo
                     hstack rest htail fieldName arguments directives
                     subselections hfield
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_filteredCompositeChildrenNonempty_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_filteredCompositeChildrenNonempty_of_child_object
     (schema : Schema) (parentType responseName fieldName runtimeType : Name)
     (arguments : List Argument) (subselections rest : List Selection)
     (fieldDefinition : FieldDefinition) (typeConditions : List Name)
@@ -2498,7 +2505,8 @@ theorem selectionSetValidInCurrentScope_mergeSelectionSets_of_field_subselection
   simpa [Selection.subselections] using
     hfields fieldName arguments directives subselections hselection
 
-theorem selectionSetValidInCurrentScope_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
+theorem
+    selectionSetValidInCurrentScope_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType responseName childType : Name} (selectionSet : List Selection)
     : (∀ fieldName arguments directives subselections,
@@ -2519,7 +2527,8 @@ theorem selectionSetValidInCurrentScope_mergeSelectionSets_fieldSelectionsWithRe
   · intro fieldName arguments directives subselections hselection
     exact hfields fieldName arguments directives subselections hselection
 
-theorem fieldSelectionsWithResponseNameInScope_matching_subselections_validInCurrentScope_of_child_object
+theorem
+    fieldSelectionsWithResponseNameInScope_matching_subselections_validInCurrentScope_of_child_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType responseName fieldName runtimeType : Name) (arguments : List Argument)
     (subselections rest : List Selection) (fieldDefinition : FieldDefinition)

@@ -763,7 +763,8 @@ theorem eraseCompleteScopedSelectionSet_withoutFieldSelectionsWithResponseName
                 eraseCompleteScopedSelectionSet_withoutFieldSelectionsWithResponseName
                   schema responseName rest]
 
-theorem eraseCompleteScopedSelectionSet_withoutFieldSelectionsWithResponseName_size_lt_field_directives
+theorem
+    eraseCompleteScopedSelectionSet_withoutFieldSelectionsWithResponseName_size_lt_field_directives
     (schema : Schema) (lookupParent responseName fieldName : Name)
     (arguments : List Argument) (directives : List DirectiveApplication)
     (selectionSet : List Selection) (rest : List CompleteScopedSelection)
@@ -997,7 +998,8 @@ theorem eraseCompleteScopedSelectionSet_staticScopedFieldsWithResponseName_looku
                     schema boolCase leftParent rightParent groundType
                     responseName rest]
 
-theorem eraseCompleteScopedSelectionSet_completeScopedSelectionSetStaticFieldsWithResponseName
+theorem
+    eraseCompleteScopedSelectionSet_completeScopedSelectionSetStaticFieldsWithResponseName
     (schema : Schema) (boolCase : BoolCase) (lookupParent groundType responseName : Name)
     : ∀ scopedSelections,
         eraseCompleteScopedSelectionSet

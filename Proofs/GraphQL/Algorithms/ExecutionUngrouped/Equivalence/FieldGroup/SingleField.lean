@@ -37,7 +37,8 @@ theorem resultValueOrNull_executeField_depth_zero_none
           | some resolved =>
               simp [executeField, hlookup, hresolve, reusablePreviousValue?, completeValue, outOfFuel, resultValueOrNull]
 
-theorem visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_guarded_child_states
+theorem
+    visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_guarded_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -123,7 +124,8 @@ theorem visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResu
                 rfl]
               simp [visitSubfields, visitSelection, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult, hcomplete]
 
-theorem visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_contained_child_states
+theorem
+    visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_contained_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
@@ -874,7 +876,8 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_aligned_res
         resolvedValue)
       hprefix htail haligned
 
-theorem executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved
+theorem
+    executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName fieldName : Name)
@@ -1127,7 +1130,8 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_visit_align
         resolvedValue)
       hprefix htail haligned
 
-theorem executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
+theorem
+    executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName fieldName : Name)
@@ -1387,7 +1391,8 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_visit_align
         resolvedValue)
       hprefix htail haligned
 
-theorem visitSubfields_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
+theorem
+    visitSubfields_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName fieldName : Name)

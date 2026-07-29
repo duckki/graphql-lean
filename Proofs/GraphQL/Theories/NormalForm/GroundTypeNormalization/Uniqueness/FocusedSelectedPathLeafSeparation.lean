@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_leaf_field_pair_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_leaf_field_pair_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -283,7 +284,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -557,7 +559,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_leaf_field_pair_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_leaf_field_pair_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -697,7 +700,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_leaf_field_pair_va
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_fieldName_diff_leaf_valid_normal_self
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_fieldName_diff_leaf_valid_normal_self
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
@@ -781,7 +785,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_fieldName_d
       PathLocalSelectionSetCurrentContext.self hleftMem hrightMem
       hleftLookup hrightLookup hleftLeaf hrightLeaf
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_arguments_diff_leaf_valid_normal_self
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_arguments_diff_leaf_valid_normal_self
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet : List Selection)
@@ -861,7 +866,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_object_arguments_d
       PathLocalSelectionSetCurrentContext.self hleftMem hrightMem
       hlookup hlookup hleaf hleaf
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_leaf
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_leaf
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -966,7 +972,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftContext hrightContext hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_leaf_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_leaf_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1071,7 +1078,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftContext hrightContext hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_leaf
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_leaf
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1177,7 +1185,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftContext hrightContext hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_leaf_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_leaf_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1283,7 +1292,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftContext hrightContext hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_field_ok
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_field_ok
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1547,7 +1557,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
       hvalueNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_field_ok_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_field_ok_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -1811,7 +1822,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
       hleftTarget hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2053,7 +2065,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftLeafFuel hrightLeafFuel hleftChildResponse hleftFieldOk
       hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_objectOutput_right_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2295,7 +2308,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hleftObjectOutput hrightLeaf hleftLeafFuel hrightLeafFuel
       hleftChildResponse hleftFieldOk hrightFieldOk
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_right_leaf_field_pair_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_right_leaf_field_pair_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2434,7 +2448,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_selectedPathFieldChildrenReady
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_selectedPathFieldChildrenReady
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -2797,7 +2812,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hrightFree hleftMem hrightMem hleftTarget hrightTarget hvalueNot
         hleftFieldOk hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_selectedPathFieldChildrenReady_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_selectedPathFieldChildrenReady_fuels
     (schema : Schema)
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
       leftCurrentSelectionSet rightCurrentSelectionSet
@@ -3163,7 +3179,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hrightMem hleftTarget hrightTarget hvalueNot hleftFieldOk
         hrightFieldOk
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3310,7 +3327,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hrightMem hleftLookup hrightLookup hrightLeafFuel hleftComposite
       hrightLeaf hleftReady hrightReady
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_composite_right_leaf_field_pair_of_valid_normal_runtimeSpine_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3457,7 +3475,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
       hrightMem hleftLookup hrightLookup hrightLeafFuel hleftComposite
       hrightLeaf hleftReady hrightReady
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_composite_right_leaf_field_pair_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_composite_right_leaf_field_pair_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet

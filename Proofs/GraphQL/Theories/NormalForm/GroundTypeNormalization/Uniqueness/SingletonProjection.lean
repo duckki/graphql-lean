@@ -663,8 +663,7 @@ theorem responseValue_semanticEquivalent_of_singleFieldResult_data
               hobject
 
 theorem not_wrapTypeRefSelectionSetResponse_data_semanticEquivalent_of_child
-    (responseName : Name) (outputType : TypeRef)
-    {left right : Execution.Response}
+    (responseName : Name) (outputType : TypeRef) {left right : Execution.Response}
     : ¬ Execution.ResponseValue.semanticEquivalent left.data right.data
       -> ¬ Execution.ResponseValue.semanticEquivalent
             (wrapTypeRefSelectionSetResponse responseName outputType left).data
@@ -889,7 +888,8 @@ theorem dataEquivalent_singleton_response_of_context_ok
             responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
               hvalueCanonical
 
-theorem target_split_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_context_ok
+theorem
+    target_split_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_context_ok
     {ObjectRef : Type} {schema : Schema} (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (fuel : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef)
@@ -1249,7 +1249,8 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
             hrightPrefix (by simpa [rightHead] using hok) hrightSuffix)
       hcontextData
 
-theorem target_head_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_tail_ok
+theorem
+    target_head_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_tail_ok
     {ObjectRef : Type} {schema : Schema} (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues) (fuel : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef)

@@ -730,7 +730,8 @@ theorem abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_membe
           htargetLookup htargetComposite htargetNonObject
           (by simpa [List.flatten_cons] using hruntime)
 
-theorem abstractRuntimeForFieldHeadDeep?_member_framed_promote_some_of_valid_normal_members
+theorem
+    abstractRuntimeForFieldHeadDeep?_member_framed_promote_some_of_valid_normal_members
     {schema : Schema} {currentParent targetParent targetField targetRuntimeType : Name}
     {targetArguments : List Argument} {selectionSet : List Selection}
     {members : List (List Selection)} {targetFieldDefinition : FieldDefinition}
@@ -2880,7 +2881,8 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
       hreturnObject hfieldInclude hcontext hparentData base variableValues
       fuel source hsource
 
-theorem not_selectionSetsDataEquivalent_of_object_child_responseData_diff_concrete_fieldsExecuteOk
+theorem
+    not_selectionSetsDataEquivalent_of_object_child_responseData_diff_concrete_fieldsExecuteOk
     {ObjectRef : Type} {schema : Schema} (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent responseName fieldName : Name)
@@ -2985,7 +2987,8 @@ theorem not_selectionSetsDataEquivalent_of_object_child_responseData_diff_concre
         hrightFree hleftNormal hrightNormal hobject hfieldsOk
   · exact hchildNot
 
-theorem responseData_not_semanticEquivalent_of_valid_normal_abstract_left_typeCondition_diff_runtime
+theorem
+    responseData_not_semanticEquivalent_of_valid_normal_abstract_left_typeCondition_diff_runtime
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection} {typeCondition : Name}
@@ -3173,7 +3176,8 @@ theorem responseData_not_semanticEquivalent_of_valid_normal_abstract_left_typeCo
     SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_empty_object
       hleftRight
 
-theorem responseData_not_semanticEquivalent_of_valid_normal_abstract_right_typeCondition_diff_runtime
+theorem
+    responseData_not_semanticEquivalent_of_valid_normal_abstract_right_typeCondition_diff_runtime
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name} {left right : List Selection} {typeCondition : Name}

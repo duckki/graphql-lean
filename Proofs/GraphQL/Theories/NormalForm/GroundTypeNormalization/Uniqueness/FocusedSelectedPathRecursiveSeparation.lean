@@ -10,7 +10,8 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -183,7 +184,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameF
       hrightContext hleftMem hrightMem hlookup hobjectOutput
       hchildWitnessTail
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_object_outputs_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_object_outputs_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -353,7 +355,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -506,7 +509,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_of_valid_normal_runtimeSpine_fuels
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_of_valid_normal_runtimeSpine_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -659,7 +663,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hleftObservable) hrightResponseName
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -765,7 +770,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftObservable
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_right_responseName_absent_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_right_responseName_absent_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -868,7 +874,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext (by simpa using hleftObservable) hrightNoResponseName
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_composite_right_leaf_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_composite_right_leaf_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -990,7 +997,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
       hrightContext hleftMem hrightMem hleftLookup hrightLookup
       hleftComposite hrightLeaf
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_leaf_right_normal_object_outputs_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_leaf_right_normal_object_outputs_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1125,7 +1133,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_le
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_leaf_right_normal_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_leaf_right_normal_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1247,7 +1256,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_observable_le
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_leaf_right_objectOutputPath_valid_normal_runtimeSpineExists
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_leaf_right_objectOutputPath_valid_normal_runtimeSpineExists
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1313,7 +1323,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_objectOutput_
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext hleftPath.to_observable
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitnessExists_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitnessExists_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1431,7 +1442,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameF
       hrightContext hleftMem hrightMem hlookup hobjectOutput
       hchildWitness
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childLeafPath_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childLeafPath_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1663,7 +1675,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameF
       hleftSupport hrightSupport hleftContext hrightContext hleftMem
       hrightMem hlookup hobjectOutput hchildExists
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_left_observable_responseName_absent_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_left_observable_responseName_absent_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -1929,7 +1942,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameF
       hleftSupport hrightSupport hleftContext hrightContext hleftMem
       hrightMem hlookup hobjectOutput hchildExists
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutput_sameField_left_observable_responseName_absent_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutput_sameField_left_observable_responseName_absent_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2221,7 +2235,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutput_s
   exact ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid,
     hwitness⟩
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFieldResponsePath_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFieldResponsePath_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2474,7 +2489,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFi
           hleftContext hrightContext hleftMem hrightMem hlookup
           hobjectOutput hchildExists
 
-theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_normal_object_outputs_right_observable_leaf_of_valid_normal_runtimeSpine
+theorem
+    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_normal_object_outputs_right_observable_leaf_of_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2643,7 +2659,8 @@ theorem responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPa
         hleftSupport hrightSupport hleftContext hrightContext
         (by simpa using hrightObservable) hleftResponseName
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_normal_right_observable_leaf_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_normal_right_observable_leaf_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2806,7 +2823,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
         hrightSpineValid hleftSupport hrightSupport hleftContext
         hrightContext (by simpa using hrightObservable) hleftResponseName
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_responseName_absent_right_observable_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_responseName_absent_right_observable_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -2909,7 +2927,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
       hrightSpineValid hleftSupport hrightSupport hleftContext
       hrightContext (by simpa using hrightObservable) hleftNoResponseName
 
-theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_composite_valid_normal_fuels
+theorem
+    responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_composite_valid_normal_fuels
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3031,7 +3050,8 @@ theorem responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSucces
       hrightContext hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
       hrightComposite
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_normal_object_outputs_right_observable_leaf_valid_normal_runtimeSpine
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_normal_object_outputs_right_observable_leaf_valid_normal_runtimeSpine
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3166,7 +3186,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_normal_object
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFieldSpinePath_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFieldSpinePath_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3478,7 +3499,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutputSameFi
           hchildWitness
       exact ⟨hleftSpineValid, hrightSpineValid, hwitness⟩
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutputSameFieldResponsePath_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutputSameFieldResponsePath_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
@@ -3536,7 +3558,8 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_objectOutputSa
   exact ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid,
     hwitness⟩
 
-theorem selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_left_objectOutputObservablePath_right_responseName_absent_valid_normal
+theorem
+    selectedPathTaggedSelectionSetsResponseDiffWitnessRoot_of_left_objectOutputObservablePath_right_responseName_absent_valid_normal
     (schema : Schema)
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     (rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
