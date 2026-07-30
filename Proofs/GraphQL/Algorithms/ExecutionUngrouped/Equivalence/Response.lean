@@ -4,6 +4,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1637,6 +1638,7 @@ theorem emptySelectionStateEquivalent
       GraphQL.Execution.collectFields, GraphQL.Execution.executeCollectedFields,
       mergeResponse_empty_object_right]
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

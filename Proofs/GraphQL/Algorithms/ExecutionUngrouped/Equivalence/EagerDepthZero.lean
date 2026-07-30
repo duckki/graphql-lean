@@ -13,20 +13,21 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
-open Eager
 
 def depthZeroVisitStatus : Nat -> VisitStatus
   | 0 => visitOk
-  | _n + 1 => .error 1
+  | n + 1 => .error (n + 1)
 
-theorem combineVisitStatus_depthZeroVisitStatus_zero_left (right : Nat)
-    : combineVisitStatus (depthZeroVisitStatus 0) (depthZeroVisitStatus right)
-      = depthZeroVisitStatus right := by
-  cases right <;>
+theorem combineVisitStatus_depthZeroVisitStatus (left right : Nat)
+    : combineVisitStatus (depthZeroVisitStatus left) (depthZeroVisitStatus right)
+      = depthZeroVisitStatus (left + right) := by
+  cases left <;> cases right <;>
     simp [depthZeroVisitStatus, visitOk, combineVisitStatus,
-      GraphQL.Execution.Result.combine]
+      GraphQL.Execution.Result.combine,
+      Nat.add_comm, Nat.add_left_comm]
 
 def zeroDepthResponseNameResult
     (responseName : Name) (fields : List (Name × ResponseValue))
@@ -42,15 +43,12 @@ def zeroDepthExecutableFieldsResult
   | [], fields => (.object fields, visitOk)
   | field :: rest, fields =>
       let head := zeroDepthResponseNameResult field.responseName fields
-      match head.snd with
-      | .error errors => (head.fst, .error errors)
-      | .ok _ok =>
-          let tailFields :=
-            match head.fst with
-            | .object fields => fields
-            | _ => []
-          let tail := zeroDepthExecutableFieldsResult rest tailFields
-          (tail.fst, combineVisitStatus head.snd tail.snd)
+      let tailFields :=
+        match head.fst with
+        | .object fields => fields
+        | _ => []
+      let tail := zeroDepthExecutableFieldsResult rest tailFields
+      (tail.fst, combineVisitStatus head.snd tail.snd)
 
 theorem zeroDepthResponseNameResult_eq_visitSelection_executableField
     {ObjectIdentity : Type}
@@ -101,6 +99,14 @@ theorem
           simp [zeroDepthExecutableFieldsResult, zeroDepthResponseNameResult,
             hprevious, mergeResponseFieldResult, GraphQL.Execution.outOfFuel,
             resultValueOrNull, resultStatus]
+          have htail :=
+            visitSubfields_executableFieldSelections_depth_zero_eq_zeroDepthExecutableFieldsResult
+              schema resolvers variableValues parentType source rest
+              (mergeResponseField field.responseName .null outputFields)
+          simp [mergeResponseFieldIntoObject] at htail ⊢
+          constructor
+          · exact congrArg Prod.fst htail
+          · rw [congrArg Prod.snd htail]
       | some previous =>
           simp [zeroDepthExecutableFieldsResult, zeroDepthResponseNameResult,
             hprevious, mergeResponseFieldResult, resultValueOrNull,
@@ -109,8 +115,10 @@ theorem
             visitSubfields_executableFieldSelections_depth_zero_eq_zeroDepthExecutableFieldsResult
               schema resolvers variableValues parentType source rest
               (mergeResponseField field.responseName previous outputFields)
-          simp [mergeResponseFieldIntoObject, visitOk]
-          exact ⟨congrArg Prod.fst htail, congrArg Prod.snd htail⟩
+          simp [mergeResponseFieldIntoObject] at htail ⊢
+          constructor
+          · exact congrArg Prod.fst htail
+          · rw [congrArg Prod.snd htail]
 
 theorem collectedExecutableFields_length_eq_groups_length_of_singletons
     : ∀ groups : List (Name × List ExecutableField),
@@ -272,7 +280,18 @@ theorem visitSubfields_executableFieldSelections_depth_zero_status_fresh
       simp [visitSubfields, visitSelection, executableFieldSelections,
         executableFieldSelection, selectionDirectivesAllowBool_empty,
         mergeResponseFieldResult, mergeResponseFieldIntoObject, hlookup,
-        outOfFuel, resultValueOrNull, resultStatus, depthZeroVisitStatus]
+        outOfFuel, resultValueOrNull, resultStatus]
+      have htail' :
+          (visitSubfields schema resolvers variableValues 0 parentType source
+            (List.map executableFieldSelection rest)
+            (.object (mergeResponseField field.responseName .null outputFields))).snd =
+          depthZeroVisitStatus rest.length := by
+        simpa [executableFieldSelections] using htail
+      rw [htail']
+      cases rest <;>
+        simp [depthZeroVisitStatus, visitOk, combineVisitStatus,
+          GraphQL.Execution.Result.combine]
+      omega
 
 theorem collectedExecutableFields_responseName_key_mem
     (groups : List (Name × List ExecutableField))
@@ -357,226 +376,59 @@ theorem collectedExecutableFields_responseNames_nodup_of_singletons
           | cons second tailTail =>
               simp at hfieldsLength
 
-private theorem addExecutableGroup_ne_nil
-    (group : Name × List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    : GraphQL.Execution.addExecutableGroup group groups ≠ [] := by
-  cases groups with
-  | nil =>
-      simp [GraphQL.Execution.addExecutableGroup]
-  | cons head tail =>
-      rcases head with ⟨responseName, fields⟩
-      simp only [GraphQL.Execution.addExecutableGroup]
-      split <;> simp
-
-private theorem mergeExecutableGroups_eq_nil_iff
-    (left right : List (Name × List ExecutableField))
-    : GraphQL.Execution.mergeExecutableGroups left right = []
-      ↔ left = [] ∧ right = [] := by
-  induction right generalizing left with
-  | nil =>
-      simp [GraphQL.Execution.mergeExecutableGroups]
-  | cons group rest ih =>
-      change
-        GraphQL.Execution.mergeExecutableGroups
-            (GraphQL.Execution.addExecutableGroup group left) rest = []
-          ↔ left = [] ∧ group :: rest = []
-      rw [ih]
-      constructor
-      · intro h
-        exact False.elim
-          (addExecutableGroup_ne_nil group left h.1)
-      · intro h
-        simp at h
-
-private def DepthZeroVisitMatchesCollection
-    (groups : List (Name × List ExecutableField))
-    (visited : ResponseValue × VisitStatus)
-    : Prop :=
-  (groups = [] ∧ visited = (.object [], visitOk))
-  ∨ (groups ≠ [] ∧ ∃ output, visited = (output, .error 1))
-
-mutual
-  private theorem visitSelection_depth_zero_matches_collectSelection
-      {ObjectIdentity : Type}
-      (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-      (variableValues : VariableValues)
-      (parentType : Name) (source : ResolverValue ObjectIdentity)
-      : ∀ selection,
-          DepthZeroVisitMatchesCollection
-            (GraphQL.Execution.collectSelection schema variableValues parentType
-              source selection)
-            (visitSelection schema resolvers variableValues 0 parentType source
-              selection (.object []))
-    | .field responseName fieldName arguments directives selectionSet => by
-        by_cases hallowed :
-            selectionDirectivesAllowBool variableValues directives = true
-        · right
-          constructor
-          · simp [GraphQL.Execution.collectSelection, hallowed]
-          · refine ⟨.object [(responseName, .null)], ?_⟩
-            simp [visitSelection, hallowed, responseObjectField?,
-              lookupResponseField?, mergeResponseFieldResult,
-              mergeResponseFieldIntoObject, mergeResponseField,
-              GraphQL.Execution.outOfFuel, resultValueOrNull, resultStatus]
-        · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives
-            · rfl
-            · exact False.elim (hallowed h)
-          left
-          simp [GraphQL.Execution.collectSelection, visitSelection, hblocked,
-            visitOk]
-    | .inlineFragment none directives selectionSet => by
-        by_cases hallowed :
-            selectionDirectivesAllowBool variableValues directives = true
-        · simpa [GraphQL.Execution.collectSelection, visitSelection, hallowed]
-            using
-              visitSubfields_depth_zero_matches_collectFields schema resolvers
-                variableValues parentType source selectionSet
-        · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives
-            · rfl
-            · exact False.elim (hallowed h)
-          left
-          simp [GraphQL.Execution.collectSelection, visitSelection, hblocked,
-            visitOk]
-    | .inlineFragment (some typeCondition) directives selectionSet => by
-        by_cases hallowed :
-            selectionDirectivesAllowBool variableValues directives = true
-        · by_cases happly :
-              doesFragmentTypeApplyBool schema parentType source typeCondition =
-                true
-          · simpa [GraphQL.Execution.collectSelection, visitSelection, hallowed,
-              happly]
-              using
-                visitSubfields_depth_zero_matches_collectFields schema resolvers
-                  variableValues parentType source selectionSet
-          · have hnotApply :
-                doesFragmentTypeApplyBool schema parentType source typeCondition =
-                  false := by
-              cases h :
-                  doesFragmentTypeApplyBool schema parentType source typeCondition
-              · rfl
-              · exact False.elim (happly h)
-            left
-            simp [GraphQL.Execution.collectSelection, visitSelection, hallowed,
-              hnotApply, visitOk]
-        · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives
-            · rfl
-            · exact False.elim (hallowed h)
-          left
-          simp [GraphQL.Execution.collectSelection, visitSelection, hblocked,
-            visitOk]
-
-  private theorem visitSubfields_depth_zero_matches_collectFields
-      {ObjectIdentity : Type}
-      (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-      (variableValues : VariableValues)
-      (parentType : Name) (source : ResolverValue ObjectIdentity)
-      : ∀ selectionSet,
-          DepthZeroVisitMatchesCollection
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source selectionSet)
-            (visitSubfields schema resolvers variableValues 0 parentType source
-              selectionSet (.object []))
-    | [] => by
-        left
-        simp [GraphQL.Execution.collectFields, visitSubfields, visitOk]
-    | selection :: rest => by
-        have hhead :=
-          visitSelection_depth_zero_matches_collectSelection schema resolvers
-            variableValues parentType source selection
-        rcases hhead with ⟨hheadCollect, hheadVisit⟩
-          | ⟨hheadCollect, output, hheadVisit⟩
-        · have htail :=
-            visitSubfields_depth_zero_matches_collectFields schema resolvers
-              variableValues parentType source rest
-          rcases htail with ⟨htailCollect, htailVisit⟩
-            | ⟨htailCollect, output, htailVisit⟩
-          · left
-            constructor
-            · simp [GraphQL.Execution.collectFields, hheadCollect, htailCollect,
-                GraphQL.Execution.mergeExecutableGroups]
-            · simp [visitSubfields, hheadVisit, htailVisit, combineVisitStatus,
-                visitOk, GraphQL.Execution.Result.combine]
-          · right
-            constructor
-            · intro hcollect
-              have hnil :=
-                (mergeExecutableGroups_eq_nil_iff
-                  (GraphQL.Execution.collectSelection schema variableValues
-                    parentType source selection)
-                  (GraphQL.Execution.collectFields schema variableValues
-                    parentType source rest)).mp
-                  (by simpa [GraphQL.Execution.collectFields] using hcollect)
-              exact htailCollect hnil.2
-            · refine ⟨output, ?_⟩
-              simp [visitSubfields, hheadVisit, htailVisit, combineVisitStatus,
-                visitOk, GraphQL.Execution.Result.combine]
-        · right
-          constructor
-          · intro hcollect
-            have hnil :=
-              (mergeExecutableGroups_eq_nil_iff
-                (GraphQL.Execution.collectSelection schema variableValues
-                  parentType source selection)
-                (GraphQL.Execution.collectFields schema variableValues
-                  parentType source rest)).mp
-                (by simpa [GraphQL.Execution.collectFields] using hcollect)
-            exact hheadCollect hnil.1
-          · refine ⟨output, ?_⟩
-            simp [visitSubfields, hheadVisit]
-end
-
-theorem executeRootSelectionSet_depth_zero_aligned
+theorem ExecutableGroupsFlatSpecEquivalent_depth_zero
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (selectionSet : List Selection)
-    : RootSelectionResultAlignedEquivalent
-        (executeRootSelectionSet schema resolvers variableValues 0 parentType
-          source selectionSet)
-        (GraphQL.Execution.executeRootSelectionSet schema resolvers
-          variableValues 0 parentType source selectionSet) := by
-  have hvisit :=
-    visitSubfields_depth_zero_matches_collectFields schema resolvers
-      variableValues parentType source selectionSet
-  rcases hvisit with ⟨hcollect, hvisit⟩
-    | ⟨hcollect, output, hvisit⟩
-  · simp [executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet,
-      hcollect, hvisit, GraphQL.Execution.executeCollectedFields, visitOk,
-      RootSelectionResultAlignedEquivalent, ErrorPresenceEquivalent]
-  · have hnonempty :
-        CollectedGroupsFieldsNonempty
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            selectionSet) :=
-      collectFields_fieldsNonempty schema variableValues parentType source
-        selectionSet
-    have hspec :=
-      executeCollectedFields_depth_zero_nonempty schema resolvers variableValues
-        source
-        (GraphQL.Execution.collectFields schema variableValues parentType source
-          selectionSet)
-        hnonempty
-    cases hgroups :
-        GraphQL.Execution.collectFields schema variableValues parentType source
-          selectionSet with
-    | nil =>
-        exact False.elim (hcollect hgroups)
-    | cons group rest =>
-        simp [executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet,
-          hvisit, hgroups] at hspec ⊢
-        rw [hspec]
-        simp [RootSelectionResultAlignedEquivalent, ErrorPresenceEquivalent]
+    (groups : List (Name × List ExecutableField))
+    (hnodup : PairKeysNodup groups)
+    (hnonempty : CollectedGroupsFieldsNonempty groups)
+    (hresponses : CollectedGroupsResponseName groups)
+    (hparents : CollectedGroupsParent parentType groups)
+    (hsingletons
+      : ∀ responseName fields, (responseName, fields) ∈ groups -> fields.length = 1)
+    : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues 0
+        parentType source groups := by
+  unfold ExecutableGroupsFlatSpecEquivalent
+  unfold ExecutableFieldsFlatSpecEquivalent
+  have hspec :=
+    specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields
+      schema resolvers variableValues 0 parentType source groups hnodup
+      hnonempty hresponses hparents
+  have hcollected :=
+    executeCollectedFields_depth_zero_nonempty schema resolvers variableValues
+      source groups hnonempty
+  have hlength :
+      (collectedExecutableFields groups).length = groups.length :=
+    collectedExecutableFields_length_eq_groups_length_of_singletons groups
+      hsingletons
+  cases groups with
+  | nil =>
+      simp [executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet,
+        executableFieldSelections, collectedExecutableFields,
+        GraphQL.Execution.collectFields, GraphQL.Execution.executeCollectedFields,
+        visitSubfields, visitOk]
+  | cons group rest =>
+      have hflatNodup :
+          ((collectedExecutableFields (group :: rest)).map
+            (fun field => field.responseName)).Nodup :=
+        collectedExecutableFields_responseNames_nodup_of_singletons
+          (group :: rest) hnodup hresponses hsingletons
+      have hvisitStatus :=
+        visitSubfields_executableFieldSelections_depth_zero_status_fresh
+          schema resolvers variableValues parentType source
+          (collectedExecutableFields (group :: rest)) [] hflatNodup
+          (by
+            intro field hmem
+            simp)
+      unfold executeRootSelectionSet
+      rw [hspec]
+      rw [hcollected]
+      rw [hlength] at hvisitStatus
+      simp [hvisitStatus, depthZeroVisitStatus]
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

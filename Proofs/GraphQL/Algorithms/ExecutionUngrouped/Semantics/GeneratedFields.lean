@@ -9,6 +9,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 

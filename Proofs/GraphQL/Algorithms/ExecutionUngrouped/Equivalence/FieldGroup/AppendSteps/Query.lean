@@ -9,6 +9,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -998,6 +999,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendPlan
         exact hfieldChildren childDepth runtimeType identity hlt)
       plan rfl
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

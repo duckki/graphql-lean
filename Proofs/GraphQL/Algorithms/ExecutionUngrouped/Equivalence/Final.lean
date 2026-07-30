@@ -12,6 +12,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2540,6 +2541,7 @@ theorem executeQuery_eq_spec_of_collected_groups_child_state
     executeQueryWithFuel_eq_spec_of_collected_groups_child_state hroot hcollect
       hflat hcollected hlookups hcompatible hchildren herrors
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

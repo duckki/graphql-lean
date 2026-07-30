@@ -3,6 +3,7 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldExecution
 namespace GraphQL
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -761,6 +762,7 @@ mutual
                 simp [hhead, htail, GraphQL.Execution.Result.combine] at h
 end
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 end GraphQL

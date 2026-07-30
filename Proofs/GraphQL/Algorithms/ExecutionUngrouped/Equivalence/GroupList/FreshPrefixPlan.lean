@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1897,6 +1898,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_allFields_directiveFree_norma
     VisitSubfieldsFlatCollectsFreshPrefixes_of_allFields_directiveFree_responseNamesNodup
       schema resolvers variableValues completionDepth parentType source
       selectionSet hall hfree hnodup
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

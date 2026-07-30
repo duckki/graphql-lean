@@ -5,6 +5,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2482,6 +2483,7 @@ theorem stateEquivalent_of_append_single_inline_some_apply
     (executeRootSelectionSet_eq_spec_of_append_single_inline_some_apply
       hbody hallowed happly)
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

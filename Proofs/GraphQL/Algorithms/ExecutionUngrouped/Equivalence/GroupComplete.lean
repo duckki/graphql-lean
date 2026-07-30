@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -615,6 +616,7 @@ theorem executeQuery_eq_spec_of_collected_groups_containedAppendInvariant
     executeQueryWithFuel_eq_spec_of_collected_groups_containedAppendInvariant
       hroot hcollect hflat hcollected hlookups hcompatible happend
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

@@ -1,4 +1,6 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Semantics.AlignedReady
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.CancelingEager
+import Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings.Semantics
 
 /-!
 Final semantic-preservation theorems for ungrouped execution.
@@ -8,6 +10,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2118,6 +2121,57 @@ theorem normalizeThenCompleteUngroupedExecution_semanticsPreserved
           schema operation hschema hvalid hfree resolvers variableValues depth
           source
   exact hcompleteUngrouped.trans hgroundSpec.symm
+
+end Eager
+
+theorem ungroupedExecutionPreservesSpecExecution_proof
+    (schema : Schema) (operation : Operation)
+    : ungroupedExecutionPreservesSpecExecution schema operation := by
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  exact
+    Eager.responseDataAndErrorPresenceEquivalent_trans
+      (executeQueryWithFuel_canceling_eager_responseEquivalent schema resolvers
+        variableValues operation fuel source)
+      (Eager.ungroupedExecutionPreservesSpecExecution_proof schema operation
+        hschema hvalid resolvers variableValues fuel source hcomplete)
+
+theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
+    (schema : Schema) (operation : Operation)
+    : ungroupedExecutionEquivalentToCancelingSiblingsExecution schema operation := by
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  have hungroupedSpec :=
+    ungroupedExecutionPreservesSpecExecution_proof schema operation
+      hschema hvalid resolvers variableValues fuel source hcomplete
+  have hcancelingSpec :=
+    ExecutionCancelingSiblings.siblingCancelingExecutionPreservesSpecExecution_proof
+      schema operation resolvers variableValues fuel source
+  unfold responseDataAndErrorPresenceEquivalent at hungroupedSpec ⊢
+  unfold ExecutionCancelingSiblings.responseDataAndErrorPresenceEquivalent at hcancelingSpec
+  rcases hungroupedSpec with
+    ⟨hungroupedData, hungroupedZero, hungroupedPositive⟩
+  rcases hcancelingSpec with
+    ⟨hcancelingData, hcancelingZero, hcancelingPositive⟩
+  constructor
+  · exact hungroupedData.trans hcancelingData.symm
+  constructor
+  · intro hcancelingErrorsZero
+    rcases Nat.eq_zero_or_pos
+        (Execution.executeQueryWithFuel schema resolvers variableValues operation
+          fuel source).errors with hspecErrorsZero | hspecErrorsPositive
+    · exact hungroupedZero hspecErrorsZero
+    · exfalso
+      exact
+        (Nat.ne_of_gt (hcancelingPositive hspecErrorsPositive))
+          hcancelingErrorsZero
+  · intro hcancelingErrorsPositive
+    rcases Nat.eq_zero_or_pos
+        (Execution.executeQueryWithFuel schema resolvers variableValues operation
+          fuel source).errors with hspecErrorsZero | hspecErrorsPositive
+    · exfalso
+      exact
+        (Nat.ne_of_gt hcancelingErrorsPositive)
+          (hcancelingZero hspecErrorsZero)
+    · exact hungroupedPositive hspecErrorsPositive
 
 end ExecutionUngrouped
 end Algorithms

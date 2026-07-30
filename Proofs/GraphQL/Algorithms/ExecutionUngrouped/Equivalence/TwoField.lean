@@ -4,6 +4,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1833,6 +1834,7 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
       hcompatible hstable hfieldLookup hfirstChildren hobjects herrors
       hchildren
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

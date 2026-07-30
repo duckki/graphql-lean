@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1550,6 +1551,7 @@ mutual
                 selection (hchildren selection hselection))
 end
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

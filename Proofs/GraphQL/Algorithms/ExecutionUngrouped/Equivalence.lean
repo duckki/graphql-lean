@@ -7,3 +7,5 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Reorder
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.ReorderState
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.SliceFold
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Validation
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.DepthZero
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.CancelingEager

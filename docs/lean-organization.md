@@ -101,6 +101,7 @@ Ordinary tests live under `Tests/GraphQL/` and should mirror the corresponding
 definition or proof topic:
 
 - `Tests/GraphQL/Execution.lean`
+- `Tests/GraphQL/Algorithms/ExecutionCancelingSiblings.lean`
 - `Tests/GraphQL/Algorithms/ExecutionUngrouped.lean`
 - `Tests/GraphQL/Theories/NormalForm/GroundTypeNormalization.lean`
 - `Tests/GraphQL/Theories/NormalForm/CompleteNormalization.lean`

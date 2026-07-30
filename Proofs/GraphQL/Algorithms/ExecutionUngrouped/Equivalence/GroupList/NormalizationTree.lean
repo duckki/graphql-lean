@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -777,6 +778,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_allOutp
       suffix hsameResponse hlaterLookup hnotMiddle rfl rfl hsuffix
       (hmiddle _)
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

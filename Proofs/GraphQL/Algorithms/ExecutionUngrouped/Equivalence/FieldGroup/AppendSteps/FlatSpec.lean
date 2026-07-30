@@ -9,6 +9,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1044,6 +1045,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_ap
       field fields resolved hresponse hparent hresolve hfieldLookup
       hfieldChildren hsteps
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

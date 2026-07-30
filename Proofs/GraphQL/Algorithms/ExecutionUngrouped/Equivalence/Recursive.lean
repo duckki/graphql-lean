@@ -11,6 +11,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -792,6 +793,7 @@ theorem executeQuery_eq_spec_of_recursiveGroupedOperationState
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation source :=
   state.executeQuery_eq_spec hdepth
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

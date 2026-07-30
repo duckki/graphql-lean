@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1640,6 +1641,7 @@ theorem ExecutedFieldAppendPlan.toAppendSteps
             variableValues depth parentType source responseName field resolved
             (prefixTail ++ [later]) rest restPlan⟩
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

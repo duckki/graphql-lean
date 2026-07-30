@@ -21,6 +21,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 variable {ObjectRef : Type}
 

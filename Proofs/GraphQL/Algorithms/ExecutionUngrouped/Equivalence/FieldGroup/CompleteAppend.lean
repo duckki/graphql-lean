@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1952,6 +1953,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         completeValue, hprefix, resultValueOrNull,
                         nonNullCompletion]
                         using hproject
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

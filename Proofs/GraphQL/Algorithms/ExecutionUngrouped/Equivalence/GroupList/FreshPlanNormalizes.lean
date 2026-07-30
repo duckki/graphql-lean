@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -3053,6 +3054,7 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
 
 end SelectionSetFreshPlanNormalizes
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

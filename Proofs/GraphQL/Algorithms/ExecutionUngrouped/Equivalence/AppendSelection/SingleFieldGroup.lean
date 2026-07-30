@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -176,14 +177,14 @@ theorem completeValue_object_group_eq_spec_of_merged_child_state
   cases hincludes :
       schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
-      simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes]
   | true =>
       unfold ExecutionStateEquivalent ResponseResultEquivalent at hchild
       unfold ExecutionEquivalenceState.ungroupedProjectionResult at hchild
       unfold ExecutionEquivalenceState.specProjectionResult at hchild
       unfold ExecutionWindow.visitSubfieldsResult at hchild
-      simp only [hincludes, GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp only [hincludes, GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
       cases hvisit :
@@ -262,7 +263,7 @@ theorem completeValue_object_group_eq_spec_of_guarded_merged_child_state
   cases hincludes :
       schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
-      simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes]
   | true =>
       exact
@@ -294,13 +295,13 @@ theorem completeValue_object_group_aligned_of_merged_child_state
   cases hincludes :
       schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
-      simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes,
         ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
   | true =>
       unfold executeRootSelectionSet GraphQL.Execution.executeRootSelectionSet
         at hchild
-      simp only [hincludes, GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp only [hincludes, GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
       cases hvisit :
@@ -374,7 +375,7 @@ theorem completeValue_object_group_aligned_of_guarded_merged_child_state
   cases hincludes :
       schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
-      simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes,
         ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
   | true =>
@@ -407,22 +408,22 @@ theorem completeValue_named_group_aligned_of_guarded_merged_child_states
   cases depth with
   | zero =>
       cases value <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValue, outOfFuel,
           ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
   | succ childDepth =>
       cases value with
       | null =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue, ResponseValueResultAlignedEquivalent,
             ErrorPresenceEquivalent]
       | scalar value =>
           by_cases hcomposite :
               (TypeRef.named parentType).isCompositeBool schema = true
-          · simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          · simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, hcomposite,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
-          · simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          · simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, hcomposite,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | object runtimeType identity =>
@@ -435,7 +436,7 @@ theorem completeValue_named_group_aligned_of_guarded_merged_child_states
                 exact hchildren childDepth runtimeType identity
                   (Nat.lt_succ_self childDepth) hincludes)
       | list values =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue, ResponseValueResultAlignedEquivalent,
             ErrorPresenceEquivalent]
 
@@ -474,21 +475,21 @@ theorem completeValue_group_aligned_of_guarded_merged_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | scalar scalarValue =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | object runtimeType identity =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | list values =>
@@ -534,7 +535,7 @@ theorem completeValue_group_aligned_of_guarded_merged_child_states
                       GraphQL.Execution.Result.combine] using
                       ListResponseResultAlignedEquivalent.combine_cons
                         hhead htail
-              simpa [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simpa [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?] using
                 ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
   | nonNull inner ih =>
@@ -588,22 +589,22 @@ theorem completeValue_group_aligned_of_contained_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | scalar value =>
               by_cases hcomposite :
                   (TypeRef.named typeName).isCompositeBool schema = true
-              · simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              · simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                   GraphQL.Execution.completeValue, hcomposite,
                   ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
-              · simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              · simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                   GraphQL.Execution.completeValue, hcomposite,
                   ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | object runtimeType identity =>
@@ -617,7 +618,7 @@ theorem completeValue_group_aligned_of_contained_child_states
                       (Nat.lt_succ_self childDepth)
                       ValueContainsObject.here hincludes)
           | list values =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
   | list inner ih =>
@@ -625,21 +626,21 @@ theorem completeValue_group_aligned_of_contained_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | scalar scalarValue =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | object runtimeType identity =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue,
                 ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | list values =>
@@ -695,7 +696,7 @@ theorem completeValue_group_aligned_of_contained_child_states
                       GraphQL.Execution.Result.combine] using
                       ListResponseResultAlignedEquivalent.combine_cons
                         hhead htail
-              simpa [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simpa [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?] using
                 ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
   | nonNull inner ih =>
@@ -895,7 +896,7 @@ theorem completeValue_object_list_group_eq_spec_of_merged_child_states
             (objects.map
               (fun object =>
                 (.object object.fst object.snd : ResolverValue ObjectIdentity)))) := by
-  simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+  simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
     GraphQL.Execution.completeValue]
 
 theorem completeValue_object_list_group_eq_spec_of_guarded_merged_child_states
@@ -935,7 +936,7 @@ theorem completeValue_object_list_group_eq_spec_of_guarded_merged_child_states
             (objects.map
               (fun object =>
                 (.object object.fst object.snd : ResolverValue ObjectIdentity)))) := by
-  simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+  simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
     GraphQL.Execution.completeValue]
 
 theorem completeValue_group_eq_spec_of_merged_child_states
@@ -967,15 +968,15 @@ theorem completeValue_group_eq_spec_of_merged_child_states
   cases depth with
   | zero =>
       cases value <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValue, outOfFuel]
   | succ childDepth =>
       cases value with
       | null =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | scalar value =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | object runtimeType identity =>
           exact
@@ -985,7 +986,7 @@ theorem completeValue_group_eq_spec_of_merged_child_states
               (hchildren childDepth runtimeType identity
                 (Nat.lt_succ_self childDepth))
       | list values =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
 
 theorem completeValue_group_eq_spec_of_guarded_merged_child_states
@@ -1018,15 +1019,15 @@ theorem completeValue_group_eq_spec_of_guarded_merged_child_states
   cases depth with
   | zero =>
       cases value <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValue, outOfFuel]
   | succ childDepth =>
       cases value with
       | null =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | scalar value =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | object runtimeType identity =>
           exact
@@ -1038,7 +1039,7 @@ theorem completeValue_group_eq_spec_of_guarded_merged_child_states
                 exact hchildren childDepth runtimeType identity
                   (Nat.lt_succ_self childDepth) hincludes)
       | list values =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
 
 theorem completeValue_group_eq_spec_of_contained_child_states
@@ -1072,15 +1073,15 @@ theorem completeValue_group_eq_spec_of_contained_child_states
   cases depth with
   | zero =>
       cases value <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValue, outOfFuel]
   | succ childDepth =>
       cases value with
       | null =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | scalar value =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | object runtimeType identity =>
           exact
@@ -1093,7 +1094,7 @@ theorem completeValue_group_eq_spec_of_contained_child_states
                   (Nat.lt_succ_self childDepth)
                   ValueContainsObject.here hincludes)
       | list values =>
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue]
 
 theorem completeValue_single_field_eq_spec_of_guarded_child_states
@@ -1129,15 +1130,15 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | scalar value =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
               simpa [GraphQL.Execution.mergedFieldSelectionSet] using
@@ -1151,25 +1152,25 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
                       hchildren childDepth runtimeType identity
                         (Nat.lt_succ_self childDepth) hincludes)
           | list values =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
   | list inner ih =>
       intro depth value hchildren
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | scalar value =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | list values =>
               have hlist :
@@ -1200,7 +1201,7 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
                           variableValues childDepth inner [field] rest :=
                       ihValues
                     simp [completeValueList, GraphQL.Execution.completeValueList, hhead, htail, GraphQL.Execution.Result.combine]
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?, hlist,
                 catchBubbleAsNull, GraphQL.Execution.catchBubbleAsNull]
   | nonNull inner ih =>
@@ -1208,7 +1209,7 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           have hinner :
@@ -1220,7 +1221,7 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
               intro grandChildDepth runtimeType identity hlt hincludes
               exact hchildren grandChildDepth runtimeType identity hlt
                 hincludes)
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue, hinner]
 
 theorem completeValue_single_field_eq_spec_of_contained_child_states
@@ -1257,15 +1258,15 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | scalar value =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
               simpa [GraphQL.Execution.mergedFieldSelectionSet] using
@@ -1280,25 +1281,25 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
                         (Nat.lt_succ_self childDepth)
                         ValueContainsObject.here hincludes)
           | list values =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
   | list inner ih =>
       intro depth value hchildren
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           cases value with
           | null =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | scalar value =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | list values =>
               have hlist :
@@ -1341,7 +1342,7 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
                       exact hchildren grandChildDepth runtimeType identity hlt
                         hcontainsCons hincludes
                     simp [completeValueList, GraphQL.Execution.completeValueList, hhead, htail, GraphQL.Execution.Result.combine]
-              simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+              simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
                 GraphQL.Execution.completeValue, reuseOrCreateList?, hlist,
                 catchBubbleAsNull, GraphQL.Execution.catchBubbleAsNull]
   | nonNull inner ih =>
@@ -1349,7 +1350,7 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
       cases depth with
       | zero =>
           cases value <;>
-            simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+            simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
               GraphQL.Execution.completeValue, outOfFuel]
       | succ childDepth =>
           have hinner :
@@ -1362,7 +1363,7 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
                 hincludes
               exact hchildren grandChildDepth runtimeType identity hlt
                 hcontains hincludes)
-          simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
             GraphQL.Execution.completeValue, hinner]
 
 theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
@@ -1668,6 +1669,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
             ResponseValueResultAlignedEquivalent.singleFieldResult responseName
               hcomplete
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

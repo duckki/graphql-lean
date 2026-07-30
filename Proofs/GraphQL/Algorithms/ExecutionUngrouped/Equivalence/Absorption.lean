@@ -4,6 +4,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1663,6 +1664,7 @@ theorem VisitSubfieldsAbsorbsFrom_single_field_allowed_succ_of_visit_fresh
     visitSubfields_response_ready schema resolvers variableValues (depth + 1)
       parentType source firstSelectionSet [] ResponseMergeReady_empty_object
 
+end Eager
 end ExecutionUngrouped
 
 end Algorithms

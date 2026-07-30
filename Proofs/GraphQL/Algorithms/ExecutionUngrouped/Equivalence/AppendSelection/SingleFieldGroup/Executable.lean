@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1355,6 +1356,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_merged_co
       (resolvers.resolve field.parentType field.fieldName field.arguments source)
       hgroupResponses hgroupParents rfl hungrouped
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

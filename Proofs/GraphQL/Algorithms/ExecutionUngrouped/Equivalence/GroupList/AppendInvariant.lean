@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1759,6 +1760,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
             (hfieldChildren responseName field fields hgroup)
             (hsteps responseName field fields hgroup))
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

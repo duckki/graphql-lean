@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1880,6 +1881,7 @@ theorem
       resolvers variableValues (completionDepth + 1) parentType source suffix
       hsuffix)
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

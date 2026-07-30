@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2293,6 +2294,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_of_invariant
       fields hroot hcollect hgroup hexact hdirect hinvariant hcompatible
       hfieldLookup hprefixChildren hobjects herrors hchildren
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1752,6 +1753,7 @@ theorem collectedExecutableFields_fresh_singleton_prefix_of_not_mem
   simp at hprefix
   exact hne hprefix
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

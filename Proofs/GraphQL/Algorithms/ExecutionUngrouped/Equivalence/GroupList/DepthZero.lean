@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.GroupList.FreshPlanNormalizes
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.EagerDepthZero
 
 /-!
 Depth-zero group-list execution helpers.
@@ -8,6 +9,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1333,6 +1335,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_all
     ⟨normalized, hnormalized⟩
   simpa [executableFieldSelections] using hnormalized.rawFreshFlat
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

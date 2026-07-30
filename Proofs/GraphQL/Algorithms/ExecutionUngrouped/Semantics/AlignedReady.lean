@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -628,6 +629,7 @@ noncomputable def
                 ExecutedGroupedSelectionSetAlignedState.of_collected_groups_recursiveAlignedAppendState
                   hcollect hflat hcollected hlookups hcompatible happend
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

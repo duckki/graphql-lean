@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -568,6 +569,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_sameScopedP
       hvalid hsameParent
   · exact hresolvers
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

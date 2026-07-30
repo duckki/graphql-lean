@@ -8,6 +8,7 @@ import GraphQL.NamedFragment.Validation
 import GraphQL.NamedFragment.Execution
 import GraphQL.NamedFragment.Inline
 import GraphQL.NamedFragment.Translate
+import GraphQL.Algorithms.ExecutionCancelingSiblings
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
 

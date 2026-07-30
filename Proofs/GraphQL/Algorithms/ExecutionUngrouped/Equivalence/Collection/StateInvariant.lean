@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1549,6 +1550,7 @@ theorem ExecutionStateInvariant.of_grouped_compatible
     exact ExecutableFieldsMergeCompatible.resolveStable state.window.resolvers
       state.window.source fields (hcompatible responseName fields hmem)
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

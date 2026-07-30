@@ -5,6 +5,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -720,13 +721,13 @@ theorem completeValue_null_eq_spec
           parentType fields (.null : ResolverValue ObjectIdentity) := by
   cases previous? with
   | none =>
-    simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+    simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
       GraphQL.Execution.completeValueData,
       GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD]
   | some previous =>
       cases previous <;>
         simp [resultValueOrNull,
-          GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+          GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValueData,
           GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD]
 
@@ -743,12 +744,12 @@ theorem completeValue_zero_eq_spec
           parentType fields value := by
   cases value <;> cases previous? with
   | none =>
-    simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+    simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
       GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
       GraphQL.Execution.Result.getD, resultValueOrNull, outOfFuel]
   | some previous =>
       cases previous <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
           GraphQL.Execution.Result.getD, resultValueOrNull, outOfFuel]
 
@@ -768,7 +769,7 @@ theorem completeValue_scalar_eq_spec
   by_cases hcomposite :
       (TypeRef.named parentType).isCompositeBool schema = true <;>
     simp [resultValueOrNull,
-      GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
       GraphQL.Execution.completeValueData,
       GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD,
       hcomposite]
@@ -803,11 +804,11 @@ theorem completeValue_object_eq_visitSubfields
         | _ => .error 1 := by
   cases previous? with
   | none =>
-      simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+      simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
         reuseOrCreateObject?]
   | some previous =>
       cases previous <;>
-        simp [GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+        simp [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
           reuseOrCreateObject?]
 
 def scalarCompletionAtDepth (schema : Schema) (parentType : Name)
@@ -943,7 +944,7 @@ theorem completeValue_duplicate_null_merge_eq_spec
       = GraphQL.Execution.completeValueData schema resolvers variableValues depth
           parentType fields (.null : ResolverValue ObjectIdentity) := by
   cases depth <;>
-    simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngrouped.completeValue,
+    simp [resultValueOrNull, GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValue,
       GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
       GraphQL.Execution.Result.getD, outOfFuel, mergeResponse]
 
@@ -3349,6 +3350,7 @@ theorem executeRootSelectionSet_eq_spec_of_exact_empty_group
       schema resolvers variableValues depth parentType source selectionSet
       hdirect hgroups
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

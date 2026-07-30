@@ -1,4 +1,4 @@
-import GraphQL.Algorithms.ExecutionUngrouped
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Eager
 import Proofs.GraphQL.Theories.NormalForm.Shared.Execution
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMerge
 import Proofs.GraphQL.Theories.NormalForm.Shared.RuntimeTypes
@@ -22,6 +22,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 structure ExecutionWindow (ObjectIdentity : Type) where
@@ -213,6 +214,18 @@ theorem ErrorPresenceEquivalent.drop_right_of_left_pos
     omega
   · intro _hspecPositive
     exact hleft
+
+theorem ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
+    {ungrouped specLeft specRight : Nat} (hUngrouped : 0 < ungrouped)
+    (hleft : ErrorPresenceEquivalent ungrouped specLeft)
+    : ErrorPresenceEquivalent ungrouped (specLeft + specRight) := by
+  constructor
+  · intro hzero
+    have hspecLeftZero : specLeft = 0 := by omega
+    have hungroupedZero := hleft.1 hspecLeftZero
+    omega
+  · intro _hpositive
+    exact hUngrouped
 
 theorem ErrorPresenceEquivalent.add_reassociate
     {headLeft headRight tailLeft tailRight headSpec tailSpec : Nat}
@@ -732,6 +745,19 @@ theorem responseDataAndErrorPresenceEquivalent_of_rootSelectionResult
           (responseOfRootSelectionResult spec) := by
   intro h
   exact ⟨h.1, h.2.1, h.2.2⟩
+
+theorem responseDataAndErrorPresenceEquivalent_of_selectionSetResultToResponse
+    {ungrouped spec : Result (List (Name × ResponseValue))}
+    : RootSelectionResultAlignedEquivalent ungrouped spec
+      -> responseDataAndErrorPresenceEquivalent
+          (GraphQL.Execution.selectionSetResultToResponse ungrouped)
+          (GraphQL.Execution.selectionSetResultToResponse spec) := by
+  intro h
+  cases ungrouped <;> cases spec <;>
+    simp [RootSelectionResultAlignedEquivalent,
+      GraphQL.Execution.selectionSetResultToResponse,
+      responseDataAndErrorPresenceEquivalent, ErrorPresenceEquivalent] at h ⊢
+  all_goals exact h
 
 theorem responseDataAndErrorPresenceEquivalent_of_eq
     {ungrouped spec : GraphQL.Execution.Response}
@@ -2138,6 +2164,80 @@ def CollectedGroupsFieldValidationMergeCompatible
   ∀ responseName fields,
     (responseName, fields) ∈ groups
     -> ExecutableFieldsFieldValidationMergeCompatible fields
+
+end Eager
+
+open GraphQL.Execution
+open Eager
+
+def cancelingRootSelectionAppend (left right : Result (List (Name × ResponseValue)))
+    : Result (List (Name × ResponseValue)) :=
+  match left with
+  | .error errors => .error errors
+  | .ok _ok => GraphQL.Execution.Result.combine List.append left right
+
+def cancelingVisitResultAppend (left right : ResponseValue × VisitStatus)
+    : ResponseValue × VisitStatus :=
+  match left.snd with
+  | .error errors => (left.fst, .error errors)
+  | .ok _ok => (right.fst, combineVisitStatus left.snd right.snd)
+
+@[simp]
+theorem cancelingVisitResultAppend_error_left
+    (value : ResponseValue) (errors : Nat)
+    (right : ResponseValue × VisitStatus)
+    : cancelingVisitResultAppend (value, .error errors) right
+      = (value, .error errors) := by
+  rfl
+
+@[simp]
+theorem cancelingVisitResultAppend_visitOk_left
+    (value : ResponseValue) (right : ResponseValue × VisitStatus)
+    : cancelingVisitResultAppend (value, visitOk) right = right := by
+  rcases right with ⟨rightValue, rightStatus⟩
+  cases rightStatus <;>
+    simp [cancelingVisitResultAppend, combineVisitStatus, visitOk,
+      GraphQL.Execution.Result.combine]
+
+theorem Eager.RootSelectionResultAlignedEquivalent.canceling_combine_append
+    {ungroupedLeft specLeft ungroupedRight specRight
+      : Result (List (Name × ResponseValue))}
+    (hleftPositive : ∀ errors, ungroupedLeft = .error errors -> 0 < errors)
+    : RootSelectionResultAlignedEquivalent ungroupedLeft specLeft
+      -> RootSelectionResultAlignedEquivalent ungroupedRight specRight
+      -> RootSelectionResultAlignedEquivalent
+          (cancelingRootSelectionAppend ungroupedLeft ungroupedRight)
+          (GraphQL.Execution.Result.combine List.append specLeft specRight) := by
+  intro hleft hright
+  cases ungroupedLeft with
+  | error ungroupedErrors =>
+      have hungroupedPositive : 0 < ungroupedErrors :=
+        hleftPositive ungroupedErrors rfl
+      cases specLeft with
+      | error specLeftErrors =>
+          have hleftErrors :
+              ErrorPresenceEquivalent ungroupedErrors specLeftErrors := by
+            simpa [RootSelectionResultAlignedEquivalent] using hleft
+          cases specRight with
+          | error specRightErrors =>
+              simpa [RootSelectionResultAlignedEquivalent,
+                cancelingRootSelectionAppend,
+                GraphQL.Execution.Result.combine] using
+                ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
+                  hungroupedPositive hleftErrors
+          | ok specRightResult =>
+              rcases specRightResult with ⟨specRightFields, specRightErrors⟩
+              simpa [RootSelectionResultAlignedEquivalent,
+                cancelingRootSelectionAppend,
+                GraphQL.Execution.Result.combine] using
+                ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
+                  hungroupedPositive hleftErrors
+      | ok specLeftResult =>
+          rcases specLeftResult with ⟨specLeftFields, specLeftErrors⟩
+          simp [RootSelectionResultAlignedEquivalent] at hleft
+  | ok ungroupedLeftResult =>
+      simpa [cancelingRootSelectionAppend] using
+        RootSelectionResultAlignedEquivalent.combine_append hleft hright
 
 end ExecutionUngrouped
 end Algorithms

@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2921,6 +2922,7 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
   · exact herrors
   · exact hchildren
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

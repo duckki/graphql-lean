@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1281,6 +1282,7 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_childLocalFacts_objec
         selectionSet responseName field fields prefixTail hlookupValid hmerge
         hparentRuntime hgroup hprefix
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

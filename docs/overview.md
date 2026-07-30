@@ -36,8 +36,10 @@ flowchart TD
   CompleteNormalization["Proofs.GraphQL.Theories.NormalForm.CompleteNormalization"]
   Execution["GraphQL.Execution"]
   NamedFragment["GraphQL.NamedFragment/*"]
-  Algorithms["GraphQL.Algorithms.ExecutionUngrouped"]
-  ProofAlgorithms["Proofs.GraphQL.Algorithms.ExecutionUngrouped"]
+  Canceling["GraphQL.Algorithms.ExecutionCancelingSiblings"]
+  ProofCanceling["Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings"]
+  Ungrouped["GraphQL.Algorithms.ExecutionUngrouped"]
+  ProofUngrouped["Proofs.GraphQL.Algorithms.ExecutionUngrouped"]
   GraphQLRoot["GraphQL"]
   ProofRoot["Proofs"]
   TestsGraphQL["Tests.GraphQL"]
@@ -56,13 +58,16 @@ flowchart TD
   Validation --> NormalForm
   NormalForm --> NormalFormGround
   NormalForm --> CompleteNormalization
-  Execution --> Algorithms
+  Execution --> Canceling
+  Execution --> Ungrouped
   NamedFragment --> GraphQLRoot
   NormalForm --> Algorithms
   NormalFormGround --> ProofRoot
   CompleteNormalization --> ProofRoot
-  Algorithms --> ProofAlgorithms
-  ProofAlgorithms --> ProofRoot
+  Canceling --> ProofCanceling
+  ProofCanceling --> ProofRoot
+  Ungrouped --> ProofUngrouped
+  ProofUngrouped --> ProofRoot
 
   SchemaWF --> GraphQLRoot
   Operation --> GraphQLRoot
@@ -143,15 +148,25 @@ It should remain definition-only.
   fragment-free operation syntax.
 - `Proofs.GraphQL.NamedFragment`: proof witnesses connecting fragment-aware
   validity and execution with the inlined fragment-free representation.
+- `GraphQL.Algorithms.ExecutionCancelingSiblings`: collected-field execution
+  that stops after a field result bubbles through its current selection set.
+- `Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings`: the unconditional
+  resolver-parametric proof that sibling cancellation preserves response data
+  and execution-error presence, though not exact error counts.
 - `GraphQL.Algorithms.ExecutionUngrouped`: public alternative execution
   algorithm that visits selections directly and merges response slices as it
   goes.
 - `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for the
   ungrouped algorithm. Its public theorem preserves response data and error
   presence against `GraphQL.Execution`, but not exact execution-error counts.
+  It also proves the same equivalence against
+  `GraphQL.Algorithms.ExecutionCancelingSiblings` by transitivity through the
+  spec executor. Response-name grouping means the two algorithms' exact error
+  counts can differ.
 - `Tests.GraphQL`: ordinary test aggregator. Its modules live under
   `Tests/GraphQL/` and mirror the corresponding GraphQL or proof topic,
-  including `Algorithms/ExecutionUngrouped` and `Theories/NormalForm`.
+  including `Algorithms/ExecutionCancelingSiblings`,
+  `Algorithms/ExecutionUngrouped`, and `Theories/NormalForm`.
 - `Tests.Conformance`: generated and fixture-driven conformance test
   aggregator. Its modules live under `Tests/Conformance/`.
 - `Lint`: local project tooling. `Lint.ImportClosure` checks that tracked Lean
@@ -169,15 +184,18 @@ The current flow is:
    completing values, and accumulating modeled execution-error counts.
 4. `GraphQL.Theories.NormalForm` provides project-specific normalization
    definitions and public resolver-parametric correctness predicates.
-5. `GraphQL.Algorithms.ExecutionUngrouped` provides a verified alternative
+5. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified
+   collected-field executor that cancels remaining sibling response positions
+   after a bubble.
+6. `GraphQL.Algorithms.ExecutionUngrouped` provides a verified alternative
    execution algorithm over the same operation syntax.
-6. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
+7. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
    validation, execution, inlining, and translation definitions.
-7. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
+8. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
    through inlining and translation to the fragment-free syntax.
-8. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
+9. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
    proof-facing ground-type lemmas.
-9. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
+10. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
    proof-facing lemmas for directive-aware Boolean case branch normalization.
 
 Normal forms consume `GraphQL.Operation` directly. The directive-free

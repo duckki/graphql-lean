@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1020,6 +1021,7 @@ theorem executeQuery_eq_spec_of_exact_empty_group
   exact executeQueryWithFuel_eq_spec_of_exact_empty_group schema resolvers
     variableValues operation (GraphQL.Execution.executeQueryFuelBound operation)
     source hroot hcollect hdirect
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

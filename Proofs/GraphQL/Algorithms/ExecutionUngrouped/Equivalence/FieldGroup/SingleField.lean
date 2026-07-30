@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -1653,6 +1654,7 @@ theorem
         resolvedValue)
       hprefix htail haligned
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

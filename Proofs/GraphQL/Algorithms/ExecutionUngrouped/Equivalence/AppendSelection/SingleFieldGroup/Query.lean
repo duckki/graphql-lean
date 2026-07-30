@@ -8,6 +8,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -524,6 +525,7 @@ theorem executeQuery_eq_spec_of_exact_single_field_group
     resolvers variableValues operation depth source responseName field hroot
     hcollect hdirect hparent hchildren
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

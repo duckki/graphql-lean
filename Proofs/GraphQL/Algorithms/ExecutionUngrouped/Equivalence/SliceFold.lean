@@ -14,6 +14,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -2199,6 +2200,7 @@ theorem VisitSubfieldsPopulates.of_executableFieldSelections_responseNamesNodup_
       variableValues completionDepth source fields previousFields hnodup
       hdisjoint)
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

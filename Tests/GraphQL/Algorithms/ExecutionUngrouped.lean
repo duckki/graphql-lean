@@ -80,6 +80,26 @@ def duplicateHeroNullBubbleQuery : Operation :=
       ]
   }
 
+def cancelSiblingAfterRootBubbleSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.object
+        {
+          name := "Query"
+          fields :=
+            [testNonNullStringFieldDefinition "a", testStringFieldDefinition "b"]
+          interfaces := []
+        }]
+  }
+
+def cancelSiblingAfterRootBubbleQuery : Operation :=
+  {
+    name := some "CancelSiblingAfterRootBubble"
+    selectionSet :=
+      [.field "a" "a" [] [] [], .field "b" "b" [] [] []]
+  }
+
 def sampleResolversWithFriends : GraphQL.Execution.Resolvers :=
   { resolve := fun parentType fieldName _arguments _source =>
       some <|
@@ -110,6 +130,12 @@ def laterNullBubblingDuplicateResolvers : GraphQL.Execution.Resolvers :=
       | "Character", "name" => some (.scalar "Leia")
       | "Character", "age" => none
       | _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl }
+
+def nullSiblingResolvers : GraphQL.Execution.Resolvers :=
+  { resolve := fun _parentType _fieldName _arguments _source => none
     resolve_argumentsEquivalent := by
       intros
       rfl }
@@ -163,6 +189,21 @@ theorem duplicateCompositeNullBubbleErrorsDifferSmoke
       ∧ ungrouped.errors = 1
       ∧ responseEqBool spec.data ungrouped.data = true
       ∧ responseEqBool spec.data (.object [("hero", .null)]) = true := by
+  native_decide
+
+theorem siblingAfterRootBubbleCancelledSmoke
+    : let source := GraphQL.Execution.ResolverValue.object "Query" ()
+      let spec :=
+        GraphQL.Execution.executeQueryWithFuel cancelSiblingAfterRootBubbleSchema
+          nullSiblingResolvers [] cancelSiblingAfterRootBubbleQuery 5 source
+      let ungrouped :=
+        GraphQL.Algorithms.ExecutionUngrouped.executeQueryWithFuel
+          cancelSiblingAfterRootBubbleSchema nullSiblingResolvers []
+          cancelSiblingAfterRootBubbleQuery 5 source
+      spec.errors = 2
+      ∧ ungrouped.errors = 1
+      ∧ responseEqBool spec.data ungrouped.data = true
+      ∧ responseEqBool spec.data .null = true := by
   native_decide
 
 theorem duplicateCompositeLaterNullBubbleOverridesPreviousDataSmoke

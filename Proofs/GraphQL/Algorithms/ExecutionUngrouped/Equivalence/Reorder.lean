@@ -13,6 +13,7 @@ namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
 
@@ -867,6 +868,7 @@ theorem visitFieldSliceFold_succ_adjacent_existing_second_swap_after_prefix_of_t
       resolvers variableValues completionDepth source first second rest fields
       hsecond hne hleftTrace hrightTrace
 
+end Eager
 end ExecutionUngrouped
 end Algorithms
 

@@ -1,154 +1,26 @@
-import GraphQL.Execution
-import GraphQL.Algorithms.ExecutionCancelingSiblings
-import GraphQL.Theories.NormalForm
+import GraphQL.Algorithms.ExecutionUngrouped
 
 /-!
 Alternative GraphQL query execution semantics.
 
-This module is a proof-facing implementation of the same query fragment as
+This legacy eager model is retained only as a proof reference for the canceling
+implementation. It is otherwise the same proof-facing implementation of the same
+query fragment as
 `GraphQL.Execution`. It preserves response data and error presence, but not exact
 error counts, while visiting selections directly instead of first constructing the
 complete collected-fields map. Field visits normally call the resolver. Later visits
 to the same response key reuse the previous value: composite values are revisited
-through their subselections, while a previous `null` is final for that response
-position. A null bubble cancels remaining sibling selections in the same selection
-list, so this model may count fewer sibling and subfield errors than collected
-execution.
+through their subselections, while a previous `null` short-circuits sibling
+subselections and may therefore count fewer subfield errors than collected execution.
 -/
 
 namespace GraphQL
 
 namespace Algorithms
 namespace ExecutionUngrouped
+namespace Eager
 
 open GraphQL.Execution
-
-instance : Inhabited ResponseValue := ⟨.null⟩
-
-def lookupResponseField? (responseName : Name)
-    : List (Name × ResponseValue) -> Option ResponseValue
-  | [] => none
-  | (fieldResponseName, response) :: rest =>
-      if fieldResponseName == responseName then
-        some response
-      else
-        lookupResponseField? responseName rest
-
-def responseObjectField? (responseName : Name) : ResponseValue -> Option ResponseValue
-  | .object fields => lookupResponseField? responseName fields
-  | _ => none
-
-def executableField (parentType responseName fieldName : Name)
-    (arguments : List Argument) (selectionSet : List Selection)
-    : ExecutableField :=
-  {
-    parentType := parentType
-    responseName := responseName
-    fieldName := fieldName
-    arguments := arguments
-    selectionSet := selectionSet
-  }
-
--- A previous response value is always reusable as the completion accumulator. This
--- helper only decides when that previous value is already final for this response
--- position, so field execution can stop instead of resolving and completing more
--- subfields.
-def reusablePreviousValue? (schema : Schema)
-    : TypeRef -> Option ResponseValue -> Option ResponseValue
-  | _fieldType, none =>
-      none
-  | _fieldType, some .null =>
-      some .null
-  | fieldType, some previous =>
-      if fieldType.isCompositeBool schema then
-        none
-      else
-        some previous
-
-def reuseOrCreateObject? : Option ResponseValue -> Option ResponseValue
-  | none => some (.object [])
-  | some previous@(.object _fields) => some previous
-  | some _ => none
-
-def reuseOrCreateList? : Option ResponseValue -> Option (List ResponseValue)
-  | none => some []
-  | some (.list previousValues) => some previousValues
-  | some _ => none
-
-mutual
-  def mergeResponse (existing incoming : ResponseValue) : ResponseValue :=
-    match existing, incoming with
-    | .null, _ =>
-        .null
-    | _, .null =>
-        .null
-    | .object existingFields, .object incomingFields =>
-        .object (mergeResponseFields existingFields incomingFields)
-    | .list existingValues, .list incomingValues =>
-        .list (mergeResponseLists existingValues incomingValues)
-    | _, _ => existing
-
-  def mergeResponseFields
-      : List (Name × ResponseValue) -> List (Name × ResponseValue)
-        -> List (Name × ResponseValue)
-    | existingFields, [] => existingFields
-    | existingFields, (responseName, incoming) :: rest =>
-        mergeResponseFields (mergeResponseField responseName incoming existingFields) rest
-
-  def mergeResponseField (responseName : Name) (incoming : ResponseValue)
-      : List (Name × ResponseValue) -> List (Name × ResponseValue)
-    | [] => [(responseName, incoming)]
-    | (fieldResponseName, existing) :: rest =>
-        if fieldResponseName == responseName then
-          (fieldResponseName, mergeResponse existing incoming) :: rest
-        else
-          (fieldResponseName, existing) :: mergeResponseField responseName incoming rest
-
-  def mergeResponseLists : List ResponseValue -> List ResponseValue -> List ResponseValue
-    | [], _incomingValues => []
-    | existingValues, [] => existingValues
-    | existing :: existingRest, incoming :: incomingRest =>
-        mergeResponse existing incoming :: mergeResponseLists existingRest incomingRest
-end
-
-abbrev VisitStatus : Type :=
-  Result Unit
-
-def visitOk (errors : Nat := 0) : VisitStatus :=
-  .ok ((), errors)
-
--- Extract the value from the incoming `Result ResponseValue`, returning `.null` for
--- errors and null bubbles.
-def resultValueOrNull : Result ResponseValue -> ResponseValue
-  | .error _errors => .null
-  | .ok (value, _errors) => value
-
--- Extract the status from the incoming `Result ResponseValue`.
-def resultStatus {α : Type} : Result α -> VisitStatus
-  | .error errors => .error errors
-  | .ok (_value, errors) => visitOk errors
-
-def mergeResponseFieldIntoObject (responseName : Name) (incoming : ResponseValue)
-    : ResponseValue -> ResponseValue
-  | .object fields => .object (mergeResponseField responseName incoming fields)
-  | response => response
-
-def mergeResponseFieldResult (responseName : Name)
-    (fieldResult : Result ResponseValue) (output : ResponseValue)
-    : ResponseValue × VisitStatus :=
-  (
-    mergeResponseFieldIntoObject responseName (resultValueOrNull fieldResult) output,
-    resultStatus fieldResult
-  )
-
-def combineVisitStatus (left right : VisitStatus) : VisitStatus :=
-  Result.combine (fun _unit _unit => ()) left right
-
-def catchVisitBubbleAsNull (value : ResponseValue) (status : VisitStatus)
-    : Result ResponseValue :=
-  match status with
-  | .error errors => .ok (.null, errors)
-  | .ok (_unit, errors) => .ok (value, errors)
 
 mutual
   -- Spec 6.3.2 `CollectFields`/`executeCollectedFields`: visitor over a selection list
@@ -163,13 +35,10 @@ mutual
         let head :=
           visitSelection schema resolvers variableValues fuel parentType source
             selection output
-        match head.snd with
-        | .error errors => (head.fst, .error errors)
-        | .ok _ok =>
-            let tail :=
-              visitSubfields schema resolvers variableValues fuel parentType source
-                rest head.fst
-            (tail.fst, combineVisitStatus head.snd tail.snd)
+        let tail :=
+          visitSubfields schema resolvers variableValues fuel parentType source
+            rest head.fst
+        (tail.fst, combineVisitStatus head.snd tail.snd)
 
   -- Spec 6.3.2 `CollectFields`/`executeCollectedFields` selection step: handles built-in
   -- directives and inline fragments while updating an output object directly.
@@ -385,8 +254,8 @@ def responseDataAndErrorPresenceEquivalent (ungrouped spec : GraphQL.Execution.R
 -- fewer sub-field errors after a null-bubble has already set the response position to
 -- `null`. See example `duplicateHeroNullBubbleQuery` in
 -- `Tests/GraphQL/Algorithms/ExecutionUngrouped.lean`.
--- Proof witness: `ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof`
--- in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
+-- Proof witness: `Eager.ungroupedExecutionPreservesSpecExecution_proof` in
+-- `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
 def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
@@ -400,29 +269,7 @@ def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Oper
           (GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
             operation fuel source)
 
--- Resolver-parametric equivalence between ungrouped execution and the
--- sibling-canceling collected executor. The equivalence includes response data
--- and error presence, but not the exact `Nat` error count. Collection groups
--- later occurrences of a response name with its first occurrence, which can
--- move their errors before an interleaved sibling that bubbles; syntax-order
--- ungrouped execution may cancel those later occurrences instead.
--- Proof witness:
--- `ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof`
--- in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
-def ungroupedExecutionEquivalentToCancelingSiblingsExecution
-    (schema : Schema) (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-        variableValues fuel (source : ResolverValue ObjectRef),
-      NormalForm.operationBoolVarsComplete operation
-        (GraphQL.Execution.coerceVariableValues operation variableValues)
-      -> responseDataAndErrorPresenceEquivalent
-          (executeQueryWithFuel schema resolvers variableValues operation fuel source)
-          (ExecutionCancelingSiblings.executeQueryWithFuel schema resolvers
-            variableValues operation fuel source)
-
+end Eager
 end ExecutionUngrouped
 end Algorithms
 
