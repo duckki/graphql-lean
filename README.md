@@ -1,78 +1,83 @@
 # graphql-lean
 
-Lean models for GraphQL.
+`graphql-lean` is a GraphQL formalization in Lean, based on the [GraphQL September
+2025 Edition](https://spec.graphql.org/September2025/).
 
-Canonical GraphQL specification reference:
-[GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+Compared with prior theorem-prover formalizations such as
+[GraphCoQL](https://github.com/imfd/GraphCoQL), this development fills important gaps in
+the formal treatment of GraphQL. Notably, it models `@skip` / `@include` directives, null
+bubbling, execution errors up to error counts, and named fragments. It also includes
+verified algorithmic alternatives to the spec executor and a directive-aware normalization
+theory.
 
-For the project structure, dependency diagram, and module overview, see
-[docs/overview.md](docs/overview.md).
+## Highlights
 
-For the current spec-conformance scope summary, see
-[docs/spec-conformance.md](docs/spec-conformance.md).
+- [GraphQL/](GraphQL/) contains the public formal model of the scoped GraphQL
+  2025 spec: schema syntax and well-formedness, operation syntax, validation,
+  execution, named fragments, verified algorithms, and public theory definitions.
+- [ExecutionCancelingSiblings](GraphQL/Algorithms/ExecutionCancelingSiblings.lean)
+  verifies a spec-style executor that cancels sibling response positions after
+  null bubbling.
+- [ExecutionUngrouped](GraphQL/Algorithms/ExecutionUngrouped.lean) verifies a
+  lightweight syntax-order execution that avoids building the collected
+  field map.
+- [ExecutionBreadth](GraphQL/Algorithms/ExecutionBreadth.lean) verifies a
+  breadth-first execution model with vectorized resolver calls, inspired by
+  [gmac/graphql-breadth-js](https://github.com/gmac/graphql-breadth-js),
+  against the spec-facing executor.
+- [NormalForm](GraphQL/Theories/NormalForm.lean) provides ground-type and complete
+  normalization.
+  Complete normalization supports modeled `@skip` / `@include` directives,
+  unlike the earlier paper/Coq normalizers, and its canonicity theorems prove
+  that semantic equivalence of operations can be reduced to comparison of normal
+  forms.
 
-For project-specific normal forms and verified algorithms, see
-[docs/normal-form.md](docs/normal-form.md) and
-[docs/algorithms.md](docs/algorithms.md).
+## GraphQL Layout
 
-## Layout
+The public model is rooted at [GraphQL.lean](GraphQL.lean), which imports the
+definition surfaces below.
 
-The main Lean roots are organized by role:
+- [GraphQL/Schema.lean](GraphQL/Schema.lean): GraphQL type-system syntax, type
+  references, lookup, possible-object helpers, default-value validity, and
+  interface implementation compatibility helpers.
+- [GraphQL/SchemaWellFormedness.lean](GraphQL/SchemaWellFormedness.lean): schema
+  well-formedness predicates for the modeled fragment.
+- [GraphQL/Operation.lean](GraphQL/Operation.lean): core operation syntax,
+  variable definitions, selections, inline fragments, and modeled directive
+  applications.
+- [GraphQL/Validation.lean](GraphQL/Validation.lean): operation validation
+  predicates, including field validity, argument validity, variable-use checks,
+  selection-shape checks, fragment applicability, and merge compatibility.
+- [GraphQL/Execution.lean](GraphQL/Execution.lean): resolver-parametric
+  spec-facing execution with field collection, completion, null bubbling, and
+  response envelopes containing data plus execution-error counts.
+- [GraphQL/NamedFragment/](GraphQL/NamedFragment/): fragment-aware operation
+  syntax, validation, execution, translation, and inlining support.
+- [GraphQL/Algorithms/](GraphQL/Algorithms/): verified non-spec execution
+  algorithms: sibling-canceling execution, ungrouped execution, and breadth-first
+  execution.
+- [GraphQL/Theories/](GraphQL/Theories/): public project theories, currently
+  including normal forms and their public statements.
 
-- `GraphQL`: public definitions for the scoped GraphQL model and public
-  project-theory definitions.
-- `Proofs`: theorem modules and proof-facing helper definitions.
-- `Tests`: ordinary GraphQL tests under `Tests/GraphQL/` plus conformance tests
-  under `Tests/Conformance/`.
-- `Lint`: project-local tooling.
+Proof witnesses are under [Proofs/](Proofs/). Ordinary tests are under
+[Tests/GraphQL/](Tests/GraphQL/), and generated or fixture-driven conformance
+tests are under [Tests/Conformance/](Tests/Conformance/).
 
 ## Build
-
-Build all Lean targets:
 
 ```sh
 lake build
 ```
 
-Run linting:
+## Documentation
 
-```sh
-lake lint
-```
-
-Check that every tracked Lean file is reachable from the public roots:
-
-```sh
-lake exe import-closure
-```
-
-This package uses leanfmt from
-[duckki/leanfmt](https://github.com/duckki/leanfmt) as a Lake dependency.
-
-Format all Lean sources:
-
-```sh
-lake exe fmt --recursive *.lean GraphQL Proofs Tests Lint
-```
-
-Check formatting without rewriting files:
-
-```sh
-lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Lint
-```
-
-The lint target runs Lean's built-in linters with documentation warnings disabled.
-It also enforces project-local community-style checks inspired by common
-Mathlib/CSLib practice: lines at 100 columns except URLs, no trailing
-whitespace or tabs, no unscoped diagnostic/resource `set_option`, no bare
-`open Classical`, no lambda or dollar syntax, no double underscores in
-declaration names, a 1500-line soft file limit, and no tracked Lean files
-outside the transitive import closure of `GraphQL`, `Proofs`, `Tests`, `Lint`,
-and `Lint.ImportClosureMain`.
-
-The main top-level Lean roots are:
-
-- `GraphQL`
-- `Proofs`
-- `Tests`
-- `Lint`
+- [docs/overview.md](docs/overview.md): module map and architecture overview.
+- [docs/spec-conformance.md](docs/spec-conformance.md): implemented
+  spec-conformance scope and out-of-scope boundaries.
+- [docs/algorithms.md](docs/algorithms.md): verified algorithmic alternatives
+  to the spec-facing executor.
+- [docs/normal-form.md](docs/normal-form.md): normal-form definitions and
+  preservation theorems.
+- [docs/normal-form-uniqueness.md](docs/normal-form-uniqueness.md): canonicity
+  and semantic-equivalence results for normal forms.
+- [docs/development.md](docs/development.md): developer guide.
