@@ -1,0 +1,16 @@
+import Proofs.GraphQL.Theories.ResponseShape.Validity
+import Proofs.GraphQL.Theories.ResponseShape.Denotation
+import Proofs.GraphQL.Theories.ResponseShape.Footprint
+import Proofs.GraphQL.Theories.ResponseShape.Compute.Totality
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.Equivalence
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.Operation
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.WrappedCaseBranches
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.Reification
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.ReorderingFootprint
+import Proofs.GraphQL.Theories.ResponseShape.Correspondence.Canonicity
+import Proofs.GraphQL.Theories.ResponseShape.Relations.Basics
+import Proofs.GraphQL.Theories.ResponseShape.Relations.Operation
+import Proofs.GraphQL.Theories.ResponseShape.Comparison.Enumeration
+import Proofs.GraphQL.Theories.ResponseShape.Comparison.Subset
+import Proofs.GraphQL.Theories.ResponseShape.Comparison.Strict
+import Proofs.GraphQL.Theories.ResponseShape.Comparison.Operation

@@ -120,6 +120,21 @@ theorem mem_operationBoolVars_of_selectionSet (operation : Operation) (varName :
   exact (mem_dedupBoolVars_iff varName
     (selectionSetBooleanVariables operation.selectionSet)).2 hmem
 
+/-- Equivalent operation Boolean-variable supports are simultaneously empty. -/
+theorem operationBoolVars_eq_nil_of_equivalent_left_nil
+    {left right : Operation}
+    (hvariables : operationBoolVarsEquivalent left right)
+    (hleft : operationBoolVars left = [])
+    : operationBoolVars right = [] := by
+  cases hright : operationBoolVars right with
+  | nil => rfl
+  | cons head tail =>
+      have hheadRight : head ∈ operationBoolVars right := by
+        simp [hright]
+      have hheadLeft : head ∈ operationBoolVars left :=
+        (hvariables head).2 hheadRight
+      simp [hleft] at hheadLeft
+
 theorem directivesBooleanVariables_mem_selectionBooleanVariables_field
     (varName : BoolVar)
     (responseName fieldName : Name) (arguments : List Argument)

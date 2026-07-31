@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
+import Proofs.GraphQL.Argument
 
 /-!
 Syntactic decomposition support for ground-type normal-form uniqueness.
@@ -119,55 +120,30 @@ inductive NormalSelectionSetDiff (schema : Schema)
           leftChildSelectionSet rightChildSelectionSet
       -> NormalSelectionSetDiff schema parentType left right
 
-mutual
-  theorem inputValue_structuralEquivalent_refl_forSyntaxDiff
-      : ∀ value, InputValue.structuralEquivalent value value
-    | .null => by simp [InputValue.structuralEquivalent]
-    | .int _ => by simp [InputValue.structuralEquivalent]
-    | .float _ => by simp [InputValue.structuralEquivalent]
-    | .string _ => by simp [InputValue.structuralEquivalent]
-    | .boolean _ => by simp [InputValue.structuralEquivalent]
-    | .enum _ => by simp [InputValue.structuralEquivalent]
-    | .variable _ => by simp [InputValue.structuralEquivalent]
-    | .list values => by
-        simp [InputValue.structuralEquivalent,
-          inputValues_structuralEquivalent_refl_forSyntaxDiff values]
-    | .object fields => by
-        simp [InputValue.structuralEquivalent,
-          inputObjectFields_structuralEquivalent_refl_forSyntaxDiff fields]
+theorem inputValue_structuralEquivalent_refl_forSyntaxDiff (value : InputValue)
+    : InputValue.structuralEquivalent value value :=
+  InputValue.structuralEquivalent_refl value
 
-  theorem inputValues_structuralEquivalent_refl_forSyntaxDiff
-      : ∀ values, InputValue.structuralValuesEquivalent values values
-    | [] => by simp [InputValue.structuralValuesEquivalent]
-    | value :: rest => by
-        simp [InputValue.structuralValuesEquivalent,
-          inputValue_structuralEquivalent_refl_forSyntaxDiff value,
-          inputValues_structuralEquivalent_refl_forSyntaxDiff rest]
+theorem inputValues_structuralEquivalent_refl_forSyntaxDiff (values : List InputValue)
+    : InputValue.structuralValuesEquivalent values values :=
+  InputValue.structuralValuesEquivalent_refl values
 
-  theorem inputObjectFields_structuralEquivalent_refl_forSyntaxDiff
-      : ∀ fields, InputValue.structuralObjectFieldsEquivalent fields fields
-    | [] => by simp [InputValue.structuralObjectFieldsEquivalent]
-    | (_name, value) :: rest => by
-        simp [InputValue.structuralObjectFieldsEquivalent,
-          inputValue_structuralEquivalent_refl_forSyntaxDiff value,
-          inputObjectFields_structuralEquivalent_refl_forSyntaxDiff rest]
-end
+theorem inputObjectFields_structuralEquivalent_refl_forSyntaxDiff
+    (fields : List (Name × InputValue))
+    : InputValue.structuralObjectFieldsEquivalent fields fields :=
+  InputValue.structuralObjectFieldsEquivalent_refl fields
 
 theorem inputValue_equivalent_refl_forSyntaxDiff (value : InputValue)
-    : value.equivalent value := by
-  exact inputValue_structuralEquivalent_refl_forSyntaxDiff value.canonical
+    : value.equivalent value :=
+  InputValue.equivalent_refl value
 
 theorem argument_equivalent_refl_forSyntaxDiff (argument : Argument)
-    : argument.equivalent argument := by
-  exact ⟨rfl, inputValue_equivalent_refl_forSyntaxDiff argument.value⟩
+    : argument.equivalent argument :=
+  Argument.equivalent_refl argument
 
 theorem argumentsEquivalent_refl_forSyntaxDiff (arguments : List Argument)
-    : Argument.argumentsEquivalent arguments arguments := by
-  constructor
-  · intro argument hargument
-    exact ⟨argument, hargument, argument_equivalent_refl_forSyntaxDiff argument⟩
-  · intro argument hargument
-    exact ⟨argument, hargument, argument_equivalent_refl_forSyntaxDiff argument⟩
+    : Argument.argumentsEquivalent arguments arguments :=
+  Argument.argumentsEquivalent_refl arguments
 
 theorem selectionSetNormal_responseNamesNodup
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}

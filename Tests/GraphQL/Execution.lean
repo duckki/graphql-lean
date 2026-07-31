@@ -231,6 +231,158 @@ theorem executeExplicitNullForNonNullFieldCountsErrorSmoke
       ∧ responseEqBool response.data (.object [("mainHero", .null)]) = true := by
   native_decide
 
+def profileStatusSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .object
+          {
+            name := "Query"
+            fields :=
+              [
+                testObjectFieldDefinition "profile" "Profile",
+                {
+                  name := "profiles"
+                  outputType := .list (.named "Profile")
+                  arguments := []
+                }
+              ]
+            interfaces := []
+          },
+        .object
+          {
+            name := "Profile"
+            fields :=
+              [
+                testNonNullStringFieldDefinition "id",
+                testNonNullStringFieldDefinition "status"
+              ]
+            interfaces := []
+          }
+      ]
+  }
+
+def profileIdQuery : Operation :=
+  {
+    name := some "ProfileId"
+    selectionSet :=
+      [.field "profile" "profile" [] [] [.field "id" "id" [] [] []]]
+  }
+
+def profileIdAndStatusQuery : Operation :=
+  {
+    name := some "ProfileIdAndStatus"
+    selectionSet :=
+      [
+        .field "profile" "profile" [] []
+          [
+            .field "id" "id" [] [] [],
+            .field "status" "status" [] [] []
+          ]
+      ]
+  }
+
+def profileListIdQuery : Operation :=
+  {
+    name := some "ProfileListId"
+    selectionSet :=
+      [.field "profiles" "profiles" [] [] [.field "id" "id" [] [] []]]
+  }
+
+def profileListIdAndStatusQuery : Operation :=
+  {
+    name := some "ProfileListIdAndStatus"
+    selectionSet :=
+      [
+        .field "profiles" "profiles" [] []
+          [
+            .field "id" "id" [] [] [],
+            .field "status" "status" [] [] []
+          ]
+      ]
+  }
+
+def profileStatusResolvers : GraphQL.Execution.Resolvers String :=
+  { resolve := fun parentType fieldName _arguments source =>
+      match parentType, fieldName, source with
+      | "Query", "profile", .object _ "root" =>
+          some (.object "Profile" "pending")
+      | "Query", "profiles", .object _ "root" =>
+          some (.list [.object "Profile" "pending", .object "Profile" "ready"])
+      | "Profile", "id", .object _ "pending" => some (.scalar "profile-pending")
+      | "Profile", "id", .object _ "ready" => some (.scalar "profile-ready")
+      | "Profile", "status", .object _ "pending" => none
+      | "Profile", "status", .object _ "ready" => some (.scalar "READY")
+      | _, _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl }
+
+def profileStatusRoot : GraphQL.Execution.ResolverValue String :=
+  .object "Query" "root"
+
+-- Spec 6.4.4: an error completing a non-null child bubbles through its nullable
+-- object field, even though selecting only the unaffected child succeeds.
+theorem executeExtraNonNullProfileFieldBubblesNullableParent
+    : let baseline :=
+        GraphQL.Execution.executeQuery profileStatusSchema profileStatusResolvers []
+          profileIdQuery profileStatusRoot
+      let withStatus :=
+        GraphQL.Execution.executeQuery profileStatusSchema profileStatusResolvers []
+          profileIdAndStatusQuery profileStatusRoot
+      baseline.errors = 0
+      ∧ responseEqBool baseline.data
+          (.object
+            [("profile", .object [("id", .scalar "profile-pending")])])
+        = true
+      ∧ withStatus.errors = 1
+      ∧ responseEqBool withStatus.data (.object [("profile", .null)]) = true := by
+  native_decide
+
+-- Spec 6.4.4: nullable list items catch non-null bubbling independently, so an
+-- error in one object does not null a successfully completed sibling item.
+theorem executeExtraNonNullProfileFieldNullsOnlyFailingListItem
+    : let baseline :=
+        GraphQL.Execution.executeQuery profileStatusSchema profileStatusResolvers []
+          profileListIdQuery profileStatusRoot
+      let withStatus :=
+        GraphQL.Execution.executeQuery profileStatusSchema profileStatusResolvers []
+          profileListIdAndStatusQuery profileStatusRoot
+      baseline.errors = 0
+      ∧ responseEqBool baseline.data
+          (.object
+            [
+              (
+                "profiles",
+                .list
+                  [
+                    .object [("id", .scalar "profile-pending")],
+                    .object [("id", .scalar "profile-ready")]
+                  ]
+              )
+            ])
+        = true
+      ∧ withStatus.errors = 1
+      ∧ responseEqBool withStatus.data
+          (.object
+            [
+              (
+                "profiles",
+                .list
+                  [
+                    .null,
+                    .object
+                      [
+                        ("id", .scalar "profile-ready"),
+                        ("status", .scalar "READY")
+                      ]
+                  ]
+              )
+            ])
+        = true := by
+  native_decide
+
 theorem collectSubfieldsMatchesGroupedSelections
     (field : GraphQL.Execution.ExecutableField)
     (fields : List GraphQL.Execution.ExecutableField)

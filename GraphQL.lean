@@ -13,6 +13,7 @@ import GraphQL.Algorithms.ExecutionCancelingSiblings
 import GraphQL.Algorithms.ExecutionBreadth
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
+import GraphQL.Theories.ResponseShape
 
 /-!
 Spec reference: GraphQL September 2025.

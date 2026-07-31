@@ -67,18 +67,37 @@ syntactic comparison:
 3. compare the results up to the permitted reorderings
 ```
 
-Both normalizers are total deterministic Lean functions. The remaining equality
-relations are currently specified as propositions. A verified executable comparator
-for `operationsEqualUpToReordering` and
-`completeNormalOperationsEqualUpToReordering`, or an additional sorting pass that
-produces structurally equal canonical syntax, will turn normalization plus equality
-up to reordering into a deterministic decision procedure for the corresponding
-semantic equivalence.
+Both normalizers are total deterministic Lean functions. The response-shape
+operation comparator, `decideOperationEquivalence`, computes both shapes and
+decides their strict structural equivalence. Its structural biconditional,
+`computeOperationShape_strictEquivalent_iff_normalizedEqualUpToReordering`, says
+that strict shape equivalence is equivalent to complete-normal operations being
+equal up to the permitted reorderings. The biconditional requires the same
+schema-well-formedness and operation-validity premises as shape computation,
+together with explicit source Boolean-support equivalence. It does not require
+possible-type validity or Boolean/type-condition feasibility; those assumptions
+belong only to semantic completeness below. Computed-shape provenance alone does
+not recover source support once all complete-normal branches are empty.
 
-Thus the current theorem supplies the semantic completeness and soundness of that
-future procedure for operations with the same variable definitions. The remaining
-work is computational rather than semantic: decide the finite syntactic relation
-and prove the checker correct.
+Acceptance is sound under schema well-formedness, validity of both operations, and
+equal variable definitions: it yields
+`operationsSemanticallyEquivalentForCompleteBoolVars`, with the left operation's
+Boolean support as its complete-environment domain. It does not establish
+unrestricted semantic equivalence.
+
+For directive-free operations, empty Boolean support makes the complete-Boolean
+semantic relation coincide with unrestricted equivalence, so this route supplies
+semantic decision coverage. It does not separately expose an executable checker
+for `operationsEqualUpToReordering`.
+
+Completeness starts from unrestricted `operationsSemanticallyEquivalent`, but only
+under schema well-formedness, validity of both operations, both
+possible-type-validity assumptions, both Boolean/type-condition feasibility
+assumptions, and explicit source Boolean-support equivalence. Those are the
+complete-normalization uniqueness premises that make a rejected comparator result
+imply semantic non-equivalence. `unknown` records only readiness; valid computed
+shapes satisfy the readiness conditions, so their comparisons return accepted or
+rejected.
 
 ### Normalization As A Proof Principle
 
@@ -419,8 +438,9 @@ Lean's definitional computation rules.
 The project does not define a separate GraphQL one-step reduction relation, so the
 result is not a confluence theorem over arbitrary GraphQL reduction paths. It is a
 canonicity theorem for the output of a deterministic functional normalizer. Equality
-up to reordering remains unoriented; a verified comparator or sorting phase will make
-the associated semantic decision method directly executable.
+up to reordering remains unoriented; the response-shape operation comparator makes
+the associated semantic decision method directly executable within its stated
+soundness and uniqueness premises.
 
 The distinction from ordinary lambda-calculus normalization is semantic. Beta/eta
 conversion generates lambda-calculus equality, whereas GraphQL execution semantics is
@@ -429,9 +449,10 @@ reified by the syntax produced through Lean computation.
 
 ## 5. Verification Status
 
-The already-normal theorems and normalization corollaries compile without proof
-holes. Axiom audits for their public theorem witnesses report only `propext`,
-`Classical.choice`, and `Quot.sound`; they do not report `sorryAx`.
+The already-normal theorems, normalization corollaries, response-shape
+biconditional, and operation comparator compile without proof holes. Axiom audits
+for their public theorem witnesses report only `propext`, `Classical.choice`, and
+`Quot.sound`; they do not report `sorryAx`.
 
 Run:
 
@@ -440,6 +461,10 @@ lake env lean Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/Uniquen
 lake env lean Tests/GraphQL/Theories/NormalForm/GroundTypeNormalization.lean
 lake env lean Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/Uniqueness.lean
 lake env lean Tests/GraphQL/Theories/NormalForm/CompleteNormalization.lean
+lake env lean GraphQL/Theories/ResponseShape/Relations.lean
+lake env lean Proofs/GraphQL/Theories/ResponseShape/Correspondence/Canonicity.lean
+lake env lean Proofs/GraphQL/Theories/ResponseShape/Comparison/Operation.lean
+lake env lean Tests/GraphQL/Theories/ResponseShape/OperationComparison.lean
 lake build
 lake lint
 ```

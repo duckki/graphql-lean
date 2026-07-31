@@ -734,6 +734,12 @@ def BoolCase.lookup? (boolCase : BoolCase) (varName : BoolVar) : Option Bool :=
   | (candidate, value) :: rest =>
       if candidate == varName then some value else BoolCase.lookup? rest varName
 
+/-- Materializes a Boolean case as execution variables ahead of optional base values. -/
+def boolCaseVariableValues
+    (boolCase : BoolCase) (base : Execution.VariableValues := [])
+    : Execution.VariableValues :=
+  boolCase.map (fun entry => (entry.1, .boolean entry.2)) ++ base
+
 def inputValueBoolIn? (boolCase : BoolCase) : InputValue -> Option Bool
   | .variable varName => BoolCase.lookup? boolCase varName
   | value => value.staticBoolean?
@@ -890,7 +896,7 @@ export CompleteNormalization (
   inputValuesBooleanVariables inputObjectFieldsBooleanVariables
   directiveBooleanVariables directivesBooleanVariables
   selectionBooleanVariables selectionSetBooleanVariables boolVariableMem
-  dedupBoolVars allBoolCases BoolCase.lookup?
+  dedupBoolVars allBoolCases BoolCase.lookup? boolCaseVariableValues
   inputValueBoolIn? directiveAllowsIn
   directivesAllowIn directiveForBit
   wrapWithBoolCase

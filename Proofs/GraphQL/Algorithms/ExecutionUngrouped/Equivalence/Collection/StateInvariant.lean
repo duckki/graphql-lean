@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection
+import Proofs.GraphQL.Argument
 
 /-!
 Collected-group argument, resolver, and execution-state invariants.
@@ -616,43 +617,21 @@ def CollectedGroupsFieldLookupValid
     -> ∃ fieldDefinition,
         schema.lookupField parentType field.fieldName = some fieldDefinition
 
-mutual
-  theorem inputValue_structuralEquivalent_refl
-      : ∀ value : InputValue, InputValue.structuralEquivalent value value
-    | .null => by simp [InputValue.structuralEquivalent]
-    | .int value => by simp [InputValue.structuralEquivalent]
-    | .float value => by simp [InputValue.structuralEquivalent]
-    | .string value => by simp [InputValue.structuralEquivalent]
-    | .boolean value => by simp [InputValue.structuralEquivalent]
-    | .enum value => by simp [InputValue.structuralEquivalent]
-    | .variable name => by simp [InputValue.structuralEquivalent]
-    | .list values => by
-        simp [InputValue.structuralEquivalent,
-          inputValue_structuralValuesEquivalent_refl values]
-    | .object fields => by
-        simp [InputValue.structuralEquivalent,
-          inputValue_structuralObjectFieldsEquivalent_refl fields]
+theorem inputValue_structuralEquivalent_refl (value : InputValue)
+    : InputValue.structuralEquivalent value value :=
+  InputValue.structuralEquivalent_refl value
 
-  theorem inputValue_structuralValuesEquivalent_refl
-      : ∀ values : List InputValue, InputValue.structuralValuesEquivalent values values
-    | [] => by simp [InputValue.structuralValuesEquivalent]
-    | value :: rest => by
-        simp [InputValue.structuralValuesEquivalent,
-          inputValue_structuralEquivalent_refl value,
-          inputValue_structuralValuesEquivalent_refl rest]
+theorem inputValue_structuralValuesEquivalent_refl (values : List InputValue)
+    : InputValue.structuralValuesEquivalent values values :=
+  InputValue.structuralValuesEquivalent_refl values
 
-  theorem inputValue_structuralObjectFieldsEquivalent_refl
-      : ∀ fields : List (Name × InputValue),
-          InputValue.structuralObjectFieldsEquivalent fields fields
-    | [] => by simp [InputValue.structuralObjectFieldsEquivalent]
-    | (name, value) :: rest => by
-        simp [InputValue.structuralObjectFieldsEquivalent,
-          inputValue_structuralEquivalent_refl value,
-          inputValue_structuralObjectFieldsEquivalent_refl rest]
-end
+theorem inputValue_structuralObjectFieldsEquivalent_refl
+    (fields : List (Name × InputValue))
+    : InputValue.structuralObjectFieldsEquivalent fields fields :=
+  InputValue.structuralObjectFieldsEquivalent_refl fields
 
-theorem inputValue_equivalent_refl (value : InputValue) : value.equivalent value := by
-  exact inputValue_structuralEquivalent_refl value.canonical
+theorem inputValue_equivalent_refl (value : InputValue) : value.equivalent value :=
+  InputValue.equivalent_refl value
 
 theorem fieldsForNameCanMerge_executable_identity
     (schema : Schema) (first later : ExecutableField)

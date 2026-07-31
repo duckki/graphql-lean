@@ -10,10 +10,6 @@ namespace NormalForm
 
 namespace CompleteNormalization
 
-def boolCaseVariableValues (boolCase : BoolCase) (base : Execution.VariableValues := [])
-    : Execution.VariableValues :=
-  boolCase.map (fun entry => (entry.1, .boolean entry.2)) ++ base
-
 theorem BoolCase.lookup?_eq_of_pair_mem_nodup
     {boolCase : BoolCase} {varName : BoolVar} {value : Bool}
     (hnodup : (boolCase.map Prod.fst).Nodup)
