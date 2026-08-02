@@ -5,7 +5,7 @@ import Proofs.GraphQL.Execution.ResolverValue
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2031,7 +2031,7 @@ theorem completeValueList_cons_previous
                   selectionSet value (some previous))
           (completeValueList schema resolvers variableValues depth itemType
             selectionSet rest previousRest) := by
-  rw [GraphQL.Algorithms.ExecutionUngrouped.Eager.completeValueList.eq_def]
+  rw [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValueList.eq_def]
   rfl
 
 theorem completeValueList_head_eq_completeResolvedValue_of_composite
@@ -3343,7 +3343,7 @@ theorem completeValueList_append_result_eq_spec_of_mem
                       simp [hrightHead, resultStatus, visitOk] at hheadStatus'
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

@@ -10,7 +10,7 @@ that supply collection flatness and collected-field invariants.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -794,7 +794,7 @@ theorem executeQuery_eq_spec_of_recursiveGroupedOperationState
   state.executeQuery_eq_spec hdepth
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

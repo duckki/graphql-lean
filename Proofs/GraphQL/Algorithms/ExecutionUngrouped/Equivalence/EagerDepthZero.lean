@@ -12,7 +12,7 @@ separate status counting from intermediate response-object shape.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -429,7 +429,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_depth_zero
       simp [hvisitStatus, depthZeroVisitStatus]
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

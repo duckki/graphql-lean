@@ -7,7 +7,7 @@ Append-invariant and aligned group-list assembly helpers.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1761,7 +1761,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
             (hsteps responseName field fields hgroup))
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

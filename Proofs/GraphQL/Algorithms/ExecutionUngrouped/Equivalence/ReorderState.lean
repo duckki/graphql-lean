@@ -14,7 +14,7 @@ populated by the prefix.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -433,7 +433,7 @@ theorem executeRootSelectionSet_eq_spec_of_middle_existing_last_swap_after_singl
 end RecursiveGroupedSelectionSetState
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

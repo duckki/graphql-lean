@@ -7,7 +7,7 @@ Collected single-group state constructors for field-group equivalence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2295,7 +2295,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_of_invariant
       hfieldLookup hprefixChildren hobjects herrors hchildren
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

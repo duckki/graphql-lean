@@ -3,7 +3,7 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldExecution
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1665,7 +1665,7 @@ theorem VisitSubfieldsAbsorbsFrom_single_field_allowed_succ_of_visit_fresh
       parentType source firstSelectionSet [] ResponseMergeReady_empty_object
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 
 end Algorithms
 end GraphQL

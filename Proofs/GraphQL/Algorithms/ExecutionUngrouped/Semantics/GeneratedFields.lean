@@ -8,7 +8,7 @@ Generated-field and field-normality lemmas for ungrouped execution.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution

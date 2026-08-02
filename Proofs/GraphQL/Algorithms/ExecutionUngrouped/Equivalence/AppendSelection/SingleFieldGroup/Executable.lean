@@ -7,7 +7,7 @@ Executable-field and executable-group wrappers for single-field groups.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1357,7 +1357,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_merged_co
       hgroupResponses hgroupParents rfl hungrouped
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

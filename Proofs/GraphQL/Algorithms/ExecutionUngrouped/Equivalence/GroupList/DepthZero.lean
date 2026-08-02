@@ -8,7 +8,7 @@ Depth-zero group-list execution helpers.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1336,7 +1336,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_all
   simpa [executableFieldSelections] using hnormalized.rawFreshFlat
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

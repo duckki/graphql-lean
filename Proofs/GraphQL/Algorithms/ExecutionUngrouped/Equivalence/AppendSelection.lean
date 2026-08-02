@@ -4,7 +4,7 @@ import Proofs.GraphQL.Execution.ResolverValue
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2484,7 +2484,7 @@ theorem stateEquivalent_of_append_single_inline_some_apply
       hbody hallowed happly)
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

@@ -3,7 +3,7 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldGroup.Colle
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1835,7 +1835,7 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
       hchildren
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

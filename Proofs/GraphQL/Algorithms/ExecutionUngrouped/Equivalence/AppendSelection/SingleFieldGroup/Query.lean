@@ -7,7 +7,7 @@ Root-selection and query wrappers for exact single-field groups.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -526,7 +526,7 @@ theorem executeQuery_eq_spec_of_exact_single_field_group
     hcollect hdirect hparent hchildren
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

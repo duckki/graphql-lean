@@ -7,7 +7,7 @@ Group-list proof helpers that carry final merged-complete evidence per group.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -619,7 +619,7 @@ theorem executeQuery_eq_spec_of_collected_groups_containedAppendInvariant
       hroot hcollect hflat hcollected hlookups hcompatible happend
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

@@ -2,7 +2,7 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldExecution
 
 namespace GraphQL
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -763,6 +763,6 @@ mutual
 end
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 end GraphQL

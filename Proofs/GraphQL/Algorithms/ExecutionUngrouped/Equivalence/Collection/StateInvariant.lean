@@ -7,7 +7,7 @@ Collected-group argument, resolver, and execution-state invariants.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1551,7 +1551,7 @@ theorem ExecutionStateInvariant.of_grouped_compatible
       state.window.source fields (hcompatible responseName fields hmem)
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

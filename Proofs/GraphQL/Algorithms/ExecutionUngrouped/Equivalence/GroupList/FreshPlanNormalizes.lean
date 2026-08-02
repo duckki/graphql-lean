@@ -7,7 +7,7 @@ Fresh-plan normalization witnesses for group-list selection sets.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -3055,7 +3055,7 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
 end SelectionSetFreshPlanNormalizes
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

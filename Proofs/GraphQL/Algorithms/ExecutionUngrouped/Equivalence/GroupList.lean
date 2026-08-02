@@ -7,7 +7,7 @@ Group-list proof helpers for the final ungrouped execution equivalence theorem.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1754,7 +1754,7 @@ theorem collectedExecutableFields_fresh_singleton_prefix_of_not_mem
   exact hne hprefix
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

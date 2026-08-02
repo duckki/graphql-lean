@@ -3,7 +3,7 @@ import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.State
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1639,7 +1639,7 @@ theorem emptySelectionStateEquivalent
       mergeResponse_empty_object_right]
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

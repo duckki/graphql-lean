@@ -7,12 +7,11 @@ the modeled semantics under stated assumptions.
 
 ## Sibling-Canceling Spec Execution
 
-`GraphQL.Algorithms.ExecutionCancelingSiblings` retains the spec executor's
-field collection, grouping, resolver calls, and value completion. When a
-collected field result bubbles through the current selection set, it returns
-immediately instead of executing the remaining sibling response positions.
-Nested nullable completion still catches that bubble as `null` in the same way
-as `GraphQL.Execution`.
+`GraphQL.Algorithms.ExecutionCancelingSiblings` uses the spec executor's field
+collection, grouping, resolver calls, and value completion. When a collected
+field result bubbles through the active selection set, it returns immediately
+instead of executing the remaining sibling response positions. Nested nullable
+completion catches that bubble as `null` in the same way as `GraphQL.Execution`.
 
 The public statement
 `GraphQL.Algorithms.ExecutionCancelingSiblings.siblingCancelingExecutionPreservesSpecExecution`
@@ -29,42 +28,42 @@ in
 
 ## Ungrouped Execution
 
-`GraphQL.Algorithms.ExecutionUngrouped` is an alternative query execution
+`GraphQL.Algorithms.ExecutionUngrouped` is a syntax-order query execution
 algorithm for the same scoped fragment as `GraphQL.Execution`. The spec-facing
-execution model collects fields by response name before executing each response
+executor collects fields by response name before executing each response
 position. Ungrouped execution visits selections directly and merges response
-slices as it goes.
+slices as it walks the selection list.
 
-The design goal is to avoid the memory cost of building the complete collected
-field map. Ungrouped execution traverses the query in syntax order. A first
-visit to a response position calls the resolver and completes the value. A later
-visit to the same response position reuses the previous response value instead
-of calling the resolver again: for composite values it descends into the
-subselection set and merges any newly visited child response slices; for final
-scalar, enum, or null values it moves on to the next selection.
+The algorithm is aimed at synchronous execution. It can be lighter in CPU and
+memory usage because it avoids constructing the full collected-fields map, keeps
+only field-level state for response positions, and stops walking sibling
+selections when null bubbling determines the enclosing result.
 
-This also explains the theorem's error-count caveat. If a composite field has
-already completed to `null`, for example because null bubbling from a subfield
-produced an error null, later visits to the same response position reuse that
-null and skip sibling subfields under that revisit. Those skipped subfields may
-have produced additional execution errors in the spec-facing collected
-execution. In addition, when a visited field returns a bubbling error, `visitSubfields`
-cancels the remaining sibling selections in that selection set. Ungrouped execution
-therefore preserves response data and whether errors are present, but it may under-count
-execution errors.
+The internal state is a `FieldCacheValue`. A first visit to a response position
+calls the resolver and completes the value into that state. A later compatible
+visit to the same response position consults the field state, not the public
+output response. Final nulls, scalars, and lists of leaf values are returned
+directly. Composite objects and lists store the raw resolver source, so later
+compatible subselections can descend with that source instead of invoking the
+parent field resolver again. Public response data is produced by the `output`
+projection, which drops the extra state.
+
+If a composite field has completed to `null`, for example because null bubbling
+from a subfield produced an error null, later visits to the same response
+position reuse that null and skip subfields under that revisit. When a visited
+field returns a bubbling error, `visitSubfields` cancels the remaining sibling
+selections in that selection set. Ungrouped execution therefore preserves
+response data and whether errors are present, but it may under-count execution
+errors compared with collected execution.
 
 The main public statement is
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution`.
-Its proof witness is
-`GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof`
-in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
-
-The theorem is resolver-parametric: for every resolver environment, variable
-assignment, explicit fuel value, and source value, a well-formed schema and
-valid operation give equivalent ungrouped and spec-facing executions, assuming
-`NormalForm.operationBoolVarsComplete operation
-(Execution.coerceVariableValues operation variableValues)`. Both public
-executors materialize operation defaults before field collection.
+It is resolver-parametric: for every resolver environment, variable assignment,
+explicit fuel value, and source value, a well-formed schema and valid operation
+give equivalent ungrouped and spec-facing executions, assuming
+`NormalForm.operationBoolVarsComplete operation (Execution.coerceVariableValues
+operation variableValues)`. Both public executors materialize operation defaults
+before field collection.
 
 The equivalence relation is `responseDataAndErrorPresenceEquivalent`, not exact
 response equality:
@@ -82,11 +81,25 @@ preservation of detailed error counts.
 A second public statement,
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution`,
 gives the same data-and-error-presence equivalence between ungrouped execution
-and `GraphQL.Algorithms.ExecutionCancelingSiblings`. Its proof witness is
-`GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof`
-in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`. The
-proof composes both algorithms' semantic-preservation theorems through
-`GraphQL.Execution`.
+and `GraphQL.Algorithms.ExecutionCancelingSiblings`.
+
+## Uncached Ungrouped Execution
+
+`GraphQL.Algorithms.ExecutionUngroupedUncached` is a specialized ungrouped
+algorithm with the same syntax-order traversal and sibling-canceling behavior.
+It does not store resolver source values in the field state. Later compatible
+composite selections reuse the previous completed response value as the
+accumulator, then call the resolver again to recover the source value needed for
+additional subselections.
+
+This specialization is useful when calling a resolver is as cheap as caching its
+returned source value. Its public preservation statement is
+`GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution`,
+with proof modules under `Proofs/GraphQL/Algorithms/ExecutionUngrouped/`.
+
+The sibling-canceling equivalence statement is
+`GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution`.
+It uses the same `responseDataAndErrorPresenceEquivalent` relation.
 
 This relation cannot in general be strengthened to exact `Nat` error-count
 equality. Field collection groups later occurrences of a response name with
@@ -102,13 +115,13 @@ this case concretely. Its selections are `hero { name }`, a bubbling `stop`
 field, and then `hero { age }`. Ungrouped execution reaches `stop` in syntax
 order and cancels the later `hero`, producing one error. Collected
 sibling-canceling execution groups both `hero` occurrences before `stop`,
-producing two errors. Both responses still have the same `null` data and
-contain execution errors.
+producing two errors. Both responses have the same `null` data and contain
+execution errors.
 
 As a proof utility,
 `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Eager.lean` defines an eager
-variant that does not cancel siblings after an error, which bridges the spec
-executor and the canceling ungrouped executor.
+variant for the uncached semantics that does not cancel siblings after an error,
+which bridges the spec executor and the canceling uncached ungrouped executor.
 
 ## Breadth Execution
 

@@ -13,7 +13,7 @@ while bubbling results need only agree on positive error presence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 
 open GraphQL.Execution
 open Eager
@@ -917,7 +917,7 @@ theorem executeQueryWithFuel_canceling_eager_responseEquivalent
         (operation.rootType schema) source operation.selectionSet
   · exact responseDataAndErrorPresenceEquivalent_of_eq rfl
 
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

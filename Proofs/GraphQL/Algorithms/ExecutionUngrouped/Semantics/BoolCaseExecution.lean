@@ -1,4 +1,4 @@
-import GraphQL.Algorithms.ExecutionUngrouped
+import GraphQL.Algorithms.ExecutionUngroupedUncached
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Final
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Recursive
 import Proofs.GraphQL.Execution.Data
@@ -20,7 +20,7 @@ Bool-case execution lemmas for the ungrouped execution algorithm.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 variable {ObjectRef : Type}

@@ -12,7 +12,7 @@ separate status counting from intermediate response-object shape.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 
 open GraphQL.Execution
 open Eager
@@ -577,7 +577,7 @@ theorem executeRootSelectionSet_depth_zero_aligned
         rw [hspec]
         simp [RootSelectionResultAlignedEquivalent, ErrorPresenceEquivalent]
 
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

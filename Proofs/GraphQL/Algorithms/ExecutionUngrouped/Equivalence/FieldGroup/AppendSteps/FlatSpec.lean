@@ -8,7 +8,7 @@ Flat-spec conversions for field-group append-step witnesses.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1046,7 +1046,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_ap
       hfieldChildren hsteps
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

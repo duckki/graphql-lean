@@ -8,7 +8,7 @@ Root-selection and query wrappers for field-group append steps.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1000,7 +1000,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendPlan
       plan rfl
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

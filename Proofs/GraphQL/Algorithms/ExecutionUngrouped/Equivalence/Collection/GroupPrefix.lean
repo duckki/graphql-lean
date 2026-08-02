@@ -7,7 +7,7 @@ Collected group-prefix facts for merged field selection sets.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1283,7 +1283,7 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_childLocalFacts_objec
         hparentRuntime hgroup hprefix
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

@@ -140,6 +140,68 @@ def nullSiblingResolvers : GraphQL.Execution.Resolvers :=
       intros
       rfl }
 
+def sourceCachingSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .object
+          {
+            name := "Query"
+            fields := [testObjectFieldDefinition "hero" "Character"]
+            interfaces := []
+          },
+        .object
+          {
+            name := "Character"
+            fields := [testStringFieldDefinition "name", testStringFieldDefinition "age"]
+            interfaces := []
+          }
+      ]
+  }
+
+def sourceCachingQuery : Operation :=
+  {
+    name := some "SourceCaching"
+    selectionSet :=
+      [
+        .field "hero" "hero" [] [] [.field "name" "name" [] [] []],
+        .field "hero" "hero" [] [] [.field "age" "age" [] [] []]
+      ]
+  }
+
+def sourceCachingResolvers : GraphQL.Execution.Resolvers String :=
+  { resolve := fun parentType fieldName _arguments source =>
+      match parentType, fieldName, source with
+      | "Query", "hero", _ => some (.object "Character" "leia-source")
+      | "Character", "name", .object _typeName ref => some (.scalar ref)
+      | "Character", "age", .object _typeName ref => some (.scalar (ref ++ "-age"))
+      | _, _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl }
+
+def sourceCachingSource : GraphQL.Execution.ResolverValue String :=
+  GraphQL.Execution.ResolverValue.object "Query" "root"
+
+def sourceCachingVisit : GraphQL.Algorithms.ExecutionUngrouped.VisitResult String :=
+  GraphQL.Algorithms.ExecutionUngrouped.visitSubfields
+    sourceCachingSchema sourceCachingResolvers [] 8 "Query" sourceCachingSource
+    sourceCachingQuery.selectionSet
+    (GraphQL.Algorithms.ExecutionUngrouped.FieldCacheValue.object sourceCachingSource [])
+
+def sourceCachingResponse : GraphQL.Execution.Response :=
+  GraphQL.Algorithms.ExecutionUngrouped.executeQueryWithFuel
+    sourceCachingSchema sourceCachingResolvers [] sourceCachingQuery 8 sourceCachingSource
+
+def sourceCachingHeroFieldRetainsResolverSource : Bool :=
+  match sourceCachingVisit.status, sourceCachingVisit.value with
+  | .ok (_unit, _errors), .object _source fields =>
+      match GraphQL.Algorithms.ExecutionUngrouped.lookupField? "hero" fields with
+      | some (.object (.object "Character" "leia-source") _fields) => true
+      | _ => false
+  | _, _ => false
+
 theorem duplicateCompositeFieldCompletesIntoPreviousSmoke
     : let source := GraphQL.Execution.ResolverValue.object "Query" ()
       let spec :=
@@ -159,6 +221,18 @@ theorem duplicateCompositeFieldCompletesIntoPreviousSmoke
                   ("name", .scalar "Leia"),
                   ("friends", .object [("name", .scalar "Leia")])
                 ]
+            )])
+        = true := by
+  native_decide
+
+theorem duplicateCompositeFieldCachesSourceSmoke
+    : sourceCachingHeroFieldRetainsResolverSource = true
+      ∧ responseEqBool sourceCachingResponse.data
+          (.object
+            [(
+              "hero",
+              .object
+                [("name", .scalar "leia-source"), ("age", .scalar "leia-source-age")]
             )])
         = true := by
   native_decide

@@ -11,7 +11,7 @@ and a proof that each collected group can append its duplicate-field slices.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2542,7 +2542,7 @@ theorem executeQuery_eq_spec_of_collected_groups_child_state
       hflat hcollected hlookups hcompatible hchildren herrors
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

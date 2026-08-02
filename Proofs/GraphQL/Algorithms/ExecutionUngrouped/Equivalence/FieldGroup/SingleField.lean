@@ -7,7 +7,7 @@ Single executable-field execution helpers for field-group equivalence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1655,7 +1655,7 @@ theorem
       hprefix htail haligned
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

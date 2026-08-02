@@ -7,7 +7,7 @@ Semantic-ready aligned execution bridge for ungrouped execution.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -630,7 +630,7 @@ noncomputable def
                   hcollect hflat hcollected hlookups hcompatible happend
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

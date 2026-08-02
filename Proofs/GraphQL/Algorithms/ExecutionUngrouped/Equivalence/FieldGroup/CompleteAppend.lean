@@ -7,7 +7,7 @@ Complete-value append-one proofs for executable field groups.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1954,7 +1954,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         nonNullCompletion]
                         using hproject
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

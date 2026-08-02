@@ -13,7 +13,7 @@ order syntactically.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2201,7 +2201,7 @@ theorem VisitSubfieldsPopulates.of_executableFieldSelections_responseNamesNodup_
       hdisjoint)
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

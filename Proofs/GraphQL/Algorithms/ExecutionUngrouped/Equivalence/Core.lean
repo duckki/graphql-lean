@@ -21,7 +21,7 @@ envelope, including response data and the counted execution errors.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2239,7 +2239,7 @@ theorem Eager.RootSelectionResultAlignedEquivalent.canceling_combine_append
       simpa [cancelingRootSelectionAppend] using
         RootSelectionResultAlignedEquivalent.combine_append hleft hright
 
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

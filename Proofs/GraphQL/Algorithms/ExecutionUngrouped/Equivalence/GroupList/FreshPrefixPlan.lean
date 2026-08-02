@@ -7,7 +7,7 @@ Fresh-prefix selection plans for group-list selection sets.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1899,7 +1899,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_allFields_directiveFree_norma
       schema resolvers variableValues completionDepth parentType source
       selectionSet hall hfree hnodup
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

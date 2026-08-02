@@ -7,7 +7,7 @@ Append-step and append-plan machinery for field-group equivalence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1642,7 +1642,7 @@ theorem ExecutedFieldAppendPlan.toAppendSteps
             (prefixTail ++ [later]) rest restPlan⟩
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

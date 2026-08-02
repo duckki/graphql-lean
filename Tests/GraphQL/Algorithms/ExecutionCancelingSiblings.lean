@@ -100,10 +100,10 @@ theorem interleavedDuplicateErrorCountsDifferSmoke
       ∧ responseEqBool ungrouped.data .null = true := by
   native_decide
 
-theorem ungroupedCancelingEquivalenceStatementHasProofWitness
-    : GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution
+theorem uncachedUngroupedCancelingEquivalenceStatementHasProofWitness
+    : GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution
         interleavedDuplicateBeforeBubbleSchema interleavedDuplicateBeforeBubbleQuery :=
-  GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
+  GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
     interleavedDuplicateBeforeBubbleSchema interleavedDuplicateBeforeBubbleQuery
 
 end ExecutionCancelingSiblings

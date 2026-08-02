@@ -7,7 +7,7 @@ Prefix append-one helpers for field-group equivalence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2923,7 +2923,7 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
   · exact hchildren
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

@@ -7,7 +7,7 @@ Append-selection state witnesses and query-level wrappers.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -1022,7 +1022,7 @@ theorem executeQuery_eq_spec_of_exact_empty_group
     variableValues operation (GraphQL.Execution.executeQueryFuelBound operation)
     source hroot hcollect hdirect
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

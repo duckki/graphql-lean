@@ -9,7 +9,7 @@ Final semantic-preservation theorems for ungrouped execution.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -2173,7 +2173,7 @@ theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
           (hcancelingZero hspecErrorsZero)
     · exact hungroupedPositive hspecErrorsPositive
 
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL

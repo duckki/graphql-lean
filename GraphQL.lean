@@ -11,6 +11,7 @@ import GraphQL.NamedFragment.Translate
 import GraphQL.Algorithms.Common
 import GraphQL.Algorithms.ExecutionCancelingSiblings
 import GraphQL.Algorithms.ExecutionBreadth
+import GraphQL.Algorithms.ExecutionUngroupedUncached
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
 

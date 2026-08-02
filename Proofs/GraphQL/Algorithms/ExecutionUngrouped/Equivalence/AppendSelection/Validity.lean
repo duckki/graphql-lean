@@ -7,7 +7,7 @@ Validation-derived execution-state invariants for append-selection equivalence.
 namespace GraphQL
 
 namespace Algorithms
-namespace ExecutionUngrouped
+namespace ExecutionUngroupedUncached
 namespace Eager
 
 open GraphQL.Execution
@@ -570,7 +570,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_sameScopedP
   · exact hresolvers
 
 end Eager
-end ExecutionUngrouped
+end ExecutionUngroupedUncached
 end Algorithms
 
 end GraphQL
