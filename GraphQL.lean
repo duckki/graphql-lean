@@ -14,6 +14,7 @@ import GraphQL.Algorithms.ExecutionBreadth
 import GraphQL.Algorithms.ExecutionUngroupedUncached
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
+import GraphQL.Theories.ResponseShape
 
 /-!
 Spec reference: GraphQL September 2025.

@@ -57,20 +57,6 @@ private theorem completeNormalBoolCase_of_operationBoolVarsEquivalent
     (operationBoolVars_nodup right) fun varName =>
       (hcomplete.2.2 varName).trans (hvariables varName)
 
-private theorem operationBoolVars_eq_nil_of_equivalent_left_nil
-    {left right : Operation}
-    (hvariables : operationBoolVarsEquivalent left right)
-    (hleft : operationBoolVars left = [])
-    : operationBoolVars right = [] := by
-  cases hright : operationBoolVars right with
-  | nil => rfl
-  | cons head tail =>
-      have hheadRight : head ∈ operationBoolVars right := by
-        simp [hright]
-      have hheadLeft : head ∈ operationBoolVars left :=
-        (hvariables head).2 hheadRight
-      simp [hleft] at hheadLeft
-
 private theorem list_map_nodup_of_injective_on
     {source : List α} {target : α -> β}
     (hsourceNodup : source.Nodup)

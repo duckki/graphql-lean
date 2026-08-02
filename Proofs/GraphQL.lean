@@ -1,6 +1,8 @@
 import Proofs.GraphQL.Execution.SemanticEquivalence
+import Proofs.GraphQL.Argument
 import Proofs.GraphQL.NamedFragment.Semantics.Validation
 import Proofs.GraphQL.Theories.NormalForm
+import Proofs.GraphQL.Theories.ResponseShape
 import Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings
 import Proofs.GraphQL.Algorithms.ExecutionBreadth
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped

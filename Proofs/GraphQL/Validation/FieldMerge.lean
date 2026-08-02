@@ -1,4 +1,5 @@
 import GraphQL.Validation
+import Proofs.GraphQL.Argument
 
 /-!
 Facts for same-response-name field merge validation.
@@ -193,163 +194,36 @@ theorem collectFields_append (schema : Schema) (parentType : Name)
                 collectFields_append schema parentType rest right,
                 List.append_assoc]
 
-mutual
-  theorem inputValue_structuralEquivalent_symm
-      : ∀ left right,
-          InputValue.structuralEquivalent left right
-          -> InputValue.structuralEquivalent right left
-    | .null, .null, h => by
-        simp [InputValue.structuralEquivalent]
-    | .int left, .int right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .float left, .float right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .string left, .string right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .boolean left, .boolean right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .enum left, .enum right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .variable left, .variable right, h => by
-        simpa [InputValue.structuralEquivalent] using h.symm
-    | .list left, .list right, h => by
-        exact inputValue_structuralValuesEquivalent_symm left right h
-    | .object left, .object right, h => by
-        exact inputValue_structuralObjectFieldsEquivalent_symm left right h
-    | .null, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .null, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .int _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .float _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .string _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .boolean _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .enum _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .object _, h => by simp [InputValue.structuralEquivalent] at h
-    | .list _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .object _, .variable _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .null, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .int _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .float _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .string _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .boolean _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .enum _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .list _, h => by simp [InputValue.structuralEquivalent] at h
-    | .variable _, .object _, h => by simp [InputValue.structuralEquivalent] at h
+theorem inputValue_structuralEquivalent_symm
+    : ∀ left right,
+        InputValue.structuralEquivalent left right
+        -> InputValue.structuralEquivalent right left :=
+  fun _left _right h => InputValue.structuralEquivalent_symm h
 
-  theorem inputValue_structuralValuesEquivalent_symm
-      : ∀ left right,
-          InputValue.structuralValuesEquivalent left right
-          -> InputValue.structuralValuesEquivalent right left
-    | [], [], h => by
-        simp [InputValue.structuralValuesEquivalent]
-    | left :: lefts, right :: rights, h => by
-        simp [InputValue.structuralValuesEquivalent] at h ⊢
-        exact ⟨inputValue_structuralEquivalent_symm left right h.1,
-          inputValue_structuralValuesEquivalent_symm lefts rights h.2⟩
-    | [], _ :: _, h => by
-        simp [InputValue.structuralValuesEquivalent] at h
-    | _ :: _, [], h => by
-        simp [InputValue.structuralValuesEquivalent] at h
+theorem inputValue_structuralValuesEquivalent_symm
+    : ∀ left right,
+        InputValue.structuralValuesEquivalent left right
+        -> InputValue.structuralValuesEquivalent right left :=
+  fun _left _right h => InputValue.structuralValuesEquivalent_symm h
 
-  theorem inputValue_structuralObjectFieldsEquivalent_symm
-      : ∀ left right,
-          InputValue.structuralObjectFieldsEquivalent left right
-          -> InputValue.structuralObjectFieldsEquivalent right left
-    | [], [], h => by
-        simp [InputValue.structuralObjectFieldsEquivalent]
-    | (leftName, leftValue) :: lefts,
-      (rightName, rightValue) :: rights, h => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at h ⊢
-        exact ⟨h.1.symm,
-          inputValue_structuralEquivalent_symm leftValue rightValue h.2.1,
-          inputValue_structuralObjectFieldsEquivalent_symm lefts rights
-            h.2.2⟩
-    | [], _ :: _, h => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at h
-    | _ :: _, [], h => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at h
-end
+theorem inputValue_structuralObjectFieldsEquivalent_symm
+    : ∀ left right,
+        InputValue.structuralObjectFieldsEquivalent left right
+        -> InputValue.structuralObjectFieldsEquivalent right left :=
+  fun _left _right h => InputValue.structuralObjectFieldsEquivalent_symm h
 
 theorem inputValue_equivalent_symm {left right : InputValue}
-    : left.equivalent right -> right.equivalent left := by
-  intro h
-  exact inputValue_structuralEquivalent_symm left.canonical right.canonical h
+    : left.equivalent right -> right.equivalent left :=
+  InputValue.equivalent_symm
 
 theorem argumentEquivalent_symm {left right : Argument}
-    : left.equivalent right -> right.equivalent left := by
-  intro h
-  exact ⟨h.1.symm, inputValue_equivalent_symm h.2⟩
+    : left.equivalent right -> right.equivalent left :=
+  Argument.equivalent_symm
 
 theorem argumentsEquivalent_symm {left right : List Argument}
     : Argument.argumentsEquivalent left right
-      -> Argument.argumentsEquivalent right left := by
-  intro h
-  exact ⟨
-    by
-      intro argument hargument
-      rcases h.2 argument hargument with
-        ⟨argument', hargument', hequivalent⟩
-      exact ⟨argument', hargument',
-        argumentEquivalent_symm hequivalent⟩,
-    by
-      intro argument hargument
-      rcases h.1 argument hargument with
-        ⟨argument', hargument', hequivalent⟩
-      exact ⟨argument', hargument',
-        argumentEquivalent_symm hequivalent⟩⟩
+      -> Argument.argumentsEquivalent right left :=
+  Argument.argumentsEquivalent_symm
 
 theorem fieldsInSetCanMerge_append_comm
     {schema : Schema} {parentType : Name} {left right : List Selection}

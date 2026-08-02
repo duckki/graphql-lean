@@ -1,0 +1,9 @@
+import Tests.GraphQL.Theories.ResponseShape.Validity
+import Tests.GraphQL.Theories.ResponseShape.Compute
+import Tests.GraphQL.Theories.ResponseShape.Denotation
+import Tests.GraphQL.Theories.ResponseShape.Totality
+import Tests.GraphQL.Theories.ResponseShape.PremiseSatisfiability
+import Tests.GraphQL.Theories.ResponseShape.Correspondence
+import Tests.GraphQL.Theories.ResponseShape.Comparison
+import Tests.GraphQL.Theories.ResponseShape.Licensing
+import Tests.GraphQL.Theories.ResponseShape.OperationComparison

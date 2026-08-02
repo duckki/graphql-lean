@@ -1,6 +1,7 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.OperationBridge
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ExecutionKeys
 import Proofs.GraphQL.Validation.FieldMerge
+import Proofs.GraphQL.Argument
 
 /-!
 Resolver probes used by the semantic-separation part of uniqueness.
@@ -12,111 +13,40 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-mutual
-  theorem inputValue_structuralEquivalent_trans
-      : ∀ {left middle right : InputValue},
-          InputValue.structuralEquivalent left middle
-          -> InputValue.structuralEquivalent middle right
-          -> InputValue.structuralEquivalent left right := by
-    intro left middle right hleft hright
-    cases left <;> cases middle <;> cases right <;>
-      simp [InputValue.structuralEquivalent] at hleft hright ⊢
-    all_goals
-      first
-      | exact hleft.trans hright
-      | exact inputValues_structuralEquivalent_trans hleft hright
-      | exact inputObjectFields_structuralEquivalent_trans hleft hright
-      | trivial
-      | contradiction
+theorem inputValue_structuralEquivalent_trans
+    : ∀ {left middle right : InputValue},
+        InputValue.structuralEquivalent left middle
+        -> InputValue.structuralEquivalent middle right
+        -> InputValue.structuralEquivalent left right :=
+  fun hleft hright => InputValue.structuralEquivalent_trans hleft hright
 
-  theorem inputValues_structuralEquivalent_trans
-      : ∀ {left middle right : List InputValue},
-          InputValue.structuralValuesEquivalent left middle
-          -> InputValue.structuralValuesEquivalent middle right
-          -> InputValue.structuralValuesEquivalent left right
-    | [], [], [], _hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent]
-    | left :: lefts, middle :: middles, right :: rights, hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft hright ⊢
-        exact
-          ⟨inputValue_structuralEquivalent_trans hleft.1 hright.1,
-            inputValues_structuralEquivalent_trans hleft.2 hright.2⟩
-    | [], [], _ :: _, _hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hright
-    | [], _ :: _, [], hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | [], _ :: _, _ :: _, hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, [], [], hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, [], _ :: _, hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, _ :: _, [], _hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hright
+theorem inputValues_structuralEquivalent_trans
+    : ∀ {left middle right : List InputValue},
+        InputValue.structuralValuesEquivalent left middle
+        -> InputValue.structuralValuesEquivalent middle right
+        -> InputValue.structuralValuesEquivalent left right :=
+  fun hleft hright => InputValue.structuralValuesEquivalent_trans hleft hright
 
-  theorem inputObjectFields_structuralEquivalent_trans
-      : ∀ {left middle right : List (Name × InputValue)},
-          InputValue.structuralObjectFieldsEquivalent left middle
-          -> InputValue.structuralObjectFieldsEquivalent middle right
-          -> InputValue.structuralObjectFieldsEquivalent left right
-    | [], [], [], _hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent]
-    | (leftName, leftValue) :: lefts,
-        (middleName, middleValue) :: middles,
-        (rightName, rightValue) :: rights, hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft hright ⊢
-        exact
-          ⟨hleft.1.trans hright.1,
-            inputValue_structuralEquivalent_trans hleft.2.1 hright.2.1,
-            inputObjectFields_structuralEquivalent_trans
-              hleft.2.2 hright.2.2⟩
-    | [], [], _ :: _, _hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hright
-    | [], _ :: _, [], hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | [], _ :: _, _ :: _, hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, [], [], hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, [], _ :: _, hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, _ :: _, [], _hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hright
-end
+theorem inputObjectFields_structuralEquivalent_trans
+    : ∀ {left middle right : List (Name × InputValue)},
+        InputValue.structuralObjectFieldsEquivalent left middle
+        -> InputValue.structuralObjectFieldsEquivalent middle right
+        -> InputValue.structuralObjectFieldsEquivalent left right :=
+  fun hleft hright => InputValue.structuralObjectFieldsEquivalent_trans hleft hright
 
 theorem inputValue_equivalent_trans {left middle right : InputValue}
-    : left.equivalent middle -> middle.equivalent right -> left.equivalent right := by
-  intro hleft hright
-  exact inputValue_structuralEquivalent_trans hleft hright
+    : left.equivalent middle -> middle.equivalent right -> left.equivalent right :=
+  InputValue.equivalent_trans
 
 theorem argumentEquivalent_trans {left middle right : Argument}
-    : left.equivalent middle -> middle.equivalent right -> left.equivalent right := by
-  intro hleft hright
-  exact ⟨hleft.1.trans hright.1,
-    inputValue_equivalent_trans hleft.2 hright.2⟩
+    : left.equivalent middle -> middle.equivalent right -> left.equivalent right :=
+  Argument.equivalent_trans
 
 theorem argumentsEquivalent_trans {left middle right : List Argument}
     : Argument.argumentsEquivalent left middle
       -> Argument.argumentsEquivalent middle right
-      -> Argument.argumentsEquivalent left right := by
-  intro hleft hright
-  exact ⟨
-    by
-      intro argument hargument
-      rcases hleft.1 argument hargument with
-        ⟨middleArgument, hmiddleArgument, hequivalentLeft⟩
-      rcases hright.1 middleArgument hmiddleArgument with
-        ⟨rightArgument, hrightArgument, hequivalentRight⟩
-      exact ⟨rightArgument, hrightArgument,
-        argumentEquivalent_trans hequivalentLeft hequivalentRight⟩,
-    by
-      intro argument hargument
-      rcases hright.2 argument hargument with
-        ⟨middleArgument, hmiddleArgument, hequivalentRight⟩
-      rcases hleft.2 middleArgument hmiddleArgument with
-        ⟨leftArgument, hleftArgument, hequivalentLeft⟩
-      exact ⟨leftArgument, hleftArgument,
-        argumentEquivalent_trans hequivalentLeft hequivalentRight⟩⟩
+      -> Argument.argumentsEquivalent left right :=
+  Argument.argumentsEquivalent_trans
 
 def fieldFailureResolvers {ObjectRef : Type} (targetParent targetField : Name)
     : Execution.Resolvers ObjectRef where

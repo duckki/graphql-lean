@@ -15,20 +15,6 @@ namespace NormalForm
 
 namespace CompleteNormalization
 
-private theorem operationBoolVars_eq_nil_of_equivalent_left_nil
-    {left right : Operation}
-    (hvariables : operationBoolVarsEquivalent left right)
-    (hleft : operationBoolVars left = [])
-    : operationBoolVars right = [] := by
-  cases hright : operationBoolVars right with
-  | nil => rfl
-  | cons head tail =>
-      have hheadRight : head ∈ operationBoolVars right := by
-        simp [hright]
-      have hheadLeft : head ∈ operationBoolVars left :=
-        (hvariables head).2 hheadRight
-      simp [hleft] at hheadLeft
-
 private theorem completeNormalSelection_body_normal_free
     {schema : Schema} {leftVar : BoolVar} {variables : List BoolVar}
     {parentType : Name} {selectionSet : List Selection}
