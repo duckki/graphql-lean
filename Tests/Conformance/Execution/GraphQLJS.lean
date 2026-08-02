@@ -391,22 +391,22 @@ def nested_objects_aliases_and_listsSource : GraphQL.Execution.ResolverValue Str
   .object "DataType" "data"
 
 def nested_objects_aliases_and_listsResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "DataType", "a", .object _ "data" => some (.scalar "Apple")
-      | "DataType", "b", .object _ "data" => some (.scalar "Banana")
-      | "DataType", "c", .object _ "data" => some (.scalar "Cookie")
-      | "DataType", "f", .object _ "data" => some (.scalar "Fish")
-      | "DataType", "deep", .object _ "data" => some (.object "DeepDataType" "deep")
-      | "DeepDataType", "a", .object _ "deep" => some (.scalar "Already Been Done")
-      | "DeepDataType", "b", .object _ "deep" => some (.scalar "Boring")
-      | "DeepDataType", "c", .object _ "deep" => some (.list ([ .scalar "Contrived"
-    , .null
-    , .scalar "Confusing" ]))
-      | "DeepDataType", "deeper", .object _ "deep" => some (.list ([ .object "DataType" "data"
-    , .null
-    , .object "DataType" "data" ]))
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "DataType", "a", .object _ "data" => some (.scalar "Apple")
+        | "DataType", "b", .object _ "data" => some (.scalar "Banana")
+        | "DataType", "c", .object _ "data" => some (.scalar "Cookie")
+        | "DataType", "f", .object _ "data" => some (.scalar "Fish")
+        | "DataType", "deep", .object _ "data" => some (.object "DeepDataType" "deep")
+        | "DeepDataType", "a", .object _ "deep" => some (.scalar "Already Been Done")
+        | "DeepDataType", "b", .object _ "deep" => some (.scalar "Boring")
+        | "DeepDataType", "c", .object _ "deep" =>
+            some (.list ([.scalar "Contrived", .null, .scalar "Confusing"]))
+        | "DeepDataType", "deeper", .object _ "deep" =>
+            some (.list ([.object "DataType" "data", .null, .object "DataType" "data"]))
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl

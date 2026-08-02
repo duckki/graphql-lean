@@ -927,99 +927,99 @@ mutual
           -> visitSubfields schema resolvers variableValues depth parentType source
                 selectionSet (.object (prefixFields ++ suffix))
               = (.object (prefixFields ++ result), status)
-  | [], prefixFields, suffix, result, status, _hfresh, hvisit => by
-      simp [visitSubfields] at hvisit
-      rcases hvisit with ⟨hresult, hstatus⟩
-      subst result
-      subst status
-      simp [visitSubfields]
-  | selection :: rest, prefixFields, suffix, result, status, hfresh, hvisit => by
-      have hheadFresh :
-          ∀ field,
-            field ∈
-              collectedExecutableFields
-                (GraphQL.Execution.collectSelection schema variableValues
-                  parentType source selection) ->
-            field.responseName ∉ prefixFields.map Prod.fst := by
-        intro field hmem
-        apply hfresh field
-        simpa [GraphQL.Execution.collectFields] using
-          (collectedExecutableFields_mem_mergeExecutableGroups
-            (GraphQL.Execution.collectSelection schema variableValues
-              parentType source selection)
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rest)
-            field).mpr (Or.inl hmem)
-      have htailFresh :
-          ∀ field,
-            field ∈
-              collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues
-                  parentType source rest) ->
-            field.responseName ∉ prefixFields.map Prod.fst := by
-        intro field hmem
-        apply hfresh field
-        simpa [GraphQL.Execution.collectFields] using
-          (collectedExecutableFields_mem_mergeExecutableGroups
-            (GraphQL.Execution.collectSelection schema variableValues
-              parentType source selection)
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rest)
-            field).mpr (Or.inr hmem)
-      rcases
-        visitSelection_preserves_object schema resolvers variableValues depth
-          parentType source selection suffix
-      with ⟨headFields, hheadFst⟩
-      let headStatus :=
-        (visitSelection schema resolvers variableValues depth parentType source
-          selection (.object suffix)).snd
-      have hhead :
-          visitSelection schema resolvers variableValues depth parentType source
-            selection (.object suffix) =
-          (.object headFields, headStatus) := by
-        exact Prod.ext hheadFst rfl
-      let tail :=
-        visitSubfields schema resolvers variableValues depth parentType source
-          rest (.object headFields)
-      have hvisitTail :
-          tail.fst = .object result ∧
-            combineVisitStatus headStatus tail.snd = status := by
+    | [], prefixFields, suffix, result, status, _hfresh, hvisit => by
         simp [visitSubfields] at hvisit
-        rw [hhead] at hvisit
-        simpa [tail] using hvisit
-      have htail :
+        rcases hvisit with ⟨hresult, hstatus⟩
+        subst result
+        subst status
+        simp [visitSubfields]
+    | selection :: rest, prefixFields, suffix, result, status, hfresh, hvisit => by
+        have hheadFresh :
+            ∀ field,
+              field ∈
+                collectedExecutableFields
+                  (GraphQL.Execution.collectSelection schema variableValues
+                    parentType source selection) ->
+              field.responseName ∉ prefixFields.map Prod.fst := by
+          intro field hmem
+          apply hfresh field
+          simpa [GraphQL.Execution.collectFields] using
+            (collectedExecutableFields_mem_mergeExecutableGroups
+              (GraphQL.Execution.collectSelection schema variableValues
+                parentType source selection)
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source rest)
+              field).mpr (Or.inl hmem)
+        have htailFresh :
+            ∀ field,
+              field ∈
+                collectedExecutableFields
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source rest) ->
+              field.responseName ∉ prefixFields.map Prod.fst := by
+          intro field hmem
+          apply hfresh field
+          simpa [GraphQL.Execution.collectFields] using
+            (collectedExecutableFields_mem_mergeExecutableGroups
+              (GraphQL.Execution.collectSelection schema variableValues
+                parentType source selection)
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source rest)
+              field).mpr (Or.inr hmem)
+        rcases
+          visitSelection_preserves_object schema resolvers variableValues depth
+            parentType source selection suffix
+        with ⟨headFields, hheadFst⟩
+        let headStatus :=
+          (visitSelection schema resolvers variableValues depth parentType source
+            selection (.object suffix)).snd
+        have hhead :
+            visitSelection schema resolvers variableValues depth parentType source
+              selection (.object suffix) =
+            (.object headFields, headStatus) := by
+          exact Prod.ext hheadFst rfl
+        let tail :=
           visitSubfields schema resolvers variableValues depth parentType source
-            rest (.object headFields) =
-          (.object result, tail.snd) := by
-        exact Prod.ext hvisitTail.1 rfl
-      have hheadPrefix :
-          visitSelection schema resolvers variableValues depth parentType source
-            selection (.object (prefixFields ++ suffix)) =
-          (.object (prefixFields ++ headFields), headStatus) :=
-        visitSelection_prefix_fresh schema resolvers variableValues depth
-          parentType source selection prefixFields suffix headFields headStatus
-          hheadFresh hhead
-      have htailPrefix :
-          visitSubfields schema resolvers variableValues depth parentType source
-            rest (.object (prefixFields ++ headFields)) =
-          (.object (prefixFields ++ result), tail.snd) :=
-        visitSubfields_prefix_fresh schema resolvers variableValues depth
-          parentType source rest prefixFields headFields result tail.snd
-          htailFresh htail
-      simp [visitSubfields]
-      rw [hheadPrefix]
-      change
-        (visitSubfields schema resolvers variableValues depth parentType source
-            rest (.object (prefixFields ++ headFields))).fst =
-            .object (prefixFields ++ result) ∧
-          combineVisitStatus headStatus
-            (visitSubfields schema resolvers variableValues depth parentType
-              source rest (.object (prefixFields ++ headFields))).snd =
-            status
-      constructor
-      · rw [htailPrefix]
-      · rw [htailPrefix]
-        exact hvisitTail.2
+            rest (.object headFields)
+        have hvisitTail :
+            tail.fst = .object result ∧
+              combineVisitStatus headStatus tail.snd = status := by
+          simp [visitSubfields] at hvisit
+          rw [hhead] at hvisit
+          simpa [tail] using hvisit
+        have htail :
+            visitSubfields schema resolvers variableValues depth parentType source
+              rest (.object headFields) =
+            (.object result, tail.snd) := by
+          exact Prod.ext hvisitTail.1 rfl
+        have hheadPrefix :
+            visitSelection schema resolvers variableValues depth parentType source
+              selection (.object (prefixFields ++ suffix)) =
+            (.object (prefixFields ++ headFields), headStatus) :=
+          visitSelection_prefix_fresh schema resolvers variableValues depth
+            parentType source selection prefixFields suffix headFields headStatus
+            hheadFresh hhead
+        have htailPrefix :
+            visitSubfields schema resolvers variableValues depth parentType source
+              rest (.object (prefixFields ++ headFields)) =
+            (.object (prefixFields ++ result), tail.snd) :=
+          visitSubfields_prefix_fresh schema resolvers variableValues depth
+            parentType source rest prefixFields headFields result tail.snd
+            htailFresh htail
+        simp [visitSubfields]
+        rw [hheadPrefix]
+        change
+          (visitSubfields schema resolvers variableValues depth parentType source
+              rest (.object (prefixFields ++ headFields))).fst =
+              .object (prefixFields ++ result) ∧
+            combineVisitStatus headStatus
+              (visitSubfields schema resolvers variableValues depth parentType
+                source rest (.object (prefixFields ++ headFields))).snd =
+              status
+        constructor
+        · rw [htailPrefix]
+        · rw [htailPrefix]
+          exact hvisitTail.2
 end
 
 theorem visitSubfields_executableFieldSelections_same_response_key_mem

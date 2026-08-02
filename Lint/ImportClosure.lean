@@ -18,7 +18,8 @@ def runProcess (cmd : String) (args : Array String) (cwd : Option FilePath := no
   let output ← IO.Process.output { cmd := cmd, args := args, cwd := cwd }
   if output.exitCode != 0 then
     let details :=
-      "\n".intercalate ([output.stdout, output.stderr].filter (· != "")) |>.trimAscii
+      "\n".intercalate ([output.stdout, output.stderr].filter (· != ""))
+      |>.trimAscii
       |>.toString
     let message :=
       s!"{" ".intercalate (cmd :: args.toList)} failed"

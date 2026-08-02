@@ -247,7 +247,8 @@ def of_collected_groups_containedAppendInvariant
       let tailLookups : CollectedGroupsFieldLookupValid schema parentType rest := by
         intro tailResponseName tailField tailFields hgroup
         exact hlookups tailResponseName tailField tailFields (by simp [hgroup])
-      ⟨ExecutedFieldGroupComplete.of_containedAppendInvariant hinvariant
+      ⟨
+        ExecutedFieldGroupComplete.of_containedAppendInvariant hinvariant
           hresponses hparents hcompatible hlookups hstable responseName field fields
           (by simp),
         of_collected_groups_containedAppendInvariant schema resolvers
@@ -259,7 +260,8 @@ def of_collected_groups_containedAppendInvariant
           tailLookups
           (CollectedGroupsResolveStable.tail resolvers source
             (responseName, field :: fields) rest hstable)
-          tailInvariant⟩
+          tailInvariant
+      ⟩
 
 theorem groupFlatSpecEquivalent
     {ObjectIdentity : Type}

@@ -107,24 +107,24 @@ theorem zeroDepthExecutableFieldsResult_same_response_of_lookup_some (responseNa
         -> lookupResponseField? responseName outputFields = some existing
         -> zeroDepthExecutableFieldsResult fields outputFields
             = (.object outputFields, visitOk)
-    | [], outputFields, existing, _hresponse, _hready, _hlookup => by
-        simp [zeroDepthExecutableFieldsResult, visitOk]
-    | field :: rest, outputFields, existing, hresponse, hready, hlookup => by
-      have hfieldResponse : field.responseName = responseName :=
-        hresponse field (by simp)
-      have hrestResponse :
-          ∀ restField, restField ∈ rest ->
-            restField.responseName = responseName := by
-        intro restField hmem
-        exact hresponse restField (by simp [hmem])
-      have hhead :=
-        zeroDepthResponseNameResult_of_lookup_some responseName outputFields
-          existing hready hlookup
-      have htail :=
-        zeroDepthExecutableFieldsResult_same_response_of_lookup_some
-          responseName rest outputFields existing hrestResponse hready hlookup
-      simp [zeroDepthExecutableFieldsResult, hfieldResponse, hhead, htail,
-        visitOk, combineVisitStatus, GraphQL.Execution.Result.combine]
+  | [], outputFields, existing, _hresponse, _hready, _hlookup => by
+      simp [zeroDepthExecutableFieldsResult, visitOk]
+  | field :: rest, outputFields, existing, hresponse, hready, hlookup => by
+    have hfieldResponse : field.responseName = responseName :=
+      hresponse field (by simp)
+    have hrestResponse :
+        ∀ restField, restField ∈ rest ->
+          restField.responseName = responseName := by
+      intro restField hmem
+      exact hresponse restField (by simp [hmem])
+    have hhead :=
+      zeroDepthResponseNameResult_of_lookup_some responseName outputFields
+        existing hready hlookup
+    have htail :=
+      zeroDepthExecutableFieldsResult_same_response_of_lookup_some
+        responseName rest outputFields existing hrestResponse hready hlookup
+    simp [zeroDepthExecutableFieldsResult, hfieldResponse, hhead, htail,
+      visitOk, combineVisitStatus, GraphQL.Execution.Result.combine]
 
 theorem lookupResponseField?_mergeResponseField_null_same
     (responseName : Name) (fields : List (Name × ResponseValue))
@@ -155,24 +155,24 @@ theorem zeroDepthExecutableFieldsResult_same_response_of_lookup_null (responseNa
         -> lookupResponseField? responseName outputFields = some .null
         -> zeroDepthExecutableFieldsResult fields outputFields
             = (.object outputFields, visitOk)
-    | [], outputFields, _hresponse, _hlookup => by
-        simp [zeroDepthExecutableFieldsResult, visitOk]
-    | field :: rest, outputFields, hresponse, hlookup => by
-      have hfieldResponse : field.responseName = responseName :=
-        hresponse field (by simp)
-      have hrestResponse :
-          ∀ restField, restField ∈ rest ->
-            restField.responseName = responseName := by
-        intro restField hmem
-        exact hresponse restField (by simp [hmem])
-      have hhead :=
-        zeroDepthResponseNameResult_of_lookup_null responseName outputFields
-          hlookup
-      have htail :=
-        zeroDepthExecutableFieldsResult_same_response_of_lookup_null
-          responseName rest outputFields hrestResponse hlookup
-      simp [zeroDepthExecutableFieldsResult, hfieldResponse, hhead, htail,
-        visitOk, combineVisitStatus, GraphQL.Execution.Result.combine]
+  | [], outputFields, _hresponse, _hlookup => by
+      simp [zeroDepthExecutableFieldsResult, visitOk]
+  | field :: rest, outputFields, hresponse, hlookup => by
+    have hfieldResponse : field.responseName = responseName :=
+      hresponse field (by simp)
+    have hrestResponse :
+        ∀ restField, restField ∈ rest ->
+          restField.responseName = responseName := by
+      intro restField hmem
+      exact hresponse restField (by simp [hmem])
+    have hhead :=
+      zeroDepthResponseNameResult_of_lookup_null responseName outputFields
+        hlookup
+    have htail :=
+      zeroDepthExecutableFieldsResult_same_response_of_lookup_null
+        responseName rest outputFields hrestResponse hlookup
+    simp [zeroDepthExecutableFieldsResult, hfieldResponse, hhead, htail,
+      visitOk, combineVisitStatus, GraphQL.Execution.Result.combine]
 
 theorem zeroDepthExecutableFieldsResult_same_response_cons_of_lookup_none
     (responseName : Name) (field : ExecutableField)
@@ -1067,92 +1067,92 @@ mutual
                   (GraphQL.Execution.collectSelection schema variableValues
                     parentType source selection)
                   outputFields
-  | .field responseName fieldName arguments directives selectionSet,
-      outputFields, hready => by
-      by_cases hallowed :
-          selectionDirectivesAllowBool variableValues directives = true
-      · cases hlookup : lookupResponseField? responseName outputFields with
-        | none =>
-            have hprevious :
-                responseObjectField? responseName (.object outputFields) =
-                  none := by
-              simpa [responseObjectField?] using hlookup
-            simp [visitSelection, hallowed, GraphQL.Execution.collectSelection,
-              zeroDepthExecutableGroupsResult,
-              zeroDepthResponseNameResult_of_lookup_none responseName
-                outputFields hlookup,
-              hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject,
-              GraphQL.Execution.outOfFuel, resultValueOrNull, resultStatus]
-        | some existing =>
-            have hprevious :
-                responseObjectField? responseName (.object outputFields) =
-                  some existing := by
-              simpa [responseObjectField?] using hlookup
-            have hmerge :
-                mergeResponseField responseName existing outputFields =
-                  outputFields :=
-              mergeResponseField_self_of_lookup_some_ready responseName
-                outputFields existing hready hlookup
-            simp [visitSelection, hallowed, GraphQL.Execution.collectSelection,
-              zeroDepthExecutableGroupsResult,
-              zeroDepthResponseNameResult_of_lookup_some responseName
-                outputFields existing hready hlookup,
-              hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject,
-              hmerge, resultValueOrNull, resultStatus]
-      · have hblocked :
-            selectionDirectivesAllowBool variableValues directives = false := by
-          cases h :
-              selectionDirectivesAllowBool variableValues directives
-          · rfl
-          · contradiction
-        simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
-          zeroDepthExecutableGroupsResult]
-  | .inlineFragment none directives selectionSet, outputFields, hready => by
-      by_cases hallowed :
-          selectionDirectivesAllowBool variableValues directives = true
-      · simpa [visitSelection, hallowed, GraphQL.Execution.collectSelection]
-          using
-            visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
-              schema resolvers variableValues parentType source selectionSet
-              outputFields hready
-      · have hblocked :
-            selectionDirectivesAllowBool variableValues directives = false := by
-          cases h :
-              selectionDirectivesAllowBool variableValues directives
-          · rfl
-          · contradiction
-        simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
-          zeroDepthExecutableGroupsResult]
-  | .inlineFragment (some typeCondition) directives selectionSet,
-      outputFields, hready => by
-      by_cases hallowed :
-          selectionDirectivesAllowBool variableValues directives = true
-      · by_cases happly :
-            doesFragmentTypeApplyBool schema parentType source typeCondition =
-              true
-        · simpa [visitSelection, hallowed, happly,
-            GraphQL.Execution.collectSelection]
+    | .field responseName fieldName arguments directives selectionSet,
+        outputFields, hready => by
+        by_cases hallowed :
+            selectionDirectivesAllowBool variableValues directives = true
+        · cases hlookup : lookupResponseField? responseName outputFields with
+          | none =>
+              have hprevious :
+                  responseObjectField? responseName (.object outputFields) =
+                    none := by
+                simpa [responseObjectField?] using hlookup
+              simp [visitSelection, hallowed, GraphQL.Execution.collectSelection,
+                zeroDepthExecutableGroupsResult,
+                zeroDepthResponseNameResult_of_lookup_none responseName
+                  outputFields hlookup,
+                hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+                GraphQL.Execution.outOfFuel, resultValueOrNull, resultStatus]
+          | some existing =>
+              have hprevious :
+                  responseObjectField? responseName (.object outputFields) =
+                    some existing := by
+                simpa [responseObjectField?] using hlookup
+              have hmerge :
+                  mergeResponseField responseName existing outputFields =
+                    outputFields :=
+                mergeResponseField_self_of_lookup_some_ready responseName
+                  outputFields existing hready hlookup
+              simp [visitSelection, hallowed, GraphQL.Execution.collectSelection,
+                zeroDepthExecutableGroupsResult,
+                zeroDepthResponseNameResult_of_lookup_some responseName
+                  outputFields existing hready hlookup,
+                hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+                hmerge, resultValueOrNull, resultStatus]
+        · have hblocked :
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h :
+                selectionDirectivesAllowBool variableValues directives
+            · rfl
+            · contradiction
+          simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
+            zeroDepthExecutableGroupsResult]
+    | .inlineFragment none directives selectionSet, outputFields, hready => by
+        by_cases hallowed :
+            selectionDirectivesAllowBool variableValues directives = true
+        · simpa [visitSelection, hallowed, GraphQL.Execution.collectSelection]
             using
               visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
                 schema resolvers variableValues parentType source selectionSet
                 outputFields hready
-        · have hnotApply :
-              doesFragmentTypeApplyBool schema parentType source typeCondition =
-                false := by
+        · have hblocked :
+              selectionDirectivesAllowBool variableValues directives = false := by
             cases h :
-                doesFragmentTypeApplyBool schema parentType source typeCondition
+                selectionDirectivesAllowBool variableValues directives
             · rfl
             · contradiction
-          simp [visitSelection, hallowed, hnotApply,
-            GraphQL.Execution.collectSelection, zeroDepthExecutableGroupsResult]
-      · have hblocked :
-            selectionDirectivesAllowBool variableValues directives = false := by
-          cases h :
-              selectionDirectivesAllowBool variableValues directives
-          · rfl
-          · contradiction
-        simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
-          zeroDepthExecutableGroupsResult]
+          simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
+            zeroDepthExecutableGroupsResult]
+    | .inlineFragment (some typeCondition) directives selectionSet,
+        outputFields, hready => by
+        by_cases hallowed :
+            selectionDirectivesAllowBool variableValues directives = true
+        · by_cases happly :
+              doesFragmentTypeApplyBool schema parentType source typeCondition =
+                true
+          · simpa [visitSelection, hallowed, happly,
+              GraphQL.Execution.collectSelection]
+              using
+                visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
+                  schema resolvers variableValues parentType source selectionSet
+                  outputFields hready
+          · have hnotApply :
+                doesFragmentTypeApplyBool schema parentType source typeCondition =
+                  false := by
+              cases h :
+                  doesFragmentTypeApplyBool schema parentType source typeCondition
+              · rfl
+              · contradiction
+            simp [visitSelection, hallowed, hnotApply,
+              GraphQL.Execution.collectSelection, zeroDepthExecutableGroupsResult]
+        · have hblocked :
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h :
+                selectionDirectivesAllowBool variableValues directives
+            · rfl
+            · contradiction
+          simp [visitSelection, hblocked, GraphQL.Execution.collectSelection,
+            zeroDepthExecutableGroupsResult]
 
   theorem visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
       {ObjectIdentity : Type}
@@ -1167,42 +1167,42 @@ mutual
                   (GraphQL.Execution.collectFields schema variableValues parentType
                     source selectionSet)
                   outputFields
-  | [], outputFields, _hready => by
-      simp [visitSubfields, GraphQL.Execution.collectFields,
-        zeroDepthExecutableGroupsResult]
-  | selection :: rest, outputFields, hready => by
-      let leftGroups :=
-        GraphQL.Execution.collectSelection schema variableValues parentType
-          source selection
-      let rightGroups :=
-        GraphQL.Execution.collectFields schema variableValues parentType source
-          rest
-      obtain ⟨leftFields, hleftFields, hleftReady⟩ :=
-        zeroDepthExecutableGroupsResult_preserves_object_ready leftGroups
-          outputFields hready
-      let leftStatus :=
-        (zeroDepthExecutableGroupsResult leftGroups outputFields).snd
-      have hleft :
-          zeroDepthExecutableGroupsResult leftGroups outputFields =
-            (.object leftFields, leftStatus) :=
-        Prod.ext hleftFields rfl
-      have hselection :=
-        visitSelection_depth_zero_eq_zeroDepthExecutableGroupsResult_collectSelection
-          schema resolvers variableValues parentType source selection
-          outputFields hready
-      have hrest :=
-        visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
-          schema resolvers variableValues parentType source rest leftFields
-          hleftReady
-      rw [visitSubfields]
-      rw [hselection]
-      rw [hleft]
-      rw [hrest]
-      simp [GraphQL.Execution.collectFields, leftGroups]
-      rw [zeroDepthExecutableGroupsResult_mergeExecutableGroups_eq_append
-        leftGroups rightGroups outputFields hready]
-      rw [zeroDepthExecutableGroupsResult_append]
-      simp [leftGroups, rightGroups, hleft]
+    | [], outputFields, _hready => by
+        simp [visitSubfields, GraphQL.Execution.collectFields,
+          zeroDepthExecutableGroupsResult]
+    | selection :: rest, outputFields, hready => by
+        let leftGroups :=
+          GraphQL.Execution.collectSelection schema variableValues parentType
+            source selection
+        let rightGroups :=
+          GraphQL.Execution.collectFields schema variableValues parentType source
+            rest
+        obtain ⟨leftFields, hleftFields, hleftReady⟩ :=
+          zeroDepthExecutableGroupsResult_preserves_object_ready leftGroups
+            outputFields hready
+        let leftStatus :=
+          (zeroDepthExecutableGroupsResult leftGroups outputFields).snd
+        have hleft :
+            zeroDepthExecutableGroupsResult leftGroups outputFields =
+              (.object leftFields, leftStatus) :=
+          Prod.ext hleftFields rfl
+        have hselection :=
+          visitSelection_depth_zero_eq_zeroDepthExecutableGroupsResult_collectSelection
+            schema resolvers variableValues parentType source selection
+            outputFields hready
+        have hrest :=
+          visitSubfields_depth_zero_eq_zeroDepthExecutableGroupsResult_collectFields
+            schema resolvers variableValues parentType source rest leftFields
+            hleftReady
+        rw [visitSubfields]
+        rw [hselection]
+        rw [hleft]
+        rw [hrest]
+        simp [GraphQL.Execution.collectFields, leftGroups]
+        rw [zeroDepthExecutableGroupsResult_mergeExecutableGroups_eq_append
+          leftGroups rightGroups outputFields hready]
+        rw [zeroDepthExecutableGroupsResult_append]
+        simp [leftGroups, rightGroups, hleft]
 end
 
 theorem VisitSubfieldsFlatCollects_depth_zero

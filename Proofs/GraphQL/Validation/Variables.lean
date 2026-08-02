@@ -13,36 +13,36 @@ theorem inputObjectFieldsVariables_insertObjectFieldSorted_mem_iff
           ∈ inputObjectFieldsVariables (InputValue.insertObjectFieldSorted field fields)
         ↔ variableName ∈ inputValueVariables field.2
           ∨ variableName ∈ inputObjectFieldsVariables fields
-    | [] => by
-        simp [InputValue.insertObjectFieldSorted, inputObjectFieldsVariables]
-    | candidate :: rest => by
-      rw [InputValue.insertObjectFieldSorted]
-      split
-      · simp [inputObjectFieldsVariables]
-      · simp only [inputObjectFieldsVariables, List.mem_append]
-        rw [inputObjectFieldsVariables_insertObjectFieldSorted_mem_iff]
-        constructor
-        · rintro (hcandidate | hfield | hrest)
-          · exact Or.inr (Or.inl hcandidate)
-          · exact Or.inl hfield
-          · exact Or.inr (Or.inr hrest)
-        · rintro (hfield | hcandidate | hrest)
-          · exact Or.inr (Or.inl hfield)
-          · exact Or.inl hcandidate
-          · exact Or.inr (Or.inr hrest)
+  | [] => by
+      simp [InputValue.insertObjectFieldSorted, inputObjectFieldsVariables]
+  | candidate :: rest => by
+    rw [InputValue.insertObjectFieldSorted]
+    split
+    · simp [inputObjectFieldsVariables]
+    · simp only [inputObjectFieldsVariables, List.mem_append]
+      rw [inputObjectFieldsVariables_insertObjectFieldSorted_mem_iff]
+      constructor
+      · rintro (hcandidate | hfield | hrest)
+        · exact Or.inr (Or.inl hcandidate)
+        · exact Or.inl hfield
+        · exact Or.inr (Or.inr hrest)
+      · rintro (hfield | hcandidate | hrest)
+        · exact Or.inr (Or.inl hfield)
+        · exact Or.inl hcandidate
+        · exact Or.inr (Or.inr hrest)
 
 theorem inputObjectFieldsVariables_sortObjectFieldsByName_mem_iff (variableName : Name)
     : ∀ fields,
         variableName
           ∈ inputObjectFieldsVariables (InputValue.sortObjectFieldsByName fields)
         ↔ variableName ∈ inputObjectFieldsVariables fields
-    | [] => by
-        simp [InputValue.sortObjectFieldsByName, inputObjectFieldsVariables]
-    | field :: rest => by
-      simp only [InputValue.sortObjectFieldsByName]
-      rw [inputObjectFieldsVariables_insertObjectFieldSorted_mem_iff,
-        inputObjectFieldsVariables_sortObjectFieldsByName_mem_iff]
-      simp [inputObjectFieldsVariables]
+  | [] => by
+      simp [InputValue.sortObjectFieldsByName, inputObjectFieldsVariables]
+  | field :: rest => by
+    simp only [InputValue.sortObjectFieldsByName]
+    rw [inputObjectFieldsVariables_insertObjectFieldSorted_mem_iff,
+      inputObjectFieldsVariables_sortObjectFieldsByName_mem_iff]
+    simp [inputObjectFieldsVariables]
 
 mutual
   theorem inputValueVariables_canonical_mem_iff (variableName : Name)

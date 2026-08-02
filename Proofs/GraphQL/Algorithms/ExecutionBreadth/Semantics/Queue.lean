@@ -67,11 +67,11 @@ theorem queue_completeScopeFrame_eq_of_pop
       -> combineScopeFieldResults segmentLengths.sum fieldResults = objectResults
       -> completeScopeFrame segmentLengths fieldKeys stack
           = {
-              stack' with
-                valueStack :=
-                  (splitResultsByLengths segmentLengths objectResults).reverse
-                  ++ stack'.valueStack
-            } := by
+            stack' with
+              valueStack :=
+                (splitResultsByLengths segmentLengths objectResults).reverse
+                ++ stack'.valueStack
+          } := by
   intro hpop hfields hobjects
   simp [completeScopeFrame, hpop, hfields, hobjects]
 
@@ -2150,12 +2150,12 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
               (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
               stack)
           = {
-              stack with
-                valueStack :=
-                  [[expectedPendingChildWorkSpecResult schema resolvers variableValues
-                      work]]
-                  ++ stack.valueStack
-            } := by
+            stack with
+              valueStack :=
+                [[expectedPendingChildWorkSpecResult schema resolvers variableValues
+                    work]]
+                ++ stack.valueStack
+          } := by
   intro hstack
   let groups :=
     collectFieldsByKey schema variableValues

@@ -673,90 +673,90 @@ mutual
               (.object
                 (GraphQL.Execution.executeCollectedFieldsData schema resolvers
                   variableValues depth source groups))
-      | [], _hnodup => by
-          simpa [GraphQL.Execution.executeCollectedFieldsData,
-            GraphQL.Execution.executeCollectedFields,
-            GraphQL.Execution.Result.getD] using
-            ResponseMergeReady_empty_object
-      | (groupName, fields) :: rest, hnodup => by
-          have hrestNodup : PairKeysNodup rest :=
-            PairKeysNodup.tail hnodup
-          cases hhead :
-              GraphQL.Execution.executeField schema resolvers variableValues depth
-                source groupName fields with
-          | error headErrors =>
-              cases htail :
-                  GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues depth source rest with
-              | error tailErrors =>
+    | [], _hnodup => by
+        simpa [GraphQL.Execution.executeCollectedFieldsData,
+          GraphQL.Execution.executeCollectedFields,
+          GraphQL.Execution.Result.getD] using
+          ResponseMergeReady_empty_object
+    | (groupName, fields) :: rest, hnodup => by
+        have hrestNodup : PairKeysNodup rest :=
+          PairKeysNodup.tail hnodup
+        cases hhead :
+            GraphQL.Execution.executeField schema resolvers variableValues depth
+              source groupName fields with
+        | error headErrors =>
+            cases htail :
+                GraphQL.Execution.executeCollectedFields schema resolvers
+                  variableValues depth source rest with
+            | error tailErrors =>
+                simpa [GraphQL.Execution.executeCollectedFieldsData,
+                  GraphQL.Execution.executeCollectedFields,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.getD, hhead, htail] using
+                  ResponseMergeReady_empty_object
+            | ok tailResult =>
+                rcases tailResult with ⟨tailFields, tailErrors⟩
+                simpa [GraphQL.Execution.executeCollectedFieldsData,
+                  GraphQL.Execution.executeCollectedFields,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.getD, hhead, htail] using
+                  ResponseMergeReady_empty_object
+        | ok headResult =>
+            rcases headResult with ⟨headFields, headErrors⟩
+            cases htail :
+                GraphQL.Execution.executeCollectedFields schema resolvers
+                  variableValues depth source rest with
+            | error tailErrors =>
+                simpa [GraphQL.Execution.executeCollectedFieldsData,
+                  GraphQL.Execution.executeCollectedFields,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.getD, hhead, htail] using
+                  ResponseMergeReady_empty_object
+            | ok tailResult =>
+                rcases tailResult with ⟨tailFields, tailErrors⟩
+                have hheadReady : ResponseMergeReady (.object headFields) := by
+                  simpa [GraphQL.Execution.executeFieldData,
+                    GraphQL.Execution.Result.getD, hhead] using
+                    specExecuteField_response_ready schema resolvers
+                      variableValues depth source groupName fields
+                have htailReady : ResponseMergeReady (.object tailFields) := by
                   simpa [GraphQL.Execution.executeCollectedFieldsData,
-                    GraphQL.Execution.executeCollectedFields,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.getD, hhead, htail] using
-                    ResponseMergeReady_empty_object
-              | ok tailResult =>
-                  rcases tailResult with ⟨tailFields, tailErrors⟩
-                  simpa [GraphQL.Execution.executeCollectedFieldsData,
-                    GraphQL.Execution.executeCollectedFields,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.getD, hhead, htail] using
-                    ResponseMergeReady_empty_object
-          | ok headResult =>
-              rcases headResult with ⟨headFields, headErrors⟩
-              cases htail :
-                  GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues depth source rest with
-              | error tailErrors =>
-                  simpa [GraphQL.Execution.executeCollectedFieldsData,
-                    GraphQL.Execution.executeCollectedFields,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.getD, hhead, htail] using
-                    ResponseMergeReady_empty_object
-              | ok tailResult =>
-                  rcases tailResult with ⟨tailFields, tailErrors⟩
-                  have hheadReady : ResponseMergeReady (.object headFields) := by
-                    simpa [GraphQL.Execution.executeFieldData,
-                      GraphQL.Execution.Result.getD, hhead] using
-                      specExecuteField_response_ready schema resolvers
-                        variableValues depth source groupName fields
-                  have htailReady : ResponseMergeReady (.object tailFields) := by
-                    simpa [GraphQL.Execution.executeCollectedFieldsData,
-                      GraphQL.Execution.Result.getD, htail] using
-                      specExecuteCollectedFields_response_ready schema resolvers
-                        variableValues depth source rest hrestNodup
-                  have hdisjoint :
-                      ∀ responseName,
-                        responseName ∈ headFields.map Prod.fst ->
-                          responseName ∉ tailFields.map Prod.fst := by
-                    intro responseName hheadMem htailMem
-                    have hheadKey :
-                        responseName = groupName :=
-                      executeField_key_mem schema resolvers variableValues depth
-                        source (responseName := responseName)
-                        (groupName := groupName) (fields := fields) <| by
-                          simpa [GraphQL.Execution.executeFieldData,
-                            GraphQL.Execution.Result.getD, hhead] using hheadMem
-                    have htailKey :
-                        responseName ∈ rest.map Prod.fst :=
-                      executeCollectedFields_key_mem schema resolvers
-                        variableValues depth source <| by
-                          simpa [GraphQL.Execution.executeCollectedFieldsData,
-                            GraphQL.Execution.Result.getD, htail] using htailMem
-                    rw [hheadKey] at htailKey
-                    exact PairKeysNodup.head_not_mem_tail hnodup htailKey
-                  simpa [GraphQL.Execution.executeCollectedFieldsData,
-                    GraphQL.Execution.executeCollectedFields,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.getD, hhead, htail] using
-                    ResponseMergeReady_object_append headFields tailFields
-                      hheadReady htailReady
-                      (by
-                        intro responseName htailMem hheadMem
-                        exact hdisjoint responseName hheadMem htailMem)
+                    GraphQL.Execution.Result.getD, htail] using
+                    specExecuteCollectedFields_response_ready schema resolvers
+                      variableValues depth source rest hrestNodup
+                have hdisjoint :
+                    ∀ responseName,
+                      responseName ∈ headFields.map Prod.fst ->
+                        responseName ∉ tailFields.map Prod.fst := by
+                  intro responseName hheadMem htailMem
+                  have hheadKey :
+                      responseName = groupName :=
+                    executeField_key_mem schema resolvers variableValues depth
+                      source (responseName := responseName)
+                      (groupName := groupName) (fields := fields) <| by
+                        simpa [GraphQL.Execution.executeFieldData,
+                          GraphQL.Execution.Result.getD, hhead] using hheadMem
+                  have htailKey :
+                      responseName ∈ rest.map Prod.fst :=
+                    executeCollectedFields_key_mem schema resolvers
+                      variableValues depth source <| by
+                        simpa [GraphQL.Execution.executeCollectedFieldsData,
+                          GraphQL.Execution.Result.getD, htail] using htailMem
+                  rw [hheadKey] at htailKey
+                  exact PairKeysNodup.head_not_mem_tail hnodup htailKey
+                simpa [GraphQL.Execution.executeCollectedFieldsData,
+                  GraphQL.Execution.executeCollectedFields,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.getD, hhead, htail] using
+                  ResponseMergeReady_object_append headFields tailFields
+                    hheadReady htailReady
+                    (by
+                      intro responseName htailMem hheadMem
+                      exact hdisjoint responseName hheadMem htailMem)
 
   theorem specExecuteField_response_ready
       {ObjectIdentity : Type}
@@ -768,91 +768,91 @@ mutual
             (.object
               (GraphQL.Execution.executeFieldData schema resolvers variableValues
                 depth source responseName fields))
-      | _responseName, [] => by
-          simpa [GraphQL.Execution.executeFieldData,
-            GraphQL.Execution.executeField, GraphQL.Execution.Result.getD] using
-            ResponseMergeReady_empty_object
-      | responseName, field :: rest => by
-          cases depth with
-          | zero =>
-              simpa [GraphQL.Execution.executeFieldData,
-                GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
-                GraphQL.Execution.outOfFuel] using
-                ResponseMergeReady_empty_object
-          | succ depth' =>
-              cases hlookup :
-                  schema.lookupField field.parentType field.fieldName with
-              | none =>
-                  simpa [GraphQL.Execution.executeFieldData,
-                    GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
-                    hlookup] using
-                    ResponseMergeReady_empty_object
-              | some fieldDefinition =>
-                  cases hresolve :
-                      resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
-                  | none =>
-                      cases hcompleted :
-                          GraphQL.Execution.handleFieldError
-                            fieldDefinition.outputType with
-                      | error errors =>
-                          simpa [GraphQL.Execution.executeFieldData,
-                            GraphQL.Execution.executeField,
-                            GraphQL.Execution.singleFieldResult,
-                            GraphQL.Execution.Result.getD, hlookup, hresolve,
-                            hcompleted] using
-                            ResponseMergeReady_empty_object
-                      | ok result =>
-                          rcases result with ⟨response, errors⟩
-                          have hresponseReady : ResponseMergeReady response := by
-                            simpa [resultValueOrNull, hcompleted] using
-                              resultValueOrNull_handleFieldError_ready
-                                fieldDefinition.outputType
-                          simpa [GraphQL.Execution.executeFieldData,
-                            GraphQL.Execution.executeField,
-                            GraphQL.Execution.singleFieldResult,
-                            GraphQL.Execution.Result.getD, hlookup, hresolve,
-                            hcompleted] using
-                            ResponseMergeReady.object [(responseName, response)]
-                              (by simp [PairKeysNodup])
-                              (by
-                                intro candidate candidateResponse hmem
-                                simp at hmem
-                                rcases hmem with ⟨rfl, rfl⟩
-                                exact hresponseReady)
-                  | some resolved =>
-                      cases hcompleted :
-                          GraphQL.Execution.completeValue schema resolvers
-                            variableValues depth' fieldDefinition.outputType
-                            (field :: rest) resolved with
-                      | error errors =>
-                          simpa [GraphQL.Execution.executeFieldData,
-                            GraphQL.Execution.executeField,
-                            GraphQL.Execution.singleFieldResult,
-                            GraphQL.Execution.Result.getD, hlookup, hresolve,
-                            hcompleted] using
-                            ResponseMergeReady_empty_object
-                      | ok result =>
-                          rcases result with ⟨response, errors⟩
-                          have hresponseReady : ResponseMergeReady response := by
-                            simpa [GraphQL.Execution.completeValueData,
-                              GraphQL.Execution.Result.getD, hcompleted] using
-                              specCompleteValue_response_ready schema resolvers
-                                variableValues depth'
-                                fieldDefinition.outputType (field :: rest)
-                                resolved
-                          simpa [GraphQL.Execution.executeFieldData,
-                            GraphQL.Execution.executeField,
-                            GraphQL.Execution.singleFieldResult,
-                            GraphQL.Execution.Result.getD, hlookup, hresolve,
-                            hcompleted] using
-                            ResponseMergeReady.object [(responseName, response)]
-                              (by simp [PairKeysNodup])
-                              (by
-                                intro candidate candidateResponse hmem
-                                simp at hmem
-                                rcases hmem with ⟨rfl, rfl⟩
-                                exact hresponseReady)
+    | _responseName, [] => by
+        simpa [GraphQL.Execution.executeFieldData,
+          GraphQL.Execution.executeField, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady_empty_object
+    | responseName, field :: rest => by
+        cases depth with
+        | zero =>
+            simpa [GraphQL.Execution.executeFieldData,
+              GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
+              GraphQL.Execution.outOfFuel] using
+              ResponseMergeReady_empty_object
+        | succ depth' =>
+            cases hlookup :
+                schema.lookupField field.parentType field.fieldName with
+            | none =>
+                simpa [GraphQL.Execution.executeFieldData,
+                  GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
+                  hlookup] using
+                  ResponseMergeReady_empty_object
+            | some fieldDefinition =>
+                cases hresolve :
+                    resolvers.resolve field.parentType field.fieldName
+                      field.arguments source with
+                | none =>
+                    cases hcompleted :
+                        GraphQL.Execution.handleFieldError
+                          fieldDefinition.outputType with
+                    | error errors =>
+                        simpa [GraphQL.Execution.executeFieldData,
+                          GraphQL.Execution.executeField,
+                          GraphQL.Execution.singleFieldResult,
+                          GraphQL.Execution.Result.getD, hlookup, hresolve,
+                          hcompleted] using
+                          ResponseMergeReady_empty_object
+                    | ok result =>
+                        rcases result with ⟨response, errors⟩
+                        have hresponseReady : ResponseMergeReady response := by
+                          simpa [resultValueOrNull, hcompleted] using
+                            resultValueOrNull_handleFieldError_ready
+                              fieldDefinition.outputType
+                        simpa [GraphQL.Execution.executeFieldData,
+                          GraphQL.Execution.executeField,
+                          GraphQL.Execution.singleFieldResult,
+                          GraphQL.Execution.Result.getD, hlookup, hresolve,
+                          hcompleted] using
+                          ResponseMergeReady.object [(responseName, response)]
+                            (by simp [PairKeysNodup])
+                            (by
+                              intro candidate candidateResponse hmem
+                              simp at hmem
+                              rcases hmem with ⟨rfl, rfl⟩
+                              exact hresponseReady)
+                | some resolved =>
+                    cases hcompleted :
+                        GraphQL.Execution.completeValue schema resolvers
+                          variableValues depth' fieldDefinition.outputType
+                          (field :: rest) resolved with
+                    | error errors =>
+                        simpa [GraphQL.Execution.executeFieldData,
+                          GraphQL.Execution.executeField,
+                          GraphQL.Execution.singleFieldResult,
+                          GraphQL.Execution.Result.getD, hlookup, hresolve,
+                          hcompleted] using
+                          ResponseMergeReady_empty_object
+                    | ok result =>
+                        rcases result with ⟨response, errors⟩
+                        have hresponseReady : ResponseMergeReady response := by
+                          simpa [GraphQL.Execution.completeValueData,
+                            GraphQL.Execution.Result.getD, hcompleted] using
+                            specCompleteValue_response_ready schema resolvers
+                              variableValues depth'
+                              fieldDefinition.outputType (field :: rest)
+                              resolved
+                        simpa [GraphQL.Execution.executeFieldData,
+                          GraphQL.Execution.executeField,
+                          GraphQL.Execution.singleFieldResult,
+                          GraphQL.Execution.Result.getD, hlookup, hresolve,
+                          hcompleted] using
+                          ResponseMergeReady.object [(responseName, response)]
+                            (by simp [PairKeysNodup])
+                            (by
+                              intro candidate candidateResponse hmem
+                              simp at hmem
+                              rcases hmem with ⟨rfl, rfl⟩
+                              exact hresponseReady)
 
   theorem specCompleteValue_response_ready
       {ObjectIdentity : Type}
@@ -863,145 +863,145 @@ mutual
           ResponseMergeReady
             (GraphQL.Execution.completeValueData schema resolvers variableValues
               depth fieldType fields value)
-      | 0, _fieldType, _fields, value => by
+    | 0, _fieldType, _fields, value => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.outOfFuel,
+          GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .nonNull inner, fields, value => by
+        have hinner :
+            ResponseMergeReady
+              (resultValueOrNull
+                (GraphQL.Execution.completeValue schema resolvers
+                  variableValues (depth + 1) inner fields value)) := by
           simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.outOfFuel,
-            GraphQL.Execution.Result.getD] using
-            ResponseMergeReady.null
-      | depth + 1, .nonNull inner, fields, value => by
-          have hinner :
-              ResponseMergeReady
-                (resultValueOrNull
-                  (GraphQL.Execution.completeValue schema resolvers
-                    variableValues (depth + 1) inner fields value)) := by
-            simpa [GraphQL.Execution.completeValueData,
-              resultValueOrNull_eq_result_getD] using
-              specCompleteValue_response_ready schema resolvers
-                variableValues (depth + 1) inner fields value
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue,
-            ← resultValueOrNull_eq_result_getD
-              (GraphQL.Execution.nonNullCompletion
-                (GraphQL.Execution.completeValue schema resolvers variableValues
-                  (depth + 1) inner fields value))] using
-            resultValueOrNull_nonNullCompletion_ready
+            resultValueOrNull_eq_result_getD] using
+            specCompleteValue_response_ready schema resolvers
+              variableValues (depth + 1) inner fields value
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue,
+          ← resultValueOrNull_eq_result_getD
+            (GraphQL.Execution.nonNullCompletion
               (GraphQL.Execution.completeValue schema resolvers variableValues
-                (depth + 1) inner fields value)
-              hinner
-      | depth + 1, .named typeName, fields, .null => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
-            ResponseMergeReady.null
-      | depth + 1, .named typeName, fields, .scalar value => by
-          by_cases hcomposite :
-              (TypeRef.named typeName).isCompositeBool schema = true
-          · simp [GraphQL.Execution.completeValueData,
-              GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD,
-              hcomposite]
-            exact ResponseMergeReady.null
-          · simp [GraphQL.Execution.completeValueData,
-              GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD,
-              hcomposite]
-            exact ResponseMergeReady.scalar value
-      | depth + 1, .named typeName, fields,
-          .object runtimeType identity => by
-          by_cases hinclude :
-              schema.typeIncludesObjectBool typeName runtimeType
-          · have hgroupsNodup :
-                PairKeysNodup
-                  (GraphQL.Execution.collectSubfields schema variableValues
-                    runtimeType (.object runtimeType identity) fields) :=
-              collectSubfields_pairKeysNodup schema variableValues runtimeType
-                (.object runtimeType identity) fields
-            cases hcompleted :
-                GraphQL.Execution.executeCollectedFields schema resolvers
-                  variableValues depth (.object runtimeType identity)
-                  (GraphQL.Execution.collectSubfields schema variableValues
-                    runtimeType (.object runtimeType identity) fields) with
-            | error errors =>
-                have hcompleted' :
-                    GraphQL.Execution.executeCollectedFields schema resolvers
-                      variableValues depth (.object runtimeType identity)
-                      (GraphQL.Execution.collectFields schema variableValues
-                        runtimeType (.object runtimeType identity)
-                        (GraphQL.Execution.mergedFieldSelectionSet fields)) =
-                    .error errors := by
-                  simpa
-                    [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-                    using hcompleted
-                simpa [GraphQL.Execution.completeValueData,
-                  GraphQL.Execution.completeValue, hinclude,
-                  GraphQL.Execution.catchBubbleAsNull,
+                (depth + 1) inner fields value))] using
+          resultValueOrNull_nonNullCompletion_ready
+            (GraphQL.Execution.completeValue schema resolvers variableValues
+              (depth + 1) inner fields value)
+            hinner
+    | depth + 1, .named typeName, fields, .null => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .named typeName, fields, .scalar value => by
+        by_cases hcomposite :
+            (TypeRef.named typeName).isCompositeBool schema = true
+        · simp [GraphQL.Execution.completeValueData,
+            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD,
+            hcomposite]
+          exact ResponseMergeReady.null
+        · simp [GraphQL.Execution.completeValueData,
+            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD,
+            hcomposite]
+          exact ResponseMergeReady.scalar value
+    | depth + 1, .named typeName, fields,
+        .object runtimeType identity => by
+        by_cases hinclude :
+            schema.typeIncludesObjectBool typeName runtimeType
+        · have hgroupsNodup :
+              PairKeysNodup
+                (GraphQL.Execution.collectSubfields schema variableValues
+                  runtimeType (.object runtimeType identity) fields) :=
+            collectSubfields_pairKeysNodup schema variableValues runtimeType
+              (.object runtimeType identity) fields
+          cases hcompleted :
+              GraphQL.Execution.executeCollectedFields schema resolvers
+                variableValues depth (.object runtimeType identity)
+                (GraphQL.Execution.collectSubfields schema variableValues
+                  runtimeType (.object runtimeType identity) fields) with
+          | error errors =>
+              have hcompleted' :
+                  GraphQL.Execution.executeCollectedFields schema resolvers
+                    variableValues depth (.object runtimeType identity)
+                    (GraphQL.Execution.collectFields schema variableValues
+                      runtimeType (.object runtimeType identity)
+                      (GraphQL.Execution.mergedFieldSelectionSet fields)) =
+                  .error errors := by
+                simpa
+                  [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+                  using hcompleted
+              simpa [GraphQL.Execution.completeValueData,
+                GraphQL.Execution.completeValue, hinclude,
+                GraphQL.Execution.catchBubbleAsNull,
+                GraphQL.Execution.Result.getD, hcompleted',
+                GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+                using
+                ResponseMergeReady.null
+          | ok result =>
+              rcases result with ⟨completedFields, errors⟩
+              have hcompleted' :
+                  GraphQL.Execution.executeCollectedFields schema resolvers
+                    variableValues depth (.object runtimeType identity)
+                    (GraphQL.Execution.collectFields schema variableValues
+                      runtimeType (.object runtimeType identity)
+                      (GraphQL.Execution.mergedFieldSelectionSet fields)) =
+                  .ok (completedFields, errors) := by
+                simpa
+                  [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+                  using hcompleted
+              have hready :
+                  ResponseMergeReady (.object completedFields) := by
+                simpa [GraphQL.Execution.executeCollectedFieldsData,
                   GraphQL.Execution.Result.getD, hcompleted',
                   GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
                   using
-                  ResponseMergeReady.null
-            | ok result =>
-                rcases result with ⟨completedFields, errors⟩
-                have hcompleted' :
-                    GraphQL.Execution.executeCollectedFields schema resolvers
-                      variableValues depth (.object runtimeType identity)
-                      (GraphQL.Execution.collectFields schema variableValues
-                        runtimeType (.object runtimeType identity)
-                        (GraphQL.Execution.mergedFieldSelectionSet fields)) =
-                    .ok (completedFields, errors) := by
-                  simpa
-                    [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-                    using hcompleted
-                have hready :
-                    ResponseMergeReady (.object completedFields) := by
-                  simpa [GraphQL.Execution.executeCollectedFieldsData,
-                    GraphQL.Execution.Result.getD, hcompleted',
-                    GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-                    using
-                    specExecuteCollectedFields_response_ready schema resolvers
-                      variableValues depth (.object runtimeType identity)
-                      (GraphQL.Execution.collectSubfields schema variableValues
-                        runtimeType (.object runtimeType identity) fields)
-                      hgroupsNodup
-                simpa [GraphQL.Execution.completeValueData,
-                  GraphQL.Execution.completeValue, hinclude,
-                  GraphQL.Execution.catchBubbleAsNull,
-                  GraphQL.Execution.Result.getD, hcompleted',
-                  GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-                  using hready
-          · simpa [GraphQL.Execution.completeValueData,
-              GraphQL.Execution.completeValue, hinclude,
-              GraphQL.Execution.Result.getD] using
-              ResponseMergeReady.null
-      | depth + 1, .named typeName, fields, .list values => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+                  specExecuteCollectedFields_response_ready schema resolvers
+                    variableValues depth (.object runtimeType identity)
+                    (GraphQL.Execution.collectSubfields schema variableValues
+                      runtimeType (.object runtimeType identity) fields)
+                    hgroupsNodup
+              simpa [GraphQL.Execution.completeValueData,
+                GraphQL.Execution.completeValue, hinclude,
+                GraphQL.Execution.catchBubbleAsNull,
+                GraphQL.Execution.Result.getD, hcompleted',
+                GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+                using hready
+        · simpa [GraphQL.Execution.completeValueData,
+            GraphQL.Execution.completeValue, hinclude,
+            GraphQL.Execution.Result.getD] using
             ResponseMergeReady.null
-      | depth + 1, .list inner, fields, .null => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
-            ResponseMergeReady.null
-      | depth + 1, .list inner, fields, .scalar value => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
-            ResponseMergeReady.null
-      | depth + 1, .list inner, fields, .object runtimeType identity => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
-            ResponseMergeReady.null
-      | depth + 1, .list inner, fields, .list values => by
-          simpa [GraphQL.Execution.completeValueData,
-            GraphQL.Execution.completeValue,
-            ← resultValueOrNull_eq_result_getD
-              (GraphQL.Execution.catchBubbleAsNull ResponseValue.list
-                (GraphQL.Execution.completeValueList schema resolvers
-                  variableValues depth inner fields values))] using
-            resultValueOrNull_catchBubbleAsNull_ready
-              ResponseValue.list
+    | depth + 1, .named typeName, fields, .list values => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .list inner, fields, .null => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .list inner, fields, .scalar value => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .list inner, fields, .object runtimeType identity => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue, GraphQL.Execution.Result.getD] using
+          ResponseMergeReady.null
+    | depth + 1, .list inner, fields, .list values => by
+        simpa [GraphQL.Execution.completeValueData,
+          GraphQL.Execution.completeValue,
+          ← resultValueOrNull_eq_result_getD
+            (GraphQL.Execution.catchBubbleAsNull ResponseValue.list
               (GraphQL.Execution.completeValueList schema resolvers
-                variableValues depth inner fields values)
-              (by
-                intro completedValues errors hok
-                exact ResponseMergeReady.list completedValues
-                  (specCompleteValueList_values_ready schema resolvers
-                    variableValues depth inner fields values completedValues
-                    errors hok))
+                variableValues depth inner fields values))] using
+          resultValueOrNull_catchBubbleAsNull_ready
+            ResponseValue.list
+            (GraphQL.Execution.completeValueList schema resolvers
+              variableValues depth inner fields values)
+            (by
+              intro completedValues errors hok
+              exact ResponseMergeReady.list completedValues
+                (specCompleteValueList_values_ready schema resolvers
+                  variableValues depth inner fields values completedValues
+                  errors hok))
 
   theorem specCompleteValueList_values_ready
       {ObjectIdentity : Type}
@@ -1015,56 +1015,56 @@ mutual
               depth fieldType fields values
             = .ok (completedValues, errors)
           -> ∀ response, response ∈ completedValues -> ResponseMergeReady response
-      | _depth, _fieldType, _fields, [], completedValues, errors, hok => by
-          intro response hmem
-          simp [GraphQL.Execution.completeValueList] at hok
-          rcases hok with ⟨hcompletedValues, _herrors⟩
-          subst completedValues
-          simp at hmem
-      | depth, fieldType, fields, value :: values, completedValues, errors,
-          hok => by
-          cases hhead :
-              GraphQL.Execution.completeValue schema resolvers variableValues
-                depth fieldType fields value with
-          | error headErrors =>
-              cases htail :
-                  GraphQL.Execution.completeValueList schema resolvers
-                    variableValues depth fieldType fields values with
-              | error tailErrors =>
-                  simp [GraphQL.Execution.completeValueList,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine, hhead, htail] at hok
-              | ok tailResult =>
-                  rcases tailResult with ⟨tailValues, tailErrors⟩
-                  simp [GraphQL.Execution.completeValueList,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine, hhead, htail] at hok
-          | ok headResult =>
-              rcases headResult with ⟨headValue, headErrors⟩
-              cases htail :
-                  GraphQL.Execution.completeValueList schema resolvers
-                    variableValues depth fieldType fields values with
-              | error tailErrors =>
-                  simp [GraphQL.Execution.completeValueList,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine, hhead, htail] at hok
-              | ok tailResult =>
-                  rcases tailResult with ⟨tailValues, tailErrors⟩
-                  simp [GraphQL.Execution.completeValueList,
-                    GraphQL.Execution.Result.combine,
-                    GraphQL.Execution.Result.combine, hhead, htail] at hok
-                  rcases hok with ⟨rfl, rfl⟩
-                  intro response hmem
-                  rcases List.mem_cons.mp hmem with hheadMem | htailMem
-                  · subst response
-                    simpa [GraphQL.Execution.completeValueData,
-                      GraphQL.Execution.Result.getD, hhead] using
-                      specCompleteValue_response_ready schema resolvers
-                        variableValues depth fieldType fields value
-                  · exact
-                      specCompleteValueList_values_ready schema resolvers
-                        variableValues depth fieldType fields values tailValues
-                        tailErrors htail response htailMem
+    | _depth, _fieldType, _fields, [], completedValues, errors, hok => by
+        intro response hmem
+        simp [GraphQL.Execution.completeValueList] at hok
+        rcases hok with ⟨hcompletedValues, _herrors⟩
+        subst completedValues
+        simp at hmem
+    | depth, fieldType, fields, value :: values, completedValues, errors,
+        hok => by
+        cases hhead :
+            GraphQL.Execution.completeValue schema resolvers variableValues
+              depth fieldType fields value with
+        | error headErrors =>
+            cases htail :
+                GraphQL.Execution.completeValueList schema resolvers
+                  variableValues depth fieldType fields values with
+            | error tailErrors =>
+                simp [GraphQL.Execution.completeValueList,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine, hhead, htail] at hok
+            | ok tailResult =>
+                rcases tailResult with ⟨tailValues, tailErrors⟩
+                simp [GraphQL.Execution.completeValueList,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine, hhead, htail] at hok
+        | ok headResult =>
+            rcases headResult with ⟨headValue, headErrors⟩
+            cases htail :
+                GraphQL.Execution.completeValueList schema resolvers
+                  variableValues depth fieldType fields values with
+            | error tailErrors =>
+                simp [GraphQL.Execution.completeValueList,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine, hhead, htail] at hok
+            | ok tailResult =>
+                rcases tailResult with ⟨tailValues, tailErrors⟩
+                simp [GraphQL.Execution.completeValueList,
+                  GraphQL.Execution.Result.combine,
+                  GraphQL.Execution.Result.combine, hhead, htail] at hok
+                rcases hok with ⟨rfl, rfl⟩
+                intro response hmem
+                rcases List.mem_cons.mp hmem with hheadMem | htailMem
+                · subst response
+                  simpa [GraphQL.Execution.completeValueData,
+                    GraphQL.Execution.Result.getD, hhead] using
+                    specCompleteValue_response_ready schema resolvers
+                      variableValues depth fieldType fields value
+                · exact
+                    specCompleteValueList_values_ready schema resolvers
+                      variableValues depth fieldType fields values tailValues
+                      tailErrors htail response htailMem
 end
 
 theorem specExecuteCollectedFields_collectFields_response_ready
