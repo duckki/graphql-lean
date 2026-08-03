@@ -176,6 +176,14 @@ The ungrouped execution equivalence modules under
   while `AppendSteps/FlatSpec.lean` and `AppendSteps/Query.lean` perform the
   flat-spec and query lifts.
 
+The cached ungrouped refinement under
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/CachedRefinement/` is similarly
+layered by cache and execution invariants, output erasure, internal alignment,
+source soundness, collected-field soundness, recursive tree soundness, and final
+query witnesses. `TreeSoundness/` further separates its invariants, completion,
+and traversal proofs. The parent `CachedRefinement.lean` file is an import-only
+theorem surface.
+
 ## Refactor Rule
 
 When moving a theorem, preserve its declaration name unless there is a specific

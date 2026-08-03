@@ -1,9 +1,9 @@
-# Verified Algorithms
+# Algorithm Proof Status
 
-This document records project algorithms that are verified against the
-spec-facing execution model. These algorithms are not additional GraphQL
-specification features; they are implementation strategies proved equivalent to
-the modeled semantics under stated assumptions.
+This document records project execution algorithms and their current proof
+status against the spec-facing execution model. These algorithms are not
+additional GraphQL specification features; they are implementation strategies
+with public correctness statements where stated.
 
 ## Sibling-Canceling Spec Execution
 
@@ -52,11 +52,11 @@ If a composite field has completed to `null`, for example because null bubbling
 from a subfield produced an error null, later visits to the same response
 position reuse that null and skip subfields under that revisit. When a visited
 field returns a bubbling error, `visitSubfields` cancels the remaining sibling
-selections in that selection set. Ungrouped execution therefore preserves
-response data and whether errors are present, but it may under-count execution
-errors compared with collected execution.
+selections in that selection set. Its intended correctness relation is data
+preservation plus preservation of error presence, allowing fewer counted
+execution errors than collected execution.
 
-The main public statement is
+The main public correctness statement is
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution`.
 It is resolver-parametric: for every resolver environment, variable assignment,
 explicit fuel value, and source value, a well-formed schema and valid operation
@@ -74,14 +74,27 @@ response equality:
 - if the spec-facing execution has at least one execution error, ungrouped
   execution also has at least one execution error.
 
-Exact `Nat` error counts are intentionally not part of the theorem. The
-verified property is data preservation plus preservation of error presence, not
+Exact `Nat` error counts are intentionally not part of the statement. The
+property is data preservation plus preservation of error presence, not
 preservation of detailed error counts.
 
 A second public statement,
 `GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution`,
 gives the same data-and-error-presence equivalence between ungrouped execution
 and `GraphQL.Algorithms.ExecutionCancelingSiblings`.
+
+The proof witnesses are
+`GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof`
+and
+`GraphQL.Algorithms.ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof`
+in
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/CachedRefinement/Final.lean`. The
+refinement proof tracks cached composite sources recursively by collected
+response-name group, proves cached execution erases exactly to the uncached
+specialization for valid operations, and then reuses the uncached correctness
+witnesses. Its prerequisite modules separate cache invariants, local
+erasure, resolver-source soundness, and recursive cache-tree soundness under
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/CachedRefinement/`.
 
 ## Uncached Ungrouped Execution
 
@@ -95,11 +108,18 @@ additional subselections.
 This specialization is useful when calling a resolver is as cheap as caching its
 returned source value. Its public preservation statement is
 `GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution`,
-with proof modules under `Proofs/GraphQL/Algorithms/ExecutionUngrouped/`.
+with proof witness
+`GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution_proof`
+in
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
 
 The sibling-canceling equivalence statement is
 `GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution`.
-It uses the same `responseDataAndErrorPresenceEquivalent` relation.
+It uses the same `responseDataAndErrorPresenceEquivalent` relation. Its proof
+witness is
+`GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof`
+in
+`Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
 
 This relation cannot in general be strengthened to exact `Nat` error-count
 equality. Field collection groups later occurrences of a response name with

@@ -97,12 +97,15 @@ def executableField (parentType responseName fieldName : Name)
     selectionSet := selectionSet
   }
 
--- Values with no retained composite source are final for this response position.
-def reusablePreviousValue?
+-- Values with no retained composite source are final for this response position, but
+-- only when the current field definition is also non-composite.
+def reusablePreviousValue? (schema : Schema) (fieldType : TypeRef)
     : FieldCacheValue ObjectRef -> Option (FieldCacheValue ObjectRef)
   | .null => some .null
-  | .scalar value => some (.scalar value)
-  | .list none values => some (.list none values)
+  | .scalar value =>
+      if fieldType.isCompositeBool schema then none else some (.scalar value)
+  | .list none values =>
+      if fieldType.isCompositeBool schema then none else some (.list none values)
   | .object _source _fields => none
   | .list (some _sourceValues) _values => none
 
@@ -326,31 +329,25 @@ mutual
       (source : ResolverValue ObjectRef) (previous? : Option (FieldCacheValue ObjectRef))
       (field : ExecutableField)
       : Result (FieldCacheValue ObjectRef) :=
-    match previous? with
-    | some previous =>
-        match reusablePreviousValue? previous with
-        | some final => .ok (final, 0)
-        | none =>
-            match previous with
-            | .object previousSource _fields =>
-                match schema.lookupField field.parentType field.fieldName with
-                | none => .error 1
-                | some fieldDefinition =>
+    match schema.lookupField field.parentType field.fieldName with
+    | none => .error 1
+    | some fieldDefinition =>
+        match previous? with
+        | some previous =>
+            match reusablePreviousValue? schema fieldDefinition.outputType previous with
+            | some final => .ok (final, 0)
+            | none =>
+                match previous with
+                | .object previousSource _fields =>
                     completeValue schema resolvers variableValues completionFuel
                       fieldDefinition.outputType field.selectionSet previousSource
                       (some previous)
-            | .list (some sourceValues) _values =>
-                match schema.lookupField field.parentType field.fieldName with
-                | none => .error 1
-                | some fieldDefinition =>
+                | .list (some sourceValues) _values =>
                     completeValue schema resolvers variableValues completionFuel
                       fieldDefinition.outputType field.selectionSet (.list sourceValues)
                       (some previous)
-            | _ => .error 1
-    | none =>
-        match schema.lookupField field.parentType field.fieldName with
-        | none => .error 1
-        | some fieldDefinition =>
+                | _ => .error 1
+        | none =>
             match resolvers.resolve field.parentType field.fieldName
                     field.arguments source with
             | none =>
@@ -495,7 +492,7 @@ def executeQuery {ObjectRef : Type}
     (executeQueryFuelBound operation) source
 
 -----------------------------------------------------------------------------------------
--- Correctness theorem: ungroupedExecutionPreservesSpecExecution
+-- Correctness statement: ungroupedExecutionPreservesSpecExecution
 -----------------------------------------------------------------------------------------
 
 -- A helper definition where response data is equal and the presence of execution errors
@@ -510,6 +507,8 @@ def responseDataAndErrorPresenceEquivalent (ungrouped spec : Response) : Prop :=
 -- fewer sub-field errors after a null-bubble has already set the response position to
 -- `null`. See example `duplicateHeroNullBubbleQuery` in
 -- `Tests/GraphQL/Algorithms/ExecutionUngrouped.lean`.
+-- Proof witness: `ExecutionUngrouped.ungroupedExecutionPreservesSpecExecution_proof`
+-- in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/CachedRefinement/Final.lean`.
 def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
@@ -529,6 +528,9 @@ def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Oper
 -- later occurrences of a response name with its first occurrence, which can
 -- move their errors before an interleaved sibling that bubbles; syntax-order
 -- ungrouped execution may cancel those later occurrences instead.
+-- Proof witness:
+-- `ExecutionUngrouped.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof`
+-- in `Proofs/GraphQL/Algorithms/ExecutionUngrouped/CachedRefinement/Final.lean`.
 def ungroupedExecutionEquivalentToCancelingSiblingsExecution
     (schema : Schema) (operation : Operation)
     : Prop :=

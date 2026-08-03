@@ -14,13 +14,17 @@ theory.
 
 - [GraphQL/](GraphQL/) contains the public formal model of the scoped GraphQL
   2025 spec: schema syntax and well-formedness, operation syntax, validation,
-  execution, named fragments, verified algorithms, and public theory definitions.
+  execution, named fragments, execution algorithms, and public theory
+  definitions.
 - [ExecutionCancelingSiblings](GraphQL/Algorithms/ExecutionCancelingSiblings.lean)
   verifies a spec-style executor that cancels sibling response positions after
   null bubbling.
-- [ExecutionUngrouped](GraphQL/Algorithms/ExecutionUngrouped.lean) verifies a
+- [ExecutionUngrouped](GraphQL/Algorithms/ExecutionUngrouped.lean) models a
   lightweight syntax-order execution that avoids building the collected
-  field map.
+  field map, caches field results and retained composite sources by response
+  position, and has checked preservation witnesses. Its
+  [uncached specialization](GraphQL/Algorithms/ExecutionUngroupedUncached.lean)
+  is also verified for resolvers that are cheap to call repeatedly.
 - [ExecutionBreadth](GraphQL/Algorithms/ExecutionBreadth.lean) verifies a
   breadth-first execution model with vectorized resolver calls, inspired by
   [gmac/graphql-breadth-js](https://github.com/gmac/graphql-breadth-js),
@@ -53,9 +57,9 @@ definition surfaces below.
   response envelopes containing data plus execution-error counts.
 - [GraphQL/NamedFragment/](GraphQL/NamedFragment/): fragment-aware operation
   syntax, validation, execution, translation, and inlining support.
-- [GraphQL/Algorithms/](GraphQL/Algorithms/): verified non-spec execution
-  algorithms: sibling-canceling execution, ungrouped execution, and breadth-first
-  execution.
+- [GraphQL/Algorithms/](GraphQL/Algorithms/): non-spec execution algorithms,
+  including sibling-canceling execution, source-caching and uncached ungrouped
+  execution, and breadth-first execution.
 - [GraphQL/Theories/](GraphQL/Theories/): public project theories, currently
   including normal forms and their public statements.
 
@@ -74,8 +78,8 @@ lake build
 - [docs/overview.md](docs/overview.md): module map and architecture overview.
 - [docs/spec-conformance.md](docs/spec-conformance.md): implemented
   spec-conformance scope and out-of-scope boundaries.
-- [docs/algorithms.md](docs/algorithms.md): verified algorithmic alternatives
-  to the spec-facing executor.
+- [docs/algorithms.md](docs/algorithms.md): algorithmic alternatives to the
+  spec-facing executor and their proof status.
 - [docs/normal-form.md](docs/normal-form.md): normal-form definitions and
   preservation theorems.
 - [docs/normal-form-uniqueness.md](docs/normal-form-uniqueness.md): canonicity

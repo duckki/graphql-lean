@@ -19,13 +19,16 @@ lake lint
 ```
 
 The lint target runs Lean's built-in linters with documentation warnings
-disabled. It also enforces project-local community-style checks inspired by
-common Mathlib/CSLib practice: lines at 100 columns except URLs, no trailing
-whitespace or tabs, no unscoped diagnostic/resource `set_option`, no bare
-`open Classical`, no lambda or dollar syntax, no double underscores in
-declaration names, a 1500-line soft file limit, and no tracked Lean files
-outside the transitive import closure of [GraphQL](../GraphQL),
-[Proofs](../Proofs), [Tests](../Tests), [Lint](../Lint), and
+disabled on the root modules and immediate Lean files under `GraphQL/`,
+`Proofs/`, and `Lint/`. The same files receive project-local community-style
+checks inspired by common Mathlib/CSLib practice: lines at 100 columns except
+URLs, no trailing whitespace or tabs, no unscoped diagnostic/resource
+`set_option`, no bare `open Classical`, no lambda or dollar syntax, no double
+underscores in declaration names, and a 1500-line soft file limit.
+
+The import-closure pass separately checks all tracked Lean files recursively.
+They must be reachable from [GraphQL](../GraphQL), [Proofs](../Proofs),
+[Tests](../Tests), [Lint](../Lint), or
 [Lint.ImportClosureMain](../Lint/ImportClosureMain.lean).
 
 Check that every tracked Lean file is reachable from the public roots:

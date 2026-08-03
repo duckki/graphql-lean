@@ -114,8 +114,8 @@ The main public modules are:
   all-variables-used check follows fragment spreads transitively and does not count uses
   in unreferenced fragments.
 
-The verified non-spec algorithms, including ungrouped execution and normal-form
-work, are documented separately in `docs/algorithms.md` and
+The non-spec algorithms and proof-status details, including ungrouped execution
+and normal-form work, are documented separately in `docs/algorithms.md` and
 `docs/normal-form.md`.
 
 ## Conformance Fixtures

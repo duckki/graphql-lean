@@ -39,7 +39,10 @@ flowchart TD
   Canceling["GraphQL.Algorithms.ExecutionCancelingSiblings"]
   ProofCanceling["Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings"]
   Ungrouped["GraphQL.Algorithms.ExecutionUngrouped"]
+  UngroupedUncached["GraphQL.Algorithms.ExecutionUngroupedUncached"]
   ProofUngrouped["Proofs.GraphQL.Algorithms.ExecutionUngrouped"]
+  Breadth["GraphQL.Algorithms.ExecutionBreadth"]
+  ProofBreadth["Proofs.GraphQL.Algorithms.ExecutionBreadth"]
   GraphQLRoot["GraphQL"]
   ProofRoot["Proofs"]
   TestsGraphQL["Tests.GraphQL"]
@@ -60,19 +63,31 @@ flowchart TD
   NormalForm --> CompleteNormalization
   Execution --> Canceling
   Execution --> Ungrouped
+  Execution --> UngroupedUncached
+  Execution --> Breadth
+  NormalForm --> Ungrouped
+  NormalForm --> UngroupedUncached
+  NormalForm --> Breadth
+  Canceling --> Ungrouped
+  Canceling --> UngroupedUncached
   NamedFragment --> GraphQLRoot
-  NormalForm --> Algorithms
   NormalFormGround --> ProofRoot
   CompleteNormalization --> ProofRoot
   Canceling --> ProofCanceling
   ProofCanceling --> ProofRoot
   Ungrouped --> ProofUngrouped
+  UngroupedUncached --> ProofUngrouped
   ProofUngrouped --> ProofRoot
+  Breadth --> ProofBreadth
+  ProofBreadth --> ProofRoot
 
   SchemaWF --> GraphQLRoot
   Operation --> GraphQLRoot
   Validation --> GraphQLRoot
-  Algorithms --> GraphQLRoot
+  Canceling --> GraphQLRoot
+  Ungrouped --> GraphQLRoot
+  UngroupedUncached --> GraphQLRoot
+  Breadth --> GraphQLRoot
   NormalForm --> GraphQLRoot
   Execution --> GraphQLRoot
   GraphQLRoot --> TestsGraphQL
@@ -108,8 +123,8 @@ It should remain definition-only.
   `@skip`/`@include`, same-response-name field merge checks, and inline-fragment
   applicability.
 - `GraphQL.Theories.NormalForm`: ground-typed normal form and non-redundancy
-  predicates over operation selection sets, a normalization pass for field merging and
-  abstract-type grounding, and the public resolver-parametric semantic
+  predicates over operation selection sets, a normalization pass for field
+  merging and abstract-type grounding, and the public resolver-parametric semantic
   preservation predicates for directive-free ground-type normalization and
   directive-aware complete normalization. Its validity-preservation predicates
   also expose operation-specific assumptions for possible-type validity and
@@ -123,9 +138,10 @@ It should remain definition-only.
   all-variables-used validation rule.
 - `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`: proof-facing
   lemmas for the directive-free ground-type normalizer.
-- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`: proof-facing lemmas for complete
-  normalization, which lifts modeled `@skip`/`@include` behavior into Boolean
-  case branches and keeps bottom-branch fields directive-free. Its proof
+- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`: proof-facing
+  lemmas for complete normalization, which lifts modeled `@skip`/`@include`
+  behavior into Boolean case branches and keeps bottom-branch fields
+  directive-free. Its proof
   modules separate variable/directive facts, BoolCase wrappers, static
   collection, normal-shape facts, operation variables/wrappers, field and
   inline static-collection execution cases, BoolCase runtime selection,
@@ -154,19 +170,30 @@ It should remain definition-only.
   resolver-parametric proof that sibling cancellation preserves response data
   and execution-error presence, though not exact error counts.
 - `GraphQL.Algorithms.ExecutionUngrouped`: public alternative execution
-  algorithm that visits selections directly and merges response slices as it
-  goes.
-- `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for the
-  ungrouped algorithm. Its public theorem preserves response data and error
-  presence against `GraphQL.Execution`, but not exact execution-error counts.
-  It also proves the same equivalence against
-  `GraphQL.Algorithms.ExecutionCancelingSiblings` by transitivity through the
-  spec executor. Response-name grouping means the two algorithms' exact error
-  counts can differ.
+  algorithm that visits selections directly, caches field results by response
+  position, retains resolver sources for composite values, and merges response
+  slices as it goes.
+- `GraphQL.Algorithms.ExecutionUngroupedUncached`: specialization that keeps
+  completed response values but resolves composite fields again on later
+  compatible visits instead of retaining resolver sources.
+- `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for both the
+  source-caching algorithm and its uncached specialization. The checked public
+  witnesses preserve response data and error presence against
+  `GraphQL.Execution`, but not exact execution-error counts, and prove the same
+  equivalence against `GraphQL.Algorithms.ExecutionCancelingSiblings`. The
+  cached refinement tracks reusable composite sources recursively and proves
+  exact erasure to the uncached specialization for valid operations.
+  Response-name grouping means the algorithms' exact error counts can differ.
+- `GraphQL.Algorithms.ExecutionBreadth`: public breadth-first execution model
+  with vectorized resolver calls and explicit scheduling, trace, slot, and
+  reverse-completion state.
+- `Proofs.GraphQL.Algorithms.ExecutionBreadth`: collection, resolver, slot,
+  scope, queue, and final semantic-preservation proofs for breadth execution.
 - `Tests.GraphQL`: ordinary test aggregator. Its modules live under
   `Tests/GraphQL/` and mirror the corresponding GraphQL or proof topic,
   including `Algorithms/ExecutionCancelingSiblings`,
-  `Algorithms/ExecutionUngrouped`, and `Theories/NormalForm`.
+  `Algorithms/ExecutionUngrouped`, `Algorithms/ExecutionBreadth`, and
+  `Theories/NormalForm`.
 - `Tests.Conformance`: generated and fixture-driven conformance test
   aggregator. Its modules live under `Tests/Conformance/`.
 - `Lint`: local project tooling. `Lint.ImportClosure` checks that tracked Lean
@@ -187,15 +214,17 @@ The current flow is:
 5. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified
    collected-field executor that cancels remaining sibling response positions
    after a bubble.
-6. `GraphQL.Algorithms.ExecutionUngrouped` provides a verified alternative
-   execution algorithm over the same operation syntax.
-7. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
+6. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching
+   alternative execution algorithm over the same operation syntax.
+7. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative
+   with vectorized resolver calls.
+8. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
    validation, execution, inlining, and translation definitions.
-8. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
+9. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
    through inlining and translation to the fragment-free syntax.
-9. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
+10. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
    proof-facing ground-type lemmas.
-10. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
+11. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
    proof-facing lemmas for directive-aware Boolean case branch normalization.
 
 Normal forms consume `GraphQL.Operation` directly. The directive-free
@@ -210,9 +239,10 @@ collects directive-free fields for each ground type under the selected case.
 Nested field child normalization receives that case as proof context and does
 not introduce another directive-only BoolCase DNF.
 
-Ungrouped execution is a verified algorithmic alternative to `GraphQL.Execution`.
-It is documented separately because it is an implementation strategy, not part
-of the spec-facing execution definition.
+Ungrouped execution is documented separately because it is an implementation
+strategy, not part of the spec-facing execution definition. Both the
+source-caching algorithm and its uncached specialization have checked theorem
+witnesses, summarized in `docs/algorithms.md`.
 
 Raw syntax remains permissive. Validation supplies the invariants that later
 semantic proofs should rely on.
