@@ -59,59 +59,87 @@ def mergeExecutableGroups (left right : List (Name × List ExecutableField))
     : List (Name × List ExecutableField) :=
   right.foldl (fun grouped group => addExecutableGroup group grouped) left
 
+-- Spec 6.3.2 `CollectFields` mutates `visitedFragments` while traversing a selection
+-- set. The executable model returns that context explicitly so sibling selections can
+-- continue with the fragment names visited by earlier selections.
+structure CollectFieldsResult where
+  groupedFields : List (Name × List ExecutableField)
+  visitedFragments : List Name
+deriving Repr
+
 mutual
   def collectSelection (schema : Schema) (variableValues : VariableValues)
-      : List FragmentDefinition -> Name -> ResolverValue ObjectRef -> Selection
-        -> List (Name × List ExecutableField)
+      : List FragmentDefinition -> List Name -> Name -> ResolverValue ObjectRef
+        -> Selection -> CollectFieldsResult
     | fragments,
+      visitedFragments,
       parentType,
       _source,
       .field responseName fieldName arguments directives selectionSet =>
         if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
-          [(
-            responseName,
-            [{
-              parentType := parentType,
-              responseName := responseName,
-              fieldName := fieldName,
-              arguments := arguments,
-              selectionSet := selectionSet,
-              availableFragments := fragments
-            }]
-          )]
+          {
+            groupedFields :=
+              [(
+                responseName,
+                [{
+                  parentType := parentType,
+                  responseName := responseName,
+                  fieldName := fieldName,
+                  arguments := arguments,
+                  selectionSet := selectionSet,
+                  availableFragments := fragments
+                }]
+              )]
+            visitedFragments := visitedFragments
+          }
         else
-          []
-    | fragments, parentType, source, .inlineFragment none directives selectionSet =>
-        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
-          collectFields schema variableValues fragments parentType source selectionSet
-        else
-          []
+          { groupedFields := [], visitedFragments := visitedFragments }
     | fragments,
+      visitedFragments,
+      parentType,
+      source,
+      .inlineFragment none directives selectionSet =>
+        if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
+          collectFields schema variableValues fragments visitedFragments parentType source
+            selectionSet
+        else
+          { groupedFields := [], visitedFragments := visitedFragments }
+    | fragments,
+      visitedFragments,
       parentType,
       source,
       .inlineFragment (some typeCondition) directives selectionSet =>
         if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
           if GraphQL.Execution.doesFragmentTypeApplyBool schema parentType
               source typeCondition then
-            collectFields schema variableValues fragments parentType source selectionSet
+            collectFields schema variableValues fragments visitedFragments parentType
+              source selectionSet
           else
-            []
+            { groupedFields := [], visitedFragments := visitedFragments }
         else
-          []
-    | fragments, parentType, source, .fragmentSpread fragmentName directives =>
+          { groupedFields := [], visitedFragments := visitedFragments }
+    | fragments,
+      visitedFragments,
+      parentType,
+      source,
+      .fragmentSpread fragmentName directives =>
         if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
-          match lookupFragmentAndRestLt? fragmentName fragments with
-          | none => []
-          | some (fragment, remainingFragments) =>
-              if GraphQL.Execution.doesFragmentTypeApplyBool schema
-                  parentType source fragment.typeCondition then
-                collectFields schema variableValues remainingFragments.val
-                  parentType source fragment.selectionSet
-              else
-                []
+          if fragmentName ∈ visitedFragments then
+            { groupedFields := [], visitedFragments := visitedFragments }
+          else
+            let visitedFragments := fragmentName :: visitedFragments
+            match lookupFragmentAndRestLt? fragmentName fragments with
+            | none => { groupedFields := [], visitedFragments := visitedFragments }
+            | some (fragment, remainingFragments) =>
+                if GraphQL.Execution.doesFragmentTypeApplyBool schema
+                    parentType source fragment.typeCondition then
+                  collectFields schema variableValues remainingFragments.val
+                    visitedFragments parentType source fragment.selectionSet
+                else
+                  { groupedFields := [], visitedFragments := visitedFragments }
         else
-          []
-  termination_by fragments _parentType _source selection =>
+          { groupedFields := [], visitedFragments := visitedFragments }
+  termination_by fragments _visitedFragments _parentType _source selection =>
     (fragments.length, sizeOf selection, 0)
   decreasing_by
     all_goals
@@ -128,14 +156,23 @@ mutual
           omega
 
   def collectFields (schema : Schema) (variableValues : VariableValues)
-      : List FragmentDefinition -> Name -> ResolverValue ObjectRef -> List Selection
-        -> List (Name × List ExecutableField)
-    | _fragments, _parentType, _source, [] => []
-    | fragments, parentType, source, selection :: rest =>
-        mergeExecutableGroups
-          (collectSelection schema variableValues fragments parentType source selection)
-          (collectFields schema variableValues fragments parentType source rest)
-  termination_by fragments _parentType _source selectionSet =>
+      : List FragmentDefinition -> List Name -> Name -> ResolverValue ObjectRef
+        -> List Selection -> CollectFieldsResult
+    | _fragments, visitedFragments, _parentType, _source, [] =>
+        { groupedFields := [], visitedFragments := visitedFragments }
+    | fragments, visitedFragments, parentType, source, selection :: rest =>
+        let selected :=
+          collectSelection schema variableValues fragments visitedFragments parentType
+            source selection
+        let remaining :=
+          collectFields schema variableValues fragments selected.visitedFragments
+            parentType source rest
+        {
+          groupedFields :=
+            mergeExecutableGroups selected.groupedFields remaining.groupedFields
+          visitedFragments := remaining.visitedFragments
+        }
+  termination_by fragments _visitedFragments _parentType _source selectionSet =>
     (fragments.length, sizeOf selectionSet, 1)
   decreasing_by
     all_goals
@@ -153,8 +190,8 @@ def collectSubfields
   | [] => []
   | field :: fields =>
       mergeExecutableGroups
-        (collectFields schema variableValues field.availableFragments objectType
-          objectValue field.selectionSet)
+        (collectFields schema variableValues field.availableFragments [] objectType
+          objectValue field.selectionSet).groupedFields
         (collectSubfields schema variableValues objectType objectValue fields)
 
 mutual
@@ -259,7 +296,8 @@ def executeRootSelectionSet
   | selectionSet =>
       executeCollectedFields schema resolvers variableValues
         fuel source
-        (collectFields schema variableValues fragments parentType source selectionSet)
+        (collectFields schema variableValues fragments [] parentType source
+          selectionSet).groupedFields
 
 def executeQueryFuelBound (operation : Operation) : Nat :=
   operation.size * 3 + 1

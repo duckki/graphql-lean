@@ -16,9 +16,7 @@ def executableFieldToSpec (field : Execution.ExecutableField)
     responseName := field.responseName
     fieldName := field.fieldName
     arguments := field.arguments
-    selectionSet :=
-      Translate.reduceSelectionSet
-        (Inline.inlineSelectionSet field.availableFragments field.selectionSet)
+    selectionSet := Translate.reduceSelectionSet field.selectionSet
   }
 
 def executableGroupToSpec (group : Name × List Execution.ExecutableField)
@@ -29,6 +27,13 @@ def executableGroupsToSpec (groups : List (Name × List Execution.ExecutableFiel
     : List (Name × List GraphQL.Execution.ExecutableField) :=
   groups.map executableGroupToSpec
 
+def executableFieldsInlined (fields : List Execution.ExecutableField) : Prop :=
+  ∀ field, field ∈ fields -> selectionSetInlined field.selectionSet
+
+def executableGroupsInlined (groups : List (Name × List Execution.ExecutableField))
+    : Prop :=
+  ∀ group, group ∈ groups -> executableFieldsInlined group.snd
+
 def inlinedSelectionToSpec : Selection -> GraphQL.Selection
   | .field responseName fieldName arguments directives selectionSet =>
       .field responseName fieldName arguments directives
@@ -38,45 +43,13 @@ def inlinedSelectionToSpec : Selection -> GraphQL.Selection
   | .fragmentSpread _fragmentName directives =>
       .inlineFragment none directives []
 
-def selectionToSpecAfterInline
-    (fragments : List FragmentDefinition) (selection : Selection)
-    : GraphQL.Selection :=
-  inlinedSelectionToSpec (Inline.inlineSelection fragments selection)
-
-theorem translate_inlineSelection_singleton
-    (fragments : List FragmentDefinition) (selection : Selection)
-    : Translate.reduceSelection (Inline.inlineSelection fragments selection)
-      = [selectionToSpecAfterInline fragments selection] := by
-  cases selection with
-  | field responseName fieldName arguments directives selectionSet =>
-      simp [selectionToSpecAfterInline, inlinedSelectionToSpec,
-        Inline.inlineSelection, Translate.reduceSelection]
-  | inlineFragment typeCondition directives selectionSet =>
-      simp [selectionToSpecAfterInline, inlinedSelectionToSpec,
-        Inline.inlineSelection, Translate.reduceSelection]
-  | fragmentSpread fragmentName directives =>
-      simp [selectionToSpecAfterInline, inlinedSelectionToSpec,
-        Inline.inlineSelection]
-      cases hlookup : lookupFragmentAndRestLt? fragmentName fragments with
-      | none =>
-          simp [Translate.reduceSelection]
-      | some pair =>
-          cases pair with
-          | mk fragment remainingFragments =>
-              simp [Translate.reduceSelection]
-
-theorem translate_inlineSelectionSet_map
-    (fragments : List FragmentDefinition)
-    (selectionSet : List Selection)
-    : Translate.reduceSelectionSet (Inline.inlineSelectionSet fragments selectionSet)
-      = selectionSet.map (selectionToSpecAfterInline fragments) := by
-  induction selectionSet with
-  | nil =>
-      simp [Translate.reduceSelectionSet]
-  | cons selection rest ih =>
-      simp [Inline.inlineSelectionSet, Translate.reduceSelectionSet,
-        translate_inlineSelection_singleton fragments selection, ih,
-        selectionToSpecAfterInline]
+theorem reduceSelection_eq_singleton_inlinedSelectionToSpec
+    (selection : Selection)
+    (hinlined : selectionInlined selection)
+    : Translate.reduceSelection selection = [inlinedSelectionToSpec selection] := by
+  cases selection <;>
+    simp [selectionInlined, inlinedSelectionToSpec, Translate.reduceSelection]
+      at hinlined ⊢
 
 theorem addExecutableGroup_toSpec
     (group : Name × List Execution.ExecutableField)
@@ -125,43 +98,105 @@ theorem mergeExecutableGroups_toSpec
       rw [ih (Execution.addExecutableGroup group left)]
       rw [addExecutableGroup_toSpec]
 
+theorem addExecutableGroup_inlined
+    (group : Name × List Execution.ExecutableField)
+    (groups : List (Name × List Execution.ExecutableField))
+    (hgroup : executableFieldsInlined group.snd)
+    (hgroups : executableGroupsInlined groups)
+    : executableGroupsInlined (Execution.addExecutableGroup group groups) := by
+  induction groups with
+  | nil =>
+      intro candidate hcandidate
+      simp [Execution.addExecutableGroup] at hcandidate
+      subst candidate
+      exact hgroup
+  | cons head rest ih =>
+      cases group with
+      | mk groupResponseName groupFields =>
+          cases head with
+          | mk responseName fields =>
+              have hfields : executableFieldsInlined fields :=
+                hgroups (responseName, fields) (by simp)
+              have hrest : executableGroupsInlined rest := by
+                intro candidate hcandidate
+                exact hgroups candidate (by simp [hcandidate])
+              by_cases hresponse : responseName == groupResponseName
+              · intro candidate hcandidate
+                simp [Execution.addExecutableGroup, hresponse] at hcandidate
+                rcases hcandidate with hcandidate | hcandidate
+                · subst candidate
+                  intro field hfield
+                  simp at hfield
+                  rcases hfield with hfield | hfield
+                  · exact hfields field hfield
+                  · exact hgroup field hfield
+                · exact hrest candidate hcandidate
+              · intro candidate hcandidate
+                simp [Execution.addExecutableGroup, hresponse] at hcandidate
+                rcases hcandidate with hcandidate | hcandidate
+                · subst candidate
+                  exact hfields
+                · exact ih hrest candidate hcandidate
+
+theorem mergeExecutableGroups_inlined
+    (left right : List (Name × List Execution.ExecutableField))
+    (hleft : executableGroupsInlined left)
+    (hright : executableGroupsInlined right)
+    : executableGroupsInlined (Execution.mergeExecutableGroups left right) := by
+  induction right generalizing left with
+  | nil => simpa [Execution.mergeExecutableGroups] using hleft
+  | cons group rest ih =>
+      have hgroup : executableFieldsInlined group.snd :=
+        hright group (by simp)
+      have hrest : executableGroupsInlined rest := by
+        intro candidate hcandidate
+        exact hright candidate (by simp [hcandidate])
+      apply ih (Execution.addExecutableGroup group left)
+      · exact addExecutableGroup_inlined group left hgroup hleft
+      · exact hrest
+
 mutual
-  theorem collectSelection_toSpec
+  theorem collectSelection_toSpec_of_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (parentType : Name)
-            (source : Execution.ResolverValue ObjectRef) (selection : Selection),
-          executableGroupsToSpec
-            (Execution.collectSelection schema variableValues fragments
-              parentType source selection)
-          = GraphQL.Execution.collectSelection schema variableValues parentType
-              source (selectionToSpecAfterInline fragments selection)
-    | schema, variableValues, fragments, parentType, source,
+            (fragments : List FragmentDefinition) (visitedFragments : List Name)
+            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+            (selection : Selection),
+          selectionInlined selection
+          ->  let collected :=
+                Execution.collectSelection schema variableValues fragments
+                  visitedFragments parentType source selection
+              executableGroupsToSpec collected.groupedFields
+                = GraphQL.Execution.collectSelection schema variableValues parentType
+                    source (inlinedSelectionToSpec selection)
+              ∧ collected.visitedFragments = visitedFragments
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
         .field responseName fieldName arguments directives selectionSet => by
+        intro hinlined
         by_cases hdirectives :
             GraphQL.Execution.selectionDirectivesAllowBool variableValues
               directives = true
         · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-            selectionToSpecAfterInline, inlinedSelectionToSpec,
-            Inline.inlineSelection, executableGroupsToSpec,
+            inlinedSelectionToSpec, executableGroupsToSpec,
             executableGroupToSpec, executableFieldToSpec, hdirectives]
         · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-            selectionToSpecAfterInline, inlinedSelectionToSpec,
-            Inline.inlineSelection, executableGroupsToSpec, hdirectives]
-    | schema, variableValues, fragments, parentType, source,
+            inlinedSelectionToSpec, executableGroupsToSpec, hdirectives]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
         .inlineFragment none directives selectionSet => by
+        intro hinlined
+        simp [selectionInlined] at hinlined
         by_cases hdirectives :
             GraphQL.Execution.selectionDirectivesAllowBool variableValues
               directives = true
         · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-            selectionToSpecAfterInline, inlinedSelectionToSpec,
-            Inline.inlineSelection, hdirectives]
-          exact collectFields_toSpec schema variableValues fragments parentType
-            source selectionSet
+            inlinedSelectionToSpec, hdirectives]
+          exact collectFields_toSpec_of_inlined schema variableValues fragments
+            visitedFragments parentType source selectionSet hinlined
         · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-            selectionToSpecAfterInline, inlinedSelectionToSpec,
-            Inline.inlineSelection, hdirectives, executableGroupsToSpec]
-    | schema, variableValues, fragments, parentType, source,
+            inlinedSelectionToSpec, hdirectives, executableGroupsToSpec]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
         .inlineFragment (some typeCondition) directives selectionSet => by
+        intro hinlined
+        simp [selectionInlined] at hinlined
         by_cases hdirectives :
             GraphQL.Execution.selectionDirectivesAllowBool variableValues
               directives = true
@@ -169,133 +204,183 @@ mutual
               GraphQL.Execution.doesFragmentTypeApplyBool schema parentType
                 source typeCondition = true
           · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-              selectionToSpecAfterInline, inlinedSelectionToSpec,
-              Inline.inlineSelection, hdirectives, happly]
-            exact collectFields_toSpec schema variableValues fragments parentType
-              source selectionSet
+              inlinedSelectionToSpec, hdirectives, happly]
+            exact collectFields_toSpec_of_inlined schema variableValues fragments
+              visitedFragments parentType source selectionSet hinlined
           · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-              selectionToSpecAfterInline, inlinedSelectionToSpec,
-              Inline.inlineSelection, hdirectives, happly, executableGroupsToSpec]
+              inlinedSelectionToSpec, hdirectives, happly, executableGroupsToSpec]
         · simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-            selectionToSpecAfterInline, inlinedSelectionToSpec,
-            Inline.inlineSelection, hdirectives, executableGroupsToSpec]
-    | schema, variableValues, fragments, parentType, source,
-        .fragmentSpread fragmentName directives => by
+            inlinedSelectionToSpec, hdirectives, executableGroupsToSpec]
+    | _schema, _variableValues, _fragments, _visitedFragments, _parentType, _source,
+        .fragmentSpread _fragmentName _directives => by
+        simp [selectionInlined]
+
+  theorem collectFields_toSpec_of_inlined
+      : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
+            (fragments : List FragmentDefinition) (visitedFragments : List Name)
+            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+            (selectionSet : List Selection),
+          selectionSetInlined selectionSet
+          ->  let collected :=
+                Execution.collectFields schema variableValues fragments
+                  visitedFragments parentType source selectionSet
+              executableGroupsToSpec collected.groupedFields
+                = GraphQL.Execution.collectFields schema variableValues parentType source
+                    (Translate.reduceSelectionSet selectionSet)
+              ∧ collected.visitedFragments = visitedFragments
+    | schema, variableValues, fragments, visitedFragments, parentType, source, [] => by
+        intro _hinlined
+        simp [Execution.collectFields, GraphQL.Execution.collectFields,
+          executableGroupsToSpec, Translate.reduceSelectionSet]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
+        selection :: rest => by
+        intro hinlined
+        simp [selectionSetInlined] at hinlined
+        rcases hinlined with ⟨hselection, hrest⟩
+        have hselected :=
+          collectSelection_toSpec_of_inlined schema variableValues fragments
+            visitedFragments parentType source selection hselection
+        have hremaining :=
+          collectFields_toSpec_of_inlined schema variableValues fragments
+            visitedFragments parentType source rest hrest
+        simp only [Execution.collectFields]
+        rw [hselected.2]
+        constructor
+        · rw [mergeExecutableGroups_toSpec, hselected.1, hremaining.1]
+          rw [Translate.reduceSelectionSet]
+          rw [reduceSelection_eq_singleton_inlinedSelectionToSpec selection hselection]
+          simp [GraphQL.Execution.collectFields]
+        · exact hremaining.2
+end
+
+mutual
+  theorem collectSelection_inlined
+      : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
+            (fragments : List FragmentDefinition) (visitedFragments : List Name)
+            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+            (selection : Selection),
+          selectionInlined selection
+          -> executableGroupsInlined
+              (Execution.collectSelection schema variableValues fragments
+                visitedFragments parentType source selection).groupedFields
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
+        .field responseName fieldName arguments directives selectionSet => by
+        intro hinlined
+        simp [selectionInlined] at hinlined
         by_cases hdirectives :
             GraphQL.Execution.selectionDirectivesAllowBool variableValues
               directives = true
-        · generalize hlookup :
-              lookupFragmentAndRestLt? fragmentName fragments = lookupResult
-          cases lookupResult with
-          | none =>
-              simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-                selectionToSpecAfterInline, inlinedSelectionToSpec,
-                Inline.inlineSelection, hdirectives,
-                hlookup, GraphQL.Execution.collectFields,
-                Translate.reduceSelectionSet, executableGroupsToSpec]
-          | some pair =>
-              cases pair with
-              | mk fragment remainingFragments =>
-                  by_cases happly :
-                      GraphQL.Execution.doesFragmentTypeApplyBool schema
-                        parentType source fragment.typeCondition = true
-                  · simp [Execution.collectSelection,
-                      GraphQL.Execution.collectSelection,
-                      selectionToSpecAfterInline, inlinedSelectionToSpec,
-                      Inline.inlineSelection, hdirectives, hlookup, happly]
-                    exact collectFields_toSpec schema variableValues
-                      remainingFragments.val parentType source
-                      fragment.selectionSet
-                  · simp [Execution.collectSelection,
-                      GraphQL.Execution.collectSelection,
-                      selectionToSpecAfterInline, inlinedSelectionToSpec,
-                      Inline.inlineSelection, hdirectives, hlookup, happly,
-                      executableGroupsToSpec]
-        · generalize hlookup :
-              lookupFragmentAndRestLt? fragmentName fragments = lookupResult
-          cases lookupResult with
-          | none =>
-              simp [Execution.collectSelection, GraphQL.Execution.collectSelection,
-                selectionToSpecAfterInline, inlinedSelectionToSpec,
-                Inline.inlineSelection, hdirectives, hlookup,
-                executableGroupsToSpec]
-          | some pair =>
-              cases pair with
-              | mk fragment remainingFragments =>
-                  simp [Execution.collectSelection,
-                    GraphQL.Execution.collectSelection,
-                    selectionToSpecAfterInline, inlinedSelectionToSpec,
-                    Inline.inlineSelection, hdirectives, hlookup,
-                    executableGroupsToSpec]
-  termination_by _schema _variableValues fragments _parentType _source selection =>
-    (fragments.length, sizeOf selection, 0)
-  decreasing_by
-    all_goals
-      simp_wf
-      try
-        first
-        | apply Prod.Lex.left
-          exact remainingFragments.property
-        | apply Prod.Lex.right
-          apply Prod.Lex.left
-          omega
-        | apply Prod.Lex.right
-          apply Prod.Lex.right
-          omega
+        · simp [Execution.collectSelection, hdirectives, executableGroupsInlined,
+            executableFieldsInlined, hinlined]
+        · simp [Execution.collectSelection, hdirectives, executableGroupsInlined]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
+        .inlineFragment none directives selectionSet => by
+        intro hinlined
+        simp [selectionInlined] at hinlined
+        by_cases hdirectives :
+            GraphQL.Execution.selectionDirectivesAllowBool variableValues
+              directives = true
+        · simp [Execution.collectSelection, hdirectives]
+          exact collectFields_inlined schema variableValues fragments
+            visitedFragments parentType source selectionSet hinlined
+        · simp [Execution.collectSelection, hdirectives, executableGroupsInlined]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
+        .inlineFragment (some typeCondition) directives selectionSet => by
+        intro hinlined
+        simp [selectionInlined] at hinlined
+        by_cases hdirectives :
+            GraphQL.Execution.selectionDirectivesAllowBool variableValues
+              directives = true
+        · by_cases happly :
+              GraphQL.Execution.doesFragmentTypeApplyBool schema parentType source
+                typeCondition = true
+          · simp [Execution.collectSelection, hdirectives, happly]
+            exact collectFields_inlined schema variableValues fragments
+              visitedFragments parentType source selectionSet hinlined
+          · simp [Execution.collectSelection, hdirectives, happly,
+              executableGroupsInlined]
+        · simp [Execution.collectSelection, hdirectives, executableGroupsInlined]
+    | _schema, _variableValues, _fragments, _visitedFragments, _parentType, _source,
+        .fragmentSpread _fragmentName _directives => by
+        simp [selectionInlined]
 
-  theorem collectFields_toSpec
+  theorem collectFields_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (parentType : Name)
-            (source : Execution.ResolverValue ObjectRef)
+            (fragments : List FragmentDefinition) (visitedFragments : List Name)
+            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
             (selectionSet : List Selection),
-          executableGroupsToSpec
-            (Execution.collectFields schema variableValues fragments parentType
-              source selectionSet)
-          = GraphQL.Execution.collectFields schema variableValues parentType source
-              (Translate.reduceSelectionSet
-                (Inline.inlineSelectionSet fragments selectionSet))
-    | schema, variableValues, fragments, parentType, source, [] => by
-        simp [Execution.collectFields, GraphQL.Execution.collectFields,
-          executableGroupsToSpec, Translate.reduceSelectionSet]
-    | schema, variableValues, fragments, parentType, source,
+          selectionSetInlined selectionSet
+          -> executableGroupsInlined
+              (Execution.collectFields schema variableValues fragments
+                visitedFragments parentType source selectionSet).groupedFields
+    | _schema, _variableValues, _fragments, _visitedFragments, _parentType, _source,
+        [] => by
+        intro _hinlined
+        simp [Execution.collectFields, executableGroupsInlined]
+    | schema, variableValues, fragments, visitedFragments, parentType, source,
         selection :: rest => by
-        rw [translate_inlineSelectionSet_map]
-        simp [Execution.collectFields, GraphQL.Execution.collectFields,
-          mergeExecutableGroups_toSpec,
-          collectSelection_toSpec schema variableValues fragments parentType
-            source selection,
-          collectFields_toSpec schema variableValues fragments parentType source
-            rest,
-          translate_inlineSelectionSet_map fragments rest]
-  termination_by _schema _variableValues fragments _parentType _source selectionSet =>
-    (fragments.length, sizeOf selectionSet, 1)
-  decreasing_by
-    all_goals
-      simp_wf
-      repeat first
-        | apply Prod.Lex.left; omega
-        | apply Prod.Lex.right
-      try omega
+        intro hinlined
+        simp [selectionSetInlined] at hinlined
+        rcases hinlined with ⟨hselection, hrest⟩
+        simp only [Execution.collectFields]
+        apply mergeExecutableGroups_inlined
+        · exact collectSelection_inlined schema variableValues fragments
+            visitedFragments parentType source selection hselection
+        · exact collectFields_inlined schema variableValues fragments
+            (Execution.collectSelection schema variableValues fragments
+              visitedFragments parentType source selection).visitedFragments
+            parentType source rest hrest
 end
+
+theorem collectSubfields_inlined
+    (schema : Schema) (variableValues : Execution.VariableValues)
+    (objectType : Name) (objectValue : Execution.ResolverValue ObjectRef)
+    : ∀ (fields : List Execution.ExecutableField),
+        executableFieldsInlined fields
+        -> executableGroupsInlined
+            (Execution.collectSubfields schema variableValues objectType objectValue
+              fields)
+  | [], _hinlined => by
+      simp [Execution.collectSubfields, executableGroupsInlined]
+  | field :: rest, hinlined => by
+      have hfield : selectionSetInlined field.selectionSet :=
+        hinlined field (by simp)
+      have hrest : executableFieldsInlined rest := by
+        intro candidate hcandidate
+        exact hinlined candidate (by simp [hcandidate])
+      simp only [Execution.collectSubfields]
+      apply mergeExecutableGroups_inlined
+      · exact collectFields_inlined schema variableValues field.availableFragments []
+          objectType objectValue field.selectionSet hfield
+      · exact collectSubfields_inlined schema variableValues objectType objectValue
+          rest hrest
 
 theorem collectSubfields_toSpec
     (schema : Schema) (variableValues : Execution.VariableValues)
     (objectType : Name) (objectValue : Execution.ResolverValue ObjectRef)
-    (fields : List Execution.ExecutableField)
-    : executableGroupsToSpec
-        (Execution.collectSubfields schema variableValues objectType objectValue fields)
-      = GraphQL.Execution.collectSubfields schema variableValues objectType
-          objectValue (fields.map executableFieldToSpec) := by
-  induction fields with
-  | nil =>
+    : ∀ (fields : List Execution.ExecutableField),
+        (∀ field, field ∈ fields -> selectionSetInlined field.selectionSet)
+        -> executableGroupsToSpec
+              (Execution.collectSubfields schema variableValues objectType objectValue
+                fields)
+            = GraphQL.Execution.collectSubfields schema variableValues objectType
+                objectValue (fields.map executableFieldToSpec)
+  | [], _hinlined => by
       simp [Execution.collectSubfields, GraphQL.Execution.collectSubfields,
         executableGroupsToSpec]
-  | cons field rest ih =>
+  | field :: rest, hinlined => by
+      have hfield : selectionSetInlined field.selectionSet :=
+        hinlined field (by simp)
+      have hrest : ∀ candidate, candidate ∈ rest
+          -> selectionSetInlined candidate.selectionSet := by
+        intro candidate hcandidate
+        exact hinlined candidate (by simp [hcandidate])
       simp [Execution.collectSubfields, GraphQL.Execution.collectSubfields,
-        mergeExecutableGroups_toSpec, ih, executableFieldToSpec]
-      rw [collectFields_toSpec schema variableValues field.availableFragments
-        objectType objectValue field.selectionSet
-      ]
+        mergeExecutableGroups_toSpec, executableFieldToSpec,
+        collectSubfields_toSpec schema variableValues objectType objectValue rest hrest]
+      rw [(collectFields_toSpec_of_inlined schema variableValues
+        field.availableFragments [] objectType objectValue field.selectionSet
+        hfield).1]
 
 end Semantics
 end NamedFragment

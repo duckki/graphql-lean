@@ -1,4 +1,4 @@
-import Proofs.GraphQL.NamedFragment.Semantics.Inline
+import Proofs.GraphQL.NamedFragment.Semantics.Inline.Operation
 
 /-! Named-fragment validation preservation proofs. -/
 

@@ -110,9 +110,11 @@ The main public modules are:
   through non-null output wrappers, and a query response envelope containing data
   plus a `Nat` execution-error count.
 - `GraphQL.NamedFragment`: fragment-aware public operation syntax, validation, direct
-  fragment-aware execution, and inlining support for equivalence proofs. Its
-  all-variables-used check follows fragment spreads transitively and does not count uses
-  in unreferenced fragments.
+  fragment-aware execution, and static inlining with equivalence proofs. Direct field
+  collection threads the spec `visitedFragments` context and filters repeated spreads. The
+  general execution bridge proves that the repeated fields retained by static inlining are
+  absorbed during execution. Its all-variables-used check follows fragment spreads
+  transitively and does not count uses in unreferenced fragments.
 
 The non-spec algorithms and proof-status details, including ungrouped execution
 and normal-form work, are documented separately in `docs/algorithms.md` and

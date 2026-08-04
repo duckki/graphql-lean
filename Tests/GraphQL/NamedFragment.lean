@@ -200,6 +200,145 @@ def fragmentAwareToSpecStatementSmoke : Prop :=
     Execution.sampleSchema
     (GraphQL.NamedFragment.Inline.inlineOperation heroWithNamedFragment)
 
+def pairFragment : GraphQL.NamedFragment.FragmentDefinition :=
+  {
+    name := "Pair"
+    typeCondition := "Query"
+    selectionSet :=
+      [.field "name" "name" [] [] [], .field "age" "age" [] [] []]
+  }
+
+def pairFragmentGroups (selectionSet : List GraphQL.NamedFragment.Selection)
+    : List (Name × Nat) :=
+  let collected :=
+    GraphQL.NamedFragment.Execution.collectFields Execution.sampleSchema []
+      [pairFragment] [] "Query"
+      (GraphQL.Execution.ResolverValue.object "Query" ()) selectionSet
+  collected.groupedFields.map fun group => (group.fst, group.snd.length)
+
+theorem repeatedSiblingSpreadVisitedOnce
+    : let collected :=
+        GraphQL.NamedFragment.Execution.collectFields Execution.sampleSchema []
+          [pairFragment] [] "Query"
+          (GraphQL.Execution.ResolverValue.object "Query" ())
+          [.fragmentSpread "Pair" [], .fragmentSpread "Pair" []]
+      collected.visitedFragments = ["Pair"]
+      ∧ pairFragmentGroups [.fragmentSpread "Pair" [], .fragmentSpread "Pair" []]
+        = [("name", 1), ("age", 1)] := by
+  native_decide
+
+def repeatedPairSpreadOperation : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "RepeatedPair"
+    fragmentDefinitions := [pairFragment]
+    selectionSet := [.fragmentSpread "Pair" [], .fragmentSpread "Pair" []]
+  }
+
+def pairResolvers : GraphQL.Execution.Resolvers :=
+  { resolve := fun parentType fieldName _arguments _source =>
+      match parentType, fieldName with
+      | "Query", "name" => some (.scalar "Query")
+      | "Query", "age" => some (.scalar "42")
+      | _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl }
+
+theorem repeatedSpreadExecutionMatchesStaticInlining
+    : let source := GraphQL.Execution.ResolverValue.object "Query" ()
+      let direct :=
+        GraphQL.NamedFragment.Execution.executeQueryWithFuel Execution.sampleSchema
+          pairResolvers [] repeatedPairSpreadOperation 20 source
+      let inlined :=
+        GraphQL.NamedFragment.Execution.executeQueryWithFuel Execution.sampleSchema
+          pairResolvers []
+          (GraphQL.NamedFragment.Inline.inlineOperation repeatedPairSpreadOperation)
+          20 source
+      direct.errors = inlined.errors
+      ∧ Execution.responseEqBool direct.data inlined.data = true := by
+  native_decide
+
+def repeatedNestedSpreadOperation : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "RepeatedNestedSpread"
+    fragmentDefinitions := [characterNameFragment]
+    selectionSet :=
+      [.field "mainHero" "hero" [] []
+        [.fragmentSpread "CharacterName" [], .fragmentSpread "CharacterName" []]]
+  }
+
+theorem repeatedNestedSpreadExecutionMatchesStaticInlining
+    : let source := GraphQL.Execution.ResolverValue.object "Query" ()
+      let direct :=
+        GraphQL.NamedFragment.Execution.executeQueryWithFuel Execution.sampleSchema
+          Execution.sampleResolvers [] repeatedNestedSpreadOperation 20 source
+      let inlined :=
+        GraphQL.NamedFragment.Execution.executeQueryWithFuel Execution.sampleSchema
+          Execution.sampleResolvers []
+          (GraphQL.NamedFragment.Inline.inlineOperation repeatedNestedSpreadOperation)
+          20 source
+      direct.errors = inlined.errors
+      ∧ Execution.responseEqBool direct.data inlined.data = true := by
+  native_decide
+
+theorem skippedSpreadDoesNotVisitFragment
+    : let selectionSet : List GraphQL.NamedFragment.Selection :=
+        [.fragmentSpread "Pair" [.skip (.boolean true)], .fragmentSpread "Pair" []]
+      let collected :=
+        GraphQL.NamedFragment.Execution.collectFields Execution.sampleSchema []
+          [pairFragment] [] "Query"
+          (GraphQL.Execution.ResolverValue.object "Query" ()) selectionSet
+      collected.visitedFragments = ["Pair"]
+      ∧ pairFragmentGroups selectionSet = [("name", 1), ("age", 1)] := by
+  native_decide
+
+def nonApplicableFragment : GraphQL.NamedFragment.FragmentDefinition :=
+  {
+    name := "CharacterDetails"
+    typeCondition := "Character"
+    selectionSet := [.field "name" "name" [] [] []]
+  }
+
+theorem nonApplicableSpreadStillVisitsFragment
+    : let collected :=
+        GraphQL.NamedFragment.Execution.collectFields Execution.sampleSchema []
+          [nonApplicableFragment] [] "Query"
+          (GraphQL.Execution.ResolverValue.object "Query" ())
+          [.fragmentSpread "CharacterDetails" [], .fragmentSpread "CharacterDetails" []]
+      collected.visitedFragments = ["CharacterDetails"]
+      ∧ collected.groupedFields.isEmpty := by
+  native_decide
+
+theorem inlineFragmentPropagatesVisitedFragments
+    : let selectionSet : List GraphQL.NamedFragment.Selection :=
+        [.inlineFragment none [] [.fragmentSpread "Pair" []], .fragmentSpread "Pair" []]
+      let collected :=
+        GraphQL.NamedFragment.Execution.collectFields Execution.sampleSchema []
+          [pairFragment] [] "Query"
+          (GraphQL.Execution.ResolverValue.object "Query" ()) selectionSet
+      collected.visitedFragments = ["Pair"]
+      ∧ pairFragmentGroups selectionSet = [("name", 1), ("age", 1)] := by
+  native_decide
+
+def pairSpreadExecutableField : GraphQL.NamedFragment.Execution.ExecutableField :=
+  {
+    parentType := "Query"
+    responseName := "parent"
+    fieldName := "parent"
+    arguments := []
+    selectionSet := [.fragmentSpread "Pair" []]
+    availableFragments := [pairFragment]
+  }
+
+theorem collectSubfieldsUsesFreshVisitedFragments
+    : let groups :=
+        GraphQL.NamedFragment.Execution.collectSubfields Execution.sampleSchema []
+          "Query" (GraphQL.Execution.ResolverValue.object "Query" ())
+          [pairSpreadExecutableField, pairSpreadExecutableField]
+      groups.map (fun group => (group.fst, group.snd.length))
+      = [("name", 2), ("age", 2)] := by
+  native_decide
+
 end NamedFragment
 end Tests
 end GraphQL

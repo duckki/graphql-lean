@@ -220,8 +220,9 @@ The current flow is:
    with vectorized resolver calls.
 8. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
    validation, execution, inlining, and translation definitions.
-9. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges
-   through inlining and translation to the fragment-free syntax.
+9. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges through
+   inlining and translation to the fragment-free syntax, including duplicate-field
+   absorption for named fragments already visited during field collection.
 10. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
    proof-facing ground-type lemmas.
 11. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
