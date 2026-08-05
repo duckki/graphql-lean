@@ -132,8 +132,9 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
   cases hlookup : schema.lookupField field.parentType field.fieldName with
   | none => trivial
   | some fieldDefinition =>
-      cases hresolve :
-          resolvers.resolve field.parentType field.fieldName field.arguments source with
+      cases hresolve
+            : resolvers.resolve field.parentType field.fieldName field.arguments
+                source with
       | none =>
           change
             FieldCacheInternallyAligned

@@ -859,7 +859,7 @@ theorem completeValue_scalar_any_depth_eq_scalar
   | zero =>
       cases previous? with
       | none =>
-        simp [completeValue, outOfFuel, resultValueOrNull, scalarCompletionAtDepth]
+          simp [completeValue, outOfFuel, resultValueOrNull, scalarCompletionAtDepth]
       | some previous =>
           cases previous <;>
             simp [completeValue, outOfFuel, resultValueOrNull]
@@ -1968,8 +1968,7 @@ theorem visitSelection_field_depth_zero_absorbs_of_ready
         mergeResponseFieldIntoObject, outOfFuel] using
         ResponseAbsorbs_refl_of_ready (.list values) hready
   | object fields =>
-      cases hprevious :
-          responseObjectField? responseName (.object fields) with
+      cases hprevious : responseObjectField? responseName (.object fields) with
       | none =>
           have hfield :
               ResponseAbsorbs (.object fields)

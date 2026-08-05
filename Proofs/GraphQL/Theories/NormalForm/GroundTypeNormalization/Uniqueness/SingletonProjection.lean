@@ -40,12 +40,12 @@ theorem executeField_ok_responseFields_singleton
           | none =>
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
-              cases hresolve :
-                  resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+              cases hresolve
+                    : resolvers.resolve field.parentType field.fieldName
+                        field.arguments source with
               | none =>
-                  cases hhandled :
-                      Execution.handleFieldError fieldDefinition.outputType with
+                  cases hhandled
+                        : Execution.handleFieldError fieldDefinition.outputType with
                   | error handledErrors =>
                       simp [Execution.executeField, hlookup, hresolve,
                         Execution.singleFieldResult, hhandled] at hok
@@ -55,10 +55,10 @@ theorem executeField_ok_responseFields_singleton
                         Execution.singleFieldResult, hhandled] at hok
                       exact ⟨responseValue, hok.1.symm⟩
               | some resolved =>
-                  cases hcomplete :
-                      Execution.completeValue schema resolvers variableValues
-                        fuel fieldDefinition.outputType (field :: rest)
-                        resolved with
+                  cases hcomplete
+                        : Execution.completeValue schema resolvers variableValues
+                            fuel fieldDefinition.outputType (field :: rest)
+                            resolved with
                   | error completeErrors =>
                       simp [Execution.executeField, hlookup, hresolve,
                         Execution.singleFieldResult, hcomplete] at hok

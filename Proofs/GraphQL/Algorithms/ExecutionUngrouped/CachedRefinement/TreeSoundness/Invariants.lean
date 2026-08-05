@@ -606,17 +606,17 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve :
-              resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
+          cases hresolve
+                : resolvers.resolve field.parentType field.fieldName field.arguments
+                    source with
           | none =>
               simp [handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
           | some resolved =>
               simp [hcomplete, ExecutionUngroupedUncached.reusablePreviousValue?]
       | some previous =>
-          cases hreuse :
-            reusablePreviousValue? schema fieldDefinition.outputType previous with
+          cases hreuse
+                : reusablePreviousValue? schema fieldDefinition.outputType previous with
           | some reusable =>
               have hreuseOut :=
                 reusablePreviousValue?_output schema fieldDefinition.outputType
@@ -727,9 +727,9 @@ theorem executeField_output_of_completionCacheSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve :
-              resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
+          cases hresolve
+                : resolvers.resolve field.parentType field.fieldName field.arguments
+                    source with
           | none =>
               simp [handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
@@ -740,8 +740,8 @@ theorem executeField_output_of_completionCacheSound
               exact hcompletion
       | some previous =>
           have hcontinuation := hprevious fieldDefinition previous hlookup rfl
-          cases hreuse :
-            reusablePreviousValue? schema fieldDefinition.outputType previous with
+          cases hreuse
+                : reusablePreviousValue? schema fieldDefinition.outputType previous with
           | some reusable =>
               have hreuseOut :=
                 reusablePreviousValue?_output schema fieldDefinition.outputType

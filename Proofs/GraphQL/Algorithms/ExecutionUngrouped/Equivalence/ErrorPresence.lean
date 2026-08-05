@@ -169,14 +169,13 @@ mutual
         omega
     | some fieldDefinition =>
         rcases fieldDefinition with ⟨fieldDefinitionName, outputType, fieldArguments⟩
-        cases hprevious :
-            reusablePreviousValue? schema outputType previous? with
+        cases hprevious : reusablePreviousValue? schema outputType previous? with
         | some previous =>
             simp [executeField, hlookup, hprevious] at h
         | none =>
-            cases hresolve :
-                resolvers.resolve field.parentType field.fieldName
-                  field.arguments source with
+            cases hresolve
+                  : resolvers.resolve field.parentType field.fieldName
+                      field.arguments source with
             | none =>
                 cases outputType with
                 | named typeName =>
@@ -612,9 +611,9 @@ theorem completeResolvedValue_error_positive
             completeValue_error_positive schema resolvers variableValues depth
               (.list inner) selectionSet resolved previous? errors h
       | nonNull inner =>
-          cases hinner :
-              completeResolvedValue schema resolvers variableValues depth inner
-                selectionSet resolved previous? with
+          cases hinner
+                : completeResolvedValue schema resolvers variableValues depth inner
+                    selectionSet resolved previous? with
           | error innerErrors =>
               simp [hinner, nonNullCompletion] at h
               subst errors

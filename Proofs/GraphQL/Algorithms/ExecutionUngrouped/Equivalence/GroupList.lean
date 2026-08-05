@@ -390,8 +390,7 @@ theorem visitSelection_executableField_prefix_fresh
                 responseObjectField? responseName (.object suffix) :=
             responseObjectField?_object_append_of_not_mem responseName
               prefixFields suffix hfreshName
-          cases hprevious :
-              responseObjectField? responseName (.object suffix) with
+          cases hprevious : responseObjectField? responseName (.object suffix) with
           | none =>
               simp [visitSelection, executableFieldSelection,
                 selectionDirectivesAllowBool_empty, happend, hprevious,
@@ -421,8 +420,7 @@ theorem visitSelection_executableField_prefix_fresh
                 responseObjectField? responseName (.object suffix) :=
             responseObjectField?_object_append_of_not_mem responseName
               prefixFields suffix hfreshName
-          cases hprevious :
-              responseObjectField? responseName (.object suffix) with
+          cases hprevious : responseObjectField? responseName (.object suffix) with
           | none =>
               simp [visitSelection, executableFieldSelection, executableField,
                 selectionDirectivesAllowBool_empty, mergeResponseFieldResult,

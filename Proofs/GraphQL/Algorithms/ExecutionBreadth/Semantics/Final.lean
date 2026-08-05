@@ -2143,10 +2143,10 @@ theorem expectedDrainQueueReady_root_preservationFuel
   | zero =>
       simp [hfuel] at hfuelPos
   | succ fuel =>
-      cases hqueue :
-          (scheduleExpectedScope schema variableValues (operation.rootType schema)
-            [source] [preservationFuelBound schema operation]
-            operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst with
+      cases hqueue
+            : (scheduleExpectedScope schema variableValues (operation.rootType schema)
+                [source] [preservationFuelBound schema operation]
+                operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst with
       | nil =>
           have hqueue' :
               (scheduleExpectedScope schema variableValues (operation.rootType schema)

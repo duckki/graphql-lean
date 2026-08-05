@@ -67,17 +67,16 @@ theorem executeField_ok_keys
       | zero =>
           simp [Execution.executeField, Execution.outOfFuel] at hok
       | succ fuel' =>
-          cases hlookup :
-              schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField field.parentType field.fieldName with
           | none =>
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
-              cases hresolve :
-                  resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+              cases hresolve
+                    : resolvers.resolve field.parentType field.fieldName
+                        field.arguments source with
               | none =>
-                  cases hhandled :
-                      Execution.handleFieldError fieldDefinition.outputType with
+                  cases hhandled
+                        : Execution.handleFieldError fieldDefinition.outputType with
                   | error fieldErrors =>
                       simp [Execution.executeField, hlookup, hresolve,
                         Execution.singleFieldResult,
@@ -89,10 +88,10 @@ theorem executeField_ok_keys
                         hhandled] at hok
                       exact hok.1 ▸ rfl
               | some resolved =>
-                  cases hcomplete :
-                      Execution.completeValue schema resolvers variableValues
-                        fuel' fieldDefinition.outputType (field :: rest)
-                        resolved with
+                  cases hcomplete
+                        : Execution.completeValue schema resolvers variableValues
+                            fuel' fieldDefinition.outputType (field :: rest)
+                            resolved with
                   | error completeErrors =>
                       simp [Execution.executeField, hlookup, hresolve,
                         Execution.singleFieldResult, hcomplete] at hok

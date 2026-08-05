@@ -324,20 +324,19 @@ theorem executeField_pairKeysNodup
             GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
             outOfFuel]
       | succ depth' =>
-          cases hlookup :
-              schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField field.parentType field.fieldName with
           | none =>
               simp [GraphQL.Execution.executeFieldData,
                 GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
                 hlookup]
           | some fieldDefinition =>
-              cases hresolve :
-                  resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+              cases hresolve
+                    : resolvers.resolve field.parentType field.fieldName
+                        field.arguments source with
               | none =>
-                  cases hcompleted :
-                      GraphQL.Execution.handleFieldError
-                        fieldDefinition.outputType with
+                  cases hcompleted
+                        : GraphQL.Execution.handleFieldError
+                            fieldDefinition.outputType with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
                         GraphQL.Execution.executeField,
@@ -352,10 +351,10 @@ theorem executeField_pairKeysNodup
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted]
               | some resolved =>
-                  cases hcompleted :
-                      GraphQL.Execution.completeValue schema resolvers
-                        variableValues depth' fieldDefinition.outputType
-                        (field :: rest) resolved with
+                  cases hcompleted
+                        : GraphQL.Execution.completeValue schema resolvers
+                            variableValues depth' fieldDefinition.outputType
+                            (field :: rest) resolved with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
                         GraphQL.Execution.executeField,
@@ -1323,10 +1322,10 @@ theorem executeRootSelectionSet_eq_spec_of_state_equivalent
             (GraphQL.Execution.collectFields window.schema window.variableValues
               window.parentType window.source window.selectionSet) with
   | error errors =>
-      cases hungrouped :
-          executeRootSelectionSet window.schema window.resolvers
-            window.variableValues window.depth window.parentType
-            window.source window.selectionSet with
+      cases hungrouped
+            : executeRootSelectionSet window.schema window.resolvers
+                window.variableValues window.depth window.parentType
+                window.source window.selectionSet with
       | error ungroupedErrors =>
           simpa [hungrouped, hspec] using hprojection
       | ok ungroupedResult =>
@@ -1345,10 +1344,10 @@ theorem executeRootSelectionSet_eq_spec_of_state_equivalent
           simp [GraphQL.Execution.executeCollectedFieldsData,
             GraphQL.Execution.Result.getD, hspec]
         simpa [hget] using hmerge
-      cases hungrouped :
-          executeRootSelectionSet window.schema window.resolvers
-            window.variableValues window.depth window.parentType
-            window.source window.selectionSet with
+      cases hungrouped
+            : executeRootSelectionSet window.schema window.resolvers
+                window.variableValues window.depth window.parentType
+                window.source window.selectionSet with
       | error ungroupedErrors =>
           simp [hungrouped, hspec, hmergeFields] at hprojection
       | ok ungroupedResult =>
@@ -1515,10 +1514,10 @@ theorem executeRootSelectionSet_append_single_field_allowed_eq_combine
   | ok leftStatusResult =>
       rcases leftStatusResult with ⟨unitValue, leftErrors⟩
       cases unitValue
-      cases hfield :
-          executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments
-              selectionSet) with
+      cases hfield
+            : executeField schema resolvers variableValues depth source none
+                (executableField parentType responseName fieldName arguments
+                  selectionSet) with
       | error fieldErrors =>
           simp [combineVisitStatus, Result.combine,
             GraphQL.Execution.Result.combine, GraphQL.Execution.singleFieldResult,

@@ -779,9 +779,9 @@ theorem completeValue_object_append_result_of_absorbs_errorNeutral
         : visitSubfields schema resolvers variableValues childDepth runtimeType
             (.object runtimeType identity) firstSelectionSet (.object []) with
   | mk firstOutput firstStatus =>
-      cases hsecond :
-          visitSubfields schema resolvers variableValues childDepth runtimeType
-            (.object runtimeType identity) secondSelectionSet firstOutput with
+      cases hsecond
+            : visitSubfields schema resolvers variableValues childDepth runtimeType
+                (.object runtimeType identity) secondSelectionSet firstOutput with
       | mk secondOutput secondStatus =>
           simp [hfirst, hsecond] at habsorbs herrors
           cases firstStatus with
@@ -845,9 +845,9 @@ theorem completeValue_object_append_result_aligned_of_absorbs
         : visitSubfields schema resolvers variableValues childDepth runtimeType
             (.object runtimeType identity) firstSelectionSet (.object []) with
   | mk firstOutput firstStatus =>
-      cases hsecond :
-          visitSubfields schema resolvers variableValues childDepth runtimeType
-            (.object runtimeType identity) secondSelectionSet firstOutput with
+      cases hsecond
+            : visitSubfields schema resolvers variableValues childDepth runtimeType
+                (.object runtimeType identity) secondSelectionSet firstOutput with
       | mk secondOutput secondStatus =>
           simp [hfirst, hsecond] at habsorbs
           cases firstStatus with
@@ -1066,14 +1066,14 @@ theorem completeValue_named_group_append_one_result_eq_spec
   | succ childDepth =>
       cases resolved with
       | null =>
-            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
       | scalar value =>
-            by_cases hcomposite :
-                (TypeRef.named parentType).isCompositeBool schema = true
-            · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
-            · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, hcomposite]
+          by_cases hcomposite :
+              (TypeRef.named parentType).isCompositeBool schema = true
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, hcomposite]
+          · simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_scalar, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, hcomposite]
       | list values =>
-            simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
+          simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine]
       | object runtimeType identity =>
           by_cases hincludes :
               schema.typeIncludesObjectBool parentType runtimeType = true

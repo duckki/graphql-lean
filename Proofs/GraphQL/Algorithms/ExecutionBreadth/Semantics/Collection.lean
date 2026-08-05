@@ -1166,8 +1166,9 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
           simp [GraphQL.Execution.executeField, hlookup, scheduleKeyForFields,
             ScheduleKey.executableField]
       | some fieldDefinition =>
-          cases hresolve : resolvers.resolve field.parentType field.fieldName
-              field.arguments source with
+          cases hresolve
+                : resolvers.resolve field.parentType field.fieldName
+                    field.arguments source with
           | none =>
               simp [GraphQL.Execution.executeField, hlookup, hresolve,
                 scheduleKeyForFields, ScheduleKey.executableField]

@@ -186,17 +186,17 @@ theorem completeValue_object_group_eq_spec_of_merged_child_state
       simp only [hincludes, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-      cases hvisit :
-          visitSubfields schema resolvers variableValues childDepth runtimeType
-            (.object runtimeType identity)
-            (GraphQL.Execution.mergedFieldSelectionSet fields) (.object []) with
+      cases hvisit
+            : visitSubfields schema resolvers variableValues childDepth runtimeType
+                (.object runtimeType identity)
+                (GraphQL.Execution.mergedFieldSelectionSet fields) (.object []) with
       | mk output status =>
-          cases hcompleted :
-              GraphQL.Execution.executeCollectedFields schema resolvers
-                variableValues childDepth (.object runtimeType identity)
-                (GraphQL.Execution.collectFields schema variableValues runtimeType
-                  (.object runtimeType identity)
-                  (GraphQL.Execution.mergedFieldSelectionSet fields)) with
+          cases hcompleted
+                : GraphQL.Execution.executeCollectedFields schema resolvers
+                    variableValues childDepth (.object runtimeType identity)
+                    (GraphQL.Execution.collectFields schema variableValues runtimeType
+                      (.object runtimeType identity)
+                      (GraphQL.Execution.mergedFieldSelectionSet fields)) with
           | error errors =>
               cases status with
               | error visitErrors =>
@@ -301,10 +301,10 @@ theorem completeValue_object_group_aligned_of_merged_child_state
       simp only [hincludes, GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, reuseOrCreateObject?]
       rw [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-      cases hvisit :
-          visitSubfields schema resolvers variableValues childDepth runtimeType
-            (.object runtimeType identity)
-            (GraphQL.Execution.mergedFieldSelectionSet fields) (.object []) with
+      cases hvisit
+            : visitSubfields schema resolvers variableValues childDepth runtimeType
+                (.object runtimeType identity)
+                (GraphQL.Execution.mergedFieldSelectionSet fields) (.object []) with
       | mk output status =>
           obtain ⟨outputFields, houtput⟩ :=
             visitSubfields_preserves_object schema resolvers variableValues
@@ -313,12 +313,12 @@ theorem completeValue_object_group_aligned_of_merged_child_state
           rw [hvisit] at houtput
           simp at houtput
           subst output
-          cases hcompleted :
-              GraphQL.Execution.executeCollectedFields schema resolvers
-                variableValues childDepth (.object runtimeType identity)
-                (GraphQL.Execution.collectFields schema variableValues runtimeType
-                  (.object runtimeType identity)
-                  (GraphQL.Execution.mergedFieldSelectionSet fields)) with
+          cases hcompleted
+                : GraphQL.Execution.executeCollectedFields schema resolvers
+                    variableValues childDepth (.object runtimeType identity)
+                    (GraphQL.Execution.collectFields schema variableValues runtimeType
+                      (.object runtimeType identity)
+                      (GraphQL.Execution.mergedFieldSelectionSet fields)) with
           | error completedErrors =>
               cases status with
               | error visitErrors =>

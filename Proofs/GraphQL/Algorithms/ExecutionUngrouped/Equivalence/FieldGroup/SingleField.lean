@@ -28,9 +28,9 @@ theorem resultValueOrNull_executeField_depth_zero_none
   | none =>
       simp [executeField, hlookup, resultValueOrNull]
   | some fieldDefinition =>
-      cases hresolve :
-          resolvers.resolve field.parentType field.fieldName field.arguments
-            source with
+      cases hresolve
+            : resolvers.resolve field.parentType field.fieldName field.arguments
+                source with
       | none =>
           rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
           cases fdOutput <;>
@@ -620,10 +620,10 @@ theorem visitSubfields_executableFieldSelections_single_existing_eq_merge_comple
   | null =>
       simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine, hexec]
   | scalar value =>
-      cases hcomplete :
-          completeResolvedValue schema resolvers variableValues
-            (completionDepth + 1) fieldDefinition.outputType selectionSet
-            resolvedValue (some (ResponseValue.scalar value)) with
+      cases hcomplete
+            : completeResolvedValue schema resolvers variableValues
+                (completionDepth + 1) fieldDefinition.outputType selectionSet
+                resolvedValue (some (ResponseValue.scalar value)) with
       | error errors =>
           simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, resultValueOrNull, resultStatus, visitOk, combineVisitStatus, GraphQL.Execution.Result.combine, hexec, hcomplete]
       | ok completeResult =>

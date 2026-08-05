@@ -1315,9 +1315,9 @@ mutual
                 reusablePreviousValue? schema fieldDefinition.outputType
                   none = none :=
               reusablePreviousValue?_none schema fieldDefinition.outputType
-            cases hresolve :
-                resolvers.resolve field.parentType field.fieldName
-                  field.arguments source with
+            cases hresolve
+                  : resolvers.resolve field.parentType field.fieldName
+                      field.arguments source with
             | none =>
                 simpa [executeField, hlookup, hreuse, hresolve] using
                   resultValueOrNull_handleFieldError_ready
@@ -1330,8 +1330,7 @@ mutual
     | some previous =>
         cases previous with
         | null =>
-            cases hlookup :
-                schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField field.parentType field.fieldName with
             | none =>
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
@@ -1345,9 +1344,9 @@ mutual
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
             | some fieldDefinition =>
-                cases hreuse :
-                    reusablePreviousValue? schema fieldDefinition.outputType
-                      (some (.scalar value)) with
+                cases hreuse
+                      : reusablePreviousValue? schema fieldDefinition.outputType
+                          (some (.scalar value)) with
                 | some previous =>
                     have hpreviousReady : ResponseMergeReady previous := by
                       exact hprevious previous
@@ -1357,9 +1356,9 @@ mutual
                     simpa [executeField, hlookup, hreuse, resultValueOrNull] using
                       hpreviousReady
                 | none =>
-                    cases hresolve :
-                        resolvers.resolve field.parentType field.fieldName
-                          field.arguments source with
+                    cases hresolve
+                          : resolvers.resolve field.parentType field.fieldName
+                              field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
                           resultValueOrNull_handleFieldError_ready
@@ -1376,9 +1375,9 @@ mutual
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
             | some fieldDefinition =>
-                cases hreuse :
-                    reusablePreviousValue? schema fieldDefinition.outputType
-                      (some (.object fields)) with
+                cases hreuse
+                      : reusablePreviousValue? schema fieldDefinition.outputType
+                          (some (.object fields)) with
                 | some previous =>
                     have hpreviousReady : ResponseMergeReady previous := by
                       exact hprevious previous
@@ -1388,9 +1387,9 @@ mutual
                     simpa [executeField, hlookup, hreuse, resultValueOrNull] using
                       hpreviousReady
                 | none =>
-                    cases hresolve :
-                        resolvers.resolve field.parentType field.fieldName
-                          field.arguments source with
+                    cases hresolve
+                          : resolvers.resolve field.parentType field.fieldName
+                              field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
                           resultValueOrNull_handleFieldError_ready
@@ -1407,9 +1406,9 @@ mutual
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
             | some fieldDefinition =>
-                cases hreuse :
-                    reusablePreviousValue? schema fieldDefinition.outputType
-                      (some (.list values)) with
+                cases hreuse
+                      : reusablePreviousValue? schema fieldDefinition.outputType
+                          (some (.list values)) with
                 | some previous =>
                     have hpreviousReady : ResponseMergeReady previous := by
                       exact hprevious previous
@@ -1419,9 +1418,9 @@ mutual
                     simpa [executeField, hlookup, hreuse, resultValueOrNull] using
                       hpreviousReady
                 | none =>
-                    cases hresolve :
-                        resolvers.resolve field.parentType field.fieldName
-                          field.arguments source with
+                    cases hresolve
+                          : resolvers.resolve field.parentType field.fieldName
+                              field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
                           resultValueOrNull_handleFieldError_ready

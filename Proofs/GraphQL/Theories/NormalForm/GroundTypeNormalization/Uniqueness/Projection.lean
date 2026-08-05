@@ -1188,8 +1188,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
       | none =>
           simp [Execution.executeField, hlookup]
       | some fieldDefinition =>
-          cases hresolve :
-              base.resolve targetParent leftField arguments source with
+          cases hresolve : base.resolve targetParent leftField arguments source with
           | none =>
               simp [Execution.executeField, hlookup,
                 fieldPairOrDeepSuccessResolvers_left_root schema
@@ -1255,8 +1254,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
       | none =>
           simp [Execution.executeField, hlookup]
       | some fieldDefinition =>
-          cases hresolve :
-              base.resolve targetParent rightField arguments source with
+          cases hresolve : base.resolve targetParent rightField arguments source with
           | none =>
               simp [Execution.executeField, hlookup,
                 fieldPairOrDeepSuccessResolvers_right_root schema

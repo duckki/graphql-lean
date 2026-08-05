@@ -902,9 +902,8 @@ theorem executeField_singleton_equivalent_succ
       have hresolve :=
         resolvers.resolve_argumentsEquivalent executionParentType fieldName
           leftArguments rightArguments source harguments
-      cases hleftResolve :
-          resolvers.resolve executionParentType fieldName leftArguments source
-          with
+      cases hleftResolve
+            : resolvers.resolve executionParentType fieldName leftArguments source with
       | none =>
           have hrightResolve :
               resolvers.resolve executionParentType fieldName rightArguments

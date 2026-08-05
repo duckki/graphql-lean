@@ -1226,9 +1226,9 @@ theorem executeField_result_continuationTreeSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve :
-            resolvers.resolve field.parentType field.fieldName field.arguments source
-          with
+          cases hresolve
+                : resolvers.resolve field.parentType field.fieldName field.arguments
+                    source with
           | none =>
               change
                 FieldCacheContinuationTreeSound schema resolvers variableValues

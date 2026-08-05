@@ -573,14 +573,13 @@ theorem executeField_cons_eq_cons_of_completeValue
       simp [Execution.executeField]
   | succ fieldDepth =>
       simp [Execution.executeField, hparent, hfield, harguments]
-      cases hlookup :
-          schema.lookupField sourceField.parentType sourceField.fieldName with
+      cases hlookup : schema.lookupField sourceField.parentType sourceField.fieldName with
       | none =>
           simp []
       | some fieldDefinition =>
-          cases hresolved :
-              resolvers.resolve sourceField.parentType sourceField.fieldName
-                sourceField.arguments source with
+          cases hresolved
+                : resolvers.resolve sourceField.parentType sourceField.fieldName
+                    sourceField.arguments source with
           | none =>
               simp []
           | some value =>

@@ -1276,8 +1276,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_depth_zero_general
       rw [zeroDepthExecutableFieldsResult_collectedExecutableFields_eq_groups
         (group :: rest) hnonempty hresponses []
         ResponseMergeReady_empty_object]
-      cases hzero :
-          zeroDepthExecutableGroupsResult (group :: rest) [] with
+      cases hzero : zeroDepthExecutableGroupsResult (group :: rest) [] with
       | mk output status =>
           have hstatus' :
               status = depthZeroVisitStatus (group :: rest).length := by

@@ -235,16 +235,14 @@ mutual
     intro selection output
     cases selection with
     | field responseName fieldName arguments directives selectionSet =>
-        cases hallows :
-            selectionDirectivesAllowBool variableValues directives with
+        cases hallows : selectionDirectivesAllowBool variableValues directives with
         | false =>
             simp [visitSelection, Eager.visitSelection, hallows,
               VisitResultAligned, visitResult, StrongResultAligned, visitOk]
         | true =>
             cases fuel with
             | zero =>
-                cases hprevious :
-                    responseObjectField? responseName output with
+                cases hprevious : responseObjectField? responseName output with
                 | none =>
                     have hresult :
                         StrongResultAligned
@@ -276,8 +274,7 @@ mutual
                   StrongResultAligned.mergeResponseFieldResult responseName output
                     hfield
     | inlineFragment typeCondition directives selectionSet =>
-        cases hallows :
-            selectionDirectivesAllowBool variableValues directives with
+        cases hallows : selectionDirectivesAllowBool variableValues directives with
         | false =>
             have hneutral :
                 VisitResultAligned (output, visitOk) (output, visitOk) := by
@@ -292,9 +289,9 @@ mutual
                     variableValues fuel parentType source hexecute selectionSet
                     output
             | some typeCondition =>
-                cases happly :
-                    doesFragmentTypeApplyBool schema parentType source
-                      typeCondition with
+                cases happly
+                      : doesFragmentTypeApplyBool schema parentType source
+                          typeCondition with
                 | false =>
                     simp [visitSelection, Eager.visitSelection, hallows, happly,
                       VisitResultAligned, visitResult, StrongResultAligned,

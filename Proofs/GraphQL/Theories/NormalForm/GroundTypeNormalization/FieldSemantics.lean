@@ -92,9 +92,9 @@ theorem executeField_singleton_eq_group_of_completeValue
   | none =>
       simp []
   | some fieldDefinition =>
-      cases hresolved :
-          resolvers.resolve field.parentType field.fieldName
-            field.arguments source with
+      cases hresolved
+            : resolvers.resolve field.parentType field.fieldName
+                field.arguments source with
       | none =>
           simp
       | some value =>
@@ -136,9 +136,9 @@ theorem executeField_singleton_eq_group_of_child_object_lt
   | none =>
       simp []
   | some fieldDefinition =>
-      cases hresolved :
-          resolvers.resolve field.parentType field.fieldName
-            field.arguments source with
+      cases hresolved
+            : resolvers.resolve field.parentType field.fieldName
+                field.arguments source with
       | none =>
           simp
       | some value =>

@@ -880,9 +880,9 @@ theorem completeNormalizeRootBranch_mem_boolCase_injective
   | nil =>
       simp [hleftBody] at hleftMem
   | cons leftHead leftTail =>
-      cases hrightBody :
-          normalizeSelectionSet schema parentType
-            (filterSelectionSetBoolCase right selectionSet) with
+      cases hrightBody
+            : normalizeSelectionSet schema parentType
+                (filterSelectionSetBoolCase right selectionSet) with
       | nil =>
           simp [hrightBody] at hrightMem
       | cons rightHead rightTail =>

@@ -134,8 +134,7 @@ theorem executeField_same_head_eq_of_completeValue
   | none =>
       simp
   | some fieldDefinition =>
-      cases hresolved :
-          resolvers.resolve parentType fieldName arguments source with
+      cases hresolved : resolvers.resolve parentType fieldName arguments source with
       | none =>
           simp
       | some value =>

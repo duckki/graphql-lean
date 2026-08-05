@@ -166,9 +166,9 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve :
-              resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
+          cases hresolve
+                : resolvers.resolve field.parentType field.fieldName field.arguments
+                    source with
           | none =>
               simpa using
                 (resultValueOrNull_handleFieldError_cacheReady
@@ -180,8 +180,8 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
       | some previous =>
           have hpreviousReady : FieldCacheMergeReady previous :=
             hprevious previous rfl
-          cases hreuse :
-              reusablePreviousValue? schema fieldDefinition.outputType previous with
+          cases hreuse
+                : reusablePreviousValue? schema fieldDefinition.outputType previous with
           | some reusable =>
               cases previous with
               | null =>

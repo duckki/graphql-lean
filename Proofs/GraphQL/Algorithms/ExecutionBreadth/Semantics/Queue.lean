@@ -146,8 +146,9 @@ theorem queue_singleFieldResult_executeField_roundtrip
               simp [GraphQL.Execution.executeField, hlookup, singleFieldResultValue,
                 GraphQL.Execution.singleFieldResult]
           | some fieldDefinition =>
-              cases hresolve : resolvers.resolve field.parentType field.fieldName
-                  field.arguments source with
+              cases hresolve
+                    : resolvers.resolve field.parentType field.fieldName
+                        field.arguments source with
               | none =>
                   simp [GraphQL.Execution.executeField, hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]

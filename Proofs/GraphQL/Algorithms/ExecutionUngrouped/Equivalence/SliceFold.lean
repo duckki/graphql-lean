@@ -251,8 +251,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_other
       = responseObjectField? target (.object fields) := by
   cases selectionDepth with
   | zero =>
-      cases hfield :
-          responseObjectField? field.responseName (.object fields) with
+      cases hfield : responseObjectField? field.responseName (.object fields) with
       | none =>
           simp [visitFieldSliceResult, mergeResponseFieldResult, hfield,
             outOfFuel,
@@ -263,8 +262,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_other
             responseObjectField?_mergeResponseFieldIntoObject_other target
               field.responseName _ fields hne]
   | succ completionDepth =>
-      cases hfield :
-          responseObjectField? field.responseName (.object fields) with
+      cases hfield : responseObjectField? field.responseName (.object fields) with
       | none =>
           simp [visitFieldSliceResult, mergeResponseFieldResult, hfield,
             responseObjectField?_mergeResponseFieldIntoObject_other target
@@ -402,8 +400,7 @@ theorem visitFieldSliceResult_object_fst
         = .object outputFields := by
   cases selectionDepth with
   | zero =>
-      cases hfield :
-        responseObjectField? field.responseName (.object fields) with
+      cases hfield : responseObjectField? field.responseName (.object fields) with
       | none =>
           simp [visitFieldSliceResult, mergeResponseFieldResult,
             mergeResponseFieldIntoObject, hfield, outOfFuel]
@@ -411,8 +408,7 @@ theorem visitFieldSliceResult_object_fst
           simp [visitFieldSliceResult, mergeResponseFieldResult,
             mergeResponseFieldIntoObject, hfield]
   | succ completionDepth =>
-      cases hfield :
-        responseObjectField? field.responseName (.object fields) with
+      cases hfield : responseObjectField? field.responseName (.object fields) with
       | none =>
           simp [visitFieldSliceResult, mergeResponseFieldResult,
             mergeResponseFieldIntoObject, hfield]
@@ -1627,18 +1623,17 @@ theorem scalar_self
         completeValue, resultValueOrNull, scalarCompletionAtDepth,
         mergeResponse]
   | succ depth =>
-      cases hcomposite :
-          (TypeRef.named parentType).isCompositeBool schema with
+      cases hcomposite : (TypeRef.named parentType).isCompositeBool schema with
       | true =>
-        simp [CompleteValuePopulates, completeResolvedValue,
-          reusablePreviousValue?_null, reusablePreviousValue?_none,
-          completeValue, resultValueOrNull, scalarCompletionAtDepth,
-          mergeResponse, hcomposite]
+          simp [CompleteValuePopulates, completeResolvedValue,
+            reusablePreviousValue?_null, reusablePreviousValue?_none,
+            completeValue, resultValueOrNull, scalarCompletionAtDepth,
+            mergeResponse, hcomposite]
       | false =>
-        simp [CompleteValuePopulates, completeResolvedValue,
-          reusablePreviousValue?_scalar, reusablePreviousValue?_none,
-          completeValue, resultValueOrNull, scalarCompletionAtDepth,
-          mergeResponse, hcomposite]
+          simp [CompleteValuePopulates, completeResolvedValue,
+            reusablePreviousValue?_scalar, reusablePreviousValue?_none,
+            completeValue, resultValueOrNull, scalarCompletionAtDepth,
+            mergeResponse, hcomposite]
 
 theorem scalar_responseFieldSlice
     {ObjectIdentity : Type}
