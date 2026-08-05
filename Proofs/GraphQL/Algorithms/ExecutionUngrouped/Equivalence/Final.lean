@@ -381,7 +381,8 @@ def of_collected_groups_appendInvariant
     (happend : FieldGroupAppendInvariant schema resolvers variableValues depth)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
-  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible (by
+  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible
+    (by
       intro _responseName field fields _hmem
       exact ExecutedFieldAppendPlanState.of_appendInvariant happend field
         fields)
@@ -421,7 +422,8 @@ def of_collected_groups_collectedAppendInvariant
       : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
-  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible (by
+  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible
+    (by
       intro responseName field fields hgroup
       exact
         ExecutedFieldAppendPlanState.of_collectedAppendInvariant happend
@@ -463,7 +465,8 @@ def of_collected_groups_collectedLocalAppendInvariant
           depth groups)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
-  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible (by
+  of_collected_groups_state hcollect hflat hcollected hlookups hcompatible
+    (by
       intro responseName field fields hgroup
       exact
         ExecutedFieldAppendPlanState.of_collectedLocalAppendInvariant happend

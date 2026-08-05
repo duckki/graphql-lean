@@ -25,18 +25,18 @@ theorem resultValueOrNull_executeField_depth_zero_none
     : resultValueOrNull (executeField schema resolvers variableValues 0 source none field)
       = .null := by
   cases hlookup : schema.lookupField field.parentType field.fieldName with
+  | none =>
+      simp [executeField, hlookup, resultValueOrNull]
+  | some fieldDefinition =>
+      cases hresolve :
+          resolvers.resolve field.parentType field.fieldName field.arguments
+            source with
       | none =>
-          simp [executeField, hlookup, resultValueOrNull]
-      | some fieldDefinition =>
-          cases hresolve :
-              resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
-          | none =>
-              rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
-              cases fdOutput <;>
-                simp [executeField, hlookup, hresolve, reusablePreviousValue?, handleFieldError, resultValueOrNull]
-          | some resolved =>
-              simp [executeField, hlookup, hresolve, reusablePreviousValue?, completeValue, outOfFuel, resultValueOrNull]
+          rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
+          cases fdOutput <;>
+            simp [executeField, hlookup, hresolve, reusablePreviousValue?, handleFieldError, resultValueOrNull]
+      | some resolved =>
+          simp [executeField, hlookup, hresolve, reusablePreviousValue?, completeValue, outOfFuel, resultValueOrNull]
 
 theorem
     visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_guarded_child_states

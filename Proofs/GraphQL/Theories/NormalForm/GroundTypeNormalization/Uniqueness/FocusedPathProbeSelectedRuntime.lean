@@ -1334,8 +1334,7 @@ theorem selectedFieldSpineRuntimeValid_tailForRuntime_of_objectOutput
                 fieldDefinition.outputType.namedType fieldName arguments
                 spine) := by
   intro hvalid hparentObject hlookup houtputObject
-  cases hselected :
-      selectedObservableFieldSpineNext? fieldName arguments spine with
+  cases hselected : selectedObservableFieldSpineNext? fieldName arguments spine with
   | none =>
       exact Or.inl (by
         simp [selectedObservableFieldSpineTailForRuntime, hselected])

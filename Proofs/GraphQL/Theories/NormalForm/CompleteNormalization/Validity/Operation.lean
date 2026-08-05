@@ -194,9 +194,9 @@ theorem completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible
   rw [completeNormalizeRootSelectionSet_eq_flatten schema
     (operationBoolVars operation) (operation.rootType schema) operation.selectionSet]
   apply flatten_map_ne_nil_of_mem_ne_nil hcase
-  cases hnormalized :
-      normalizeSelectionSet schema (operation.rootType schema)
-        (filterSelectionSetBoolCase boolCase operation.selectionSet) with
+  cases hnormalized
+        : normalizeSelectionSet schema (operation.rootType schema)
+            (filterSelectionSetBoolCase boolCase operation.selectionSet) with
   | nil =>
       exact False.elim (hnormalizedNonempty hnormalized)
   | cons selection rest =>

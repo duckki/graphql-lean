@@ -809,11 +809,11 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_allowed
         GraphQL.NormalForm.collectFields_append, List.append_assoc,
         outOfFuel, combineVisitStatus_error_one_left_rotate] using hbody
   | succ depth' =>
-    simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-      GraphQL.Execution.collectSelection, hallows,
-      executableFieldSelections, executableFieldSelection, executableField,
-      selectionDirectivesAllowBool_empty,
-      GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+      simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
+        GraphQL.Execution.collectSelection, hallows,
+        executableFieldSelections, executableFieldSelection, executableField,
+        selectionDirectivesAllowBool_empty,
+        GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_skipped
     {ObjectIdentity : Type}

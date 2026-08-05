@@ -89,16 +89,16 @@ theorem executeSelectionSetAsResponse_singleton_field_eq_executeField
               arguments := arguments,
               selectionSet := childSelectionSet
             }]) := by
-  cases hfield :
-      Execution.executeField schema resolvers variableValues fuel source
-        responseName
-        [{
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := childSelectionSet
-        }] with
+  cases hfield
+        : Execution.executeField schema resolvers variableValues fuel source
+            responseName
+            [{
+              parentType := parentType,
+              responseName := responseName,
+              fieldName := fieldName,
+              arguments := arguments,
+              selectionSet := childSelectionSet
+            }] with
   | error errors =>
       simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
         Execution.executeSelectionSet, Execution.executeRootSelectionSet,

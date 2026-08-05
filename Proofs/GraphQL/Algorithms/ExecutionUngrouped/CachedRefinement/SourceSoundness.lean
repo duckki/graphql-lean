@@ -517,8 +517,8 @@ theorem executeField_none_result_previousCacheSound_of_sameResponseShape
   intro hlookupFirst _hlookupLater hshape hresolveEq
   unfold executeField
   simp [hlookupFirst]
-  cases hresolveFirst :
-      resolvers.resolve first.parentType first.fieldName first.arguments source with
+  cases hresolveFirst
+        : resolvers.resolve first.parentType first.fieldName first.arguments source with
   | none =>
       simp [handleFieldError, resultValueOrNull]
       cases firstDefinition.outputType <;>

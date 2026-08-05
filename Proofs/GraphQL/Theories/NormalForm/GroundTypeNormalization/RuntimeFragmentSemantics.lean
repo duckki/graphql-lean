@@ -167,21 +167,21 @@ theorem rootSourceAppliesBool_true_object (schema : Schema) (operation : Operati
           source = .object runtimeType ref
           ∧ schema.typeIncludesObjectBool (operation.rootType schema) runtimeType
             = true := by
-    intro hroot
-    cases source with
-    | null =>
-        simp [Execution.rootSourceAppliesBool,
-          Execution.runtimeObjectType?] at hroot
-    | scalar value =>
-        simp [Execution.rootSourceAppliesBool,
-          Execution.runtimeObjectType?] at hroot
-    | object runtimeType ref =>
-        simp [Execution.rootSourceAppliesBool,
-          Execution.runtimeObjectType?] at hroot
-        exact ⟨runtimeType, ref, rfl, hroot⟩
-    | list values =>
-        simp [Execution.rootSourceAppliesBool,
-          Execution.runtimeObjectType?] at hroot
+  intro hroot
+  cases source with
+  | null =>
+      simp [Execution.rootSourceAppliesBool,
+        Execution.runtimeObjectType?] at hroot
+  | scalar value =>
+      simp [Execution.rootSourceAppliesBool,
+        Execution.runtimeObjectType?] at hroot
+  | object runtimeType ref =>
+      simp [Execution.rootSourceAppliesBool,
+        Execution.runtimeObjectType?] at hroot
+      exact ⟨runtimeType, ref, rfl, hroot⟩
+  | list values =>
+      simp [Execution.rootSourceAppliesBool,
+        Execution.runtimeObjectType?] at hroot
 
 theorem doesFragmentTypeApplyBool_false_of_typesOverlapBool_false_of_source
     (schema : Schema) {parentType typeCondition : Name}

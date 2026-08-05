@@ -1110,7 +1110,8 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
             stack
           ) := by
   intro hlookup hready
-  cases hresolve : resolvers.resolve key.parentType key.fieldName key.arguments source with
+  cases hresolve
+        : resolvers.resolve key.parentType key.fieldName key.arguments source with
   | none =>
       cases fuel with
       | zero =>

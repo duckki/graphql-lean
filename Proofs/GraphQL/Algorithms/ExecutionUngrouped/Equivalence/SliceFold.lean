@@ -1760,8 +1760,7 @@ theorem visitFieldSlice_succ_object_eq_mergeResponseSlice_of_step
       = mergeResponse (.object fields)
           (responseObjectSlice schema resolvers variableValues completionDepth
             source field) := by
-  cases hlookup :
-      responseObjectField? field.responseName (.object fields) with
+  cases hlookup : responseObjectField? field.responseName (.object fields) with
   | none =>
       have hstep' :
           resultValueOrNull

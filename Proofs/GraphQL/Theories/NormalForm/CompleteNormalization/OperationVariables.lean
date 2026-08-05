@@ -69,8 +69,7 @@ theorem inputValueBoolean?_coerceVariableValues_eq_some
     : Execution.inputValueBoolean?
         (Execution.coerceVariableValues operation variableValues) (.variable name)
       = some value := by
-  cases hvariable :
-      Execution.lookupVariableValue? variableValues name with
+  cases hvariable : Execution.lookupVariableValue? variableValues name with
   | none =>
       simp [Execution.inputValueBoolean?, hvariable] at hlookup
   | some inputValue =>

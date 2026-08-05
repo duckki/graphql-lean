@@ -752,9 +752,9 @@ theorem completeNormalizeRootSelectionSet_normal_nil
   intro hnormalized
   unfold completeNormalizeRootSelectionSet at hnormalized
   simp [allBoolCases, wrapWithBoolCase] at hnormalized
-  cases hbody :
-      normalizeSelectionSet schema parentType
-        (filterSelectionSetBoolCase [] selectionSet) with
+  cases hbody
+        : normalizeSelectionSet schema parentType
+            (filterSelectionSetBoolCase [] selectionSet) with
   | nil =>
       simp [hbody] at hnormalized
       subst normalizedSelectionSet
@@ -842,9 +842,9 @@ theorem completeNormalizeRootBranch_nil_or_singleton
               = [selection] := by
   intro hne
   unfold completeNormalizeRootBranch
-  cases hbody :
-      normalizeSelectionSet schema parentType
-        (filterSelectionSetBoolCase boolCase selectionSet) with
+  cases hbody
+        : normalizeSelectionSet schema parentType
+            (filterSelectionSetBoolCase boolCase selectionSet) with
   | nil =>
       simp
   | cons selection rest =>
@@ -874,9 +874,9 @@ theorem completeNormalizeRootBranch_mem_boolCase_injective
       -> left = right := by
   intro hleftNe hrightNe hleftMem hrightMem
   unfold completeNormalizeRootBranch at hleftMem hrightMem
-  cases hleftBody :
-      normalizeSelectionSet schema parentType
-        (filterSelectionSetBoolCase left selectionSet) with
+  cases hleftBody
+        : normalizeSelectionSet schema parentType
+            (filterSelectionSetBoolCase left selectionSet) with
   | nil =>
       simp [hleftBody] at hleftMem
   | cons leftHead leftTail =>
@@ -968,10 +968,10 @@ theorem completeNormalizeRootSelectionSet_normal_cons
           ((allBoolCases (varName :: variables)).map
             (completeNormalizeRootBranch schema parentType selectionSet)) =
         normalizedSelectionSet at hnormalized
-  cases hflatten :
-      List.flatten
-        ((allBoolCases (varName :: variables)).map
-          (completeNormalizeRootBranch schema parentType selectionSet)) with
+  cases hflatten
+        : List.flatten
+            ((allBoolCases (varName :: variables)).map
+              (completeNormalizeRootBranch schema parentType selectionSet)) with
   | nil =>
       simp [hflatten] at hnormalized
       subst normalizedSelectionSet

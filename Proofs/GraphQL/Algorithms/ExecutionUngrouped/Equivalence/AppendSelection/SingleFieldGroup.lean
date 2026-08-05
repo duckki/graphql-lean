@@ -174,8 +174,7 @@ theorem completeValue_object_group_eq_spec_of_merged_child_state
         (.object runtimeType identity) none
       = GraphQL.Execution.completeValue schema resolvers variableValues
           (childDepth + 1) parentType fields (.object runtimeType identity) := by
-  cases hincludes :
-      schema.typeIncludesObjectBool parentType runtimeType with
+  cases hincludes : schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
       simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes]
@@ -260,8 +259,7 @@ theorem completeValue_object_group_eq_spec_of_guarded_merged_child_state
         (.object runtimeType identity) none
       = GraphQL.Execution.completeValue schema resolvers variableValues
           (childDepth + 1) parentType fields (.object runtimeType identity) := by
-  cases hincludes :
-      schema.typeIncludesObjectBool parentType runtimeType with
+  cases hincludes : schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
       simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes]
@@ -292,8 +290,7 @@ theorem completeValue_object_group_aligned_of_merged_child_state
         (GraphQL.Execution.completeValue schema resolvers variableValues
           (childDepth + 1) (.named parentType) fields
           (.object runtimeType identity)) := by
-  cases hincludes :
-      schema.typeIncludesObjectBool parentType runtimeType with
+  cases hincludes : schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
       simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes,
@@ -372,8 +369,7 @@ theorem completeValue_object_group_aligned_of_guarded_merged_child_state
         (GraphQL.Execution.completeValue schema resolvers variableValues
           (childDepth + 1) (.named parentType) fields
           (.object runtimeType identity)) := by
-  cases hincludes :
-      schema.typeIncludesObjectBool parentType runtimeType with
+  cases hincludes : schema.typeIncludesObjectBool parentType runtimeType with
   | false =>
       simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
         GraphQL.Execution.completeValue, hincludes,

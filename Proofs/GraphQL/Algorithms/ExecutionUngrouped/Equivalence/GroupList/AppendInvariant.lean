@@ -95,17 +95,21 @@ theorem ExecutedFieldAppendPlanState.of_appendInvariant
     (field : ExecutableField) (fields : List ExecutableField)
     : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
         fields [] fields :=
-  ExecutedFieldAppendPlanState.of_all_prefixes (by
+  ExecutedFieldAppendPlanState.of_all_prefixes
+    (by
       intro prefixTail childDepth runtimeType identity hlt _hincludes
       exact hinvariant.childEquivalent
         (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail))
-        childDepth runtimeType identity hlt) (by
+        childDepth runtimeType identity hlt)
+    (by
       intro prefixTail later _hlater childDepth runtimeType identity hlt
       exact hinvariant.absorbs (field :: prefixTail) later childDepth
-        runtimeType identity hlt) (by
+        runtimeType identity hlt)
+    (by
       intro prefixTail later _hlater childDepth runtimeType identity hlt
       exact hinvariant.errorNeutral (field :: prefixTail) later childDepth
-        runtimeType identity hlt) (by
+        runtimeType identity hlt)
+    (by
       intro prefixTail later _hlater childDepth runtimeType identity hlt
         _hincludes
       exact hinvariant.childEquivalent

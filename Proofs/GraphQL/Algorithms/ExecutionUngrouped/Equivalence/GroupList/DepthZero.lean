@@ -130,11 +130,11 @@ theorem lookupResponseField?_mergeResponseField_null_same
     (responseName : Name) (fields : List (Name × ResponseValue))
     : lookupResponseField? responseName (mergeResponseField responseName .null fields)
       = some .null := by
-    rw [lookupResponseField?_mergeResponseField_same]
-    cases lookupResponseField? responseName fields with
-    | none => simp
-    | some existing =>
-        cases existing <;> simp [mergeResponse]
+  rw [lookupResponseField?_mergeResponseField_same]
+  cases lookupResponseField? responseName fields with
+  | none => simp
+  | some existing =>
+      cases existing <;> simp [mergeResponse]
 
 theorem zeroDepthResponseNameResult_of_lookup_null
     (responseName : Name) (fields : List (Name × ResponseValue))

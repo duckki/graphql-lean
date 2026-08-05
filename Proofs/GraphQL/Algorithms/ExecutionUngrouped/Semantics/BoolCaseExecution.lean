@@ -1076,9 +1076,9 @@ theorem visitSubfields_flatten_boolCaseWrappers_split_runtime_result
           (selectionSetForCase boolCase))))
     output]
   rw [hruntimeVisit]
-  cases hruntimeResult :
-      visitSubfields schema resolvers variableValues depth parentType source
-        (selectionSetForCase runtimeCase) output with
+  cases hruntimeResult
+        : visitSubfields schema resolvers variableValues depth parentType source
+            (selectionSetForCase runtimeCase) output with
   | mk value status =>
       have hafterVisitAt :
           visitSubfields schema resolvers variableValues depth parentType source
@@ -1139,13 +1139,13 @@ theorem visitSubfields_completeRootBranch_eq_wrapped
         output
       = visitSubfields schema resolvers variableValues depth parentType source
           (NormalForm.wrapWithBoolCase boolCase selectionSet) output := by
-    cases selectionSet with
-    | nil =>
-        rw [visitSubfields_wrapWithBoolCase_empty_result schema resolvers
-          variableValues depth parentType source boolCase output]
-        simp [visitSubfields]
-    | cons selection rest =>
-        rfl
+  cases selectionSet with
+  | nil =>
+      rw [visitSubfields_wrapWithBoolCase_empty_result schema resolvers
+        variableValues depth parentType source boolCase output]
+      simp [visitSubfields]
+  | cons selection rest =>
+      rfl
 
 theorem visitSubfields_completeNormalizeRootSelectionSet_eq_wrapped
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -1263,38 +1263,38 @@ theorem visitSubfields_completeNormalizeRootSelectionSet_runtime
               (NormalForm.normalizeSelectionSet schema parentType
                 (NormalForm.filterSelectionSetBoolCase runtimeCase selectionSet))
               output := by
-    intro hruntime hagrees
-    calc
-      visitSubfields schema resolvers variableValues depth parentType source
-          (NormalForm.completeNormalizeRootSelectionSet schema
-            (NormalForm.operationBoolVars operation) parentType selectionSet)
-          output
-        =
-      visitSubfields schema resolvers variableValues depth parentType source
-          (List.flatten
-            ((NormalForm.allBoolCases
-              (NormalForm.operationBoolVars operation)).map
-              (fun boolCase =>
-                NormalForm.wrapWithBoolCase boolCase
-                  (NormalForm.normalizeSelectionSet schema parentType
-                    (NormalForm.filterSelectionSetBoolCase boolCase
-                      selectionSet)))))
-          output :=
-        visitSubfields_completeNormalizeRootSelectionSet_eq_wrapped
-          schema resolvers variableValues (NormalForm.operationBoolVars operation)
-          depth parentType source selectionSet output
-      _ =
-      visitSubfields schema resolvers variableValues depth parentType source
-          (NormalForm.normalizeSelectionSet schema parentType
-            (NormalForm.filterSelectionSetBoolCase runtimeCase selectionSet))
-          output :=
-        visitSubfields_flatten_boolCaseWrappers_runtime_result schema
-          resolvers variableValues operation depth parentType source
-          runtimeCase
-          (fun boolCase =>
-            NormalForm.normalizeSelectionSet schema parentType
-              (NormalForm.filterSelectionSetBoolCase boolCase selectionSet))
-          output hruntime hagrees
+  intro hruntime hagrees
+  calc
+    visitSubfields schema resolvers variableValues depth parentType source
+        (NormalForm.completeNormalizeRootSelectionSet schema
+          (NormalForm.operationBoolVars operation) parentType selectionSet)
+        output
+      =
+    visitSubfields schema resolvers variableValues depth parentType source
+        (List.flatten
+          ((NormalForm.allBoolCases
+            (NormalForm.operationBoolVars operation)).map
+            (fun boolCase =>
+              NormalForm.wrapWithBoolCase boolCase
+                (NormalForm.normalizeSelectionSet schema parentType
+                  (NormalForm.filterSelectionSetBoolCase boolCase
+                    selectionSet)))))
+        output :=
+      visitSubfields_completeNormalizeRootSelectionSet_eq_wrapped
+        schema resolvers variableValues (NormalForm.operationBoolVars operation)
+        depth parentType source selectionSet output
+    _ =
+    visitSubfields schema resolvers variableValues depth parentType source
+        (NormalForm.normalizeSelectionSet schema parentType
+          (NormalForm.filterSelectionSetBoolCase runtimeCase selectionSet))
+        output :=
+      visitSubfields_flatten_boolCaseWrappers_runtime_result schema
+        resolvers variableValues operation depth parentType source
+        runtimeCase
+        (fun boolCase =>
+          NormalForm.normalizeSelectionSet schema parentType
+            (NormalForm.filterSelectionSetBoolCase boolCase selectionSet))
+        output hruntime hagrees
 
 mutual
   theorem completeValue_filterSelectionSetBoolCase_eq

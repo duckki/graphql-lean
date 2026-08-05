@@ -172,7 +172,8 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
     (schema : Schema) (operation : Operation)
     : ungroupedExecutionPreservesSpecExecution schema operation :=
   ungroupedExecutionPreservesSpecExecution_of_executeQueryWithFuel_eq_uncached schema
-    operation (by
+    operation
+    (by
       intro hschema hvalid ObjectRef resolvers variableValues fuel source _hcomplete
       exact
         executeQueryWithFuel_eq_uncached_of_valid schema resolvers variableValues
@@ -182,7 +183,8 @@ theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
     (schema : Schema) (operation : Operation)
     : ungroupedExecutionEquivalentToCancelingSiblingsExecution schema operation :=
   ungroupedExecutionEquivalentToCancelingSiblingsExecution_of_executeQueryWithFuel_eq_uncached
-    schema operation (by
+    schema operation
+    (by
       intro hschema hvalid ObjectRef resolvers variableValues fuel source _hcomplete
       exact
         executeQueryWithFuel_eq_uncached_of_valid schema resolvers variableValues

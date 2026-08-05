@@ -171,9 +171,9 @@ theorem executeSelectionSetAsResponse_object_keys_eq_collectFields
               selectionSet).map
               Prod.fst := by
   intro hresponse
-  cases hresult :
-      Execution.executeSelectionSet schema resolvers variableValues fuel
-        parentType source selectionSet with
+  cases hresult
+        : Execution.executeSelectionSet schema resolvers variableValues fuel
+            parentType source selectionSet with
   | error executionErrors =>
       simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
         hresult] at hresponse

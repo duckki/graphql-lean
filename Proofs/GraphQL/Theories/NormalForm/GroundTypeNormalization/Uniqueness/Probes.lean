@@ -2424,12 +2424,12 @@ theorem executeField_named_object_of_resolve
                   fuel runtimeType (.object runtimeType ref) childSelectionSet).errors
               ) := by
   intro hlookup hinclude hresolve
-  cases hchild :
-      Execution.executeCollectedFields schema resolvers variableValues fuel
-        (Execution.ResolverValue.object runtimeType ref)
-        (Execution.collectFields schema variableValues runtimeType
-          (Execution.ResolverValue.object runtimeType ref)
-          childSelectionSet) with
+  cases hchild
+        : Execution.executeCollectedFields schema resolvers variableValues fuel
+            (Execution.ResolverValue.object runtimeType ref)
+            (Execution.collectFields schema variableValues runtimeType
+              (Execution.ResolverValue.object runtimeType ref)
+              childSelectionSet) with
   | error errors =>
       simp [Execution.executeField, hlookup, hresolve,
         Execution.completeValue, hinclude,

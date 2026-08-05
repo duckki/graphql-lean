@@ -201,7 +201,8 @@ theorem single_of_headDisjointTree
           source selection)
     : FreshPrefixSelectionDerivation schema variableValues parentType source
         [selection] :=
-  .consHeadDisjoint selection [] htree .nil (by
+  .consHeadDisjoint selection [] htree .nil
+    (by
       intro responseName _hleft hright
       simp [GraphQL.Execution.collectFields] at hright)
 

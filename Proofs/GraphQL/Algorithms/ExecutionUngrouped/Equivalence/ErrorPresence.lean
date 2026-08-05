@@ -597,8 +597,7 @@ theorem completeResolvedValue_error_positive
         -> 0 < errors := by
   intro errors h
   unfold completeResolvedValue at h
-  cases hreuse :
-      reusablePreviousValue? schema fieldType previous? with
+  cases hreuse : reusablePreviousValue? schema fieldType previous? with
   | some previous =>
       simp [hreuse] at h
   | none =>

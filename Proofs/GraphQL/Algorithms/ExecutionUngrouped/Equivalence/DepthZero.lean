@@ -61,8 +61,7 @@ theorem zeroDepthResponseNameResult_eq_visitSelection_executableField
     : visitSelection schema resolvers variableValues 0 parentType source
         (executableFieldSelection field) (.object fields)
       = zeroDepthResponseNameResult field.responseName fields := by
-  cases hprevious :
-      responseObjectField? field.responseName (.object fields) with
+  cases hprevious : responseObjectField? field.responseName (.object fields) with
   | none =>
       cases field
       simp [visitSelection, executableFieldSelection,

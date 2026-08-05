@@ -195,9 +195,9 @@ theorem ExecutableFieldsMergedResponse_of_raw
   unfold ExecutableFieldsMergedRaw at hraw
   unfold ExecutableFieldsMergedResponse executeRootSelectionSet
   rw [hraw]
-  cases hspec :
-      GraphQL.Execution.executeField schema resolvers variableValues
-        (depth + 1) source responseName (field :: fields) with
+  cases hspec
+        : GraphQL.Execution.executeField schema resolvers variableValues
+            (depth + 1) source responseName (field :: fields) with
   | error errors =>
       simp [groupedFieldVisitResult]
   | ok result =>
@@ -565,8 +565,7 @@ theorem resultStatus_completeResolvedValue_nonNull_eq_ok_of_inner_status_eq_ok_o
         (completeResolvedValue schema resolvers variableValues depth
           (.nonNull inner) selectionSet resolved previous?)
       = visitOk := by
-  cases hreuse :
-      reusablePreviousValue? schema (.nonNull inner) previous? with
+  cases hreuse : reusablePreviousValue? schema (.nonNull inner) previous? with
   | some previous =>
       simp [completeResolvedValue, hreuse, resultStatus, visitOk]
   | none =>
@@ -591,9 +590,9 @@ theorem resultValueOrNull_completeResolvedValue_nonNull_ne_null_of_inner_ne_null
         (completeResolvedValue schema resolvers variableValues depth
           (.nonNull inner) selectionSet resolved previous?)
       ≠ .null := by
-  cases hinner :
-      completeResolvedValue schema resolvers variableValues depth inner
-        selectionSet resolved previous? with
+  cases hinner
+        : completeResolvedValue schema resolvers variableValues depth inner
+            selectionSet resolved previous? with
   | error errors =>
       simp [resultValueOrNull, hinner] at hnonNull
   | ok result =>
@@ -776,9 +775,9 @@ theorem completeValue_object_append_result_of_absorbs_errorNeutral
           simp [TypeRef.isCompositeBool, TypeRef.namedType,
             Schema.typeIncludesObjectBool, Schema.getPossibleTypes, hlookup]
             at hincludes ⊢
-  cases hfirst :
-      visitSubfields schema resolvers variableValues childDepth runtimeType
-        (.object runtimeType identity) firstSelectionSet (.object []) with
+  cases hfirst
+        : visitSubfields schema resolvers variableValues childDepth runtimeType
+            (.object runtimeType identity) firstSelectionSet (.object []) with
   | mk firstOutput firstStatus =>
       cases hsecond :
           visitSubfields schema resolvers variableValues childDepth runtimeType
@@ -842,9 +841,9 @@ theorem completeValue_object_append_result_aligned_of_absorbs
           simp [TypeRef.isCompositeBool, TypeRef.namedType,
             Schema.typeIncludesObjectBool, Schema.getPossibleTypes, hlookup]
             at hincludes ⊢
-  cases hfirst :
-      visitSubfields schema resolvers variableValues childDepth runtimeType
-        (.object runtimeType identity) firstSelectionSet (.object []) with
+  cases hfirst
+        : visitSubfields schema resolvers variableValues childDepth runtimeType
+            (.object runtimeType identity) firstSelectionSet (.object []) with
   | mk firstOutput firstStatus =>
       cases hsecond :
           visitSubfields schema resolvers variableValues childDepth runtimeType
@@ -940,9 +939,9 @@ theorem resultStatus_completeValue_object_append_second_of_errorNeutral
           simp [TypeRef.isCompositeBool, TypeRef.namedType,
             Schema.typeIncludesObjectBool, Schema.getPossibleTypes, hlookup]
             at hincludes ⊢
-  cases hfirst :
-      visitSubfields schema resolvers variableValues childDepth runtimeType
-        (.object runtimeType identity) firstSelectionSet (.object []) with
+  cases hfirst
+        : visitSubfields schema resolvers variableValues childDepth runtimeType
+            (.object runtimeType identity) firstSelectionSet (.object []) with
   | mk firstOutput firstStatus =>
       simp [hfirst] at herrors
       cases firstStatus with

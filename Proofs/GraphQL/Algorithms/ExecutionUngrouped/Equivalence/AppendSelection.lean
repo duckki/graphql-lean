@@ -1126,23 +1126,23 @@ theorem executeRootSelectionSet_pairKeysNodup
         (GraphQL.Execution.Result.getD []
           (executeRootSelectionSet schema resolvers variableValues depth parentType
             source selectionSet)) := by
-    obtain ⟨fields, hfields⟩ :=
-      visitSubfields_preserves_object schema resolvers variableValues depth
-        parentType source selectionSet []
-    have hnodup : PairKeysNodup fields := by
-      simpa [hfields] using
-        visitSubfields_pairKeysNodup schema resolvers variableValues depth
-          parentType source selectionSet [] (by simp [PairKeysNodup])
-    unfold executeRootSelectionSet
-    cases hstatus :
-        (visitSubfields schema resolvers variableValues depth parentType source
-          selectionSet (.object [])).snd with
-    | error errors =>
-        simp [GraphQL.Execution.Result.getD, hstatus, PairKeysNodup]
-    | ok status =>
-        rcases status with ⟨_unit, errors⟩
-        simp [GraphQL.Execution.Result.getD, hstatus, hfields]
-        exact hnodup
+  obtain ⟨fields, hfields⟩ :=
+    visitSubfields_preserves_object schema resolvers variableValues depth
+      parentType source selectionSet []
+  have hnodup : PairKeysNodup fields := by
+    simpa [hfields] using
+      visitSubfields_pairKeysNodup schema resolvers variableValues depth
+        parentType source selectionSet [] (by simp [PairKeysNodup])
+  unfold executeRootSelectionSet
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            selectionSet (.object [])).snd with
+  | error errors =>
+      simp [GraphQL.Execution.Result.getD, hstatus, PairKeysNodup]
+  | ok status =>
+      rcases status with ⟨_unit, errors⟩
+      simp [GraphQL.Execution.Result.getD, hstatus, hfields]
+      exact hnodup
 
 theorem executeRootSelectionSet_response_ready
     {ObjectIdentity : Type}
@@ -1155,24 +1155,24 @@ theorem executeRootSelectionSet_response_ready
           (GraphQL.Execution.Result.getD []
             (executeRootSelectionSet schema resolvers variableValues depth
               parentType source selectionSet))) := by
-    obtain ⟨fields, hfields⟩ :=
-      visitSubfields_preserves_object schema resolvers variableValues depth
-        parentType source selectionSet []
-    have hready : ResponseMergeReady (.object fields) := by
-      simpa [hfields] using
-        visitSubfields_response_ready schema resolvers variableValues depth
-          parentType source selectionSet [] ResponseMergeReady_empty_object
-    unfold executeRootSelectionSet
-    cases hstatus :
-        (visitSubfields schema resolvers variableValues depth parentType source
-          selectionSet (.object [])).snd with
-    | error errors =>
-        simp [GraphQL.Execution.Result.getD, hstatus]
-        exact ResponseMergeReady_empty_object
-    | ok status =>
-        rcases status with ⟨_unit, errors⟩
-        simp [GraphQL.Execution.Result.getD, hstatus, hfields]
-        exact hready
+  obtain ⟨fields, hfields⟩ :=
+    visitSubfields_preserves_object schema resolvers variableValues depth
+      parentType source selectionSet []
+  have hready : ResponseMergeReady (.object fields) := by
+    simpa [hfields] using
+      visitSubfields_response_ready schema resolvers variableValues depth
+        parentType source selectionSet [] ResponseMergeReady_empty_object
+  unfold executeRootSelectionSet
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            selectionSet (.object [])).snd with
+  | error errors =>
+      simp [GraphQL.Execution.Result.getD, hstatus]
+      exact ResponseMergeReady_empty_object
+  | ok status =>
+      rcases status with ⟨_unit, errors⟩
+      simp [GraphQL.Execution.Result.getD, hstatus, hfields]
+      exact hready
 
 theorem ExecutionWindowEquivalent.ext
     (window : ExecutionWindow ObjectIdentity)
@@ -1211,30 +1211,30 @@ theorem stateEquivalent_of_executeRootSelectionSet_eq_spec
             }
           initial := .object []
         } := by
-    apply ExecutionStateEquivalent.ext
-    rw [ExecutionEquivalenceState.ungroupedProjectionResult,
-      visitSubfieldsResult_empty_eq_executeRootSelectionSet_object, hroot]
-    unfold ExecutionEquivalenceState.specProjectionResult
-    unfold GraphQL.Execution.executeRootSelectionSet
-    cases hspec :
-        GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-          depth source
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            selectionSet) with
-    | error errors =>
-        simp
-    | ok result =>
-        rcases result with ⟨fields, errors⟩
-        have hnodup : PairKeysNodup fields := by
-          have hcollected :=
-            executeCollectedFields_collectFields_pairKeysNodup schema resolvers
-              variableValues depth parentType source selectionSet
-          simpa [GraphQL.Execution.executeCollectedFieldsData,
-            GraphQL.Execution.Result.getD, hspec] using hcollected
-        have hmerge :
-            mergeResponse (.object []) (.object fields) = .object fields :=
-          mergeResponse_empty_object_left_of_pairKeysNodup fields hnodup
-        simp [hmerge]
+  apply ExecutionStateEquivalent.ext
+  rw [ExecutionEquivalenceState.ungroupedProjectionResult,
+    visitSubfieldsResult_empty_eq_executeRootSelectionSet_object, hroot]
+  unfold ExecutionEquivalenceState.specProjectionResult
+  unfold GraphQL.Execution.executeRootSelectionSet
+  cases hspec
+        : GraphQL.Execution.executeCollectedFields schema resolvers variableValues
+            depth source
+            (GraphQL.Execution.collectFields schema variableValues parentType source
+              selectionSet) with
+  | error errors =>
+      simp
+  | ok result =>
+      rcases result with ⟨fields, errors⟩
+      have hnodup : PairKeysNodup fields := by
+        have hcollected :=
+          executeCollectedFields_collectFields_pairKeysNodup schema resolvers
+            variableValues depth parentType source selectionSet
+        simpa [GraphQL.Execution.executeCollectedFieldsData,
+          GraphQL.Execution.Result.getD, hspec] using hcollected
+      have hmerge :
+          mergeResponse (.object []) (.object fields) = .object fields :=
+        mergeResponse_empty_object_left_of_pairKeysNodup fields hnodup
+      simp [hmerge]
 
 theorem stateEquivalent_of_exact_empty_group
     {ObjectIdentity : Type}
@@ -1285,8 +1285,22 @@ theorem executeRootSelectionSet_eq_spec_of_state_equivalent
               (GraphQL.Execution.collectFields window.schema window.variableValues
                 window.parentType window.source window.selectionSet)))
     : window.ungroupedResult = window.specResult := by
-    have hprojection :
-        ExecutionWindow.visitSubfieldsResult window.schema window.resolvers
+  have hprojection :
+      ExecutionWindow.visitSubfieldsResult window.schema window.resolvers
+        window.variableValues window.depth window.parentType window.source
+        window.selectionSet (.object []) =
+      match
+        GraphQL.Execution.executeCollectedFields window.schema
+          window.resolvers window.variableValues window.depth window.source
+          (GraphQL.Execution.collectFields window.schema
+            window.variableValues window.parentType window.source
+            window.selectionSet)
+      with
+      | .error errors => .error errors
+      | .ok (fields, errors) =>
+          .ok (mergeResponse (.object []) (.object fields), errors) := by
+    change
+      ExecutionWindow.visitSubfieldsResult window.schema window.resolvers
           window.variableValues window.depth window.parentType window.source
           window.selectionSet (.object []) =
         match
@@ -1298,69 +1312,55 @@ theorem executeRootSelectionSet_eq_spec_of_state_equivalent
         with
         | .error errors => .error errors
         | .ok (fields, errors) =>
-            .ok (mergeResponse (.object []) (.object fields), errors) := by
-      change
-        ExecutionWindow.visitSubfieldsResult window.schema window.resolvers
-            window.variableValues window.depth window.parentType window.source
-            window.selectionSet (.object []) =
-          match
-            GraphQL.Execution.executeCollectedFields window.schema
+            .ok (mergeResponse (.object []) (.object fields), errors) at hstate
+    exact hstate
+  rw [visitSubfieldsResult_empty_eq_executeRootSelectionSet_object] at hprojection
+  unfold ExecutionWindow.ungroupedResult ExecutionWindow.specResult
+  unfold GraphQL.Execution.executeRootSelectionSet
+  cases hspec
+        : GraphQL.Execution.executeCollectedFields window.schema window.resolvers
+            window.variableValues window.depth window.source
+            (GraphQL.Execution.collectFields window.schema window.variableValues
+              window.parentType window.source window.selectionSet) with
+  | error errors =>
+      cases hungrouped :
+          executeRootSelectionSet window.schema window.resolvers
+            window.variableValues window.depth window.parentType
+            window.source window.selectionSet with
+      | error ungroupedErrors =>
+          simpa [hungrouped, hspec] using hprojection
+      | ok ungroupedResult =>
+          rcases ungroupedResult with ⟨ungroupedFields, ungroupedErrors⟩
+          simp [hungrouped, hspec] at hprojection
+  | ok result =>
+      rcases result with ⟨fields, errors⟩
+      have hmergeFields : mergeResponse (.object []) (.object fields) =
+          .object fields := by
+        have hget :
+            GraphQL.Execution.executeCollectedFieldsData window.schema
               window.resolvers window.variableValues window.depth window.source
               (GraphQL.Execution.collectFields window.schema
                 window.variableValues window.parentType window.source
-                window.selectionSet)
-          with
-          | .error errors => .error errors
-          | .ok (fields, errors) =>
-              .ok (mergeResponse (.object []) (.object fields), errors) at hstate
-      exact hstate
-    rw [visitSubfieldsResult_empty_eq_executeRootSelectionSet_object] at hprojection
-    unfold ExecutionWindow.ungroupedResult ExecutionWindow.specResult
-    unfold GraphQL.Execution.executeRootSelectionSet
-    cases hspec :
-        GraphQL.Execution.executeCollectedFields window.schema window.resolvers
-          window.variableValues window.depth window.source
-          (GraphQL.Execution.collectFields window.schema window.variableValues
-            window.parentType window.source window.selectionSet) with
-    | error errors =>
-        cases hungrouped :
-            executeRootSelectionSet window.schema window.resolvers
-              window.variableValues window.depth window.parentType
-              window.source window.selectionSet with
-        | error ungroupedErrors =>
-            simpa [hungrouped, hspec] using hprojection
-        | ok ungroupedResult =>
-            rcases ungroupedResult with ⟨ungroupedFields, ungroupedErrors⟩
-            simp [hungrouped, hspec] at hprojection
-    | ok result =>
-        rcases result with ⟨fields, errors⟩
-        have hmergeFields : mergeResponse (.object []) (.object fields) =
-            .object fields := by
-          have hget :
-              GraphQL.Execution.executeCollectedFieldsData window.schema
-                window.resolvers window.variableValues window.depth window.source
-                (GraphQL.Execution.collectFields window.schema
-                  window.variableValues window.parentType window.source
-                  window.selectionSet) = fields := by
-            simp [GraphQL.Execution.executeCollectedFieldsData,
-              GraphQL.Execution.Result.getD, hspec]
-          simpa [hget] using hmerge
-        cases hungrouped :
-            executeRootSelectionSet window.schema window.resolvers
-              window.variableValues window.depth window.parentType
-              window.source window.selectionSet with
-        | error ungroupedErrors =>
-            simp [hungrouped, hspec, hmergeFields] at hprojection
-        | ok ungroupedResult =>
-            rcases ungroupedResult with ⟨ungroupedFields, ungroupedErrors⟩
-            have hwrapped :
-                (Except.ok (ResponseValue.object ungroupedFields,
-                    ungroupedErrors) : Result ResponseValue) =
-                  (Except.ok (ResponseValue.object fields, errors) :
-                    Result ResponseValue) := by
-              simpa [hungrouped, hspec, hmergeFields] using hprojection
-            cases hwrapped
-            rfl
+                window.selectionSet) = fields := by
+          simp [GraphQL.Execution.executeCollectedFieldsData,
+            GraphQL.Execution.Result.getD, hspec]
+        simpa [hget] using hmerge
+      cases hungrouped :
+          executeRootSelectionSet window.schema window.resolvers
+            window.variableValues window.depth window.parentType
+            window.source window.selectionSet with
+      | error ungroupedErrors =>
+          simp [hungrouped, hspec, hmergeFields] at hprojection
+      | ok ungroupedResult =>
+          rcases ungroupedResult with ⟨ungroupedFields, ungroupedErrors⟩
+          have hwrapped :
+              (Except.ok (ResponseValue.object ungroupedFields,
+                  ungroupedErrors) : Result ResponseValue) =
+                (Except.ok (ResponseValue.object fields, errors) :
+                  Result ResponseValue) := by
+            simpa [hungrouped, hspec, hmergeFields] using hprojection
+          cases hwrapped
+          rfl
 
 theorem executeRootSelectionSet_eq_spec_of_state_equivalent_nodup
     {ObjectIdentity : Type}
@@ -1711,9 +1711,9 @@ theorem executeRootSelectionSet_append_single_field_blocked_eq_left
   obtain ⟨fields, hfields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source left []
-  cases hstatus :
-      (visitSubfields schema resolvers variableValues depth parentType source
-        left (.object [])).snd with
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            left (.object [])).snd with
   | error errors =>
       simp [hfields, hstatus, visitSubfields,
         visitSelection_field_directives_blocked schema resolvers
@@ -1884,9 +1884,9 @@ theorem executeRootSelectionSet_append_single_selection_noop_eq_left
   obtain ⟨fields, hfields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source left []
-  cases hstatus :
-      (visitSubfields schema resolvers variableValues depth parentType source
-        left (.object [])).snd with
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            left (.object [])).snd with
   | error errors =>
       simp [hfields, hstatus, visitSubfields, hvisit fields]
   | ok status =>
@@ -2068,11 +2068,13 @@ theorem stateEquivalent_of_append_single_inline_none_blocked
             }
           initial := .object []
         } :=
-  stateEquivalent_of_append_single_selection_noop hleft (by
+  stateEquivalent_of_append_single_selection_noop hleft
+    (by
       intro fields
       exact visitSelection_inline_none_directives_blocked schema resolvers
         variableValues depth parentType source directives selectionSet
-        (.object fields) hblocked) (by
+        (.object fields) hblocked)
+    (by
       simp [GraphQL.Execution.collectSelection, hblocked])
 
 theorem stateEquivalent_of_append_single_inline_some_blocked
@@ -2114,11 +2116,13 @@ theorem stateEquivalent_of_append_single_inline_some_blocked
             }
           initial := .object []
         } :=
-  stateEquivalent_of_append_single_selection_noop hleft (by
+  stateEquivalent_of_append_single_selection_noop hleft
+    (by
       intro fields
       exact visitSelection_inline_some_directives_blocked schema resolvers
         variableValues depth parentType source typeCondition directives
-        selectionSet (.object fields) hblocked) (by
+        selectionSet (.object fields) hblocked)
+    (by
       simp [GraphQL.Execution.collectSelection, hblocked])
 
 theorem stateEquivalent_of_append_single_inline_some_not_apply
@@ -2161,11 +2165,13 @@ theorem stateEquivalent_of_append_single_inline_some_not_apply
             }
           initial := .object []
         } :=
-  stateEquivalent_of_append_single_selection_noop hleft (by
+  stateEquivalent_of_append_single_selection_noop hleft
+    (by
       intro fields
       exact visitSelection_inline_some_type_not_apply schema resolvers
         variableValues depth parentType source typeCondition directives
-        selectionSet (.object fields) hallowed hnotApply) (by
+        selectionSet (.object fields) hallowed hnotApply)
+    (by
       simp [GraphQL.Execution.collectSelection, hallowed, hnotApply])
 
 theorem executeRootSelectionSet_append_single_inline_none_allowed_eq_body_append
@@ -2186,9 +2192,9 @@ theorem executeRootSelectionSet_append_single_inline_none_allowed_eq_body_append
   obtain ⟨fields, hfields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source left []
-  cases hstatus :
-      (visitSubfields schema resolvers variableValues depth parentType source
-        left (.object [])).snd with
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            left (.object [])).snd with
   | error errors =>
       simp [hfields, hstatus, visitSubfields, visitSelection, hallowed]
   | ok status =>
@@ -2341,9 +2347,9 @@ theorem executeRootSelectionSet_append_single_inline_some_apply_eq_body_append
   obtain ⟨fields, hfields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source left []
-  cases hstatus :
-      (visitSubfields schema resolvers variableValues depth parentType source
-        left (.object [])).snd with
+  cases hstatus
+        : (visitSubfields schema resolvers variableValues depth parentType source
+            left (.object [])).snd with
   | error errors =>
       simp [hfields, hstatus, visitSubfields, visitSelection, hallowed,
         happly]
