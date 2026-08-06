@@ -95,8 +95,8 @@ theorem executionSelectionSetLookupValid_normalizeSelectionSet (schema : Schema)
         executionSelectionSetLookupValid schema parentType
           (NormalForm.normalizeSelectionSet schema parentType selectionSet) := by
   intro parentType selectionSet
-  induction parentType, selectionSet using
-    NormalForm.normalizeSelectionSet.induct schema with
+  induction parentType, selectionSet
+    using NormalForm.normalizeSelectionSet.induct schema with
   | case1 parentType =>
       unfold executionSelectionSetLookupValid
       intro selection hmem

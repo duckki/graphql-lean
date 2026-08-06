@@ -352,25 +352,25 @@ theorem lookupFragment?_eq_some_of_mem_unique
       rcases hunique with ⟨hheadNotMem, hrestUnique⟩
       cases hmem with
       | head =>
-        change
-          List.find? (fun candidate : FragmentDefinition =>
-            candidate.name == fragment.name) (fragment :: rest) = some fragment
-        rw [List.find?_cons]
-        simp
+          change
+            List.find? (fun candidate : FragmentDefinition =>
+              candidate.name == fragment.name) (fragment :: rest) = some fragment
+          rw [List.find?_cons]
+          simp
       | tail _ htail =>
-        change
-          List.find? (fun candidate : FragmentDefinition =>
-            candidate.name == fragment.name) (head :: rest) =
-            some fragment
-        rw [List.find?_cons]
-        have hheadNe : (head.name == fragment.name) = false := by
-          cases hname : head.name == fragment.name
-          · rfl
-          · have hnameEq : head.name = fragment.name := by
-              simpa using hname
-            exact False.elim (hheadNotMem fragment htail hnameEq.symm)
-        simp [hheadNe]
-        exact ih hrestUnique htail
+          change
+            List.find? (fun candidate : FragmentDefinition =>
+              candidate.name == fragment.name) (head :: rest) =
+              some fragment
+          rw [List.find?_cons]
+          have hheadNe : (head.name == fragment.name) = false := by
+            cases hname : head.name == fragment.name
+            · rfl
+            · have hnameEq : head.name = fragment.name := by
+                simpa using hname
+              exact False.elim (hheadNotMem fragment htail hnameEq.symm)
+          simp [hheadNe]
+          exact ih hrestUnique htail
 
 theorem lookupFragment?_of_lookupFragmentAndRestLt?_remaining_original
     {removedName targetName : Name}

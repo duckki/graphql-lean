@@ -484,8 +484,7 @@ theorem reusableOrComplete_eq_completeResolvedValue
           · simp [completeResolvedValue, reusablePreviousValue?, hcomposite]
   | nonNull inner ih =>
       intro previous
-      cases houter :
-          reusablePreviousValue? schema (.nonNull inner) (some previous) with
+      cases houter : reusablePreviousValue? schema (.nonNull inner) (some previous) with
       | some reused =>
           have hreused :
               some previous = some reused :=
@@ -740,11 +739,12 @@ theorem completeValue_zero_eq_spec
           value previous?)
       = GraphQL.Execution.completeValueData schema resolvers variableValues 0
           parentType fields value := by
-  cases value <;> cases previous? with
+  cases value
+  <;> cases previous? with
   | none =>
-    simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
-      GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
-      GraphQL.Execution.Result.getD, resultValueOrNull, outOfFuel]
+      simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
+        GraphQL.Execution.completeValueData, GraphQL.Execution.completeValue,
+        GraphQL.Execution.Result.getD, resultValueOrNull, outOfFuel]
   | some previous =>
       cases previous <;>
         simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,

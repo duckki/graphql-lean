@@ -460,8 +460,9 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
                 selectionSet)
         -> varName ∈ selectionSetBooleanVariables selectionSet := by
   intro selectionSet
-  induction selectionSet using
-    fieldSelectionsWithResponseNameInScope.induct schema parentType responseName with
+  induction selectionSet
+    using fieldSelectionsWithResponseNameInScope.induct schema parentType
+            responseName with
   | case1 =>
       simp [fieldSelectionsWithResponseNameInScope, selectionSetBooleanVariables]
   | case2 rest selectionResponseName fieldName arguments directives

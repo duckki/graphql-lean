@@ -131,31 +131,31 @@ theorem executableGroupsSelectionVarsInOperation_addExecutableGroup
       intro candidate hcandidate
       cases group with
       | mk responseName fields =>
-      cases current with
-      | mk currentName currentFields =>
-      cases hresponse : currentName == responseName
-      · simp [Execution.addExecutableGroup, hresponse] at hcandidate
-        rcases hcandidate with hhead | htail
-        ·
-            subst candidate
-            exact hgroups (currentName, currentFields) (by simp)
-        ·
-            exact ih
-              (by
-                intro restGroup hmem
-                exact hgroups restGroup (by simp [hmem]))
-              candidate htail
-      · simp [Execution.addExecutableGroup, hresponse] at hcandidate
-        rcases hcandidate with hhead | htail
-        ·
-            subst candidate
-            intro field hfield
-            rw [List.mem_append] at hfield
-            rcases hfield with hcurrent | hnew
-            · exact hgroups (currentName, currentFields) (by simp)
-                field hcurrent
-            · exact hgroup field hnew
-        · exact hgroups candidate (by simp [htail])
+          cases current with
+          | mk currentName currentFields =>
+              cases hresponse : currentName == responseName
+              · simp [Execution.addExecutableGroup, hresponse] at hcandidate
+                rcases hcandidate with hhead | htail
+                ·
+                    subst candidate
+                    exact hgroups (currentName, currentFields) (by simp)
+                ·
+                    exact ih
+                      (by
+                        intro restGroup hmem
+                        exact hgroups restGroup (by simp [hmem]))
+                      candidate htail
+              · simp [Execution.addExecutableGroup, hresponse] at hcandidate
+                rcases hcandidate with hhead | htail
+                ·
+                    subst candidate
+                    intro field hfield
+                    rw [List.mem_append] at hfield
+                    rcases hfield with hcurrent | hnew
+                    · exact hgroups (currentName, currentFields) (by simp)
+                        field hcurrent
+                    · exact hgroup field hnew
+                · exact hgroups candidate (by simp [htail])
 
 theorem executableGroupsSelectionVarsInOperation_mergeExecutableGroups
     (operation : Operation)
@@ -320,88 +320,88 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
   | cons group rest ih =>
       cases group with
       | mk responseName fields =>
-      have hrestVars :
-          executableGroupsSelectionVarsInOperation operation rest := by
-        intro candidate hcandidate
-        exact hgroups candidate (by simp [hcandidate])
-      have htail :
-          Execution.executeCollectedFields schema resolvers variableValues depth
-              source (filterExecutableGroupsBoolCase boolCase rest)
-            =
-          Execution.executeCollectedFields schema resolvers variableValues depth
-              source rest :=
-        ih hrestVars
-      cases fields with
-      | nil =>
-          simpa [filterExecutableGroupsBoolCase,
-            filterExecutableGroupBoolCase] using
-            GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
-              schema resolvers variableValues depth source
-              (responseName, []) (responseName, [])
-              (filterExecutableGroupsBoolCase boolCase rest)
-              rest
-              (by simp [Execution.executeField])
-              htail
-      | cons field fields =>
-          have hfieldsVars :
-              executableFieldsSelectionVarsInOperation operation
-                (field :: fields) := by
-            exact hgroups (responseName, field :: fields) (by simp)
-          have hhead :
-              Execution.executeField schema resolvers variableValues depth
-                  source responseName
-                  (filterExecutableFieldBoolCase boolCase field
-                    :: fields.map
-                      (filterExecutableFieldBoolCase boolCase))
+          have hrestVars :
+              executableGroupsSelectionVarsInOperation operation rest := by
+            intro candidate hcandidate
+            exact hgroups candidate (by simp [hcandidate])
+          have htail :
+              Execution.executeCollectedFields schema resolvers variableValues depth
+                  source (filterExecutableGroupsBoolCase boolCase rest)
                 =
-              Execution.executeField schema resolvers variableValues depth
-                  source responseName (field :: fields) := by
-            apply executeField_cons_eq_cons_of_completeValue
-              schema resolvers variableValues depth source responseName
-              field (filterExecutableFieldBoolCase boolCase field)
-              fields (fields.map (filterExecutableFieldBoolCase boolCase))
-            · exact filterExecutableFieldBoolCase_parentType boolCase field
-            · exact filterExecutableFieldBoolCase_fieldName boolCase field
-            · exact filterExecutableFieldBoolCase_arguments boolCase field
-            · cases hlookup :
-                  schema.lookupField field.parentType field.fieldName with
-              | none =>
-                  simp []
-              | some fieldDefinition =>
-                  cases hresolved :
-                      resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
+              Execution.executeCollectedFields schema resolvers variableValues depth
+                  source rest :=
+            ih hrestVars
+          cases fields with
+          | nil =>
+              simpa [filterExecutableGroupsBoolCase,
+                filterExecutableGroupBoolCase] using
+                GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
+                  schema resolvers variableValues depth source
+                  (responseName, []) (responseName, [])
+                  (filterExecutableGroupsBoolCase boolCase rest)
+                  rest
+                  (by simp [Execution.executeField])
+                  htail
+          | cons field fields =>
+              have hfieldsVars :
+                  executableFieldsSelectionVarsInOperation operation
+                    (field :: fields) := by
+                exact hgroups (responseName, field :: fields) (by simp)
+              have hhead :
+                  Execution.executeField schema resolvers variableValues depth
+                      source responseName
+                      (filterExecutableFieldBoolCase boolCase field
+                        :: fields.map
+                          (filterExecutableFieldBoolCase boolCase))
+                    =
+                  Execution.executeField schema resolvers variableValues depth
+                      source responseName (field :: fields) := by
+                apply executeField_cons_eq_cons_of_completeValue
+                  schema resolvers variableValues depth source responseName
+                  field (filterExecutableFieldBoolCase boolCase field)
+                  fields (fields.map (filterExecutableFieldBoolCase boolCase))
+                · exact filterExecutableFieldBoolCase_parentType boolCase field
+                · exact filterExecutableFieldBoolCase_fieldName boolCase field
+                · exact filterExecutableFieldBoolCase_arguments boolCase field
+                · cases hlookup :
+                      schema.lookupField field.parentType field.fieldName with
                   | none =>
                       simp []
-                  | some value =>
-                      simp []
-                      apply completeValue_eq_of_child_object_lt
-                      intro childDepth runtimeType ref hlt
-                      have hltDepth : childDepth < depth :=
-                        Nat.lt_of_lt_of_le hlt (Nat.sub_le depth 1)
-                      simpa [
-                        Execution.mergedFieldSelectionSet,
-                        filterExecutableFieldBoolCase,
-                        filterSelectionSetBoolCase_append,
-                        mergedFieldSelectionSet_map_filterExecutableFieldBoolCase]
-                        using
-                          hrec childDepth hltDepth runtimeType
-                            (Execution.ResolverValue.object runtimeType ref)
-                            (Execution.mergedFieldSelectionSet (field :: fields))
-                            (executableFieldsSelectionVarsInOperation_merged
-                              operation (field :: fields) hfieldsVars)
-          simpa [filterExecutableGroupsBoolCase,
-            filterExecutableGroupBoolCase,
-            Execution.executeCollectedFields] using
-            GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
-              schema resolvers variableValues depth source
-              (responseName,
-                filterExecutableFieldBoolCase boolCase field
-                  :: fields.map
-                    (filterExecutableFieldBoolCase boolCase))
-              (responseName, field :: fields)
-              (filterExecutableGroupsBoolCase boolCase rest)
-              rest hhead htail
+                  | some fieldDefinition =>
+                      cases hresolved :
+                          resolvers.resolve field.parentType field.fieldName
+                            field.arguments source with
+                      | none =>
+                          simp []
+                      | some value =>
+                          simp []
+                          apply completeValue_eq_of_child_object_lt
+                          intro childDepth runtimeType ref hlt
+                          have hltDepth : childDepth < depth :=
+                            Nat.lt_of_lt_of_le hlt (Nat.sub_le depth 1)
+                          simpa [
+                            Execution.mergedFieldSelectionSet,
+                            filterExecutableFieldBoolCase,
+                            filterSelectionSetBoolCase_append,
+                            mergedFieldSelectionSet_map_filterExecutableFieldBoolCase]
+                            using
+                              hrec childDepth hltDepth runtimeType
+                                (Execution.ResolverValue.object runtimeType ref)
+                                (Execution.mergedFieldSelectionSet (field :: fields))
+                                (executableFieldsSelectionVarsInOperation_merged
+                                  operation (field :: fields) hfieldsVars)
+              simpa [filterExecutableGroupsBoolCase,
+                filterExecutableGroupBoolCase,
+                Execution.executeCollectedFields] using
+                GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
+                  schema resolvers variableValues depth source
+                  (responseName,
+                    filterExecutableFieldBoolCase boolCase field
+                      :: fields.map
+                        (filterExecutableFieldBoolCase boolCase))
+                  (responseName, field :: fields)
+                  (filterExecutableGroupsBoolCase boolCase rest)
+                  rest hhead htail
 
 theorem executeSelectionSet_filterSelectionSetBoolCase
     (schema : Schema)

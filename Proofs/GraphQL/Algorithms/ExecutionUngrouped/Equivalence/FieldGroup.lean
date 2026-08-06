@@ -368,44 +368,46 @@ theorem groupedFieldVisitResult_singleFieldResult_combine_visit_aligned
         (GraphQL.Execution.singleFieldResult responseName combinedCompleted) := by
   rcases left with ⟨leftOutput, leftStatus⟩
   rcases hleft with ⟨hvalue, hstatus⟩
-  cases leftCompleted <;> cases rightCompleted <;> cases combinedCompleted <;>
-    cases leftStatus with
-    | error leftErrors =>
-        simp [GraphQL.Execution.singleFieldResult, groupedFieldVisitResult] at hvalue
-        subst leftOutput
-        simp [GroupedFieldVisitAlignedEquivalent,
-          GraphQL.Execution.singleFieldResult, groupedFieldVisitResult,
-          VisitStatusAlignedEquivalent, ResponseValueResultAlignedEquivalent,
-          GraphQL.Execution.Result.combine, mergeResponseFieldResult,
-          combineVisitStatus, resultValueOrNull, resultStatus,
-          mergeResponseFieldIntoObject, mergeResponseField, mergeResponse] at hstatus hcombine ⊢
-        all_goals try
-          exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine
-        all_goals try
-          exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2
-        all_goals try cases hstatus
-    | ok leftStatusResult =>
-        rcases leftStatusResult with ⟨unitValue, leftErrors⟩
-        cases unitValue
-        simp [GraphQL.Execution.singleFieldResult, groupedFieldVisitResult] at hvalue
-        subst leftOutput
-        simp [GroupedFieldVisitAlignedEquivalent,
-          GraphQL.Execution.singleFieldResult, groupedFieldVisitResult,
-          VisitStatusAlignedEquivalent, ResponseValueResultAlignedEquivalent,
-          GraphQL.Execution.Result.combine, mergeResponseFieldResult,
-          combineVisitStatus, resultValueOrNull, resultStatus,
-          mergeResponseFieldIntoObject, mergeResponseField, visitOk] at hstatus hcombine ⊢
-        all_goals try
-          exact ⟨by simp [hcombine.1],
-            ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2⟩
-        all_goals try
-          exact ⟨by simp [mergeResponse_null_right],
-            ErrorPresenceEquivalent.add_left_congr hstatus hcombine⟩
-        all_goals try
-          exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine
-        all_goals try
-          exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2
-        all_goals try cases hstatus
+  cases leftCompleted
+  <;> cases rightCompleted
+  <;> cases combinedCompleted
+  <;> cases leftStatus with
+  | error leftErrors =>
+      simp [GraphQL.Execution.singleFieldResult, groupedFieldVisitResult] at hvalue
+      subst leftOutput
+      simp [GroupedFieldVisitAlignedEquivalent,
+        GraphQL.Execution.singleFieldResult, groupedFieldVisitResult,
+        VisitStatusAlignedEquivalent, ResponseValueResultAlignedEquivalent,
+        GraphQL.Execution.Result.combine, mergeResponseFieldResult,
+        combineVisitStatus, resultValueOrNull, resultStatus,
+        mergeResponseFieldIntoObject, mergeResponseField, mergeResponse] at hstatus hcombine ⊢
+      all_goals try
+        exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine
+      all_goals try
+        exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2
+      all_goals try cases hstatus
+  | ok leftStatusResult =>
+      rcases leftStatusResult with ⟨unitValue, leftErrors⟩
+      cases unitValue
+      simp [GraphQL.Execution.singleFieldResult, groupedFieldVisitResult] at hvalue
+      subst leftOutput
+      simp [GroupedFieldVisitAlignedEquivalent,
+        GraphQL.Execution.singleFieldResult, groupedFieldVisitResult,
+        VisitStatusAlignedEquivalent, ResponseValueResultAlignedEquivalent,
+        GraphQL.Execution.Result.combine, mergeResponseFieldResult,
+        combineVisitStatus, resultValueOrNull, resultStatus,
+        mergeResponseFieldIntoObject, mergeResponseField, visitOk] at hstatus hcombine ⊢
+      all_goals try
+        exact ⟨by simp [hcombine.1],
+          ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2⟩
+      all_goals try
+        exact ⟨by simp [mergeResponse_null_right],
+          ErrorPresenceEquivalent.add_left_congr hstatus hcombine⟩
+      all_goals try
+        exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine
+      all_goals try
+        exact ErrorPresenceEquivalent.add_left_congr hstatus hcombine.2
+      all_goals try cases hstatus
 
 theorem executeRootSelectionSet_append_one_visit_aligned_of_complete
     {ObjectIdentity : Type}
@@ -2131,13 +2133,13 @@ theorem resultStatus_completeValueList_append_second_eq_ok_of_each
       simp [GraphQL.Execution.completeValueList, completeValueList,
         resultStatus, visitOk]
   | cons value rest ih =>
-      cases hhead :
-          GraphQL.Execution.completeValue schema resolvers variableValues
-            depth itemType prefixFields value with
+      cases hhead
+            : GraphQL.Execution.completeValue schema resolvers variableValues
+                depth itemType prefixFields value with
       | error headErrors =>
-          cases htail :
-              GraphQL.Execution.completeValueList schema resolvers
-                variableValues depth itemType prefixFields rest with
+          cases htail
+                : GraphQL.Execution.completeValueList schema resolvers
+                    variableValues depth itemType prefixFields rest with
           | error tailErrors =>
               simp [GraphQL.Execution.completeValueList, hhead, htail,
                 GraphQL.Execution.Result.combine]
@@ -2147,9 +2149,9 @@ theorem resultStatus_completeValueList_append_second_eq_ok_of_each
                 GraphQL.Execution.Result.combine]
       | ok headResult =>
           rcases headResult with ⟨headValue, headErrors⟩
-          cases htail :
-              GraphQL.Execution.completeValueList schema resolvers
-                variableValues depth itemType prefixFields rest with
+          cases htail
+                : GraphQL.Execution.completeValueList schema resolvers
+                    variableValues depth itemType prefixFields rest with
           | error tailErrors =>
               simp [GraphQL.Execution.completeValueList, hhead, htail,
                 GraphQL.Execution.Result.combine]
@@ -2166,18 +2168,18 @@ theorem resultStatus_completeValueList_append_second_eq_ok_of_each
                       itemType later.selectionSet rest tailValues) =
                   visitOk := by
                 simpa [htail] using ih
-              cases hrightHead :
-                  completeResolvedValue schema resolvers variableValues depth itemType
-                    later.selectionSet value (some headValue) with
+              cases hrightHead
+                    : completeResolvedValue schema resolvers variableValues depth itemType
+                        later.selectionSet value (some headValue) with
               | error rightHeadErrors =>
                   simp [hrightHead, resultStatus, visitOk] at hheadStatus
               | ok rightHeadResult =>
                   rcases rightHeadResult with ⟨rightHeadValue, rightHeadErrors⟩
                   cases rightHeadErrors with
                   | zero =>
-                      cases hrightTail :
-                          completeValueList schema resolvers variableValues
-                            depth itemType later.selectionSet rest tailValues with
+                      cases hrightTail
+                            : completeValueList schema resolvers variableValues
+                                depth itemType later.selectionSet rest tailValues with
                       | error rightTailErrors =>
                           simp [hrightTail, resultStatus, visitOk] at htailStatus
                       | ok rightTailResult =>
@@ -2753,17 +2755,17 @@ theorem completeValueList_append_result_eq_spec_of_each
         resultStatus_completeValueList_append_second_eq_ok_of_each schema
           resolvers variableValues depth itemType prefixFields later
           hitemComposite hstatus rest
-      cases hhead :
-          GraphQL.Execution.completeValue schema resolvers variableValues
-            depth itemType prefixFields value with
+      cases hhead
+            : GraphQL.Execution.completeValue schema resolvers variableValues
+                depth itemType prefixFields value with
       | error headErrors =>
-          cases htail :
-              GraphQL.Execution.completeValueList schema resolvers
-                variableValues depth itemType prefixFields rest with
+          cases htail
+                : GraphQL.Execution.completeValueList schema resolvers
+                    variableValues depth itemType prefixFields rest with
           | error tailErrors =>
-              cases hrightHead :
-                  completeResolvedValue schema resolvers variableValues depth itemType
-                    later.selectionSet value (some .null) with
+              cases hrightHead
+                    : completeResolvedValue schema resolvers variableValues depth itemType
+                        later.selectionSet value (some .null) with
               | error rightHeadErrors =>
                   simp [hhead, hrightHead, resultValueOrNull, resultStatus,
                     visitOk] at hheadStatus
@@ -2793,9 +2795,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                         visitOk] at hheadStatus
           | ok tailResult =>
               rcases tailResult with ⟨tailValues, tailErrors⟩
-              cases hrightHead :
-                  completeResolvedValue schema resolvers variableValues depth itemType
-                    later.selectionSet value (some .null) with
+              cases hrightHead
+                    : completeResolvedValue schema resolvers variableValues depth itemType
+                        later.selectionSet value (some .null) with
               | error rightHeadErrors =>
                   simp [hhead, hrightHead, resultValueOrNull, resultStatus,
                     visitOk] at hheadStatus
@@ -2819,9 +2821,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                             (completeValueList schema resolvers variableValues
                               depth itemType later.selectionSet rest tailValues) := by
                         simpa [htail] using ih.symm
-                      cases hrightTail :
-                          completeValueList schema resolvers variableValues
-                            depth itemType later.selectionSet rest tailValues with
+                      cases hrightTail
+                            : completeValueList schema resolvers variableValues
+                                depth itemType later.selectionSet rest tailValues with
                       | error rightTailErrors =>
                           have htailStatus' :
                               resultStatus
@@ -2854,9 +2856,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                         visitOk] at hheadStatus
       | ok headResult =>
           rcases headResult with ⟨headValue, headErrors⟩
-          cases htail :
-              GraphQL.Execution.completeValueList schema resolvers
-                variableValues depth itemType prefixFields rest with
+          cases htail
+                : GraphQL.Execution.completeValueList schema resolvers
+                    variableValues depth itemType prefixFields rest with
           | error tailErrors =>
               have htailAppend' :
                   GraphQL.Execution.completeValueList schema resolvers
@@ -2864,9 +2866,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                     (prefixFields ++ [later]) rest =
                   .error tailErrors := by
                 simpa [htail, GraphQL.Execution.Result.combine] using ih.symm
-              cases hrightHead :
-                  completeResolvedValue schema resolvers variableValues depth itemType
-                    later.selectionSet value (some headValue) with
+              cases hrightHead
+                    : completeResolvedValue schema resolvers variableValues depth itemType
+                        later.selectionSet value (some headValue) with
               | error rightHeadErrors =>
                   have hheadStatus' :
                       resultStatus
@@ -2915,9 +2917,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                     (completeValueList schema resolvers variableValues depth
                       itemType later.selectionSet rest tailValues) := by
                 simpa [htail] using ih.symm
-              cases hrightHead :
-                  completeResolvedValue schema resolvers variableValues depth itemType
-                    later.selectionSet value (some headValue) with
+              cases hrightHead
+                    : completeResolvedValue schema resolvers variableValues depth itemType
+                        later.selectionSet value (some headValue) with
               | error rightHeadErrors =>
                   have hheadStatus' :
                       resultStatus
@@ -2938,9 +2940,9 @@ theorem completeValueList_append_result_eq_spec_of_each
                             headErrors) := by
                         simpa [hhead, hrightHead, resultValueOrNull,
                           GraphQL.Execution.Result.combine] using hheadAppend.symm
-                      cases hrightTail :
-                          completeValueList schema resolvers variableValues
-                            depth itemType later.selectionSet rest tailValues with
+                      cases hrightTail
+                            : completeValueList schema resolvers variableValues
+                                depth itemType later.selectionSet rest tailValues with
                       | error rightTailErrors =>
                           simp [hrightTail, resultStatus, visitOk] at htailStatus'
                       | ok rightTailResult =>

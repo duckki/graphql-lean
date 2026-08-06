@@ -1167,12 +1167,12 @@ theorem visitSubfields_completeNormalizeRootSelectionSet_eq_wrapped
                     (NormalForm.normalizeSelectionSet schema parentType
                       (NormalForm.filterSelectionSetBoolCase boolCase selectionSet)))))
             output := by
-    unfold NormalForm.completeNormalizeRootSelectionSet
-    induction NormalForm.allBoolCases variables with
-    | nil =>
-        intro output
-        simp [visitSubfields]
-    | cons boolCase rest ih =>
+  unfold NormalForm.completeNormalizeRootSelectionSet
+  induction NormalForm.allBoolCases variables with
+  | nil =>
+      intro output
+      simp [visitSubfields]
+  | cons boolCase rest ih =>
       intro output
       simp only [List.map_cons, List.flatten_cons]
       let branchActual :=

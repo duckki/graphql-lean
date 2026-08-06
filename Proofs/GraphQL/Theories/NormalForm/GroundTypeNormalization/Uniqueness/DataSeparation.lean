@@ -314,22 +314,22 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_left_exists
       classical
       cases head with
       | field responseName fieldName arguments directives childSelectionSet =>
-          cases hcurrent :
-              (if currentParent = targetParent
-                  ∧ fieldName = targetField
-                  ∧ Argument.argumentsEquivalent arguments targetArguments then
-                firstInlineFragmentTypeCondition? childSelectionSet
-              else
-                none) with
+          cases hcurrent
+                : (if currentParent = targetParent
+                      ∧ fieldName = targetField
+                      ∧ Argument.argumentsEquivalent arguments targetArguments then
+                      firstInlineFragmentTypeCondition? childSelectionSet
+                    else
+                      none) with
           | some currentRuntimeType =>
               exact
                 ⟨currentRuntimeType,
                   by
                     simp [abstractRuntimeForFieldHeadDeep?, hcurrent]⟩
           | none =>
-              cases hrest :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent tail with
+              cases hrest
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments currentParent tail with
               | some restRuntimeType =>
                   rcases ih hrest with ⟨tailRuntimeType, htailRuntime⟩
                   exact
@@ -350,10 +350,10 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_left_exists
                             childSelectionSet = some runtimeType := by
                         simpa [abstractRuntimeForFieldHeadDeep?, hcurrent,
                           hrest, hlookup] using hleft
-                      cases happendedRest :
-                          abstractRuntimeForFieldHeadDeep? schema
-                            targetParent targetField targetArguments
-                            currentParent (tail ++ right) with
+                      cases happendedRest
+                            : abstractRuntimeForFieldHeadDeep? schema
+                                targetParent targetField targetArguments
+                                currentParent (tail ++ right) with
                       | none =>
                           exact
                             ⟨runtimeType,
@@ -443,13 +443,13 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_right_exists
       classical
       cases head with
       | field responseName fieldName arguments directives childSelectionSet =>
-          cases hcurrent :
-              (if currentParent = targetParent
-                  ∧ fieldName = targetField
-                  ∧ Argument.argumentsEquivalent arguments targetArguments then
-                firstInlineFragmentTypeCondition? childSelectionSet
-              else
-                none) with
+          cases hcurrent
+                : (if currentParent = targetParent
+                      ∧ fieldName = targetField
+                      ∧ Argument.argumentsEquivalent arguments targetArguments then
+                      firstInlineFragmentTypeCondition? childSelectionSet
+                    else
+                      none) with
           | some currentRuntimeType =>
               exact
                 ⟨currentRuntimeType,
@@ -515,13 +515,13 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                 Selection.field responseName fieldName arguments directives
                   childSelectionSet :: tail := by
             simp
-          cases hcurrent :
-              (if currentParent = targetParent
-                  ∧ fieldName = targetField
-                  ∧ Argument.argumentsEquivalent arguments targetArguments then
-                firstInlineFragmentTypeCondition? childSelectionSet
-              else
-                none) with
+          cases hcurrent
+                : (if currentParent = targetParent
+                      ∧ fieldName = targetField
+                      ∧ Argument.argumentsEquivalent arguments targetArguments then
+                      firstInlineFragmentTypeCondition? childSelectionSet
+                    else
+                      none) with
           | some headRuntimeType =>
               by_cases hcondition :
                   currentParent = targetParent
@@ -553,10 +553,10 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                 exact hcandidateInclude
               · simp [hcondition] at hcurrent
           | none =>
-              cases hrestAppend :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent
-                    (tail ++ right) with
+              cases hrestAppend
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments currentParent
+                        (tail ++ right) with
               | some restRuntimeType =>
                   have hruntimeEq : restRuntimeType = runtimeType := by
                     simpa [abstractRuntimeForFieldHeadDeep?, hcurrent,
@@ -631,10 +631,10 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_
                     Selection.inlineFragment (some typeCondition) directives
                       childSelectionSet :: tail := by
                 simp
-              cases hrestAppend :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent
-                    (tail ++ right) with
+              cases hrestAppend
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments currentParent
+                        (tail ++ right) with
               | some restRuntimeType =>
                   have hruntimeEq : restRuntimeType = runtimeType := by
                     simpa [abstractRuntimeForFieldHeadDeep?, hrestAppend]
@@ -1017,9 +1017,9 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal
                     Selection.inlineFragment (some typeCondition) directives
                       childSelectionSet :: tail := by
                 simp
-              cases hrestAppend :
-                  abstractRuntimeForFieldDeep? schema targetParent targetField
-                    currentParent (tail ++ right) with
+              cases hrestAppend
+                    : abstractRuntimeForFieldDeep? schema targetParent targetField
+                        currentParent (tail ++ right) with
               | some restRuntimeType =>
                   have hruntimeEq : restRuntimeType = runtimeType := by
                     simpa [abstractRuntimeForFieldDeep?, hrestAppend] using
@@ -1259,9 +1259,9 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_righ
                     Selection.inlineFragment (some typeCondition) directives
                       childSelectionSet :: tail := by
                 simp
-              cases hrestAppend :
-                  abstractRuntimeForFieldDeep? schema targetParent targetField
-                    currentParent (tail ++ right) with
+              cases hrestAppend
+                    : abstractRuntimeForFieldDeep? schema targetParent targetField
+                        currentParent (tail ++ right) with
               | some restRuntimeType =>
                   have hruntimeEq : restRuntimeType = runtimeType := by
                     simpa [abstractRuntimeForFieldDeep?, hrestAppend] using

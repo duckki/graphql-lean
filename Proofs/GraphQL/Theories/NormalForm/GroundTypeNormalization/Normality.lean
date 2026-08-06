@@ -126,8 +126,7 @@ theorem selectionSetDirectiveFree_possibleTypeNormalizations
   | nil =>
       exact selectionSetDirectiveFree_nil
   | cons objectType rest ih =>
-      cases hnormalized :
-          normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simp [possibleTypeNormalizations, hnormalized]
           exact ih (fun candidate hcandidate =>
@@ -151,122 +150,122 @@ theorem normalizeSelectionSet_directiveFree (schema : Schema)
   intro parentType selectionSet
   induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
-    intro hfree
-    simpa [normalizeSelectionSet] using selectionSetDirectiveFree_nil
+      intro hfree
+      simpa [normalizeSelectionSet] using selectionSetDirectiveFree_nil
   | case2 parentType rest responseName fieldName arguments directives
       selectionSet hlookup hrest =>
-    intro hfree
-    have hrestFree :=
-      selectionSetDirectiveFree_tail hfree
-    have hfilteredRestFree :
-        selectionSetDirectiveFree
-          (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-      withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest hrestFree
-    simpa [normalizeSelectionSet, hlookup] using hrest hfilteredRestFree
+      intro hfree
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have hfilteredRestFree :
+          selectionSetDirectiveFree
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest hrestFree
+      simpa [normalizeSelectionSet, hlookup] using hrest hfilteredRestFree
   | case3 parentType rest responseName fieldName arguments directives
       selectionSet fieldDefinition hlookup matching mergedSubselections
       returnType hrest hmerged hpossible =>
-    intro hfree
-    let normalizedSubselections :=
-      if objectTypeNameBool schema returnType then
-        normalizeSelectionSet schema returnType mergedSubselections
-      else
-        possibleTypeNormalizations schema
-          (schema.getPossibleTypes returnType) mergedSubselections
-    have hselectionFree :=
-      selectionSetDirectiveFree_head hfree
-    have hrestFree :=
-      selectionSetDirectiveFree_tail hfree
-    have hdirectives : directives = [] := hselectionFree.1
-    subst directives
-    have hsubselectionsFree : selectionSetDirectiveFree selectionSet :=
-      hselectionFree.2
-    have hfilteredRestFree :
-        selectionSetDirectiveFree
-          (withoutFieldSelectionsWithResponseName schema responseName rest) :=
-      withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest hrestFree
-    have hnormalizedRest :
-        selectionSetDirectiveFree
+      intro hfree
+      let normalizedSubselections :=
+        if objectTypeNameBool schema returnType then
+          normalizeSelectionSet schema returnType mergedSubselections
+        else
+          possibleTypeNormalizations schema
+            (schema.getPossibleTypes returnType) mergedSubselections
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have hdirectives : directives = [] := hselectionFree.1
+      subst directives
+      have hsubselectionsFree : selectionSetDirectiveFree selectionSet :=
+        hselectionFree.2
+      have hfilteredRestFree :
+          selectionSetDirectiveFree
+            (withoutFieldSelectionsWithResponseName schema responseName rest) :=
+        withoutFieldSelectionsWithResponseName_directiveFree schema responseName rest hrestFree
+      have hnormalizedRest :
+          selectionSetDirectiveFree
+            (normalizeSelectionSet schema parentType
+              (withoutFieldSelectionsWithResponseName schema responseName rest)) :=
+        hrest hfilteredRestFree
+      have hmatchingFree : selectionSetDirectiveFree matching := by
+        subst matching
+        exact fieldSelectionsWithResponseNameInScope_directiveFree schema parentType
+          responseName rest hrestFree
+      have hmergedSubselectionsFree :
+          selectionSetDirectiveFree mergedSubselections := by
+        subst mergedSubselections
+        exact selectionSetDirectiveFree_append hsubselectionsFree
+          (selectionSetDirectiveFree_mergeSelectionSets hmatchingFree)
+      have hnormalizedSubselections :
+          selectionSetDirectiveFree
+            (if objectTypeNameBool schema returnType then
+              normalizeSelectionSet schema returnType mergedSubselections
+            else
+              possibleTypeNormalizations schema
+                (schema.getPossibleTypes returnType)
+                mergedSubselections) := by
+        by_cases hobject : objectTypeNameBool schema returnType = true
+        · simp [hobject]
+          exact hmerged hmergedSubselectionsFree
+        · have hfalse : objectTypeNameBool schema returnType = false := by
+            cases hmatch : objectTypeNameBool schema returnType
+            · rfl
+            · contradiction
+          simp [hfalse]
+          exact selectionSetDirectiveFree_possibleTypeNormalizations
+            schema (schema.getPossibleTypes returnType)
+            (fun objectType _hobjectType =>
+              hpossible objectType hmergedSubselectionsFree)
+      have hnormalizedField :
+          selectionDirectiveFree
+            (Selection.field responseName fieldName arguments []
+              normalizedSubselections) := by
+        exact ⟨rfl, hnormalizedSubselections⟩
+      rw [normalizeSelectionSet.eq_2, hlookup]
+      change selectionSetDirectiveFree
+        (normalizedFieldWithRest schema returnType responseName fieldName
+          arguments [] normalizedSubselections
           (normalizeSelectionSet schema parentType
-            (withoutFieldSelectionsWithResponseName schema responseName rest)) :=
-      hrest hfilteredRestFree
-    have hmatchingFree : selectionSetDirectiveFree matching := by
-      subst matching
-      exact fieldSelectionsWithResponseNameInScope_directiveFree schema parentType
-        responseName rest hrestFree
-    have hmergedSubselectionsFree :
-        selectionSetDirectiveFree mergedSubselections := by
-      subst mergedSubselections
-      exact selectionSetDirectiveFree_append hsubselectionsFree
-        (selectionSetDirectiveFree_mergeSelectionSets hmatchingFree)
-    have hnormalizedSubselections :
-        selectionSetDirectiveFree
-          (if objectTypeNameBool schema returnType then
-            normalizeSelectionSet schema returnType mergedSubselections
-          else
-            possibleTypeNormalizations schema
-              (schema.getPossibleTypes returnType)
-              mergedSubselections) := by
-      by_cases hobject : objectTypeNameBool schema returnType = true
-      · simp [hobject]
-        exact hmerged hmergedSubselectionsFree
-      · have hfalse : objectTypeNameBool schema returnType = false := by
-          cases hmatch : objectTypeNameBool schema returnType
-          · rfl
-          · contradiction
-        simp [hfalse]
-        exact selectionSetDirectiveFree_possibleTypeNormalizations
-          schema (schema.getPossibleTypes returnType)
-          (fun objectType _hobjectType =>
-            hpossible objectType hmergedSubselectionsFree)
-    have hnormalizedField :
-        selectionDirectiveFree
-          (Selection.field responseName fieldName arguments []
-            normalizedSubselections) := by
-      exact ⟨rfl, hnormalizedSubselections⟩
-    rw [normalizeSelectionSet.eq_2, hlookup]
-    change selectionSetDirectiveFree
-      (normalizedFieldWithRest schema returnType responseName fieldName
-        arguments [] normalizedSubselections
-        (normalizeSelectionSet schema parentType
-          (withoutFieldSelectionsWithResponseName schema responseName rest)))
-    exact
-      selectionSetDirectiveFree_normalizedFieldWithRest schema returnType
-        responseName fieldName arguments [] normalizedSubselections
-        (normalizeSelectionSet schema parentType
-          (withoutFieldSelectionsWithResponseName schema responseName rest))
-        hnormalizedField hnormalizedRest
+            (withoutFieldSelectionsWithResponseName schema responseName rest)))
+      exact
+        selectionSetDirectiveFree_normalizedFieldWithRest schema returnType
+          responseName fieldName arguments [] normalizedSubselections
+          (normalizeSelectionSet schema parentType
+            (withoutFieldSelectionsWithResponseName schema responseName rest))
+          hnormalizedField hnormalizedRest
   | case4 parentType rest directives selectionSet happend =>
-    intro hfree
-    have hselectionFree :=
-      selectionSetDirectiveFree_head hfree
-    have hrestFree :=
-      selectionSetDirectiveFree_tail hfree
-    have happendFree :
-        selectionSetDirectiveFree (selectionSet ++ rest) :=
-      selectionSetDirectiveFree_append hselectionFree.2 hrestFree
-    simpa [normalizeSelectionSet] using happend happendFree
+      intro hfree
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have happendFree :
+          selectionSetDirectiveFree (selectionSet ++ rest) :=
+        selectionSetDirectiveFree_append hselectionFree.2 hrestFree
+      simpa [normalizeSelectionSet] using happend happendFree
   | case5 parentType rest typeCondition directives selectionSet hoverlap
       _hrest happend =>
-    intro hfree
-    have hselectionFree :=
-      selectionSetDirectiveFree_head hfree
-    have hrestFree :=
-      selectionSetDirectiveFree_tail hfree
-    have happendFree :
-        selectionSetDirectiveFree (selectionSet ++ rest) :=
-      selectionSetDirectiveFree_append hselectionFree.2 hrestFree
-    simpa [normalizeSelectionSet, hoverlap] using happend happendFree
+      intro hfree
+      have hselectionFree :=
+        selectionSetDirectiveFree_head hfree
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have happendFree :
+          selectionSetDirectiveFree (selectionSet ++ rest) :=
+        selectionSetDirectiveFree_append hselectionFree.2 hrestFree
+      simpa [normalizeSelectionSet, hoverlap] using happend happendFree
   | case6 parentType rest typeCondition directives selectionSet hoverlap
       hrest =>
-    intro hfree
-    have hrestFree :=
-      selectionSetDirectiveFree_tail hfree
-    have hfalse : schema.typesOverlapBool parentType typeCondition = false := by
-      cases hmatch : schema.typesOverlapBool parentType typeCondition
-      · rfl
-      · contradiction
-    simpa [normalizeSelectionSet, hfalse] using hrest hrestFree
+      intro hfree
+      have hrestFree :=
+        selectionSetDirectiveFree_tail hfree
+      have hfalse : schema.typesOverlapBool parentType typeCondition = false := by
+        cases hmatch : schema.typesOverlapBool parentType typeCondition
+        · rfl
+        · contradiction
+      simpa [normalizeSelectionSet, hfalse] using hrest hrestFree
 
 theorem normalizeOperation_directiveFree (schema : Schema) (operation : Operation)
     : operationDirectiveFree operation
@@ -756,8 +755,7 @@ theorem possibleTypeNormalizations_inlineFragmentTypeConditionsNodup
       have hparts := List.nodup_cons.mp hnodup
       have hobjectNotMem : objectType ∉ rest := hparts.1
       have hrestNodup : rest.Nodup := hparts.2
-      cases hnormalized :
-          normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simpa [inlineFragmentTypeConditionsNodup,
             possibleTypeNormalizations, hnormalized] using ih hrestNodup

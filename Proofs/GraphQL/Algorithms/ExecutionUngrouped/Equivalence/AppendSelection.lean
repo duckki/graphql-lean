@@ -46,8 +46,8 @@ theorem completeResolvedValue_none_eq_completeValue
           cases value <;>
             simp [completeValue, outOfFuel, nonNullCompletion]
       | succ depth' =>
-        simp [completeResolvedValue, completeValue,
-          reusablePreviousValue?_none, ih selectionSet value]
+          simp [completeResolvedValue, completeValue,
+            reusablePreviousValue?_none, ih selectionSet value]
 
 theorem resultCombine_append_assoc {α : Type} (left middle right : Result (List α))
     : Result.combine List.append (Result.combine List.append left middle) right

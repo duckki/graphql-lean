@@ -402,13 +402,13 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
       classical
       cases head with
       | field responseName fieldName arguments directives childSelectionSet =>
-          cases hcurrent :
-              (if currentParent = targetParent
-                  ∧ fieldName = targetField
-                  ∧ Argument.argumentsEquivalent arguments targetArguments then
-                firstInlineFragmentTypeCondition? childSelectionSet
-              else
-                none) with
+          cases hcurrent
+                : (if currentParent = targetParent
+                      ∧ fieldName = targetField
+                      ∧ Argument.argumentsEquivalent arguments targetArguments then
+                      firstInlineFragmentTypeCondition? childSelectionSet
+                    else
+                      none) with
           | some headRuntimeType =>
               have hleftRuntime :
                   abstractRuntimeForFieldHeadDeep? schema targetParent
@@ -423,10 +423,10 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
               subst runtimeType
               exact hleftInclude headRuntimeType hleftRuntime
           | none =>
-              cases happTail :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent
-                    (tail ++ right) with
+              cases happTail
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments currentParent
+                        (tail ++ right) with
               | some tailRuntimeType =>
                   have hruntimeEq : tailRuntimeType = runtimeType := by
                     simpa [abstractRuntimeForFieldHeadDeep?, hcurrent,
@@ -449,16 +449,15 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                             htailRuntime])
                   exact ih htailInclude hrightInclude happTail
               | none =>
-                  cases hlookupHead :
-                      schema.lookupField currentParent fieldName with
+                  cases hlookupHead : schema.lookupField currentParent fieldName with
                   | none =>
                       simp [abstractRuntimeForFieldHeadDeep?, hcurrent,
                         happTail, hlookupHead] at happendedRuntime
                   | some fieldDefinition =>
-                      cases htailAlone :
-                          abstractRuntimeForFieldHeadDeep? schema
-                            targetParent targetField targetArguments
-                            currentParent tail with
+                      cases htailAlone
+                            : abstractRuntimeForFieldHeadDeep? schema
+                                targetParent targetField targetArguments
+                                currentParent tail with
                       | some tailRuntimeType =>
                           rcases
                               abstractRuntimeForFieldHeadDeep?_append_some_left_exists
@@ -502,9 +501,9 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                                     hchildRuntime])
                           exact hchildInclude runtimeType hchildRuntime
       | inlineFragment typeCondition directives childSelectionSet =>
-          cases happTail :
-              abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-                targetArguments currentParent (tail ++ right) with
+          cases happTail
+                : abstractRuntimeForFieldHeadDeep? schema targetParent targetField
+                    targetArguments currentParent (tail ++ right) with
           | some tailRuntimeType =>
               have hruntimeEq : tailRuntimeType = runtimeType := by
                 cases typeCondition <;>
@@ -529,9 +528,9 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                           htailRuntime])
               exact ih htailInclude hrightInclude happTail
           | none =>
-              cases htailAlone :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent tail with
+              cases htailAlone
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments currentParent tail with
               | some tailRuntimeType =>
                   rcases
                       abstractRuntimeForFieldHeadDeep?_append_some_left_exists

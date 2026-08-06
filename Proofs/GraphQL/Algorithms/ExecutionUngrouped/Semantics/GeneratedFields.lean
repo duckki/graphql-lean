@@ -341,8 +341,8 @@ theorem visitSubfields_possibleTypeNormalizations_not_mem_eq_self
             NormalForm.objectTypeNameBool schema candidate = true := by
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
             hnormalized] using ih hrestObjects hrestNotin
@@ -398,8 +398,8 @@ theorem visitSubfields_possibleTypeNormalizations_runtime_branch
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
       have hrestNodup : rest.Nodup := hnodup.tail
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           by_cases heq : objectType = runtimeType
           · subst objectType
@@ -525,8 +525,8 @@ theorem executeSelectionSet_possibleTypeNormalizations_runtime_normalized_branch
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
       have hrestNodup : rest.Nodup := hnodup.tail
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           by_cases heq : objectType = runtimeType
           · subst objectType
@@ -897,8 +897,8 @@ theorem collectFields_possibleTypeNormalizations_runtime_branch
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
       have hrestNodup : rest.Nodup := hnodup.tail
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           by_cases heq : objectType = runtimeType
           · subst objectType
@@ -988,8 +988,8 @@ theorem selectionSetLookupValid_possibleTypeNormalizations_runtime_branch
       cases hmem
   | cons objectType rest ih =>
       intro hlookup
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · subst objectType
@@ -1079,8 +1079,8 @@ theorem fieldMerge_collectFields_possibleTypeNormalizations_runtime_branch_mem
   | nil =>
       cases hmem
   | cons objectType rest ih =>
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · subst objectType
@@ -1169,8 +1169,8 @@ theorem selectionSetValidInPossibleTypes_possibleTypeNormalizations_runtime_bran
           ∀ candidate, candidate ∈ rest -> schema.objectType candidate := by
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
-      cases hnormalized :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · subst objectType
@@ -1287,8 +1287,8 @@ theorem freshPrefixSelectionDerivation_possibleTypeNormalizations_runtime
           (fun candidate hcandidate heq =>
             hnormalized candidate
               (List.mem_cons_of_mem objectType hcandidate) heq)
-      cases hnormalizedSet :
-          NormalForm.normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalizedSet
+            : NormalForm.normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
             hnormalizedSet] using hrestDerivation
@@ -1491,8 +1491,8 @@ theorem normalizeSelectionSet_field_child_generated (schema : Schema)
             ((schema.fieldReturnType? parentType fieldName).getD fieldName)
             childSelectionSet := by
   intro parentType selectionSet
-  induction parentType, selectionSet using
-    NormalForm.normalizeSelectionSet.induct schema with
+  induction parentType, selectionSet
+    using NormalForm.normalizeSelectionSet.induct schema with
   | case1 parentType =>
       intro responseName fieldName arguments directives childSelectionSet _hfree
         hmem

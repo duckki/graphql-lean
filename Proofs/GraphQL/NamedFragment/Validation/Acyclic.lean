@@ -261,8 +261,7 @@ theorem fragmentReachableBool_remaining_to_original
   | zero =>
       simp [fragmentReachableBool] at hreachable
   | succ fuel ih =>
-      cases hsource :
-          lookupFragment? remaining.val source with
+      cases hsource : lookupFragment? remaining.val source with
       | none =>
           simp [fragmentReachableBool, hsource] at hreachable
       | some sourceFragment =>

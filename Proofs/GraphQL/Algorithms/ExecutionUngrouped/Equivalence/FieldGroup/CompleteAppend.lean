@@ -329,9 +329,9 @@ theorem completeValue_group_append_one_result_aligned_spec
                     specCompleteValueList_eq_of_no_object schema resolvers
                       variableValues childDepth inner (prefixFields ++ [later])
                       prefixFields values hcontains
-                  cases hprefixList :
-                      GraphQL.Execution.completeValueList schema resolvers
-                        variableValues childDepth inner prefixFields values with
+                  cases hprefixList
+                        : GraphQL.Execution.completeValueList schema resolvers
+                            variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have happended :
                           GraphQL.Execution.completeValueList schema resolvers
@@ -385,9 +385,9 @@ theorem completeValue_group_append_one_result_aligned_spec
                       (TypeRef.list inner).isCompositeBool schema = true := by
                     simpa [TypeRef.isCompositeBool, TypeRef.namedType]
                       using hcontains
-                  cases hprefixList :
-                      GraphQL.Execution.completeValueList schema resolvers
-                        variableValues childDepth inner prefixFields values with
+                  cases hprefixList
+                        : GraphQL.Execution.completeValueList schema resolvers
+                            variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
@@ -586,9 +586,9 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                     specCompleteValueList_eq_of_no_object schema resolvers
                       variableValues childDepth inner (prefixFields ++ [later])
                       prefixFields values hcontains
-                  cases hprefixList :
-                      GraphQL.Execution.completeValueList schema resolvers
-                        variableValues childDepth inner prefixFields values with
+                  cases hprefixList
+                        : GraphQL.Execution.completeValueList schema resolvers
+                            variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have happended :
                           GraphQL.Execution.completeValueList schema resolvers
@@ -642,9 +642,9 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                       (TypeRef.list inner).isCompositeBool schema = true := by
                     simpa [TypeRef.isCompositeBool, TypeRef.namedType]
                       using hcontains
-                  cases hprefixList :
-                      GraphQL.Execution.completeValueList schema resolvers
-                        variableValues childDepth inner prefixFields values with
+                  cases hprefixList
+                        : GraphQL.Execution.completeValueList schema resolvers
+                            variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
@@ -1440,9 +1440,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
         hchildren
       cases depth with
       | zero =>
-            constructor <;>
-              cases resolved <;>
-                simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, resultStatus, visitOk, GraphQL.Execution.Result.combine]
+          constructor <;>
+            cases resolved <;>
+              simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, resultStatus, visitOk, GraphQL.Execution.Result.combine]
       | succ depth =>
           have hinner :=
             ih (depth + 1) resolved prefixFields later

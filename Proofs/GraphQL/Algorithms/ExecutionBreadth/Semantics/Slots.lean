@@ -1716,9 +1716,9 @@ theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsFor
                 typeRefCompleteValueFuelBound fieldType < tailFuel := by
             intro tailFuel htailFuel
             exact hready tailFuel (by simp [htailFuel])
-          cases hresolved :
-              resolvers.resolve fieldKey.parentType fieldKey.fieldName
-                fieldKey.arguments source with
+          cases hresolved
+                : resolvers.resolve fieldKey.parentType fieldKey.fieldName
+                    fieldKey.arguments source with
           | none =>
               cases fuel with
               | zero =>

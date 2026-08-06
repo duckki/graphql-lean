@@ -1355,8 +1355,9 @@ theorem collectFields_fieldSelectionsWithResponseNameInScope_responseSelection
               (fieldSelectionsWithResponseNameInScope schema parentType responseName
                 selectionSet) := by
   intro hobject hsource hfree
-  induction selectionSet using
-    fieldSelectionsWithResponseNameInScope.induct schema parentType responseName with
+  induction selectionSet
+    using fieldSelectionsWithResponseNameInScope.induct schema parentType
+            responseName with
   | case1 =>
       simp [Execution.collectFields, fieldSelectionsWithResponseNameInScope,
         collectedResponseSelectionSet, mergeSelectionSets]

@@ -803,9 +803,9 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                         Selection.inlineFragment (some typeCondition)
                           directives childSelectionSet :: rest := by
                     simp
-                  cases hrest :
-                      abstractRuntimeForFieldDeep? schema targetParent
-                        targetField currentParent rest with
+                  cases hrest
+                        : abstractRuntimeForFieldDeep? schema targetParent
+                            targetField currentParent rest with
                   | some restRuntime =>
                       have hrestRuntime :
                           restRuntime = runtimeType := by
@@ -1187,9 +1187,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                         Selection.inlineFragment (some typeCondition)
                           directives childSelectionSet :: rest := by
                     simp
-                  cases hrest :
-                      abstractRuntimeForFieldHeadDeep? schema targetParent
-                        targetField targetArguments currentParent rest with
+                  cases hrest
+                        : abstractRuntimeForFieldHeadDeep? schema targetParent
+                            targetField targetArguments currentParent rest with
                   | some restRuntime =>
                       have hrestRuntime :
                           restRuntime = runtimeType := by

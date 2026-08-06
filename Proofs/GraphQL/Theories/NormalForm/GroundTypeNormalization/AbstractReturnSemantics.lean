@@ -111,8 +111,7 @@ theorem collectFields_possibleTypeNormalizations_not_mem_eq_nil
             objectTypeNameBool schema candidate = true := by
         intro candidate hcandidate
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
-      cases hnormalized :
-          normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simpa [possibleTypeNormalizations, hnormalized] using
             ih hrestObjects hrestNotin
@@ -286,8 +285,7 @@ theorem executeSelectionSet_possibleTypeNormalizations_runtime_branch
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
       have hrestNodup : rest.Nodup := by
         exact hnodup.tail
-      cases hnormalized :
-          normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           by_cases heq : objectType = runtimeType
           · subst objectType

@@ -33,8 +33,7 @@ theorem normalizeSelectionSet_executeSelectionSet
                 parentType source selectionSet := by
   intro depth parentType source selectionSet
   revert depth source
-  induction parentType, selectionSet using normalizeSelectionSet.induct schema
-    with
+  induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
       intro depth source _hobject _hsource _hfree _hready _hmerge
       simp [normalizeSelectionSet]
