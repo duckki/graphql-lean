@@ -549,17 +549,19 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                                  selectionSet := selectionSet } ::
                                                 fields)
                                               (.object runtimeType identity)))).fst := by
-                                    cases hprefixCompleted :
-                                        GraphQL.Execution.completeValue
-                                          schema resolvers variableValues
-                                          (childDepth + 1) (.named typeName)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
-                                            fields)
-                                          (.object runtimeType identity) with
+                                    cases hprefixCompleted
+                                          : GraphQL.Execution.completeValue
+                                              schema resolvers variableValues
+                                              (childDepth + 1) (.named typeName)
+                                              ({
+                                                  parentType := parentType
+                                                  responseName := responseName
+                                                  fieldName := fieldName
+                                                  arguments := arguments
+                                                  selectionSet := selectionSet
+                                                }
+                                                :: fields)
+                                              (.object runtimeType identity) with
                                     | error prefixErrors =>
                                         simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
                                     | ok prefixResult =>
@@ -739,17 +741,19 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                              selectionSet := selectionSet } ::
                                             fields)
                                           resolvedValue))).fst := by
-                                cases hprefixCompleted :
-                                    GraphQL.Execution.completeValue schema
-                                      resolvers variableValues
-                                      (childDepth + 1) (.list inner)
-                                      ({ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := arguments
-                                         selectionSet := selectionSet } ::
-                                        fields)
-                                      resolvedValue with
+                                cases hprefixCompleted
+                                      : GraphQL.Execution.completeValue schema
+                                          resolvers variableValues
+                                          (childDepth + 1) (.list inner)
+                                          ({
+                                              parentType := parentType
+                                              responseName := responseName
+                                              fieldName := fieldName
+                                              arguments := arguments
+                                              selectionSet := selectionSet
+                                            }
+                                            :: fields)
+                                          resolvedValue with
                                 | error prefixErrors =>
                                     simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
                                 | ok prefixResult =>
@@ -925,17 +929,19 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                              selectionSet := selectionSet } ::
                                             fields)
                                           resolvedValue))).fst := by
-                                cases hprefixCompleted :
-                                    GraphQL.Execution.completeValue schema
-                                      resolvers variableValues
-                                      (childDepth + 1) (.nonNull inner)
-                                      ({ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := arguments
-                                         selectionSet := selectionSet } ::
-                                        fields)
-                                      resolvedValue with
+                                cases hprefixCompleted
+                                      : GraphQL.Execution.completeValue schema
+                                          resolvers variableValues
+                                          (childDepth + 1) (.nonNull inner)
+                                          ({
+                                              parentType := parentType
+                                              responseName := responseName
+                                              fieldName := fieldName
+                                              arguments := arguments
+                                              selectionSet := selectionSet
+                                            }
+                                            :: fields)
+                                          resolvedValue with
                                 | error prefixErrors =>
                                     simp [groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, htailNull, completeResolvedValue_previous_null, mergeResponseFieldResult, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, resultValueOrNull, resultStatus, visitOk]
                                 | ok prefixResult =>

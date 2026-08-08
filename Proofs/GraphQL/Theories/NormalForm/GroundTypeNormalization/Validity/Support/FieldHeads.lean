@@ -223,91 +223,44 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
             (hrestSelf mergeParent))
           (hrestSelf mergeParent)).2
     | some mergeFieldDefinition =>
-    have hheadMergeForMerge :
-        FieldMerge.fieldsForNameCanMerge schema {
-            parentType := mergeParent,
-            responseName := responseName,
-            fieldName := fieldName,
-            arguments := arguments,
-            outputType := mergeFieldDefinition.outputType,
-            selectionSet := selectionSet
-          } {
-            parentType := mergeParent,
-            responseName := responseName,
-            fieldName := fieldName,
-            arguments := arguments,
-            outputType := mergeFieldDefinition.outputType,
-            selectionSet := selectionSet
-          } := by
-      refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
-      · exact FieldMerge.sameResponseShape_refl schema
-          mergeFieldDefinition.outputType
-          (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
-            hschema hmergeLookup)
-      · intro _hparents
-        exact ⟨rfl, harguments⟩
-      · intro _hparents objectType
-        exact hchildSelf objectType
-    unfold FieldMerge.fieldsInSetCanMerge
-    refine FieldMerge.FieldsInSetCanMerge.intro mergeParent
-      ((Selection.field responseName fieldName arguments [] selectionSet
-        :: rest)
-        ++
-        (Selection.field responseName fieldName arguments [] selectionSet
-          :: rest)) ?_
-    dsimp
-    intro left hleft right hright hresponse
-    simp [FieldMerge.collectFields, hmergeLookup,
-      FieldMerge.collectFields_append]
-      at hleft hright
-    rcases hleft with hleftHead | hleft
-    · subst left
-      rcases hright with hrightHead | hright
-      · subst right
-        exact hheadMergeForMerge
-      · rcases hright with hrightRest | hrightHead
-        · exact False.elim ((hrestNoResponseForMerge right hrightRest)
-            hresponse.symm)
-        · rcases hrightHead with hrightHead | hrightRest
-          · subst right
-            exact hheadMergeForMerge
-          · exact False.elim ((hrestNoResponseForMerge right hrightRest)
-              hresponse.symm)
-    · rcases hleft with hleftRest | hleftHead
-      · rcases hright with hrightHead | hright
-        · subst right
-          exact False.elim ((hrestNoResponseForMerge left hleftRest)
-            hresponse)
-        · rcases hright with hrightRest | hrightHead
-          · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
-              (by
-                rw [FieldMerge.collectFields_append]
-                exact List.mem_append_left
-                  (FieldMerge.collectFields schema mergeParent rest)
-                  hleftRest)
-              (by
-                rw [FieldMerge.collectFields_append]
-                exact List.mem_append_left
-                  (FieldMerge.collectFields schema mergeParent rest)
-                  hrightRest)
-              hresponse
-          · rcases hrightHead with hrightHead | hrightRest
-            · subst right
-              exact False.elim ((hrestNoResponseForMerge left hleftRest)
-                hresponse)
-            · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
-                (by
-                  rw [FieldMerge.collectFields_append]
-                  exact List.mem_append_left
-                    (FieldMerge.collectFields schema mergeParent rest)
-                    hleftRest)
-                (by
-                  rw [FieldMerge.collectFields_append]
-                  exact List.mem_append_right
-                    (FieldMerge.collectFields schema mergeParent rest)
-                    hrightRest)
-                hresponse
-      · rcases hleftHead with hleftHead | hleftRest
+        have hheadMergeForMerge :
+            FieldMerge.fieldsForNameCanMerge schema {
+                parentType := mergeParent,
+                responseName := responseName,
+                fieldName := fieldName,
+                arguments := arguments,
+                outputType := mergeFieldDefinition.outputType,
+                selectionSet := selectionSet
+              } {
+                parentType := mergeParent,
+                responseName := responseName,
+                fieldName := fieldName,
+                arguments := arguments,
+                outputType := mergeFieldDefinition.outputType,
+                selectionSet := selectionSet
+              } := by
+          refine FieldMerge.FieldsForNameCanMerge.intro _ _ ?_ ?_ ?_
+          · exact FieldMerge.sameResponseShape_refl schema
+              mergeFieldDefinition.outputType
+              (SchemaWellFormedness.schemaWellFormed_lookupField_outputType
+                hschema hmergeLookup)
+          · intro _hparents
+            exact ⟨rfl, harguments⟩
+          · intro _hparents objectType
+            exact hchildSelf objectType
+        unfold FieldMerge.fieldsInSetCanMerge
+        refine FieldMerge.FieldsInSetCanMerge.intro mergeParent
+          ((Selection.field responseName fieldName arguments [] selectionSet
+            :: rest)
+            ++
+            (Selection.field responseName fieldName arguments [] selectionSet
+              :: rest)) ?_
+        dsimp
+        intro left hleft right hright hresponse
+        simp [FieldMerge.collectFields, hmergeLookup,
+          FieldMerge.collectFields_append]
+          at hleft hright
+        rcases hleft with hleftHead | hleft
         · subst left
           rcases hright with hrightHead | hright
           · subst right
@@ -320,39 +273,86 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
                 exact hheadMergeForMerge
               · exact False.elim ((hrestNoResponseForMerge right hrightRest)
                   hresponse.symm)
-        · rcases hright with hrightHead | hright
-          · subst right
-            exact False.elim ((hrestNoResponseForMerge left hleftRest)
-              hresponse)
-          · rcases hright with hrightRest | hrightHead
-            · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
-                (by
-                  rw [FieldMerge.collectFields_append]
-                  exact List.mem_append_right
-                    (FieldMerge.collectFields schema mergeParent rest)
-                    hleftRest)
-                (by
-                  rw [FieldMerge.collectFields_append]
-                  exact List.mem_append_left
-                    (FieldMerge.collectFields schema mergeParent rest)
-                    hrightRest)
-                hresponse
-            · rcases hrightHead with hrightHead | hrightRest
-              · subst right
-                exact False.elim ((hrestNoResponseForMerge left hleftRest)
-                  hresponse)
+        · rcases hleft with hleftRest | hleftHead
+          · rcases hright with hrightHead | hright
+            · subst right
+              exact False.elim ((hrestNoResponseForMerge left hleftRest)
+                hresponse)
+            · rcases hright with hrightRest | hrightHead
               · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
                   (by
                     rw [FieldMerge.collectFields_append]
-                    exact List.mem_append_right
+                    exact List.mem_append_left
                       (FieldMerge.collectFields schema mergeParent rest)
                       hleftRest)
                   (by
                     rw [FieldMerge.collectFields_append]
-                    exact List.mem_append_right
+                    exact List.mem_append_left
                       (FieldMerge.collectFields schema mergeParent rest)
                       hrightRest)
                   hresponse
+              · rcases hrightHead with hrightHead | hrightRest
+                · subst right
+                  exact False.elim ((hrestNoResponseForMerge left hleftRest)
+                    hresponse)
+                · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
+                    (by
+                      rw [FieldMerge.collectFields_append]
+                      exact List.mem_append_left
+                        (FieldMerge.collectFields schema mergeParent rest)
+                        hleftRest)
+                    (by
+                      rw [FieldMerge.collectFields_append]
+                      exact List.mem_append_right
+                        (FieldMerge.collectFields schema mergeParent rest)
+                        hrightRest)
+                    hresponse
+          · rcases hleftHead with hleftHead | hleftRest
+            · subst left
+              rcases hright with hrightHead | hright
+              · subst right
+                exact hheadMergeForMerge
+              · rcases hright with hrightRest | hrightHead
+                · exact False.elim ((hrestNoResponseForMerge right hrightRest)
+                    hresponse.symm)
+                · rcases hrightHead with hrightHead | hrightRest
+                  · subst right
+                    exact hheadMergeForMerge
+                  · exact False.elim ((hrestNoResponseForMerge right hrightRest)
+                      hresponse.symm)
+            · rcases hright with hrightHead | hright
+              · subst right
+                exact False.elim ((hrestNoResponseForMerge left hleftRest)
+                  hresponse)
+              · rcases hright with hrightRest | hrightHead
+                · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
+                    (by
+                      rw [FieldMerge.collectFields_append]
+                      exact List.mem_append_right
+                        (FieldMerge.collectFields schema mergeParent rest)
+                        hleftRest)
+                    (by
+                      rw [FieldMerge.collectFields_append]
+                      exact List.mem_append_left
+                        (FieldMerge.collectFields schema mergeParent rest)
+                        hrightRest)
+                    hresponse
+                · rcases hrightHead with hrightHead | hrightRest
+                  · subst right
+                    exact False.elim ((hrestNoResponseForMerge left hleftRest)
+                      hresponse)
+                  · exact FieldMerge.fieldsInSetCanMerge_pair (hrestSelf mergeParent)
+                      (by
+                        rw [FieldMerge.collectFields_append]
+                        exact List.mem_append_right
+                          (FieldMerge.collectFields schema mergeParent rest)
+                          hleftRest)
+                      (by
+                        rw [FieldMerge.collectFields_append]
+                        exact List.mem_append_right
+                          (FieldMerge.collectFields schema mergeParent rest)
+                          hrightRest)
+                      hresponse
   exact ⟨hmerge, hself⟩
 
 theorem selectionValidInPossibleTypes_field_child

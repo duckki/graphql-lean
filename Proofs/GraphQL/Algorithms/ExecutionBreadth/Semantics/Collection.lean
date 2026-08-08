@@ -1070,19 +1070,19 @@ theorem collectSubfields_singleton_executableField_childSelectionSetForFields_eq
       schema variableValues runtimeType ref fields
   calc
     GraphQL.Execution.collectSubfields schema variableValues runtimeType
-        (ResolverValue.object runtimeType ref)
-        [key.executableField (childSelectionSetForFields fields)]
-        =
-      GraphQL.Execution.collectFields schema variableValues runtimeType
-        (ResolverValue.object runtimeType ref)
-        (childSelectionSetForFields fields) := by
-          simp [GraphQL.Execution.collectSubfields,
-            GraphQL.Execution.mergeExecutableGroups, ScheduleKey.executableField]
+          (ResolverValue.object runtimeType ref)
+          [key.executableField (childSelectionSetForFields fields)]
+        = GraphQL.Execution.collectFields schema variableValues runtimeType
+            (ResolverValue.object runtimeType ref)
+            (childSelectionSetForFields fields) := by
+      simp [GraphQL.Execution.collectSubfields,
+        GraphQL.Execution.mergeExecutableGroups, ScheduleKey.executableField]
     _ = collectFieldsByKey schema variableValues runtimeType
           (childSelectionSetForFields fields) := by
-          rw [hself]
+      rw [hself]
     _ = GraphQL.Execution.collectSubfields schema variableValues runtimeType
-          (ResolverValue.object runtimeType ref) fields := hfields
+          (ResolverValue.object runtimeType ref) fields :=
+      hfields
 
 theorem completeValue_singleton_executableField_childSelectionSetForFields_eq
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)

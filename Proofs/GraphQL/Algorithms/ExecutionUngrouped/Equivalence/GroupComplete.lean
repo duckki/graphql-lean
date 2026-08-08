@@ -400,46 +400,40 @@ theorem groupFlatSpecEquivalent
             exact hheadNotTail (by simpa [hleftKey] using htailGroupKey)
           calc
             executeRootSelectionSet schema resolvers variableValues
-                (depth + 1) parentType source
-                (executableFieldSelections
-                  (collectedExecutableFields
-                    ((responseName, field :: fieldsTail) :: rest)))
-                =
-              executeRootSelectionSet schema resolvers variableValues
-                (depth + 1) parentType source
-                (executableFieldSelections
-                  ((field :: fieldsTail) ++ collectedExecutableFields rest)) := by
-                simp [collectedExecutableFields]
-            _ =
-                Result.combine List.append
-                (executeRootSelectionSet schema resolvers variableValues
-                  (depth + 1) parentType source
-                  (executableFieldSelections (field :: fieldsTail)))
-                (executeRootSelectionSet schema resolvers variableValues
                   (depth + 1) parentType source
                   (executableFieldSelections
-                    (collectedExecutableFields rest))) :=
-                happend
-            _ =
-              Result.combine List.append
-                (GraphQL.Execution.executeField schema resolvers
-                  variableValues (depth + 1) source responseName
-                  (field :: fieldsTail))
-                (GraphQL.Execution.executeCollectedFields schema resolvers
-                  variableValues (depth + 1) source rest) := by
-                rw [hheadEq, htailEq, htailSpec]
-            _ =
-              GraphQL.Execution.executeCollectedFields schema resolvers
-                variableValues (depth + 1) source
-                ((responseName, field :: fieldsTail) :: rest) := by
-                simp [GraphQL.Execution.executeCollectedFields]
-            _ =
-              GraphQL.Execution.executeRootSelectionSet schema resolvers
-                variableValues (depth + 1) parentType source
-                (executableFieldSelections
-                  (collectedExecutableFields
-                    ((responseName, field :: fieldsTail) :: rest))) :=
-                hspec.symm
+                    (collectedExecutableFields
+                      ((responseName, field :: fieldsTail) :: rest)))
+                = executeRootSelectionSet schema resolvers variableValues
+                    (depth + 1) parentType source
+                    (executableFieldSelections
+                      ((field :: fieldsTail) ++ collectedExecutableFields rest)) := by
+              simp [collectedExecutableFields]
+            _ = Result.combine List.append
+                  (executeRootSelectionSet schema resolvers variableValues
+                    (depth + 1) parentType source
+                    (executableFieldSelections (field :: fieldsTail)))
+                  (executeRootSelectionSet schema resolvers variableValues
+                    (depth + 1) parentType source
+                    (executableFieldSelections (collectedExecutableFields rest))) :=
+              happend
+            _ = Result.combine List.append
+                  (GraphQL.Execution.executeField schema resolvers
+                    variableValues (depth + 1) source responseName
+                    (field :: fieldsTail))
+                  (GraphQL.Execution.executeCollectedFields schema resolvers
+                    variableValues (depth + 1) source rest) := by
+              rw [hheadEq, htailEq, htailSpec]
+            _ = GraphQL.Execution.executeCollectedFields schema resolvers
+                  variableValues (depth + 1) source
+                  ((responseName, field :: fieldsTail) :: rest) := by
+              simp [GraphQL.Execution.executeCollectedFields]
+            _ = GraphQL.Execution.executeRootSelectionSet schema resolvers
+                  variableValues (depth + 1) parentType source
+                  (executableFieldSelections
+                    (collectedExecutableFields
+                      ((responseName, field :: fieldsTail) :: rest))) :=
+              hspec.symm
 
 end ExecutedFieldGroupsComplete
 

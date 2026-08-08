@@ -279,22 +279,20 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
             parentType source suffix)
       calc
         Execution.executeSelectionSet schema resolvers variableValues fuel
-            parentType source
-            (Selection.field responseName fieldName arguments []
-              childSelectionSet :: suffix)
-            =
-          targetAndSuffix := by
-            simpa [targetAndSuffix] using hhead
-        _ =
-          Execution.Result.combine List.append
-            (Execution.executeSelectionSet schema resolvers variableValues fuel
-              parentType source [])
-            targetAndSuffix := by
-            have hnil :=
-              result_combine_responseFields_append_nil_left targetAndSuffix
-            simpa [targetAndSuffix, Execution.executeSelectionSet,
-              Execution.executeRootSelectionSet, Execution.collectFields,
-              Execution.executeCollectedFields] using hnil.symm
+              parentType source
+              (Selection.field responseName fieldName arguments [] childSelectionSet
+                :: suffix)
+            = targetAndSuffix := by
+          simpa [targetAndSuffix] using hhead
+        _ = Execution.Result.combine List.append
+              (Execution.executeSelectionSet schema resolvers variableValues fuel
+                parentType source [])
+              targetAndSuffix := by
+          have hnil :=
+            result_combine_responseFields_append_nil_left targetAndSuffix
+          simpa [targetAndSuffix, Execution.executeSelectionSet,
+            Execution.executeRootSelectionSet, Execution.collectFields,
+            Execution.executeCollectedFields] using hnil.symm
   | cons selection rest ih =>
       intro hfree hnormal hobject
       have hallFields :
@@ -360,56 +358,31 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
             ih htailFree htailNormal hobject
           calc
             Execution.executeSelectionSet schema resolvers variableValues fuel
-                parentType source
-                (Selection.field headResponseName headFieldName
-                  headArguments [] headChildSelectionSet :: rest ++
-                  Selection.field responseName fieldName arguments []
-                    childSelectionSet :: suffix)
-                =
-              Execution.Result.combine List.append
-                (Execution.executeField schema resolvers variableValues fuel
-                  source headResponseName
-                  [{
-                    parentType := parentType,
-                    responseName := headResponseName,
-                    fieldName := headFieldName,
-                    arguments := headArguments,
-                    selectionSet := headChildSelectionSet
-                  }])
-                (Execution.executeSelectionSet schema resolvers variableValues
-                  fuel parentType source
-                  (rest ++ Selection.field responseName fieldName arguments []
-                    childSelectionSet :: suffix)) := hfullHead
-            _ =
-              Execution.Result.combine List.append
-                (Execution.executeField schema resolvers variableValues fuel
-                  source headResponseName
-                  [{
-                    parentType := parentType,
-                    responseName := headResponseName,
-                    fieldName := headFieldName,
-                    arguments := headArguments,
-                    selectionSet := headChildSelectionSet
-                  }])
-                (Execution.Result.combine List.append
-                  (Execution.executeSelectionSet schema resolvers
-                    variableValues fuel parentType source rest)
-                  (Execution.Result.combine List.append
-                    (Execution.executeField schema resolvers variableValues
-                      fuel source responseName
+                  parentType source
+                  (Selection.field headResponseName headFieldName
+                        headArguments [] headChildSelectionSet
+                      :: rest
+                    ++ Selection.field responseName fieldName arguments []
+                          childSelectionSet
+                        :: suffix)
+                = Execution.Result.combine List.append
+                    (Execution.executeField schema resolvers variableValues fuel
+                      source headResponseName
                       [{
                         parentType := parentType,
-                        responseName := responseName,
-                        fieldName := fieldName,
-                        arguments := arguments,
-                        selectionSet := childSelectionSet
+                        responseName := headResponseName,
+                        fieldName := headFieldName,
+                        arguments := headArguments,
+                        selectionSet := headChildSelectionSet
                       }])
-                    (Execution.executeSelectionSet schema resolvers
-                      variableValues fuel parentType source suffix))) := by
-                rw [htailSplit]
-            _ =
-              Execution.Result.combine List.append
-                (Execution.Result.combine List.append
+                    (Execution.executeSelectionSet schema resolvers variableValues
+                      fuel parentType source
+                      (rest
+                        ++ Selection.field responseName fieldName arguments []
+                              childSelectionSet
+                            :: suffix)) :=
+              hfullHead
+            _ = Execution.Result.combine List.append
                   (Execution.executeField schema resolvers variableValues fuel
                     source headResponseName
                     [{
@@ -419,40 +392,67 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                       arguments := headArguments,
                       selectionSet := headChildSelectionSet
                     }])
-                  (Execution.executeSelectionSet schema resolvers
-                    variableValues fuel parentType source rest))
-                (Execution.Result.combine List.append
-                  (Execution.executeField schema resolvers variableValues fuel
-                    source responseName
-                    [{
-                      parentType := parentType,
-                      responseName := responseName,
-                      fieldName := fieldName,
-                      arguments := arguments,
-                      selectionSet := childSelectionSet
-                    }])
+                  (Execution.Result.combine List.append
+                    (Execution.executeSelectionSet schema resolvers
+                      variableValues fuel parentType source rest)
+                    (Execution.Result.combine List.append
+                      (Execution.executeField schema resolvers variableValues
+                        fuel source responseName
+                        [{
+                          parentType := parentType,
+                          responseName := responseName,
+                          fieldName := fieldName,
+                          arguments := arguments,
+                          selectionSet := childSelectionSet
+                        }])
+                      (Execution.executeSelectionSet schema resolvers
+                        variableValues fuel parentType source suffix))) := by
+              rw [htailSplit]
+            _ = Execution.Result.combine List.append
+                  (Execution.Result.combine List.append
+                    (Execution.executeField schema resolvers variableValues fuel
+                      source headResponseName
+                      [{
+                        parentType := parentType,
+                        responseName := headResponseName,
+                        fieldName := headFieldName,
+                        arguments := headArguments,
+                        selectionSet := headChildSelectionSet
+                      }])
+                    (Execution.executeSelectionSet schema resolvers
+                      variableValues fuel parentType source rest))
+                  (Execution.Result.combine List.append
+                    (Execution.executeField schema resolvers variableValues fuel
+                      source responseName
+                      [{
+                        parentType := parentType,
+                        responseName := responseName,
+                        fieldName := fieldName,
+                        arguments := arguments,
+                        selectionSet := childSelectionSet
+                      }])
+                    (Execution.executeSelectionSet schema resolvers variableValues
+                      fuel parentType source suffix)) := by
+              rw [result_combine_responseFields_append_assoc]
+            _ = Execution.Result.combine List.append
                   (Execution.executeSelectionSet schema resolvers variableValues
-                    fuel parentType source suffix)) := by
-                rw [result_combine_responseFields_append_assoc]
-            _ =
-              Execution.Result.combine List.append
-                (Execution.executeSelectionSet schema resolvers variableValues
-                  fuel parentType source
-                  (Selection.field headResponseName headFieldName
-                    headArguments [] headChildSelectionSet :: rest))
-                (Execution.Result.combine List.append
-                  (Execution.executeField schema resolvers variableValues fuel
-                    source responseName
-                    [{
-                      parentType := parentType,
-                      responseName := responseName,
-                      fieldName := fieldName,
-                      arguments := arguments,
-                      selectionSet := childSelectionSet
-                    }])
-                  (Execution.executeSelectionSet schema resolvers variableValues
-                    fuel parentType source suffix)) := by
-                rw [← hprefHead]
+                    fuel parentType source
+                    (Selection.field headResponseName headFieldName
+                        headArguments [] headChildSelectionSet
+                      :: rest))
+                  (Execution.Result.combine List.append
+                    (Execution.executeField schema resolvers variableValues fuel
+                      source responseName
+                      [{
+                        parentType := parentType,
+                        responseName := responseName,
+                        fieldName := fieldName,
+                        arguments := arguments,
+                        selectionSet := childSelectionSet
+                      }])
+                    (Execution.executeSelectionSet schema resolvers variableValues
+                      fuel parentType source suffix)) := by
+              rw [← hprefHead]
       | inlineFragment typeCondition directives inlineChildSelectionSet =>
           simp [Selection.isField] at hselectionField
 

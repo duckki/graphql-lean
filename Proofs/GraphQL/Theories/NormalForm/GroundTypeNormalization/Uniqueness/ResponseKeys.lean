@@ -317,14 +317,14 @@ theorem semanticEquivalent_object_field_canonical_eq
         some (name, ResponseValue.canonical rightValue) := by
     calc
       some (name, ResponseValue.canonical leftValue)
-          =
-        (ResponseValue.sortObjectFieldsByName
-          (ResponseValue.canonicalObjectFields left)).find?
-          (fun field => field.1 == name) := hleftFind.symm
-      _ =
-        (ResponseValue.sortObjectFieldsByName
-          (ResponseValue.canonicalObjectFields right)).find?
-          (fun field => field.1 == name) := by rw [hfields]
+          = (ResponseValue.sortObjectFieldsByName
+              (ResponseValue.canonicalObjectFields left)).find?
+              (fun field => field.1 == name) :=
+        hleftFind.symm
+      _ = (ResponseValue.sortObjectFieldsByName
+            (ResponseValue.canonicalObjectFields right)).find?
+            (fun field => field.1 == name) := by
+        rw [hfields]
       _ = some (name, ResponseValue.canonical rightValue) := hrightFind
   have hpair :
       (name, ResponseValue.canonical leftValue) =

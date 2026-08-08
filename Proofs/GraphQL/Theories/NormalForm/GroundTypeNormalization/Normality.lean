@@ -731,11 +731,10 @@ theorem possibleTypeNormalizations_responseNamesNodup
     induction names with
     | nil => simp [possibleTypeNormalizations]
     | cons name rest ih =>
-        cases hnormalized :
-            normalizeSelectionSet schema name selectionSet with
-      | nil =>
+        cases hnormalized : normalizeSelectionSet schema name selectionSet with
+        | nil =>
             simpa [possibleTypeNormalizations, hnormalized] using ih
-      | cons head tail =>
+        | cons head tail =>
             simpa [possibleTypeNormalizations, hnormalized,
               Selection.responseName?] using ih
   simpa [responseNamesNodup] using
@@ -777,8 +776,8 @@ theorem possibleTypeNormalizations_inlineFragmentTypeConditionsNodup
                   | _ => none) ≠ some objectType := by
             intro selection restObjectType hrestObjectType hbranch
               hcondition
-            cases hrestNormalized :
-                normalizeSelectionSet schema restObjectType selectionSet with
+            cases hrestNormalized
+                  : normalizeSelectionSet schema restObjectType selectionSet with
             | nil =>
                 simp [hrestNormalized] at hbranch
             | cons restHead restTail =>

@@ -354,15 +354,14 @@ private theorem fuelImplementationsAligned
             simp [executeField, GraphQL.Execution.executeField,
               StrongResultAligned]
         | cons field fields =>
-            cases hlookup :
-                schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField field.parentType field.fieldName with
             | none =>
                 simp [executeField, GraphQL.Execution.executeField, hlookup,
                   StrongResultAligned]
             | some fieldDefinition =>
-                cases hresolve :
-                    resolvers.resolve field.parentType field.fieldName
-                      field.arguments source with
+                cases hresolve
+                      : resolvers.resolve field.parentType field.fieldName
+                          field.arguments source with
                 | none =>
                     have hhandle :
                         StrongResultAligned

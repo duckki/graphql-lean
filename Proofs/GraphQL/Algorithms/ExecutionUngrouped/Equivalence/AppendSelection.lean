@@ -1787,36 +1787,34 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_field_blocked
             ++ [.field responseName fieldName arguments directives selectionSet]) := by
   calc
     executeRootSelectionSet schema resolvers variableValues depth parentType
-        source
-        (left ++ [.field responseName fieldName arguments directives selectionSet])
-        =
-      executeRootSelectionSet schema resolvers variableValues depth parentType
-        source left := by
-          exact executeRootSelectionSet_append_single_field_blocked_eq_left
-            schema resolvers variableValues depth parentType source left
-            responseName fieldName arguments directives selectionSet hblocked
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source left := by
-          exact
-            executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
-              { schema := schema
-                resolvers := resolvers
-                variableValues := variableValues
-                depth := depth
-                parentType := parentType
-                source := source
-                selectionSet := left }
-              hleft
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source
-        (left ++ [.field responseName fieldName arguments directives selectionSet]) := by
-          exact
-            (specExecuteRootSelectionSet_append_single_field_blocked_eq_left
-              schema resolvers variableValues depth parentType source left
-              responseName fieldName arguments directives selectionSet
-              hblocked).symm
+          source
+          (left ++ [.field responseName fieldName arguments directives selectionSet])
+        = executeRootSelectionSet schema resolvers variableValues depth parentType
+            source left := by
+      exact executeRootSelectionSet_append_single_field_blocked_eq_left
+        schema resolvers variableValues depth parentType source left
+        responseName fieldName arguments directives selectionSet hblocked
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source left := by
+      exact
+        executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
+          { schema := schema
+            resolvers := resolvers
+            variableValues := variableValues
+            depth := depth
+            parentType := parentType
+            source := source
+            selectionSet := left }
+          hleft
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source
+          (left
+            ++ [.field responseName fieldName arguments directives selectionSet]) := by
+      exact
+        (specExecuteRootSelectionSet_append_single_field_blocked_eq_left
+          schema resolvers variableValues depth parentType source left
+          responseName fieldName arguments directives selectionSet
+          hblocked).symm
 
 theorem stateEquivalent_of_append_single_field_blocked
     {ObjectIdentity : Type}
@@ -1952,33 +1950,30 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_selection_noop
           depth parentType source (left ++ [selection]) := by
   calc
     executeRootSelectionSet schema resolvers variableValues depth parentType
-        source (left ++ [selection])
-        =
-      executeRootSelectionSet schema resolvers variableValues depth parentType
-        source left := by
-          exact executeRootSelectionSet_append_single_selection_noop_eq_left
-            schema resolvers variableValues depth parentType source left
-            selection hvisit
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source left := by
-          exact
-            executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
-              { schema := schema
-                resolvers := resolvers
-                variableValues := variableValues
-                depth := depth
-                parentType := parentType
-                source := source
-                selectionSet := left }
-              hleft
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source (left ++ [selection]) := by
-          exact
-            (specExecuteRootSelectionSet_append_single_selection_noop_eq_left
-              schema resolvers variableValues depth parentType source left
-              selection hcollect).symm
+          source (left ++ [selection])
+        = executeRootSelectionSet schema resolvers variableValues depth parentType
+            source left := by
+      exact executeRootSelectionSet_append_single_selection_noop_eq_left
+        schema resolvers variableValues depth parentType source left
+        selection hvisit
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source left := by
+      exact
+        executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
+          { schema := schema
+            resolvers := resolvers
+            variableValues := variableValues
+            depth := depth
+            parentType := parentType
+            source := source
+            selectionSet := left }
+          hleft
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source (left ++ [selection]) := by
+      exact
+        (specExecuteRootSelectionSet_append_single_selection_noop_eq_left
+          schema resolvers variableValues depth parentType source left
+          selection hcollect).symm
 
 theorem stateEquivalent_of_append_single_selection_noop
     {ObjectIdentity : Type}
@@ -2254,34 +2249,31 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_inline_none_allowed
           (left ++ [.inlineFragment none directives selectionSet]) := by
   calc
     executeRootSelectionSet schema resolvers variableValues depth parentType
-        source (left ++ [.inlineFragment none directives selectionSet])
-        =
-      executeRootSelectionSet schema resolvers variableValues depth parentType
-        source (left ++ selectionSet) := by
-          exact executeRootSelectionSet_append_single_inline_none_allowed_eq_body_append
-            schema resolvers variableValues depth parentType source left
-            selectionSet directives hallowed
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source (left ++ selectionSet) := by
-          exact
-            executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
-              { schema := schema
-                resolvers := resolvers
-                variableValues := variableValues
-                depth := depth
-                parentType := parentType
-                source := source
-                selectionSet := left ++ selectionSet }
-              hbody
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source
-        (left ++ [.inlineFragment none directives selectionSet]) := by
-          exact
-            (specExecuteRootSelectionSet_append_single_inline_none_allowed_eq_body_append
-              schema resolvers variableValues depth parentType source left
-              selectionSet directives hallowed).symm
+          source (left ++ [.inlineFragment none directives selectionSet])
+        = executeRootSelectionSet schema resolvers variableValues depth parentType
+            source (left ++ selectionSet) := by
+      exact executeRootSelectionSet_append_single_inline_none_allowed_eq_body_append
+        schema resolvers variableValues depth parentType source left
+        selectionSet directives hallowed
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source (left ++ selectionSet) := by
+      exact
+        executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
+          { schema := schema
+            resolvers := resolvers
+            variableValues := variableValues
+            depth := depth
+            parentType := parentType
+            source := source
+            selectionSet := left ++ selectionSet }
+          hbody
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source
+          (left ++ [.inlineFragment none directives selectionSet]) := by
+      exact
+        (specExecuteRootSelectionSet_append_single_inline_none_allowed_eq_body_append
+          schema resolvers variableValues depth parentType source left
+          selectionSet directives hallowed).symm
 
 theorem stateEquivalent_of_append_single_inline_none_allowed
     {ObjectIdentity : Type}
@@ -2414,34 +2406,31 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_inline_some_apply
           (left ++ [.inlineFragment (some typeCondition) directives selectionSet]) := by
   calc
     executeRootSelectionSet schema resolvers variableValues depth parentType
-        source (left ++ [.inlineFragment (some typeCondition) directives selectionSet])
-        =
-      executeRootSelectionSet schema resolvers variableValues depth parentType
-        source (left ++ selectionSet) := by
-          exact executeRootSelectionSet_append_single_inline_some_apply_eq_body_append
-            schema resolvers variableValues depth parentType source left
-            selectionSet typeCondition directives hallowed happly
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source (left ++ selectionSet) := by
-          exact
-            executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
-              { schema := schema
-                resolvers := resolvers
-                variableValues := variableValues
-                depth := depth
-                parentType := parentType
-                source := source
-                selectionSet := left ++ selectionSet }
-              hbody
-    _ =
-      GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source
-        (left ++ [.inlineFragment (some typeCondition) directives selectionSet]) := by
-          exact
-            (specExecuteRootSelectionSet_append_single_inline_some_apply_eq_body_append
-              schema resolvers variableValues depth parentType source left
-              selectionSet typeCondition directives hallowed happly).symm
+          source (left ++ [.inlineFragment (some typeCondition) directives selectionSet])
+        = executeRootSelectionSet schema resolvers variableValues depth parentType
+            source (left ++ selectionSet) := by
+      exact executeRootSelectionSet_append_single_inline_some_apply_eq_body_append
+        schema resolvers variableValues depth parentType source left
+        selectionSet typeCondition directives hallowed happly
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source (left ++ selectionSet) := by
+      exact
+        executeRootSelectionSet_eq_spec_of_state_equivalent_auto_nodup
+          { schema := schema
+            resolvers := resolvers
+            variableValues := variableValues
+            depth := depth
+            parentType := parentType
+            source := source
+            selectionSet := left ++ selectionSet }
+          hbody
+    _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+          depth parentType source
+          (left ++ [.inlineFragment (some typeCondition) directives selectionSet]) := by
+      exact
+        (specExecuteRootSelectionSet_append_single_inline_some_apply_eq_body_append
+          schema resolvers variableValues depth parentType source left
+          selectionSet typeCondition directives hallowed happly).symm
 
 theorem stateEquivalent_of_append_single_inline_some_apply
     {ObjectIdentity : Type}

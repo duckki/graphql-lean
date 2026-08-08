@@ -133,22 +133,21 @@ theorem executeSelectionSet_completeNormalizeRootSelectionSet_runtime
   apply executeSelectionSet_eq_of_collectFields_eq
   calc
     Execution.collectFields schema variableValues parentType source
-        (completeNormalizeRootSelectionSet schema
-          (operationBoolVars operation) parentType selectionSet)
-      =
-    Execution.collectFields schema variableValues parentType source
-        (List.flatten ((allBoolCases (operationBoolVars operation)).map
-          (fun boolCase =>
-            wrapWithBoolCase boolCase
-              (normalizeSelectionSet schema parentType
-                (filterSelectionSetBoolCase boolCase selectionSet))))) :=
+          (completeNormalizeRootSelectionSet schema
+            (operationBoolVars operation) parentType selectionSet)
+        = Execution.collectFields schema variableValues parentType source
+            (List.flatten
+              ((allBoolCases (operationBoolVars operation)).map
+                (fun boolCase =>
+                  wrapWithBoolCase boolCase
+                    (normalizeSelectionSet schema parentType
+                      (filterSelectionSetBoolCase boolCase selectionSet))))) :=
       collectFields_completeNormalizeRootSelectionSet_eq_wrapped schema
         variableValues (operationBoolVars operation) parentType source
         selectionSet
-    _ =
-    Execution.collectFields schema variableValues parentType source
-        (normalizeSelectionSet schema parentType
-          (filterSelectionSetBoolCase runtimeCase selectionSet)) :=
+    _ = Execution.collectFields schema variableValues parentType source
+          (normalizeSelectionSet schema parentType
+            (filterSelectionSetBoolCase runtimeCase selectionSet)) :=
       collectFields_flatten_boolCaseWrappers_runtime schema variableValues
         operation parentType source runtimeCase
         (fun boolCase =>

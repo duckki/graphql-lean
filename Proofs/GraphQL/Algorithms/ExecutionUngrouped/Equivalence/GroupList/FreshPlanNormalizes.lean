@@ -1441,17 +1441,16 @@ theorem executableFieldPrefixDuplicateFreshMiddle
   have hprefixCollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           (executableFieldSelections (prefixFields ++ [later])) =
-        [(responseName, prefixFields ++ [later])] :=
-    by
-      cases prefixFields with
-      | nil =>
-          contradiction
-      | cons firstPrefix restPrefix =>
-          simpa using
-            collectFields_executableFieldSelections_same_group schema
-              variableValues parentType source responseName
-              ((firstPrefix :: restPrefix) ++ [later])
-              hprefixLaterResponse hprefixLaterParents
+        [(responseName, prefixFields ++ [later])] := by
+    cases prefixFields with
+    | nil =>
+        contradiction
+    | cons firstPrefix restPrefix =>
+        simpa using
+          collectFields_executableFieldSelections_same_group schema
+            variableValues parentType source responseName
+            ((firstPrefix :: restPrefix) ++ [later])
+            hprefixLaterResponse hprefixLaterParents
   have hmiddleCollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           collectedMiddle =
@@ -2340,53 +2339,53 @@ theorem executableFieldsNormalizes
             SelectionSetFreshPlanNormalizes schema resolvers variableValues
               completionDepth parentType source
               (executableFieldSelections fields) normalized := by
-      intro n
-      induction n using Nat.strongRecOn with
-      | ind n ih =>
-          intro fields hlen hparents hlookups
-          cases fields with
-          | nil =>
-              exact
-                ⟨[],
-                  SelectionSetFreshPlanNormalizes.nil schema resolvers
-                    variableValues completionDepth parentType source⟩
-          | cons first rest =>
-              have hwholeParents :
-                  ExecutableFieldsParent parentType ([first] ++ rest) := by
-                simpa using hparents
-              have hwholeLookups :
-                  ∀ field, field ∈ [first] ++ rest ->
-                    ∃ fieldDefinition,
-                      schema.lookupField parentType field.fieldName =
-                        some fieldDefinition := by
-                simpa using hlookups
-              rcases
-                  executableFieldPrefixNormalizes_of_smaller
-                    (schema := schema) (resolvers := resolvers)
-                    (variableValues := variableValues)
-                    (completionDepth := completionDepth)
-                    (parentType := parentType) (source := source)
-                    first.responseName [first] rest
-                    (by simp)
-                    (by
-                      intro field hfield
-                      simp at hfield
-                      subst field
-                      rfl)
-                    hwholeParents hwholeLookups
-                    (by
-                      intro smaller hlt hsmallerParents hsmallerLookups
-                      exact
-                        ih smaller.length
-                          (by
-                            rw [← hlen]
-                            simpa [List.length_append] using hlt)
-                          smaller rfl hsmallerParents hsmallerLookups) with
-              ⟨normalized, hnormalized⟩
-              exact
-                ⟨normalized,
-                  by
-                    simpa [executableFieldSelections] using hnormalized⟩
+    intro n
+    induction n using Nat.strongRecOn with
+    | ind n ih =>
+        intro fields hlen hparents hlookups
+        cases fields with
+        | nil =>
+            exact
+              ⟨[],
+                SelectionSetFreshPlanNormalizes.nil schema resolvers
+                  variableValues completionDepth parentType source⟩
+        | cons first rest =>
+            have hwholeParents :
+                ExecutableFieldsParent parentType ([first] ++ rest) := by
+              simpa using hparents
+            have hwholeLookups :
+                ∀ field, field ∈ [first] ++ rest ->
+                  ∃ fieldDefinition,
+                    schema.lookupField parentType field.fieldName =
+                      some fieldDefinition := by
+              simpa using hlookups
+            rcases
+                executableFieldPrefixNormalizes_of_smaller
+                  (schema := schema) (resolvers := resolvers)
+                  (variableValues := variableValues)
+                  (completionDepth := completionDepth)
+                  (parentType := parentType) (source := source)
+                  first.responseName [first] rest
+                  (by simp)
+                  (by
+                    intro field hfield
+                    simp at hfield
+                    subst field
+                    rfl)
+                  hwholeParents hwholeLookups
+                  (by
+                    intro smaller hlt hsmallerParents hsmallerLookups
+                    exact
+                      ih smaller.length
+                        (by
+                          rw [← hlen]
+                          simpa [List.length_append] using hlt)
+                        smaller rfl hsmallerParents hsmallerLookups) with
+            ⟨normalized, hnormalized⟩
+            exact
+              ⟨normalized,
+                by
+                  simpa [executableFieldSelections] using hnormalized⟩
   exact aux fields.length fields rfl hparents hlookups
 
 private theorem selectionSet_size_append (left right : List Selection)

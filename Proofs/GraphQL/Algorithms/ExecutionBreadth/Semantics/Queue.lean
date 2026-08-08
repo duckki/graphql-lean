@@ -236,53 +236,55 @@ theorem queue_combineScopeFieldResults_singleton_executeCollectedFields
             fuel source groups)] := by
   calc
     combineScopeFieldResults 1
-        (groups.map (fun group =>
-          [GraphQL.Execution.executeField schema resolvers variableValues fuel source
-            group.fst group.snd])) =
-      [objectResultFromFields
-        ((groups.map (fun group =>
+          (groups.map
+            (fun group =>
+              [GraphQL.Execution.executeField schema resolvers variableValues fuel source
+                group.fst group.snd]))
+        = [objectResultFromFields
+            ((groups.map
+                (fun group =>
+                  GraphQL.Execution.executeField schema resolvers variableValues fuel
+                    source group.fst group.snd)).foldr
+              (fun block tail => Result.combine List.append block tail)
+              (.ok ([], 0)))] := by
+      have hsingleton :
+          groups.map (fun group =>
+              List.singleton
+                (GraphQL.Execution.executeField schema resolvers
+                  variableValues fuel source group.fst group.snd)) =
+            groups.map (fun group =>
+              [GraphQL.Execution.executeField schema resolvers
+                variableValues fuel source group.fst group.snd]) := by
+        induction groups with
+        | nil =>
+            rfl
+        | cons group groups ih =>
+            simp [List.singleton]
+      rw [← hsingleton]
+      simpa [List.map_map, Function.comp_def] using
+        (queue_combineScopeFieldResults_singleton
+          (blocks := groups.map (fun group =>
             GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              group.fst group.snd)).foldr
-          (fun block tail => Result.combine List.append block tail)
-          (.ok ([], 0)))] := by
-            have hsingleton :
-                groups.map (fun group =>
-                    List.singleton
-                      (GraphQL.Execution.executeField schema resolvers
-                        variableValues fuel source group.fst group.snd)) =
-                  groups.map (fun group =>
-                    [GraphQL.Execution.executeField schema resolvers
-                      variableValues fuel source group.fst group.snd]) := by
-              induction groups with
-              | nil =>
-                  rfl
-              | cons group groups ih =>
-                  simp [List.singleton]
-            rw [← hsingleton]
-            simpa [List.map_map, Function.comp_def] using
-              (queue_combineScopeFieldResults_singleton
-                (blocks := groups.map (fun group =>
-                  GraphQL.Execution.executeField schema resolvers variableValues fuel source
-                    group.fst group.snd)))
+              group.fst group.snd)))
     _ = [objectResultFromFields
           (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
             fuel source groups)] := by
-          have hfoldMap :
-              (groups.map (fun group =>
-                GraphQL.Execution.executeField schema resolvers variableValues fuel source
-                  group.fst group.snd)).foldr
-                (fun block tail => Result.combine List.append block tail)
-                (.ok ([], 0)) =
-              GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-                fuel source groups := by
-            induction groups with
-            | nil =>
-                simp [GraphQL.Execution.executeCollectedFields]
-            | cons group groups ih =>
-                simp
-                rw [ih]
-                rw [GraphQL.Execution.executeCollectedFields]
-          simp [hfoldMap]
+      have hfoldMap :
+          (groups.map (fun group =>
+            GraphQL.Execution.executeField schema resolvers variableValues fuel source
+              group.fst group.snd)).foldr
+            (fun block tail => Result.combine List.append block tail)
+            (.ok ([], 0)) =
+          GraphQL.Execution.executeCollectedFields schema resolvers variableValues
+            fuel source groups := by
+        induction groups with
+        | nil =>
+            simp [GraphQL.Execution.executeCollectedFields]
+        | cons group groups ih =>
+            simp
+            rw [ih]
+            rw [GraphQL.Execution.executeCollectedFields]
+      simp [hfoldMap]
 
 theorem queue_expectedPendingChildWorkSpecResult_eq_scopeSingleton
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -772,18 +774,18 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
   | cons segment rest ih =>
       calc
         expectedScheduleQueueCompletionStack schema resolvers variableValues
-            (enqueueExpectedSegments key rest
-              (enqueueExpectedSegment key segment queue)) =
-          rest.foldl
-              (fun stack segment =>
-                pushExpectedFieldSegment key
-                  (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    key segment)
-                  stack)
-              (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                (enqueueExpectedSegment key segment queue)) := ih _
-        _ =
-          rest.foldl
+              (enqueueExpectedSegments key rest
+                (enqueueExpectedSegment key segment queue))
+            = rest.foldl
+                (fun stack segment =>
+                  pushExpectedFieldSegment key
+                    (expectedScheduleSegmentSpecFieldResults schema resolvers
+                      variableValues key segment)
+                    stack)
+                (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                  (enqueueExpectedSegment key segment queue)) :=
+          ih _
+        _ = rest.foldl
               (fun stack segment =>
                 pushExpectedFieldSegment key
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
@@ -794,9 +796,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
                   key segment)
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
                   queue)) := by
-                    rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_push]
-        _ =
-          (segment :: rest).foldl
+          rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_push]
+        _ = (segment :: rest).foldl
               (fun stack segment =>
                 pushExpectedFieldSegment key
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
@@ -804,7 +805,7 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
                   stack)
               (expectedScheduleQueueCompletionStack schema resolvers variableValues
                 queue) := by
-                  rfl
+          rfl
 
 theorem
     queue_expectedScheduleQueueCompletionStack_enqueueExpectedScheduleItems_eq_foldl_push
@@ -829,22 +830,22 @@ theorem
   | cons item rest ih =>
       calc
         expectedScheduleQueueCompletionStack schema resolvers variableValues
-            (enqueueExpectedScheduleItems
-              (enqueueExpectedSegments item.key item.segments queue)
-              rest) =
-          rest.foldl
-              (fun stack item =>
-                item.segments.foldl
-                  (fun stack segment =>
-                    pushExpectedFieldSegment item.key
-                      (expectedScheduleSegmentSpecFieldResults schema resolvers
-                        variableValues item.key segment)
-                      stack)
-                  stack)
-              (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                (enqueueExpectedSegments item.key item.segments queue)) := ih _
-        _ =
-          rest.foldl
+              (enqueueExpectedScheduleItems
+                (enqueueExpectedSegments item.key item.segments queue)
+                rest)
+            = rest.foldl
+                (fun stack item =>
+                  item.segments.foldl
+                    (fun stack segment =>
+                      pushExpectedFieldSegment item.key
+                        (expectedScheduleSegmentSpecFieldResults schema resolvers
+                          variableValues item.key segment)
+                        stack)
+                    stack)
+                (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                  (enqueueExpectedSegments item.key item.segments queue)) :=
+          ih _
+        _ = rest.foldl
               (fun stack item =>
                 item.segments.foldl
                   (fun stack segment =>
@@ -861,9 +862,8 @@ theorem
                     stack)
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
                   queue)) := by
-                    rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_foldl_push]
-        _ =
-          (item :: rest).foldl
+          rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_foldl_push]
+        _ = (item :: rest).foldl
               (fun stack item =>
                 item.segments.foldl
                   (fun stack segment =>
@@ -874,7 +874,7 @@ theorem
                   stack)
               (expectedScheduleQueueCompletionStack schema resolvers variableValues
                 queue) := by
-                  rfl
+          rfl
 
 theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -918,72 +918,99 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
   | cons group groups ih =>
       calc
         expectedScheduleQueueCompletionStack schema resolvers variableValues
-            (groups.foldl
-              (fun queue group =>
-                enqueueExpectedSegment group.fst
-                  { segment :=
-                      { sources := sources
-                        childSelectionSet := childSelectionSetForFields group.snd }
-                    specFuels := specFuels }
-                  queue)
-              (enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)) =
-          groups.foldl
-            (fun stack group =>
-              pushExpectedFieldSegment group.fst
+              (groups.foldl
+                (fun queue group =>
+                  enqueueExpectedSegment group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    }
+                    queue)
+                (enqueueExpectedSegment group.fst
+                  {
+                    segment :=
+                      {
+                        sources := sources
+                        childSelectionSet := childSelectionSetForFields group.snd
+                      }
+                    specFuels := specFuels
+                  }
+                  queue))
+            = groups.foldl
+                (fun stack group =>
+                  pushExpectedFieldSegment group.fst
+                    (expectedScheduleSegmentSpecFieldResults schema resolvers
+                      variableValues group.fst
+                      {
+                        segment :=
+                          {
+                            sources := sources
+                            childSelectionSet := childSelectionSetForFields group.snd
+                          }
+                        specFuels := specFuels
+                      })
+                    stack)
+                (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                  (enqueueExpectedSegment group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    }
+                    queue)) :=
+          ih _
+        _ = groups.foldl
+              (fun stack group =>
+                pushExpectedFieldSegment group.fst
+                  (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
+                    group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    })
+                  stack)
+              (pushExpectedFieldSegment group.fst
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                   group.fst
-                  { segment :=
-                      { sources := sources
-                        childSelectionSet := childSelectionSetForFields group.snd }
-                    specFuels := specFuels })
-                stack)
-            (expectedScheduleQueueCompletionStack schema resolvers variableValues
-              (enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)) := ih _
-        _ =
-          groups.foldl
-            (fun stack group =>
-              pushExpectedFieldSegment group.fst
-                (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
-                  { segment :=
-                      { sources := sources
-                        childSelectionSet := childSelectionSetForFields group.snd }
-                    specFuels := specFuels })
-                stack)
-            (pushExpectedFieldSegment group.fst
-              (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels })
+                  {
+                    segment :=
+                      {
+                        sources := sources
+                        childSelectionSet := childSelectionSetForFields group.snd
+                      }
+                    specFuels := specFuels
+                  })
+                (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                  queue)) := by
+          rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_push]
+        _ = (group :: groups).foldl
+              (fun stack group =>
+                pushExpectedFieldSegment group.fst
+                  (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
+                    group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    })
+                  stack)
               (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                queue)) := by
-                  rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_push]
-        _ =
-          (group :: groups).foldl
-            (fun stack group =>
-              pushExpectedFieldSegment group.fst
-                (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
-                  { segment :=
-                      { sources := sources
-                        childSelectionSet := childSelectionSetForFields group.snd }
-                    specFuels := specFuels })
-                stack)
-            (expectedScheduleQueueCompletionStack schema resolvers variableValues
-              queue) := by
-                rfl
+                queue) := by
+          rfl
 
 theorem queue_foldl_enqueueExpectedSegment_cons_of_absent
     (entries : List (ScheduleKey × ExpectedQueueSegment ObjectRef))
@@ -1190,21 +1217,20 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope_empty
     simpa [entries] using hfoldRaw
   calc
     enqueueExpectedScheduleItems queue
-        (scheduleExpectedScope schema variableValues parentType sources
-          specFuels selectionSet []).fst =
-      enqueueExpectedScheduleItems queue
-        (entries.foldl
+          (scheduleExpectedScope schema variableValues parentType sources
+            specFuels selectionSet []).fst
+        = enqueueExpectedScheduleItems queue
+            (entries.foldl
+              (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
+              []) := by
+      exact congrArg (enqueueExpectedScheduleItems queue) (hfold []).symm
+    _ = entries.foldl
           (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-          []) := by
-            exact congrArg (enqueueExpectedScheduleItems queue) (hfold []).symm
-    _ =
-      entries.foldl
-        (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-        queue := hreplay
-    _ =
-      (scheduleExpectedScope schema variableValues parentType sources
-        specFuels selectionSet queue).fst := by
-            exact hfold queue
+          queue :=
+      hreplay
+    _ = (scheduleExpectedScope schema variableValues parentType sources
+          specFuels selectionSet queue).fst := by
+      exact hfold queue
 
 def expectedQueueContainsKey (key : ScheduleKey) : ExpectedScheduleQueue ObjectRef -> Prop
   | [] => False
@@ -2565,28 +2591,39 @@ theorem queue_completeFrames_scheduleExpectedPendingChildWork
           hqueue
       calc
         completeFrames
-            (List.reverse (scheduleExpectedPendingChildWork schema variableValues (work :: rest) queue).snd)
-            { valueStack := valueStack
-              fieldStore :=
-                (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                  (scheduleExpectedPendingChildWork schema variableValues (work :: rest) queue).fst).fieldStore } =
-          completeFrames [head.snd]
-            { valueStack :=
-                (expectedPendingChildWorkCompletionStack schema resolvers variableValues rest).valueStack ++
-                  valueStack
-              fieldStore :=
-                (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                  head.fst).fieldStore } := by
-                    simp [scheduleExpectedPendingChildWork, head, List.reverse_cons,
-                      queue_completeFrames_append, htail]
-        _ = { valueStack :=
-                (expectedPendingChildWorkCompletionStack schema resolvers variableValues
-                    (work :: rest)).valueStack ++ valueStack
-              fieldStore :=
-                (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                  queue).fieldStore } := by
-                    simpa [expectedPendingChildWorkCompletionStack,
-                      expectedPendingChildWorkCompletion] using hheadFrame
+              (List.reverse
+                (scheduleExpectedPendingChildWork schema variableValues (work :: rest)
+                  queue).snd)
+              {
+                valueStack := valueStack
+                fieldStore :=
+                  (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                    (scheduleExpectedPendingChildWork schema variableValues (work :: rest)
+                      queue).fst).fieldStore
+              }
+            = completeFrames [head.snd]
+                {
+                  valueStack :=
+                    (expectedPendingChildWorkCompletionStack schema resolvers
+                      variableValues rest).valueStack
+                    ++ valueStack
+                  fieldStore :=
+                    (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                      head.fst).fieldStore
+                } := by
+          simp [scheduleExpectedPendingChildWork, head, List.reverse_cons,
+            queue_completeFrames_append, htail]
+        _ = {
+            valueStack :=
+              (expectedPendingChildWorkCompletionStack schema resolvers variableValues
+                (work :: rest)).valueStack
+              ++ valueStack
+            fieldStore :=
+              (expectedScheduleQueueCompletionStack schema resolvers variableValues
+                queue).fieldStore
+          } := by
+          simpa [expectedPendingChildWorkCompletionStack,
+            expectedPendingChildWorkCompletion] using hheadFrame
 
 theorem queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork
     (schema : Schema) (variableValues : VariableValues)

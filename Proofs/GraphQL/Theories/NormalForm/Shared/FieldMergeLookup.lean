@@ -135,10 +135,10 @@ theorem fieldMerge_collectFields_outputType_eq_of_same_parent_field
     ⟨rightDefinition, hrightLookup, hrightOutput⟩
   have hsome : some leftDefinition = some rightDefinition := by
     calc
-      some leftDefinition =
-          schema.lookupField left.parentType left.fieldName := hleftLookup.symm
+      some leftDefinition = schema.lookupField left.parentType left.fieldName :=
+        hleftLookup.symm
       _ = schema.lookupField right.parentType right.fieldName := by
-          simp [hparent, hfield]
+        simp [hparent, hfield]
       _ = some rightDefinition := hrightLookup
   injection hsome with hdefinitions
   simp [hleftOutput, hrightOutput, hdefinitions]

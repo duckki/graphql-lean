@@ -3206,23 +3206,22 @@ theorem expectedScheduleQueueToQueue_enqueueExpectedSegments
   | cons segment rest ih =>
       calc
         expectedScheduleQueueToQueue
-            (enqueueExpectedSegments key rest
-              (enqueueExpectedSegment key segment queue)) =
-          (rest.map ExpectedQueueSegment.segment).foldl
-            (fun queue segment => enqueueSegment key segment queue)
-            (expectedScheduleQueueToQueue
-              (enqueueExpectedSegment key segment queue)) := ih _
-        _ =
-          (rest.map ExpectedQueueSegment.segment).foldl
-            (fun queue segment => enqueueSegment key segment queue)
-            (enqueueSegment key segment.segment
-              (expectedScheduleQueueToQueue queue)) := by
-            rw [expectedScheduleQueueToQueue_enqueueExpectedSegment]
-        _ =
-          ((segment :: rest).map ExpectedQueueSegment.segment).foldl
-            (fun queue segment => enqueueSegment key segment queue)
-            (expectedScheduleQueueToQueue queue) := by
-            rfl
+              (enqueueExpectedSegments key rest
+                (enqueueExpectedSegment key segment queue))
+            = (rest.map ExpectedQueueSegment.segment).foldl
+                (fun queue segment => enqueueSegment key segment queue)
+                (expectedScheduleQueueToQueue
+                  (enqueueExpectedSegment key segment queue)) :=
+          ih _
+        _ = (rest.map ExpectedQueueSegment.segment).foldl
+              (fun queue segment => enqueueSegment key segment queue)
+              (enqueueSegment key segment.segment
+                (expectedScheduleQueueToQueue queue)) := by
+          rw [expectedScheduleQueueToQueue_enqueueExpectedSegment]
+        _ = ((segment :: rest).map ExpectedQueueSegment.segment).foldl
+              (fun queue segment => enqueueSegment key segment queue)
+              (expectedScheduleQueueToQueue queue) := by
+          rfl
 
 theorem expectedScheduleQueueToQueue_enqueueExpectedScheduleItems
     (queue items : ExpectedScheduleQueue ObjectRef)
@@ -3235,30 +3234,28 @@ theorem expectedScheduleQueueToQueue_enqueueExpectedScheduleItems
   | cons item rest ih =>
       calc
         expectedScheduleQueueToQueue
-            (enqueueExpectedScheduleItems
-              (enqueueExpectedSegments item.key item.segments queue)
-              rest) =
-          enqueueScheduleItems
-            (expectedScheduleQueueToQueue
-              (enqueueExpectedSegments item.key item.segments queue))
-            (expectedScheduleQueueToQueue rest) := ih _
-        _ =
-          enqueueScheduleItems
-            ((item.segments.map ExpectedQueueSegment.segment).foldl
-              (fun queue segment => enqueueSegment item.key segment queue)
-              (expectedScheduleQueueToQueue queue))
-            (expectedScheduleQueueToQueue rest) := by
-            rw [expectedScheduleQueueToQueue_enqueueExpectedSegments]
-        _ =
-          enqueueScheduleItems
-            (expectedScheduleQueueToQueue queue)
-            (item.toScheduleItem :: expectedScheduleQueueToQueue rest) := by
-            simp [enqueueScheduleItems, ExpectedQueueItem.toScheduleItem]
-        _ =
-          enqueueScheduleItems
-            (expectedScheduleQueueToQueue queue)
-            (expectedScheduleQueueToQueue (item :: rest)) := by
-            rfl
+              (enqueueExpectedScheduleItems
+                (enqueueExpectedSegments item.key item.segments queue)
+                rest)
+            = enqueueScheduleItems
+                (expectedScheduleQueueToQueue
+                  (enqueueExpectedSegments item.key item.segments queue))
+                (expectedScheduleQueueToQueue rest) :=
+          ih _
+        _ = enqueueScheduleItems
+              ((item.segments.map ExpectedQueueSegment.segment).foldl
+                (fun queue segment => enqueueSegment item.key segment queue)
+                (expectedScheduleQueueToQueue queue))
+              (expectedScheduleQueueToQueue rest) := by
+          rw [expectedScheduleQueueToQueue_enqueueExpectedSegments]
+        _ = enqueueScheduleItems
+              (expectedScheduleQueueToQueue queue)
+              (item.toScheduleItem :: expectedScheduleQueueToQueue rest) := by
+          simp [enqueueScheduleItems, ExpectedQueueItem.toScheduleItem]
+        _ = enqueueScheduleItems
+              (expectedScheduleQueueToQueue queue)
+              (expectedScheduleQueueToQueue (item :: rest)) := by
+          rfl
 
 -----------------------------------------------------------------------------------------
 -- Proof-facing completion stack for the queue
@@ -9212,46 +9209,64 @@ theorem expectedScheduleQueueToQueue_scheduleExpectedScopeGroups
   | cons group groups ih =>
       calc
         expectedScheduleQueueToQueue
-            (groups.foldl
+              (groups.foldl
+                (fun queue group =>
+                  enqueueExpectedSegment group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet :=
+                            childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    }
+                    queue)
+                (enqueueExpectedSegment group.fst
+                  {
+                    segment :=
+                      {
+                        sources := sources
+                        childSelectionSet := childSelectionSetForFields group.snd
+                      }
+                    specFuels := specFuels
+                  }
+                  queue))
+            = groups.foldl
+                (fun queue group =>
+                  enqueueSegment group.fst
+                    {
+                      sources := sources
+                      childSelectionSet := childSelectionSetForFields group.snd
+                    }
+                    queue)
+                (expectedScheduleQueueToQueue
+                  (enqueueExpectedSegment group.fst
+                    {
+                      segment :=
+                        {
+                          sources := sources
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := specFuels
+                    }
+                    queue)) :=
+          ih _
+        _ = groups.foldl
               (fun queue group =>
-                enqueueExpectedSegment group.fst
-                  { segment :=
-                      { sources := sources
-                        childSelectionSet :=
-                          childSelectionSetForFields group.snd }
-                    specFuels := specFuels }
+                enqueueSegment group.fst
+                  {
+                    sources := sources
+                    childSelectionSet := childSelectionSetForFields group.snd
+                  }
                   queue)
-              (enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)) =
-          groups.foldl
-            (fun queue group =>
-              enqueueSegment group.fst
-                { sources := sources
-                  childSelectionSet := childSelectionSetForFields group.snd }
-                queue)
-            (expectedScheduleQueueToQueue
-              (enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)) := ih _
-        _ =
-          groups.foldl
-            (fun queue group =>
-              enqueueSegment group.fst
-                { sources := sources
-                  childSelectionSet := childSelectionSetForFields group.snd }
-                queue)
-            (enqueueSegment group.fst
-              { sources := sources
-                childSelectionSet := childSelectionSetForFields group.snd }
-              (expectedScheduleQueueToQueue queue)) := by
-            rw [expectedScheduleQueueToQueue_enqueueExpectedSegment]
+              (enqueueSegment group.fst
+                {
+                  sources := sources
+                  childSelectionSet := childSelectionSetForFields group.snd
+                }
+                (expectedScheduleQueueToQueue queue)) := by
+          rw [expectedScheduleQueueToQueue_enqueueExpectedSegment]
 
 theorem expectedScheduleQueueToQueue_scheduleExpectedScope
     (schema : Schema) (variableValues : VariableValues)

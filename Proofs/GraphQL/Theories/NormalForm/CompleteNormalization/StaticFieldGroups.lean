@@ -917,8 +917,7 @@ theorem
             Execution.completeValue schema resolvers variableValues (depth - 1)
               fieldDefinition.outputType (sourceField :: sourceFields) value
       | none => True := by
-    cases hresolved :
-        resolvers.resolve lookupParent fieldName arguments source with
+    cases hresolved : resolvers.resolve lookupParent fieldName arguments source with
     | none =>
         simp []
     | some value =>
@@ -1104,9 +1103,10 @@ theorem
                 } :: sourceFields))
               value
       | none => True := by
-    cases hresolved :
-        resolvers.resolve lookupParent fieldName arguments
-          (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref) with
+    cases hresolved
+          : resolvers.resolve lookupParent fieldName arguments
+              (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType
+                ref) with
     | none =>
         simp []
     | some value =>
