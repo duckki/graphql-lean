@@ -132,10 +132,14 @@ theorem completeNormalizeOperation_uniqueUpToReordering
       exact hleftComplete varName ((hvariables varName).2 hmem)
     have hleftExecution :=
       completeNormalizationSemanticsPreserved schema left hschema hleftValid
-        resolvers variableValues fuel source hleftComplete
+        resolvers variableValues fuel source
+        (operationBoolVarsComplete_coerceVariableValues
+          left variableValues hleftComplete)
     have hrightExecution :=
       completeNormalizationSemanticsPreserved schema right hschema hrightValid
-        resolvers variableValues fuel source hrightComplete
+        resolvers variableValues fuel source
+        (operationBoolVarsComplete_coerceVariableValues
+          right variableValues hrightComplete)
     rw [← hleftExecution, ← hrightExecution]
     exact hsem resolvers variableValues fuel source
   exact

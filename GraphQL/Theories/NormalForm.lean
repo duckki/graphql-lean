@@ -917,7 +917,8 @@ def completeNormalizationSemanticsPreserved (schema : Schema) (operation : Opera
   -> Validation.operationDefinitionValid schema operation
   -> ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
         variableValues fuel (source : Execution.ResolverValue ObjectRef),
-      operationBoolVarsComplete operation variableValues
+      operationBoolVarsComplete operation
+        (Execution.coerceVariableValues operation variableValues)
       -> Execution.executeQueryWithFuel schema resolvers variableValues operation
             fuel source
           = Execution.executeQueryWithFuel schema resolvers variableValues

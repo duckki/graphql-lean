@@ -376,9 +376,13 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
     intro varName hmem
     exact hleftComplete varName ((hvariables varName).2 hmem)
   have hleftPreserved := completeNormalizationSemanticsPreserved schema left
-    hschema hleftValid resolvers variableValues fuel source hleftComplete
+    hschema hleftValid resolvers variableValues fuel source
+    (operationBoolVarsComplete_coerceVariableValues
+      left variableValues hleftComplete)
   have hrightPreserved := completeNormalizationSemanticsPreserved schema right
-    hschema hrightValid resolvers variableValues fuel source hrightComplete
+    hschema hrightValid resolvers variableValues fuel source
+    (operationBoolVarsComplete_coerceVariableValues
+      right variableValues hrightComplete)
   rw [hleftPreserved, hrightPreserved]
   exact hnormalizedSemantics resolvers variableValues fuel source
 

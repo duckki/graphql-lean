@@ -126,9 +126,7 @@ theorem completeNormalizationSemanticsPreserved_of_selectionSet
     source hcomplete
   exact completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
     schema operation hselection hschema hvalid resolvers variableValues depth
-    source
-    (operationBoolVarsComplete_coerceVariableValues
-      operation variableValues hcomplete)
+    source hcomplete
 
 end CompleteNormalization
 
