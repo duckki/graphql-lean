@@ -217,8 +217,9 @@ def of_collected_groups_containedAppendInvariant
   | (responseName, []) :: _rest =>
       False.elim (hnonempty responseName [] (by simp) rfl)
   | (responseName, field :: fields) :: rest =>
-      let tailInvariant : CollectedFieldGroupContainedAppendInvariant schema resolvers
-                            variableValues depth source rest :=
+      let tailInvariant
+          : CollectedFieldGroupContainedAppendInvariant schema resolvers
+              variableValues depth source rest :=
         { prefixChildren := by
             intro tailResponseName tailField tailFields prefixTail hgroup
               hprefix childDepth runtimeType identity hlt hcontains hincludes
