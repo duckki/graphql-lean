@@ -986,13 +986,13 @@ theorem selectionSetResponseNameFree_of_allFields_responseNamesNodup
       have hrestAll : NormalForm.selectionsAllFields rest := by
         intro candidate hcandidate
         exact hall candidate (List.mem_cons_of_mem selection hcandidate)
-      have hrestNotMem :
-          responseName ∉ rest.filterMap Selection.responseName? := by
-        intro hmem
-        exact hnotMem (by
-          cases selection <;> simp [Selection.responseName?, hmem])
       cases selection with
       | field fieldResponseName fieldName arguments directives selectionSet =>
+          have hrestNotMem :
+              responseName ∉ rest.filterMap Selection.responseName? := by
+            intro hmem
+            exact hnotMem (by
+              simp [Selection.responseName?, hmem])
           have hfieldNe : fieldResponseName ≠ responseName := by
             intro heq
             exact hnotMem (by simp [Selection.responseName?, heq])

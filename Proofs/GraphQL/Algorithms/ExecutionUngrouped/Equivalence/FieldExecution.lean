@@ -393,24 +393,48 @@ theorem completeResolvedValue_nonNull_ok_of_inner_ok
             have hreuseInner :
                 reusablePreviousValue? schema inner (some (.scalar scalarValue)) =
                   some (.scalar scalarValue) := by
-              simpa [reusablePreviousValue?, TypeRef.isCompositeBool,
-                TypeRef.namedType] using hreuse
+              have houterNonComposite :
+                  (TypeRef.nonNull inner).isCompositeBool schema = false := by
+                cases hcomposite :
+                    (TypeRef.nonNull inner).isCompositeBool schema <;>
+                  simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
+              have hinnerNonComposite :
+                  inner.isCompositeBool schema = false := by
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
+                  houterNonComposite
+              simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
         | object fields =>
             have hreuseInner :
                 reusablePreviousValue? schema inner (some (.object fields)) =
                   some (.object fields) := by
-              simpa [reusablePreviousValue?, TypeRef.isCompositeBool,
-                TypeRef.namedType] using hreuse
+              have houterNonComposite :
+                  (TypeRef.nonNull inner).isCompositeBool schema = false := by
+                cases hcomposite :
+                    (TypeRef.nonNull inner).isCompositeBool schema <;>
+                  simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
+              have hinnerNonComposite :
+                  inner.isCompositeBool schema = false := by
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
+                  houterNonComposite
+              simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
         | list values =>
             have hreuseInner :
                 reusablePreviousValue? schema inner (some (.list values)) =
                   some (.list values) := by
-              simpa [reusablePreviousValue?, TypeRef.isCompositeBool,
-                TypeRef.namedType] using hreuse
+              have houterNonComposite :
+                  (TypeRef.nonNull inner).isCompositeBool schema = false := by
+                cases hcomposite :
+                    (TypeRef.nonNull inner).isCompositeBool schema <;>
+                  simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
+              have hinnerNonComposite :
+                  inner.isCompositeBool schema = false := by
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
+                  houterNonComposite
+              simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
       rw [hinner'] at hinner

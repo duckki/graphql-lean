@@ -298,7 +298,8 @@ theorem responseNamesNodup_tail {selection : Selection} {selectionSet : List Sel
             simpa [responseNamesNodup, Selection.responseName?] using
               hnodup)).2
   | inlineFragment typeCondition directives childSelectionSet =>
-      simpa [responseNamesNodup, Selection.responseName?] using hnodup
+      change responseNamesNodup selectionSet
+      exact hnodup
 
 theorem inlineFragmentTypeConditionsNodup_tail
     {selection : Selection} {selectionSet : List Selection}
@@ -307,13 +308,13 @@ theorem inlineFragmentTypeConditionsNodup_tail
   intro hnodup
   cases selection with
   | field responseName fieldName arguments directives childSelectionSet =>
-      simpa [inlineFragmentTypeConditionsNodup, inlineFragmentTypeCondition?]
-        using hnodup
+      change inlineFragmentTypeConditionsNodup selectionSet
+      exact hnodup
   | inlineFragment typeCondition directives childSelectionSet =>
       cases typeCondition with
       | none =>
-          simpa [inlineFragmentTypeConditionsNodup, inlineFragmentTypeCondition?]
-            using hnodup
+          change inlineFragmentTypeConditionsNodup selectionSet
+          exact hnodup
       | some typeCondition =>
           simpa [inlineFragmentTypeConditionsNodup, inlineFragmentTypeCondition?]
             using

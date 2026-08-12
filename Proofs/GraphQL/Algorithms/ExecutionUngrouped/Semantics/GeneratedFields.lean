@@ -24,7 +24,8 @@ theorem responseNamesNodup_tail {selection : Selection} {selectionSet : List Sel
   | field responseName fieldName arguments directives subselections =>
       exact hnodup.tail
   | inlineFragment typeCondition directives subselections =>
-      simpa [Selection.responseName?] using hnodup
+      change (selectionSet.filterMap Selection.responseName?).Nodup
+      exact hnodup
 
 theorem inlineFragmentTypeConditionsNodup_tail
     {selection : Selection} {selectionSet : List Selection}
@@ -34,11 +35,17 @@ theorem inlineFragmentTypeConditionsNodup_tail
   unfold NormalForm.inlineFragmentTypeConditionsNodup at hnodup ⊢
   cases selection with
   | field responseName fieldName arguments directives subselections =>
-      simpa [NormalForm.inlineFragmentTypeCondition?] using hnodup
+      change
+        (selectionSet.filterMap
+          NormalForm.inlineFragmentTypeCondition?).Nodup
+      exact hnodup
   | inlineFragment typeCondition directives subselections =>
       cases typeCondition with
       | none =>
-          simpa [NormalForm.inlineFragmentTypeCondition?] using hnodup
+          change
+            (selectionSet.filterMap
+              NormalForm.inlineFragmentTypeCondition?).Nodup
+          exact hnodup
       | some typeCondition =>
           change List.Pairwise (fun x1 x2 => ¬ x1 = x2)
             (List.filterMap NormalForm.inlineFragmentTypeCondition?
@@ -154,13 +161,13 @@ theorem selectionSetResponseNameFree_of_allFields_responseNamesNodup
           NormalForm.selectionsAllFields rest := by
         intro candidate hcandidate
         exact hall candidate (List.mem_cons_of_mem selection hcandidate)
-      have hrestNotMem :
-          responseName ∉ rest.filterMap Selection.responseName? := by
-        intro hmem
-        exact hnotMem (by
-          cases selection <;> simp [Selection.responseName?, hmem])
       cases selection with
       | field fieldResponseName fieldName arguments directives selectionSet =>
+          have hrestNotMem :
+              responseName ∉ rest.filterMap Selection.responseName? := by
+            intro hmem
+            exact hnotMem (by
+              simp [Selection.responseName?, hmem])
           have hfieldNe : fieldResponseName ≠ responseName := by
             intro heq
             exact hnotMem (by simp [Selection.responseName?, heq])

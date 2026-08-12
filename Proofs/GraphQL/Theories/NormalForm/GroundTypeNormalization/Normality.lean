@@ -577,7 +577,9 @@ theorem responseName_not_mem_filterMap_of_responseNameFree
           intro heq
           exact hheadNe heq.symm
       | inlineFragment typeCondition directives selectionSet =>
-          simp [Selection.responseName?, ih hrest]
+          intro hcandidate
+          exact ih hrest (by
+            simpa [Selection.responseName?] using hcandidate)
 
 theorem normalizeSelectionSet_without_responseName_not_mem
     (schema : Schema) (parentType responseName : Name)
@@ -670,8 +672,8 @@ theorem inlineFragmentTypeConditionsNodup_of_selectionsAllFields
         exact hfields candidate (List.mem_cons_of_mem selection hcandidate)
       cases selection with
       | field responseName fieldName arguments directives selectionSet =>
-          simpa [inlineFragmentTypeConditionsNodup, inlineFragmentTypeCondition?]
-            using ih hrest
+          change inlineFragmentTypeConditionsNodup rest
+          exact ih hrest
       | inlineFragment typeCondition directives selectionSet =>
           simp [Selection.isField] at hhead
 
@@ -735,8 +737,9 @@ theorem possibleTypeNormalizations_responseNamesNodup
         | nil =>
             simpa [possibleTypeNormalizations, hnormalized] using ih
         | cons head tail =>
-            simpa [possibleTypeNormalizations, hnormalized,
-              Selection.responseName?] using ih
+            unfold possibleTypeNormalizations
+            simp [hnormalized]
+            exact ih
   simpa [responseNamesNodup] using
     hfilterNone possibleTypes
 
