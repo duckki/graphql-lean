@@ -541,8 +541,8 @@ theorem visitSubfields_executableFieldSelections_prefix_fresh
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     : ∀ (fields : List ExecutableField)
-          (prefixFields suffix result : List (Name × ResponseValue))
-          (status : VisitStatus),
+        (prefixFields suffix result : List (Name × ResponseValue))
+        (status : VisitStatus),
         (∀ field, field ∈ fields -> field.responseName ∉ prefixFields.map Prod.fst)
         -> visitSubfields schema resolvers variableValues depth parentType source
               (executableFieldSelections fields) (.object suffix)
@@ -810,8 +810,8 @@ mutual
       (variableValues : VariableValues) (depth : Nat)
       (parentType : Name) (source : ResolverValue ObjectIdentity)
       : ∀ (selection : Selection)
-            (prefixFields suffix result : List (Name × ResponseValue))
-            (status : VisitStatus),
+          (prefixFields suffix result : List (Name × ResponseValue))
+          (status : VisitStatus),
           (∀ field,
             field
               ∈ collectedExecutableFields
@@ -911,8 +911,8 @@ mutual
       (variableValues : VariableValues) (depth : Nat)
       (parentType : Name) (source : ResolverValue ObjectIdentity)
       : ∀ (selectionSet : List Selection)
-            (prefixFields suffix result : List (Name × ResponseValue))
-            (status : VisitStatus),
+          (prefixFields suffix result : List (Name × ResponseValue))
+          (status : VisitStatus),
           (∀ field,
             field
               ∈ collectedExecutableFields

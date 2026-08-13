@@ -70,9 +70,9 @@ theorem executeSelectionSet_staticCollectCompleteScopedSelectionSet_of_field_cas
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hfieldCase
       : ∀ depth execParent lookupParent groundType
-            boolCase
-            responseName fieldName arguments directives selectionSet
-            (rest : List CompleteScopedSelection),
+          boolCase
+          responseName fieldName arguments directives selectionSet
+          (rest : List CompleteScopedSelection),
           schema.objectType execParent
           -> schema.typeIncludesObjectBool execParent groundType = true
           -> completeScopedSelectionSetSemanticsReady schema execParent

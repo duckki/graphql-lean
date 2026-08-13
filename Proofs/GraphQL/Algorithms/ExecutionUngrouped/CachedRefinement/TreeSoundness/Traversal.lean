@@ -19,7 +19,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
       : ∀ fuel parentType runtimeType (ref : ObjectRef) universeSet selection
-            outputFields,
+          outputFields,
           SchemaWellFormedness.schemaWellFormed schema
           -> schema.objectType parentType
           -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
@@ -593,7 +593,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
       : ∀ fuel parentType runtimeType (ref : ObjectRef) universeSet selectionSet
-            outputFields,
+          outputFields,
           SchemaWellFormedness.schemaWellFormed schema
           -> schema.objectType parentType
           -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema

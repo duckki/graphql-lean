@@ -169,7 +169,7 @@ theorem combineVisitStatus_comm (left right : VisitStatus)
 
 theorem reusablePreviousValue?_some_eq (schema : Schema)
     : ∀ (fieldType : TypeRef) (previous? : Option ResponseValue)
-          (previous : ResponseValue),
+        (previous : ResponseValue),
         reusablePreviousValue? schema fieldType previous? = some previous
         -> previous? = some previous := by
   intro fieldType previous? previous h

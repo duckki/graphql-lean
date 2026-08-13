@@ -4075,7 +4075,7 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
               targetParent leftField rightField leftArguments rightArguments
@@ -4105,7 +4105,7 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
               targetParent leftField rightField leftArguments rightArguments
@@ -4154,9 +4154,9 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (parentType fieldName : Name) (arguments : List Argument)
-            (tag : FieldPairProbeTag),
+          (fields : List Execution.ExecutableField)
+          (parentType fieldName : Name) (arguments : List Argument)
+          (tag : FieldPairProbeTag),
           Execution.completeValue schema
             (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
               targetParent leftField rightField leftArguments rightArguments
@@ -4299,7 +4299,7 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairSideRuntimeProbeResolvers schema leftChildRootSelectionSet
               rightChildRootSelectionSet targetParent leftField rightField
@@ -4333,7 +4333,7 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairSideRuntimeProbeResolvers schema leftChildRootSelectionSet
               rightChildRootSelectionSet targetParent leftField rightField
@@ -4388,9 +4388,9 @@ mutual
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (parentType fieldName : Name) (arguments : List Argument)
-            (tag : FieldPairProbeTag),
+          (fields : List Execution.ExecutableField)
+          (parentType fieldName : Name) (arguments : List Argument)
+          (tag : FieldPairProbeTag),
           Execution.completeValue schema
             (fieldPairSideRuntimeProbeResolvers schema leftChildRootSelectionSet
               rightChildRootSelectionSet targetParent leftField rightField

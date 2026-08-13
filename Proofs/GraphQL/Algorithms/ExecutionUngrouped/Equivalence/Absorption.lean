@@ -748,7 +748,7 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues)
       : ∀ (depth : Nat) (fieldType : TypeRef) (selectionSet : List Selection)
-            (value : ResolverValue ObjectIdentity) (previous? : Option ResponseValue),
+          (value : ResolverValue ObjectIdentity) (previous? : Option ResponseValue),
           (∀ previous, previous? = some previous -> ResponseMergeReady previous)
           -> ResponseMergeReady
               (resultValueOrNull
@@ -1171,7 +1171,7 @@ mutual
       (variableValues : VariableValues)
       (depth : Nat) (itemType : TypeRef) (selectionSet : List Selection)
       : ∀ (values : List (ResolverValue ObjectIdentity))
-            (previousValues : List ResponseValue),
+          (previousValues : List ResponseValue),
           (∀ previous, previous ∈ previousValues -> ResponseMergeReady previous)
           -> ∀ completedValues errors,
               completeValueList schema resolvers variableValues depth itemType

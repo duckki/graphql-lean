@@ -140,7 +140,7 @@ end
 mutual
   theorem selectionValid_toSpec_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {parentType : Name} {selection : Selection},
+          {parentType : Name} {selection : Selection},
           selectionValid schema variableDefinitions [] parentType selection
           -> Semantics.selectionInlined selection
           -> GraphQL.Validation.selectionSetValid schema variableDefinitions parentType
@@ -201,7 +201,7 @@ mutual
 
   theorem selectionSetValid_toSpec_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {parentType : Name} {selectionSet : List Selection},
+          {parentType : Name} {selectionSet : List Selection},
           selectionSetValid schema variableDefinitions [] parentType selectionSet
           -> Semantics.selectionSetInlined selectionSet
           -> GraphQL.Validation.selectionSetValid schema variableDefinitions parentType
@@ -234,7 +234,7 @@ mutual
 
   theorem fieldSelectionSetValid_toSpec_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
+          {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
           fieldSelectionSetValid schema variableDefinitions []
             fieldDefinition selectionSet
           -> Semantics.selectionSetInlined selectionSet

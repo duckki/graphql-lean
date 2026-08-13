@@ -1452,7 +1452,7 @@ theorem generatedNormalizedFieldChild_of_collectFields_field_layer
               ((schema.fieldReturnType? parentType fieldName).getD fieldName)
               childSelectionSet)
     : ∀ {responseName : Name} {field : Execution.ExecutableField}
-          {fields prefixTail : List Execution.ExecutableField},
+        {fields prefixTail : List Execution.ExecutableField},
         (responseName, field :: fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType source
               selectionSet
@@ -1490,7 +1490,7 @@ theorem generatedNormalizedFieldChild_of_collectFields_field_layer
 
 theorem normalizeSelectionSet_field_child_generated (schema : Schema)
     : ∀ parentType selectionSet responseName fieldName arguments directives
-          childSelectionSet,
+        childSelectionSet,
         NormalForm.selectionSetDirectiveFree selectionSet
         -> Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ NormalForm.normalizeSelectionSet schema parentType selectionSet

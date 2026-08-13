@@ -20,7 +20,7 @@ def inlineScopedField (field : GraphQL.NamedFragment.Validation.FieldMerge.Scope
 mutual
   theorem collectSelection_inlineSelection_eq_map
       : ∀ (schema : Schema) (fragments : List FragmentDefinition)
-            (parentType : Name) (selection : Selection),
+          (parentType : Name) (selection : Selection),
           GraphQL.NamedFragment.Validation.FieldMerge.collectSelection schema []
             parentType (Inline.inlineSelection fragments selection)
           = (GraphQL.NamedFragment.Validation.FieldMerge.collectSelection schema
@@ -77,7 +77,7 @@ mutual
 
   theorem collectFields_inlineSelectionSet_eq_map
       : ∀ (schema : Schema) (fragments : List FragmentDefinition)
-            (parentType : Name) (selectionSet : List Selection),
+          (parentType : Name) (selectionSet : List Selection),
           GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema []
             parentType (Inline.inlineSelectionSet fragments selectionSet)
           = (GraphQL.NamedFragment.Validation.FieldMerge.collectFields schema

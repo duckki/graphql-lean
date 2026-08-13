@@ -1932,7 +1932,7 @@ theorem completeNormalizationPreservesUngroupedExecution_of_source_semanticsPres
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> (∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-              variableValues depth (source : Execution.ResolverValue ObjectRef),
+            variableValues depth (source : Execution.ResolverValue ObjectRef),
             NormalForm.operationBoolVarsComplete operation
               (Execution.coerceVariableValues operation variableValues)
             -> executeQueryWithFuel schema resolvers variableValues operation depth source

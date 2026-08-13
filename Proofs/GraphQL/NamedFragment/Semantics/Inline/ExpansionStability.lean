@@ -72,14 +72,14 @@ theorem fragmentInlineSelectionSet_eq_of_reachable_contexts_aux
       : GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
           variableDefinitions original)
     : ∀ (n : Nat)
-          {leftCurrent rightCurrent : List FragmentDefinition}
-          {fragmentName : Name} {fragment : FragmentDefinition}
-          {leftRemaining
-            : { remaining : List FragmentDefinition
-                // remaining.length < leftCurrent.length }}
-          {rightRemaining
-            : { remaining : List FragmentDefinition
-                // remaining.length < rightCurrent.length }},
+        {leftCurrent rightCurrent : List FragmentDefinition}
+        {fragmentName : Name} {fragment : FragmentDefinition}
+        {leftRemaining
+          : { remaining : List FragmentDefinition
+              // remaining.length < leftCurrent.length }}
+        {rightRemaining
+          : { remaining : List FragmentDefinition
+              // remaining.length < rightCurrent.length }},
         leftCurrent.length ≤ n
         -> rightCurrent.length ≤ n
         -> ReachableAncestorRemovals original fragmentName leftCurrent leftCurrent

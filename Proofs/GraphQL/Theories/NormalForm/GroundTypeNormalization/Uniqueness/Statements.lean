@@ -15,7 +15,7 @@ def selectionSetsSemanticallyEquivalent (schema : Schema)
     (parentType : Name) (left right : List Selection)
     : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     (∃ runtimeType ref,
       source = Execution.ResolverValue.object runtimeType ref
       ∧ schema.typeIncludesObjectBool parentType runtimeType = true)
@@ -42,7 +42,7 @@ def selectionSetsDataEquivalent (schema : Schema)
     (parentType : Name) (left right : List Selection)
     : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     (∃ runtimeType ref,
       source = Execution.ResolverValue.object runtimeType ref
       ∧ schema.typeIncludesObjectBool parentType runtimeType = true)

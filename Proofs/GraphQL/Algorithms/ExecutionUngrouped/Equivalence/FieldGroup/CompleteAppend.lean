@@ -170,7 +170,7 @@ theorem completeValue_group_append_one_result_aligned_spec
     (variableValues : VariableValues)
     (fieldType : TypeRef)
     : ∀ (depth : Nat) (resolved : ResolverValue ObjectIdentity)
-          (prefixFields : List ExecutableField) (later : ExecutableField),
+        (prefixFields : List ExecutableField) (later : ExecutableField),
         (∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
@@ -443,7 +443,7 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
     (variableValues : VariableValues)
     (fieldType : TypeRef)
     : ∀ (depth : Nat) (resolved : ResolverValue ObjectIdentity)
-          (prefixFields : List ExecutableField) (later : ExecutableField),
+        (prefixFields : List ExecutableField) (later : ExecutableField),
         (∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
@@ -700,7 +700,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
     (variableValues : VariableValues)
     (fieldType : TypeRef)
     : ∀ (depth : Nat) (resolved : ResolverValue ObjectIdentity)
-          (prefixFields : List ExecutableField) (later : ExecutableField),
+        (prefixFields : List ExecutableField) (later : ExecutableField),
         (∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity

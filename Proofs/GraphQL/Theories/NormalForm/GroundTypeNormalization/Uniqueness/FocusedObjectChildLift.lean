@@ -658,8 +658,8 @@ theorem
       -> focusedSelectionSetTargetChildrenSupported fieldName leftArguments
           rightArguments rightSuffix support
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true
@@ -692,8 +692,8 @@ theorem
                         }]
                       = .ok ([(otherResponseName, responseValue)], fieldErrors))
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true
@@ -726,8 +726,8 @@ theorem
                         }]
                       = .ok ([(otherResponseName, responseValue)], fieldErrors))
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true
@@ -760,8 +760,8 @@ theorem
                         }]
                       = .ok ([(otherResponseName, responseValue)], fieldErrors))
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true

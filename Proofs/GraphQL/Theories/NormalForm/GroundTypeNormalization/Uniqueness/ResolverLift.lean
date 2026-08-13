@@ -113,7 +113,7 @@ mutual
       {ObjectRef : Type} (schema : Schema)
       (variableValues : Execution.VariableValues)
       : ∀ (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selection : Selection),
+          (selection : Selection),
           Execution.collectSelection schema variableValues parentType
             (liftResolverValue source) selection
           = Execution.collectSelection schema variableValues parentType source selection
@@ -180,7 +180,7 @@ mutual
       {ObjectRef : Type} (schema : Schema)
       (variableValues : Execution.VariableValues)
       : ∀ (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selectionSet : List Selection),
+          (selectionSet : List Selection),
           Execution.collectFields schema variableValues parentType
             (liftResolverValue source) selectionSet
           = Execution.collectFields schema variableValues parentType source selectionSet
@@ -198,7 +198,7 @@ theorem collectSubfields_liftResolverValue
     {ObjectRef : Type} (schema : Schema)
     (variableValues : Execution.VariableValues)
     : ∀ (objectType : Name) (source : Execution.ResolverValue ObjectRef)
-          (fields : List Execution.ExecutableField),
+        (fields : List Execution.ExecutableField),
         Execution.collectSubfields schema variableValues objectType
           (liftResolverValue source) fields
         = Execution.collectSubfields schema variableValues objectType source fields
@@ -217,7 +217,7 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema (liftResolvers base)
             variableValues fuel (liftResolverValue source) fields
           = Execution.executeCollectedFields schema base variableValues fuel source fields
@@ -235,7 +235,7 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema (liftResolvers base) variableValues fuel
             (liftResolverValue source) responseName fields
           = Execution.executeField schema base variableValues fuel source
@@ -270,8 +270,8 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (value : Execution.ResolverValue ObjectRef),
+          (fields : List Execution.ExecutableField)
+          (value : Execution.ResolverValue ObjectRef),
           Execution.completeValue schema (liftResolvers base) variableValues
             fuel fieldType fields (liftResolverValue value)
           = Execution.completeValue schema base variableValues fuel fieldType fields value
@@ -347,8 +347,8 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       : ∀ (fuel : Nat) (itemType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (values : List (Execution.ResolverValue ObjectRef)),
+          (fields : List Execution.ExecutableField)
+          (values : List (Execution.ResolverValue ObjectRef)),
           Execution.completeValueList schema (liftResolvers base)
             variableValues fuel itemType fields (values.map liftResolverValue)
           = Execution.completeValueList schema base variableValues fuel itemType
@@ -459,7 +459,7 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (parentObjectFieldResolvers base targetParent targetField runtimeType ref)
             variableValues fuel (liftResolverValue source) fields
@@ -482,7 +482,7 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (parentObjectFieldResolvers base targetParent targetField runtimeType ref)
             variableValues fuel (liftResolverValue source) responseName fields
@@ -524,8 +524,8 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (value : Execution.ResolverValue ObjectRef),
+          (fields : List Execution.ExecutableField)
+          (value : Execution.ResolverValue ObjectRef),
           Execution.completeValue schema
             (parentObjectFieldResolvers base targetParent targetField runtimeType ref)
             variableValues fuel fieldType fields (liftResolverValue value)
@@ -598,8 +598,8 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       : ∀ (fuel : Nat) (itemType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (values : List (Execution.ResolverValue ObjectRef)),
+          (fields : List Execution.ExecutableField)
+          (values : List (Execution.ResolverValue ObjectRef)),
           Execution.completeValueList schema
             (parentObjectFieldResolvers base targetParent targetField runtimeType ref)
             variableValues fuel itemType fields (values.map liftResolverValue)

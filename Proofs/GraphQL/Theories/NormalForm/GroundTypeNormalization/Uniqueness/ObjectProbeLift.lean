@@ -87,7 +87,7 @@ mutual
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)
@@ -112,7 +112,7 @@ mutual
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)
@@ -156,8 +156,8 @@ mutual
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (value : Execution.ResolverValue ObjectRef),
+          (fields : List Execution.ExecutableField)
+          (value : Execution.ResolverValue ObjectRef),
           Execution.completeValue schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)
@@ -232,8 +232,8 @@ mutual
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
       : ∀ (fuel : Nat) (itemType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (values : List (Execution.ResolverValue ObjectRef)),
+          (fields : List Execution.ExecutableField)
+          (values : List (Execution.ResolverValue ObjectRef)),
           Execution.completeValueList schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)

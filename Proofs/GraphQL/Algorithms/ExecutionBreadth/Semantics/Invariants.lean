@@ -1419,7 +1419,7 @@ theorem materializeExpectedScheduleQueue_cons
 
 theorem expectedScheduleQueueDrainBudget_append (schema : Schema)
     : ∀ (materialized : MaterializedChildSelections)
-          (left right : ExpectedScheduleQueue ObjectRef),
+        (left right : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueDrainBudget schema materialized (left ++ right)
         = expectedScheduleQueueDrainBudget schema materialized left
           + expectedScheduleQueueDrainBudget schema
@@ -1514,7 +1514,7 @@ theorem expectedQueueItemUnmaterializedCreditWeight_mono
 
 theorem expectedScheduleQueueDrainBudget_mono (schema : Schema)
     : ∀ (queue : ExpectedScheduleQueue ObjectRef)
-          {newer older : MaterializedChildSelections},
+        {newer older : MaterializedChildSelections},
         materializedSelectionExtends newer older
         -> expectedScheduleQueueDrainBudget schema newer queue
             <= expectedScheduleQueueDrainBudget schema older queue
@@ -1604,7 +1604,7 @@ theorem expectedQueueItemOrderedBudget_le_shapeWeight
 
 theorem expectedScheduleQueueDrainBudget_le_shapeWeight (schema : Schema)
     : ∀ (materialized : MaterializedChildSelections)
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueDrainBudget schema materialized queue
         <= expectedScheduleQueueShapeWeight schema queue
   | _materialized, [] => by
@@ -2759,7 +2759,7 @@ theorem expectedScheduleQueueDrainBudget_enqueueExpectedSegments_ordered_le
     (schema : Schema) (materialized : MaterializedChildSelections)
     (key : ScheduleKey)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueDrainBudget schema materialized
           (enqueueExpectedSegments key segments queue)
         <= expectedScheduleQueueDrainBudget schema materialized queue
@@ -4483,9 +4483,9 @@ mutual
   theorem expectedPendingChildWorkForCompleteValue_selectionSet_mem
       (schema : Schema) (selectionSet : List Selection)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (value : ResolverValue ObjectRef)
-            (pending : ExpectedPendingChildWorkList ObjectRef)
-            (childWork : ExpectedPendingChildWork ObjectRef),
+          (value : ResolverValue ObjectRef)
+          (pending : ExpectedPendingChildWorkList ObjectRef)
+          (childWork : ExpectedPendingChildWork ObjectRef),
           childWork
             ∈ expectedPendingChildWorkForCompleteValue schema selectionSet
                 fuel fieldType value pending
@@ -4570,8 +4570,8 @@ mutual
       (schema : Schema) (selectionSet : List Selection) (fuel : Nat)
       (inner : TypeRef)
       : ∀ (values : List (ResolverValue ObjectRef))
-            (pending : ExpectedPendingChildWorkList ObjectRef)
-            (childWork : ExpectedPendingChildWork ObjectRef),
+          (pending : ExpectedPendingChildWorkList ObjectRef)
+          (childWork : ExpectedPendingChildWork ObjectRef),
           childWork
             ∈ expectedPendingChildWorkForCompleteValueList schema selectionSet
                 fuel inner values pending
@@ -4630,8 +4630,8 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForSources schema resolvers fieldKey
               selectionSet fieldType sources specFuels pending
@@ -4688,8 +4688,8 @@ theorem expectedPendingChildWorkForSegments_selectionSet_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ segments.foldl
               (fun pending segment =>
@@ -4816,9 +4816,9 @@ theorem expectedPendingChildWorkForItem_selectionSetShapeSet_mem
 theorem expectedPendingChildWorkForCompleteValue_runtimeType_includes
     (schema : Schema) (selectionSet : List Selection)
     : ∀ (fuel : Nat) (fieldType : TypeRef)
-          (value : ResolverValue ObjectRef)
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (value : ResolverValue ObjectRef)
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForCompleteValue schema selectionSet
               fuel fieldType value pending
@@ -4904,8 +4904,8 @@ theorem expectedPendingChildWorkForCompleteValueList_runtimeType_includes
     (schema : Schema) (selectionSet : List Selection) (fuel : Nat)
     (inner : TypeRef)
     : ∀ (values : List (ResolverValue ObjectRef))
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForCompleteValueList schema selectionSet
               fuel inner values pending
@@ -4966,8 +4966,8 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForSources schema resolvers fieldKey
               selectionSet fieldType sources specFuels pending
@@ -5027,8 +5027,8 @@ theorem expectedPendingChildWorkForSegments_runtimeType_includes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
-          (pending : ExpectedPendingChildWorkList ObjectRef)
-          (childWork : ExpectedPendingChildWork ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef)
+        (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ segments.foldl
               (fun pending segment =>
@@ -5109,7 +5109,7 @@ theorem expectedPendingChildWorkScopeBudgetReady_append
 theorem expectedPendingChildWorkForCompleteValue_scopeBudgetReady
     (schema : Schema) (selectionSet : List Selection)
     : ∀ (fuel : Nat) (fieldType : TypeRef) (value : ResolverValue ObjectRef)
-          (pending : ExpectedPendingChildWorkList ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef),
         specFuelValueBudget schema selectionSet fieldType fuel
         -> expectedPendingChildWorkScopeBudgetReady schema pending
         -> expectedPendingChildWorkScopeBudgetReady schema
@@ -5241,7 +5241,7 @@ theorem expectedPendingChildWorkForSources_scopeBudgetReady
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-          (pending : ExpectedPendingChildWorkList ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef),
         typeRefCompleteValueFuelBound fieldType <= schemaCompleteValueFuelBound schema
         -> (∀ fuel, fuel ∈ specFuels -> specFuelFieldBudget schema selectionSet fuel)
         -> expectedPendingChildWorkScopeBudgetReady schema pending
@@ -5303,7 +5303,7 @@ theorem expectedPendingChildWorkForSegments_scopeBudgetReady
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
-          (pending : ExpectedPendingChildWorkList ObjectRef),
+        (pending : ExpectedPendingChildWorkList ObjectRef),
         typeRefCompleteValueFuelBound fieldType <= schemaCompleteValueFuelBound schema
         -> (∀ segment,
               segment ∈ segments -> expectedQueueSegmentFieldBudgetReady schema segment)
@@ -5513,8 +5513,8 @@ theorem scheduleExpectedKeyedGroups_keysDistinct
 theorem scheduleExpectedKeyedGroups_preserve_contains_shape
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
     : ∀ (groups : List (ScheduleKey × List ExecutableField))
-          (queue : ExpectedScheduleQueue ObjectRef)
-          (shape : ScheduleFieldShape),
+        (queue : ExpectedScheduleQueue ObjectRef)
+        (shape : ScheduleFieldShape),
         expectedScheduleQueueContainsShape queue shape
         -> expectedScheduleQueueContainsShape
             (groups.foldl
@@ -5553,8 +5553,8 @@ theorem scheduleExpectedKeyedGroups_preserve_contains_shape
 theorem scheduleExpectedKeyedGroups_contains_group
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
     : ∀ (groups : List (ScheduleKey × List ExecutableField))
-          (queue : ExpectedScheduleQueue ObjectRef)
-          (group : ScheduleKey × List ExecutableField),
+        (queue : ExpectedScheduleQueue ObjectRef)
+        (group : ScheduleKey × List ExecutableField),
         group ∈ groups
         -> expectedScheduleQueueContainsShape
             (groups.foldl
@@ -5612,7 +5612,7 @@ theorem scheduleExpectedKeyedGroups_shapeWeight_le_of_contains
     (schema : Schema)
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
     : ∀ (groups : List (ScheduleKey × List ExecutableField))
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueKeysDistinct queue
         -> (∀ group,
               group ∈ groups
@@ -6575,8 +6575,8 @@ theorem scheduleExpectedPendingChildWork_fieldBudgetReady
 theorem scheduleExpectedPendingChildWork_shapeWeight_le_unseenShapeWeight
     (schema : Schema) (variableValues : VariableValues)
     : ∀ (work : ExpectedPendingChildWorkList ObjectRef)
-          (queue : ExpectedScheduleQueue ObjectRef)
-          (seen : List PendingScopeShape),
+        (queue : ExpectedScheduleQueue ObjectRef)
+        (seen : List PendingScopeShape),
         expectedScheduleQueueKeysDistinct queue
         -> expectedScheduleQueueContainsPendingScopeShapeList
             schema variableValues queue seen
@@ -6716,7 +6716,7 @@ theorem scheduleExpectedPendingChildWork_shapeWeight_le_shapeWeight
 theorem scheduleExpectedPendingChildWork_shapeWeight_le_pendingShapeWeight
     (schema : Schema) (variableValues : VariableValues)
     : ∀ (work : ExpectedPendingChildWorkList ObjectRef)
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueShapeWeight schema
           (scheduleExpectedPendingChildWork schema variableValues work queue).fst
         <= expectedScheduleQueueShapeWeight schema queue
@@ -7869,7 +7869,7 @@ theorem expectedQueueItemRuntimeStepBudget_appendSegment_le_of_shape_mem
 theorem expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     : ∀ (queue : ExpectedScheduleQueue ObjectRef)
-          (left right : MaterializedPendingScopes),
+        (left right : MaterializedPendingScopes),
         expectedScheduleQueueRuntimeDrainBudget schema resolvers left queue
         = expectedScheduleQueueRuntimeDrainBudget schema resolvers right queue
   | [], _left, _right => by
@@ -8196,8 +8196,8 @@ theorem expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegments_unseen_l
     (materialized : MaterializedPendingScopes)
     (key : ScheduleKey)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
-          (queue : ExpectedScheduleQueue ObjectRef)
-          (seen : List ScheduleFieldShape),
+        (queue : ExpectedScheduleQueue ObjectRef)
+        (seen : List ScheduleFieldShape),
         expectedScheduleQueueKeysDistinct queue
         -> expectedScheduleQueueContainsShapeList queue seen
         -> expectedScheduleQueueRuntimeDrainBudget schema resolvers materialized
@@ -8600,7 +8600,7 @@ theorem scheduleExpectedKeyedGroups_runtimeItemStepWeight_le_of_contains
     (schema : Schema)
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
     : ∀ (groups : List (ScheduleKey × List ExecutableField))
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueKeysDistinct queue
         -> (∀ group,
               group ∈ groups
@@ -8872,8 +8872,8 @@ theorem scheduleExpectedScope_runtimeItemStepWeight_le
 theorem scheduleExpectedPendingChildWork_runtimeItemStepWeight_le_unseenBreadthShapeWeight
     (schema : Schema) (variableValues : VariableValues)
     : ∀ (work : ExpectedPendingChildWorkList ObjectRef)
-          (queue : ExpectedScheduleQueue ObjectRef)
-          (seen : List PendingScopeShape),
+        (queue : ExpectedScheduleQueue ObjectRef)
+        (seen : List PendingScopeShape),
         expectedScheduleQueueKeysDistinct queue
         -> expectedScheduleQueueContainsPendingScopeShapeList
             schema variableValues queue seen
@@ -9015,7 +9015,7 @@ theorem scheduleExpectedPendingChildWork_runtimeItemStepWeight_le_breadthShapeWe
 theorem expectedScheduleQueueRuntimeDrainBudget_le_itemStepWeight
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     : ∀ (materialized : MaterializedPendingScopes)
-          (queue : ExpectedScheduleQueue ObjectRef),
+        (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueRuntimeDrainBudget schema resolvers materialized queue
         <= expectedScheduleQueueRuntimeItemStepWeight schema queue
   | _materialized, [] => by

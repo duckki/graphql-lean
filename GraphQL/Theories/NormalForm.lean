@@ -313,7 +313,7 @@ def operationDirectiveFree (operation : Operation) : Prop :=
 
 def operationsEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     Execution.executeQueryWithFuel schema resolvers variableValues left fuel source
     = Execution.executeQueryWithFuel schema resolvers variableValues right fuel source
 
@@ -552,7 +552,7 @@ def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
 -- where fields can be reordered in the response values.
 def operationsSemanticallyEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     Execution.Response.semanticEquivalent
       (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
       (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)
@@ -1217,7 +1217,7 @@ def operationsSemanticallyEquivalentForCompleteBoolVars
     (left right : Operation)
     : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     boolVarsComplete variables variableValues
     -> Execution.Response.semanticEquivalent
         (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)

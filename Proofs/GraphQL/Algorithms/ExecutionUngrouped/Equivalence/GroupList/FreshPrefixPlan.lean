@@ -337,7 +337,7 @@ theorem collectedExecutableFields_singletonExecutableGroups
 
 theorem singletonExecutableGroups_mem_cons
     : ∀ {fields : List ExecutableField} {responseName : Name}
-          {field : ExecutableField} {fieldsTail : List ExecutableField},
+        {field : ExecutableField} {fieldsTail : List ExecutableField},
         (responseName, field :: fieldsTail) ∈ singletonExecutableGroups fields
         -> field ∈ fields ∧ fieldsTail = []
   | [], _responseName, _field, _fieldsTail, hmem => by

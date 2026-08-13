@@ -615,8 +615,8 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues)
       : ∀ (depth : Nat) (fieldType : TypeRef)
-            (fields otherFields : List ExecutableField)
-            (resolved : ResolverValue ObjectIdentity),
+          (fields otherFields : List ExecutableField)
+          (resolved : ResolverValue ObjectIdentity),
           fieldType.isCompositeBool schema = false
           -> GraphQL.Execution.completeValue schema resolvers variableValues
                 depth fieldType fields resolved
@@ -686,8 +686,8 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues)
       : ∀ (depth : Nat) (itemType : TypeRef)
-            (fields otherFields : List ExecutableField)
-            (values : List (ResolverValue ObjectIdentity)),
+          (fields otherFields : List ExecutableField)
+          (values : List (ResolverValue ObjectIdentity)),
           itemType.isCompositeBool schema = false
           -> GraphQL.Execution.completeValueList schema resolvers variableValues
                 depth itemType fields values

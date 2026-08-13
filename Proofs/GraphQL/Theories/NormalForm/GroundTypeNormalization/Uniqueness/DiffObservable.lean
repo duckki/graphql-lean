@@ -60,7 +60,7 @@ def selectionSetDeepHeadPromotionPreservesRuntime
     (parentType : Name) (selectionSet : List Selection)
     : Prop :=
   ∀ abstractTargetParent abstractTargetField targetArguments
-      targetRuntimeType targetFieldDefinition,
+    targetRuntimeType targetFieldDefinition,
     schema.lookupField abstractTargetParent abstractTargetField
       = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema

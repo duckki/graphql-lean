@@ -48,7 +48,7 @@ structure FieldGroupAppendInvariant
             }
   absorbs
     : ∀ (prefixFields : List ExecutableField) (later : ExecutableField)
-          childDepth runtimeType identity,
+        childDepth runtimeType identity,
         childDepth < depth
         -> ResponseAbsorbs
             (visitSubfields schema resolvers variableValues childDepth
@@ -63,7 +63,7 @@ structure FieldGroupAppendInvariant
                 (.object [])))
   errorNeutral
     : ∀ (prefixFields : List ExecutableField) (later : ExecutableField)
-          childDepth runtimeType identity,
+        childDepth runtimeType identity,
         childDepth < depth
         -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
             runtimeType (.object runtimeType identity) later.selectionSet

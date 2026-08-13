@@ -60,7 +60,7 @@ def NormalSelectionSetPairedPathDataDiff
     SelectedFieldSpineRuntimeValid schema leftParentType leftRuntimeType leftSpine
     ∧ SelectedFieldSpineRuntimeValid schema rightParentType rightRuntimeType rightSpine
     ∧ ∀ leftInitialSelectionSet rightInitialSelectionSet
-          leftInitialSpine rightInitialSpine leftRuntime rightRuntime,
+        leftInitialSpine rightInitialSpine leftRuntime rightRuntime,
         NormalSelectionSetPairedPathDataDiffAt schema rootSelectionSet
           leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
           rightInitialSpine variableValues leftFuel rightFuel leftParentType

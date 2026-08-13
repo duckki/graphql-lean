@@ -54,7 +54,7 @@ theorem collectedResponseSelectionSet_collectFields_allFields_topNoDirectives
     : ∀ selectionSet,
         selectionsAllFields selectionSet
         -> (∀ candidateResponseName candidateFieldName candidateArguments
-                candidateDirectives candidateSubselections,
+              candidateDirectives candidateSubselections,
               Selection.field candidateResponseName candidateFieldName
                   candidateArguments candidateDirectives candidateSubselections
                 ∈ selectionSet
@@ -127,7 +127,7 @@ theorem
       selectionsAllFields
         (Selection.field responseName fieldName arguments [] subselections :: rest)
       -> (∀ candidateResponseName candidateFieldName candidateArguments
-              candidateDirectives candidateSubselections,
+            candidateDirectives candidateSubselections,
             Selection.field candidateResponseName candidateFieldName
                 candidateArguments candidateDirectives candidateSubselections
               ∈ (Selection.field responseName fieldName arguments [] subselections

@@ -233,7 +233,7 @@ mutual
       (variableValues : Execution.VariableValues)
       (wrap : ObjectRef -> ProjectionResolverRef ObjectRef)
       : ∀ (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selection : Selection),
+          (selection : Selection),
           Execution.collectSelection schema variableValues parentType
             (projectionResolverValue wrap source) selection
           = Execution.collectSelection schema variableValues parentType source selection
@@ -305,7 +305,7 @@ mutual
       (variableValues : Execution.VariableValues)
       (wrap : ObjectRef -> ProjectionResolverRef ObjectRef)
       : ∀ (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selectionSet : List Selection),
+          (selectionSet : List Selection),
           Execution.collectFields schema variableValues parentType
             (projectionResolverValue wrap source) selectionSet
           = Execution.collectFields schema variableValues parentType source selectionSet
@@ -323,7 +323,7 @@ mutual
       (variableValues : Execution.VariableValues)
       (wrap : ObjectRef -> ProjectionResolverRef ObjectRef)
       : ∀ (objectType : Name) (source : Execution.ResolverValue ObjectRef)
-            (fields : List Execution.ExecutableField),
+          (fields : List Execution.ExecutableField),
           Execution.collectSubfields schema variableValues objectType
             (projectionResolverValue wrap source) fields
           = Execution.collectSubfields schema variableValues objectType source fields
@@ -640,7 +640,7 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (runtimeType : Name)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -674,7 +674,7 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (runtimeType responseName : Name)
-            (fields : List Execution.ExecutableField),
+          (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -721,8 +721,8 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (parentType fieldName : Name),
+          (fields : List Execution.ExecutableField)
+          (parentType fieldName : Name),
           Execution.completeValue schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -904,7 +904,7 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (fields : List (Name × List Execution.ExecutableField)),
+          (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -930,7 +930,7 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -977,8 +977,8 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (value : Execution.ResolverValue ObjectRef),
+          (fields : List Execution.ExecutableField)
+          (value : Execution.ResolverValue ObjectRef),
           Execution.completeValue schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)
@@ -1083,8 +1083,8 @@ mutual
       (targetParent leftField rightField : Name)
       (leftArguments rightArguments : List Argument)
       : ∀ (fuel : Nat) (itemType : TypeRef)
-            (fields : List Execution.ExecutableField)
-            (values : List (Execution.ResolverValue ObjectRef)),
+          (fields : List Execution.ExecutableField)
+          (values : List (Execution.ResolverValue ObjectRef)),
           Execution.completeValueList schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
               targetParent leftField rightField leftArguments rightArguments)

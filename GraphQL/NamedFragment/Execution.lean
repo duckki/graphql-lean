@@ -342,13 +342,13 @@ namespace Semantics
 
 def operationsEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     Execution.executeQueryWithFuel schema resolvers variableValues left fuel source
     = Execution.executeQueryWithFuel schema resolvers variableValues right fuel source
 
 def operationsSemanticallyEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-      variableValues fuel (source : Execution.ResolverValue ObjectRef),
+    variableValues fuel (source : Execution.ResolverValue ObjectRef),
     GraphQL.Execution.Response.semanticEquivalent
       (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
       (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)

@@ -556,8 +556,8 @@ theorem collectSubfields_firstOccurrences
 mutual
   theorem executeCollectedFields_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
-            (variableValues : VariableValues) (fuel : Nat)
-            (source : ResolverValue ObjectRef) (left right),
+          (variableValues : VariableValues) (fuel : Nat)
+          (source : ResolverValue ObjectRef) (left right),
           GroupFirstOccurrences left right
           -> executeCollectedFields schema resolvers variableValues fuel source left
               = executeCollectedFields schema resolvers variableValues fuel source right
@@ -578,9 +578,9 @@ mutual
 
   theorem executeField_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
-            (variableValues : VariableValues) (fuel : Nat)
-            (source : ResolverValue ObjectRef) (responseName : Name)
-            {left right : List ExecutableField},
+          (variableValues : VariableValues) (fuel : Nat)
+          (source : ResolverValue ObjectRef) (responseName : Name)
+          {left right : List ExecutableField},
           FirstOccurrences [] left right
           -> executeField schema resolvers variableValues fuel source responseName left
               = executeField schema resolvers variableValues fuel source responseName
@@ -611,8 +611,8 @@ mutual
 
   theorem completeValue_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
-            (variableValues : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-            (value : ResolverValue ObjectRef) {left right : List ExecutableField},
+          (variableValues : VariableValues) (fuel : Nat) (fieldType : TypeRef)
+          (value : ResolverValue ObjectRef) {left right : List ExecutableField},
           FirstOccurrences [] left right
           -> completeValue schema resolvers variableValues fuel fieldType left value
               = completeValue schema resolvers variableValues fuel fieldType right value
@@ -667,8 +667,8 @@ mutual
 
   theorem completeValueList_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
-            (variableValues : VariableValues) (fuel : Nat) (itemType : TypeRef)
-            (values : List (ResolverValue ObjectRef)) {left right : List ExecutableField},
+          (variableValues : VariableValues) (fuel : Nat) (itemType : TypeRef)
+          (values : List (ResolverValue ObjectRef)) {left right : List ExecutableField},
           FirstOccurrences [] left right
           -> completeValueList schema resolvers variableValues fuel itemType left values
               = completeValueList schema resolvers variableValues fuel itemType right

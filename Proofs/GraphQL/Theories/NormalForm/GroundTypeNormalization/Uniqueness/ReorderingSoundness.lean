@@ -721,13 +721,13 @@ theorem executeCollectedFields_equivalent_of_perm
 
 def CompleteValueSoundAtFuel (fuel : Nat) : Prop :=
   ∀ {ObjectRef : Type}
-      (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues)
-      (executionParentType responseName fieldName : Name)
-      (leftArguments rightArguments : List Argument)
-      (leftChild rightChild : List Selection)
-      (normalChildParentType : Name)
-      (fieldType : TypeRef) (value : ResolverValue ObjectRef),
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues)
+    (executionParentType responseName fieldName : Name)
+    (leftArguments rightArguments : List Argument)
+    (leftChild rightChild : List Selection)
+    (normalChildParentType : Name)
+    (fieldType : TypeRef) (value : ResolverValue ObjectRef),
     Argument.argumentsEquivalent leftArguments rightArguments
     -> selectionSetDirectiveFree leftChild
     -> selectionSetDirectiveFree rightChild
@@ -754,10 +754,10 @@ def CompleteValueSoundAtFuel (fuel : Nat) : Prop :=
 
 def SelectionSetSoundAtFuel (fuel : Nat) : Prop :=
   ∀ {ObjectRef : Type}
-      (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues)
-      (normalParentType executionParentType runtimeType : Name)
-      (ref : ObjectRef) (left right : List Selection),
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues)
+    (normalParentType executionParentType runtimeType : Name)
+    (ref : ObjectRef) (left right : List Selection),
     selectionSetDirectiveFree left
     -> selectionSetDirectiveFree right
     -> selectionSetNormal schema normalParentType left
@@ -774,12 +774,12 @@ def SelectionSetSoundAtFuel (fuel : Nat) : Prop :=
 
 def SingletonFieldSoundAtFuel (fuel : Nat) : Prop :=
   ∀ {ObjectRef : Type}
-      (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (source : ResolverValue ObjectRef)
-      (responseName executionParentType fieldName : Name)
-      (leftArguments rightArguments : List Argument)
-      (leftChild rightChild : List Selection)
-      (normalChildParentType : Name),
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (source : ResolverValue ObjectRef)
+    (responseName executionParentType fieldName : Name)
+    (leftArguments rightArguments : List Argument)
+    (leftChild rightChild : List Selection)
+    (normalChildParentType : Name),
     Argument.argumentsEquivalent leftArguments rightArguments
     -> selectionSetDirectiveFree leftChild
     -> selectionSetDirectiveFree rightChild

@@ -101,7 +101,7 @@ theorem zeroDepthResponseNameResult_of_lookup_none
 
 theorem zeroDepthExecutableFieldsResult_same_response_of_lookup_some (responseName : Name)
     : ∀ (fields : List ExecutableField)
-          (outputFields : List (Name × ResponseValue)) (existing : ResponseValue),
+        (outputFields : List (Name × ResponseValue)) (existing : ResponseValue),
         (∀ field, field ∈ fields -> field.responseName = responseName)
         -> ResponseMergeReady (.object outputFields)
         -> lookupResponseField? responseName outputFields = some existing
@@ -281,7 +281,7 @@ theorem zeroDepthResponseNameResult_preserves_lookup_null_or_none
 
 theorem zeroDepthExecutableGroupsResult_preserves_lookup_null_or_none (target : Name)
     : ∀ (groups : List (Name × List ExecutableField))
-          (fields : List (Name × ResponseValue)),
+        (fields : List (Name × ResponseValue)),
         lookupResponseField? target fields = none
           ∨ lookupResponseField? target fields = some .null
         -> ∃ outputFields,
@@ -341,7 +341,7 @@ theorem zeroDepthResponseNameResult_preserves_lookup_null
 
 theorem zeroDepthExecutableGroupsResult_preserves_lookup_null (target : Name)
     : ∀ (groups : List (Name × List ExecutableField))
-          (fields : List (Name × ResponseValue)),
+        (fields : List (Name × ResponseValue)),
         lookupResponseField? target fields = some .null
         -> ∃ outputFields,
             (zeroDepthExecutableGroupsResult groups fields).fst = .object outputFields
@@ -368,7 +368,7 @@ theorem zeroDepthExecutableGroupsResult_preserves_lookup_null (target : Name)
 
 theorem zeroDepthExecutableGroupsResult_key_mem_lookup_null (target : Name)
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         PairKeysNodup groups
         -> ZeroDepthGroupsNullCompatible groups outputFields
         -> target ∈ groups.map Prod.fst
@@ -673,7 +673,7 @@ theorem zeroDepthExecutableFieldsResult_collectedExecutableFields_eq_groups_fres
 
 theorem zeroDepthExecutableGroupsResult_status_fresh
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         PairKeysNodup groups
         -> (∀ responseName fields,
               (responseName, fields) ∈ groups -> responseName ∉ outputFields.map Prod.fst)
@@ -752,7 +752,7 @@ theorem zeroDepthResponseNameResult_preserves_lookup_some
 
 theorem zeroDepthExecutableGroupsResult_preserves_lookup_some (target : Name)
     : ∀ (groups : List (Name × List ExecutableField))
-          (fields : List (Name × ResponseValue)) (existing : ResponseValue),
+        (fields : List (Name × ResponseValue)) (existing : ResponseValue),
         ResponseMergeReady (.object fields)
         -> lookupResponseField? target fields = some existing
         -> ∃ outputFields,
@@ -783,7 +783,7 @@ theorem zeroDepthExecutableGroupsResult_preserves_lookup_some (target : Name)
 
 theorem zeroDepthExecutableGroupsResult_append
     : ∀ (left right : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         zeroDepthExecutableGroupsResult (left ++ right) outputFields
         = let leftResult := zeroDepthExecutableGroupsResult left outputFields
           let rightFields :=
@@ -802,7 +802,7 @@ theorem zeroDepthExecutableGroupsResult_append
 
 theorem zeroDepthExecutableGroupsResult_preserves_object
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         ∃ resultFields,
           (zeroDepthExecutableGroupsResult groups outputFields).fst = .object resultFields
   | [], outputFields => by
@@ -849,7 +849,7 @@ theorem zeroDepthResponseNameResult_preserves_object_ready
 
 theorem zeroDepthExecutableGroupsResult_preserves_object_ready
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         ResponseMergeReady (.object outputFields)
         -> ∃ resultFields,
             (zeroDepthExecutableGroupsResult groups outputFields).fst
@@ -875,7 +875,7 @@ theorem zeroDepthExecutableGroupsResult_preserves_object_ready
 
 theorem zeroDepthExecutableGroupsResult_key_mem_lookup_some (target : Name)
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         ResponseMergeReady (.object outputFields)
         -> target ∈ groups.map Prod.fst
         -> ∃ resultFields existing,
@@ -982,7 +982,7 @@ theorem zeroDepthExecutableGroupsResult_append_existing_key
 theorem zeroDepthExecutableGroupsResult_addExecutableGroup_eq_append
     (group : Name × List ExecutableField)
     : ∀ (groups : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         ResponseMergeReady (.object outputFields)
         -> zeroDepthExecutableGroupsResult
               (GraphQL.Execution.addExecutableGroup group groups) outputFields
@@ -1032,7 +1032,7 @@ theorem zeroDepthExecutableGroupsResult_addExecutableGroup_append_eq
 
 theorem zeroDepthExecutableGroupsResult_mergeExecutableGroups_eq_append
     : ∀ (left right : List (Name × List ExecutableField))
-          (outputFields : List (Name × ResponseValue)),
+        (outputFields : List (Name × ResponseValue)),
         ResponseMergeReady (.object outputFields)
         -> zeroDepthExecutableGroupsResult
               (GraphQL.Execution.mergeExecutableGroups left right) outputFields

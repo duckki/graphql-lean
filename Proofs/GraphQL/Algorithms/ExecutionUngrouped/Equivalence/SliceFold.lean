@@ -423,7 +423,7 @@ theorem visitFieldSliceFoldResult_snd_eq_of_object_lookups
     (variableValues : VariableValues)
     (selectionDepth : Nat) (source : ResolverValue ObjectIdentity)
     : ∀ (fields : List ExecutableField)
-          (leftFields rightFields : List (Name × ResponseValue)),
+        (leftFields rightFields : List (Name × ResponseValue)),
         (∀ field,
           field ∈ fields
           -> responseObjectField? field.responseName (.object leftFields)
@@ -491,7 +491,7 @@ theorem responseObjectField?_visitFieldSliceFoldResult_object_fst_eq_of_object_l
     (selectionDepth : Nat) (source : ResolverValue ObjectIdentity)
     (target : Name)
     : ∀ (fields : List ExecutableField)
-          (leftFields rightFields : List (Name × ResponseValue)),
+        (leftFields rightFields : List (Name × ResponseValue)),
         responseObjectField? target (.object leftFields)
           = responseObjectField? target (.object rightFields)
         -> (∀ field,
@@ -1340,7 +1340,7 @@ theorem completeValue_null_resultValueOrNull
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues)
     : ∀ (fieldType : TypeRef) (completionDepth : Nat)
-          (selectionSet : List Selection) (previous? : Option ResponseValue),
+        (selectionSet : List Selection) (previous? : Option ResponseValue),
         resultValueOrNull
           (completeValue schema resolvers variableValues completionDepth
             fieldType selectionSet (.null : ResolverValue ObjectIdentity)
@@ -1422,7 +1422,7 @@ theorem completeValue_scalar_object_empty_resultValueOrNull
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues)
     : ∀ (fieldType : TypeRef) (completionDepth : Nat)
-          (selectionSet : List Selection) (value : String),
+        (selectionSet : List Selection) (value : String),
         resultValueOrNull
             (completeValue schema resolvers variableValues completionDepth
               fieldType selectionSet (.scalar value : ResolverValue ObjectIdentity)

@@ -624,8 +624,8 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true
@@ -944,8 +944,8 @@ theorem object_child_split_context_ok_of_fieldsExecuteOk
                 :: rightSuffix)
       -> objectTypeNameBool schema parentType = true
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true
@@ -1907,8 +1907,8 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true

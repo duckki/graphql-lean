@@ -17,7 +17,7 @@ namespace GroundTypeNormalization
 def PathLocalCurrentRuntimeSound (schema : Schema) (current : Name × List Selection)
     : Prop :=
   ∀ targetParent targetField runtimeType targetArguments
-      (targetFieldDefinition : FieldDefinition),
+    (targetFieldDefinition : FieldDefinition),
     schema.lookupField targetParent targetField = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
         = true
@@ -33,7 +33,7 @@ def PathLocalSelectionSetHeadReady (schema : Schema)
     (parentType : Name) (currentSelectionSet selectionSet : List Selection)
     : Prop :=
   ∀ responseName fieldName arguments directives childSelectionSet
-      (fieldDefinition : FieldDefinition),
+    (fieldDefinition : FieldDefinition),
     Selection.field responseName fieldName arguments directives childSelectionSet
       ∈ selectionSet
     -> schema.lookupField parentType fieldName = some fieldDefinition

@@ -424,7 +424,7 @@ end
 
 theorem FieldCacheSourcesAligned.toPrefixAligned {ObjectRef : Type}
     : ∀ {sources : List (ResolverValue ObjectRef)}
-          {values : List (FieldCacheValue ObjectRef)},
+        {values : List (FieldCacheValue ObjectRef)},
         FieldCacheSourcesAligned sources values
         -> FieldCacheSourcesPrefixAligned sources values
   | [], [], FieldCacheSourcesAligned.nil =>
@@ -1039,7 +1039,7 @@ mutual
 
   theorem FieldCacheFieldsAbsorptionShape.to_merge {ObjectRef : Type}
       : ∀ (source : ResolverValue ObjectRef)
-            {base output : List (Name × FieldCacheValue ObjectRef)},
+          {base output : List (Name × FieldCacheValue ObjectRef)},
           FieldCacheFieldsAbsorptionShape source base output
           -> mergeResponseFields base output = output
     | source, _base, output, hshape => by
@@ -1069,7 +1069,7 @@ mutual
 
   theorem FieldCacheListAbsorptionShape.to_merge {ObjectRef : Type}
       : ∀ (sourceValues? : Option (List (ResolverValue ObjectRef)))
-            {base output : List (FieldCacheValue ObjectRef)},
+          {base output : List (FieldCacheValue ObjectRef)},
           FieldCacheListAbsorptionShape sourceValues? base output
           -> mergeResponseLists base output = output
     | _sourceValues, [], [], FieldCacheListAbsorptionShape.nil => by
@@ -1465,8 +1465,8 @@ mutual
 
   theorem FieldCacheSourcesAligned.of_listAbsorptionShape {ObjectRef : Type}
       : ∀ {sourceValues? : Option (List (ResolverValue ObjectRef))}
-            {sourceValues : List (ResolverValue ObjectRef)}
-            {base output : List (FieldCacheValue ObjectRef)},
+          {sourceValues : List (ResolverValue ObjectRef)}
+          {base output : List (FieldCacheValue ObjectRef)},
           FieldCacheSourcesAligned sourceValues base
           -> FieldCacheListAbsorptionShape sourceValues? base output
           -> FieldCacheSourcesAligned sourceValues output

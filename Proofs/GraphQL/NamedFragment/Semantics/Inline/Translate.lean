@@ -158,9 +158,9 @@ theorem mergeExecutableGroups_inlined
 mutual
   theorem collectSelection_toSpec_of_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (visitedFragments : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selection : Selection),
+          (fragments : List FragmentDefinition) (visitedFragments : List Name)
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selection : Selection),
           selectionInlined selection
           ->  let collected :=
                 Execution.collectSelection schema variableValues fragments
@@ -217,9 +217,9 @@ mutual
 
   theorem collectFields_toSpec_of_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (visitedFragments : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selectionSet : List Selection),
+          (fragments : List FragmentDefinition) (visitedFragments : List Name)
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selectionSet : List Selection),
           selectionSetInlined selectionSet
           ->  let collected :=
                 Execution.collectFields schema variableValues fragments
@@ -256,9 +256,9 @@ end
 mutual
   theorem collectSelection_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (visitedFragments : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selection : Selection),
+          (fragments : List FragmentDefinition) (visitedFragments : List Name)
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selection : Selection),
           selectionInlined selection
           -> executableGroupsInlined
               (Execution.collectSelection schema variableValues fragments
@@ -306,9 +306,9 @@ mutual
 
   theorem collectFields_inlined
       : ∀ (schema : Schema) (variableValues : Execution.VariableValues)
-            (fragments : List FragmentDefinition) (visitedFragments : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selectionSet : List Selection),
+          (fragments : List FragmentDefinition) (visitedFragments : List Name)
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selectionSet : List Selection),
           selectionSetInlined selectionSet
           -> executableGroupsInlined
               (Execution.collectFields schema variableValues fragments

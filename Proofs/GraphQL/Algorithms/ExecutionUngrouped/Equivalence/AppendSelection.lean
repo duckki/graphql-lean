@@ -24,7 +24,7 @@ theorem completeResolvedValue_none_eq_completeValue
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     : ∀ (fieldType : TypeRef) (selectionSet : List Selection)
-          (value : ResolverValue ObjectIdentity),
+        (value : ResolverValue ObjectIdentity),
         completeResolvedValue schema resolvers variableValues depth fieldType
           selectionSet value none
         = completeValue schema resolvers variableValues depth fieldType
@@ -858,7 +858,7 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues)
       : ∀ (depth : Nat) (fieldType : TypeRef) (fields : List ExecutableField)
-            (value : ResolverValue ObjectIdentity),
+          (value : ResolverValue ObjectIdentity),
           ResponseMergeReady
             (GraphQL.Execution.completeValueData schema resolvers variableValues
               depth fieldType fields value)
@@ -1007,9 +1007,9 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues)
       : ∀ (depth : Nat) (fieldType : TypeRef)
-            (fields : List ExecutableField)
-            (values : List (ResolverValue ObjectIdentity))
-            (completedValues : List ResponseValue) (errors : Nat),
+          (fields : List ExecutableField)
+          (values : List (ResolverValue ObjectIdentity))
+          (completedValues : List ResponseValue) (errors : Nat),
           GraphQL.Execution.completeValueList schema resolvers variableValues
               depth fieldType fields values
             = .ok (completedValues, errors)

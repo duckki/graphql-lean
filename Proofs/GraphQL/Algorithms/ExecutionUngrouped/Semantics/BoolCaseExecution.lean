@@ -92,7 +92,7 @@ theorem foldlCompleteValues_no_previous_eq_map
         -> Execution.ResponseValue
         -> Execution.ResponseValue)
     : ∀ (values : List (Execution.ResolverValue ObjectRef))
-          (acc : List Execution.ResponseValue),
+        (acc : List Execution.ResponseValue),
         ((values.foldl
             (fun (state : List Execution.ResponseValue × List Execution.ResponseValue)
                 value =>
@@ -1301,7 +1301,7 @@ mutual
         : NormalForm.CompleteNormalization.variableValuesAgreeWithCase
             variableValues boolCase (NormalForm.operationBoolVars operation))
       : ∀ depth parentType selectionSet (value : Execution.ResolverValue ObjectRef)
-            previous,
+          previous,
           (∀ varName,
             varName ∈ NormalForm.selectionSetBooleanVariables selectionSet
             -> varName ∈ NormalForm.selectionSetBooleanVariables operation.selectionSet)
@@ -1703,7 +1703,7 @@ mutual
         : NormalForm.CompleteNormalization.variableValuesAgreeWithCase
             variableValues boolCase (NormalForm.operationBoolVars operation))
       : ∀ depth parentType (source : Execution.ResolverValue ObjectRef) selectionSet
-            output,
+          output,
           (∀ varName,
             varName ∈ NormalForm.selectionSetBooleanVariables selectionSet
             -> varName ∈ NormalForm.selectionSetBooleanVariables operation.selectionSet)

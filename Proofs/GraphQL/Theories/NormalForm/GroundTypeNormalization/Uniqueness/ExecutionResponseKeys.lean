@@ -106,8 +106,8 @@ theorem executeCollectedFields_ok_keys
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
     : ∀ (groups : List (Name × List Execution.ExecutableField))
-          (outputFields : List (Name × Execution.ResponseValue))
-          (errors : Nat),
+        (outputFields : List (Name × Execution.ResponseValue))
+        (errors : Nat),
         Execution.executeCollectedFields schema resolvers variableValues fuel
             source groups
           = .ok (outputFields, errors)

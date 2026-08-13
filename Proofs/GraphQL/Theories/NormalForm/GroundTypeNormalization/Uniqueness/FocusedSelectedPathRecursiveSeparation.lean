@@ -224,9 +224,9 @@ theorem
       -> NormalSelectionSetObservableResponsePath schema leftParentType left
           [responseName]
       -> (∀ {rightFieldName : Name} {rightArguments : List Argument}
-              {rightDirectives : List DirectiveApplication}
-              {rightChildSelectionSet : List Selection}
-              {rightFieldDefinition : FieldDefinition},
+            {rightDirectives : List DirectiveApplication}
+            {rightChildSelectionSet : List Selection}
+            {rightFieldDefinition : FieldDefinition},
             Selection.field responseName rightFieldName rightArguments
                 rightDirectives rightChildSelectionSet
               ∈ right
@@ -1028,9 +1028,9 @@ theorem
       -> PathLocalSelectionSetCurrentContext right rightCurrentSelectionSet
       -> NormalSelectionSetObservableResponsePath schema parentType left [responseName]
       -> (∀ {rightFieldName : Name} {rightArguments : List Argument}
-              {rightDirectives : List DirectiveApplication}
-              {rightChildSelectionSet : List Selection}
-              {rightFieldDefinition : FieldDefinition},
+            {rightDirectives : List DirectiveApplication}
+            {rightChildSelectionSet : List Selection}
+            {rightFieldDefinition : FieldDefinition},
             Selection.field responseName rightFieldName rightArguments
                 rightDirectives rightChildSelectionSet
               ∈ right
@@ -2529,9 +2529,9 @@ theorem
       -> NormalSelectionSetObservableResponsePath schema rightParentType right
           [responseName]
       -> (∀ {leftFieldName : Name} {leftArguments : List Argument}
-              {leftDirectives : List DirectiveApplication}
-              {leftChildSelectionSet : List Selection}
-              {leftFieldDefinition : FieldDefinition},
+            {leftDirectives : List DirectiveApplication}
+            {leftChildSelectionSet : List Selection}
+            {leftFieldDefinition : FieldDefinition},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left
@@ -3081,9 +3081,9 @@ theorem
       -> PathLocalSelectionSetCurrentContext right rightCurrentSelectionSet
       -> NormalSelectionSetObservableResponsePath schema parentType right [responseName]
       -> (∀ {leftFieldName : Name} {leftArguments : List Argument}
-              {leftDirectives : List DirectiveApplication}
-              {leftChildSelectionSet : List Selection}
-              {leftFieldDefinition : FieldDefinition},
+            {leftDirectives : List DirectiveApplication}
+            {leftChildSelectionSet : List Selection}
+            {leftFieldDefinition : FieldDefinition},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left

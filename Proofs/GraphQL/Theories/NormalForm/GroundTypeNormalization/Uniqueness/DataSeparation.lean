@@ -2795,8 +2795,8 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
       -> objectTypeNameBool schema parentType = true
       -> objectTypeNameBool schema returnType = true
       -> (∀ {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
-              (variableValues : Execution.VariableValues) (fuel : Nat)
-              (childRuntimeType : Name) (ref : ObjectRef),
+            (variableValues : Execution.VariableValues) (fuel : Nat)
+            (childRuntimeType : Name) (ref : ObjectRef),
             schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 childRuntimeType
               = true

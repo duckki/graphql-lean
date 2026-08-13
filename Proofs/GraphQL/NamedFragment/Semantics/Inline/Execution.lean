@@ -13,9 +13,9 @@ variable {ObjectRef : Type}
 mutual
   theorem executeCollectedFields_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues) (fuel : Nat)
-            (source : Execution.ResolverValue ObjectRef)
-            (groups : List (Name × List Execution.ExecutableField)),
+          (variableValues : Execution.VariableValues) (fuel : Nat)
+          (source : Execution.ResolverValue ObjectRef)
+          (groups : List (Name × List Execution.ExecutableField)),
           executableGroupsInlined groups
           -> Execution.executeCollectedFields schema resolvers variableValues fuel
                 source groups
@@ -43,9 +43,9 @@ mutual
 
   theorem executeField_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues) (fuel : Nat)
-            (source : Execution.ResolverValue ObjectRef)
-            (responseName : Name) (fields : List Execution.ExecutableField),
+          (variableValues : Execution.VariableValues) (fuel : Nat)
+          (source : Execution.ResolverValue ObjectRef)
+          (responseName : Name) (fields : List Execution.ExecutableField),
           executableFieldsInlined fields
           -> Execution.executeField schema resolvers variableValues fuel source
                 responseName fields
@@ -82,9 +82,9 @@ mutual
 
   theorem completeValue_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues) (fuel : Nat)
-            (fieldType : TypeRef) (fields : List Execution.ExecutableField)
-            (value : Execution.ResolverValue ObjectRef),
+          (variableValues : Execution.VariableValues) (fuel : Nat)
+          (fieldType : TypeRef) (fields : List Execution.ExecutableField)
+          (value : Execution.ResolverValue ObjectRef),
           executableFieldsInlined fields
           -> Execution.completeValue schema resolvers variableValues fuel
                 fieldType fields value
@@ -149,9 +149,9 @@ mutual
 
   theorem completeValueList_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues) (fuel : Nat)
-            (itemType : TypeRef) (fields : List Execution.ExecutableField)
-            (values : List (Execution.ResolverValue ObjectRef)),
+          (variableValues : Execution.VariableValues) (fuel : Nat)
+          (itemType : TypeRef) (fields : List Execution.ExecutableField)
+          (values : List (Execution.ResolverValue ObjectRef)),
           executableFieldsInlined fields
           -> Execution.completeValueList schema resolvers variableValues fuel
                 itemType fields values
@@ -182,9 +182,9 @@ end
 mutual
   theorem executeCollectedFields_toExpandedSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues)
-            (variableDefinitions : List VariableDefinition)
-            (original : List FragmentDefinition),
+          (variableValues : Execution.VariableValues)
+          (variableDefinitions : List VariableDefinition)
+          (original : List FragmentDefinition),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique original
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
@@ -230,9 +230,9 @@ mutual
 
   theorem executeField_toExpandedSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues)
-            (variableDefinitions : List VariableDefinition)
-            (original : List FragmentDefinition),
+          (variableValues : Execution.VariableValues)
+          (variableDefinitions : List VariableDefinition)
+          (original : List FragmentDefinition),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique original
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
@@ -280,9 +280,9 @@ mutual
 
   theorem completeValue_toExpandedSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues)
-            (variableDefinitions : List VariableDefinition)
-            (original : List FragmentDefinition),
+          (variableValues : Execution.VariableValues)
+          (variableDefinitions : List VariableDefinition)
+          (original : List FragmentDefinition),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique original
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
@@ -372,9 +372,9 @@ mutual
 
   theorem completeValueList_toExpandedSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
-            (variableValues : Execution.VariableValues)
-            (variableDefinitions : List VariableDefinition)
-            (original : List FragmentDefinition),
+          (variableValues : Execution.VariableValues)
+          (variableDefinitions : List VariableDefinition)
+          (original : List FragmentDefinition),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique original
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema

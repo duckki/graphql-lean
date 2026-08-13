@@ -139,8 +139,8 @@ theorem collectFields_mem_mergedFieldSelectionSet (schema : Schema) (objectType 
 theorem collectFields_mergedFieldSelectionSet_mem_of_field_mem
     (schema : Schema) (objectType : Name)
     : ∀ {fields : List Execution.ExecutableField}
-          {field : Execution.ExecutableField}
-          {scopedField : ScopedField},
+        {field : Execution.ExecutableField}
+        {scopedField : ScopedField},
         field ∈ fields
         -> scopedField ∈ collectFields schema objectType field.selectionSet
         -> scopedField

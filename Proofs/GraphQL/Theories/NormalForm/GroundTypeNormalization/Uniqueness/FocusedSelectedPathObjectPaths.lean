@@ -346,10 +346,10 @@ inductive SelectionSetCompositeFieldsObjectOutputClosed (schema : Schema)
             = true
         -> objectTypeNameBool schema fieldDefinition.outputType.namedType = true)
       -> (∀ {responseName fieldName : Name}
-              {arguments : List Argument}
-              {directives : List DirectiveApplication}
-              {childSelectionSet : List Selection}
-              {fieldDefinition : FieldDefinition},
+            {arguments : List Argument}
+            {directives : List DirectiveApplication}
+            {childSelectionSet : List Selection}
+            {fieldDefinition : FieldDefinition},
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ selectionSet
             -> schema.lookupField parentType fieldName = some fieldDefinition

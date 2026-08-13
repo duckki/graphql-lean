@@ -1123,7 +1123,7 @@ theorem completeValue_leafProbe_of_fuel_ge
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     : ∀ (outputType : TypeRef) (fields : List Execution.ExecutableField)
-          (value : String) (fuel : Nat),
+        (value : String) (fuel : Nat),
         leafProbeFuel outputType ≤ fuel
         -> (TypeRef.named outputType.namedType).isCompositeBool schema = false
         -> Execution.completeValue schema resolvers variableValues
@@ -2031,7 +2031,7 @@ theorem deepFieldSelectionSetExecutionReadyWithRef_object_of_child_deepFieldRead
       -> selectionSetDirectiveFree childSelectionSet
       -> selectionSetNormal schema fieldDefinition.outputType.namedType childSelectionSet
       -> (∀ childResponseName childFieldName childArguments childDirectives
-              grandChildSelectionSet,
+            grandChildSelectionSet,
             Selection.field childResponseName childFieldName childArguments
                 childDirectives grandChildSelectionSet
               ∈ childSelectionSet
@@ -2541,7 +2541,7 @@ decreasing_by
 
 theorem selectionSetDeepProbeFuel_field_mem (schema : Schema) (parentType : Name)
     : ∀ selectionSet responseName fieldName arguments directives childSelectionSet
-          fieldDefinition,
+        fieldDefinition,
         Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
         -> schema.lookupField parentType fieldName = some fieldDefinition
@@ -2760,8 +2760,8 @@ theorem wrapTypeRefSelectionSetResult_ok_nonNull_of_object_response
 theorem leafProbeResponseValue_not_semanticEquivalent_wrapped_object_of_composite
     (schema : Schema)
     : ∀ (leftType rightType : TypeRef) (value : String)
-          (rightValue : Execution.ResponseValue) (rightErrors : Nat)
-          (fields : List (Name × Execution.ResponseValue)) (errors : Nat),
+        (rightValue : Execution.ResponseValue) (rightErrors : Nat)
+        (fields : List (Name × Execution.ResponseValue)) (errors : Nat),
         (TypeRef.named leftType.namedType).isCompositeBool schema = false
         -> (TypeRef.named rightType.namedType).isCompositeBool schema = true
         -> wrapTypeRefSelectionSetResult rightType

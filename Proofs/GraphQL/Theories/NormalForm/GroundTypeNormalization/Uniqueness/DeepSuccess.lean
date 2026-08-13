@@ -25,7 +25,7 @@ theorem
       -> Selection.inlineFragment (some runtimeType) [] bodySelectionSet ∈ selectionSet
       -> bodySelectionSet ≠ []
       -> (∀ bodyResponseName bodyFieldName bodyArguments bodyDirectives
-              bodyChildSelectionSet,
+            bodyChildSelectionSet,
             Selection.field bodyResponseName bodyFieldName bodyArguments
                 bodyDirectives bodyChildSelectionSet
               ∈ bodySelectionSet
@@ -165,7 +165,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -395,7 +395,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named

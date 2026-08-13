@@ -22,12 +22,12 @@ structure RecursiveSelectionSetGlobalInvariants
     : Prop where
   flat
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         VisitSubfieldsFlatCollects schema resolvers variableValues depth
           parentType source selectionSet (.object [])
   collected
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         ExecutionCollectedFieldInvariant
           {
             window :=
@@ -44,20 +44,20 @@ structure RecursiveSelectionSetGlobalInvariants
           }
   compatible
     : ∀ (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         CollectedGroupsFieldValidationMergeCompatible
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet)
   lookups
     : ∀ (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         CollectedGroupsFieldLookupValid schema parentType
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet)
   zeroChildrenSingletons
     : ∀ (depth : Nat) (parentType : Name)
-          (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)
-          responseName field fields prefixTail,
+        (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)
+        responseName field fields prefixTail,
         (responseName, field :: fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType source
               selectionSet
@@ -74,8 +74,8 @@ structure RecursiveSelectionSetGlobalInvariants
                 (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail))
   errorNeutral
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection)
-          responseName field fields prefixTail later,
+        (selectionSet : List Selection)
+        responseName field fields prefixTail later,
         (responseName, field :: fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType source
               selectionSet
@@ -97,12 +97,12 @@ structure RecursiveSelectionSetGlobalFreshPrefixInvariants
     : Prop where
   freshFlat
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source selectionSet
   collected
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         ExecutionCollectedFieldInvariant
           {
             window :=
@@ -119,20 +119,20 @@ structure RecursiveSelectionSetGlobalFreshPrefixInvariants
           }
   compatible
     : ∀ (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         CollectedGroupsFieldValidationMergeCompatible
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet)
   lookups
     : ∀ (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         CollectedGroupsFieldLookupValid schema parentType
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet)
   zeroChildrenSingletons
     : ∀ (depth : Nat) (parentType : Name)
-          (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)
-          responseName field fields prefixTail,
+        (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)
+        responseName field fields prefixTail,
         (responseName, field :: fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType source
               selectionSet
@@ -149,8 +149,8 @@ structure RecursiveSelectionSetGlobalFreshPrefixInvariants
                 (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail))
   errorNeutral
     : ∀ (depth : Nat) (parentType : Name) (source : ResolverValue ObjectIdentity)
-          (selectionSet : List Selection)
-          responseName field fields prefixTail later,
+        (selectionSet : List Selection)
+        responseName field fields prefixTail later,
         (responseName, field :: fields)
           ∈ GraphQL.Execution.collectFields schema variableValues parentType source
               selectionSet

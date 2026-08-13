@@ -89,7 +89,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -186,7 +186,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -362,7 +362,7 @@ theorem taggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body
           -> objectTypeNameBool schema runtimeType = true
           -> schema.typeIncludesObjectBool normalParentType runtimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named

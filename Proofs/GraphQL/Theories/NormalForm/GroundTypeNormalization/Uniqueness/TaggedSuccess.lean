@@ -20,7 +20,7 @@ def selectionSetDeepHeadPromotionAvailable
     (parentType : Name) (selectionSet : List Selection)
     : Prop :=
   ∀ abstractTargetParent abstractTargetField targetArguments targetRuntimeType
-      targetFieldDefinition,
+    targetFieldDefinition,
     schema.lookupField abstractTargetParent abstractTargetField
       = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
@@ -442,7 +442,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1021,7 +1021,7 @@ theorem
           -> selectionSetNormal schema parentType selectionSet
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1085,7 +1085,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1350,7 +1350,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named

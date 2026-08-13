@@ -13,9 +13,9 @@ theorem inlineOperation_selectionSetValid_of_fragmentBodiesValid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> fragment.selectionSet ≠ []
@@ -46,9 +46,9 @@ theorem inlineOperation_valid_of_fragmentBodiesValid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> fragment.selectionSet ≠ []
@@ -66,9 +66,9 @@ theorem inlineOperation_selectionSetValid_of_localFragmentBodiesValid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           fragmentName
             ∈ GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames
                 operation.selectionSet
@@ -101,9 +101,9 @@ theorem inlineOperation_valid_of_localFragmentBodiesValid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           fragmentName
             ∈ GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames
                 operation.selectionSet
@@ -164,7 +164,7 @@ theorem inlinedOperation_specValidAndExecutionEquivalent
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation operation)
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-            variableValues fuel (source : Execution.ResolverValue ObjectRef),
+          variableValues fuel (source : Execution.ResolverValue ObjectRef),
           Execution.executeQueryWithFuel schema resolvers variableValues
             operation fuel source
           = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -223,7 +223,7 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_selectionSetValid
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-            variableValues fuel (source : Execution.ResolverValue ObjectRef),
+          variableValues fuel (source : Execution.ResolverValue ObjectRef),
           Execution.executeQueryWithFuel schema resolvers variableValues
             (Inline.inlineOperation operation) fuel source
           = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -239,9 +239,9 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_fragmentBodiesValid
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           lookupFragmentAndRestLt? fragmentName operation.fragmentDefinitions
             = some (fragment, remaining)
           -> fragment.selectionSet ≠ []
@@ -251,7 +251,7 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_fragmentBodiesValid
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-            variableValues fuel (source : Execution.ResolverValue ObjectRef),
+          variableValues fuel (source : Execution.ResolverValue ObjectRef),
           Execution.executeQueryWithFuel schema resolvers variableValues
             (Inline.inlineOperation operation) fuel source
           = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -267,9 +267,9 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_localFragmentBodiesVa
     (hvalid : GraphQL.NamedFragment.Validation.operationDefinitionValid schema operation)
     (hfragmentBodies
       : ∀ {fragmentName : Name} {fragment : FragmentDefinition}
-            {remaining
-              : { remaining : List FragmentDefinition
-                  // remaining.length < operation.fragmentDefinitions.length }},
+          {remaining
+            : { remaining : List FragmentDefinition
+                // remaining.length < operation.fragmentDefinitions.length }},
           fragmentName
             ∈ GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames
                 operation.selectionSet
@@ -282,7 +282,7 @@ theorem inlineOperation_specValidAndExecutionEquivalent_of_localFragmentBodiesVa
     : GraphQL.Validation.operationDefinitionValid schema
         (Translate.reduceOperation (Inline.inlineOperation operation))
       ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
-            variableValues fuel (source : Execution.ResolverValue ObjectRef),
+          variableValues fuel (source : Execution.ResolverValue ObjectRef),
           Execution.executeQueryWithFuel schema resolvers variableValues
             (Inline.inlineOperation operation) fuel source
           = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues

@@ -123,8 +123,8 @@ mutual
   theorem expanded_collectSelection_namesNodup
       (schema : Schema) (variableValues : Execution.VariableValues)
       : ∀ (fragments : List FragmentDefinition) (visited : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selection : Selection),
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selection : Selection),
           GraphQL.NormalForm.executableGroupNamesNodup
             (expandedExecutableGroupsToSpec
               (Execution.collectSelection schema variableValues fragments visited
@@ -252,8 +252,8 @@ mutual
   theorem expanded_collectFields_namesNodup
       (schema : Schema) (variableValues : Execution.VariableValues)
       : ∀ (fragments : List FragmentDefinition) (visited : List Name)
-            (parentType : Name) (source : Execution.ResolverValue ObjectRef)
-            (selectionSet : List Selection),
+          (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+          (selectionSet : List Selection),
           GraphQL.NormalForm.executableGroupNamesNodup
             (expandedExecutableGroupsToSpec
               (Execution.collectFields schema variableValues fragments visited parentType
@@ -499,10 +499,10 @@ theorem collectFields_firstOccurrences_aux
       : GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
           variableDefinitions original)
     : ∀ (current : List FragmentDefinition) (visited : List Name)
-          (validationParentType parentType : Name)
-          (source : Execution.ResolverValue ObjectRef)
-          (selectionSet : List Selection)
-          (leftPrefix rightPrefix : List (Name × List GraphQL.Execution.ExecutableField)),
+        (validationParentType parentType : Name)
+        (source : Execution.ResolverValue ObjectRef)
+        (selectionSet : List Selection)
+        (leftPrefix rightPrefix : List (Name × List GraphQL.Execution.ExecutableField)),
         GraphQL.NamedFragment.Validation.fragmentNamesUnique current
         -> GraphQL.NamedFragment.Validation.selectionSetValid schema
             variableDefinitions current validationParentType selectionSet
@@ -1116,8 +1116,8 @@ mutual
             variableDefinitions original)
       (variableValues : Execution.VariableValues)
       : ∀ (current : List FragmentDefinition) (visited : List Name)
-            (validationParentType parentType : Name)
-            (source : Execution.ResolverValue ObjectRef) (selection : Selection),
+          (validationParentType parentType : Name)
+          (source : Execution.ResolverValue ObjectRef) (selection : Selection),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique current
           -> GraphQL.NamedFragment.Validation.selectionValid schema variableDefinitions
               current validationParentType selection
@@ -1307,8 +1307,8 @@ mutual
             variableDefinitions original)
       (variableValues : Execution.VariableValues)
       : ∀ (current : List FragmentDefinition) (visited : List Name)
-            (validationParentType parentType : Name)
-            (source : Execution.ResolverValue ObjectRef) (selectionSet : List Selection),
+          (validationParentType parentType : Name)
+          (source : Execution.ResolverValue ObjectRef) (selectionSet : List Selection),
           GraphQL.NamedFragment.Validation.fragmentNamesUnique current
           -> GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
               current validationParentType selectionSet

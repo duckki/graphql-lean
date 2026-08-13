@@ -77,8 +77,8 @@ def GlobalFieldPreviousCacheSound {ObjectRef : Type} (schema : Schema)
     (resolvers : Resolvers ObjectRef)
     : Prop :=
   ∀ (source : ResolverValue ObjectRef) (output : FieldCacheValue ObjectRef)
-      (parentType responseName fieldName : Name) (arguments : List Argument)
-      (selectionSet : List Selection) previous,
+    (parentType responseName fieldName : Name) (arguments : List Argument)
+    (selectionSet : List Selection) previous,
     objectField? responseName output = some previous
     -> FieldPreviousCacheSound schema resolvers source (some previous)
         (executableField parentType responseName fieldName arguments selectionSet)

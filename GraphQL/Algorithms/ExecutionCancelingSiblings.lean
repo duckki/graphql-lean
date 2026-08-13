@@ -173,7 +173,7 @@ def siblingCancelingExecutionPreservesSpecExecution
     (schema : Schema) (operation : Operation)
     : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-      variableValues fuel (source : ResolverValue ObjectRef),
+    variableValues fuel (source : ResolverValue ObjectRef),
     responseDataAndErrorPresenceEquivalent
       (executeQueryWithFuel schema resolvers variableValues operation fuel source)
       (GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues

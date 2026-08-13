@@ -661,7 +661,7 @@ theorem
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> schema.isCompositeType fieldDefinition.outputType.namedType
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -681,7 +681,7 @@ theorem
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -701,7 +701,7 @@ theorem
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -722,7 +722,7 @@ theorem
                         targetFieldDefinition.outputType.namedType runtimeType
                       = true)
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1328,7 +1328,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1516,7 +1516,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1594,7 +1594,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1616,7 +1616,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               parentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1749,7 +1749,7 @@ theorem
           -> objectTypeNameBool schema parentType = true
           -> schema.typeIncludesObjectBool parentType sourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1771,7 +1771,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               parentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1908,7 +1908,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -1930,7 +1930,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2063,7 +2063,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2085,7 +2085,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2219,7 +2219,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2241,7 +2241,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2377,7 +2377,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2399,7 +2399,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2535,7 +2535,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2558,7 +2558,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema leftRootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2699,7 +2699,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2722,7 +2722,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema leftRootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2864,7 +2864,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -2886,7 +2886,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -3102,7 +3102,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -3124,7 +3124,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -3346,7 +3346,7 @@ theorem
           -> schema.typeIncludesObjectBool leftParentType leftSourceRuntimeType = true
           -> schema.typeIncludesObjectBool rightParentType rightSourceRuntimeType = true
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named
@@ -3368,7 +3368,7 @@ theorem
           -> selectionSetDeepHeadPromotionAvailable schema leftRootSelectionSet
               leftParentType left
           -> (∀ abstractTargetParent abstractTargetField targetRuntimeType
-                  targetFieldDefinition,
+                targetFieldDefinition,
                 schema.lookupField abstractTargetParent abstractTargetField
                   = some targetFieldDefinition
                 -> (TypeRef.named

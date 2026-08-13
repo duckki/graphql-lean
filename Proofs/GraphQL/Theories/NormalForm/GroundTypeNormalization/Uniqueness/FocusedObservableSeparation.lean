@@ -249,11 +249,11 @@ theorem
         -> leftFieldName ≠ rightFieldName
         -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {responseName leftFieldName rightFieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftDirectives rightDirectives : List DirectiveApplication}
-              {leftChildSelectionSet rightChildSelectionSet : List Selection}
-              {leftFieldDefinition rightFieldDefinition : FieldDefinition}
-              {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftDirectives rightDirectives : List DirectiveApplication}
+            {leftChildSelectionSet rightChildSelectionSet : List Selection}
+            {leftFieldDefinition rightFieldDefinition : FieldDefinition}
+            {childPath : List Name},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left
@@ -271,10 +271,10 @@ theorem
             -> leftFieldName ≠ rightFieldName
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {responseName fieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftDirectives rightDirectives : List DirectiveApplication}
-              {leftChildSelectionSet rightChildSelectionSet : List Selection}
-              {fieldDefinition : FieldDefinition} {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftDirectives rightDirectives : List DirectiveApplication}
+            {leftChildSelectionSet rightChildSelectionSet : List Selection}
+            {fieldDefinition : FieldDefinition} {childPath : List Name},
             Selection.field responseName fieldName leftArguments leftDirectives
                 leftChildSelectionSet
               ∈ left
@@ -290,10 +290,10 @@ theorem
             -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {returnType responseName fieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftDirectives rightDirectives : List DirectiveApplication}
-              {leftChildSelectionSet rightChildSelectionSet : List Selection}
-              {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftDirectives rightDirectives : List DirectiveApplication}
+            {leftChildSelectionSet rightChildSelectionSet : List Selection}
+            {childPath : List Name},
             schema.fieldReturnType? parentType fieldName = some returnType
             -> Selection.field responseName fieldName leftArguments leftDirectives
                   leftChildSelectionSet
@@ -423,11 +423,11 @@ theorem
         -> leftFieldName ≠ rightFieldName
         -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {responseName leftFieldName rightFieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftDirectives rightDirectives : List DirectiveApplication}
-              {leftChildSelectionSet rightChildSelectionSet : List Selection}
-              {leftFieldDefinition rightFieldDefinition : FieldDefinition}
-              {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftDirectives rightDirectives : List DirectiveApplication}
+            {leftChildSelectionSet rightChildSelectionSet : List Selection}
+            {leftFieldDefinition rightFieldDefinition : FieldDefinition}
+            {childPath : List Name},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left
@@ -445,10 +445,10 @@ theorem
             -> leftFieldName ≠ rightFieldName
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {responseName fieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftDirectives rightDirectives : List DirectiveApplication}
-              {leftChildSelectionSet rightChildSelectionSet : List Selection}
-              {fieldDefinition : FieldDefinition} {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftDirectives rightDirectives : List DirectiveApplication}
+            {leftChildSelectionSet rightChildSelectionSet : List Selection}
+            {fieldDefinition : FieldDefinition} {childPath : List Name},
             Selection.field responseName fieldName leftArguments leftDirectives
                 leftChildSelectionSet
               ∈ left
@@ -464,11 +464,11 @@ theorem
             -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
       -> (∀ {returnType responseName fieldName : Name}
-              {leftArguments rightArguments : List Argument}
-              {leftChildSelectionSet rightChildSelectionSet
-                leftPref rightPref leftSuffix rightSuffix
-                : List Selection}
-              {fieldDefinition : FieldDefinition} {childPath : List Name},
+            {leftArguments rightArguments : List Argument}
+            {leftChildSelectionSet rightChildSelectionSet
+              leftPref rightPref leftSuffix rightSuffix
+              : List Selection}
+            {fieldDefinition : FieldDefinition} {childPath : List Name},
             schema.lookupField parentType fieldName = some fieldDefinition
             -> fieldDefinition.outputType.namedType = returnType
             -> left

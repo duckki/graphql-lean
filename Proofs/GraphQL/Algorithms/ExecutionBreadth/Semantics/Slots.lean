@@ -696,7 +696,7 @@ mutual
       (variableValues : VariableValues)
       (selectionSet : List Selection) (key : ScheduleKey)
       : ∀ (depth : Nat) (fieldType : TypeRef)
-            (value : ResolverValue ObjectRef) (stack : CompletionStack),
+          (value : ResolverValue ObjectRef) (stack : CompletionStack),
           0 < depth
           -> typeRefCompleteValueFuelBound fieldType <= depth
           -> completeSlot fieldType
@@ -854,7 +854,7 @@ mutual
       (variableValues : VariableValues)
       (selectionSet : List Selection) (key : ScheduleKey)
       : ∀ (depth : Nat) (inner : TypeRef)
-            (values : List (ResolverValue ObjectRef)) (stack : CompletionStack),
+          (values : List (ResolverValue ObjectRef)) (stack : CompletionStack),
           0 < depth
           -> typeRefCompleteValueFuelBound inner <= depth
           -> completeSlotList inner
@@ -1149,7 +1149,7 @@ theorem
     (variableValues : VariableValues) (key : ScheduleKey)
     (fieldDefinition : FieldDefinition) (selectionSet : List Selection)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-          (stack : CompletionStack),
+        (stack : CompletionStack),
         schema.lookupField key.parentType key.fieldName = some fieldDefinition
         -> specFuels.length = sources.length
         -> (∀ fuel,

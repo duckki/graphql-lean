@@ -849,7 +849,7 @@ theorem collectFields_scoped_mem_lookupValid (schema : Schema) (parentType : Nam
 theorem staticScopedFieldsWithResponseName_mem_fieldMergeCollectFields_lookupValid
     (schema : Schema) (boolCase : BoolCase) (lookupParent groundType responseName : Name)
     : ∀ selectionSet scopedSelection fieldResponseName fieldName arguments
-          directives subselections,
+        directives subselections,
         selectionSetLookupValid schema lookupParent selectionSet
         -> scopedSelection
             ∈ staticScopedFieldsWithResponseName schema boolCase lookupParent
@@ -1047,7 +1047,7 @@ theorem staticScopedFieldsWithResponseName_mem_fieldMergeCollectFields
     (boolCase : BoolCase)
     (lookupParent groundType responseName : Name)
     : ∀ selectionSet scopedSelection fieldResponseName fieldName arguments
-          directives subselections,
+        directives subselections,
         Validation.selectionSetValid schema variableDefinitions lookupParent selectionSet
         -> scopedSelection
             ∈ staticScopedFieldsWithResponseName schema boolCase lookupParent
@@ -1251,7 +1251,7 @@ theorem staticScopedFieldsWithResponseName_mem_field_allowed
     (schema : Schema) (boolCase : BoolCase)
     (lookupParent groundType responseName : Name)
     : ∀ selectionSet scopedSelection fieldResponseName fieldName arguments
-          directives subselections,
+        directives subselections,
         scopedSelection
           ∈ staticScopedFieldsWithResponseName schema boolCase lookupParent
               groundType responseName selectionSet
@@ -1360,7 +1360,7 @@ theorem completeScopedSelectionSetStaticFieldsWithResponseName_mem_field_allowed
     (schema : Schema) (boolCase : BoolCase)
     (groundType responseName : Name)
     : ∀ scopedSelections scopedSelection fieldResponseName fieldName arguments
-          directives subselections,
+        directives subselections,
         scopedSelection
           ∈ completeScopedSelectionSetStaticFieldsWithResponseName schema
               boolCase groundType responseName scopedSelections

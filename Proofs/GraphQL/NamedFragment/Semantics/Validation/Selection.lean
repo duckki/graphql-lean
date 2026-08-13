@@ -10,8 +10,8 @@ namespace Semantics
 mutual
   theorem selectionValid_changeFragments_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selection : Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selection : Selection},
           GraphQL.NamedFragment.Validation.selectionValid schema
             variableDefinitions fragments parentType selection
           -> selectionInlined selection
@@ -51,8 +51,8 @@ mutual
 
   theorem selectionSetValid_changeFragments_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selectionSet : List Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selectionSet : List Selection},
           GraphQL.NamedFragment.Validation.selectionSetValid schema
             variableDefinitions fragments parentType selectionSet
           -> selectionSetInlined selectionSet
@@ -85,8 +85,8 @@ mutual
 
   theorem fieldSelectionSetValid_changeFragments_of_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition}
-            {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
+          {fragments : List FragmentDefinition}
+          {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
           GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
             variableDefinitions fragments fieldDefinition selectionSet
           -> selectionSetInlined selectionSet
@@ -142,8 +142,8 @@ theorem inlineOperation_valid_of_inlinedSelectionSetValidWithFragments
 mutual
   theorem selectionValid_inlineSelection_of_localFragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selection : Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selection : Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -230,8 +230,8 @@ mutual
 
   theorem selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selectionSet : List Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selectionSet : List Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -289,8 +289,8 @@ mutual
 
   theorem fieldSelectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition}
-            {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
+          {fragments : List FragmentDefinition}
+          {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -331,8 +331,8 @@ end
 mutual
   theorem selectionValid_inlineSelection_of_fragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selection : Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selection : Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -394,8 +394,8 @@ mutual
 
   theorem selectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition} {parentType : Name}
-            {selectionSet : List Selection},
+          {fragments : List FragmentDefinition} {parentType : Name}
+          {selectionSet : List Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -437,8 +437,8 @@ mutual
 
   theorem fieldSelectionSetValid_inlineSelectionSet_of_fragmentBodiesValid
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fragments : List FragmentDefinition}
-            {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
+          {fragments : List FragmentDefinition}
+          {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
           (∀ {fragmentName : Name} {fragment : FragmentDefinition}
               {remaining
                 : { remaining : List FragmentDefinition
@@ -475,7 +475,7 @@ end
 mutual
   theorem selectionValid_emptyFragments_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {parentType : Name} {selection : Selection},
+          {parentType : Name} {selection : Selection},
           GraphQL.NamedFragment.Validation.selectionValid schema
             variableDefinitions [] parentType selection
           -> selectionInlined selection
@@ -510,7 +510,7 @@ mutual
 
   theorem selectionSetValid_emptyFragments_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {parentType : Name} {selectionSet : List Selection},
+          {parentType : Name} {selectionSet : List Selection},
           GraphQL.NamedFragment.Validation.selectionSetValid schema
             variableDefinitions [] parentType selectionSet
           -> selectionSetInlined selectionSet
@@ -534,7 +534,7 @@ mutual
 
   theorem fieldSelectionSetValid_emptyFragments_inlined
       : ∀ {schema : Schema} {variableDefinitions : List VariableDefinition}
-            {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
+          {fieldDefinition : FieldDefinition} {selectionSet : List Selection},
           GraphQL.NamedFragment.Validation.fieldSelectionSetValid schema
             variableDefinitions [] fieldDefinition selectionSet
           -> selectionSetInlined selectionSet

@@ -398,7 +398,7 @@ noncomputable def
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     : ∀ depth parentType runtimeType (identity : ObjectRef)
-          (selectionSet : List Selection),
+        (selectionSet : List Selection),
         SchemaWellFormedness.schemaWellFormed schema
         -> schema.objectType parentType
         -> ScopedParentRuntimeApplies schema runtimeType parentType

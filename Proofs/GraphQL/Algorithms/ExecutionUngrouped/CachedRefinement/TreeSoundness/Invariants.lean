@@ -156,7 +156,7 @@ theorem FieldCacheTreesSound.toPrefixSound {ObjectRef : Type}
     (variableValues : VariableValues) (fuel : Nat)
     (selectionSet : List Selection)
     : ∀ {sources : List (ResolverValue ObjectRef)}
-          {values : List (FieldCacheValue ObjectRef)},
+        {values : List (FieldCacheValue ObjectRef)},
         FieldCacheTreesSound schema resolvers variableValues fuel selectionSet
           sources values
         -> FieldCacheTreesPrefixSound schema resolvers variableValues fuel

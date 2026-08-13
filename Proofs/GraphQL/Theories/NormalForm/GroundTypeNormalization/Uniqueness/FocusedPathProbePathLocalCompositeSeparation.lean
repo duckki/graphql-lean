@@ -1792,11 +1792,11 @@ theorem
       -> (TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> (∀ {leftChildRuntime rightFieldName : Name}
-              {rightArguments : List Argument}
-              {rightDirectives : List DirectiveApplication}
-              {rightChildSelectionSet : List Selection}
-              {rightFieldDefinition : FieldDefinition}
-              {rightChildRuntime : Name},
+            {rightArguments : List Argument}
+            {rightDirectives : List DirectiveApplication}
+            {rightChildSelectionSet : List Selection}
+            {rightFieldDefinition : FieldDefinition}
+            {rightChildRuntime : Name},
             ((objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
                 ∧ leftChildRuntime = leftFieldDefinition.outputType.namedType)
               ∨ ((TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
@@ -2117,11 +2117,11 @@ theorem
       -> (TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> (∀ {leftChildRuntime rightFieldName : Name}
-              {rightArguments : List Argument}
-              {rightDirectives : List DirectiveApplication}
-              {rightChildSelectionSet : List Selection}
-              {rightFieldDefinition : FieldDefinition}
-              {rightChildRuntime : Name},
+            {rightArguments : List Argument}
+            {rightDirectives : List DirectiveApplication}
+            {rightChildSelectionSet : List Selection}
+            {rightFieldDefinition : FieldDefinition}
+            {rightChildRuntime : Name},
             ((objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
                 ∧ leftChildRuntime = leftFieldDefinition.outputType.namedType)
               ∨ ((TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
@@ -2444,11 +2444,11 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> (∀ {leftFieldName : Name}
-              {leftArguments : List Argument}
-              {leftDirectives : List DirectiveApplication}
-              {leftChildSelectionSet : List Selection}
-              {leftFieldDefinition : FieldDefinition}
-              {leftChildRuntime rightChildRuntime : Name},
+            {leftArguments : List Argument}
+            {leftDirectives : List DirectiveApplication}
+            {leftChildSelectionSet : List Selection}
+            {leftFieldDefinition : FieldDefinition}
+            {leftChildRuntime rightChildRuntime : Name},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left
@@ -2769,11 +2769,11 @@ theorem
       -> (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> (∀ {leftFieldName : Name}
-              {leftArguments : List Argument}
-              {leftDirectives : List DirectiveApplication}
-              {leftChildSelectionSet : List Selection}
-              {leftFieldDefinition : FieldDefinition}
-              {leftChildRuntime rightChildRuntime : Name},
+            {leftArguments : List Argument}
+            {leftDirectives : List DirectiveApplication}
+            {leftChildSelectionSet : List Selection}
+            {leftFieldDefinition : FieldDefinition}
+            {leftChildRuntime rightChildRuntime : Name},
             Selection.field responseName leftFieldName leftArguments
                 leftDirectives leftChildSelectionSet
               ∈ left
