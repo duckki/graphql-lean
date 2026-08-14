@@ -68,7 +68,7 @@ mismatches into field errors.
 -- the same modeled resolver field error used by the spec-facing executor.
 structure ResolverMap (ObjectRef : Type := PUnit) where
   resolve
-    : Name -> Name -> List Argument -> List (ResolverValue ObjectRef)
+    : Name -> Name -> CoercedArguments -> List (ResolverValue ObjectRef)
       -> List (Option (ResolverValue ObjectRef))
   resolve_argumentsEquivalent
     : ∀ parentType fieldName firstArguments laterArguments sources,
@@ -474,7 +474,9 @@ def executeScheduleItem
       )
   | some fieldDefinition =>
       let resolved :=
-        resolvers.resolve item.key.parentType item.key.fieldName item.key.arguments
+        resolvers.resolve item.key.parentType item.key.fieldName
+          (coerceArgumentValues schema variableValues fieldDefinition.arguments
+            item.key.arguments)
           sources
       if !(resolved.length == sources.length) then
         (

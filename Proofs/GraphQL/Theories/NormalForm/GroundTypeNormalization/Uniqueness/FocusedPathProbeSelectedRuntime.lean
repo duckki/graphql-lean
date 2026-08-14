@@ -42,8 +42,8 @@ inductive PathLocalSelectionSetObservableLeafAtRuntime (schema : Schema)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentName fieldName
-                  arguments parentName currentSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentName fieldName
+                  parentName currentSelectionSet
                 = some childRuntimeType))
       -> PathLocalSelectionSetObservableLeafAtRuntime schema
           fieldDefinition.outputType.namedType childRuntimeType
@@ -714,64 +714,35 @@ inductive FieldPairSelectedPathProbeRef where
   | filler
 
 noncomputable def selectedObservableFieldSpineNext?
-    (fieldName : Name) (arguments : List Argument)
+    (fieldName : Name) (_arguments : List Argument)
     : List NormalSelectionSetObservableFieldStep
       -> Option (Option Name × List NormalSelectionSetObservableFieldStep)
   | [] => none
   | step :: rest => by
       classical
       exact
-        if step.fieldName = fieldName
-            ∧ Argument.argumentsEquivalent arguments step.arguments then
+        if step.fieldName = fieldName then
           some (step.childRuntime, rest)
         else
           none
 
-theorem selectedObservableFieldSpineNext?_eq_of_argumentsEquivalent
-    (fieldName : Name) {firstArguments laterArguments : List Argument}
-    (hequivalent : Argument.argumentsEquivalent firstArguments laterArguments)
+theorem selectedObservableFieldSpineNext?_eq_of_arguments
+    (fieldName : Name) (firstArguments laterArguments : List Argument)
     : ∀ spine,
         selectedObservableFieldSpineNext? fieldName firstArguments spine
         = selectedObservableFieldSpineNext? fieldName laterArguments spine
-  | [] => by
-      simp [selectedObservableFieldSpineNext?]
-  | step :: rest => by
-      have hargumentsIff :
-          Argument.argumentsEquivalent firstArguments step.arguments
-            ↔ Argument.argumentsEquivalent laterArguments step.arguments := by
-        constructor
-        · intro hfirst
-          exact argumentsEquivalent_trans
-            (FieldMerge.argumentsEquivalent_symm hequivalent) hfirst
-        · intro hlater
-          exact argumentsEquivalent_trans hequivalent hlater
-      have hmatchIff :
-          (step.fieldName = fieldName
-              ∧ Argument.argumentsEquivalent firstArguments
-                step.arguments)
-            ↔
-            (step.fieldName = fieldName
-              ∧ Argument.argumentsEquivalent laterArguments
-                step.arguments) := by
-        constructor
-        · intro h
-          exact ⟨h.1, hargumentsIff.mp h.2⟩
-        · intro h
-          exact ⟨h.1, hargumentsIff.mpr h.2⟩
-      by_cases hfirst :
-          step.fieldName = fieldName
-            ∧ Argument.argumentsEquivalent firstArguments step.arguments
-      · have hlater :
-            step.fieldName = fieldName
-              ∧ Argument.argumentsEquivalent laterArguments step.arguments :=
-          hmatchIff.mp hfirst
-        simp [selectedObservableFieldSpineNext?, hfirst, hlater]
-      · have hlater :
-            ¬ (step.fieldName = fieldName
-              ∧ Argument.argumentsEquivalent laterArguments step.arguments) := by
-          intro hlater
-          exact hfirst (hmatchIff.mpr hlater)
-        simp [selectedObservableFieldSpineNext?, hfirst, hlater]
+  | [] => by simp [selectedObservableFieldSpineNext?]
+  | _step :: _rest => by simp [selectedObservableFieldSpineNext?]
+
+theorem selectedObservableFieldSpineNext?_eq_of_argumentsEquivalent
+    (fieldName : Name) {firstArguments laterArguments : List Argument}
+    (_hequivalent : Argument.argumentsEquivalent firstArguments laterArguments)
+    : ∀ spine,
+        selectedObservableFieldSpineNext? fieldName firstArguments spine
+        = selectedObservableFieldSpineNext? fieldName laterArguments spine
+  | spine =>
+      selectedObservableFieldSpineNext?_eq_of_arguments fieldName
+        firstArguments laterArguments spine
 
 noncomputable def selectedObservableFieldSpineTailForRuntime
     (runtimeType fieldName : Name) (arguments : List Argument)
@@ -806,8 +777,8 @@ noncomputable def fieldPairSelectedPathProbeHeadResolverValue
                     runtimeType fieldName arguments currentSelectionSet)
                   rest)
           | _ =>
-              match abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      arguments parentType currentSelectionSet with
+              match abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType currentSelectionSet with
               | some runtimeType =>
                   .object runtimeType
                     (FieldPairSelectedPathProbeRef.target tag
@@ -840,32 +811,39 @@ theorem selectedObservableFieldSpineTailForRuntime_eq_of_argumentsEquivalent
       hequivalent spine
   simp [selectedObservableFieldSpineTailForRuntime, hnext]
 
-theorem fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
+theorem selectedObservableFieldSpineTailForRuntime_eq_of_arguments
+    (runtimeType fieldName : Name) (firstArguments laterArguments : List Argument)
+    (spine : List NormalSelectionSetObservableFieldStep)
+    : selectedObservableFieldSpineTailForRuntime runtimeType fieldName
+        firstArguments spine
+      = selectedObservableFieldSpineTailForRuntime runtimeType fieldName
+          laterArguments spine := by
+  have hnext := selectedObservableFieldSpineNext?_eq_of_arguments fieldName
+    firstArguments laterArguments spine
+  simp [selectedObservableFieldSpineTailForRuntime, hnext]
+
+theorem fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments
     (schema : Schema) (currentSelectionSet : List Selection)
     (parentType fieldName : Name)
-    {firstArguments laterArguments : List Argument}
+    (firstArguments laterArguments : List Argument)
     (tag : FieldPairProbeTag)
     (spine : List NormalSelectionSetObservableFieldStep)
-    : Argument.argumentsEquivalent firstArguments laterArguments
-      -> ∀ outputType,
-          fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
-            parentType fieldName firstArguments tag spine outputType
-          = fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
-              parentType fieldName laterArguments tag spine outputType
-  | hequivalent, .named typeName => by
+    : ∀ outputType,
+        fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
+          parentType fieldName firstArguments tag spine outputType
+        = fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
+            parentType fieldName laterArguments tag spine outputType
+  | .named typeName => by
       have hselected :=
-        selectedObservableFieldSpineNext?_eq_of_argumentsEquivalent fieldName
-          hequivalent spine
+        selectedObservableFieldSpineNext?_eq_of_arguments fieldName
+          firstArguments laterArguments spine
       have htail :
           selectedObservableFieldSpineTailForRuntime typeName fieldName
               firstArguments spine =
             selectedObservableFieldSpineTailForRuntime typeName fieldName
               laterArguments spine :=
-        selectedObservableFieldSpineTailForRuntime_eq_of_argumentsEquivalent
-          typeName fieldName hequivalent spine
-      have hruntime :=
-        abstractRuntimeForFieldHeadDeep?_eq_of_argumentsEquivalent schema
-          parentType fieldName hequivalent parentType currentSelectionSet
+        selectedObservableFieldSpineTailForRuntime_eq_of_arguments
+          typeName fieldName firstArguments laterArguments spine
       have hnext :
           ∀ runtimeType,
             fieldPairPathLocalNextSelectionSet schema parentType runtimeType
@@ -874,28 +852,43 @@ theorem fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
               fieldName laterArguments currentSelectionSet := by
         intro runtimeType
         exact
-          fieldPairPathLocalNextSelectionSet_eq_of_argumentsEquivalent
-            schema parentType runtimeType fieldName hequivalent
-            currentSelectionSet
+          fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
+            runtimeType fieldName firstArguments laterArguments currentSelectionSet
       by_cases hcomposite :
           (TypeRef.named typeName).isCompositeBool schema
       · by_cases hobject : objectTypeNameBool schema typeName
         · simp [fieldPairSelectedPathProbeHeadResolverValue, hcomposite,
             hobject, hnext, htail]
         · simp [fieldPairSelectedPathProbeHeadResolverValue, hcomposite,
-            hobject, hselected, hruntime, hnext]
+            hobject, hselected, hnext]
       · simp [fieldPairSelectedPathProbeHeadResolverValue, hcomposite]
-  | hequivalent, .list inner => by
+  | .list inner => by
       have hinner :=
-        fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
-          schema currentSelectionSet parentType fieldName tag spine
-          hequivalent inner
+        fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments
+          schema currentSelectionSet parentType fieldName firstArguments
+          laterArguments tag spine inner
       simp [fieldPairSelectedPathProbeHeadResolverValue, hinner]
-  | hequivalent, .nonNull inner => by
+  | .nonNull inner => by
       exact
-        fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
-          schema currentSelectionSet parentType fieldName tag spine
-          hequivalent inner
+        fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments
+          schema currentSelectionSet parentType fieldName firstArguments
+          laterArguments tag spine inner
+
+theorem fieldPairSelectedPathProbeHeadResolverValue_eq_of_argumentsEquivalent
+    (schema : Schema) (currentSelectionSet : List Selection)
+    (parentType fieldName : Name)
+    {firstArguments laterArguments : List Argument}
+    (tag : FieldPairProbeTag)
+    (spine : List NormalSelectionSetObservableFieldStep)
+    (_hequivalent : Argument.argumentsEquivalent firstArguments laterArguments)
+    (outputType : TypeRef)
+    : fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
+        parentType fieldName firstArguments tag spine outputType
+      = fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
+          parentType fieldName laterArguments tag spine outputType :=
+  fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments schema
+    currentSelectionSet parentType fieldName firstArguments laterArguments tag
+    spine outputType
 
 theorem
     fieldPairSelectedPathProbeHeadResolverValue_selected_eq_objectProbeResolverValueWithRuntime
@@ -1025,8 +1018,8 @@ theorem
         (TypeRef.named outputType.namedType).isCompositeBool schema = true
         -> objectTypeNameBool schema outputType.namedType = false
         -> selectedObservableFieldSpineNext? fieldName arguments spine = none
-        -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-              arguments parentType currentSelectionSet
+        -> abstractRuntimeForFieldDeep? schema parentType fieldName
+              parentType currentSelectionSet
             = some runtimeType
         -> fieldPairSelectedPathProbeHeadResolverValue schema currentSelectionSet
               parentType fieldName arguments tag spine outputType
@@ -1196,8 +1189,7 @@ theorem selectedObservableFieldSpineNext?_cons_self
     (rest : List NormalSelectionSetObservableFieldStep)
     : selectedObservableFieldSpineNext? step.fieldName step.arguments (step :: rest)
       = some (step.childRuntime, rest) := by
-  simp [selectedObservableFieldSpineNext?,
-    argumentsEquivalent_refl_forSyntaxDiff]
+  simp [selectedObservableFieldSpineNext?]
 
 theorem selectedObservableFieldSpineTailForRuntime_cons_self
     (step : NormalSelectionSetObservableFieldStep)
@@ -1238,24 +1230,20 @@ theorem selectedFieldSpineRuntimeValid_child_of_selectedNext
   | objectLeaf hspineObject hspineLookup hleaf =>
       rename_i responseName spineFieldName spineArguments
         spineFieldDefinition
-      by_cases hmatch :
-          spineFieldName = fieldName
-            ∧ Argument.argumentsEquivalent arguments spineArguments
+      by_cases hmatch : spineFieldName = fieldName
       · simp [selectedObservableFieldSpineNext?, hmatch] at hselected
       · simp [selectedObservableFieldSpineNext?, hmatch] at hselected
   | objectChild hspineObject hspineLookup hcomposite hchildValid =>
       rename_i childRuntimeType responseName spineFieldName spineArguments
         spineFieldDefinition childSpine
-      by_cases hmatch :
-          spineFieldName = fieldName
-            ∧ Argument.argumentsEquivalent arguments spineArguments
-      · have hfieldEq : spineFieldName = fieldName := hmatch.1
+      by_cases hmatch : spineFieldName = fieldName
+      · have hfieldEq : spineFieldName = fieldName := hmatch
         subst spineFieldName
         have hdefinitionEq : spineFieldDefinition = fieldDefinition := by
           rw [hlookup] at hspineLookup
           exact (Option.some.inj hspineLookup).symm
         subst spineFieldDefinition
-        simp [selectedObservableFieldSpineNext?, hmatch] at hselected
+        simp [selectedObservableFieldSpineNext?] at hselected
         rcases hselected with ⟨hruntimeEq, htailEq⟩
         subst selectedRuntime
         subst tail
@@ -1306,10 +1294,8 @@ theorem selectedFieldSpineRuntimeValid_no_leaf_selectedNext_of_composite
   | objectLeaf hspineObject hspineLookup hleaf =>
       rename_i responseName spineFieldName spineArguments
         spineFieldDefinition
-      by_cases hmatch :
-          spineFieldName = fieldName
-            ∧ Argument.argumentsEquivalent arguments spineArguments
-      · have hfieldEq : spineFieldName = fieldName := hmatch.1
+      by_cases hmatch : spineFieldName = fieldName
+      · have hfieldEq : spineFieldName = fieldName := hmatch
         subst spineFieldName
         have hdefinitionEq : spineFieldDefinition = fieldDefinition := by
           rw [hlookup] at hspineLookup
@@ -1321,9 +1307,7 @@ theorem selectedFieldSpineRuntimeValid_no_leaf_selectedNext_of_composite
   | objectChild hspineObject hspineLookup hcompositeSpine hchildValid =>
       rename_i childRuntimeType responseName spineFieldName spineArguments
         spineFieldDefinition childSpine
-      by_cases hmatch :
-          spineFieldName = fieldName
-            ∧ Argument.argumentsEquivalent arguments spineArguments
+      by_cases hmatch : spineFieldName = fieldName
       · simp [selectedObservableFieldSpineNext?, hmatch] at hselected
       · simp [selectedObservableFieldSpineNext?, hmatch] at hselected
   | abstractRuntime hnonObject _hruntimeObject _hinclude _hchildValid =>
@@ -1445,7 +1429,10 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
     (leftArguments rightArguments arguments : List Argument)
     (leftRuntime rightRuntime : Name)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
-    : Argument.argumentsEquivalent arguments leftArguments
+    : Argument.argumentsEquivalent
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
+        leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType leftRuntime
           = true
@@ -1501,7 +1488,9 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
       targetParent leftField rightField leftArguments rightArguments
   have hbase :
-      base.resolve targetParent leftField arguments
+      base.resolve targetParent leftField
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
           (.object targetParent FieldPairSelectedPathProbeRef.root)
       =
       some
@@ -1512,10 +1501,14 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
     fieldPairSelectedPathProbeResolvers_left_root schema
       leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
       rightInitialSpine targetParent leftField rightField leftArguments
-      rightArguments arguments leftRuntime rightRuntime fieldDefinition
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime fieldDefinition
       harguments hlookup
   have hresolve :
-      resolvers.resolve targetParent leftField arguments
+      Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+        targetParent leftField arguments
           (projectionRootResolverValue
             (.object targetParent FieldPairSelectedPathProbeRef.root))
       =
@@ -1525,10 +1518,12 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
             (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
               leftInitialSelectionSet leftInitialSpine))
           fieldDefinition.outputType) := by
+    simp only [Execution.resolveFieldValue]
     have hroot :=
       fieldPairOrDeepSuccessResolvers_left_root schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments
-        arguments
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
         (.object targetParent FieldPairSelectedPathProbeRef.root)
         harguments
     rw [hroot, hbase]
@@ -1559,8 +1554,13 @@ theorem
     (leftRuntime rightRuntime : Name) (childSelectionSet : List Selection)
     (fieldDefinition : FieldDefinition)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
-          rightField arguments
-      -> Argument.argumentsEquivalent arguments rightArguments
+          rightField
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
+      -> Argument.argumentsEquivalent
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
+          rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType rightRuntime
           = true
@@ -1616,7 +1616,9 @@ theorem
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
       targetParent leftField rightField leftArguments rightArguments
   have hbase :
-      base.resolve targetParent rightField arguments
+      base.resolve targetParent rightField
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
           (.object targetParent FieldPairSelectedPathProbeRef.root)
       =
       some
@@ -1627,10 +1629,14 @@ theorem
     fieldPairSelectedPathProbeResolvers_right_root_of_not_left schema
       leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
       rightInitialSpine targetParent leftField rightField leftArguments
-      rightArguments arguments leftRuntime rightRuntime fieldDefinition
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime fieldDefinition
       hnotLeft harguments hlookup
   have hresolve :
-      resolvers.resolve targetParent rightField arguments
+      Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+        targetParent rightField arguments
           (projectionRootResolverValue
             (.object targetParent FieldPairSelectedPathProbeRef.root))
       =
@@ -1640,10 +1646,12 @@ theorem
             (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
               rightInitialSelectionSet rightInitialSpine))
           fieldDefinition.outputType) := by
+    simp only [Execution.resolveFieldValue]
     have hroot :=
       fieldPairOrDeepSuccessResolvers_right_root schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments
-        arguments
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
         (.object targetParent FieldPairSelectedPathProbeRef.root)
         harguments
     rw [hroot, hbase]
@@ -1674,8 +1682,12 @@ theorem
     (leftRuntime rightRuntime : Name) (responseName fieldName : Name)
     (childSelectionSet : List Selection) (responseValue : Execution.ResponseValue)
     (fieldErrors : Nat)
-    : ¬ fieldPairProjectionTarget targetParent leftField rightField
-          leftArguments rightArguments targetParent fieldName arguments
+    : (∀ fieldDefinition,
+        schema.lookupField targetParent fieldName = some fieldDefinition
+        -> ¬ fieldPairProjectionTarget targetParent leftField rightField
+              leftArguments rightArguments targetParent fieldName
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments arguments))
       -> Execution.executeField schema
             (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
               (ProjectionResolverRef.filler
@@ -1757,8 +1769,12 @@ theorem
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ selectionSet
-          -> ¬ fieldPairProjectionTarget targetParent leftField rightField
-                leftArguments rightArguments targetParent fieldName arguments
+          -> (∀ fieldDefinition,
+                schema.lookupField targetParent fieldName = some fieldDefinition
+                -> ¬ fieldPairProjectionTarget targetParent leftField rightField
+                      leftArguments rightArguments targetParent fieldName
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments arguments))
           -> ∃ responseValue fieldErrors,
               Execution.executeField schema
                 (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -1808,7 +1824,10 @@ theorem
     (leftRuntime rightRuntime : Name) (childSelectionSet : List Selection)
     (fieldDefinition : FieldDefinition)
     (childFields : List (Name × Execution.ResponseValue)) (childErrors : Nat)
-    : Argument.argumentsEquivalent arguments leftArguments
+    : Argument.argumentsEquivalent
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
+        leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType leftRuntime
           = true
@@ -1913,8 +1932,13 @@ theorem
     (fieldDefinition : FieldDefinition)
     (childFields : List (Name × Execution.ResponseValue)) (childErrors : Nat)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
-          rightField arguments
-      -> Argument.argumentsEquivalent arguments rightArguments
+          rightField
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
+      -> Argument.argumentsEquivalent
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
+          rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType rightRuntime
           = true
@@ -2030,7 +2054,10 @@ theorem
       -> (∀ responseName arguments directives childSelectionSet,
             Selection.field responseName leftField arguments directives childSelectionSet
               ∈ selectionSet
-            -> Argument.argumentsEquivalent arguments leftArguments
+            -> Argument.argumentsEquivalent
+                (Execution.coerceArgumentValues schema variableValues
+                  leftFieldDefinition.arguments arguments)
+                leftArguments
             -> ∃ childFields childErrors,
                 Execution.executeSelectionSetAsResponse schema
                   (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -2058,7 +2085,10 @@ theorem
       -> (∀ responseName arguments directives childSelectionSet,
             Selection.field responseName rightField arguments directives childSelectionSet
               ∈ selectionSet
-            -> Argument.argumentsEquivalent arguments rightArguments
+            -> Argument.argumentsEquivalent
+                (Execution.coerceArgumentValues schema variableValues
+                  rightFieldDefinition.arguments arguments)
+                rightArguments
             -> ∃ childFields childErrors,
                 Execution.executeSelectionSetAsResponse schema
                   (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -2086,8 +2116,12 @@ theorem
       -> (∀ responseName fieldName arguments directives childSelectionSet,
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ selectionSet
-            -> ¬ fieldPairProjectionTarget targetParent leftField rightField
-                  leftArguments rightArguments targetParent fieldName arguments
+            -> (∀ fieldDefinition,
+                  schema.lookupField targetParent fieldName = some fieldDefinition
+                  -> ¬ fieldPairProjectionTarget targetParent leftField rightField
+                        leftArguments rightArguments targetParent fieldName
+                        (Execution.coerceArgumentValues schema variableValues
+                          fieldDefinition.arguments arguments))
             -> ∃ responseValue fieldErrors,
                 Execution.executeField schema
                   (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -2126,7 +2160,9 @@ theorem
   intro responseName fieldName arguments directives childSelectionSet hmem
   by_cases hleftTarget :
       fieldProbeTarget targetParent leftField leftArguments targetParent
-        fieldName arguments
+        fieldName
+        (Execution.coerceArgumentValues schema variableValues
+          leftFieldDefinition.arguments arguments)
   · rcases hleftTarget with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     rcases
@@ -2144,14 +2180,24 @@ theorem
         hchildResponse
   · by_cases hrightTarget :
         fieldProbeTarget targetParent rightField rightArguments targetParent
-          fieldName arguments
+          fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            rightFieldDefinition.arguments arguments)
     · rcases hrightTarget with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
           ¬ fieldProbeTarget targetParent leftField leftArguments
-            targetParent rightField arguments := by
+            targetParent rightField
+            (Execution.coerceArgumentValues schema variableValues
+              rightFieldDefinition.arguments arguments) := by
         intro htarget
-        exact hleftTarget htarget
+        rcases htarget with ⟨hparentEq, hfieldEq, hargumentsEq⟩
+        rw [hfieldEq] at hrightLookup
+        rw [hleftLookup] at hrightLookup
+        have hdefinitionEq : rightFieldDefinition = leftFieldDefinition :=
+          (Option.some.inj hrightLookup).symm
+        subst rightFieldDefinition
+        exact hleftTarget ⟨hparentEq, hfieldEq, hargumentsEq⟩
       rcases
           hrightChildResponse responseName arguments directives
             childSelectionSet hmem harguments with
@@ -2165,14 +2211,29 @@ theorem
           rightRuntime childSelectionSet rightFieldDefinition childFields
           childErrors hnotLeft harguments hrightLookup hrightInclude
           hrightFuel hchildResponse
-    · have hnotProjection :
-          ¬ fieldPairProjectionTarget targetParent leftField rightField
-            leftArguments rightArguments targetParent fieldName arguments := by
-        intro hprojection
+    · have hnotProjection : ∀ fieldDefinition,
+          schema.lookupField targetParent fieldName = some fieldDefinition
+          -> ¬ fieldPairProjectionTarget targetParent leftField rightField
+              leftArguments rightArguments targetParent fieldName
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments arguments) := by
+        intro fieldDefinition hfieldLookup hprojection
         rcases hprojection with ⟨_hparent, htarget⟩
         rcases htarget with hleft | hright
-        · exact hleftTarget ⟨rfl, hleft.1, hleft.2⟩
-        · exact hrightTarget ⟨rfl, hright.1, hright.2⟩
+        · have hfieldEq : fieldName = leftField := hleft.1
+          subst fieldName
+          rw [hleftLookup] at hfieldLookup
+          have hdefinitionEq : fieldDefinition = leftFieldDefinition :=
+            Option.some.inj hfieldLookup.symm
+          subst fieldDefinition
+          exact hleftTarget ⟨rfl, rfl, hleft.2⟩
+        · have hfieldEq : fieldName = rightField := hright.1
+          subst fieldName
+          rw [hrightLookup] at hfieldLookup
+          have hdefinitionEq : fieldDefinition = rightFieldDefinition :=
+            Option.some.inj hfieldLookup.symm
+          subst fieldDefinition
+          exact hrightTarget ⟨rfl, rfl, hright.2⟩
       exact
         hother responseName fieldName arguments directives childSelectionSet
           hmem hnotProjection
@@ -2321,11 +2382,11 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
               ) := by
   intro hlookup hfuel hleaf
   have hresolve :
-      (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
-          rightInitialSelectionSet leftInitialSpine rightInitialSpine
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime).resolve
-        parentType fieldName arguments
+      Execution.resolveFieldValue schema
+        (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
+          rightInitialSelectionSet leftInitialSpine rightInitialSpine targetParent
+          leftField rightField leftArguments rightArguments leftRuntime rightRuntime)
+        variableValues fieldDefinition parentType fieldName arguments
         (.object sourceRuntimeType
           (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
             spine))
@@ -2334,12 +2395,21 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
         (leafProbeResolverValue
           (ObjectRef := FieldPairSelectedPathProbeRef)
           fieldDefinition.outputType tag.scalar) := by
+    simp only [Execution.resolveFieldValue]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
       rightField parentType fieldName sourceRuntimeType leftArguments
-      rightArguments arguments leftRuntime rightRuntime tag fieldDefinition
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime tag fieldDefinition
       hlookup]
+    rw [fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments schema
+      currentSelectionSet parentType fieldName
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      arguments tag spine fieldDefinition.outputType]
     rw [
       fieldPairSelectedPathProbeHeadResolverValue_leaf_eq_leafProbeResolverValue
         schema currentSelectionSet parentType fieldName arguments tag spine
@@ -2484,11 +2554,11 @@ theorem
                   childSelectionSet)) := by
   intro hlookup hobject hfuel
   have hresolve :
-      (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
-          rightInitialSelectionSet leftInitialSpine rightInitialSpine
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime).resolve
-        parentType fieldName arguments
+      Execution.resolveFieldValue schema
+        (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
+          rightInitialSelectionSet leftInitialSpine rightInitialSpine targetParent
+          leftField rightField leftArguments rightArguments leftRuntime rightRuntime)
+        variableValues fieldDefinition parentType fieldName arguments
         (.object sourceRuntimeType
           (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
             spine))
@@ -2504,12 +2574,21 @@ theorem
               fieldDefinition.outputType.namedType fieldName arguments
               spine))
           fieldDefinition.outputType) := by
+    simp only [Execution.resolveFieldValue]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
       rightField parentType fieldName sourceRuntimeType leftArguments
-      rightArguments arguments leftRuntime rightRuntime tag fieldDefinition
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime tag fieldDefinition
       hlookup]
+    rw [fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments schema
+      currentSelectionSet parentType fieldName
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      arguments tag spine fieldDefinition.outputType]
     rw [
       fieldPairSelectedPathProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
         schema currentSelectionSet parentType fieldName arguments tag spine
@@ -2742,7 +2821,7 @@ theorem
           = true
       -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
       -> selectedObservableFieldSpineNext? fieldName arguments spine = none
-      -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName arguments
+      -> abstractRuntimeForFieldDeep? schema parentType fieldName
             parentType currentSelectionSet
           = some runtimeType
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
@@ -2783,11 +2862,11 @@ theorem
   intro hlookup hcomposite hnonObject hselectedNone hruntime hinclude
     hfuel
   have hresolve :
-      (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
-          rightInitialSelectionSet leftInitialSpine rightInitialSpine
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime).resolve
-        parentType fieldName arguments
+      Execution.resolveFieldValue schema
+        (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
+          rightInitialSelectionSet leftInitialSpine rightInitialSpine targetParent
+          leftField rightField leftArguments rightArguments leftRuntime rightRuntime)
+        variableValues fieldDefinition parentType fieldName arguments
         (.object sourceRuntimeType
           (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
             spine))
@@ -2799,12 +2878,21 @@ theorem
               runtimeType fieldName arguments currentSelectionSet)
             [])
           fieldDefinition.outputType) := by
+    simp only [Execution.resolveFieldValue]
     rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
       leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
       leftInitialSpine rightInitialSpine spine targetParent leftField
       rightField parentType fieldName sourceRuntimeType leftArguments
-      rightArguments arguments leftRuntime rightRuntime tag fieldDefinition
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime tag fieldDefinition
       hlookup]
+    rw [fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments schema
+      currentSelectionSet parentType fieldName
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      arguments tag spine fieldDefinition.outputType]
     rw [
       fieldPairSelectedPathProbeHeadResolverValue_abstractFallback_eq_objectProbeResolverValueWithRuntime
         schema currentSelectionSet parentType fieldName runtimeType
@@ -2847,7 +2935,7 @@ theorem
           = true
       -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
       -> selectedObservableFieldSpineNext? fieldName arguments spine = none
-      -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName arguments
+      -> abstractRuntimeForFieldDeep? schema parentType fieldName
             parentType currentSelectionSet
           = some runtimeType
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
@@ -2955,7 +3043,7 @@ theorem
           = true
       -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
       -> selectedObservableFieldSpineNext? fieldName arguments spine = none
-      -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName arguments
+      -> abstractRuntimeForFieldDeep? schema parentType fieldName
             parentType currentSelectionSet
           = some runtimeType
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
@@ -3084,11 +3172,11 @@ theorem
                   childSelectionSet)) := by
   intro hlookup hselected hcase hinclude hfuel
   have hresolve :
-      (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
-          rightInitialSelectionSet leftInitialSpine rightInitialSpine
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime).resolve
-        parentType fieldName arguments
+      Execution.resolveFieldValue schema
+        (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
+          rightInitialSelectionSet leftInitialSpine rightInitialSpine targetParent
+          leftField rightField leftArguments rightArguments leftRuntime rightRuntime)
+        variableValues fieldDefinition parentType fieldName arguments
         (.object sourceRuntimeType
           (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
             spine))
@@ -3100,14 +3188,24 @@ theorem
               runtimeType fieldName arguments currentSelectionSet)
             tail)
           fieldDefinition.outputType) := by
-    exact
-      fieldPairSelectedPathProbeResolvers_tagged_object_selected_runtime
-        schema leftInitialSelectionSet rightInitialSelectionSet
-        currentSelectionSet leftInitialSpine rightInitialSpine spine tail
-        targetParent leftField rightField parentType fieldName
-        sourceRuntimeType runtimeType leftArguments rightArguments
-        arguments leftRuntime rightRuntime tag fieldDefinition hlookup
-        hselected hcase
+    simp only [Execution.resolveFieldValue]
+    rw [fieldPairSelectedPathProbeResolvers_tagged_object schema
+      leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
+      leftInitialSpine rightInitialSpine spine targetParent leftField
+      rightField parentType fieldName sourceRuntimeType leftArguments
+      rightArguments
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      leftRuntime rightRuntime tag fieldDefinition hlookup]
+    rw [fieldPairSelectedPathProbeHeadResolverValue_eq_of_arguments schema
+      currentSelectionSet parentType fieldName
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments arguments)
+      arguments tag spine fieldDefinition.outputType]
+    exact congrArg some
+      (fieldPairSelectedPathProbeHeadResolverValue_selected_eq_objectProbeResolverValueWithRuntime
+        schema currentSelectionSet parentType fieldName runtimeType arguments tag
+        spine tail fieldDefinition.outputType hselected hcase)
   exact
     executeField_objectProbeWithRuntime_response_of_fuel_ge schema
       (fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet

@@ -1,4 +1,5 @@
 import GraphQL.Algorithms.ExecutionUngrouped
+import GraphQL.Algorithms.ExecutionUngroupedUncached
 import Tests.GraphQL.Execution
 
 namespace GraphQL
@@ -316,6 +317,25 @@ theorem executeQueryUsesVariableDefaultSmoke
           rootNameResolvers [] variableDefaultQuery
           (GraphQL.Execution.ResolverValue.object "Query" ())).data
         (.object [("name", .scalar "Query")])
+      = true := by
+  native_decide
+
+theorem cachedUngroupedExecutorPassesCoercedArgumentsToGivenResolver
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionUngrouped.executeQuery coercedResolverSchema
+          resolverArgumentPresenceResolvers [] omittedResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
+      = true := by
+  native_decide
+
+theorem uncachedUngroupedExecutorPassesCoercedArgumentsToGivenResolver
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionUngroupedUncached.executeQuery
+          coercedResolverSchema resolverArgumentPresenceResolvers []
+          omittedResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
       = true := by
   native_decide
 

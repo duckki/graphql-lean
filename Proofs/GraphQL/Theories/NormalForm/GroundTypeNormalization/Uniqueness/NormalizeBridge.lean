@@ -20,7 +20,7 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
         (normalizeOperation schema left) (normalizeOperation schema right)
       -> normalizeOperationUniqueUpToReordering schema left right := by
   intro hnormalUnique hschema hleftValid hrightValid hleftFree hrightFree
-    hleftFields hrightFields hleftFeasible hrightFeasible hsem
+    hleftFields hrightFields hleftFeasible hrightFeasible hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (normalizeOperation schema left) :=
@@ -45,6 +45,11 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       operationNormal schema (normalizeOperation schema right) :=
     by simpa [normalizeOperationNormal] using
       normalizeOperation_normal schema right hschema hrightValid
+  have hnormalizedDefinitions :
+      variableDefinitionsEquivalent
+        (normalizeOperation schema left).variableDefinitions
+        (normalizeOperation schema right).variableDefinitions := by
+    simpa [normalizeOperation_variableDefinitions] using hdefinitions
   have hleftEquivalent :
       operationsEquivalent schema left (normalizeOperation schema left) :=
     groundTypeNormalFormSemanticsPreservation schema left hschema hleftValid
@@ -66,7 +71,7 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
   exact
     hnormalUnique hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
-      hrightNormalizedNormal hnormalizedSem
+      hrightNormalizedNormal hnormalizedDefinitions hnormalizedSem
 
 end GroundTypeNormalization
 

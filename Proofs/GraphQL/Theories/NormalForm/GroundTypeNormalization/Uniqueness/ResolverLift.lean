@@ -247,17 +247,24 @@ mutual
             simp [Execution.executeField, hlookup]
         | some fieldDefinition =>
             cases hresolve :
-                base.resolve field.parentType field.fieldName field.arguments
-                  source with
+                base.resolve field.parentType field.fieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments) source with
             | none =>
-                simp [Execution.executeField, hlookup,
+                simp [Execution.executeField, Execution.resolveFieldValue,
+                  hlookup,
                   liftResolvers_resolve_liftResolverValue base
-                    field.parentType field.fieldName field.arguments source,
+                    field.parentType field.fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments) source,
                   hresolve]
             | some resolved =>
-                simp [Execution.executeField, hlookup,
+                simp [Execution.executeField, Execution.resolveFieldValue,
+                  hlookup,
                   liftResolvers_resolve_liftResolverValue base
-                    field.parentType field.fieldName field.arguments source,
+                    field.parentType field.fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments) source,
                   hresolve,
                   completeValue_liftResolvers schema base variableValues fuel
                     fieldDefinition.outputType (field :: fields) resolved]
@@ -497,18 +504,25 @@ mutual
             have hresolveEq :=
               parentObjectFieldResolvers_resolve_liftResolverValue base
                 targetParent targetField runtimeType ref field.parentType
-                field.fieldName field.arguments source
+                field.fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments field.arguments) source
             have hliftResolve :=
               liftResolvers_resolve_liftResolverValue base field.parentType
-                field.fieldName field.arguments source
+                field.fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments field.arguments) source
             cases hresolve :
-                base.resolve field.parentType field.fieldName field.arguments
-                  source with
+                base.resolve field.parentType field.fieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments) source with
             | none =>
-                simp [Execution.executeField, hlookup, hresolveEq,
+                simp [Execution.executeField, Execution.resolveFieldValue,
+                  hlookup, hresolveEq,
                   hliftResolve, hresolve]
             | some resolved =>
-                simp [Execution.executeField, hlookup, hresolveEq,
+                simp [Execution.executeField, Execution.resolveFieldValue,
+                  hlookup, hresolveEq,
                   hliftResolve, hresolve,
                   completeValue_parentObjectFieldResolvers_liftResolverValue
                     schema base variableValues targetParent targetField

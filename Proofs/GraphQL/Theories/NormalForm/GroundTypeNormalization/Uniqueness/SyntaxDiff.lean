@@ -11,6 +11,35 @@ namespace GraphQL
 
 namespace NormalForm
 
+mutual
+  inductive SelectionEqualUpToReordering : Selection -> Selection -> Prop where
+    | field
+      (responseName fieldName : Name)
+      {leftArguments rightArguments : List Argument}
+      (directives : List DirectiveApplication)
+      {leftSelectionSet rightSelectionSet : List Selection}
+      : Argument.argumentsEquivalent leftArguments rightArguments
+        -> SelectionSetEqualUpToReordering leftSelectionSet rightSelectionSet
+        -> SelectionEqualUpToReordering
+            (.field responseName fieldName leftArguments directives leftSelectionSet)
+            (.field responseName fieldName rightArguments directives rightSelectionSet)
+    | inlineFragment
+      (typeCondition : Option Name)
+      (directives : List DirectiveApplication)
+      {leftSelectionSet rightSelectionSet : List Selection}
+      : SelectionSetEqualUpToReordering leftSelectionSet rightSelectionSet
+        -> SelectionEqualUpToReordering
+            (.inlineFragment typeCondition directives leftSelectionSet)
+            (.inlineFragment typeCondition directives rightSelectionSet)
+
+  inductive SelectionSetEqualUpToReordering
+      : List Selection -> List Selection -> Prop where
+    | paired {left right : List Selection} (pairs : List (Selection × Selection))
+      : (pairs.map Prod.fst).Perm left -> (pairs.map Prod.snd).Perm right
+        -> (∀ pair, pair ∈ pairs -> SelectionEqualUpToReordering pair.1 pair.2)
+        -> SelectionSetEqualUpToReordering left right
+end
+
 namespace GroundTypeNormalization
 
 inductive NormalSelectionSetDiff (schema : Schema)
@@ -1018,7 +1047,16 @@ mutual
           · exact hrelations pair htail
 end
 
-theorem selectionSetEqualUpToReordering_of_field_responseName_matches
+def SelectionSetPairedBy (relation : Selection -> Selection -> Prop)
+    (left right : List Selection)
+    : Prop :=
+  ∃ pairs : List (Selection × Selection),
+    (pairs.map Prod.fst).Perm left
+    ∧ (pairs.map Prod.snd).Perm right
+    ∧ ∀ pair, pair ∈ pairs -> relation pair.1 pair.2
+
+theorem selectionSetPairedBy_of_field_responseName_matches
+    {relation : Selection -> Selection -> Prop}
     : ∀ left right,
         selectionsAllFields left
         -> selectionsAllFields right
@@ -1032,7 +1070,7 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
                   Selection.field responseName rightFieldName rightArguments
                       rightDirectives rightChildSelectionSet
                     ∈ right
-                  ∧ SelectionEqualUpToReordering
+                  ∧ relation
                       (Selection.field responseName fieldName arguments directives
                         childSelectionSet)
                       (Selection.field responseName rightFieldName rightArguments
@@ -1040,7 +1078,7 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
         -> (∀ responseName,
               responseName ∈ right.filterMap Selection.responseName?
               -> responseName ∈ left.filterMap Selection.responseName?)
-        -> SelectionSetEqualUpToReordering left right := by
+        -> SelectionSetPairedBy relation left right := by
   intro left
   induction left with
   | nil =>
@@ -1048,9 +1086,8 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
         hcoverage
       cases right with
       | nil =>
-          exact SelectionSetEqualUpToReordering.paired [] List.Perm.nil
-            List.Perm.nil
-            (by intro pair hpair; simp at hpair)
+          exact ⟨[], List.Perm.nil, List.Perm.nil,
+            (by intro pair hpair; simp at hpair)⟩
       | cons selection rest =>
           have hselectionField : Selection.isField selection :=
             hrightAll selection (by simp)
@@ -1128,7 +1165,7 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
                     Selection.field tailResponseName rightFieldName
                       rightArguments rightDirectives rightChildSelectionSet ∈
                       pref ++ suffix
-                      ∧ SelectionEqualUpToReordering
+                      ∧ relation
                         (Selection.field tailResponseName tailFieldName
                           tailArguments tailDirectives tailChildSelectionSet)
                         (Selection.field tailResponseName rightFieldName
@@ -1212,9 +1249,9 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
           rcases ih (pref ++ suffix) hleftRestAll hrightRestAll
               hleftRestNodup hrightRestNodup htailMatch htailCoverage with
             ⟨pairs, hleftPerm, hrightPerm, hpairRelations⟩
-          apply SelectionSetEqualUpToReordering.paired
+          refine ⟨
             ((Selection.field responseName fieldName arguments directives
-                childSelectionSet, matchedRight) :: pairs)
+                childSelectionSet, matchedRight) :: pairs), ?_, ?_, ?_⟩
           · exact hleftPerm.cons
               (Selection.field responseName fieldName arguments directives
                 childSelectionSet)
@@ -1229,7 +1266,38 @@ theorem selectionSetEqualUpToReordering_of_field_responseName_matches
               exact hselectionEq
             · exact hpairRelations pair htail
 
-theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
+theorem selectionSetEqualUpToReordering_of_field_responseName_matches
+    : ∀ left right,
+        selectionsAllFields left
+        -> selectionsAllFields right
+        -> responseNamesNodup left
+        -> responseNamesNodup right
+        -> (∀ responseName fieldName arguments directives childSelectionSet,
+              Selection.field responseName fieldName arguments directives
+                  childSelectionSet
+                ∈ left
+              -> ∃ rightFieldName rightArguments rightDirectives rightChildSelectionSet,
+                  Selection.field responseName rightFieldName rightArguments
+                      rightDirectives rightChildSelectionSet
+                    ∈ right
+                  ∧ SelectionEqualUpToReordering
+                      (Selection.field responseName fieldName arguments directives
+                        childSelectionSet)
+                      (Selection.field responseName rightFieldName rightArguments
+                        rightDirectives rightChildSelectionSet))
+        -> (∀ responseName,
+              responseName ∈ right.filterMap Selection.responseName?
+              -> responseName ∈ left.filterMap Selection.responseName?)
+        -> SelectionSetEqualUpToReordering left right := by
+  intro left right hleftFields hrightFields hleftNodup hrightNodup hmatches
+    hcoverage
+  rcases selectionSetPairedBy_of_field_responseName_matches left right
+      hleftFields hrightFields hleftNodup hrightNodup hmatches hcoverage with
+    ⟨pairs, hleft, hright, hrelations⟩
+  exact SelectionSetEqualUpToReordering.paired pairs hleft hright hrelations
+
+theorem selectionSetPairedBy_of_inlineFragment_typeCondition_matches
+    {relation : Selection -> Selection -> Prop}
     : ∀ left right,
         inlineFragmentTypeConditionsNodup left
         -> inlineFragmentTypeConditionsNodup right
@@ -1252,7 +1320,7 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
                   Selection.inlineFragment (some typeCondition) rightDirectives
                       rightChildSelectionSet
                     ∈ right
-                  ∧ SelectionEqualUpToReordering
+                  ∧ relation
                       (Selection.inlineFragment (some typeCondition) directives
                         childSelectionSet)
                       (Selection.inlineFragment (some typeCondition) rightDirectives
@@ -1260,7 +1328,7 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
         -> (∀ typeCondition,
               typeCondition ∈ right.filterMap inlineFragmentTypeCondition?
               -> typeCondition ∈ left.filterMap inlineFragmentTypeCondition?)
-        -> SelectionSetEqualUpToReordering left right := by
+        -> SelectionSetPairedBy relation left right := by
   intro left
   induction left with
   | nil =>
@@ -1268,9 +1336,8 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
         hcoverage
       cases right with
       | nil =>
-          exact SelectionSetEqualUpToReordering.paired [] List.Perm.nil
-            List.Perm.nil
-            (by intro pair hpair; simp at hpair)
+          exact ⟨[], List.Perm.nil, List.Perm.nil,
+            (by intro pair hpair; simp at hpair)⟩
       | cons selection rest =>
           rcases hrightSome selection (by simp) with
             ⟨typeCondition, directives, childSelectionSet, hselection⟩
@@ -1350,7 +1417,7 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
             ∃ rightDirectives rightChildSelectionSet,
               Selection.inlineFragment (some tailTypeCondition) rightDirectives
                 rightChildSelectionSet ∈ pref ++ suffix
-                ∧ SelectionEqualUpToReordering
+                ∧ relation
                   (Selection.inlineFragment (some tailTypeCondition)
                     tailDirectives tailChildSelectionSet)
                   (Selection.inlineFragment (some tailTypeCondition)
@@ -1431,9 +1498,9 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
       rcases ih (pref ++ suffix) hleftRestNodup hrightRestNodup
           hleftRestSome hrightRestSome htailMatch htailCoverage with
         ⟨pairs, hleftPerm, hrightPerm, hpairRelations⟩
-      apply SelectionSetEqualUpToReordering.paired
+      refine ⟨
         ((Selection.inlineFragment (some typeCondition) directives
-            childSelectionSet, matchedRight) :: pairs)
+            childSelectionSet, matchedRight) :: pairs), ?_, ?_, ?_⟩
       · exact hleftPerm.cons
           (Selection.inlineFragment (some typeCondition) directives
             childSelectionSet)
@@ -1447,6 +1514,45 @@ theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
         · subst pair
           exact hselectionEq
         · exact hpairRelations pair htail
+
+theorem selectionSetEqualUpToReordering_of_inlineFragment_typeCondition_matches
+    : ∀ left right,
+        inlineFragmentTypeConditionsNodup left
+        -> inlineFragmentTypeConditionsNodup right
+        -> (∀ selection,
+              selection ∈ left
+              -> ∃ typeCondition directives childSelectionSet,
+                  selection
+                  = Selection.inlineFragment (some typeCondition)
+                      directives childSelectionSet)
+        -> (∀ selection,
+              selection ∈ right
+              -> ∃ typeCondition directives childSelectionSet,
+                  selection
+                  = Selection.inlineFragment (some typeCondition)
+                      directives childSelectionSet)
+        -> (∀ typeCondition directives childSelectionSet,
+              Selection.inlineFragment (some typeCondition) directives childSelectionSet
+                ∈ left
+              -> ∃ rightDirectives rightChildSelectionSet,
+                  Selection.inlineFragment (some typeCondition) rightDirectives
+                      rightChildSelectionSet
+                    ∈ right
+                  ∧ SelectionEqualUpToReordering
+                      (Selection.inlineFragment (some typeCondition) directives
+                        childSelectionSet)
+                      (Selection.inlineFragment (some typeCondition) rightDirectives
+                        rightChildSelectionSet))
+        -> (∀ typeCondition,
+              typeCondition ∈ right.filterMap inlineFragmentTypeCondition?
+              -> typeCondition ∈ left.filterMap inlineFragmentTypeCondition?)
+        -> SelectionSetEqualUpToReordering left right := by
+  intro left right hleftNodup hrightNodup hleftSome hrightSome hmatches
+    hcoverage
+  rcases selectionSetPairedBy_of_inlineFragment_typeCondition_matches left right
+      hleftNodup hrightNodup hleftSome hrightSome hmatches hcoverage with
+    ⟨pairs, hleft, hright, hrelations⟩
+  exact SelectionSetEqualUpToReordering.paired pairs hleft hright hrelations
 
 theorem selectionSetEqualUpToReordering_of_no_normalSelectionSetDiff (schema : Schema)
     : ∀ parentType left right,

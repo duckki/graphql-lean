@@ -22,7 +22,10 @@ theorem AppendAllowedFieldState.of_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -73,7 +76,10 @@ theorem AppendAllowedFieldState.of_guarded_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -128,7 +134,10 @@ theorem AppendAllowedFieldState.of_contained_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -184,7 +193,10 @@ theorem AppendSelectionState.field_allowed_of_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -223,7 +235,10 @@ theorem AppendSelectionState.field_allowed_of_guarded_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -267,7 +282,10 @@ theorem AppendSelectionState.field_allowed_of_contained_child_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -312,7 +330,10 @@ theorem AppendAllowedFieldState.of_child_selectionSet_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -343,7 +364,10 @@ theorem AppendSelectionState.field_allowed_of_child_selectionSet_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -371,7 +395,10 @@ theorem AppendAllowedFieldState.of_child_prefix_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -403,7 +430,10 @@ theorem AppendSelectionState.field_allowed_of_child_prefix_states
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -431,7 +461,10 @@ theorem AppendSelectionState.field_allowed_of_child_prefix_states_fresh
     {directives : List DirectiveApplication}
     {selectionSet : List Selection} {resolved : ResolverValue ObjectIdentity}
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -460,7 +493,8 @@ theorem executeRootSelectionSet_executableFieldSelections_single_eq_spec_of_chil
     (field : ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -499,7 +533,8 @@ theorem
     (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -543,7 +578,8 @@ theorem
     (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -588,7 +624,8 @@ theorem
     (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -626,7 +663,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_single_of_child_states
     (field : ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -660,7 +698,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_single_of_guarded_child_states
     (field : ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -699,7 +738,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_single_of_contained_child_states
     (field : ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -739,7 +779,8 @@ theorem ExecutableFieldsFlatSpecAlignedEquivalent_single_of_contained_child_stat
     (field : ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -798,7 +839,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_collected_single_field_group_of_child
     hgroupParents field (by simp)
   exact ExecutableFieldsFlatSpecEquivalent_single_of_child_states
     schema resolvers variableValues depth parentType source field
-    (resolvers.resolve field.parentType field.fieldName field.arguments source)
+    (resolveFieldValueByName schema resolvers variableValues
+      field.parentType field.fieldName field.arguments source)
     hparent rfl hchildren
 
 theorem ExecutableGroupsFlatSpecEquivalent_single_field_group_of_child_states
@@ -831,7 +873,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_single_field_group_of_child_states
   simp [collectedExecutableFields]
   exact ExecutableFieldsFlatSpecEquivalent_single_of_child_states
     schema resolvers variableValues depth parentType source field
-    (resolvers.resolve field.parentType field.fieldName field.arguments source)
+    (resolveFieldValueByName schema resolvers variableValues
+      field.parentType field.fieldName field.arguments source)
     hparent rfl hchildren
 
 theorem executeRootSelectionSet_executableFieldSelections_group_eq_spec_of_merged_complete
@@ -845,7 +888,8 @@ theorem executeRootSelectionSet_executableFieldSelections_group_eq_spec_of_merge
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (_hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hungrouped
       : executeRootSelectionSet schema resolvers variableValues (depth + 1)
@@ -887,7 +931,8 @@ theorem
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -959,7 +1004,8 @@ theorem
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -1037,7 +1083,8 @@ theorem
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -1115,7 +1162,8 @@ theorem ExecutableFieldsMergedComplete_single_of_child_states
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -1152,7 +1200,8 @@ theorem ExecutableFieldsMergedComplete_single_of_guarded_child_states
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -1194,7 +1243,8 @@ theorem ExecutableFieldsMergedComplete_single_of_contained_child_states
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -1239,7 +1289,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_merged_complete
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hungrouped
       : executeRootSelectionSet schema resolvers variableValues (depth + 1)
@@ -1265,7 +1316,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_mergedComplete
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hmerged
       : ExecutableFieldsMergedComplete schema resolvers variableValues depth
@@ -1290,7 +1342,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_merged_compl
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hungrouped
       : executeRootSelectionSet schema resolvers variableValues (depth + 1)
@@ -1318,7 +1371,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_mergedComple
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hmerged
       : ExecutableFieldsMergedComplete schema resolvers variableValues depth
@@ -1360,7 +1414,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_merged_co
     ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_merged_complete
       schema resolvers variableValues depth parentType source responseName
       field fields
-      (resolvers.resolve field.parentType field.fieldName field.arguments source)
+    (resolveFieldValueByName schema resolvers variableValues
+      field.parentType field.fieldName field.arguments source)
       hgroupResponses hgroupParents rfl hungrouped
 
 end Eager

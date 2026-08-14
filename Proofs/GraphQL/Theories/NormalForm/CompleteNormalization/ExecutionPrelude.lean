@@ -5,6 +5,7 @@ import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.FieldCollectio
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.FieldSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.RuntimeFragmentSemantics
 import Proofs.GraphQL.Execution.FieldCollection
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Execution.ResolverValue
 
 /-!
@@ -555,8 +556,9 @@ theorem executeField_cons_eq_cons_of_completeValue
       -> normalizedField.fieldName = sourceField.fieldName
       -> normalizedField.arguments = sourceField.arguments
       -> (match schema.lookupField sourceField.parentType sourceField.fieldName,
-                resolvers.resolve sourceField.parentType sourceField.fieldName
-                  sourceField.arguments source with
+                Execution.resolveFieldValueByName schema resolvers variableValues
+                  sourceField.parentType sourceField.fieldName sourceField.arguments
+                  source with
           | some fieldDefinition, some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType (normalizedField :: normalizedFields) value
@@ -578,10 +580,11 @@ theorem executeField_cons_eq_cons_of_completeValue
           simp []
       | some fieldDefinition =>
           cases hresolved
-                : resolvers.resolve sourceField.parentType sourceField.fieldName
+                : Execution.resolveFieldValue schema resolvers variableValues
+                    fieldDefinition sourceField.parentType sourceField.fieldName
                     sourceField.arguments source with
           | none =>
-              simp []
+              simp [hresolved]
           | some value =>
               have hcomplete' :
                   Execution.completeValue schema resolvers variableValues
@@ -590,8 +593,9 @@ theorem executeField_cons_eq_cons_of_completeValue
                     Execution.completeValue schema resolvers variableValues
                       fieldDepth fieldDefinition.outputType
                       (sourceField :: sourceFields) value := by
-                simpa [hlookup, hresolved] using hcomplete
-              simp [Execution.singleFieldResult, hcomplete']
+                simpa [Execution.resolveFieldValueByName, hlookup, hresolved]
+                  using hcomplete
+              simp [hresolved, Execution.singleFieldResult, hcomplete']
 
 theorem executeSelectionSet_field_head_group_eq_of_completeValue
     (schema : Schema)
@@ -630,7 +634,8 @@ theorem executeSelectionSet_field_head_group_eq_of_completeValue
               :: sourceRest)
           = (responseName, sourceField :: sourceFields) :: sourceTail
       -> (match schema.lookupField parentType fieldName,
-                resolvers.resolve parentType fieldName arguments source with
+                Execution.resolveFieldValueByName schema resolvers variableValues
+                  parentType fieldName arguments source with
           | some fieldDefinition, some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType (normalizedField :: normalizedFields) value

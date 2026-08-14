@@ -365,30 +365,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
               :: sourceFields
             )
             :: sourceTail
-      -> Execution.completeValue schema resolvers variableValues (depth - 1)
-            ((schema.fieldReturnType? lookupParent fieldName).getD fieldName)
-            ({
-                parentType := lookupParent,
-                responseName := responseName,
-                fieldName := fieldName,
-                arguments := arguments,
-                selectionSet :=
-                  normalizeSelectionSetIn schema variables
-                    boolCase lookupParent selectionSet
-              }
-              :: normalizedFields)
-            (resolvers.resolve lookupParent fieldName arguments source)
-          = Execution.completeValue schema resolvers variableValues (depth - 1)
-              ((schema.fieldReturnType? lookupParent fieldName).getD fieldName)
-              ({
-                  parentType := lookupParent,
-                  responseName := responseName,
-                  fieldName := fieldName,
-                  arguments := arguments,
-                  selectionSet := selectionSet
-                }
-                :: sourceFields)
-              (resolvers.resolve lookupParent fieldName arguments source)
       -> Execution.executeCollectedFields schema resolvers variableValues depth source
             normalizedTail
           = Execution.executeCollectedFields schema resolvers variableValues depth
@@ -403,7 +379,7 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
               lookupParent source
               (Selection.field responseName fieldName arguments directives selectionSet
                 :: rest) := by
-  intro hallow hlookup hnormalizedCollect hsourceCollect hcomplete htail
+  intro hallow hlookup hnormalizedCollect hsourceCollect htail
   have hnormalizedCollect' :
       Execution.collectFields schema variableValues lookupParent source
           (Selection.field responseName fieldName arguments []
@@ -490,7 +466,8 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
               :: sourceFields
             )
             :: sourceTail
-      -> (match resolvers.resolve lookupParent fieldName arguments source with
+      -> (match Execution.resolveFieldValue schema resolvers variableValues
+                  fieldDefinition lookupParent fieldName arguments source with
           | some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType
@@ -565,11 +542,13 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
     hnormalizedCollect' hsourceCollect
     (by
       cases hresolved :
-          resolvers.resolve lookupParent fieldName arguments source with
+          Execution.resolveFieldValue schema resolvers variableValues
+            fieldDefinition lookupParent fieldName arguments source with
       | none =>
-          simp []
+          simp [Execution.resolveFieldValueByName, hlookup, hresolved]
       | some value =>
-          simpa [hlookup, hresolved] using hcomplete) htail
+          simpa [Execution.resolveFieldValueByName, hlookup, hresolved]
+            using hcomplete) htail
 
 theorem
     executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_no_duplicate_case
@@ -598,7 +577,8 @@ theorem
       -> responseName
           ∉ (Execution.collectFields schema variableValues lookupParent source rest).map
               Prod.fst
-      -> (match resolvers.resolve lookupParent fieldName arguments source with
+      -> (match Execution.resolveFieldValue schema resolvers variableValues
+                  fieldDefinition lookupParent fieldName arguments source with
           | some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType
@@ -747,29 +727,6 @@ theorem
       -> responseName
           ∉ (Execution.collectFields schema variableValues lookupParent source rest).map
               Prod.fst
-      -> Execution.completeValue schema resolvers variableValues (depth - 1)
-            ((schema.fieldReturnType? lookupParent fieldName).getD fieldName)
-            [{
-              parentType := lookupParent,
-              responseName := responseName,
-              fieldName := fieldName,
-              arguments := arguments,
-              selectionSet :=
-                normalizeSelectionSetIn schema
-                  (operationBoolVars operation) boolCase
-                  lookupParent selectionSet
-            }]
-            (resolvers.resolve lookupParent fieldName arguments source)
-          = Execution.completeValue schema resolvers variableValues (depth - 1)
-              ((schema.fieldReturnType? lookupParent fieldName).getD fieldName)
-              [{
-                parentType := lookupParent,
-                responseName := responseName,
-                fieldName := fieldName,
-                arguments := arguments,
-                selectionSet := selectionSet
-              }]
-              (resolvers.resolve lookupParent fieldName arguments source)
       -> Execution.executeSelectionSet schema resolvers variableValues depth
             lookupParent source
             (staticCollectForGround schema
@@ -788,8 +745,7 @@ theorem
               lookupParent source
               (Selection.field responseName fieldName arguments directives selectionSet
                 :: rest) := by
-  intro hagrees hsourceVars hallow hlookup hnormalizedNotin hsourceNotin
-    hcomplete htail
+  intro hagrees hsourceVars hallow hlookup hnormalizedNotin hsourceNotin htail
   let normalizedSelectionSet :=
     normalizeSelectionSetIn schema
       (operationBoolVars operation) boolCase lookupParent
@@ -865,8 +821,6 @@ theorem
   · exact hlookup
   · simpa [normalizedSelectionSet, normalizedRest] using hnormalizedCollect
   · exact hsourceCollect
-  · simpa [normalizedSelectionSet, Execution.mergedFieldSelectionSet]
-      using hcomplete
   · exact htailCollected
 
 end CompleteNormalization

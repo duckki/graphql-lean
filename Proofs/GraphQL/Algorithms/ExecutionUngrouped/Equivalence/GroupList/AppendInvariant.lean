@@ -245,8 +245,8 @@ structure CollectedFieldGroupContainedAppendInvariant
         -> ∀ childDepth runtimeType identity,
             childDepth < depth
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> schema.typeIncludesObjectBool
                   ((schema.fieldReturnType? field.parentType field.fieldName).getD
@@ -276,8 +276,8 @@ structure CollectedFieldGroupContainedAppendInvariant
         -> ∀ childDepth runtimeType identity,
             childDepth < depth
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> ResponseAbsorbs
                 (visitSubfields schema resolvers variableValues childDepth
@@ -298,8 +298,8 @@ structure CollectedFieldGroupContainedAppendInvariant
         -> ∀ childDepth runtimeType identity,
             childDepth < depth
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> VisitSubfieldsErrorNeutral schema resolvers variableValues childDepth
                 runtimeType (.object runtimeType identity) later.selectionSet
@@ -315,8 +315,8 @@ structure CollectedFieldGroupContainedAppendInvariant
         -> ∀ childDepth runtimeType identity,
             childDepth < depth
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> schema.typeIncludesObjectBool
                   ((schema.fieldReturnType? field.parentType field.fieldName).getD
@@ -458,8 +458,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> ValueContainsObject
-                  (resolvers.resolve field.parentType field.fieldName
-                    field.arguments source)
+                  (resolveFieldValueByName schema resolvers variableValues
+                    field.parentType field.fieldName field.arguments source)
                   runtimeType identity
               -> schema.typeIncludesObjectBool
                     ((schema.fieldReturnType? field.parentType field.fieldName).getD
@@ -489,8 +489,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> ValueContainsObject
-                  (resolvers.resolve field.parentType field.fieldName
-                    field.arguments source)
+                  (resolveFieldValueByName schema resolvers variableValues
+                    field.parentType field.fieldName field.arguments source)
                   runtimeType identity
               -> VisitSubfieldsErrorNeutral schema resolvers variableValues
                   childDepth runtimeType (.object runtimeType identity)
@@ -537,14 +537,17 @@ theorem
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups) (responseName : Name)
+    (hstable
+      : CollectedGroupsResolveStable schema resolvers variableValues source
+          groups) (responseName : Name)
     (field : ExecutableField) (fields prefixTail remaining : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
     (hprefix : ∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
     (hremaining : ∀ later, later ∈ remaining -> later ∈ fields)
     : ExecutableFieldsMergedCompleteContainedAppendSteps schema resolvers
         variableValues depth parentType source responseName field
-        (resolvers.resolve field.parentType field.fieldName field.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source)
         prefixTail remaining := by
   cases remaining with
   | nil =>
@@ -563,7 +566,7 @@ theorem
           ExecutableFieldsFieldValidationMergeCompatible (field :: fields) :=
         hcompatible responseName (field :: fields) hgroup
       have hgroupStable :
-          ExecutableFieldsResolveStable resolvers source (field :: fields) :=
+          ExecutableFieldsResolveStable schema resolvers variableValues source (field :: fields) :=
         hstable responseName (field :: fields) hgroup
       have hfieldResponse : field.responseName = responseName :=
         hgroupResponses field (by simp)
@@ -576,10 +579,8 @@ theorem
       have hfieldName : later.fieldName = field.fieldName :=
         (hgroupCompatible field later (by simp) hlater hsameResponse).1.symm
       have hresolveLater :
-          resolvers.resolve later.parentType later.fieldName later.arguments
-              source =
-          resolvers.resolve field.parentType field.fieldName field.arguments
-              source :=
+          resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
+          resolveFieldValueByName schema resolvers variableValues field.parentType field.fieldName field.arguments source :=
         (hgroupStable field later (by simp) hlater hsameResponse).symm
       have hprefixNext :
           ∀ candidate, candidate ∈ prefixTail ++ [later] ->
@@ -623,13 +624,14 @@ theorem ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
     : ExecutableFieldsMergedCompleteContainedAppendSteps schema resolvers
         variableValues depth parentType source responseName field
-        (resolvers.resolve field.parentType field.fieldName field.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source)
         [] fields :=
   ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
     hinvariant hresponses hparents hcompatible hstable responseName field
@@ -1139,7 +1141,7 @@ def of_collected_groups_state
               -> ∃ fieldDefinition,
                   schema.lookupField parentType field.fieldName = some fieldDefinition)
         -> CollectedGroupsFieldValidationMergeCompatible groups
-        -> CollectedGroupsResolveStable resolvers source groups
+        -> CollectedGroupsResolveStable schema resolvers variableValues source groups
         -> (∀ responseName field fields,
               (responseName, field :: fields) ∈ groups
               -> ExecutedFieldAppendPlanState schema resolvers variableValues depth
@@ -1174,7 +1176,7 @@ def of_collected_groups_state
               exact hlookups tailResponseName tailField tailFields
                 (by simp [hmem]))
             (CollectedGroupsFieldValidationMergeCompatible_tail hcompatible)
-            (CollectedGroupsResolveStable.tail resolvers source
+            (CollectedGroupsResolveStable.tail schema resolvers variableValues source
               (responseName, field :: fields) rest hstable)
             (by
               intro tailResponseName tailField tailFields hmem
@@ -1196,7 +1198,7 @@ def of_collected_groups_appendInvariant
           -> ∃ fieldDefinition,
               schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hinvariant : FieldGroupAppendInvariant schema resolvers variableValues depth)
     : ExecutedFieldGroups schema resolvers variableValues depth parentType source
         groups :=
@@ -1222,7 +1224,7 @@ def of_collected_groups_collectedAppendInvariant
           -> ∃ fieldDefinition,
               schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hinvariant
       : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
     : ExecutedFieldGroups schema resolvers variableValues depth parentType source
@@ -1250,7 +1252,7 @@ def of_collected_groups_collectedLocalAppendInvariant
           -> ∃ fieldDefinition,
               schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hinvariant
       : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
           depth groups)
@@ -1725,8 +1727,8 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
           -> ∀ childDepth runtimeType identity,
               childDepth < completionDepth + 1
               -> ValueContainsObject
-                  (resolvers.resolve field.parentType field.fieldName field.arguments
-                    source)
+                  (resolveFieldValueByName schema resolvers variableValues
+                    field.parentType field.fieldName field.arguments source)
                   runtimeType identity
               -> schema.typeIncludesObjectBool
                     ((schema.fieldReturnType? field.parentType field.fieldName).getD
@@ -1744,7 +1746,8 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
           (responseName, field :: fields) ∈ groups
           -> ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
               (completionDepth + 1) parentType source responseName field
-              (resolvers.resolve field.parentType field.fieldName field.arguments source)
+              (resolveFieldValueByName schema resolvers variableValues field.parentType
+                field.fieldName field.arguments source)
               [] fields)
     (hnodup : PairKeysNodup groups)
     : ExecutableGroupsFlatSpecAlignedEquivalent schema resolvers variableValues
@@ -1761,8 +1764,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
           ExecutableFieldsFlatSpecAlignedEquivalent_nonempty_group_of_alignedAppendSteps_positive
             schema resolvers variableValues completionDepth parentType source
             responseName field fields
-            (resolvers.resolve field.parentType field.fieldName field.arguments
-              source)
+            (resolveFieldValueByName schema resolvers variableValues field.parentType field.fieldName field.arguments source)
             (hresponses responseName (field :: fields) hgroup)
             (hparents responseName (field :: fields) hgroup)
             rfl

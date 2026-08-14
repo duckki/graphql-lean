@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.StemExecution
+import Proofs.GraphQL.Execution.ArgumentCoercion
 
 /-!
 Variable-environment independence for directive-free execution.
@@ -18,6 +19,20 @@ def executableFieldListDirectiveFree (fields : List Execution.ExecutableField) :
 def executableGroupsDirectiveFree (groups : List (Name × List Execution.ExecutableField))
     : Prop :=
   ∀ group, group ∈ groups -> executableFieldListDirectiveFree group.2
+
+theorem resolveFieldValue_eq_of_argumentCoercionEquivalent
+    (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.argumentCoercionEquivalent schema leftValues rightValues)
+    (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : Execution.ResolverValue ObjectRef)
+    : Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+        parentType fieldName arguments source
+      = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+          parentType fieldName arguments source := by
+  exact resolvers.resolve_argumentsEquivalent parentType fieldName
+    _ _ source (hequivalent fieldDefinition.arguments arguments)
 
 theorem executableFieldListDirectiveFree_append
     {left right : List Execution.ExecutableField}
@@ -245,6 +260,12 @@ def executionVariableValuesIndependentAtFuel
 theorem executionVariableValuesIndependentAtFuel_all
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (leftValues rightValues : Execution.VariableValues)
+    (hresolve
+      : ∀ fieldDefinition parentType fieldName arguments source,
+          Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+            parentType fieldName arguments source
+          = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+              parentType fieldName arguments source)
     : ∀ fuel,
         executionVariableValuesIndependentAtFuel schema resolvers leftValues
           rightValues fuel := by
@@ -388,8 +409,11 @@ theorem executionVariableValuesIndependentAtFuel_all
                   · simp
                   · rename_i fieldDefinition
                     simp only
-                    cases hresolve : resolvers.resolve field.parentType
-                        field.fieldName field.arguments source
+                    rw [hresolve fieldDefinition field.parentType field.fieldName
+                      field.arguments source]
+                    cases hresolved : Execution.resolveFieldValue schema resolvers
+                        rightValues fieldDefinition field.parentType field.fieldName
+                        field.arguments source
                     · simp
                     · rename_i resolved
                       simp only
@@ -406,21 +430,326 @@ theorem executeSelectionSet_eq_of_directiveFree_variableValues
     (fuel : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef)
     (selectionSet : List Selection)
-    : selectionSetDirectiveFree selectionSet
+    : (∀ fieldDefinition callParentType fieldName arguments callSource,
+        Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+          callParentType fieldName arguments callSource
+        = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+            callParentType fieldName arguments callSource)
+      -> selectionSetDirectiveFree selectionSet
       -> Execution.executeSelectionSet schema resolvers leftValues fuel parentType
             source selectionSet
           = Execution.executeSelectionSet schema resolvers rightValues fuel parentType
               source selectionSet := by
-  intro hfree
+  intro hresolve hfree
   have hcollect := collectFields_eq_of_directiveFree schema leftValues
     rightValues parentType source selectionSet hfree
   have hgroupsFree := collectFields_executableGroupsDirectiveFree schema
     leftValues parentType source selectionSet hfree
   have hexecute :=
     (executionVariableValuesIndependentAtFuel_all schema resolvers leftValues
-      rightValues fuel).1 source
+      rightValues hresolve fuel).1 source
       (Execution.collectFields schema leftValues parentType source selectionSet)
       hgroupsFree
+  simp only [Execution.executeSelectionSet, Execution.executeRootSelectionSet]
+  rw [← hcollect]
+  exact hexecute
+
+private theorem inputValue_staticBoolean?_eq_of_equivalent
+    {left right : InputValue} (hequivalent : left.equivalent right)
+    : left.staticBoolean? = right.staticBoolean? := by
+  have hcanonical :=
+    Execution.inputValue_canonical_eq_of_equivalent hequivalent
+  cases left <;> cases right <;>
+    simp [InputValue.staticBoolean?, InputValue.canonical] at hcanonical ⊢
+  exact hcanonical
+
+theorem inputValueBoolean?_eq_of_variableValuesCoercionEquivalent
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    (value : InputValue)
+    : Execution.inputValueBoolean? leftValues value
+      = Execution.inputValueBoolean? rightValues value := by
+  cases value <;> try rfl
+  rename_i name
+  have hlookup := hequivalent.1 name
+  cases hleft : Execution.lookupVariableValue? leftValues name with
+  | none =>
+      cases hright : Execution.lookupVariableValue? rightValues name with
+      | none => simp [Execution.inputValueBoolean?, hleft, hright]
+      | some right => simp [hleft, hright] at hlookup
+  | some left =>
+      cases hright : Execution.lookupVariableValue? rightValues name with
+      | none => simp [hleft, hright] at hlookup
+      | some right =>
+          simp [hleft, hright] at hlookup
+          simpa [Execution.inputValueBoolean?, hleft, hright] using
+            inputValue_staticBoolean?_eq_of_equivalent hlookup
+
+theorem directiveAllowsSelectionBool_eq_of_variableValuesCoercionEquivalent
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    (directive : DirectiveApplication)
+    : Execution.directiveAllowsSelectionBool leftValues directive
+      = Execution.directiveAllowsSelectionBool rightValues directive := by
+  cases directive <;>
+    simp only [Execution.directiveAllowsSelectionBool,
+      inputValueBoolean?_eq_of_variableValuesCoercionEquivalent hequivalent]
+
+theorem selectionDirectivesAllowBool_eq_of_variableValuesCoercionEquivalent
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    : ∀ directives,
+        Execution.selectionDirectivesAllowBool leftValues directives
+        = Execution.selectionDirectivesAllowBool rightValues directives
+  | [] => rfl
+  | directive :: rest => by
+      simp only [Execution.selectionDirectivesAllowBool, List.all_cons]
+      rw [directiveAllowsSelectionBool_eq_of_variableValuesCoercionEquivalent
+        hequivalent directive]
+      change (Execution.directiveAllowsSelectionBool rightValues directive &&
+          Execution.selectionDirectivesAllowBool leftValues rest) =
+        (Execution.directiveAllowsSelectionBool rightValues directive &&
+          Execution.selectionDirectivesAllowBool rightValues rest)
+      rw [selectionDirectivesAllowBool_eq_of_variableValuesCoercionEquivalent
+        hequivalent rest]
+
+mutual
+  theorem collectSelection_eq_of_variableValuesCoercionEquivalent
+      (schema : Schema) {leftValues rightValues : Execution.VariableValues}
+      (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+      (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+      : ∀ selection,
+          Execution.collectSelection schema leftValues parentType source selection
+          = Execution.collectSelection schema rightValues parentType source selection
+    | .field responseName fieldName arguments directives selectionSet => by
+        simp only [Execution.collectSelection]
+        rw [selectionDirectivesAllowBool_eq_of_variableValuesCoercionEquivalent
+          hequivalent directives]
+    | .inlineFragment none directives selectionSet => by
+        simp only [Execution.collectSelection]
+        rw [selectionDirectivesAllowBool_eq_of_variableValuesCoercionEquivalent
+          hequivalent directives]
+        split <;> rename_i hallowed
+        · exact collectFields_eq_of_variableValuesCoercionEquivalent schema
+            hequivalent parentType source selectionSet
+        · rfl
+    | .inlineFragment (some typeCondition) directives selectionSet => by
+        simp only [Execution.collectSelection]
+        rw [selectionDirectivesAllowBool_eq_of_variableValuesCoercionEquivalent
+          hequivalent directives]
+        split <;> rename_i hallowed
+        · split <;> rename_i happlies
+          · exact collectFields_eq_of_variableValuesCoercionEquivalent schema
+              hequivalent parentType source selectionSet
+          · rfl
+        · rfl
+
+  theorem collectFields_eq_of_variableValuesCoercionEquivalent
+      (schema : Schema) {leftValues rightValues : Execution.VariableValues}
+      (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+      (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+      : ∀ selectionSet,
+          Execution.collectFields schema leftValues parentType source selectionSet
+          = Execution.collectFields schema rightValues parentType source selectionSet
+    | [] => rfl
+    | selection :: rest => by
+        rw [Execution.collectFields, Execution.collectFields]
+        rw [collectSelection_eq_of_variableValuesCoercionEquivalent schema
+          hequivalent parentType source selection]
+        rw [collectFields_eq_of_variableValuesCoercionEquivalent schema
+          hequivalent parentType source rest]
+end
+
+theorem collectSubfields_eq_of_variableValuesCoercionEquivalent
+    (schema : Schema) {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    (objectType : Name) (objectValue : Execution.ResolverValue ObjectRef)
+    : ∀ fields : List Execution.ExecutableField,
+        Execution.collectSubfields schema leftValues objectType objectValue fields
+        = Execution.collectSubfields schema rightValues objectType objectValue fields
+  | [] => rfl
+  | field :: rest => by
+      rw [Execution.collectSubfields, Execution.collectSubfields]
+      rw [collectFields_eq_of_variableValuesCoercionEquivalent schema hequivalent
+        objectType objectValue field.selectionSet]
+      rw [collectSubfields_eq_of_variableValuesCoercionEquivalent schema hequivalent
+        objectType objectValue rest]
+
+def executionVariableValuesEquivalentAtFuel
+    (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    (leftValues rightValues : Execution.VariableValues) (fuel : Nat)
+    : Prop :=
+  (∀ source groups,
+    Execution.executeCollectedFields schema resolvers leftValues fuel source groups
+    = Execution.executeCollectedFields schema resolvers rightValues fuel source groups)
+  ∧ (∀ fieldType fields value,
+      Execution.completeValue schema resolvers leftValues fuel fieldType fields value
+      = Execution.completeValue schema resolvers rightValues fuel fieldType fields value)
+  ∧ ∀ itemType fields values,
+      Execution.completeValueList schema resolvers leftValues fuel itemType fields values
+      = Execution.completeValueList schema resolvers rightValues fuel itemType fields
+          values
+
+theorem executionVariableValuesEquivalentAtFuel_all
+    (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    : ∀ fuel,
+        executionVariableValuesEquivalentAtFuel schema resolvers leftValues
+          rightValues fuel := by
+  intro fuel
+  have hresolve : ∀ fieldDefinition parentType fieldName arguments source,
+      Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+          parentType fieldName arguments source =
+        Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+          parentType fieldName arguments source :=
+    fun fieldDefinition parentType fieldName arguments source =>
+      resolveFieldValue_eq_of_argumentCoercionEquivalent schema resolvers
+        (Execution.argumentCoercionEquivalent_of_variableValuesCoercionEquivalent
+          schema hequivalent)
+        fieldDefinition parentType fieldName arguments source
+  induction fuel with
+  | zero =>
+      refine ⟨?_, ?_, ?_⟩
+      · intro source groups
+        induction groups with
+        | nil => simp [Execution.executeCollectedFields]
+        | cons group rest ih =>
+            rcases group with ⟨responseName, fields⟩
+            cases fields with
+            | nil =>
+                simp [Execution.executeCollectedFields,
+                  Execution.executeField, ih]
+            | cons field fields =>
+                simp [Execution.executeCollectedFields,
+                  Execution.executeField, Execution.outOfFuel, ih]
+      · intro fieldType fields value
+        simp [Execution.completeValue]
+      · intro itemType fields values
+        induction values with
+        | nil => simp [Execution.completeValueList]
+        | cons value rest ih =>
+            simp [Execution.completeValueList, Execution.completeValue,
+              Execution.outOfFuel, ih]
+  | succ fuel ih =>
+      rcases ih with ⟨hexecute, hcomplete, hcompleteList⟩
+      have hcompleteCurrent : ∀ fieldType fields value,
+          Execution.completeValue schema resolvers leftValues (fuel + 1)
+              fieldType fields value =
+            Execution.completeValue schema resolvers rightValues (fuel + 1)
+              fieldType fields value := by
+        intro fieldType
+        induction fieldType with
+        | named typeName =>
+            intro fields value
+            cases value with
+            | null => simp [Execution.completeValue]
+            | scalar scalarValue => simp [Execution.completeValue]
+            | list values => simp [Execution.completeValue]
+            | object runtimeType ref =>
+                simp only [Execution.completeValue]
+                cases hinclude :
+                    schema.typeIncludesObjectBool typeName runtimeType
+                · simp
+                · simp only [if_true]
+                  let source : Execution.ResolverValue ObjectRef :=
+                    .object runtimeType ref
+                  have hcollect :=
+                    collectSubfields_eq_of_variableValuesCoercionEquivalent
+                      schema hequivalent runtimeType source fields
+                  change Execution.catchBubbleAsNull
+                      Execution.ResponseValue.object
+                        (Execution.executeCollectedFields schema resolvers
+                          leftValues fuel source
+                          (Execution.collectSubfields schema leftValues
+                            runtimeType source fields)) =
+                    Execution.catchBubbleAsNull Execution.ResponseValue.object
+                      (Execution.executeCollectedFields schema resolvers
+                        rightValues fuel source
+                        (Execution.collectSubfields schema rightValues
+                          runtimeType source fields))
+                  rw [← hcollect]
+                  rw [hexecute source]
+        | list inner =>
+            intro fields value
+            cases value with
+            | null => simp [Execution.completeValue]
+            | scalar scalarValue => simp [Execution.completeValue]
+            | object runtimeType ref => simp [Execution.completeValue]
+            | list values =>
+                simp only [Execution.completeValue]
+                rw [hcompleteList inner fields values]
+        | nonNull inner ihType =>
+            intro fields value
+            simp only [Execution.completeValue]
+            rw [ihType fields value]
+      have hcompleteListCurrent : ∀ itemType fields values,
+          Execution.completeValueList schema resolvers leftValues (fuel + 1)
+              itemType fields values =
+            Execution.completeValueList schema resolvers rightValues (fuel + 1)
+              itemType fields values := by
+        intro itemType fields values
+        induction values with
+        | nil => simp [Execution.completeValueList]
+        | cons value rest ihValues =>
+            simp only [Execution.completeValueList]
+            rw [hcompleteCurrent itemType fields value]
+            rw [ihValues]
+      have hexecuteCurrent : ∀ source groups,
+          Execution.executeCollectedFields schema resolvers leftValues
+              (fuel + 1) source groups =
+            Execution.executeCollectedFields schema resolvers rightValues
+              (fuel + 1) source groups := by
+        intro source groups
+        induction groups with
+        | nil => simp [Execution.executeCollectedFields]
+        | cons group rest ihGroups =>
+            rcases group with ⟨responseName, fields⟩
+            have hfield :
+                Execution.executeField schema resolvers leftValues (fuel + 1)
+                    source responseName fields =
+                  Execution.executeField schema resolvers rightValues (fuel + 1)
+                    source responseName fields := by
+              cases fields with
+              | nil => simp [Execution.executeField]
+              | cons field restFields =>
+                  simp only [Execution.executeField]
+                  cases hlookup :
+                      schema.lookupField field.parentType field.fieldName
+                  · simp
+                  · rename_i fieldDefinition
+                    simp only
+                    rw [hresolve fieldDefinition field.parentType field.fieldName
+                      field.arguments source]
+                    cases hresolved : Execution.resolveFieldValue schema resolvers
+                        rightValues fieldDefinition field.parentType field.fieldName
+                        field.arguments source
+                    · simp
+                    · rename_i resolved
+                      simp only
+                      rw [hcomplete fieldDefinition.outputType
+                        (field :: restFields) resolved]
+            simp only [Execution.executeCollectedFields]
+            rw [hfield]
+            rw [ihGroups]
+      exact ⟨hexecuteCurrent, hcompleteCurrent, hcompleteListCurrent⟩
+
+theorem executeSelectionSet_eq_of_variableValuesCoercionEquivalent
+    (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
+    {leftValues rightValues : Execution.VariableValues}
+    (hequivalent : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    (fuel : Nat) (parentType : Name)
+    (source : Execution.ResolverValue ObjectRef)
+    (selectionSet : List Selection)
+    : Execution.executeSelectionSet schema resolvers leftValues fuel parentType
+        source selectionSet
+      = Execution.executeSelectionSet schema resolvers rightValues fuel parentType
+          source selectionSet := by
+  have hcollect := collectFields_eq_of_variableValuesCoercionEquivalent schema
+    hequivalent parentType source selectionSet
+  have hexecute :=
+    (executionVariableValuesEquivalentAtFuel_all schema resolvers hequivalent fuel).1
+      source (Execution.collectFields schema leftValues parentType source selectionSet)
   simp only [Execution.executeSelectionSet, Execution.executeRootSelectionSet]
   rw [← hcollect]
   exact hexecute

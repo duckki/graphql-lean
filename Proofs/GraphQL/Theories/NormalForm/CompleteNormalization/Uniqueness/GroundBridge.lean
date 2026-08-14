@@ -1,3 +1,5 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.VariableIndependence
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.FocusedValidSeparation
 
@@ -11,10 +13,48 @@ namespace NormalForm
 
 namespace CompleteNormalization
 
+theorem selectionSetEqualUpToReorderingWithCoercion_right_transport
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
+    (hvalues : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    {parentType : Name} {left right : List Selection}
+    (hequal
+      : SelectionSetEqualUpToReorderingWithCoercion schema leftValues leftValues
+          parentType left right)
+    : SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+        parentType left right := by
+  refine SelectionSetEqualUpToReorderingWithCoercion.rec
+    (motive_1 := fun parentType left right _hequal =>
+      SelectionEqualUpToReorderingWithCoercion schema leftValues rightValues
+        parentType left right)
+    (motive_2 := fun parentType left right _hequal =>
+      SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+        parentType left right)
+    ?_ ?_ ?_ hequal
+  · intro fieldParentType responseName fieldName leftArguments rightArguments
+      directives leftSelectionSet rightSelectionSet fieldDefinition hlookup
+      harguments _hchildren hchildren
+    apply SelectionEqualUpToReorderingWithCoercion.field fieldParentType
+      responseName fieldName directives fieldDefinition hlookup
+    · have hcoerced :=
+        Execution.coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
+          schema hvalues fieldDefinition.arguments rightArguments
+      exact Execution.argumentsEquivalent_trans_forCoercion harguments hcoerced
+    · exact hchildren
+  · intro fragmentParentType typeCondition directives leftSelectionSet
+      rightSelectionSet _hchildren hchildren
+    exact SelectionEqualUpToReorderingWithCoercion.inlineFragment
+      fragmentParentType typeCondition directives hchildren
+  · intro pairParentType pairLeft pairRight pairs hleft hright _hpairs hpairs
+    exact SelectionSetEqualUpToReorderingWithCoercion.paired pairs hleft hright
+      hpairs
+
 theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
+    {leftVariableValues rightVariableValues : Execution.VariableValues}
     {parentType : Name} {left right : List Selection}
+    (hvalues
+      : Execution.variableValuesCoercionEquivalent leftVariableValues rightVariableValues)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleftValid
       : Validation.selectionSetValid schema leftVariableDefinitions parentType left)
@@ -25,29 +65,54 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
     (hleftNormal : selectionSetNormal schema parentType left)
     (hrightNormal : selectionSetNormal schema parentType right)
     (hobject : objectTypeNameBool schema parentType = true)
-    (hsem : selectionSetsSemanticallyEquivalent schema parentType left right)
-    : SelectionSetEqualUpToReordering left right := by
-  by_cases hequal : SelectionSetEqualUpToReordering left right
-  · exact hequal
-  · have hdiff :
-        GroundTypeNormalization.NormalSelectionSetDiff schema parentType
-          left right :=
-      GroundTypeNormalization.normalSelectionSetDiff_of_not_equalUpToReordering
-        hleftFree hrightFree hleftNormal hrightNormal hequal
-    rcases
-        GroundTypeNormalization.normalSelectionSetDiffObservableTrace_of_valid_normal_diff
-          hleftValid hrightValid hleftNormal hrightNormal hdiff with
-      ⟨responsePath, htrace⟩
-    have hnotData :
-        ¬ GroundTypeNormalization.selectionSetsDataEquivalent schema
-          parentType left right :=
-      GroundTypeNormalization.not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_pairedPath
-        hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-        hrightNormal hobject htrace
-    exact False.elim
-      (hnotData
-        (GroundTypeNormalization.selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
-          hsem))
+    (hsem
+      : selectionSetsSemanticallyEquivalentAtVariableValues schema
+          leftVariableValues rightVariableValues parentType left right)
+    : SelectionSetEqualUpToReorderingWithCoercion schema leftVariableValues
+        rightVariableValues parentType left right := by
+  have hsemSame :
+      selectionSetsSemanticallyEquivalentAtVariableValues schema
+        leftVariableValues leftVariableValues parentType left right := by
+    intro ObjectRef resolvers fuel source hsource
+    have hrightExecution :
+        Execution.executeSelectionSetAsResponse schema resolvers
+            rightVariableValues fuel parentType source right
+          = Execution.executeSelectionSetAsResponse schema resolvers
+            leftVariableValues fuel parentType source right := by
+      unfold Execution.executeSelectionSetAsResponse
+      rw [executeSelectionSet_eq_of_variableValuesCoercionEquivalent schema
+        resolvers (Execution.variableValuesCoercionEquivalent_symm hvalues)
+        fuel parentType source right]
+    rw [← hrightExecution]
+    exact hsem resolvers fuel source hsource
+  have hsame :
+      SelectionSetEqualUpToReorderingWithCoercion schema leftVariableValues
+        leftVariableValues parentType left right := by
+    by_cases hequal :
+        SelectionSetEqualUpToReorderingWithCoercion schema leftVariableValues
+          leftVariableValues parentType left right
+    · exact hequal
+    · exfalso
+      have hdiff :=
+        GroundTypeNormalization.normalSelectionSetDiff_of_not_equal
+          hleftFree hrightFree hleftNormal hrightNormal hequal
+      rcases
+          GroundTypeNormalization.selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_coercion_diff
+            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+            hrightNormal (supportSelectionSets := []) (minFuel := 0)
+            (by simp) hdiff with
+        ⟨runtimeType, hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,
+          _hsupport, hnotData⟩
+      have hruntimeEq : runtimeType = parentType :=
+        GroundTypeNormalization.typeIncludesObjectBool_eq_of_objectTypeNameBool_true
+          schema hobject hinclude
+      subst runtimeType
+      have hsemantic := hsemSame resolvers fuel
+        (Execution.ResolverValue.object parentType ref)
+        ⟨parentType, ref, rfl, hinclude⟩
+      exact hnotData hsemantic.1
+  exact selectionSetEqualUpToReorderingWithCoercion_right_transport
+    hvalues hsame
 
 end CompleteNormalization
 

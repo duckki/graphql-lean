@@ -19,19 +19,20 @@ def selectionSetDeepHeadPromotionAvailable
     (schema : Schema) (rootSelectionSet : List Selection)
     (parentType : Name) (selectionSet : List Selection)
     : Prop :=
-  ∀ abstractTargetParent abstractTargetField targetArguments targetRuntimeType
+  ∀ abstractTargetParent abstractTargetField (_targetArguments : List Argument)
+    targetRuntimeType
     targetFieldDefinition,
     schema.lookupField abstractTargetParent abstractTargetField
       = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
         = true
     -> objectTypeNameBool schema targetFieldDefinition.outputType.namedType = false
-    -> abstractRuntimeForFieldHeadDeep? schema abstractTargetParent
-          abstractTargetField targetArguments parentType selectionSet
+    -> abstractRuntimeForFieldDeep? schema abstractTargetParent
+          abstractTargetField parentType selectionSet
         = some targetRuntimeType
     -> ∃ runtimeType,
-        abstractRuntimeForFieldHeadDeep? schema abstractTargetParent
-            abstractTargetField targetArguments abstractTargetParent
+        abstractRuntimeForFieldDeep? schema abstractTargetParent
+            abstractTargetField abstractTargetParent
             rootSelectionSet
           = some runtimeType
         ∧ schema.typeIncludesObjectBool
@@ -64,8 +65,8 @@ theorem executeField_fieldPairProbe_tagged_object_field_ok_of_field_children
                             ∧ objectTypeNameBool schema
                                 fieldDefinition.outputType.namedType
                               = false
-                            ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                fieldName arguments parentType rootSelectionSet
+                            ∧ abstractRuntimeForFieldDeep? schema parentType
+                                fieldName parentType rootSelectionSet
                               = some childRuntimeType))
                       ∧ schema.typeIncludesObjectBool
                           fieldDefinition.outputType.namedType childRuntimeType
@@ -157,8 +158,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_object_of_field_chil
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType rootSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType rootSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
                               fieldDefinition.outputType.namedType childRuntimeType
@@ -275,9 +276,9 @@ theorem
                                     ∧ objectTypeNameBool schema
                                         bodyFieldDefinition.outputType.namedType
                                       = false
-                                    ∧ abstractRuntimeForFieldHeadDeep? schema
-                                        typeCondition bodyFieldName bodyArguments
-                                        typeCondition rootSelectionSet
+                                    ∧ abstractRuntimeForFieldDeep? schema
+                                        typeCondition bodyFieldName typeCondition
+                                        rootSelectionSet
                                       = some childRuntimeType))
                               ∧ schema.typeIncludesObjectBool
                                   bodyFieldDefinition.outputType.namedType
@@ -597,18 +598,12 @@ theorem
           have hchildHeadPromote :
               selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
                 fieldDefinition.outputType.namedType childSelectionSet := by
-            intro abstractTargetParent abstractTargetField targetArguments
+            intro abstractTargetParent abstractTargetField _targetArguments
               targetRuntimeType targetFieldDefinition htargetLookup
               htargetComposite htargetNonObject hlocalRuntime
-            rcases
-                abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-                  hvalid hfree hnormal hmem hlookup hlocalRuntime with
-              ⟨parentRuntimeType, hparentRuntime⟩
-            exact
-              hheadPromote abstractTargetParent abstractTargetField
-                targetArguments parentRuntimeType targetFieldDefinition
-                htargetLookup htargetComposite htargetNonObject
-                hparentRuntime
+            exact hchildPromote abstractTargetParent abstractTargetField
+              targetRuntimeType targetFieldDefinition htargetLookup
+              htargetComposite htargetNonObject hlocalRuntime
           by_cases hreturnObject :
               objectTypeNameBool schema
                   fieldDefinition.outputType.namedType = true
@@ -650,7 +645,7 @@ theorem
                     fieldDefinition.outputType.namedType <;>
                 simp [h] at hreturnObject ⊢
             rcases
-                abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+                abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
                   hvalid hnormal hmem hlookup hreturnComposite
                   hreturnNonObject with
               ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
@@ -770,17 +765,12 @@ theorem
         have hbodyHeadPromote :
             selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
               typeCondition bodySelectionSet := by
-          intro abstractTargetParent abstractTargetField targetArguments
+          intro abstractTargetParent abstractTargetField _targetArguments
             targetRuntimeType targetFieldDefinition htargetLookup
             htargetComposite htargetNonObject hbodyLocalRuntime
-          rcases
-              abstractRuntimeForFieldHeadDeep?_inlineFragment_child_promote_some_of_valid_normal
-                hvalid hfree hnormal hinlineMem hbodyLocalRuntime with
-            ⟨childRuntimeType, hchildRuntime⟩
-          exact
-            hheadPromote abstractTargetParent abstractTargetField
-              targetArguments childRuntimeType targetFieldDefinition
-              htargetLookup htargetComposite htargetNonObject hchildRuntime
+          exact hbodyPromote abstractTargetParent abstractTargetField
+            targetRuntimeType targetFieldDefinition htargetLookup
+            htargetComposite htargetNonObject hbodyLocalRuntime
         rcases selectionSetValid_field_lookup_of_mem hbodyValid
             hbodyFieldMem with
           ⟨bodyFieldDefinition, hbodyLookup, _hbodyArguments,
@@ -899,19 +889,12 @@ theorem
               selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
                 bodyFieldDefinition.outputType.namedType
                 bodyChildSelectionSet := by
-            intro abstractTargetParent abstractTargetField targetArguments
+            intro abstractTargetParent abstractTargetField _targetArguments
               targetRuntimeType targetFieldDefinition htargetLookup
               htargetComposite htargetNonObject hlocalRuntime
-            rcases
-                abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-                  hbodyValid hbodyFree hbodyNormal hbodyFieldMem
-                  hbodyLookup hlocalRuntime with
-              ⟨bodyRuntimeType, hbodyRuntime⟩
-            exact
-              hbodyHeadPromote abstractTargetParent abstractTargetField
-                targetArguments bodyRuntimeType targetFieldDefinition
-                htargetLookup htargetComposite htargetNonObject
-                hbodyRuntime
+            exact hchildPromote abstractTargetParent abstractTargetField
+              targetRuntimeType targetFieldDefinition htargetLookup
+              htargetComposite htargetNonObject hlocalRuntime
           by_cases hreturnObject :
               objectTypeNameBool schema
                   bodyFieldDefinition.outputType.namedType = true
@@ -955,7 +938,7 @@ theorem
                     bodyFieldDefinition.outputType.namedType <;>
                 simp [h] at hreturnObject ⊢
             rcases
-                abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+                abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
                   hbodyValid hbodyNormal hbodyFieldMem hbodyLookup
                   hreturnComposite hreturnNonObject with
               ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
@@ -1233,17 +1216,12 @@ theorem
     have hchildHeadPromote :
         selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
           fieldDefinition.outputType.namedType childSelectionSet := by
-      intro abstractTargetParent abstractTargetField targetArguments
+      intro abstractTargetParent abstractTargetField _targetArguments
         targetRuntimeType targetFieldDefinition htargetLookup
         htargetComposite htargetNonObject hlocalRuntime
-      rcases
-          abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-            hvalid hfree hnormal hmem hlookup hlocalRuntime with
-        ⟨parentRuntimeType, hparentRuntime⟩
-      exact
-        hheadPromote abstractTargetParent abstractTargetField
-          targetArguments parentRuntimeType targetFieldDefinition
-          htargetLookup htargetComposite htargetNonObject hparentRuntime
+      exact hchildPromote abstractTargetParent abstractTargetField
+        targetRuntimeType targetFieldDefinition htargetLookup
+        htargetComposite htargetNonObject hlocalRuntime
     by_cases hreturnObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType = true
     · have hchildValid :
@@ -1286,7 +1264,7 @@ theorem
               fieldDefinition.outputType.namedType <;>
           simp [h] at hreturnObject ⊢
       rcases
-          abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+                abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
             hvalid hnormal hmem hlookup hreturnComposite
             hreturnNonObject with
         ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩

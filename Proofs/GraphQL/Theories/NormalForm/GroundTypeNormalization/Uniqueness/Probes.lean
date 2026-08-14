@@ -12,111 +12,11 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-mutual
-  theorem inputValue_structuralEquivalent_trans
-      : ∀ {left middle right : InputValue},
-          InputValue.structuralEquivalent left middle
-          -> InputValue.structuralEquivalent middle right
-          -> InputValue.structuralEquivalent left right := by
-    intro left middle right hleft hright
-    cases left <;> cases middle <;> cases right <;>
-      simp [InputValue.structuralEquivalent] at hleft hright ⊢
-    all_goals
-      first
-      | exact hleft.trans hright
-      | exact inputValues_structuralEquivalent_trans hleft hright
-      | exact inputObjectFields_structuralEquivalent_trans hleft hright
-      | trivial
-      | contradiction
-
-  theorem inputValues_structuralEquivalent_trans
-      : ∀ {left middle right : List InputValue},
-          InputValue.structuralValuesEquivalent left middle
-          -> InputValue.structuralValuesEquivalent middle right
-          -> InputValue.structuralValuesEquivalent left right
-    | [], [], [], _hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent]
-    | left :: lefts, middle :: middles, right :: rights, hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft hright ⊢
-        exact
-          ⟨inputValue_structuralEquivalent_trans hleft.1 hright.1,
-            inputValues_structuralEquivalent_trans hleft.2 hright.2⟩
-    | [], [], _ :: _, _hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hright
-    | [], _ :: _, [], hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | [], _ :: _, _ :: _, hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, [], [], hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, [], _ :: _, hleft, _hright => by
-        simp [InputValue.structuralValuesEquivalent] at hleft
-    | _ :: _, _ :: _, [], _hleft, hright => by
-        simp [InputValue.structuralValuesEquivalent] at hright
-
-  theorem inputObjectFields_structuralEquivalent_trans
-      : ∀ {left middle right : List (Name × InputValue)},
-          InputValue.structuralObjectFieldsEquivalent left middle
-          -> InputValue.structuralObjectFieldsEquivalent middle right
-          -> InputValue.structuralObjectFieldsEquivalent left right
-    | [], [], [], _hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent]
-    | (leftName, leftValue) :: lefts,
-        (middleName, middleValue) :: middles,
-        (rightName, rightValue) :: rights, hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft hright ⊢
-        exact
-          ⟨hleft.1.trans hright.1,
-            inputValue_structuralEquivalent_trans hleft.2.1 hright.2.1,
-            inputObjectFields_structuralEquivalent_trans
-              hleft.2.2 hright.2.2⟩
-    | [], [], _ :: _, _hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hright
-    | [], _ :: _, [], hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | [], _ :: _, _ :: _, hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, [], [], hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, [], _ :: _, hleft, _hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hleft
-    | _ :: _, _ :: _, [], _hleft, hright => by
-        simp [InputValue.structuralObjectFieldsEquivalent] at hright
-end
-
-theorem inputValue_equivalent_trans {left middle right : InputValue}
-    : left.equivalent middle -> middle.equivalent right -> left.equivalent right := by
-  intro hleft hright
-  exact inputValue_structuralEquivalent_trans hleft hright
-
-theorem argumentEquivalent_trans {left middle right : Argument}
-    : left.equivalent middle -> middle.equivalent right -> left.equivalent right := by
-  intro hleft hright
-  exact ⟨hleft.1.trans hright.1,
-    inputValue_equivalent_trans hleft.2 hright.2⟩
-
 theorem argumentsEquivalent_trans {left middle right : List Argument}
     : Argument.argumentsEquivalent left middle
       -> Argument.argumentsEquivalent middle right
-      -> Argument.argumentsEquivalent left right := by
-  intro hleft hright
-  exact ⟨
-    by
-      intro argument hargument
-      rcases hleft.1 argument hargument with
-        ⟨middleArgument, hmiddleArgument, hequivalentLeft⟩
-      rcases hright.1 middleArgument hmiddleArgument with
-        ⟨rightArgument, hrightArgument, hequivalentRight⟩
-      exact ⟨rightArgument, hrightArgument,
-        argumentEquivalent_trans hequivalentLeft hequivalentRight⟩,
-    by
-      intro argument hargument
-      rcases hright.2 argument hargument with
-        ⟨middleArgument, hmiddleArgument, hequivalentRight⟩
-      rcases hleft.2 middleArgument hmiddleArgument with
-        ⟨leftArgument, hleftArgument, hequivalentLeft⟩
-      exact ⟨leftArgument, hleftArgument,
-        argumentEquivalent_trans hequivalentLeft hequivalentRight⟩⟩
+      -> Argument.argumentsEquivalent left right :=
+  Execution.argumentsEquivalent_trans_forCoercion
 
 def fieldFailureResolvers {ObjectRef : Type} (targetParent targetField : Name)
     : Execution.Resolvers ObjectRef where
@@ -1490,15 +1390,20 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
                   objectRef parentType fieldName fieldDefinition.outputType)) := by
   intro hlookup
   have hresolve :
-      (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
-        objectRef).resolve parentType fieldName arguments source
+      Execution.resolveFieldValue schema
+        (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
+        variableValues fieldDefinition parentType fieldName arguments source
         =
       some
         (deepSelectionSetSuccessResolverValueWithRef schema rootSelectionSet
           objectRef parentType fieldName fieldDefinition.outputType) :=
-    deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
-      rootSelectionSet objectRef parentType fieldName arguments source
-      fieldDefinition hlookup
+    by
+      simp only [Execution.resolveFieldValue]
+      exact deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
+        rootSelectionSet objectRef parentType fieldName
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
+        source fieldDefinition hlookup
   simp [Execution.executeField, hlookup, hresolve]
 
 theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
@@ -2300,7 +2205,8 @@ theorem executeField_leafProbe_singleton_of_resolve_fuel_ge
     (selectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (value : String)
     : schema.lookupField parentType fieldName = some fieldDefinition
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+            parentType fieldName arguments source
           = some (leafProbeResolverValue fieldDefinition.outputType value)
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -2375,13 +2281,19 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
               ) := by
   intro hlookup hfuel hleaf
   have hresolve :
-      (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value).resolve
-        parentType fieldName arguments source
+      Execution.resolveFieldValue schema
+        (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
+        variableValues fieldDefinition parentType fieldName arguments source
         =
       some (leafProbeResolverValue (ObjectRef := ObjectRef)
         fieldDefinition.outputType value) :=
-    schemaLeafProbeResolvers_resolve_lookup schema value parentType fieldName
-      arguments source fieldDefinition hlookup
+    by
+      simp only [Execution.resolveFieldValue]
+      exact schemaLeafProbeResolvers_resolve_lookup schema value parentType
+        fieldName
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
+        source fieldDefinition hlookup
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema
       (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
@@ -2406,7 +2318,13 @@ theorem executeField_named_object_of_resolve
               arguments := definitionArguments
             }
       -> schema.typeIncludesObjectBool returnType runtimeType = true
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues
+            {
+              name := definitionName,
+              outputType := .named returnType,
+              arguments := definitionArguments
+            }
+            parentType fieldName arguments source
           = some (.object runtimeType ref)
       -> Execution.executeField schema resolvers variableValues (fuel + 2)
             source responseName
@@ -2469,7 +2387,13 @@ theorem executeSelectionSetAsResponse_singleton_named_object_of_resolve
               arguments := definitionArguments
             }
       -> schema.typeIncludesObjectBool returnType runtimeType = true
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues
+            {
+              name := definitionName,
+              outputType := .named returnType,
+              arguments := definitionArguments
+            }
+            parentType fieldName arguments source
           = some (.object runtimeType ref)
       -> Execution.executeSelectionSetAsResponse schema resolvers variableValues
             (fuel + 2) parentType source
@@ -3263,7 +3187,8 @@ theorem executeField_objectProbeWithRuntime_response
     (selectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name) (ref : ObjectRef)
     : schema.lookupField parentType fieldName = some fieldDefinition
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+            parentType fieldName arguments source
           = some
               (objectProbeResolverValueWithRuntime runtimeType ref
                 fieldDefinition.outputType)
@@ -3311,7 +3236,8 @@ theorem executeField_objectProbeWithRuntime_response_of_fuel_ge
     (selectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name) (ref : ObjectRef)
     : schema.lookupField parentType fieldName = some fieldDefinition
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+            parentType fieldName arguments source
           = some
               (objectProbeResolverValueWithRuntime runtimeType ref
                 fieldDefinition.outputType)
@@ -3357,7 +3283,8 @@ theorem executeSelectionSetAsResponse_singleton_objectProbeWithRuntime_response
     (source : Execution.ResolverValue ObjectRef)
     (childSelectionSet : List Selection)
     : schema.lookupField parentType fieldName = some fieldDefinition
-      -> resolvers.resolve parentType fieldName arguments source
+      -> Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+            parentType fieldName arguments source
           = some
               (objectProbeResolverValueWithRuntime runtimeType ref
                 fieldDefinition.outputType)

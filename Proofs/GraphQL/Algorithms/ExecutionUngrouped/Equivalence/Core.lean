@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Eager
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.Shared.Execution
 import Proofs.GraphQL.Theories.NormalForm.Shared.FieldMerge
 import Proofs.GraphQL.Theories.NormalForm.Shared.RuntimeTypes
@@ -1278,72 +1279,111 @@ theorem ExecutableFieldsRuntimeScopedBy.mono
   exact hscoped field (hsubset field hfield)
 
 def ExecutableFieldsResolveStable
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema)
+    (resolvers : Resolvers ObjectIdentity) (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity) (fields : List ExecutableField)
     : Prop :=
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
     -> first.responseName = later.responseName
-    -> resolvers.resolve first.parentType first.fieldName first.arguments source
-        = resolvers.resolve later.parentType later.fieldName later.arguments source
+    -> resolveFieldValueByName schema resolvers variableValues first.parentType
+          first.fieldName first.arguments source
+        = resolveFieldValueByName schema resolvers variableValues later.parentType
+            later.fieldName later.arguments source
 
 def ResolversRespectArgumentEquivalence
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity)
     : Prop :=
   ∀ parentType fieldName firstArguments laterArguments,
     Argument.argumentsEquivalent firstArguments laterArguments
-    -> resolvers.resolve parentType fieldName firstArguments source
-        = resolvers.resolve parentType fieldName laterArguments source
+    -> resolveFieldValueByName schema resolvers variableValues parentType fieldName
+          firstArguments source
+        = resolveFieldValueByName schema resolvers variableValues parentType fieldName
+            laterArguments source
+
+def ResolversRespectValidArgumentEquivalence
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
+    (source : ResolverValue ObjectIdentity)
+    : Prop :=
+  ∀ parentType fieldName firstArguments laterArguments,
+    (firstArguments.map Argument.name).Nodup
+    -> (laterArguments.map Argument.name).Nodup
+    -> Argument.argumentsEquivalent firstArguments laterArguments
+    -> resolveFieldValueByName schema resolvers variableValues parentType fieldName
+          firstArguments source
+        = resolveFieldValueByName schema resolvers variableValues parentType fieldName
+            laterArguments source
 
 def ResolversRespectFieldAndArgumentEquivalence
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity)
     : Prop :=
   ∀ firstParent laterParent fieldName firstArguments laterArguments,
     Argument.argumentsEquivalent firstArguments laterArguments
-    -> resolvers.resolve firstParent fieldName firstArguments source
-        = resolvers.resolve laterParent fieldName laterArguments source
+    -> resolveFieldValueByName schema resolvers variableValues firstParent fieldName
+          firstArguments source
+        = resolveFieldValueByName schema resolvers variableValues laterParent fieldName
+            laterArguments source
 
 def ResolversRespectValidFieldAndArgumentEquivalence
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity)
     : Prop :=
   ∀ firstParent laterParent fieldName firstArguments laterArguments,
     (firstArguments.map Argument.name).Nodup
     -> (laterArguments.map Argument.name).Nodup
     -> Argument.argumentsEquivalent firstArguments laterArguments
-    -> resolvers.resolve firstParent fieldName firstArguments source
-        = resolvers.resolve laterParent fieldName laterArguments source
+    -> resolveFieldValueByName schema resolvers variableValues firstParent fieldName
+          firstArguments source
+        = resolveFieldValueByName schema resolvers variableValues laterParent fieldName
+            laterArguments source
 
-theorem Resolvers.respectArgumentEquivalence
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+theorem Resolvers.respectValidArgumentEquivalence
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity)
-    : ResolversRespectArgumentEquivalence resolvers source := by
-  intro parentType fieldName firstArguments laterArguments hequivalent
-  exact resolvers.resolve_argumentsEquivalent parentType fieldName
-    firstArguments laterArguments source hequivalent
+    : ResolversRespectValidArgumentEquivalence schema resolvers variableValues
+        source := by
+  intro parentType fieldName firstArguments laterArguments hfirstNodup
+    hlaterNodup hequivalent
+  simp only [resolveFieldValueByName]
+  split
+  · rfl
+  · simp only [resolveFieldValue]
+    apply resolvers.resolve_argumentsEquivalent
+    exact coerceArgumentValues_equivalent_of_equivalent schema variableValues _
+      hfirstNodup hlaterNodup hequivalent
 
 theorem ExecutableFieldsResolveStable.tail
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity) (field : ExecutableField)
     (fields : List ExecutableField)
-    : ExecutableFieldsResolveStable resolvers source (field :: fields)
-      -> ExecutableFieldsResolveStable resolvers source fields := by
+    : ExecutableFieldsResolveStable schema resolvers variableValues source
+        (field :: fields)
+      -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
   intro hstable first later hfirst hlater hresponse
   exact hstable first later (by simp [hfirst]) (by simp [hlater]) hresponse
 
 theorem ExecutableFieldsResolveStable.head_eq_later
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity) (field later : ExecutableField)
     (fields : List ExecutableField)
-    : ExecutableFieldsResolveStable resolvers source (field :: fields)
+    : ExecutableFieldsResolveStable schema resolvers variableValues source
+        (field :: fields)
       -> later ∈ fields
       -> field.responseName = later.responseName
-      -> resolvers.resolve field.parentType field.fieldName field.arguments source
-          = resolvers.resolve later.parentType later.fieldName later.arguments
-              source := by
+      -> resolveFieldValueByName schema resolvers variableValues field.parentType
+            field.fieldName field.arguments source
+          = resolveFieldValueByName schema resolvers variableValues later.parentType
+              later.fieldName later.arguments source := by
   intro hstable hlater hresponse
   exact hstable field later (by simp) (by simp [hlater]) hresponse
 
@@ -1358,7 +1398,9 @@ structure ExecutedResponseFieldAt
   previous_eq
     : previous = (responseObjectField? field.responseName output).getD (.object [])
   resolved_eq
-    : resolved = resolvers.resolve field.parentType field.fieldName field.arguments source
+    : resolved
+      = resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
   response_eq
     : response
       = completeValue schema resolvers variableValues completionDepth
@@ -1476,24 +1518,27 @@ theorem specExecuteRootSelectionSet_executableFieldSelections_same_group
       parentType source responseName (field :: fields) hresponse hparent]
 
 theorem ResolversRespectFieldAndArgumentEquivalence.to_valid
-    {ObjectIdentity : Type} {resolvers : Resolvers ObjectIdentity}
+    {ObjectIdentity : Type} {schema : Schema} {resolvers : Resolvers ObjectIdentity}
+    {variableValues : VariableValues}
     {source : ResolverValue ObjectIdentity}
-    : ResolversRespectFieldAndArgumentEquivalence resolvers source
-      -> ResolversRespectValidFieldAndArgumentEquivalence resolvers source := by
+    : ResolversRespectFieldAndArgumentEquivalence schema resolvers variableValues source
+      -> ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
+          source := by
   intro hrespect firstParent laterParent fieldName firstArguments
     laterArguments _hfirstNodup _hlaterNodup hequivalent
   exact hrespect firstParent laterParent fieldName firstArguments
     laterArguments hequivalent
 
 def CollectedGroupsMergeCompatible
-    {ObjectIdentity : Type} (resolvers : Resolvers ObjectIdentity)
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     : Prop :=
   ∀ responseName fields,
     (responseName, fields) ∈ groups
     -> ExecutableFieldsMergeCompatible fields
-        ∧ ExecutableFieldsResolveStable resolvers source fields
+        ∧ ExecutableFieldsResolveStable schema resolvers variableValues source fields
 
 def CollectedGroupsSameResponseParent (groups : List (Name × List ExecutableField))
     : Prop :=

@@ -232,8 +232,8 @@ mutual
         match reusablePreviousValue? schema fieldDefinition.outputType previous? with
         | some previous => .ok (previous, 0)
         | none =>
-            match resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+            match resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
             | none =>
                 handleFieldError fieldDefinition.outputType
             | some resolved =>

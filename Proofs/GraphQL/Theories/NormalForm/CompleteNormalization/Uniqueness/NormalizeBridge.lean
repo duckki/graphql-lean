@@ -83,7 +83,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hvariables hsem
+    hleftBoolFeasible hrightBoolFeasible hvariables hdefinitions hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
@@ -115,6 +115,11 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     fun varName =>
       (hleftVariables varName).symm.trans
         ((hvariables varName).trans (hrightVariables varName))
+  have hnormalizedDefinitions :
+      variableDefinitionsEquivalent
+        (completeNormalizeOperation schema left).variableDefinitions
+        (completeNormalizeOperation schema right).variableDefinitions := by
+    simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
   have hnormalizedSemantics :
       operationsSemanticallyEquivalentForCompleteBoolVars schema
         (operationBoolVars (completeNormalizeOperation schema left))
@@ -146,7 +151,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedNormal hrightNormalizedNormal hnormalizedVariables
-      hnormalizedSemantics
+      hnormalizedDefinitions hnormalizedSemantics
 
 end CompleteNormalization
 

@@ -1585,6 +1585,14 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
           NormalForm.CompleteNormalization.fieldsInSetCanMerge_filterSelectionSetBoolCase_forSemantics
             schema runtimeCase
             (Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid)
+        have hfilteredArgumentsNodup :
+            selectionSetArgumentsNodup
+              (NormalForm.filterSelectionSetBoolCase runtimeCase
+                operation.selectionSet) :=
+          selectionSetArgumentsNodup_filterSelectionSetBoolCase runtimeCase
+            operation.selectionSet
+            (selectionSetArgumentsNodup_of_selectionSetValid
+              (Validation.operationDefinitionValid_selectionSetValid hvalid))
         have hstate :=
           executedGroupedSelectionSetAlignedState_of_selectionSetSemanticsReady_object
             schema resolvers
@@ -1593,6 +1601,7 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
             (NormalForm.filterSelectionSetBoolCase runtimeCase
               operation.selectionSet)
             hschema hrootObject hparentRuntime hfilteredReady hfilteredMerge
+            hfilteredArgumentsNodup
         simpa [hsourceEq] using hstate.executeRootSelectionSet_responseEquivalent
     have hnormalized :
         executeQueryWithFuel schema resolvers variableValues
@@ -2123,7 +2132,8 @@ end Eager
 theorem ungroupedExecutionPreservesSpecExecution_proof
     (schema : Schema) (operation : Operation)
     : ungroupedExecutionPreservesSpecExecution schema operation := by
-  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source
+    hcomplete
   exact
     Eager.responseDataAndErrorPresenceEquivalent_trans
       (executeQueryWithFuel_canceling_eager_responseEquivalent schema resolvers
@@ -2134,7 +2144,8 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
 theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
     (schema : Schema) (operation : Operation)
     : ungroupedExecutionEquivalentToCancelingSiblingsExecution schema operation := by
-  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source
+    hcomplete
   have hungroupedSpec :=
     ungroupedExecutionPreservesSpecExecution_proof schema operation
       hschema hvalid resolvers variableValues fuel source hcomplete

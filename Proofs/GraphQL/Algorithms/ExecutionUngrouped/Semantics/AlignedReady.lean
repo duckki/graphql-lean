@@ -14,6 +14,75 @@ open GraphQL.Execution
 
 variable {ObjectRef : Type}
 
+theorem selectionSetArgumentsNodup_filterSelectionSetBoolCase
+    : ∀ boolCase selectionSet,
+        selectionSetArgumentsNodup selectionSet
+        -> selectionSetArgumentsNodup
+            (NormalForm.filterSelectionSetBoolCase boolCase selectionSet)
+  | _boolCase, [], _hnodup => by
+      simp [NormalForm.filterSelectionSetBoolCase, selectionSetArgumentsNodup]
+  | boolCase, selection :: rest, hnodup => by
+      rcases hnodup with ⟨hselection, hrest⟩
+      have hfilteredRest :=
+        selectionSetArgumentsNodup_filterSelectionSetBoolCase boolCase rest hrest
+      cases selection with
+      | field responseName fieldName arguments directives selectionSet =>
+          rcases hselection with ⟨harguments, hchildren⟩
+          by_cases hallow : NormalForm.directivesAllowIn boolCase directives = true
+          · have hfilteredChildren :=
+              selectionSetArgumentsNodup_filterSelectionSetBoolCase boolCase
+                selectionSet hchildren
+            cases selectionSet with
+            | nil =>
+                simpa [NormalForm.filterSelectionSetBoolCase, hallow,
+                  selectionArgumentsNodup, selectionSetArgumentsNodup] using
+                  And.intro (And.intro harguments True.intro) hfilteredRest
+            | cons child children =>
+                cases hfiltered :
+                    NormalForm.filterSelectionSetBoolCase boolCase
+                      (child :: children) with
+                | nil =>
+                    simpa [NormalForm.filterSelectionSetBoolCase, hallow, hfiltered,
+                      selectionArgumentsNodup, selectionSetArgumentsNodup] using
+                      And.intro (And.intro harguments True.intro) hfilteredRest
+                | cons filteredChild filteredChildren =>
+                    have hfilteredChildrenNodup :
+                        selectionSetArgumentsNodup
+                          (filteredChild :: filteredChildren) := by
+                      simpa [hfiltered] using hfilteredChildren
+                    simpa [NormalForm.filterSelectionSetBoolCase, hallow, hfiltered,
+                      selectionArgumentsNodup, selectionSetArgumentsNodup] using
+                      And.intro (And.intro harguments hfilteredChildrenNodup)
+                        hfilteredRest
+          · have hfalse : NormalForm.directivesAllowIn boolCase directives = false := by
+              cases hmatch : NormalForm.directivesAllowIn boolCase directives
+              · rfl
+              · contradiction
+            simpa [NormalForm.filterSelectionSetBoolCase, hfalse] using hfilteredRest
+      | inlineFragment typeCondition directives selectionSet =>
+          by_cases hallow : NormalForm.directivesAllowIn boolCase directives = true
+          · have hfilteredChildren :=
+              selectionSetArgumentsNodup_filterSelectionSetBoolCase boolCase
+                selectionSet hselection
+            cases hfiltered :
+                NormalForm.filterSelectionSetBoolCase boolCase selectionSet with
+            | nil =>
+                simpa [NormalForm.filterSelectionSetBoolCase, hallow, hfiltered] using
+                  hfilteredRest
+            | cons filteredChild filteredChildren =>
+                have hfilteredChildrenNodup :
+                    selectionSetArgumentsNodup
+                      (filteredChild :: filteredChildren) := by
+                  simpa [hfiltered] using hfilteredChildren
+                simpa [NormalForm.filterSelectionSetBoolCase, hallow, hfiltered,
+                  selectionArgumentsNodup, selectionSetArgumentsNodup] using
+                  And.intro hfilteredChildrenNodup hfilteredRest
+          · have hfalse : NormalForm.directivesAllowIn boolCase directives = false := by
+              cases hmatch : NormalForm.directivesAllowIn boolCase directives
+              · rfl
+              · contradiction
+            simpa [NormalForm.filterSelectionSetBoolCase, hfalse] using hfilteredRest
+
 private theorem selectionSet_size_append_semantics (left right : List Selection)
     : SelectionSet.size (left ++ right)
       = SelectionSet.size left + SelectionSet.size right := by
@@ -351,6 +420,7 @@ theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
     (depth : Nat) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef)
     (selectionSet : List Selection)
+    (hargumentsNodup : selectionSetArgumentsNodup selectionSet)
     : CollectedGroupsFieldValidationMergeCompatible
         (GraphQL.Execution.collectFields schema variableValues parentType source
           selectionSet)
@@ -369,6 +439,9 @@ theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
             initial := .object []
           } := by
   intro hcompatible
+  have hcollectedNodup :=
+    (collectFields_argumentsAndChildrenNodup schema variableValues parentType
+      source selectionSet hargumentsNodup).1
   constructor
   · exact PairKeysNodup_of_executableGroupNamesNodup
       (GraphQL.Execution.collectFields schema variableValues parentType source
@@ -389,9 +462,14 @@ theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
         hcompatible responseName fields hgroup first later hfirst hlater
           hresponse with
       ⟨hfieldName, harguments⟩
+    have hfirstNodup :=
+      hcollectedNodup responseName fields hgroup first hfirst
+    have hlaterNodup :=
+      hcollectedNodup responseName fields hgroup later hlater
     rw [hfirstParent, hlaterParent, hfieldName]
-    exact resolvers.resolve_argumentsEquivalent parentType later.fieldName
-      first.arguments later.arguments source harguments
+    exact Resolvers.respectValidArgumentEquivalence schema resolvers variableValues
+      source parentType later.fieldName first.arguments later.arguments
+      hfirstNodup hlaterNodup harguments
 
 noncomputable def
     executedGroupedSelectionSetAlignedState_of_selectionSetSemanticsReady_object
@@ -404,13 +482,14 @@ noncomputable def
         -> ScopedParentRuntimeApplies schema runtimeType parentType
         -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
         -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
+        -> selectionSetArgumentsNodup selectionSet
         -> ExecutedGroupedSelectionSetAlignedState schema resolvers variableValues
             depth parentType (.object runtimeType identity) selectionSet := by
   intro depth
   induction depth using Nat.strongRecOn with
   | ind depth ih =>
       intro parentType runtimeType identity selectionSet hschema hobject
-        hparentRuntime hready hmerge
+        hparentRuntime hready hmerge hargumentsNodup
       cases depth with
       | zero =>
           exact
@@ -470,6 +549,7 @@ noncomputable def
             executionCollectedFieldInvariant_of_collectedFieldCompatibility
               schema resolvers variableValues depth' parentType
               (.object runtimeType identity) selectionSet
+              hargumentsNodup
               (by simpa [groups] using hcompatible)
           cases depth' with
           | zero =>
@@ -591,6 +671,27 @@ noncomputable def
                         identity selectionSet responseName field fields
                         prefixTail hlookupReady hmerge hparentRuntime hgroupMem
                         hprefix childRuntime
+                    have hcollectedChildren :=
+                      (collectFields_argumentsAndChildrenNodup schema variableValues
+                        parentType (.object runtimeType identity) selectionSet
+                        hargumentsNodup).2
+                    have hchildArgumentsNodup :
+                        selectionSetArgumentsNodup
+                          (GraphQL.Execution.mergedFieldSelectionSet
+                            (field :: prefixTail)) :=
+                      selectionSetArgumentsNodup_mergedFieldSelectionSet
+                        (field :: prefixTail)
+                        (by
+                          intro candidate hcandidate
+                          have hcandidateInGroup : candidate ∈ field :: fields := by
+                            rcases List.mem_cons.mp hcandidate with hhead | htail
+                            · subst candidate
+                              simp
+                            · exact List.mem_cons_of_mem field
+                                (hprefix candidate htail)
+                          exact hcollectedChildren candidate
+                            (collectedExecutableFields_mem_of_group_mem hgroupMem
+                              hcandidateInGroup))
                     have hchildParentRuntime :
                         ScopedParentRuntimeApplies schema childRuntime
                           ((schema.fieldReturnType? field.parentType
@@ -614,6 +715,7 @@ noncomputable def
                         (GraphQL.Execution.mergedFieldSelectionSet
                           (field :: prefixTail))
                         hschema hchildObject hchildSelf hchildReady hchildMerge
+                        hchildArgumentsNodup
                   absorbs := by
                     intro responseName field fields prefixTail later hgroup
                       hprefix hlater childDepth childRuntime childIdentity _hlt

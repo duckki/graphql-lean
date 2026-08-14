@@ -29,7 +29,8 @@ def ExecutableFieldsMergedCompleteAppendSteps
       later.responseName = responseName
       ∧ later.parentType = parentType
       ∧ later.fieldName = field.fieldName
-      ∧ resolvers.resolve later.parentType later.fieldName later.arguments source
+      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
@@ -115,7 +116,8 @@ def ExecutableFieldsMergedCompleteContainedAppendSteps
       later.responseName = responseName
       ∧ later.parentType = parentType
       ∧ later.fieldName = field.fieldName
-      ∧ resolvers.resolve later.parentType later.fieldName later.arguments source
+      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
@@ -205,7 +207,8 @@ def ExecutableFieldsMergedAlignedAppendSteps
       later.responseName = responseName
       ∧ later.parentType = parentType
       ∧ later.fieldName = field.fieldName
-      ∧ resolvers.resolve later.parentType later.fieldName later.arguments source
+      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
@@ -267,7 +270,8 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
     (hfieldResponse : field.responseName = responseName)
     (hfieldParent : field.parentType = parentType)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
       : ∃ fieldDefinition,
@@ -364,7 +368,8 @@ theorem
     (hparent
       : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
       : ∃ fieldDefinition,
@@ -472,7 +477,9 @@ structure ExecutedFieldAppendStep
   parent_eq : later.parentType = parentType
   fieldName_eq : later.fieldName = field.fieldName
   resolved_eq
-    : resolvers.resolve later.parentType later.fieldName later.arguments source = resolved
+    : resolveFieldValueByName schema resolvers variableValues later.parentType
+        later.fieldName later.arguments source
+      = resolved
   prefixChildren
     : ∀ childDepth runtimeType identity,
         childDepth < depth

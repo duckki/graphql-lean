@@ -1583,7 +1583,7 @@ theorem
       (directives := leftDirectives) (selectionSet := left)
       (childSelectionSet := leftChildSelectionSet)
       (currentSelectionSet := leftCurrentSelectionSet) hleftContext
-      hleftMem (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+      hleftMem
       hleftPruned
   have hrightChildContext :
       PathLocalSelectionSetCurrentContext rightChildSelectionSet
@@ -1598,7 +1598,7 @@ theorem
       (directives := rightDirectives) (selectionSet := right)
       (childSelectionSet := rightChildSelectionSet)
       (currentSelectionSet := rightCurrentSelectionSet) hrightContext
-      hrightMem (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      hrightMem
       hrightPruned
   have hleftChildFuel :
       selectionSetDeepProbeFuel schema
@@ -1814,7 +1814,7 @@ theorem
       (directives := leftDirectives) (selectionSet := left)
       (childSelectionSet := leftChildSelectionSet)
       (currentSelectionSet := leftCurrentSelectionSet) hleftContext
-      hleftMem (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+      hleftMem
       hleftPruned
   have hrightChildContext :
       PathLocalSelectionSetCurrentContext rightChildSelectionSet
@@ -1829,7 +1829,7 @@ theorem
       (directives := rightDirectives) (selectionSet := right)
       (childSelectionSet := rightChildSelectionSet)
       (currentSelectionSet := rightCurrentSelectionSet) hrightContext
-      hrightMem (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      hrightMem
       hrightPruned
   have hleftChildFuel :
       selectionSetDeepProbeFuel schema
@@ -2084,7 +2084,7 @@ theorem
       (directives := leftDirectives) (selectionSet := left)
       (childSelectionSet := leftChildSelectionSet)
       (currentSelectionSet := leftCurrentSelectionSet) hleftContext
-      hleftMem (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+      hleftMem
       hleftPruned
   have hrightChildContext :
       PathLocalSelectionSetCurrentContext rightChildSelectionSet
@@ -2099,7 +2099,7 @@ theorem
       (directives := rightDirectives) (selectionSet := right)
       (childSelectionSet := rightChildSelectionSet)
       (currentSelectionSet := rightCurrentSelectionSet) hrightContext
-      hrightMem (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      hrightMem
       hrightPruned
   have hleftChildFuel :
       selectionSetDeepProbeFuel schema
@@ -2402,7 +2402,7 @@ theorem
           (directives := leftDirectives) (selectionSet := pathLeft)
           (childSelectionSet := leftChildSelectionSet)
           (currentSelectionSet := leftCurrentSelectionSet) hleftContext
-          hleftMem (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+          hleftMem
           hleftPruned
       have hrightChildContext :
           PathLocalSelectionSetCurrentContext rightChildSelectionSet
@@ -2417,7 +2417,7 @@ theorem
           (directives := rightDirectives) (selectionSet := pathRight)
           (childSelectionSet := rightChildSelectionSet)
           (currentSelectionSet := rightCurrentSelectionSet) hrightContext
-          hrightMem (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+          hrightMem
           hrightPruned
       have hleftChildFuel :
           selectionSetDeepProbeFuel schema
@@ -3385,7 +3385,7 @@ theorem
           (directives := leftDirectives) (selectionSet := pathLeft)
           (childSelectionSet := leftChildSelectionSet)
           (currentSelectionSet := leftCurrentSelectionSet) hleftContext
-          hleftMem (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+          hleftMem
           hleftPruned
       have hrightChildContext :
           PathLocalSelectionSetCurrentContext rightChildSelectionSet
@@ -3400,7 +3400,7 @@ theorem
           (directives := rightDirectives) (selectionSet := pathRight)
           (childSelectionSet := rightChildSelectionSet)
           (currentSelectionSet := rightCurrentSelectionSet) hrightContext
-          hrightMem (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+          hrightMem
           hrightPruned
       have hleftChildFuel :
           selectionSetDeepProbeFuel schema

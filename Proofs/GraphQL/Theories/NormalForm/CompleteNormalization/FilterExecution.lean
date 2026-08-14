@@ -368,12 +368,15 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                       simp []
                   | some fieldDefinition =>
                       cases hresolved
-                            : resolvers.resolve field.parentType field.fieldName
-                                field.arguments source with
+                            : Execution.resolveFieldValue schema resolvers
+                                variableValues fieldDefinition field.parentType
+                                field.fieldName field.arguments source with
                       | none =>
-                          simp []
+                          simp [Execution.resolveFieldValueByName, hlookup,
+                            hresolved]
                       | some value =>
-                          simp []
+                          simp [Execution.resolveFieldValueByName, hlookup,
+                            hresolved]
                           apply completeValue_eq_of_child_object_lt
                           intro childDepth runtimeType ref hlt
                           have hltDepth : childDepth < depth :=

@@ -2140,7 +2140,7 @@ theorem executableFieldsResolveStable_singleton
     (resolvers : Execution.Resolvers ObjectRef)
     (source : Execution.ResolverValue ObjectRef)
     (field : Execution.ExecutableField)
-    : ExecutableFieldsResolveStable resolvers source [field] := by
+    : ExecutableFieldsResolveStable schema resolvers variableValues source [field] := by
   intro first later hfirst hlater _hresponse
   have hfirstEq : first = field := by
     simpa using hfirst

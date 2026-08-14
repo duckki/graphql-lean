@@ -92,8 +92,7 @@ theorem executeField_result_internallyAligned {ObjectRef : Type}
                   (by
                     intro cached h
                     cases h
-                    exact FieldCacheSourceAligned.object previousSource fields)
-                ).internallyAligned
+                    exact FieldCacheSourceAligned.object previousSource fields)).internallyAligned
       | list sourceValues? values =>
           cases sourceValues? with
           | none =>
@@ -132,9 +131,10 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
   | none => trivial
   | some fieldDefinition =>
       cases hresolve
-            : resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
+            : resolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source with
       | none =>
+          simp only [hresolve]
           change
             FieldCacheInternallyAligned
               (resultValueOrNull
@@ -149,9 +149,10 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
           rw [hnull]
           trivial
       | some resolved =>
-          exact (completeValue_sourceAligned schema resolvers variableValues
-                  completionFuel fieldDefinition.outputType field.selectionSet resolved
-                  none (by intro previous h; cases h)).internallyAligned
+          simpa [hlookup, hresolve] using
+            (completeValue_sourceAligned schema resolvers variableValues
+              completionFuel fieldDefinition.outputType field.selectionSet resolved
+              none (by intro previous h; cases h)).internallyAligned
 
 theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)

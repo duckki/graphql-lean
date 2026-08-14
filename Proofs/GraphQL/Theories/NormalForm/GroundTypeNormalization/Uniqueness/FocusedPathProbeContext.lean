@@ -16,14 +16,13 @@ namespace GroundTypeNormalization
 
 def PathLocalCurrentRuntimeSound (schema : Schema) (current : Name × List Selection)
     : Prop :=
-  ∀ targetParent targetField runtimeType targetArguments
+  ∀ targetParent targetField runtimeType (_targetArguments : List Argument)
     (targetFieldDefinition : FieldDefinition),
     schema.lookupField targetParent targetField = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
         = true
     -> objectTypeNameBool schema targetFieldDefinition.outputType.namedType = false
-    -> abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-          targetArguments current.1 current.2
+    -> abstractRuntimeForFieldDeep? schema targetParent targetField current.1 current.2
         = some runtimeType
     -> schema.typeIncludesObjectBool
           targetFieldDefinition.outputType.namedType runtimeType
@@ -40,8 +39,8 @@ def PathLocalSelectionSetHeadReady (schema : Schema)
     -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema = true
     -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
     -> ∃ runtimeType,
-        abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-            arguments parentType currentSelectionSet
+        abstractRuntimeForFieldDeep? schema parentType fieldName
+            parentType currentSelectionSet
           = some runtimeType
         ∧ schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
@@ -75,7 +74,7 @@ theorem PathLocalCurrentRuntimeSound.of_valid_normal
     targetArguments targetFieldDefinition hlookup hcomposite hnonObject
     hruntime
   exact
-    abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal
       hvalid hfree hnormal hlookup hcomposite hnonObject hruntime
 
 theorem PathLocalSelectionSetHeadReady.of_valid_normal_self
@@ -87,7 +86,7 @@ theorem PathLocalSelectionSetHeadReady.of_valid_normal_self
   intro hvalid hnormal responseName fieldName arguments directives
     childSelectionSet fieldDefinition hmem hlookup hcomposite hnonObject
   exact
-    abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+    abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
       hvalid hnormal hmem hlookup hcomposite hnonObject
 
 theorem
@@ -176,18 +175,18 @@ theorem
       hconcatRuntime
   exact ⟨concatRuntimeType, hconcatRuntime, hinclude⟩
 
-theorem abstractRuntimeForFieldHeadDeep?_member_flatten_some
+theorem abstractRuntimeForFieldDeep?_member_flatten_some
     {schema : Schema}
     {currentParent targetField targetRuntimeType : Name}
-    {targetArguments : List Argument}
+    {_targetArguments : List Argument}
     {selectionSet : List Selection} {members : List (List Selection)}
     : selectionSet ∈ members
-      -> abstractRuntimeForFieldHeadDeep? schema currentParent targetField
-            targetArguments currentParent selectionSet
+      -> abstractRuntimeForFieldDeep? schema currentParent targetField
+            currentParent selectionSet
           = some targetRuntimeType
       -> ∃ runtimeType,
-          abstractRuntimeForFieldHeadDeep? schema currentParent targetField
-            targetArguments currentParent (List.flatten members)
+          abstractRuntimeForFieldDeep? schema currentParent targetField
+            currentParent (List.flatten members)
           = some runtimeType := by
   intro hmem hlocalRuntime
   induction members with
@@ -198,19 +197,17 @@ theorem abstractRuntimeForFieldHeadDeep?_member_flatten_some
       rcases hmem with hhead | htail
       · subst selectionSet
         exact
-          abstractRuntimeForFieldHeadDeep?_append_some_left_exists
+          abstractRuntimeForFieldDeep?_append_some_left_exists
             (schema := schema) (targetParent := currentParent)
             (targetField := targetField)
-            (targetArguments := targetArguments)
             (currentParent := currentParent)
             (left := head) (right := List.flatten rest)
             hlocalRuntime
       · rcases ih htail with ⟨restRuntimeType, hrestRuntime⟩
         exact
-          abstractRuntimeForFieldHeadDeep?_append_some_right_exists
+          abstractRuntimeForFieldDeep?_append_some_right_exists
             (schema := schema) (targetParent := currentParent)
             (targetField := targetField)
-            (targetArguments := targetArguments)
             (currentParent := currentParent)
             (left := head) (right := List.flatten rest)
             hrestRuntime
@@ -232,9 +229,9 @@ theorem PathLocalSelectionSetHeadReady.member_flatten_of_sound
         hnonObject with
     ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
   rcases
-      abstractRuntimeForFieldHeadDeep?_member_flatten_some
+      abstractRuntimeForFieldDeep?_member_flatten_some
         (schema := schema) (currentParent := currentParent)
-        (targetField := fieldName) (targetArguments := arguments)
+        (targetField := fieldName) (_targetArguments := arguments)
         (selectionSet := selectionSet) (members := members)
         hmember hlocalRuntime with
     ⟨runtimeType, hruntime⟩
@@ -263,9 +260,9 @@ theorem PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
         hnonObject with
     ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
   rcases
-      abstractRuntimeForFieldHeadDeep?_member_flatten_some
+      abstractRuntimeForFieldDeep?_member_flatten_some
         (schema := schema) (currentParent := currentParent)
-        (targetField := fieldName) (targetArguments := arguments)
+        (targetField := fieldName) (_targetArguments := arguments)
         (selectionSet := memberRoot) (members := members)
         hmember hlocalRuntime with
     ⟨runtimeType, hruntime⟩
@@ -276,33 +273,31 @@ theorem PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
       hlookup hcomposite hnonObject hruntime
   ⟩
 
-theorem abstractRuntimeForFieldHeadDeep?_append_context_some
+theorem abstractRuntimeForFieldDeep?_append_context_some
     {schema : Schema}
     {currentParent targetField targetRuntimeType : Name}
-    {targetArguments : List Argument}
+    {_targetArguments : List Argument}
     {pref selectionSet suff : List Selection}
-    : abstractRuntimeForFieldHeadDeep? schema currentParent targetField
-          targetArguments currentParent selectionSet
+    : abstractRuntimeForFieldDeep? schema currentParent targetField
+          currentParent selectionSet
         = some targetRuntimeType
       -> ∃ runtimeType,
-          abstractRuntimeForFieldHeadDeep? schema currentParent targetField
-            targetArguments currentParent (pref ++ selectionSet ++ suff)
+          abstractRuntimeForFieldDeep? schema currentParent targetField
+            currentParent (pref ++ selectionSet ++ suff)
           = some runtimeType := by
   intro hlocalRuntime
   rcases
-      abstractRuntimeForFieldHeadDeep?_append_some_left_exists
+      abstractRuntimeForFieldDeep?_append_some_left_exists
         (schema := schema) (targetParent := currentParent)
         (targetField := targetField)
-        (targetArguments := targetArguments)
         (currentParent := currentParent)
         (left := selectionSet) (right := suff)
         hlocalRuntime with
     ⟨rightRuntimeType, hrightRuntime⟩
   rcases
-      abstractRuntimeForFieldHeadDeep?_append_some_right_exists
+      abstractRuntimeForFieldDeep?_append_some_right_exists
         (schema := schema) (targetParent := currentParent)
         (targetField := targetField)
-        (targetArguments := targetArguments)
         (currentParent := currentParent)
         (left := pref) (right := selectionSet ++ suff)
         hrightRuntime with
@@ -325,9 +320,9 @@ theorem PathLocalSelectionSetHeadReady.append_context_of_sound
         hnonObject with
     ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
   rcases
-      abstractRuntimeForFieldHeadDeep?_append_context_some
+      abstractRuntimeForFieldDeep?_append_context_some
         (schema := schema) (currentParent := currentParent)
-        (targetField := fieldName) (targetArguments := arguments)
+        (targetField := fieldName) (_targetArguments := arguments)
         (pref := pref) (selectionSet := selectionSet) (suff := suff)
         hlocalRuntime with
     ⟨runtimeType, hruntime⟩
@@ -372,28 +367,26 @@ theorem PathLocalSelectionSetCurrentContext.trans {inner middle outer : List Sel
   refine ⟨outerPref ++ innerPref, innerSuff ++ outerSuff, ?_⟩
   simp [List.append_assoc]
 
-theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
+theorem abstractRuntimeForFieldDeep?_append_some_include_of_sound
     {schema : Schema}
     {currentParent targetParent targetField runtimeType : Name}
-    {targetArguments : List Argument}
     {left right : List Selection}
     {targetFieldDefinition : FieldDefinition}
     : (∀ leftRuntimeType,
-        abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-            targetArguments currentParent left
+        abstractRuntimeForFieldDeep? schema targetParent targetField currentParent left
           = some leftRuntimeType
         -> schema.typeIncludesObjectBool
               targetFieldDefinition.outputType.namedType leftRuntimeType
             = true)
       -> (∀ rightRuntimeType,
-            abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-                targetArguments currentParent right
+            abstractRuntimeForFieldDeep? schema targetParent targetField
+                currentParent right
               = some rightRuntimeType
             -> schema.typeIncludesObjectBool
                   targetFieldDefinition.outputType.namedType rightRuntimeType
                 = true)
-      -> abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-            targetArguments currentParent (left ++ right)
+      -> abstractRuntimeForFieldDeep? schema targetParent targetField
+            currentParent (left ++ right)
           = some runtimeType
       -> schema.typeIncludesObjectBool
             targetFieldDefinition.outputType.namedType runtimeType
@@ -402,45 +395,43 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
   induction left generalizing currentParent runtimeType with
   | nil =>
       exact hrightInclude runtimeType
-        (by simpa [abstractRuntimeForFieldHeadDeep?] using happendedRuntime)
+        (by simpa [abstractRuntimeForFieldDeep?] using happendedRuntime)
   | cons head tail ih =>
       classical
       cases head with
       | field responseName fieldName arguments directives childSelectionSet =>
           cases hcurrent
-                : (if currentParent = targetParent
-                      ∧ fieldName = targetField
-                      ∧ Argument.argumentsEquivalent arguments targetArguments then
+                : (if currentParent = targetParent ∧ fieldName = targetField then
                       firstInlineFragmentTypeCondition? childSelectionSet
                     else
                       none) with
           | some headRuntimeType =>
               have hleftRuntime :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments currentParent
+                  abstractRuntimeForFieldDeep? schema targetParent
+                    targetField currentParent
                     (Selection.field responseName fieldName arguments
                       directives childSelectionSet :: tail) =
                     some headRuntimeType := by
-                simp [abstractRuntimeForFieldHeadDeep?, hcurrent]
+                simp [abstractRuntimeForFieldDeep?, hcurrent]
               have hruntimeEq : headRuntimeType = runtimeType := by
-                simpa [abstractRuntimeForFieldHeadDeep?, hcurrent] using
+                simpa [abstractRuntimeForFieldDeep?, hcurrent] using
                   happendedRuntime
               subst runtimeType
               exact hleftInclude headRuntimeType hleftRuntime
           | none =>
               cases happTail
-                    : abstractRuntimeForFieldHeadDeep? schema targetParent
-                        targetField targetArguments currentParent
+                    : abstractRuntimeForFieldDeep? schema targetParent
+                        targetField currentParent
                         (tail ++ right) with
               | some tailRuntimeType =>
                   have hruntimeEq : tailRuntimeType = runtimeType := by
-                    simpa [abstractRuntimeForFieldHeadDeep?, hcurrent,
+                    simpa [abstractRuntimeForFieldDeep?, hcurrent,
                       happTail] using happendedRuntime
                   subst runtimeType
                   have htailInclude :
                       ∀ tailRuntimeType,
-                        abstractRuntimeForFieldHeadDeep? schema targetParent
-                            targetField targetArguments currentParent tail =
+                        abstractRuntimeForFieldDeep? schema targetParent
+                            targetField currentParent tail =
                           some tailRuntimeType ->
                         schema.typeIncludesObjectBool
                             targetFieldDefinition.outputType.namedType
@@ -450,27 +441,26 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                     exact
                       hleftInclude tailRuntimeType
                         (by
-                          simp [abstractRuntimeForFieldHeadDeep?, hcurrent,
+                          simp [abstractRuntimeForFieldDeep?, hcurrent,
                             htailRuntime])
                   exact ih htailInclude hrightInclude happTail
               | none =>
                   cases hlookupHead : schema.lookupField currentParent fieldName with
                   | none =>
-                      simp [abstractRuntimeForFieldHeadDeep?, hcurrent,
+                      simp [abstractRuntimeForFieldDeep?, hcurrent,
                         happTail, hlookupHead] at happendedRuntime
                   | some fieldDefinition =>
                       cases htailAlone
-                            : abstractRuntimeForFieldHeadDeep? schema
-                                targetParent targetField targetArguments
+                            : abstractRuntimeForFieldDeep? schema
+                                targetParent targetField
                                 currentParent tail with
                       | some tailRuntimeType =>
                           rcases
-                              abstractRuntimeForFieldHeadDeep?_append_some_left_exists
+                              abstractRuntimeForFieldDeep?_append_some_left_exists
                                 (schema := schema)
                                 (targetParent := targetParent)
                                 (targetField := targetField)
-                                (targetArguments := targetArguments)
-                                (currentParent := currentParent)
+                                                                (currentParent := currentParent)
                                 (left := tail) (right := right)
                                 htailAlone with
                             ⟨appendedRuntimeType, happended⟩
@@ -478,18 +468,18 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                           cases happended
                       | none =>
                           have hchildRuntime :
-                              abstractRuntimeForFieldHeadDeep? schema
-                                targetParent targetField targetArguments
+                              abstractRuntimeForFieldDeep? schema
+                                targetParent targetField
                                 fieldDefinition.outputType.namedType
                                 childSelectionSet =
                               some runtimeType := by
-                            simpa [abstractRuntimeForFieldHeadDeep?,
+                            simpa [abstractRuntimeForFieldDeep?,
                               hcurrent, happTail, hlookupHead] using
                               happendedRuntime
                           have hchildInclude :
                               ∀ childRuntimeType,
-                                abstractRuntimeForFieldHeadDeep? schema
-                                    targetParent targetField targetArguments
+                                abstractRuntimeForFieldDeep? schema
+                                    targetParent targetField
                                     fieldDefinition.outputType.namedType
                                     childSelectionSet =
                                   some childRuntimeType ->
@@ -501,24 +491,24 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                             exact
                               hleftInclude childRuntimeType
                                 (by
-                                  simp [abstractRuntimeForFieldHeadDeep?,
+                                  simp [abstractRuntimeForFieldDeep?,
                                     hcurrent, htailAlone, hlookupHead,
                                     hchildRuntime])
                           exact hchildInclude runtimeType hchildRuntime
       | inlineFragment typeCondition directives childSelectionSet =>
           cases happTail
-                : abstractRuntimeForFieldHeadDeep? schema targetParent targetField
-                    targetArguments currentParent (tail ++ right) with
+                : abstractRuntimeForFieldDeep? schema targetParent targetField
+                    currentParent (tail ++ right) with
           | some tailRuntimeType =>
               have hruntimeEq : tailRuntimeType = runtimeType := by
                 cases typeCondition <;>
-                  simpa [abstractRuntimeForFieldHeadDeep?, happTail] using
+                  simpa [abstractRuntimeForFieldDeep?, happTail] using
                     happendedRuntime
               subst runtimeType
               have htailInclude :
                   ∀ tailRuntimeType,
-                    abstractRuntimeForFieldHeadDeep? schema targetParent
-                        targetField targetArguments currentParent tail =
+                    abstractRuntimeForFieldDeep? schema targetParent
+                        targetField currentParent tail =
                       some tailRuntimeType ->
                     schema.typeIncludesObjectBool
                         targetFieldDefinition.outputType.namedType
@@ -529,20 +519,19 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                   hleftInclude tailRuntimeType
                     (by
                       cases typeCondition <;>
-                        simp [abstractRuntimeForFieldHeadDeep?,
+                        simp [abstractRuntimeForFieldDeep?,
                           htailRuntime])
               exact ih htailInclude hrightInclude happTail
           | none =>
               cases htailAlone
-                    : abstractRuntimeForFieldHeadDeep? schema targetParent
-                        targetField targetArguments currentParent tail with
+                    : abstractRuntimeForFieldDeep? schema targetParent
+                        targetField currentParent tail with
               | some tailRuntimeType =>
                   rcases
-                      abstractRuntimeForFieldHeadDeep?_append_some_left_exists
+                      abstractRuntimeForFieldDeep?_append_some_left_exists
                         (schema := schema) (targetParent := targetParent)
                         (targetField := targetField)
-                        (targetArguments := targetArguments)
-                        (currentParent := currentParent)
+                                                (currentParent := currentParent)
                         (left := tail) (right := right) htailAlone with
                     ⟨appendedRuntimeType, happended⟩
                   rw [happTail] at happended
@@ -551,16 +540,16 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                   cases typeCondition with
                   | none =>
                       have hchildRuntime :
-                          abstractRuntimeForFieldHeadDeep? schema
-                            targetParent targetField targetArguments
+                          abstractRuntimeForFieldDeep? schema
+                            targetParent targetField
                             currentParent childSelectionSet =
                           some runtimeType := by
-                        simpa [abstractRuntimeForFieldHeadDeep?, happTail]
+                        simpa [abstractRuntimeForFieldDeep?, happTail]
                           using happendedRuntime
                       have hchildInclude :
                           ∀ childRuntimeType,
-                            abstractRuntimeForFieldHeadDeep? schema
-                                targetParent targetField targetArguments
+                            abstractRuntimeForFieldDeep? schema
+                                targetParent targetField
                                 currentParent childSelectionSet =
                               some childRuntimeType ->
                             schema.typeIncludesObjectBool
@@ -571,21 +560,21 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                         exact
                           hleftInclude childRuntimeType
                             (by
-                              simp [abstractRuntimeForFieldHeadDeep?,
+                              simp [abstractRuntimeForFieldDeep?,
                                 htailAlone, hchildRuntime])
                       exact hchildInclude runtimeType hchildRuntime
                   | some typeCondition =>
                       have hchildRuntime :
-                          abstractRuntimeForFieldHeadDeep? schema
-                            targetParent targetField targetArguments
+                          abstractRuntimeForFieldDeep? schema
+                            targetParent targetField
                             typeCondition childSelectionSet =
                           some runtimeType := by
-                        simpa [abstractRuntimeForFieldHeadDeep?, happTail]
+                        simpa [abstractRuntimeForFieldDeep?, happTail]
                           using happendedRuntime
                       have hchildInclude :
                           ∀ childRuntimeType,
-                            abstractRuntimeForFieldHeadDeep? schema
-                                targetParent targetField targetArguments
+                            abstractRuntimeForFieldDeep? schema
+                                targetParent targetField
                                 typeCondition childSelectionSet =
                               some childRuntimeType ->
                             schema.typeIncludesObjectBool
@@ -596,7 +585,7 @@ theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
                         exact
                           hleftInclude childRuntimeType
                             (by
-                              simp [abstractRuntimeForFieldHeadDeep?,
+                              simp [abstractRuntimeForFieldDeep?,
                                 htailAlone, hchildRuntime])
                       exact hchildInclude runtimeType hchildRuntime
 
@@ -609,10 +598,10 @@ theorem PathLocalCurrentRuntimeSound.append
   intro hleft hright targetParent targetField runtimeType targetArguments
     targetFieldDefinition hlookup hcomposite hnonObject hruntime
   exact
-    abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
+    abstractRuntimeForFieldDeep?_append_some_include_of_sound
       (schema := schema) (currentParent := currentParent)
       (targetParent := targetParent) (targetField := targetField)
-      (targetArguments := targetArguments) (runtimeType := runtimeType)
+      (runtimeType := runtimeType)
       (left := left) (right := right)
       (targetFieldDefinition := targetFieldDefinition)
       (fun leftRuntimeType hleftRuntime =>
@@ -635,7 +624,7 @@ theorem PathLocalCurrentRuntimeSound.flatten
   | nil =>
       intro targetParent targetField runtimeType targetArguments
         targetFieldDefinition _hlookup _hcomposite _hnonObject hruntime
-      simp [abstractRuntimeForFieldHeadDeep?] at hruntime
+      simp [abstractRuntimeForFieldDeep?] at hruntime
   | cons member rest ih =>
       have hmember :
           PathLocalCurrentRuntimeSound schema (currentParent, member) :=
@@ -662,7 +651,7 @@ theorem PathLocalCurrentRuntimeSound.append_valid_normal_left
     targetField runtimeType targetArguments targetFieldDefinition hlookup
     hcomposite hnonObject hruntime
   exact
-    abstractRuntimeForFieldHeadDeep?_append_some_include_of_valid_normal_or_right
+    abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
       hleftValid hleftFree hleftNormal
       (by
         intro rightRuntime hrightRuntime
@@ -686,10 +675,10 @@ theorem PathLocalCurrentRuntimeSound.flatten_valid_normal_members
   intro hmembers targetParent targetField runtimeType targetArguments
     targetFieldDefinition hlookup hcomposite hnonObject hruntime
   exact
-    abstractRuntimeForFieldHeadDeep?_join_some_include_of_valid_normal_members
+    abstractRuntimeForFieldDeep?_join_some_include_of_valid_normal_members
       (schema := schema) (currentParent := currentParent)
       (targetParent := targetParent) (targetField := targetField)
-      (targetArguments := targetArguments) (runtimeType := runtimeType)
+      (runtimeType := runtimeType)
       (members := members) (targetFieldDefinition := targetFieldDefinition)
       hmembers hlookup hcomposite hnonObject hruntime
 
@@ -741,8 +730,8 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                      fieldName arguments parentType currentSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType
+                      fieldName parentType currentSelectionSet
                     = some runtimeType))
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
@@ -1003,7 +992,7 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
         _hnormal _hinclude _hruntimeObject
       intro targetParent targetField runtimeType' targetArguments
         targetFieldDefinition _hlookup _hcomposite _hnonObject hruntime
-      simp [runtimePrunedSelectionSet, abstractRuntimeForFieldHeadDeep?]
+      simp [runtimePrunedSelectionSet, abstractRuntimeForFieldDeep?]
         at hruntime
   | cons selection rest ih =>
       intro variableDefinitions parentType runtimeType hvalid hfree hnormal
@@ -1165,58 +1154,51 @@ theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
       | field responseName fieldName arguments directives childSelectionSet =>
           classical
           by_cases hfield : fieldName == targetField
-          · by_cases harguments :
-                Argument.argumentsEquivalent arguments targetArguments
-            · simp [fieldChildMembersByHeadAtRuntime, hfield, harguments]
-                at hmember
-              rcases hmember with hhead | htail
-              · subst memberSelectionSet
-                have hfieldEq : fieldName = targetField := by
-                  simpa using hfield
-                subst fieldName
-                have hheadMem :
+          · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
+            rcases hmember with hhead | htail
+            · subst memberSelectionSet
+              have hfieldEq : fieldName = targetField := by
+                simpa using hfield
+              subst fieldName
+              have hheadMem :
+                  Selection.field responseName targetField arguments
+                      directives childSelectionSet ∈
                     Selection.field responseName targetField arguments
-                        directives childSelectionSet ∈
-                      Selection.field responseName targetField arguments
-                        directives childSelectionSet :: rest := by
-                  simp
-                rcases
-                    selectionSetValid_field_lookup_leaf_or_composite_child
-                      hvalid hheadMem with
-                  ⟨fieldDefinition, hlookup, hkind⟩
-                have hdefinitionEq :
-                    fieldDefinition = targetFieldDefinition := by
-                  rw [htargetLookup] at hlookup
-                  exact Option.some.inj hlookup.symm
-                subst fieldDefinition
-                rcases hkind with hleaf | hcomposite
-                · have hempty : childSelectionSet = [] := hleaf.2
-                  subst childSelectionSet
-                  intro nestedTargetParent nestedTargetField
-                    nestedRuntimeType nestedTargetArguments
-                    nestedTargetFieldDefinition _hnestedLookup
-                    _hnestedComposite _hnestedNonObject hnestedRuntime
-                  simp [runtimePrunedSelectionSet,
-                    abstractRuntimeForFieldHeadDeep?] at hnestedRuntime
-                · have hchildFree :
-                      selectionSetDirectiveFree childSelectionSet :=
-                    selectionSetDirectiveFree_field_child_of_mem hfree
-                      hheadMem
-                  have hchildNormal :
-                      selectionSetNormal schema
-                        targetFieldDefinition.outputType.namedType
-                        childSelectionSet :=
-                    selectionSetNormal_field_child_of_mem_lookup hnormal
-                      hheadMem htargetLookup
-                  exact
-                    PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
-                      hcomposite.2.2 hchildFree hchildNormal hinclude
-                      hchildObject
-              · exact
-                  ih htailValid htailFree htailNormal htail
-            · simp [fieldChildMembersByHeadAtRuntime, hfield, harguments]
-                at hmember
-              exact ih htailValid htailFree htailNormal hmember
+                      directives childSelectionSet :: rest := by
+                simp
+              rcases
+                  selectionSetValid_field_lookup_leaf_or_composite_child
+                    hvalid hheadMem with
+                ⟨fieldDefinition, hlookup, hkind⟩
+              have hdefinitionEq :
+                  fieldDefinition = targetFieldDefinition := by
+                rw [htargetLookup] at hlookup
+                exact Option.some.inj hlookup.symm
+              subst fieldDefinition
+              rcases hkind with hleaf | hcomposite
+              · have hempty : childSelectionSet = [] := hleaf.2
+                subst childSelectionSet
+                intro nestedTargetParent nestedTargetField
+                  nestedRuntimeType nestedTargetArguments
+                  nestedTargetFieldDefinition _hnestedLookup
+                  _hnestedComposite _hnestedNonObject hnestedRuntime
+                simp [runtimePrunedSelectionSet,
+                  abstractRuntimeForFieldDeep?] at hnestedRuntime
+              · have hchildFree :
+                    selectionSetDirectiveFree childSelectionSet :=
+                  selectionSetDirectiveFree_field_child_of_mem hfree
+                    hheadMem
+                have hchildNormal :
+                    selectionSetNormal schema
+                      targetFieldDefinition.outputType.namedType
+                      childSelectionSet :=
+                  selectionSetNormal_field_child_of_mem_lookup hnormal
+                    hheadMem htargetLookup
+                exact
+                  PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
+                    hcomposite.2.2 hchildFree hchildNormal hinclude
+                    hchildObject
+            · exact ih htailValid htailFree htailNormal htail
           · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
             exact ih htailValid htailFree htailNormal hmember
       | inlineFragment typeCondition directives childSelectionSet =>
@@ -1277,11 +1259,10 @@ theorem runtimePrunedSelectionSet_mem_fieldChildMembersByHeadAtRuntime_of_field_
     {childSelectionSet selectionSet : List Selection}
     : Selection.field responseName targetField arguments directives childSelectionSet
         ∈ selectionSet
-      -> Argument.argumentsEquivalent arguments targetArguments
       -> runtimePrunedSelectionSet schema childRuntimeType childSelectionSet
           ∈ fieldChildMembersByHeadAtRuntime schema currentRuntimeType
               childRuntimeType targetField targetArguments selectionSet := by
-  intro hmem harguments
+  intro hmem
   induction selectionSet with
   | nil =>
       simp at hmem
@@ -1291,14 +1272,9 @@ theorem runtimePrunedSelectionSet_mem_fieldChildMembersByHeadAtRuntime_of_field_
           headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · cases hhead
-            simp [fieldChildMembersByHeadAtRuntime, harguments]
+            simp [fieldChildMembersByHeadAtRuntime]
           · by_cases hfield : headFieldName == targetField
-            · by_cases hheadArguments :
-                  Argument.argumentsEquivalent headArguments targetArguments
-              · simp [fieldChildMembersByHeadAtRuntime, hfield,
-                  hheadArguments, ih htail]
-              · simp [fieldChildMembersByHeadAtRuntime, hfield,
-                  hheadArguments, ih htail]
+            · simp [fieldChildMembersByHeadAtRuntime, hfield, ih htail]
             · simp [fieldChildMembersByHeadAtRuntime, hfield, ih htail]
       | inlineFragment typeCondition headDirectives headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
@@ -1338,7 +1314,6 @@ theorem fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
       -> ∃ responseName arguments directives childSelectionSet,
           Selection.field responseName targetField arguments directives childSelectionSet
             ∈ currentSelectionSet
-          ∧ Argument.argumentsEquivalent arguments targetArguments
           ∧ memberSelectionSet
             = runtimePrunedSelectionSet schema childRuntimeType childSelectionSet := by
   intro hallFields hmember
@@ -1352,64 +1327,34 @@ theorem fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
       cases selection with
       | field responseName fieldName arguments directives childSelectionSet =>
           by_cases hfield : fieldName == targetField
-          · by_cases harguments :
-                Argument.argumentsEquivalent arguments targetArguments
-            · simp [fieldChildMembersByHeadAtRuntime, hfield, harguments]
-                at hmember
-              rcases hmember with hhead | htail
-              · subst memberSelectionSet
-                have hfieldEq : fieldName = targetField := by
-                  simpa using hfield
-                subst fieldName
-                exact ⟨
-                  responseName,
-                  arguments,
-                  directives,
-                  childSelectionSet,
-                  by simp,
-                  harguments,
-                  rfl
-                ⟩
-              · rcases ih hrestAllFields htail with
-                  ⟨tailResponseName, tailArguments, tailDirectives,
-                    tailChildSelectionSet, htailMem, htailArguments,
-                    htailMember⟩
-                exact ⟨
-                  tailResponseName,
-                  tailArguments,
-                  tailDirectives,
-                  tailChildSelectionSet,
-                  List.mem_cons_of_mem _ htailMem,
-                  htailArguments,
-                  htailMember
-                ⟩
-            · simp [fieldChildMembersByHeadAtRuntime, hfield, harguments]
-                at hmember
-              rcases ih hrestAllFields hmember with
+          · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
+            rcases hmember with hhead | htail
+            · subst memberSelectionSet
+              have hfieldEq : fieldName = targetField := by
+                simpa using hfield
+              subst fieldName
+              exact ⟨responseName, arguments, directives, childSelectionSet, by simp, rfl⟩
+            · rcases ih hrestAllFields htail with
                 ⟨tailResponseName, tailArguments, tailDirectives,
-                  tailChildSelectionSet, htailMem, htailArguments,
-                  htailMember⟩
+                  tailChildSelectionSet, htailMem, htailMember⟩
               exact ⟨
                 tailResponseName,
                 tailArguments,
                 tailDirectives,
                 tailChildSelectionSet,
                 List.mem_cons_of_mem _ htailMem,
-                htailArguments,
                 htailMember
               ⟩
           · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
             rcases ih hrestAllFields hmember with
               ⟨tailResponseName, tailArguments, tailDirectives,
-                tailChildSelectionSet, htailMem, htailArguments,
-                htailMember⟩
+                tailChildSelectionSet, htailMem, htailMember⟩
             exact ⟨
               tailResponseName,
               tailArguments,
               tailDirectives,
               tailChildSelectionSet,
               List.mem_cons_of_mem _ htailMem,
-              htailArguments,
               htailMember
             ⟩
       | inlineFragment typeCondition directives childSelectionSet =>
@@ -1541,7 +1486,7 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object
         (memberSelectionSet := memberSelectionSet)
         (hsupport.allFields_of_object hcurrentObject) hmember with
     ⟨responseName, arguments, directives, childSelectionSet, hfieldMem,
-      _harguments, hmemberEq⟩
+      hmemberEq⟩
   rcases
       hsupport.field_child_object_valid_normal_of_mem
         hfieldMem htargetLookup hchildObject rfl with
@@ -1599,7 +1544,7 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstra
               (memberSelectionSet := memberSelectionSet)
               (hsupport.allFields_of_object hcurrentObject) hmember with
           ⟨responseName, arguments, directives, childSelectionSet,
-            hfieldMem, _harguments, hmemberEq⟩
+            hfieldMem, hmemberEq⟩
         rcases
             hsupport.field_child_valid_normal_of_mem_lookup
               hfieldMem htargetLookup htargetComposite with
@@ -1627,14 +1572,13 @@ theorem
       -> objectTypeNameBool schema childRuntimeType = true
       -> Selection.field responseName targetField arguments directives childSelectionSet
           ∈ currentSelectionSet
-      -> Argument.argumentsEquivalent arguments targetArguments
       -> schema.lookupField currentRuntimeType targetField = some targetFieldDefinition
       -> targetFieldDefinition.outputType.namedType = childRuntimeType
       -> PathLocalSelectionSetHeadReady schema childRuntimeType
           (fieldPairPathLocalNextSelectionSet schema currentRuntimeType
             childRuntimeType targetField targetArguments currentSelectionSet)
           childSelectionSet := by
-  intro hvalid hfree hnormal hcurrentObject hchildObject hmem harguments
+  intro hvalid hfree hnormal hcurrentObject hchildObject hmem
     htargetLookup houtputEq
   subst childRuntimeType
   have hinclude :
@@ -1673,7 +1617,7 @@ theorem
       (targetField := targetField) (responseName := responseName)
       (targetArguments := targetArguments) (arguments := arguments)
       (directives := directives) (childSelectionSet := childSelectionSet)
-      (selectionSet := currentSelectionSet) hmem harguments
+      (selectionSet := currentSelectionSet) hmem
   have hmember :
       childSelectionSet ∈
         fieldChildMembersByHeadAtRuntime schema currentRuntimeType
@@ -1828,13 +1772,12 @@ theorem
           ∈ currentSelectionSet
       -> Selection.inlineFragment (some childRuntimeType) bodyDirectives bodySelectionSet
           ∈ childSelectionSet
-      -> Argument.argumentsEquivalent arguments targetArguments
       -> schema.lookupField currentRuntimeType targetField = some targetFieldDefinition
       -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> objectTypeNameBool schema targetFieldDefinition.outputType.namedType = false
-      -> abstractRuntimeForFieldHeadDeep? schema currentRuntimeType targetField
-            arguments currentRuntimeType currentSelectionSet
+      -> abstractRuntimeForFieldDeep? schema currentRuntimeType targetField
+            currentRuntimeType currentSelectionSet
           = some childRuntimeType
       -> schema.typeIncludesObjectBool targetFieldDefinition.outputType.namedType
             childRuntimeType
@@ -1844,7 +1787,7 @@ theorem
             childRuntimeType targetField targetArguments currentSelectionSet)
           bodySelectionSet := by
   intro hvalid hfree hnormal hcurrentObject hchildObject hfieldMem
-    hbodyMem harguments htargetLookup htargetComposite htargetNonObject
+    hbodyMem htargetLookup htargetComposite htargetNonObject
     hruntime hinclude
   have hchildNonempty : childSelectionSet ≠ [] := by
     intro hempty
@@ -1872,7 +1815,7 @@ theorem
       (targetField := targetField) (responseName := responseName)
       (targetArguments := targetArguments) (arguments := arguments)
       (directives := directives) (childSelectionSet := childSelectionSet)
-      (selectionSet := currentSelectionSet) hfieldMem harguments
+      (selectionSet := currentSelectionSet) hfieldMem
   have hsoundNext :
       PathLocalCurrentRuntimeSound schema
         (childRuntimeType,
@@ -1915,8 +1858,8 @@ theorem
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType currentSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType currentSelectionSet
                 = some runtimeType))
       -> PathLocalCurrentRuntimeSound schema (parentType, currentSelectionSet)
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
@@ -1994,8 +1937,8 @@ theorem
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType currentSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType currentSelectionSet
                 = some runtimeType))
       -> PathLocalCurrentRuntimeSound schema (parentType, currentSelectionSet)
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
@@ -2091,8 +2034,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType currentSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType currentSelectionSet
                                   = some childRuntimeType))
                           ∧ Execution.executeSelectionSetAsResponse schema
                               (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -2209,8 +2152,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType currentSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType currentSelectionSet
                                   = some childRuntimeType))
                           ∧ Execution.executeSelectionSetAsResponse schema
                               (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -2329,9 +2272,9 @@ theorem
                                     ∧ objectTypeNameBool schema
                                         bodyFieldDefinition.outputType.namedType
                                       = false
-                                    ∧ abstractRuntimeForFieldHeadDeep? schema
-                                        typeCondition bodyFieldName bodyArguments
-                                        typeCondition currentSelectionSet
+                                    ∧ abstractRuntimeForFieldDeep? schema
+                                        typeCondition bodyFieldName typeCondition
+                                        currentSelectionSet
                                       = some childRuntimeType))
                               ∧ Execution.executeSelectionSetAsResponse schema
                                   (fieldPairOrDeepSuccessResolvers schema
@@ -2566,9 +2509,9 @@ theorem
                                     ∧ objectTypeNameBool schema
                                         bodyFieldDefinition.outputType.namedType
                                       = false
-                                    ∧ abstractRuntimeForFieldHeadDeep? schema
-                                        runtimeType bodyFieldName bodyArguments
-                                        runtimeType currentSelectionSet
+                                    ∧ abstractRuntimeForFieldDeep? schema
+                                        runtimeType bodyFieldName runtimeType
+                                        currentSelectionSet
                                       = some childRuntimeType))
                               ∧ Execution.executeSelectionSetAsResponse schema
                                   (fieldPairOrDeepSuccessResolvers schema
@@ -2956,7 +2899,7 @@ theorem normalSelectionSetResponsePath_of_firstFieldChildByHead?_field_mem
   intro hmem harguments hpath
   rcases
       firstFieldChildByHead?_field_mem_append_context
-        hmem harguments with
+        hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
   simpa [hcontext] using
@@ -2987,7 +2930,7 @@ theorem normalSelectionSetResponsePath_of_firstFieldChildByHeadAtRuntime?_field_
       firstFieldChildByHeadAtRuntime?_field_mem_append_context
         (schema := schema) (currentRuntimeType := currentRuntimeType)
         (childRuntimeType := childRuntimeType)
-        (targetField := targetField) hmem harguments with
+        (targetField := targetField) hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
   simpa [hcontext] using
@@ -3085,7 +3028,7 @@ theorem
       firstFieldChildByHeadAtRuntime?_field_mem_append_context
         (schema := schema) (currentRuntimeType := currentRuntimeType)
         (childRuntimeType := childRuntimeType)
-        (targetField := targetField) hmem harguments with
+        (targetField := targetField) hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
   simpa [hcontext] using
@@ -3167,14 +3110,13 @@ theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_f
     : PathLocalSelectionSetCurrentContext selectionSet currentSelectionSet
       -> Selection.field responseName targetField arguments directives childSelectionSet
           ∈ selectionSet
-      -> Argument.argumentsEquivalent arguments targetArguments
       -> runtimePrunedSelectionSet schema childRuntimeType childSelectionSet
           = childSelectionSet
       -> PathLocalSelectionSetCurrentContext childSelectionSet
           (fieldPairPathLocalNextSelectionSet schema currentRuntimeType
             childRuntimeType targetField targetArguments
             currentSelectionSet) := by
-  intro hcontext hfieldMem harguments hpruned
+  intro hcontext hfieldMem hpruned
   rcases hcontext with ⟨currentPref, currentSuff, hcurrent⟩
   subst currentSelectionSet
   have hfieldMemCurrent :
@@ -3189,7 +3131,7 @@ theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_f
         (childRuntimeType := childRuntimeType)
         (targetField := targetField)
         (targetArguments := targetArguments)
-        hfieldMemCurrent harguments with
+        hfieldMemCurrent with
     ⟨mergedSelectionSet, pref, suff, hmerged, hmergedContext⟩
   have hnext :
       fieldPairPathLocalNextSelectionSet schema currentRuntimeType
@@ -3222,14 +3164,13 @@ theorem
           ∈ selectionSet
       -> Selection.inlineFragment (some childRuntimeType) bodyDirectives bodySelectionSet
           ∈ childSelectionSet
-      -> Argument.argumentsEquivalent arguments targetArguments
       -> selectionSetNormal schema childParentType childSelectionSet
       -> objectTypeNameBool schema childRuntimeType = true
       -> PathLocalSelectionSetCurrentContext bodySelectionSet
           (fieldPairPathLocalNextSelectionSet schema currentRuntimeType
             childRuntimeType targetField targetArguments
             currentSelectionSet) := by
-  intro hcontext hfieldMem hbodyMem harguments hchildNormal hchildObject
+  intro hcontext hfieldMem hbodyMem hchildNormal hchildObject
   rcases hcontext with ⟨currentPref, currentSuff, hcurrent⟩
   subst currentSelectionSet
   have hfieldMemCurrent :
@@ -3244,7 +3185,7 @@ theorem
         (childRuntimeType := childRuntimeType)
         (targetField := targetField)
         (targetArguments := targetArguments)
-        hfieldMemCurrent harguments with
+        hfieldMemCurrent with
     ⟨mergedSelectionSet, pref, suff, hmerged, hmergedContext⟩
   have hnext :
       fieldPairPathLocalNextSelectionSet schema currentRuntimeType
@@ -3298,8 +3239,8 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                      fieldName arguments parentType currentSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType
+                      fieldName parentType currentSelectionSet
                     = some childRuntime))
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType childRuntime
@@ -3377,8 +3318,7 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
         (targetArguments := arguments) (arguments := arguments)
         (directives := directives) (selectionSet := selectionSet)
         (childSelectionSet := childSelectionSet)
-        (currentSelectionSet := currentSelectionSet) hcontext hmem
-        (argumentsEquivalent_refl_forSyntaxDiff arguments) hpruned
+        (currentSelectionSet := currentSelectionSet) hcontext hmem hpruned
   have habstractContext :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = false ->
         ∀ {bodyDirectives bodySelectionSet},
@@ -3398,8 +3338,7 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
         (directives := directives) (bodyDirectives := bodyDirectives)
         (selectionSet := selectionSet) (childSelectionSet := childSelectionSet)
         (bodySelectionSet := bodySelectionSet)
-        (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem
-        (argumentsEquivalent_refl_forSyntaxDiff arguments) hchildNormal
+        (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem hchildNormal
         hchildObject
   exact ⟨
     childRuntime,
@@ -3541,8 +3480,7 @@ theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
         (targetArguments := arguments) (arguments := arguments)
         (directives := directives) (selectionSet := selectionSet)
         (childSelectionSet := childSelectionSet)
-        (currentSelectionSet := currentSelectionSet) hcontext hmem
-        (argumentsEquivalent_refl_forSyntaxDiff arguments) hpruned
+        (currentSelectionSet := currentSelectionSet) hcontext hmem hpruned
   have habstractContext :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = false ->
         ∀ {bodyDirectives bodySelectionSet},
@@ -3562,8 +3500,7 @@ theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
         (directives := directives) (bodyDirectives := bodyDirectives)
         (selectionSet := selectionSet) (childSelectionSet := childSelectionSet)
         (bodySelectionSet := bodySelectionSet)
-        (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem
-        (argumentsEquivalent_refl_forSyntaxDiff arguments) hchildNormal
+        (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem hchildNormal
         hchildObject
   exact ⟨
     childRuntime,

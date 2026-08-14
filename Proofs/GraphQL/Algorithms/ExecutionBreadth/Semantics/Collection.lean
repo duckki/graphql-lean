@@ -1168,12 +1168,15 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
       | some fieldDefinition =>
           cases hresolve
                 : resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+                    (coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments) source with
           | none =>
-              simp [GraphQL.Execution.executeField, hlookup, hresolve,
+              simp [GraphQL.Execution.executeField, GraphQL.Execution.resolveFieldValue,
+                hlookup, hresolve,
                 scheduleKeyForFields, ScheduleKey.executableField]
           | some resolved =>
-              simp [GraphQL.Execution.executeField, hlookup, hresolve,
+              simp [GraphQL.Execution.executeField, GraphQL.Execution.resolveFieldValue,
+                hlookup, hresolve,
                 scheduleKeyForFields, ScheduleKey.executableField]
               exact congrArg (GraphQL.Execution.singleFieldResult responseName)
                 (completeValue_singleton_executableField_childSelectionSetForFields_eq

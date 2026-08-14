@@ -1508,7 +1508,8 @@ theorem responseFieldSlice_eq_null_of_resolve_null
     {completionDepth : Nat} {source : ResolverValue ObjectIdentity}
     {field : ExecutableField}
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = some .null)
     : responseFieldSlice schema resolvers variableValues completionDepth source field
       = .null := by
@@ -1521,7 +1522,11 @@ theorem responseFieldSlice_eq_null_of_resolve_null
           reusablePreviousValue? schema fieldDefinition.outputType none =
         none :=
         reusablePreviousValue?_none schema fieldDefinition.outputType
-      simp [executeField, hlookup, hresolve, hreuse,
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              field.parentType field.fieldName field.arguments source = some .null := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
+      simp [executeField, hlookup, hresolveRuntime, hreuse,
         completeValue_null_resultValueOrNull]
 
 theorem responseFieldSlice_eq_null_or_scalar_of_resolve_scalar
@@ -1531,7 +1536,8 @@ theorem responseFieldSlice_eq_null_or_scalar_of_resolve_scalar
     {completionDepth : Nat} {source : ResolverValue ObjectIdentity}
     {field : ExecutableField} {value : String}
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = some (.scalar value))
     : responseFieldSlice schema resolvers variableValues completionDepth source field
         = .null
@@ -1555,7 +1561,12 @@ theorem responseFieldSlice_eq_null_or_scalar_of_resolve_scalar
             field.fieldName) =
           fieldDefinition.outputType.namedType := by
         simp [Schema.fieldReturnType?, hlookup]
-      simpa [executeField, hlookup, hresolve, hreuse, hreturn] using
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              field.parentType field.fieldName field.arguments source =
+            some (.scalar value) := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
+      simpa [executeField, hlookup, hresolveRuntime, hreuse, hreturn] using
         completeValue_scalar_object_empty_resultValueOrNull schema resolvers
           variableValues fieldDefinition.outputType completionDepth
           field.selectionSet value
@@ -1581,15 +1592,18 @@ theorem null_responseFieldSlice
     {completionDepth : Nat} {source : ResolverValue ObjectIdentity}
     {first later : ExecutableField}
     (hfirstResolve
-      : resolvers.resolve first.parentType first.fieldName first.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          first.parentType first.fieldName first.arguments source
         = some .null)
     (hlaterResolve
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          later.parentType later.fieldName later.arguments source
         = some .null)
     : CompleteValuePopulates schema resolvers variableValues completionDepth
         ((schema.fieldReturnType? later.parentType later.fieldName).getD later.fieldName)
         later.selectionSet
-        (resolvers.resolve later.parentType later.fieldName later.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues
+          later.parentType later.fieldName later.arguments source)
         (responseFieldSlice schema resolvers variableValues completionDepth source
           first) := by
   rw [hlaterResolve]
@@ -1638,10 +1652,12 @@ theorem scalar_responseFieldSlice
     {completionDepth : Nat} {source : ResolverValue ObjectIdentity}
     {first later : ExecutableField} {value : String}
     (hfirstResolve
-      : resolvers.resolve first.parentType first.fieldName first.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          first.parentType first.fieldName first.arguments source
         = some (.scalar value))
     (hlaterResolve
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          later.parentType later.fieldName later.arguments source
         = some (.scalar value))
     (hcompletion
       : scalarCompletionAtDepth schema
@@ -1655,7 +1671,8 @@ theorem scalar_responseFieldSlice
     : CompleteValuePopulates schema resolvers variableValues completionDepth
         ((schema.fieldReturnType? later.parentType later.fieldName).getD later.fieldName)
         later.selectionSet
-        (resolvers.resolve later.parentType later.fieldName later.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues
+          later.parentType later.fieldName later.arguments source)
         (responseFieldSlice schema resolvers variableValues completionDepth source
           first) := by
   rw [hlaterResolve]

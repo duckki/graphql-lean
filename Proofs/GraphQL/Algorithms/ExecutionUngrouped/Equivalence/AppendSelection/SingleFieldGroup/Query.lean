@@ -50,8 +50,8 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_merged_complete
       ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_merged_complete
         schema resolvers variableValues depth parentType source responseName
         field fields
-        (resolvers.resolve field.parentType field.fieldName field.arguments
-          source)
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source)
         hresponse hparent rfl hungrouped
   exact
     executeRootSelectionSet_eq_spec_of_flatCollects_and_groupFlatSpecEquivalent
@@ -80,7 +80,8 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_mergedComplete
     (hmerged
       : ExecutableFieldsMergedComplete schema resolvers variableValues depth
           parentType source responseName field fields
-          (resolvers.resolve field.parentType field.fieldName field.arguments source))
+          (resolveFieldValueByName schema resolvers variableValues field.parentType
+            field.fieldName field.arguments source))
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -164,7 +165,8 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_mergedComplete
       : ExecutableFieldsMergedComplete schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           (operation.rootType schema) source responseName field fields
-          (resolvers.resolve field.parentType field.fieldName field.arguments source))
+          (resolveFieldValueByName schema resolvers variableValues field.parentType
+            field.fieldName field.arguments source))
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source := by
@@ -250,7 +252,8 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_mergedComplete
       : ExecutableFieldsMergedComplete schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) depth
           (operation.rootType schema) source responseName field fields
-          (resolvers.resolve field.parentType field.fieldName field.arguments source))
+          (resolveFieldValueByName schema resolvers variableValues field.parentType
+            field.fieldName field.arguments source))
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by

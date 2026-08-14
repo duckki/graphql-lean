@@ -826,7 +826,8 @@ theorem
               :: sourceFields
             )
             :: sourceTail
-      -> (match resolvers.resolve lookupParent fieldName arguments source with
+      -> (match Execution.resolveFieldValue schema resolvers variableValues
+                  fieldDefinition lookupParent fieldName arguments source with
           | some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType
@@ -908,7 +909,8 @@ theorem
       (by simpa [sourceField] using hsourceCollect)
       hfiltered
   have hcompleteGrouped :
-      match resolvers.resolve lookupParent fieldName arguments source with
+      match Execution.resolveFieldValue schema resolvers variableValues
+          fieldDefinition lookupParent fieldName arguments source with
       | some value =>
           Execution.completeValue schema resolvers variableValues (depth - 1)
               fieldDefinition.outputType
@@ -917,7 +919,9 @@ theorem
             Execution.completeValue schema resolvers variableValues (depth - 1)
               fieldDefinition.outputType (sourceField :: sourceFields) value
       | none => True := by
-    cases hresolved : resolvers.resolve lookupParent fieldName arguments source with
+    cases hresolved
+          : Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition lookupParent fieldName arguments source with
     | none =>
         simp []
     | some value =>
@@ -1009,7 +1013,8 @@ theorem
               :: sourceFields
             )
             :: sourceTail
-      -> (match resolvers.resolve lookupParent fieldName arguments
+      -> (match Execution.resolveFieldValue schema resolvers variableValues
+                  fieldDefinition lookupParent fieldName arguments
                   (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType
                     ref) with
           | some value =>
@@ -1074,7 +1079,8 @@ theorem
       responseName fieldName arguments directives selectionSet rest
       sourceFields sourceTail hagrees hsourceVars hallow hsourceCollect
   have hcomplete :
-      match resolvers.resolve lookupParent fieldName arguments
+      match Execution.resolveFieldValue schema resolvers variableValues
+          fieldDefinition lookupParent fieldName arguments
           (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref) with
       | some value =>
           Execution.completeValue schema resolvers variableValues (depth - 1)
@@ -1104,7 +1110,8 @@ theorem
               value
       | none => True := by
     cases hresolved
-          : resolvers.resolve lookupParent fieldName arguments
+          : Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition lookupParent fieldName arguments
               (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType
                 ref) with
     | none =>

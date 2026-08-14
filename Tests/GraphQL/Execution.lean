@@ -1,3 +1,4 @@
+import GraphQL.Algorithms.Common
 import GraphQL.Execution
 
 namespace GraphQL
@@ -379,6 +380,265 @@ theorem executeQueryExplicitNullDoesNotUseDefault
           variableDefaultQuery
           (GraphQL.Execution.ResolverValue.object "Query" ())).data
         (.object [])
+      = true := by
+  native_decide
+
+def nestedInputDefinition : InputValueDefinition :=
+  {
+    name := "leaf"
+    inputType := .named "Int"
+    defaultValue := some (.int 3)
+  }
+
+def nestedInputListDefinition : InputValueDefinition :=
+  {
+    name := "items"
+    inputType := .list (.named "NestedInput")
+    defaultValue := some (.list [.object []])
+  }
+
+def defaultedInputDefinition : InputValueDefinition :=
+  {
+    name := "nested"
+    inputType := .named "NestedInput"
+    defaultValue := some (.object [])
+  }
+
+def nullableFlagDefinition : InputValueDefinition :=
+  {
+    name := "flag"
+    inputType := .named "Boolean"
+    defaultValue := some (.boolean true)
+  }
+
+def resolverPayloadDefinition : InputValueDefinition :=
+  {
+    name := "payload"
+    inputType := .named "ResolverInput"
+    defaultValue := some (.object [])
+  }
+
+def coercedResolverSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .inputObject
+          {
+            name := "NestedInput"
+            inputFields := [nestedInputDefinition]
+          },
+        .inputObject
+          {
+            name := "ResolverInput"
+            inputFields :=
+              [
+                defaultedInputDefinition,
+                nestedInputListDefinition,
+                nullableFlagDefinition
+              ]
+          },
+        .object
+          {
+            name := "Query"
+            fields :=
+              [{
+                name := "echo"
+                outputType := .named "String"
+                arguments := [resolverPayloadDefinition]
+              }]
+          }
+      ]
+  }
+
+def defaultedResolverPayload : InputValue :=
+  .object
+    [
+      ("nested", .object [("leaf", .int 3)]),
+      ("items", .list [.object [("leaf", .int 3)]]),
+      ("flag", .boolean true)
+    ]
+
+def operationDefaultResolverPayload : InputValue :=
+  .object
+    [
+      ("nested", .object [("leaf", .int 3)]),
+      ("items", .list [.object [("leaf", .int 3)]]),
+      ("flag", .boolean false)
+    ]
+
+def coercedResolverOperation : Operation :=
+  {
+    name := some "CoercedResolverArguments"
+    variableDefinitions :=
+      [{
+        name := "payload"
+        typeRef := .named "ResolverInput"
+        defaultValue := some (.object [("flag", .boolean false), ("nested", .object [])])
+      }]
+    selectionSet :=
+      [.field "echo" "echo" [{ name := "payload", value := .variable "payload" }] [] []]
+  }
+
+theorem coerceVariableValuesPreservesOperationDefaultSyntax
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.Execution.coerceVariableValues coercedResolverOperation [])
+        "payload"
+      = some (.object [("flag", .boolean false), ("nested", .object [])]) := by
+  rfl
+
+def omittedResolverArgumentOperation : Operation :=
+  {
+    name := some "OmittedResolverArgument"
+    selectionSet := [.field "echo" "echo" [] [] []]
+  }
+
+theorem coerceArgumentValuesUsesArgumentDefaultForOmittedArgument
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [resolverPayloadDefinition] [])
+        [{ name := "payload", value := defaultedResolverPayload }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesUsesArgumentDefaultForUndefinedVariable
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [resolverPayloadDefinition]
+          [{ name := "payload", value := .variable "undefined" }])
+        [{ name := "payload", value := defaultedResolverPayload }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesPreservesExplicitNull
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [resolverPayloadDefinition] [{ name := "payload", value := .null }])
+        [{ name := "payload", value := .null }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesUsesOperationDefaultBeforeArgumentDefault
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema
+          (GraphQL.Execution.coerceVariableValues coercedResolverOperation [])
+          [resolverPayloadDefinition]
+          [{ name := "payload", value := .variable "payload" }])
+        [{ name := "payload", value := operationDefaultResolverPayload }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesUsesSuppliedNullBeforeOperationAndArgumentDefaults
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema
+          (GraphQL.Execution.coerceVariableValues coercedResolverOperation
+            [("payload", .null)])
+          [resolverPayloadDefinition]
+          [{ name := "payload", value := .variable "payload" }])
+        [{ name := "payload", value := .null }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesHandlesMissingUndefinedNullAndSuppliedObjectFields
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [resolverPayloadDefinition]
+          [{
+            name := "payload"
+            value :=
+              .object
+                [
+                  ("nested", .object [("leaf", .int 9)]),
+                  ("items", .variable "undefined"),
+                  ("flag", .null)
+                ]
+          }])
+        [{
+          name := "payload"
+          value :=
+            .object
+              [
+                ("nested", .object [("leaf", .int 9)]),
+                ("items", .list [.object [("leaf", .int 3)]]),
+                ("flag", .null)
+              ]
+        }]
+      = true := by
+  native_decide
+
+theorem coerceArgumentValuesUsesSchemaOrderWithoutCanonicalizingObjectFields
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [resolverPayloadDefinition]
+          [{
+            name := "payload"
+            value :=
+              .object
+                [
+                  ("flag", .boolean true),
+                  ("items", .list [.object [("leaf", .int 3)]]),
+                  ("nested", .object [("leaf", .int 3)])
+                ]
+          }])
+        [{ name := "payload", value := defaultedResolverPayload }]
+      = true := by
+  native_decide
+
+theorem mergeCompatibleArgumentOrdersCoerceToTheSameResolverArguments
+    : GraphQL.Algorithms.argumentListEqBool
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [
+            { name := "first", inputType := .named "Int" },
+            { name := "second", inputType := .named "Int" }
+          ]
+          [{ name := "first", value := .int 1 }, { name := "second", value := .int 2 }])
+        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+          [
+            { name := "first", inputType := .named "Int" },
+            { name := "second", inputType := .named "Int" }
+          ]
+          [{ name := "second", value := .int 2 }, { name := "first", value := .int 1 }])
+      = true := by
+  native_decide
+
+def resolverArgumentPresenceResolvers : GraphQL.Execution.Resolvers :=
+  {
+    resolve :=
+      fun parentType fieldName arguments _source =>
+        match parentType, fieldName, arguments with
+        | "Query", "echo", [] => some (.scalar "missing")
+        | "Query", "echo", _ :: _ => some (.scalar "present")
+        | _, _, _ => some .null
+    resolve_argumentsEquivalent := by
+      intro parentType fieldName firstArguments laterArguments source hequivalent
+      cases firstArguments with
+      | nil =>
+          cases laterArguments with
+          | nil => rfl
+          | cons argument arguments =>
+              have hmember := hequivalent.2 argument (by simp)
+              simp at hmember
+      | cons argument arguments =>
+          cases laterArguments with
+          | nil =>
+              have hmember := hequivalent.1 argument (by simp)
+              simp at hmember
+          | cons laterArgument laterArguments =>
+              by_cases hparent : parentType = "Query"
+              · subst parentType
+                by_cases hfield : fieldName = "echo"
+                · subst fieldName
+                  rfl
+                · simp [hfield]
+              · simp [hparent]
+  }
+
+theorem specExecutorPassesCoercedArgumentsToGivenResolver
+    : responseEqBool
+        (GraphQL.Execution.executeQuery coercedResolverSchema
+          resolverArgumentPresenceResolvers [] omittedResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
       = true := by
   native_decide
 

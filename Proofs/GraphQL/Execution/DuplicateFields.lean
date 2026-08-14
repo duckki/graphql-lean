@@ -598,10 +598,12 @@ mutual
                 | none => simp [executeField, hlookup]
                 | some fieldDefinition =>
                     cases hresolve : resolvers.resolve field.parentType field.fieldName
-                      field.arguments source with
-                    | none => simp [executeField, hlookup, hresolve]
+                      (coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments field.arguments) source with
+                    | none =>
+                        simp [executeField, resolveFieldValue, hlookup, hresolve]
                     | some resolved =>
-                        simp [executeField, hlookup, hresolve,
+                        simp [executeField, resolveFieldValue, hlookup, hresolve,
                           completeValue_firstOccurrences schema resolvers variableValues
                             fuel fieldDefinition.outputType resolved
                             (FirstOccurrences.keep [] field rest)]

@@ -50,8 +50,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType currentSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType currentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
                               fieldDefinition.outputType.namedType childRuntimeType
@@ -100,8 +100,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType currentSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType currentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
                               fieldDefinition.outputType.namedType childRuntimeType
@@ -334,8 +334,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -386,8 +386,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -632,8 +632,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -684,8 +684,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -931,8 +931,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -983,8 +983,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1257,8 +1257,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1309,8 +1309,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1584,8 +1584,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1636,8 +1636,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1915,8 +1915,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    leftParentType fieldName arguments leftParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    leftParentType fieldName leftParentType
                                     leftCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
@@ -1967,8 +1967,8 @@ theorem
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema
-                                    rightParentType fieldName arguments rightParentType
+                                ∧ abstractRuntimeForFieldDeep? schema
+                                    rightParentType fieldName rightParentType
                                     rightCurrentSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool

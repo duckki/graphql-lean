@@ -1,13 +1,16 @@
 # Normal Forms
 
-This document describes the project-specific normal forms and the properties
-proved about them. Normal forms are not GraphQL specification features; they are
-proof and algorithm artifacts used to relate different operation
+This document describes the project-specific normal forms and their public
+correctness propositions. Normal forms are not GraphQL specification features;
+they are proof and algorithm artifacts used to relate different operation
 representations to the same resolver-parametric execution semantics.
 
 The public definitions live in `GraphQL/Theories/NormalForm.lean`. Proof witnesses live
 under `Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/` and
 `Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/`.
+
+The public soundness and uniqueness propositions and their checked proof witnesses use
+coerced resolver arguments.
 
 ## The Two Normal Forms
 
@@ -178,13 +181,12 @@ composite selection retains at least one child.
 Second, a field selected under an interface type condition is validated against
 the interface field definition. Ground normalization makes concrete
 implementation object scopes explicit. A field selection that is valid under the
-interface may become invalid under one of those implementation object types,
-for example when the implementation field requires arguments that the interface
-field did not require or default. Runtime execution can then encounter coercion
-or field-argument errors even though the original operation passed validation.
-The `operationFieldsValidInPossibleTypes` assumption records the
-operation-specific compatibility needed for every concrete branch introduced by
-normalization.
+interface may become invalid under one of those implementation object types, for
+example when the implementation field requires arguments that the interface field
+did not require or default. Normalization can therefore change the field definition
+used for argument coercion and the semantic argument map passed to the resolver. The
+`operationFieldsValidInPossibleTypes` assumption records the operation-specific
+compatibility needed for every concrete branch introduced by normalization.
 
 For example:
 
@@ -212,9 +214,9 @@ type Query {
 
 The operation is valid when checked under `I.value`, because `x` has a default
 there. If `i` resolves to a `T`, execution coerces arguments for `T.value`,
-where `x` is non-null and has no default, so execution reports a missing
-required argument before invoking the concrete resolver. This is the same shape
-as GraphQL spec issue
+where `x` is non-null and has no default, so the modeled resolver argument map
+omits `x`. The validity assumption rules out exposing that changed resolver input.
+This is the same shape as GraphQL spec issue
 [#1121: ProvidedRequiredArgumentsRule fails to evaluate all potential runtime
 types](https://github.com/graphql/graphql-spec/issues/1121). That issue lists
 several possible spec fixes, including changing required-argument validation to
@@ -228,7 +230,17 @@ question, namely whether a normalized operation is itself a valid GraphQL operat
 ### Uniqueness Up To Reordering
 
 Uniqueness says valid normal operations with the same resolver-parametric semantics
-have the same syntax modulo order that execution does not observe.
+have the same structure modulo order, with corresponding field arguments compared
+after the schema and operation variables coerce them to the lists seen by resolvers.
+The raw selection-only `*EqualUpToReordering` relations are proof-layer helpers in
+`GroundTypeNormalization/Uniqueness/SyntaxDiff.lean`. Public resolver-boundary
+relations use the `*EqualUpToReorderingWithCoercion` suffix.
+
+Every operation-level soundness and uniqueness statement assumes the binary
+relation
+`variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions`.
+It compares the lists positionally, requiring equal names and equivalent defaults;
+it intentionally does not compare variable types.
 
 - `NormalForm.normalOperationsEqualUpToReorderingSemanticallyEquivalent` is witnessed
   by `normal_operations_equalUpToReordering_semanticallyEquivalent` in
@@ -241,14 +253,18 @@ have the same syntax modulo order that execution does not observe.
 - `NormalForm.normalOperationsSemanticallyEquivalentEqualUpToReordering` is witnessed
   by `normal_operations_semanticallyEquivalent_equalUpToReordering` in
   `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
-  It compares directive-free ground-normal siblings up to reordering.
+  It concludes `operationsEqualUpToReorderingWithCoercion`, comparing
+  directive-free ground-normal siblings up to reordering for every supplied variable
+  environment.
 - `NormalForm.normalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.GroundTypeNormalization.normalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`.
 - `NormalForm.completeNormalOperationsSemanticallyEquivalentEqualUpToReordering` is
   witnessed by `complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
-  It additionally ignores complete Boolean branch order and minterm stem order;
+  It concludes `completeNormalOperationsEqualUpToReorderingWithCoercion` and
+  additionally ignores complete Boolean branch order and minterm stem order;
+  field arguments are compared in environments satisfying each paired minterm.
   Boolean-support equivalence is derived from validity, complete normality, and
   unrestricted execution equivalence.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
@@ -257,8 +273,9 @@ have the same syntax modulo order that execution does not observe.
   `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   Its semantic conclusion is restricted to complete Boolean environments, with
   source Boolean-support equivalence stated explicitly because normalized equality
-  only compares normalized support. It also requires identical variable
-  definitions, since public execution applies operation-specific defaults.
+  only compares normalized support. It also requires position-wise
+  variable-definition equivalence, since public execution applies
+  operation-specific defaults.
 - `NormalForm.completeNormalizeOperationUniqueUpToReordering` is witnessed by
   `GraphQL.NormalForm.CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering`
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.

@@ -25,6 +25,10 @@ def selectionSetsSemanticallyEquivalentForCompleteBoolVars
       Execution.inputValueBoolean? variableValues (.variable name) = some value
       -> Execution.inputValueBoolean? (rightPrepare variableValues) (.variable name)
           = some value)
+  ∧ (∀ leftValues rightValues,
+      Execution.variableValuesCoercionEquivalent leftValues rightValues
+      -> Execution.variableValuesCoercionEquivalent
+          (leftPrepare leftValues) (rightPrepare rightValues))
   ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
       variableValues fuel (source : Execution.ResolverValue ObjectRef),
       boolVarsComplete variables variableValues

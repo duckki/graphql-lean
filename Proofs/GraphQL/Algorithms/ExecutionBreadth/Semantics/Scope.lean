@@ -94,8 +94,9 @@ theorem scope_executeScheduleItem_result_count_mismatch
     (variableValues : VariableValues) (item : ScheduleItem ObjectRef)
     (fieldDefinition : FieldDefinition)
     : schema.lookupField item.key.parentType item.key.fieldName = some fieldDefinition
-      -> ((resolvers.resolve item.key.parentType item.key.fieldName item.key.arguments
-              item.sources).length
+      -> ((resolvers.resolve item.key.parentType item.key.fieldName
+              (coerceArgumentValues schema variableValues fieldDefinition.arguments
+                item.key.arguments) item.sources).length
             == item.sources.length)
           = false
       -> executeScheduleItem schema resolvers variableValues item
@@ -129,7 +130,8 @@ theorem scope_executeScheduleItem_fromSpecResolvers_lookup_some
           = let resolved :=
               item.sources.map
                 (fun source =>
-                  resolvers.resolve item.key.parentType item.key.fieldName
+                  GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                    fieldDefinition item.key.parentType item.key.fieldName
                     item.key.arguments source)
             let built :=
               buildFieldSlots schema fieldDefinition.outputType item.segments resolved
@@ -140,7 +142,8 @@ theorem scope_executeScheduleItem_fromSpecResolvers_lookup_some
               :: scheduled.snd
             ) := by
   intro hlookup
-  simp [executeScheduleItem, hlookup, ResolverMap.fromSpecResolvers]
+  simp [executeScheduleItem, GraphQL.Execution.resolveFieldValue, hlookup,
+    ResolverMap.fromSpecResolvers]
 
 theorem scope_expectedChildQueueForItem_fromSpecResolvers_lookup_some
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -160,9 +163,10 @@ theorem scope_expectedChildQueueForItem_fromSpecResolvers_lookup_some
   simp [expectedChildQueueForItem, hlookup]
   rw [expectedScheduleQueueToQueue_scheduleExpectedPendingChildWork]
   rw [slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
-    (ObjectRef := ObjectRef) schema resolvers fieldDefinition.outputType
+    (ObjectRef := ObjectRef) schema resolvers variableValues fieldDefinition.outputType
     item haligned hready]
-  simp [ExpectedQueueItem.toScheduleItem, expectedScheduleQueueToQueue]
+  simp [GraphQL.Execution.resolveFieldValueByName, hlookup,
+    ExpectedQueueItem.toScheduleItem, expectedScheduleQueueToQueue]
 
 theorem scope_expectedChildQueueForItem_frames_fromSpecResolvers_lookup_some
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -175,7 +179,8 @@ theorem scope_expectedChildQueueForItem_frames_fromSpecResolvers_lookup_some
           = let resolved :=
               item.toScheduleItem.sources.map
                 (fun source =>
-                  resolvers.resolve item.key.parentType item.key.fieldName
+                  GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                    fieldDefinition item.key.parentType item.key.fieldName
                     item.key.arguments source)
             let built :=
               buildFieldSlots schema fieldDefinition.outputType
@@ -185,9 +190,10 @@ theorem scope_expectedChildQueueForItem_frames_fromSpecResolvers_lookup_some
   simp [expectedChildQueueForItem, hlookup]
   rw [scheduleExpectedPendingChildWork_frames]
   rw [slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
-    (ObjectRef := ObjectRef) schema resolvers fieldDefinition.outputType
+    (ObjectRef := ObjectRef) schema resolvers variableValues fieldDefinition.outputType
     item haligned hready]
-  simp [ExpectedQueueItem.toScheduleItem, expectedScheduleQueueToQueue]
+  simp [GraphQL.Execution.resolveFieldValueByName, hlookup,
+    ExpectedQueueItem.toScheduleItem, expectedScheduleQueueToQueue]
 
 end ExecutionBreadth
 

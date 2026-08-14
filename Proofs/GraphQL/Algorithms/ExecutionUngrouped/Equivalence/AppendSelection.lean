@@ -195,8 +195,9 @@ theorem executeField_key_mem
                 hlookup] at hmem
           | some fieldDefinition =>
               cases hresolve :
-                  resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+                  GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                    fieldDefinition field.parentType field.fieldName field.arguments
+                    source with
               | none =>
                   cases hcompleted :
                       GraphQL.Execution.handleFieldError
@@ -331,7 +332,8 @@ theorem executeField_pairKeysNodup
                 hlookup]
           | some fieldDefinition =>
               cases hresolve
-                    : resolvers.resolve field.parentType field.fieldName
+                    : GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                        fieldDefinition field.parentType field.fieldName
                         field.arguments source with
               | none =>
                   cases hcompleted
@@ -788,8 +790,9 @@ mutual
                   ResponseMergeReady_empty_object
             | some fieldDefinition =>
                 cases hresolve :
-                    resolvers.resolve field.parentType field.fieldName
-                      field.arguments source with
+                    GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                      fieldDefinition field.parentType field.fieldName field.arguments
+                      source with
                 | none =>
                     cases hcompleted :
                         GraphQL.Execution.handleFieldError

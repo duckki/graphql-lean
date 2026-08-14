@@ -473,6 +473,16 @@ theorem breadthResultCountMismatchIsFieldErrorSmoke
       ∧ responseEqBool breadth.data (.object [("mainHero", .null)]) = true := by
   native_decide
 
+theorem breadthExecutorPassesCoercedArgumentsToGivenResolver
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionBreadth.executeQueryWithSpecResolvers
+          coercedResolverSchema resolverArgumentPresenceResolvers []
+          omittedResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
+      = true := by
+  native_decide
+
 end ExecutionBreadth
 end Tests
 end GraphQL

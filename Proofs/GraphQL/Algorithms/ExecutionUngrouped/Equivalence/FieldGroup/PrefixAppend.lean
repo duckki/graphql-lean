@@ -42,10 +42,12 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -161,6 +163,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           | none =>
               simp [GraphQL.Execution.executeField, executeField, groupedFieldVisitResult, executableField, hlookup, resultStatus]
           | some fieldDefinition =>
+              simp [resolveFieldValueByName, hlookup] at hresolveFirst
               cases resolved with
               | none =>
                   cases fieldDefinition with
@@ -279,6 +282,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
               | none =>
                   simp [GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, htailNull, combineVisitStatus, GraphQL.Execution.Result.combine, visitOk]
               | some fieldDefinition =>
+                  simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
                   cases resolved with
                   | none =>
                       cases fieldDefinition with
@@ -1037,10 +1041,12 @@ theorem ExecutableFieldsMergedRoot_append_one_aligned_of_prefix_contained
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -1249,6 +1255,7 @@ theorem ExecutableFieldsMergedRoot_append_one_aligned_of_prefix_contained
                     RootSelectionResultAlignedEquivalent,
                     ErrorPresenceEquivalent]
               | some fieldDefinition =>
+                  simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
                   cases resolved with
                   | none =>
                       unfold ExecutableFieldsMergedRaw at hprefixRaw
@@ -1370,10 +1377,12 @@ theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -1590,6 +1599,7 @@ theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_
                   (.ok (.null, 0)) (.error 1 : Result ResponseValue)
                   hprefix htail haligned
           | some fieldDefinition =>
+              simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
               cases resolved with
               | none =>
                   have hprefix :
@@ -1746,10 +1756,12 @@ theorem
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -1952,6 +1964,7 @@ theorem
                   (.ok (.null, 0)) (.error 1 : Result ResponseValue)
                   hprefix htail haligned
           | some fieldDefinition =>
+              simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
               cases resolved with
               | none =>
                   have hprefix :
@@ -2108,10 +2121,12 @@ theorem
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -2315,6 +2330,7 @@ theorem
                   (.ok (.null, 0)) (.error 1 : Result ResponseValue)
                   hprefix htail haligned
           | some fieldDefinition =>
+              simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
               cases resolved with
               | none =>
                   have hprefix :
@@ -2468,10 +2484,12 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -2590,10 +2608,12 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -2711,10 +2731,12 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
@@ -2827,10 +2849,12 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolvers.resolve later.parentType later.fieldName later.arguments source
+      : resolveFieldValueByName schema resolvers variableValues later.parentType
+          later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,

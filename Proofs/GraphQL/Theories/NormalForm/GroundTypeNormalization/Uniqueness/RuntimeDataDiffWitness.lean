@@ -56,12 +56,12 @@ def selectionSetContextualRuntimeDataDiffWitness
 def selectionSetContextualRuntimeDataDiffWitnessWithFuelGe
     (schema : Schema) (parentType runtimeType : Name)
     (left right : List Selection)
+    {variableValues : Execution.VariableValues}
     (support : List Selection -> Prop) (minFuel : Nat)
     : Prop :=
   schema.typeIncludesObjectBool parentType runtimeType = true
   ∧ ∃ ObjectRef : Type,
     ∃ resolvers : Execution.Resolvers ObjectRef,
-    ∃ variableValues : Execution.VariableValues,
     ∃ fuel : Nat,
     ∃ ref : ObjectRef,
       minFuel ≤ fuel
@@ -109,12 +109,12 @@ theorem selectionSetContextualRuntimeDataDiffWitness_of_withFuelGe
     {left right : List Selection} {support : List Selection -> Prop}
     {minFuel : Nat}
     : selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-        runtimeType left right support minFuel
+        runtimeType left right (variableValues := variableValues) support minFuel
       -> selectionSetContextualRuntimeDataDiffWitness schema parentType
           runtimeType left right support := by
   intro hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, _hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,
       hsupport, hnot⟩
   exact ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hsupport, hnot⟩
 
@@ -123,7 +123,7 @@ theorem selectionSetRuntimeDataDiffWitness_of_contextualRuntimeDataDiffWitnessWi
     {left right : List Selection} {support : List Selection -> Prop}
     {minFuel : Nat}
     : selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-        runtimeType left right support minFuel
+        runtimeType left right (variableValues := variableValues) support minFuel
       -> selectionSetRuntimeDataDiffWitness schema parentType runtimeType left right := by
   intro hwitness
   exact
@@ -136,11 +136,11 @@ theorem not_selectionSetsDataEquivalent_of_contextualRuntimeDataDiffWitnessWithF
     {minFuel : Nat}
     : objectTypeNameBool schema parentType = true
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right support minFuel
+          runtimeType left right (variableValues := variableValues) support minFuel
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hobject hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, _hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,
       _hsupport, hnot⟩
   have hruntimeEq : runtimeType = parentType :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hobject
@@ -158,18 +158,18 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_mono_support
     {minFuel : Nat}
     : (∀ selectionSet, targetSupport selectionSet -> sourceSupport selectionSet)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right sourceSupport minFuel
+          runtimeType left right (variableValues := variableValues) sourceSupport minFuel
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right targetSupport minFuel := by
+          runtimeType left right (variableValues := variableValues) targetSupport
+          minFuel := by
   intro hsubset hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
       hsupport, hnot⟩
   exact ⟨
     hinclude,
     ObjectRef,
     resolvers,
-    variableValues,
     fuel,
     ref,
     hfuel,
@@ -185,18 +185,18 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_minFuel_le
     {sourceMinFuel targetMinFuel : Nat}
     : targetMinFuel ≤ sourceMinFuel
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right support sourceMinFuel
+          runtimeType left right (variableValues := variableValues) support sourceMinFuel
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right support targetMinFuel := by
+          runtimeType left right (variableValues := variableValues) support
+          targetMinFuel := by
   intro hfuelLe hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
       hsupport, hnot⟩
   exact ⟨
     hinclude,
     ObjectRef,
     resolvers,
-    variableValues,
     fuel,
     ref,
     Nat.le_trans hfuelLe hfuel,
@@ -209,18 +209,17 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
     {left right : List Selection} {support : List Selection -> Prop}
     {minFuel : Nat}
     : selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-        runtimeType right left support minFuel
+        runtimeType right left (variableValues := variableValues) support minFuel
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema parentType
-          runtimeType left right support minFuel := by
+          runtimeType left right (variableValues := variableValues) support minFuel := by
   intro hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
       hsupport, hnot⟩
   exact ⟨
     hinclude,
     ObjectRef,
     resolvers,
-    variableValues,
     fuel,
     ref,
     hfuel,

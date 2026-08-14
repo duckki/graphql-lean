@@ -1,7 +1,9 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.FocusedOperationBridge
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.FocusedValidSeparation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.NormalizeBridge
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ReorderingSoundness
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.ArgumentNodup
 
 /-!
 Ground-type normal-form uniqueness theorem surface.
@@ -13,10 +15,20 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
-theorem normal_operations_equalUpToReordering_semanticallyEquivalent
+private theorem
+    normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
     {schema : Schema} {left right : Operation}
-    : normalOperationsEqualUpToReorderingSemanticallyEquivalent schema left right := by
-  intro hleftFree hrightFree hleftNormal hrightNormal hequal
+    (hrootObject : objectTypeNameBool schema (left.rootType schema) = true)
+    (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left.selectionSet)
+    (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right.selectionSet)
+    (hleftFree : operationDirectiveFree left)
+    (hrightFree : operationDirectiveFree right)
+    (hleftNormal : operationNormal schema left)
+    (hrightNormal : operationNormal schema right)
+    (hdefinitions
+      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+    (hequal : operationsEqualUpToReorderingWithCoercion schema left right)
+    : operationsSemanticallyEquivalent schema left right := by
   rcases hequal with ⟨_hroot, hselectionEqual⟩
   have hrootType : (left.rootType schema) = (right.rootType schema) := by
     cases left.operationType
@@ -25,11 +37,6 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
   have hrightSelectionNormal :
     selectionSetNormal schema (left.rootType schema) right.selectionSet := by
     simpa [operationNormal, hrootType] using hrightNormal
-  have hselectionSem :
-      selectionSetsSemanticallyEquivalent schema (left.rootType schema)
-        left.selectionSet right.selectionSet :=
-    selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-      hleftFree hrightFree hleftNormal hrightSelectionNormal hselectionEqual
   intro ObjectRef resolvers variableValues fuel source
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
@@ -50,28 +57,66 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
         simpa [hleftRoot] using hrootApplies.symm
       have hsource :=
         rootSourceAppliesBool_true_object schema left source hleftRoot
-      have hleftValues :=
-        CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
-          schema resolvers variableValues
-          (Execution.coerceVariableValues left variableValues) fuel (left.rootType schema)
-          source left.selectionSet hleftFree
-      have hrightValues :=
-        CompleteNormalization.executeSelectionSet_eq_of_directiveFree_variableValues
-          schema resolvers variableValues
-          (Execution.coerceVariableValues right variableValues) fuel (left.rootType schema)
-          source right.selectionSet hrightFree
+      have heffectiveValues :
+          Execution.variableValuesCoercionEquivalent
+            (Execution.coerceVariableValues left variableValues)
+            (Execution.coerceVariableValues right variableValues) :=
+        Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+          (Execution.variableValuesCoercionEquivalent_refl variableValues)
+          hdefinitions
+      have hselectionEqualSame :=
+        selectionSetEqualUpToReorderingWithCoercion_right_to_left heffectiveValues
+          (hselectionEqual variableValues)
       have hselectionResponse :=
-        hselectionSem resolvers variableValues fuel source hsource
-      simp only [Execution.executeSelectionSetAsResponse] at hselectionResponse
-      rw [hleftValues, hrightValues] at hselectionResponse
+        selectionSetsSemanticallyEquivalent_of_equalUpToReordering
+          hleftArgumentsNodup hrightArgumentsNodup
+          hleftFree hrightFree hleftNormal hrightSelectionNormal hrootObject
+          hselectionEqualSame resolvers fuel source hsource
+      have hrightExecution :
+          Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source right.selectionSet
+            =
+          Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues right variableValues) fuel
+              (left.rootType schema) source right.selectionSet := by
+        unfold Execution.executeSelectionSetAsResponse
+        rw [CompleteNormalization.executeSelectionSet_eq_of_variableValuesCoercionEquivalent
+          schema resolvers heffectiveValues fuel (left.rootType schema) source
+          right.selectionSet]
+      have hselectionResponse' :
+          Execution.Response.semanticEquivalent
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source left.selectionSet)
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues right variableValues) fuel
+              (left.rootType schema) source right.selectionSet) := by
+        rw [← hrightExecution]
+        exact hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
         Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hrootType] using hselectionResponse
+        Execution.executeSelectionSet, hrootType] using
+          hselectionResponse'
+
+theorem normal_operations_equalUpToReordering_semanticallyEquivalent
+    {schema : Schema} {left right : Operation}
+    : normalOperationsEqualUpToReorderingSemanticallyEquivalent schema left right := by
+  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal
+    hdefinitions hequal
+  exact
+    normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
+      (operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid)
+      (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+        (Validation.operationDefinitionValid_selectionSetValid hleftValid))
+      (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+        (Validation.operationDefinitionValid_selectionSetValid hrightValid))
+      hleftFree hrightFree hleftNormal hrightNormal hdefinitions hequal
 
 theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
     : normalizeOperationsEqualUpToReorderingSemanticallyEquivalent schema left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hequal
+  intro hschema hleftValid hrightValid hleftFree hrightFree hdefinitions hequal
   have hleftNormalizedFree :
       operationDirectiveFree (normalizeOperation schema left) :=
     normalizeOperation_directiveFree schema left hleftFree
@@ -86,13 +131,27 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
       operationNormal schema (normalizeOperation schema right) := by
     simpa [normalizeOperationNormal] using
       normalizeOperation_normal schema right hschema hrightValid
+  have hnormalizedDefinitions :
+      variableDefinitionsEquivalent
+        (normalizeOperation schema left).variableDefinitions
+        (normalizeOperation schema right).variableDefinitions := by
+    simpa [normalizeOperation_variableDefinitions] using hdefinitions
   have hnormalizedSemantics :
       operationsSemanticallyEquivalent schema
         (normalizeOperation schema left)
         (normalizeOperation schema right) :=
-    normal_operations_equalUpToReordering_semanticallyEquivalent
+    normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
+      (by
+        simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
+          operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid)
+      (normalizeOperation_selectionSetArgumentsNodup schema left
+        (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+          (Validation.operationDefinitionValid_selectionSetValid hleftValid)))
+      (normalizeOperation_selectionSetArgumentsNodup schema right
+        (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+          (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
       hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
-      hrightNormalizedNormal hequal
+      hrightNormalizedNormal hnormalizedDefinitions hequal
   have hleftEquivalent :
       operationsEquivalent schema left (normalizeOperation schema left) :=
     groundTypeNormalFormSemanticsPreservation schema left hschema hleftValid
@@ -113,12 +172,7 @@ theorem normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}
     : normalOperationsSemanticallyEquivalentEqualUpToReordering schema left right := by
   exact
-    normal_operations_semanticallyEquivalent_equalUpToReordering_of_valid_object_diff_observable_trace_data_separates
-      (fun hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-        hrightNormal hobject responsePath htrace =>
-        not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_pairedPath
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-          hrightNormal hobject htrace)
+    normal_operations_semanticallyEquivalent_equalUpToReordering_of_validNormalSelectionSets
 
 theorem normalizeOperation_uniqueUpToReordering {schema : Schema} {left right : Operation}
     : normalizeOperationUniqueUpToReordering schema left right := by

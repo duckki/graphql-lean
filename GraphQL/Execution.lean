@@ -7,11 +7,12 @@ Spec reference: GraphQL September 2025.
   modes.
 - 6.3 Executing Selection Sets: field collection, grouped field execution, and subfield
   merging are represented over selections.
-- 6.4 Executing Fields: resolver invocation, value completion, and execution-error
-  null bubbling are modeled for a synchronous query fragment. Argument coercion, result
-  coercion details, asynchronous behavior, and error metadata are omitted. Resolver
-  failure is modeled as `none`, handled as a field error, counted in the response
-  envelope, and propagated through non-null wrappers for the response path.
+- 6.4 Executing Fields: resolver invocation, argument default materialization, value
+  completion, and execution-error null bubbling are modeled for a synchronous query
+  fragment. Scalar parsing, coercion errors, result coercion details, asynchronous
+  behavior, and error metadata are omitted. Resolver failure is modeled as `none`,
+  handled as a field error, counted in the response envelope, and propagated through
+  non-null wrappers for the response path.
 - 7 Response: response data is modeled recursively; the query response envelope carries
   response data plus a `Nat` execution-error count, omitting error details, paths,
   locations, extensions, and request error results.
@@ -95,23 +96,27 @@ end Result
 instance instCoeResult {α : Type} [Inhabited α] : Coe (Result α) α where
   coe := Result.getD default
 
--- Spec 6.4.2 `ResolveFieldValue`: partial; one synchronous resolver function stands in
--- for object-type field resolvers and receives uncoerced modeled arguments. `none`
--- models a resolver-raised field error without carrying error metadata.
+-- Spec 6.1.2 `CoerceVariableValues`: supplied variables and the resulting variable map
+-- share one representation. Explicit supplied values are assumed already coerced and
+-- type-conformant where scalar semantics would matter.
+abbrev VariableValues := List (Name × InputValue)
+
+-- Spec 6.4.2 resolver argument domain. The list representation retains argument names,
+-- but its values are semantic inputs: no `.variable` reaches a resolver, omitted inputs
+-- are absent, and explicit `InputValue.null` remains present.
+abbrev CoercedArguments := List Argument
+
+-- Spec 6.4.2 semantic resolver API. Resolvers receive only the schema-derived argument
+-- map; executable argument syntax never crosses this boundary.
 structure Resolvers (ObjectRef : Type := PUnit) where
   resolve
-    : Name -> Name -> List Argument -> ResolverValue ObjectRef
+    : Name -> Name -> CoercedArguments -> ResolverValue ObjectRef
       -> Option (ResolverValue ObjectRef)
   resolve_argumentsEquivalent
     : ∀ parentType fieldName firstArguments laterArguments source,
         Argument.argumentsEquivalent firstArguments laterArguments
         -> resolve parentType fieldName firstArguments source
             = resolve parentType fieldName laterArguments source
-
--- Spec 6.1.2 `CoerceVariableValues`: supplied variables and the resulting variable map
--- share one representation. Explicit supplied values are assumed already coerced and
--- type-conformant where scalar semantics would matter.
-abbrev VariableValues := List (Name × InputValue)
 
 variable {ObjectRef : Type}
 
@@ -125,6 +130,163 @@ def lookupVariableValue? (variableValues : VariableValues) (name : Name)
   | [] => none
   | (variableName, value) :: rest =>
       if variableName = name then some value else lookupVariableValue? rest name
+
+-- Raw schemas can contain cyclic input-object defaults, so coercion is deliberately
+-- fuel-bounded. Exhaustion is treated as absence rather than exposing residual variable
+-- syntax to a resolver.
+mutual
+  def coerceInputValueBounded (schema : Schema) (variableValues : VariableValues)
+      : Nat -> TypeRef -> InputValue -> Option InputValue
+    | 0, _inputType, _value => none
+    | fuel + 1, inputType, .variable name =>
+        match lookupVariableValue? variableValues name with
+        | none => none
+        | some value =>
+            coerceInputValueBounded schema variableValues fuel inputType value
+    | _fuel + 1, _inputType, .null => some .null
+    | fuel + 1, .nonNull inner, value =>
+        coerceInputValueBounded schema variableValues fuel inner value
+    | fuel + 1, .list inner, .list values =>
+        some (.list (coerceInputValueList schema variableValues fuel inner values))
+    | fuel + 1, .named typeName, .object fields =>
+        match schema.lookupInputObject typeName with
+        | none =>
+            some (.object (coerceInputObjectFields schema variableValues fuel [] fields))
+        | some inputObject =>
+            some
+              (.object
+                (coerceInputObjectFields schema variableValues fuel
+                  inputObject.inputFields fields))
+    | _fuel + 1, _inputType, value => some value
+
+  def coerceInputValueList (schema : Schema)
+      (variableValues : VariableValues)
+      (fuel : Nat) (inputType : TypeRef)
+      : List InputValue -> List InputValue
+    | [] => []
+    | value :: rest =>
+        (coerceInputValueBounded schema variableValues fuel inputType value).getD .null
+        :: coerceInputValueList schema variableValues fuel inputType rest
+
+  def coerceInputObjectFields (schema : Schema)
+      (variableValues : VariableValues)
+      (fuel : Nat)
+      : List InputValueDefinition -> List (Name × InputValue) -> List (Name × InputValue)
+    | [], _fields => []
+    | definition :: definitions, fields =>
+        let value? :=
+          match lookupInputObjectFieldValue? fields definition.name with
+          | some value =>
+              coerceInputValueBounded schema variableValues fuel
+                definition.inputType value
+          | none => none
+        let effective? :=
+          match value? with
+          | some value => some value
+          | none =>
+              definition.defaultValue.map
+                (fun value =>
+                  (coerceInputValueBounded schema variableValues fuel definition.inputType
+                    value.toInputValue).getD
+                    .null)
+        match effective? with
+        | none => coerceInputObjectFields schema variableValues fuel definitions fields
+        | some value =>
+            (definition.name, value)
+            :: coerceInputObjectFields schema variableValues fuel definitions fields
+
+  def lookupInputObjectFieldValue? : List (Name × InputValue) -> Name -> Option InputValue
+    | [], _name => none
+    | (fieldName, value) :: rest, name =>
+        if fieldName = name then some value else lookupInputObjectFieldValue? rest name
+end
+
+mutual
+  def inputValueCoercionFuel : InputValue -> Nat
+    | .list values => inputValuesCoercionFuel values + 1
+    | .object fields => inputObjectFieldsCoercionFuel fields + 1
+    | _ => 1
+
+  def inputValuesCoercionFuel : List InputValue -> Nat
+    | [] => 0
+    | value :: rest => inputValueCoercionFuel value + inputValuesCoercionFuel rest
+
+  def inputObjectFieldsCoercionFuel : List (Name × InputValue) -> Nat
+    | [] => 0
+    | (_, value) :: rest =>
+        inputValueCoercionFuel value + inputObjectFieldsCoercionFuel rest
+end
+
+def variableValuesCoercionFuel : VariableValues -> Nat
+  | [] => 0
+  | (_, value) :: rest =>
+      inputValueCoercionFuel value + variableValuesCoercionFuel rest
+
+def inputValueDefinitionCoercionFuel (definition : InputValueDefinition) : Nat :=
+  match definition.defaultValue with
+  | none => 0
+  | some value => inputValueCoercionFuel value.toInputValue
+
+def inputValueDefinitionsCoercionFuel : List InputValueDefinition -> Nat
+  | [] => 0
+  | definition :: rest =>
+      inputValueDefinitionCoercionFuel definition + inputValueDefinitionsCoercionFuel rest
+
+def fieldDefinitionsInputCoercionFuel : List FieldDefinition -> Nat
+  | [] => 0
+  | field :: rest =>
+      inputValueDefinitionsCoercionFuel field.arguments
+      + fieldDefinitionsInputCoercionFuel rest
+
+def typeDefinitionInputCoercionFuel : TypeDefinition -> Nat
+  | .object objectType => fieldDefinitionsInputCoercionFuel objectType.fields
+  | .interface interfaceType =>
+      fieldDefinitionsInputCoercionFuel interfaceType.fields
+  | .inputObject inputObject =>
+      inputValueDefinitionsCoercionFuel inputObject.inputFields
+  | _ => 0
+
+def typeDefinitionsInputCoercionFuel : List TypeDefinition -> Nat
+  | [] => 0
+  | typeDefinition :: rest =>
+      typeDefinitionInputCoercionFuel typeDefinition
+      + typeDefinitionsInputCoercionFuel rest
+
+def schemaInputCoercionFuel (schema : Schema) : Nat :=
+  typeDefinitionsInputCoercionFuel schema.types + schema.types.length + 1
+
+def coerceInputValue (schema : Schema) (variableValues : VariableValues)
+    (inputType : TypeRef) (value : InputValue)
+    : Option InputValue :=
+  coerceInputValueBounded schema variableValues
+    (schemaInputCoercionFuel schema
+      + variableValuesCoercionFuel variableValues
+      + inputValueCoercionFuel value)
+    inputType value
+
+-- Spec 6.4.2 `CoerceArgumentValues`, restricted to the existing assumption that
+-- supplied values are scalar-coerced and type-conformant.  Defaults and missingness
+-- are fully materialized, and undefined variables never reach a resolver.
+def coerceArgumentValues (schema : Schema) (variableValues : VariableValues)
+    (definitions : List InputValueDefinition) (arguments : List Argument)
+    : CoercedArguments :=
+  definitions.foldr
+    (fun definition coerced =>
+      let supplied? := Argument.lookupValue? arguments definition.name
+      let value? :=
+        supplied?.bind (coerceInputValue schema variableValues definition.inputType)
+      let effective? :=
+        match value? with
+        | some value => some value
+        | none =>
+            definition.defaultValue.bind
+              (fun value =>
+                coerceInputValue schema variableValues definition.inputType
+                  value.toInputValue)
+      match effective? with
+      | none => coerced
+      | some value => { name := definition.name, value := value } :: coerced)
+    []
 
 -- Spec 6.1.2 `CoerceVariableValues`, default-value branch: partial; for every missing
 -- variable, materialize its constant operation default, including an explicit `null`
@@ -313,6 +475,17 @@ mutual
           (collectSubfields schema variableValues objectType objectValue fields)
 end
 
+-- Spec 6.4.2 `ResolveFieldValue`: coerce arguments using the field definition already
+-- found by `ExecuteField`, then pass those values directly to the supplied resolver.
+def resolveFieldValue (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name)
+    (arguments : List Argument) (source : ResolverValue ObjectRef)
+    : Option (ResolverValue ObjectRef) :=
+  resolvers.resolve parentType fieldName
+    (coerceArgumentValues schema variableValues fieldDefinition.arguments arguments)
+    source
+
 -- Spec 6.3.3 `ExecuteCollectedFields`, 6.4 `ExecuteField`, and 6.4.3 `CompleteValue`:
 -- partial fuel-bounded execution model with spec-shaped null bubbling through non-null
 -- wrappers. `Except.error` carries a bubbling error count until a nullable parent can
@@ -349,8 +522,8 @@ mutual
             match schema.lookupField field.parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
-                match resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
+                match resolveFieldValue schema resolvers variableValues fieldDefinition
+                        field.parentType field.fieldName field.arguments source with
                 | none =>
                     singleFieldResult responseName
                       (handleFieldError fieldDefinition.outputType)

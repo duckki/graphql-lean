@@ -207,7 +207,7 @@ theorem selectionSetRuntimeActive_runtime_object_of_normal
 def fieldHeadProbeRuntimeCoherent
     (schema : Schema) (rootSelectionSet : List Selection)
     (parentType fieldName runtimeType : Name)
-    (arguments : List Argument)
+    (_arguments : List Argument)
     (fieldDefinition : FieldDefinition)
     (childSelectionSet : List Selection)
     : Prop :=
@@ -215,8 +215,8 @@ def fieldHeadProbeRuntimeCoherent
     ∧ runtimeType = fieldDefinition.outputType.namedType)
   ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema = true
       ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-      ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-          arguments parentType rootSelectionSet
+      ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+          parentType rootSelectionSet
         = some runtimeType
       ∧ selectionSetRuntimeActive schema fieldDefinition.outputType.namedType
           runtimeType childSelectionSet)
@@ -505,8 +505,8 @@ theorem fieldHeadProbeRuntimeCoherent.to_compositeTargetRuntime
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType rootSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType)) := by
   intro hcoherent
   rcases hcoherent with hobject | habstract

@@ -359,7 +359,8 @@ private theorem fuelImplementationsAligned
             | some fieldDefinition =>
                 cases hresolve
                       : resolvers.resolve field.parentType field.fieldName
-                          field.arguments source with
+                          (coerceArgumentValues schema variableValues
+                            fieldDefinition.arguments field.arguments) source with
                 | none =>
                     have hhandle :
                         StrongResultAligned
@@ -369,11 +370,11 @@ private theorem fuelImplementationsAligned
                         simp [handleFieldError, StrongResultAligned,
                           ErrorPresenceEquivalent]
                     simpa [executeField, GraphQL.Execution.executeField,
-                      hlookup, hresolve] using
+                      GraphQL.Execution.resolveFieldValue, hlookup, hresolve] using
                         StrongResultAligned.singleFieldResult responseName hhandle
                 | some resolved =>
                     simpa [executeField, GraphQL.Execution.executeField,
-                      hlookup, hresolve] using
+                      GraphQL.Execution.resolveFieldValue, hlookup, hresolve] using
                         StrongResultAligned.singleFieldResult responseName
                           (ih.completeValue fieldDefinition.outputType
                             (field :: fields) resolved)

@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Semantics
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Feasibility
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Validity
 
@@ -25,18 +26,39 @@ def selectionSetsSemanticallyEquivalent (schema : Schema)
         (Execution.executeSelectionSetAsResponse schema resolvers variableValues fuel
           parentType source right)
 
+def selectionSetsSemanticallyEquivalentAtVariableValues
+    (schema : Schema)
+    (leftVariableValues rightVariableValues : Execution.VariableValues)
+    (parentType : Name) (left right : List Selection)
+    : Prop :=
+  ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
+    fuel (source : Execution.ResolverValue ObjectRef),
+    (∃ runtimeType ref,
+      source = Execution.ResolverValue.object runtimeType ref
+      ∧ schema.typeIncludesObjectBool parentType runtimeType = true)
+    -> Execution.Response.semanticEquivalent
+        (Execution.executeSelectionSetAsResponse schema resolvers
+          leftVariableValues fuel parentType source left)
+        (Execution.executeSelectionSetAsResponse schema resolvers
+          rightVariableValues fuel parentType source right)
+
 namespace GroundTypeNormalization
 
 def normalSelectionSetsEqualUpToReorderingSemanticallyEquivalent
-    (schema : Schema) (parentType : Name)
+    (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name)
     (left right : List Selection)
     : Prop :=
-  selectionSetDirectiveFree left
+  Execution.selectionSetArgumentsNodup left
+  -> Execution.selectionSetArgumentsNodup right
+  -> selectionSetDirectiveFree left
   -> selectionSetDirectiveFree right
   -> selectionSetNormal schema parentType left
   -> selectionSetNormal schema parentType right
-  -> SelectionSetEqualUpToReordering left right
-  -> selectionSetsSemanticallyEquivalent schema parentType left right
+  -> objectTypeNameBool schema parentType = true
+  -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+      parentType left right
+  -> selectionSetsSemanticallyEquivalentAtVariableValues schema
+      variableValues variableValues parentType left right
 
 def selectionSetsDataEquivalent (schema : Schema)
     (parentType : Name) (left right : List Selection)

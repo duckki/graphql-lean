@@ -18,7 +18,7 @@ theorem executeRootSelectionSet_eq_uncached_of_globalCacheSound
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selectionSet : List Selection)
-    (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+    (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
     : executeRootSelectionSet schema resolvers variableValues fuel parentType
         source selectionSet
       = ExecutionUngroupedUncached.executeRootSelectionSet schema resolvers
@@ -33,7 +33,9 @@ theorem executeQueryWithFuel_eq_uncached_of_globalCacheSound
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+    (hcache
+      : GlobalFieldPreviousCacheSound schema resolvers
+          (GraphQL.Execution.coerceVariableValues operation variableValues))
     : executeQueryWithFuel schema resolvers variableValues operation fuel source
       = ExecutionUngroupedUncached.executeQueryWithFuel schema resolvers
           variableValues operation fuel source :=
@@ -83,6 +85,10 @@ theorem executeQueryWithFuel_eq_uncached_of_valid
             FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
               operation.selectionSet :=
           Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
+        have hargumentsNodup :
+            Execution.selectionSetArgumentsNodup operation.selectionSet :=
+          Execution.selectionSetArgumentsNodup_of_selectionSetValid
+            (Validation.operationDefinitionValid_selectionSetValid hvalid)
         have hwithin :
             SelectionSetFieldsWithin schema coercedVariableValues
               (operation.rootType schema) (.object runtimeType ref)
@@ -111,7 +117,7 @@ theorem executeQueryWithFuel_eq_uncached_of_valid
           (visitSubfields_output_eq_uncached_and_treeSound_object schema resolvers
             coercedVariableValues fuel (operation.rootType schema) runtimeType ref
             operation.selectionSet operation.selectionSet [] hschema hrootObject
-            hparentRuntime hready hmerge hwithin hinitial).1
+            hparentRuntime hready hmerge hargumentsNodup hwithin hinitial).1
         have hrootExecution :=
           executeRootSelectionSet_eq_uncached_of_outputVisitResult schema resolvers
             coercedVariableValues fuel (operation.rootType schema)
@@ -136,10 +142,12 @@ theorem ungroupedExecutionPreservesSpecExecution_of_executeQueryWithFuel_eq_unca
                 = ExecutionUngroupedUncached.executeQueryWithFuel schema resolvers
                     variableValues operation fuel source)
     : ungroupedExecutionPreservesSpecExecution schema operation := by
-  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source
+    hcomplete
   have huncached :=
     ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution_proof
-      schema operation hschema hvalid resolvers variableValues fuel source hcomplete
+      schema operation hschema hvalid resolvers variableValues fuel source
+      hcomplete
   rw [hbridge hschema hvalid resolvers variableValues fuel source hcomplete]
   simpa [responseDataAndErrorPresenceEquivalent,
     ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent] using
@@ -159,10 +167,12 @@ theorem
                 = ExecutionUngroupedUncached.executeQueryWithFuel schema resolvers
                     variableValues operation fuel source)
     : ungroupedExecutionEquivalentToCancelingSiblingsExecution schema operation := by
-  intro hschema hvalid ObjectRef resolvers variableValues fuel source hcomplete
+  intro hschema hvalid ObjectRef resolvers variableValues fuel source
+    hcomplete
   have huncached :=
     ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
-      schema operation hschema hvalid resolvers variableValues fuel source hcomplete
+      schema operation hschema hvalid resolvers variableValues fuel source
+      hcomplete
   rw [hbridge hschema hvalid resolvers variableValues fuel source hcomplete]
   simpa [responseDataAndErrorPresenceEquivalent,
     ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent] using
@@ -174,7 +184,8 @@ theorem ungroupedExecutionPreservesSpecExecution_proof
   ungroupedExecutionPreservesSpecExecution_of_executeQueryWithFuel_eq_uncached schema
     operation
     (by
-      intro hschema hvalid ObjectRef resolvers variableValues fuel source _hcomplete
+      intro hschema hvalid ObjectRef resolvers variableValues fuel source
+        _hcomplete
       exact
         executeQueryWithFuel_eq_uncached_of_valid schema resolvers variableValues
           operation fuel source hschema hvalid)
@@ -185,7 +196,8 @@ theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
   ungroupedExecutionEquivalentToCancelingSiblingsExecution_of_executeQueryWithFuel_eq_uncached
     schema operation
     (by
-      intro hschema hvalid ObjectRef resolvers variableValues fuel source _hcomplete
+      intro hschema hvalid ObjectRef resolvers variableValues fuel source
+        _hcomplete
       exact
         executeQueryWithFuel_eq_uncached_of_valid schema resolvers variableValues
           operation fuel source hschema hvalid)

@@ -2098,9 +2098,13 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = false)
       -> (∀ arguments,
-            Argument.argumentsEquivalent arguments rightArguments
-            -> ¬ fieldProbeTarget parentType leftField leftArguments parentType
-                  rightField arguments)
+            Argument.argumentsEquivalent arguments
+              (Execution.coercedArgumentsForField schema variableValues parentType
+                rightField rightArguments)
+            -> ¬ fieldProbeTarget parentType leftField
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType leftField leftArguments)
+                  parentType rightField arguments)
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ left
@@ -2110,8 +2114,16 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
                   [Selection.inlineFragment (some parentType) [] (left ++ right)]
                   (fieldPairProbeResolvers schema
                     [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                    parentType leftField rightField leftArguments rightArguments)
-                  parentType leftField rightField leftArguments rightArguments)
+                    parentType leftField rightField
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType leftField leftArguments)
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType rightField rightArguments))
+                  parentType leftField rightField
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType leftField leftArguments)
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType rightField rightArguments))
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
                 (projectionRootResolverValue
@@ -2132,7 +2144,11 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let base :=
     fieldPairProbeResolvers schema rootSelectionSet parentType leftField
-      rightField leftArguments rightArguments
+      rightField
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        leftField leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        rightField rightArguments)
   rcases selectionSetValid_field_lookup_of_mem hleftValid hmem with
     ⟨fieldDefinition, hlookup, _hargsValid, _hfieldSelectionValid⟩
   have hmemAppend :
@@ -2140,8 +2156,12 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
         childSelectionSet ∈ left ++ right := by
     exact List.mem_append_left right hmem
   by_cases htargetLeft :
-      fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        arguments
+      fieldProbeTarget parentType leftField
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        parentType fieldName
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -2157,25 +2177,52 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
     ⟩
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType leftField
-      rightField responseName leftArguments rightArguments arguments
+      rightField responseName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        leftField leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        rightField rightArguments)
+      arguments
       (.object parentType (none : Option FieldPairProbeTag))
-      childSelectionSet harguments
+      childSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [Execution.coercedArgumentsForField, hcandidate, hlookup] using
+          harguments)
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues (selectionSetDeepProbeFuel schema parentType
           (left ++ right)) parentType leftField rightField responseName
-        leftArguments rightArguments arguments childSelectionSet
-        fieldDefinition harguments hlookup hfuel hleaf
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments childSelectionSet fieldDefinition
+        (by
+          simpa [Execution.coercedArgumentsForField, hlookup] using harguments)
+        hlookup hfuel hleaf
   · by_cases htargetRight :
-        fieldProbeTarget parentType rightField rightArguments parentType
-          fieldName arguments
+        fieldProbeTarget parentType rightField
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField rightArguments)
+          parentType fieldName
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            fieldName arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
-          ¬ fieldProbeTarget parentType leftField leftArguments parentType
-            rightField arguments :=
-        hrightNotLeft arguments harguments
+          ¬ fieldProbeTarget parentType leftField
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              leftField leftArguments)
+            parentType
+            rightField
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField arguments) :=
+        hrightNotLeft
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField arguments)
+          harguments
       have hleaf := hrightLeaf fieldDefinition hlookup
       have hfuel :
           leafProbeFuel fieldDefinition.outputType
@@ -2189,20 +2236,43 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
       ⟩
       rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
         schema rootSelectionSet base variableValues parentType leftField
-        rightField responseName leftArguments rightArguments arguments
+        rightField responseName
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments
         (.object parentType (none : Option FieldPairProbeTag))
-        childSelectionSet harguments
+        childSelectionSet
+        (by
+          intro candidate hcandidate
+          simpa [Execution.coercedArgumentsForField, hcandidate, hlookup] using
+            harguments)
         (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
       exact
         executeField_fieldPairProbe_right_root_leaf_of_not_left schema
           rootSelectionSet variableValues
           (selectionSetDeepProbeFuel schema parentType (left ++ right))
-          parentType leftField rightField responseName leftArguments
-          rightArguments arguments childSelectionSet fieldDefinition hnotLeft
-          harguments hlookup hfuel hleaf
+          parentType leftField rightField responseName
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            leftField leftArguments)
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField rightArguments)
+          arguments childSelectionSet fieldDefinition
+          (by
+            simpa [Execution.coercedArgumentsForField, hlookup] using hnotLeft)
+          (by
+            simpa [Execution.coercedArgumentsForField, hlookup] using harguments)
+          hlookup hfuel hleaf
     · have hnotProjection :
           ¬ fieldPairProjectionTarget parentType leftField rightField
-            leftArguments rightArguments parentType fieldName arguments := by
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              leftField leftArguments)
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField rightArguments)
+            parentType fieldName
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName arguments) := by
         intro hprojection
         rcases hprojection with ⟨_hparent, htarget⟩
         rcases htarget with hleft | hright
@@ -2225,8 +2295,16 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
       rw [executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWithRef
         schema rootSelectionSet base variableValues parentType leftField
         rightField parentType fieldName parentType responseName
-        leftArguments rightArguments arguments
-        (none : Option FieldPairProbeTag) childSelectionSet hnotProjection
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments
+        (none : Option FieldPairProbeTag) childSelectionSet
+        (by
+          intro candidate hcandidate
+          simpa [Execution.coercedArgumentsForField, hcandidate] using
+            hnotProjection)
         (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
       exact hdeep
 
@@ -2254,9 +2332,13 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = false)
       -> (∀ arguments,
-            Argument.argumentsEquivalent arguments rightArguments
-            -> ¬ fieldProbeTarget parentType leftField leftArguments parentType
-                  rightField arguments)
+            Argument.argumentsEquivalent arguments
+              (Execution.coercedArgumentsForField schema variableValues parentType
+                rightField rightArguments)
+            -> ¬ fieldProbeTarget parentType leftField
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType leftField leftArguments)
+                  parentType rightField arguments)
       -> ∀ responseName fieldName arguments directives childSelectionSet,
           Selection.field responseName fieldName arguments directives childSelectionSet
             ∈ right
@@ -2266,8 +2348,16 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
                   [Selection.inlineFragment (some parentType) [] (left ++ right)]
                   (fieldPairProbeResolvers schema
                     [Selection.inlineFragment (some parentType) [] (left ++ right)]
-                    parentType leftField rightField leftArguments rightArguments)
-                  parentType leftField rightField leftArguments rightArguments)
+                    parentType leftField rightField
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType leftField leftArguments)
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType rightField rightArguments))
+                  parentType leftField rightField
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType leftField leftArguments)
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType rightField rightArguments))
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
                 (projectionRootResolverValue
@@ -2288,7 +2378,11 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let base :=
     fieldPairProbeResolvers schema rootSelectionSet parentType leftField
-      rightField leftArguments rightArguments
+      rightField
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        leftField leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        rightField rightArguments)
   rcases selectionSetValid_field_lookup_of_mem hrightValid hmem with
     ⟨fieldDefinition, hlookup, _hargsValid, _hfieldSelectionValid⟩
   have hmemAppend :
@@ -2296,8 +2390,12 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
         childSelectionSet ∈ left ++ right := by
     exact List.mem_append_right left hmem
   by_cases htargetLeft :
-      fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        arguments
+      fieldProbeTarget parentType leftField
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        parentType fieldName
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -2313,25 +2411,51 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
     ⟩
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType leftField
-      rightField responseName leftArguments rightArguments arguments
+      rightField responseName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        leftField leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        rightField rightArguments)
+      arguments
       (.object parentType (none : Option FieldPairProbeTag))
-      childSelectionSet harguments
+      childSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [Execution.coercedArgumentsForField, hcandidate, hlookup] using
+          harguments)
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues (selectionSetDeepProbeFuel schema parentType
           (left ++ right)) parentType leftField rightField responseName
-        leftArguments rightArguments arguments childSelectionSet
-        fieldDefinition harguments hlookup hfuel hleaf
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments childSelectionSet fieldDefinition
+        (by
+          simpa [Execution.coercedArgumentsForField, hlookup] using harguments)
+        hlookup hfuel hleaf
   · by_cases htargetRight :
-        fieldProbeTarget parentType rightField rightArguments parentType
-          fieldName arguments
+        fieldProbeTarget parentType rightField
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField rightArguments)
+          parentType fieldName
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            fieldName arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
-          ¬ fieldProbeTarget parentType leftField leftArguments parentType
-            rightField arguments :=
-        hrightNotLeft arguments harguments
+          ¬ fieldProbeTarget parentType leftField
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              leftField leftArguments)
+            parentType rightField
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField arguments) :=
+        hrightNotLeft
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField arguments)
+          harguments
       have hleaf := hrightLeaf fieldDefinition hlookup
       have hfuel :
           leafProbeFuel fieldDefinition.outputType
@@ -2345,20 +2469,43 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
       ⟩
       rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
         schema rootSelectionSet base variableValues parentType leftField
-        rightField responseName leftArguments rightArguments arguments
+        rightField responseName
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments
         (.object parentType (none : Option FieldPairProbeTag))
-        childSelectionSet harguments
+        childSelectionSet
+        (by
+          intro candidate hcandidate
+          simpa [Execution.coercedArgumentsForField, hcandidate, hlookup] using
+            harguments)
         (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
       exact
         executeField_fieldPairProbe_right_root_leaf_of_not_left schema
           rootSelectionSet variableValues
           (selectionSetDeepProbeFuel schema parentType (left ++ right))
-          parentType leftField rightField responseName leftArguments
-          rightArguments arguments childSelectionSet fieldDefinition hnotLeft
-          harguments hlookup hfuel hleaf
+          parentType leftField rightField responseName
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            leftField leftArguments)
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField rightArguments)
+          arguments childSelectionSet fieldDefinition
+          (by
+            simpa [Execution.coercedArgumentsForField, hlookup] using hnotLeft)
+          (by
+            simpa [Execution.coercedArgumentsForField, hlookup] using harguments)
+          hlookup hfuel hleaf
     · have hnotProjection :
           ¬ fieldPairProjectionTarget parentType leftField rightField
-            leftArguments rightArguments parentType fieldName arguments := by
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              leftField leftArguments)
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField rightArguments)
+            parentType fieldName
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName arguments) := by
         intro hprojection
         rcases hprojection with ⟨_hparent, htarget⟩
         rcases htarget with hleft | hright
@@ -2381,8 +2528,16 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
       rw [executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWithRef
         schema rootSelectionSet base variableValues parentType leftField
         rightField parentType fieldName parentType responseName
-        leftArguments rightArguments arguments
-        (none : Option FieldPairProbeTag) childSelectionSet hnotProjection
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          leftField leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          rightField rightArguments)
+        arguments
+        (none : Option FieldPairProbeTag) childSelectionSet
+        (by
+          intro candidate hcandidate
+          simpa [Execution.coercedArgumentsForField, hcandidate] using
+            hnotProjection)
         (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
       exact hdeep
 
@@ -2412,7 +2567,11 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
             schema.lookupField parentType fieldName = some fieldDefinition
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = false)
-      -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
+      -> ¬ Argument.argumentsEquivalent
+            (Execution.coercedArgumentsForField schema [] parentType fieldName
+              leftArguments)
+            (Execution.coercedArgumentsForField schema [] parentType fieldName
+              rightArguments)
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
     hrightNormal hobject hleftMem hrightMem hleafOfLookup hargumentsDiff
@@ -2421,10 +2580,18 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
   let variableValues : Execution.VariableValues := []
   let base :=
     fieldPairProbeResolvers schema rootSelectionSet parentType fieldName
-      fieldName leftArguments rightArguments
+      fieldName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName rightArguments)
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet base parentType
-      fieldName fieldName leftArguments rightArguments
+      fieldName fieldName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName rightArguments)
   let fuel := selectionSetDeepProbeFuel schema parentType (left ++ right) + 1
   let source : Execution.ResolverValue
       (ProjectionResolverRef (Option FieldPairProbeTag)) :=
@@ -2453,8 +2620,13 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
       parentType hrightMemAppend hlookup
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightArguments ->
-          ¬ fieldProbeTarget parentType fieldName leftArguments parentType
+        Argument.argumentsEquivalent arguments
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName rightArguments) ->
+          ¬ fieldProbeTarget parentType fieldName
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName leftArguments)
+            parentType
             fieldName arguments := by
     intro arguments hrightArgs hleftTarget
     rcases hleftTarget with ⟨_hparent, _hfield, hleftArgs⟩
@@ -2488,18 +2660,36 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
     dsimp [resolvers, source, fuel]
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType fieldName
-      fieldName responseName leftArguments rightArguments leftArguments
+      fieldName responseName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName rightArguments)
+      leftArguments
       (.object parentType (none : Option FieldPairProbeTag))
-      leftChildSelectionSet (argumentsEquivalent_refl_forSyntaxDiff
-        leftArguments)
+      leftChildSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [Execution.coercedArgumentsForField, hcandidate] using
+          argumentsEquivalent_refl_forSyntaxDiff
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName leftArguments))
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues (selectionSetDeepProbeFuel schema parentType
           (left ++ right)) parentType fieldName fieldName responseName
-        leftArguments rightArguments leftArguments leftChildSelectionSet
-        fieldDefinition (argumentsEquivalent_refl_forSyntaxDiff
-          leftArguments) hlookup hleftFuel hleaf
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName rightArguments)
+        leftArguments leftChildSelectionSet fieldDefinition
+        (by
+          simpa [Execution.coercedArgumentsForField, hlookup] using
+            argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coercedArgumentsForField schema variableValues parentType
+                fieldName leftArguments))
+        hlookup hleftFuel hleaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues fuel source
         responseName
@@ -2517,20 +2707,45 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
     dsimp [resolvers, source, fuel]
     rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
       schema rootSelectionSet base variableValues parentType fieldName
-      fieldName responseName leftArguments rightArguments rightArguments
+      fieldName responseName
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName leftArguments)
+      (Execution.coercedArgumentsForField schema variableValues parentType
+        fieldName rightArguments)
+      rightArguments
       (.object parentType (none : Option FieldPairProbeTag))
-      rightChildSelectionSet (argumentsEquivalent_refl_forSyntaxDiff
-        rightArguments)
+      rightChildSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [Execution.coercedArgumentsForField, hcandidate] using
+          argumentsEquivalent_refl_forSyntaxDiff
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName rightArguments))
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
         rootSelectionSet variableValues
         (selectionSetDeepProbeFuel schema parentType (left ++ right))
-        parentType fieldName fieldName responseName leftArguments
-        rightArguments rightArguments rightChildSelectionSet fieldDefinition
-        (hrightNotLeft rightArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightArguments))
-        (argumentsEquivalent_refl_forSyntaxDiff rightArguments) hlookup
+        parentType fieldName fieldName responseName
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName leftArguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName rightArguments)
+        rightArguments rightChildSelectionSet fieldDefinition
+        (by
+          simpa [Execution.coercedArgumentsForField, hlookup] using
+            hrightNotLeft
+              (Execution.coercedArgumentsForField schema variableValues parentType
+                fieldName rightArguments)
+              (argumentsEquivalent_refl_forSyntaxDiff
+                (Execution.coercedArgumentsForField schema variableValues
+                  parentType fieldName rightArguments)))
+        (by
+          simpa [Execution.coercedArgumentsForField, hlookup] using
+            argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coercedArgumentsForField schema variableValues parentType
+                fieldName rightArguments))
+        hlookup
         hrightFuel hleaf
   exact
     SemanticSeparation.not_selectionSetsDataEquivalent_of_responseName_value_diff_of_field_ok
@@ -2586,12 +2801,18 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (left ++ right)]
   let variableValues : Execution.VariableValues := []
+  let leftTargetArguments :=
+    Execution.coercedArgumentsForField schema variableValues parentType
+      leftFieldName leftArguments
+  let rightTargetArguments :=
+    Execution.coercedArgumentsForField schema variableValues parentType
+      rightFieldName rightArguments
   let base :=
     fieldPairProbeResolvers schema rootSelectionSet parentType leftFieldName
-      rightFieldName leftArguments rightArguments
+      rightFieldName leftTargetArguments rightTargetArguments
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet base parentType
-      leftFieldName rightFieldName leftArguments rightArguments
+      leftFieldName rightFieldName leftTargetArguments rightTargetArguments
   let fuel := selectionSetDeepProbeFuel schema parentType (left ++ right) + 1
   let source : Execution.ResolverValue
       (ProjectionResolverRef (Option FieldPairProbeTag)) :=
@@ -2625,8 +2846,8 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
       parentType hrightMemAppend hrightLookup
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightArguments ->
-          ¬ fieldProbeTarget parentType leftFieldName leftArguments
+        Argument.argumentsEquivalent arguments rightTargetArguments ->
+          ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments
             parentType rightFieldName arguments := by
     intro arguments _hrightArgs hleftTarget
     exact hfieldDiff hleftTarget.2.1.symm
@@ -2657,18 +2878,27 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
     dsimp [resolvers, source, fuel]
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType leftFieldName
-      rightFieldName responseName leftArguments rightArguments leftArguments
+      rightFieldName responseName leftTargetArguments rightTargetArguments
+      leftArguments
       (.object parentType (none : Option FieldPairProbeTag))
-      leftChildSelectionSet (argumentsEquivalent_refl_forSyntaxDiff
-        leftArguments)
+      leftChildSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [leftTargetArguments, Execution.coercedArgumentsForField,
+          hcandidate] using
+          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues (selectionSetDeepProbeFuel schema parentType
           (left ++ right)) parentType leftFieldName rightFieldName
-        responseName leftArguments rightArguments leftArguments
+        responseName leftTargetArguments rightTargetArguments leftArguments
         leftChildSelectionSet leftFieldDefinition
-        (argumentsEquivalent_refl_forSyntaxDiff leftArguments) hleftLookup
+        (by
+          simpa [leftTargetArguments, Execution.coercedArgumentsForField,
+            hleftLookup] using
+            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+        hleftLookup
         hleftFuel hleftLeaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues fuel source
@@ -2687,21 +2917,33 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
     dsimp [resolvers, source, fuel]
     rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
       schema rootSelectionSet base variableValues parentType leftFieldName
-      rightFieldName responseName leftArguments rightArguments rightArguments
+      rightFieldName responseName leftTargetArguments rightTargetArguments
+      rightArguments
       (.object parentType (none : Option FieldPairProbeTag))
-      rightChildSelectionSet (argumentsEquivalent_refl_forSyntaxDiff
-        rightArguments)
+      rightChildSelectionSet
+      (by
+        intro candidate hcandidate
+        simpa [rightTargetArguments, Execution.coercedArgumentsForField,
+          hcandidate] using
+          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
       (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
         rootSelectionSet variableValues
         (selectionSetDeepProbeFuel schema parentType (left ++ right))
-        parentType leftFieldName rightFieldName responseName leftArguments
-        rightArguments rightArguments rightChildSelectionSet
+        parentType leftFieldName rightFieldName responseName leftTargetArguments
+        rightTargetArguments rightArguments rightChildSelectionSet
         rightFieldDefinition
-        (hrightNotLeft rightArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightArguments))
-        (argumentsEquivalent_refl_forSyntaxDiff rightArguments) hrightLookup
+        (by
+          simpa [rightTargetArguments, Execution.coercedArgumentsForField,
+            hrightLookup] using
+            hrightNotLeft rightTargetArguments
+              (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+        (by
+          simpa [rightTargetArguments, Execution.coercedArgumentsForField,
+            hrightLookup] using
+            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
+        hrightLookup
         hrightFuel hrightLeaf
   exact
     SemanticSeparation.not_selectionSetsDataEquivalent_of_responseName_value_diff_of_field_ok
@@ -2836,7 +3078,11 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
                     (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                       (parentObjectProbeFieldResolvers base parentType fieldName
                         childRuntimeType ref fieldDefinition.outputType)
-                      parentType fieldName fieldName leftArguments rightArguments)
+                      parentType fieldName fieldName
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments leftArguments)
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments rightArguments))
                     variableValues
                     (fuel + leafProbeFuel fieldDefinition.outputType + 1)
                     parentType
@@ -2848,7 +3094,11 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
                     (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                       (parentObjectProbeFieldResolvers base parentType fieldName
                         childRuntimeType ref fieldDefinition.outputType)
-                      parentType fieldName fieldName leftArguments rightArguments)
+                      parentType fieldName fieldName
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments leftArguments)
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments rightArguments))
                     variableValues
                     (fuel + leafProbeFuel fieldDefinition.outputType + 1)
                     parentType
@@ -2860,7 +3110,11 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
                     (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                       (parentObjectProbeFieldResolvers base parentType fieldName
                         childRuntimeType ref fieldDefinition.outputType)
-                      parentType fieldName fieldName leftArguments rightArguments)
+                      parentType fieldName fieldName
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments leftArguments)
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments rightArguments))
                     variableValues
                     (fuel + leafProbeFuel fieldDefinition.outputType + 1)
                     parentType
@@ -2872,7 +3126,11 @@ theorem not_selectionSetsDataEquivalent_of_object_child_diff_split_context_ok
                     (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                       (parentObjectProbeFieldResolvers base parentType fieldName
                         childRuntimeType ref fieldDefinition.outputType)
-                      parentType fieldName fieldName leftArguments rightArguments)
+                      parentType fieldName fieldName
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments leftArguments)
+                      (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments rightArguments))
                     variableValues
                     (fuel + leafProbeFuel fieldDefinition.outputType + 1)
                     parentType
@@ -2948,7 +3206,11 @@ theorem
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
               (parentObjectProbeFieldResolvers base targetParent fieldName
                 runtimeType ref fieldDefinition.outputType)
-              targetParent fieldName fieldName leftArguments rightArguments)
+              targetParent fieldName fieldName
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments leftArguments)
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments rightArguments))
             variableValues
             (fuel + leafProbeFuel fieldDefinition.outputType + 1)
             targetParent
@@ -2958,7 +3220,11 @@ theorem
               (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                 (parentObjectProbeFieldResolvers base targetParent fieldName
                   runtimeType ref fieldDefinition.outputType)
-                targetParent fieldName fieldName leftArguments rightArguments)
+                targetParent fieldName fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments leftArguments)
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments rightArguments))
               variableValues
               (fuel + leafProbeFuel fieldDefinition.outputType + 1)
               targetParent
@@ -2969,7 +3235,11 @@ theorem
               (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                 (parentObjectProbeFieldResolvers base targetParent fieldName
                   runtimeType ref fieldDefinition.outputType)
-                targetParent fieldName fieldName leftArguments rightArguments)
+                targetParent fieldName fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments leftArguments)
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments rightArguments))
               variableValues
               (fuel + leafProbeFuel fieldDefinition.outputType + 1)
               targetParent
@@ -2980,7 +3250,11 @@ theorem
               (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                 (parentObjectProbeFieldResolvers base targetParent fieldName
                   runtimeType ref fieldDefinition.outputType)
-                targetParent fieldName fieldName leftArguments rightArguments)
+                targetParent fieldName fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments leftArguments)
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments rightArguments))
               variableValues
               (fuel + leafProbeFuel fieldDefinition.outputType + 1)
               targetParent

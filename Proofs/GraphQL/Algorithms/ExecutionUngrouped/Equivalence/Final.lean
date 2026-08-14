@@ -332,7 +332,7 @@ def of_collected_groups_state
     simpa [state] using
       ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
         hcollect
-  have hstable : CollectedGroupsResolveStable resolvers source groups := by
+  have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
@@ -677,8 +677,8 @@ structure CollectedFieldGroupRecursiveAlignedAppendState
         -> ∀ childDepth runtimeType identity,
             childDepth < completionDepth + 1
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> schema.typeIncludesObjectBool
                   ((schema.fieldReturnType? field.parentType field.fieldName).getD
@@ -696,8 +696,8 @@ structure CollectedFieldGroupRecursiveAlignedAppendState
         -> ∀ childDepth runtimeType identity,
             childDepth < completionDepth + 1
             -> ValueContainsObject
-                (resolvers.resolve field.parentType field.fieldName field.arguments
-                  source)
+                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                  field.fieldName field.arguments source)
                 runtimeType identity
             -> ResponseAbsorbs
                 (visitSubfields schema resolvers variableValues childDepth
@@ -725,7 +725,7 @@ theorem alignedAppendSteps_from_prefix
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
     (fields prefixTail remaining : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
@@ -733,7 +733,8 @@ theorem alignedAppendSteps_from_prefix
     (hremaining : ∀ candidate, candidate ∈ remaining -> candidate ∈ fields)
     : ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
         (completionDepth + 1) parentType source responseName field
-        (resolvers.resolve field.parentType field.fieldName field.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source)
         prefixTail remaining := by
   cases remaining with
   | nil =>
@@ -750,7 +751,7 @@ theorem alignedAppendSteps_from_prefix
           ExecutableFieldsFieldValidationMergeCompatible (field :: fields) :=
         hcompatible responseName (field :: fields) hgroup
       have hgroupStable :
-          ExecutableFieldsResolveStable resolvers source (field :: fields) :=
+          ExecutableFieldsResolveStable schema resolvers variableValues source (field :: fields) :=
         hstable responseName (field :: fields) hgroup
       have hfieldResponse : field.responseName = responseName :=
         hgroupResponses field (by simp)
@@ -764,10 +765,8 @@ theorem alignedAppendSteps_from_prefix
         (hgroupCompatible field later (by simp)
           (List.mem_cons_of_mem field hlater) hsameResponse).1.symm
       have hresolveLater :
-          resolvers.resolve later.parentType later.fieldName later.arguments
-              source =
-          resolvers.resolve field.parentType field.fieldName field.arguments
-              source :=
+          resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
+          resolveFieldValueByName schema resolvers variableValues field.parentType field.fieldName field.arguments source :=
         (hgroupStable field later (by simp)
           (List.mem_cons_of_mem field hlater) hsameResponse).symm
       have hprefixNext :
@@ -820,13 +819,14 @@ theorem alignedAppendSteps
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
     : ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
         (completionDepth + 1) parentType source responseName field
-        (resolvers.resolve field.parentType field.fieldName field.arguments source)
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source)
         [] fields :=
   alignedAppendSteps_from_prefix state hresponses hparents hcompatible hstable
     responseName field fields [] fields hgroup
@@ -886,7 +886,7 @@ def
       hcollect
   have hparents : CollectedGroupsParent parentType groups :=
     ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups hcollect
-  have hstable : CollectedGroupsResolveStable resolvers source groups :=
+  have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups :=
     ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
       hcollected hcollect
   have hnodup : PairKeysNodup groups :=

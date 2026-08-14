@@ -778,7 +778,7 @@ theorem
           (directives := directives) (selectionSet := pathSelectionSet)
           (childSelectionSet := childSelectionSet)
           (currentSelectionSet := currentSelectionSet) hcontext hmem
-          (argumentsEquivalent_refl_forSyntaxDiff arguments) hpruned
+          hpruned
       have hchildObservable :
           PathLocalSelectionSetObservableLeafAtRuntime schema
             fieldDefinition.outputType.namedType

@@ -563,7 +563,8 @@ theorem executeField_resolved_eq_completeResolvedValue
     (previous : ResponseValue)
     (hlookup : schema.lookupField field.parentType field.fieldName = some fieldDefinition)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValue schema resolvers variableValues
+          fieldDefinition field.parentType field.fieldName field.arguments source
         = some resolved)
     : executeField schema resolvers variableValues (depth + 1) source (some previous)
         field
@@ -575,19 +576,19 @@ theorem executeField_resolved_eq_completeResolvedValue
         completeResolvedValue_previous_null]
   | scalar value =>
       unfold executeField
-      rw [hlookup, hresolve]
+      simp [hlookup, hresolve]
       exact reusableOrComplete_eq_completeResolvedValue schema resolvers
         variableValues depth field.selectionSet resolved
         fieldDefinition.outputType (.scalar value)
   | object fields =>
       unfold executeField
-      rw [hlookup, hresolve]
+      simp [hlookup, hresolve]
       exact reusableOrComplete_eq_completeResolvedValue schema resolvers
         variableValues depth field.selectionSet resolved
         fieldDefinition.outputType (.object fields)
   | list values =>
       unfold executeField
-      rw [hlookup, hresolve]
+      simp [hlookup, hresolve]
       exact reusableOrComplete_eq_completeResolvedValue schema resolvers
         variableValues depth field.selectionSet resolved
         fieldDefinition.outputType (.list values)
@@ -601,8 +602,9 @@ theorem executeField_empty_output
       = match schema.lookupField field.parentType field.fieldName with
         | none => .error 1
         | some fieldDefinition =>
-            match resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+            match resolveFieldValue schema resolvers variableValues
+                    fieldDefinition field.parentType field.fieldName field.arguments
+                    source with
             | none => handleFieldError fieldDefinition.outputType
             | some resolved =>
                 completeValue schema resolvers variableValues depth
@@ -646,8 +648,9 @@ theorem executeField_reentry_singleton
                     (some previous) with
             | some previous => .ok (previous, 0)
             | none =>
-                match resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
+                match resolveFieldValue schema resolvers variableValues
+                        fieldDefinition field.parentType field.fieldName field.arguments
+                        source with
                 | none => handleFieldError fieldDefinition.outputType
                 | some resolved =>
                     completeValue schema resolvers variableValues depth

@@ -37,6 +37,13 @@ def argumentsEquivalent (left right : List Argument) : Prop :=
   ∧ (∀ argument,
       argument ∈ right -> ∃ argument', argument' ∈ left ∧ argument'.equivalent argument)
 
+-- First value supplied for an argument name. Validation rejects duplicate names, so
+-- executable operations have at most one matching entry.
+def lookupValue? : List Argument -> Name -> Option InputValue
+  | [], _name => none
+  | argument :: rest, name =>
+      if argument.name = name then some argument.value else lookupValue? rest name
+
 end Argument
 
 -- Spec 2.11 `VariableDefinition`: partial; name, type, and default are represented, but
@@ -46,6 +53,23 @@ structure VariableDefinition where
   typeRef : TypeRef
   defaultValue : Option ConstInputValue := none
 deriving Repr
+
+-- Position-wise equivalence of the operation-variable names and defaults that affect
+-- execution. Types are intentionally omitted because supplied values are assumed
+-- already coerced and type-conformant at the modeled execution boundary.
+def variableDefinitionsEquivalent
+    : List VariableDefinition -> List VariableDefinition -> Prop
+  | [], [] => True
+  | left :: leftRest, right :: rightRest =>
+      left.name = right.name
+      ∧ match left.defaultValue, right.defaultValue with
+        | none, none =>
+            variableDefinitionsEquivalent leftRest rightRest
+        | some leftDefault, some rightDefault =>
+            InputValue.equivalent leftDefault.toInputValue rightDefault.toInputValue
+            ∧ variableDefinitionsEquivalent leftRest rightRest
+        | _, _ => False
+  | _, _ => False
 
 -- Spec 3.13.1 `@skip` and 3.13.2 `@include`: partial; only these two built-in executable
 -- directives are represented, not arbitrary/custom directives or directive locations.

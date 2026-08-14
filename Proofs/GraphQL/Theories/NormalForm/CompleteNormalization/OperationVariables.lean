@@ -61,6 +61,121 @@ theorem lookupVariableValue?_coerceVariableValues_eq_some
   exact lookupVariableValue?_foldlDefaults_eq_some
     operation.variableDefinitions variableValues hlookup
 
+private theorem lookupVariableValue?_foldlDefaults_default_eq_some
+    (variableDefinitions : List VariableDefinition)
+    (variableValues : Execution.VariableValues)
+    {variableDefinition : VariableDefinition} {defaultValue : ConstInputValue}
+    (hmem : variableDefinition ∈ variableDefinitions)
+    (hdefault : variableDefinition.defaultValue = some defaultValue)
+    : ∃ value,
+        Execution.lookupVariableValue?
+          (variableDefinitions.foldl
+            (fun coercedValues definition =>
+              match Execution.lookupVariableValue? coercedValues definition.name with
+              | some _value => coercedValues
+              | none =>
+                  match definition.defaultValue with
+                  | some defaultValue =>
+                      (definition.name, defaultValue.toInputValue) :: coercedValues
+                  | none => coercedValues)
+            variableValues)
+          variableDefinition.name
+        = some value := by
+  rcases List.mem_iff_append.mp hmem with ⟨pref, suffix, hdefinitions⟩
+  subst variableDefinitions
+  rw [List.foldl_append]
+  simp only [List.foldl_cons]
+  let prefixValues := pref.foldl
+    (fun coercedValues definition =>
+      match Execution.lookupVariableValue? coercedValues definition.name with
+      | some _value => coercedValues
+      | none =>
+          match definition.defaultValue with
+          | some defaultValue =>
+              (definition.name, defaultValue.toInputValue) :: coercedValues
+          | none => coercedValues)
+    variableValues
+  cases hlookup : Execution.lookupVariableValue? prefixValues variableDefinition.name with
+  | some value =>
+      exact ⟨value,
+        lookupVariableValue?_foldlDefaults_eq_some suffix prefixValues hlookup⟩
+  | none =>
+      have hadd :
+          Execution.lookupVariableValue?
+              ((variableDefinition.name, defaultValue.toInputValue) :: prefixValues)
+              variableDefinition.name = some defaultValue.toInputValue := by
+        simp [Execution.lookupVariableValue?]
+      simpa [prefixValues, hlookup, hdefault] using
+        (show ∃ value,
+            Execution.lookupVariableValue?
+              (suffix.foldl
+                (fun coercedValues definition =>
+                  match Execution.lookupVariableValue? coercedValues definition.name with
+                  | some _value => coercedValues
+                  | none =>
+                      match definition.defaultValue with
+                      | some candidateDefault =>
+                          (definition.name, candidateDefault.toInputValue) :: coercedValues
+                      | none => coercedValues)
+                ((variableDefinition.name, defaultValue.toInputValue) :: prefixValues))
+              variableDefinition.name = some value from
+          ⟨defaultValue.toInputValue,
+            lookupVariableValue?_foldlDefaults_eq_some suffix _ hadd⟩)
+
+private theorem foldlDefaults_eq_self_of_defaults_present
+    : ∀ (variableDefinitions : List VariableDefinition)
+        (variableValues : Execution.VariableValues),
+        (∀ variableDefinition defaultValue,
+          variableDefinition ∈ variableDefinitions
+          -> variableDefinition.defaultValue = some defaultValue
+          -> ∃ value,
+              Execution.lookupVariableValue? variableValues variableDefinition.name
+              = some value)
+        -> variableDefinitions.foldl
+              (fun coercedValues variableDefinition =>
+                match Execution.lookupVariableValue?
+                        coercedValues variableDefinition.name with
+                | some _value => coercedValues
+                | none =>
+                    match variableDefinition.defaultValue with
+                    | some defaultValue =>
+                        (variableDefinition.name, defaultValue.toInputValue)
+                        :: coercedValues
+                    | none => coercedValues)
+              variableValues
+            = variableValues
+  | [], _variableValues, _hpresent => rfl
+  | variableDefinition :: rest, variableValues, hpresent => by
+      simp only [List.foldl_cons]
+      cases hlookup : Execution.lookupVariableValue? variableValues
+          variableDefinition.name with
+      | some value =>
+          exact foldlDefaults_eq_self_of_defaults_present rest variableValues
+            (fun definition defaultValue hmem hdefault =>
+              hpresent definition defaultValue (by simp [hmem]) hdefault)
+      | none =>
+          cases hdefault : variableDefinition.defaultValue with
+          | none =>
+              exact foldlDefaults_eq_self_of_defaults_present rest variableValues
+                (fun definition defaultValue hmem hsome =>
+                  hpresent definition defaultValue (by simp [hmem]) hsome)
+          | some defaultValue =>
+              rcases hpresent variableDefinition defaultValue (by simp) hdefault with
+                ⟨value, hvalue⟩
+              rw [hlookup] at hvalue
+              contradiction
+
+theorem coerceVariableValues_idempotent
+    (operation : Operation) (variableValues : Execution.VariableValues)
+    : Execution.coerceVariableValues operation
+        (Execution.coerceVariableValues operation variableValues)
+      = Execution.coerceVariableValues operation variableValues := by
+  unfold Execution.coerceVariableValues
+  apply foldlDefaults_eq_self_of_defaults_present
+  intro variableDefinition defaultValue hmem hdefault
+  exact lookupVariableValue?_foldlDefaults_default_eq_some
+    operation.variableDefinitions variableValues hmem hdefault
+
 theorem inputValueBoolean?_coerceVariableValues_eq_some
     (operation : Operation)
     (variableValues : Execution.VariableValues)

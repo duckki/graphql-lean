@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.CompositeRuntime
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.DataSeparation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.DeepSuccess
@@ -90,7 +91,8 @@ theorem
     exact ⟨selectionSet, hmember, hmem⟩
   by_cases htargetLeft :
       fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        arguments
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -109,7 +111,12 @@ theorem
       schema rootSelectionSet base variableValues parentType leftField
       rightField responseName leftArguments rightArguments arguments
       (.object parentType (none : Option FieldPairProbeTag))
-      childSelectionSet harguments (fuel + 1)]
+      childSelectionSet
+      (fun candidateDefinition hcandidate => by
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        exact harguments)
+      (fuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues fuel parentType leftField rightField responseName
@@ -117,13 +124,19 @@ theorem
         harguments hlookup hfuel hleaf
   · by_cases htargetRight :
         fieldProbeTarget parentType rightField rightArguments parentType
-          fieldName arguments
+          fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
           ¬ fieldProbeTarget parentType leftField leftArguments parentType
-            rightField arguments :=
-        hrightNotLeft arguments harguments
+            rightField
+            (Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments arguments) :=
+        hrightNotLeft
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments) harguments
       have hleaf := hrightLeaf fieldDefinition hlookup
       have hfuel :
           leafProbeFuel fieldDefinition.outputType ≤ fuel := by
@@ -140,7 +153,12 @@ theorem
         schema rootSelectionSet base variableValues parentType leftField
         rightField responseName leftArguments rightArguments arguments
         (.object parentType (none : Option FieldPairProbeTag))
-        childSelectionSet harguments (fuel + 1)]
+        childSelectionSet
+        (fun candidateDefinition hcandidate => by
+          rw [hlookup] at hcandidate
+          cases Option.some.inj hcandidate.symm
+          exact harguments)
+        (fuel + 1)]
       exact
         executeField_fieldPairProbe_right_root_leaf_of_not_left schema
           rootSelectionSet variableValues fuel parentType leftField
@@ -148,9 +166,15 @@ theorem
           childSelectionSet fieldDefinition hnotLeft harguments hlookup
           hfuel hleaf
     · have hnotProjection :
-          ¬ fieldPairProjectionTarget parentType leftField rightField
-            leftArguments rightArguments parentType fieldName arguments := by
-        intro hprojection
+          ∀ candidateDefinition,
+            schema.lookupField parentType fieldName = some candidateDefinition ->
+              ¬ fieldPairProjectionTarget parentType leftField rightField
+                leftArguments rightArguments parentType fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  candidateDefinition.arguments arguments) := by
+        intro candidateDefinition hcandidate hprojection
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
         rcases hprojection with ⟨_hparent, htarget⟩
         rcases htarget with hleft | hright
         · exact htargetLeft ⟨rfl, hleft.1, hleft.2⟩
@@ -317,10 +341,9 @@ theorem
       targetFieldDefinition htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
     exact
-      abstractRuntimeForFieldHeadDeep?_member_framed_promote_some_of_valid_normal_members
+      abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_members
         (schema := schema) (currentParent := parentType)
         (targetParent := targetParent) (targetField := targetField)
-        (targetArguments := targetArguments)
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := selectionSet) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
@@ -328,7 +351,8 @@ theorem
         hlocalRuntime
   by_cases htargetLeft :
       fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        arguments
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -347,7 +371,12 @@ theorem
       schema rootSelectionSet base variableValues parentType leftField
       rightField responseName leftArguments rightArguments arguments
       (.object parentType (none : Option FieldPairProbeTag))
-      childSelectionSet harguments (fuel + 1)]
+      childSelectionSet
+      (fun candidateDefinition hcandidate => by
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        exact harguments)
+      (fuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues fuel parentType leftField rightField responseName
@@ -355,13 +384,19 @@ theorem
         harguments hlookup hfuel hleaf
   · by_cases htargetRight :
         fieldProbeTarget parentType rightField rightArguments parentType
-          fieldName arguments
+          fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
           ¬ fieldProbeTarget parentType leftField leftArguments parentType
-            rightField arguments :=
-        hrightNotLeft arguments harguments
+            rightField
+            (Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments arguments) :=
+        hrightNotLeft
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments) harguments
       have hcomposite := hrightComposite fieldDefinition hlookup
       have hleafFuel :
           leafProbeFuel fieldDefinition.outputType ≤ fuel := by
@@ -467,12 +502,23 @@ theorem
         schema rootSelectionSet base variableValues parentType leftField
         rightField responseName leftArguments rightArguments arguments
         (.object parentType (none : Option FieldPairProbeTag))
-        childSelectionSet harguments (fuel + 1)]
+        childSelectionSet
+        (fun candidateDefinition hcandidate => by
+          rw [hlookup] at hcandidate
+          cases Option.some.inj hcandidate.symm
+          exact harguments)
+        (fuel + 1)]
       exact hprobe
     · have hnotProjection :
-          ¬ fieldPairProjectionTarget parentType leftField rightField
-            leftArguments rightArguments parentType fieldName arguments := by
-        intro hprojection
+          ∀ candidateDefinition,
+            schema.lookupField parentType fieldName = some candidateDefinition ->
+              ¬ fieldPairProjectionTarget parentType leftField rightField
+                leftArguments rightArguments parentType fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  candidateDefinition.arguments arguments) := by
+        intro candidateDefinition hcandidate hprojection
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
         rcases hprojection with ⟨_hparent, htarget⟩
         rcases htarget with hleft | hright
         · exact htargetLeft ⟨rfl, hleft.1, hleft.2⟩
@@ -527,6 +573,7 @@ theorem
     {leftDirectives rightDirectives : List DirectiveApplication}
     {leftChildSelectionSet rightChildSelectionSet : List Selection}
     {fieldDefinition : FieldDefinition} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -551,9 +598,14 @@ theorem
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Argument.argumentsEquivalent leftArguments rightArguments
+      -> ¬ Argument.argumentsEquivalent
+            (Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments leftArguments)
+            (Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments rightArguments)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -562,7 +614,12 @@ theorem
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-  let variableValues : Execution.VariableValues := []
+  let leftTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      fieldDefinition.arguments leftArguments
+  let rightTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      fieldDefinition.arguments rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -573,8 +630,8 @@ theorem
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType fieldName
-        fieldName leftArguments rightArguments)
-      parentType fieldName fieldName leftArguments rightArguments
+        fieldName leftTargetArguments rightTargetArguments)
+      parentType fieldName fieldName leftTargetArguments rightTargetArguments
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -620,14 +677,16 @@ theorem
     exact hleaf
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightArguments ->
-          ¬ fieldProbeTarget parentType fieldName leftArguments parentType
+        Argument.argumentsEquivalent arguments rightTargetArguments ->
+          ¬ fieldProbeTarget parentType fieldName leftTargetArguments parentType
             fieldName arguments := by
     intro arguments hrightArgs hleftTarget
     rcases hleftTarget with ⟨_hparent, _hfield, hleftArgs⟩
-    exact hargumentsDiff
-      (argumentsEquivalent_trans
-        (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs)
+    exact (by
+      have htargets := argumentsEquivalent_trans
+        (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs
+      exact hargumentsDiff (by
+        simpa [leftTargetArguments, rightTargetArguments] using htargets))
   have hleftFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
           childSelectionSet,
@@ -649,8 +708,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := left)
-        variableValues baseFuel fieldName fieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel fieldName fieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
@@ -673,8 +732,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := right)
-        variableValues baseFuel fieldName fieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel fieldName fieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName fieldName leftArguments leftDirectives
@@ -716,17 +775,24 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType fieldName
-        fieldName leftArguments rightArguments)
+        fieldName leftTargetArguments rightTargetArguments)
       variableValues parentType fieldName fieldName responseName
-      leftArguments rightArguments leftArguments
+      leftTargetArguments rightTargetArguments leftArguments
       (.object parentType (none : Option FieldPairProbeTag))
       leftChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff leftArguments) (baseFuel + 1)]
+      (fun candidateDefinition hcandidate => by
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [leftTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+      (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues baseFuel parentType fieldName fieldName responseName
-        leftArguments rightArguments leftArguments leftChildSelectionSet
-        fieldDefinition (argumentsEquivalent_refl_forSyntaxDiff leftArguments)
+        leftTargetArguments rightTargetArguments leftArguments leftChildSelectionSet
+        fieldDefinition (by
+          simpa [leftTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
         hlookup hleftFuel hleaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
@@ -746,21 +812,27 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType fieldName
-        fieldName leftArguments rightArguments)
+        fieldName leftTargetArguments rightTargetArguments)
       variableValues parentType fieldName fieldName responseName
-      leftArguments rightArguments rightArguments
+      leftTargetArguments rightTargetArguments rightArguments
       (.object parentType (none : Option FieldPairProbeTag))
       rightChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      (fun candidateDefinition hcandidate => by
+        rw [hlookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [rightTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
         rootSelectionSet variableValues baseFuel parentType fieldName
-        fieldName responseName leftArguments rightArguments rightArguments
+        fieldName responseName leftTargetArguments rightTargetArguments rightArguments
         rightChildSelectionSet fieldDefinition
-        (hrightNotLeft rightArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightArguments))
-        (argumentsEquivalent_refl_forSyntaxDiff rightArguments) hlookup
+        (hrightNotLeft rightTargetArguments
+          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+        (by
+          simpa [rightTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments) hlookup
         hrightFuel hleaf
   have hdataNot :
       ¬ Execution.ResponseValue.semanticEquivalent
@@ -779,7 +851,6 @@ theorem
     hinclude,
     ProjectionResolverRef (Option FieldPairProbeTag),
     resolvers,
-    variableValues,
     baseFuel + 1,
     ProjectionResolverRef.root (none : Option FieldPairProbeTag),
     hminFuel,
@@ -813,8 +884,8 @@ theorem
         selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
           (schema := schema) (parentType := parentType)
           (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel fieldName fieldName leftArguments
-          rightArguments hschema hmembers hsupportMember hobject hbaseFuel
+          variableValues baseFuel fieldName fieldName leftTargetArguments
+          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
           hleafOfLookup hleafOfLookup hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
@@ -839,6 +910,7 @@ theorem
     {leftDirectives rightDirectives : List DirectiveApplication}
     {leftChildSelectionSet rightChildSelectionSet : List Selection}
     {leftFieldDefinition rightFieldDefinition : FieldDefinition} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -869,6 +941,7 @@ theorem
       -> leftFieldName ≠ rightFieldName
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -877,7 +950,12 @@ theorem
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-  let variableValues : Execution.VariableValues := []
+  let leftTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      leftFieldDefinition.arguments leftArguments
+  let rightTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      rightFieldDefinition.arguments rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -888,8 +966,9 @@ theorem
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
-      parentType leftFieldName rightFieldName leftArguments rightArguments
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
+      parentType leftFieldName rightFieldName leftTargetArguments
+      rightTargetArguments
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -948,8 +1027,8 @@ theorem
     exact hrightLeaf
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightArguments ->
-          ¬ fieldProbeTarget parentType leftFieldName leftArguments
+        Argument.argumentsEquivalent arguments rightTargetArguments ->
+          ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments
             parentType rightFieldName arguments := by
     intro arguments _hrightArgs hleftTarget
     exact hfieldDiff hleftTarget.2.1.symm
@@ -974,8 +1053,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := left)
-        variableValues baseFuel leftFieldName rightFieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
@@ -998,8 +1077,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := right)
-        variableValues baseFuel leftFieldName rightFieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName leftFieldName leftArguments leftDirectives
@@ -1041,18 +1120,25 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
       variableValues parentType leftFieldName rightFieldName responseName
-      leftArguments rightArguments leftArguments
+      leftTargetArguments rightTargetArguments leftArguments
       (.object parentType (none : Option FieldPairProbeTag))
       leftChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff leftArguments) (baseFuel + 1)]
+      (fun candidateDefinition hcandidate => by
+        rw [hleftLookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [leftTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+      (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues baseFuel parentType leftFieldName rightFieldName
-        responseName leftArguments rightArguments leftArguments
+        responseName leftTargetArguments rightTargetArguments leftArguments
         leftChildSelectionSet leftFieldDefinition
-        (argumentsEquivalent_refl_forSyntaxDiff leftArguments) hleftLookup
+        (by
+          simpa [leftTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments) hleftLookup
         hleftFuel hleftLeaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
@@ -1072,21 +1158,27 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
       variableValues parentType leftFieldName rightFieldName responseName
-      leftArguments rightArguments rightArguments
+      leftTargetArguments rightTargetArguments rightArguments
       (.object parentType (none : Option FieldPairProbeTag))
       rightChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      (fun candidateDefinition hcandidate => by
+        rw [hrightLookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [rightTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
         rootSelectionSet variableValues baseFuel parentType leftFieldName
-        rightFieldName responseName leftArguments rightArguments
+        rightFieldName responseName leftTargetArguments rightTargetArguments
         rightArguments rightChildSelectionSet rightFieldDefinition
-        (hrightNotLeft rightArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightArguments))
-        (argumentsEquivalent_refl_forSyntaxDiff rightArguments) hrightLookup
+        (hrightNotLeft rightTargetArguments
+          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+        (by
+          simpa [rightTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments) hrightLookup
         hrightFuel hrightLeaf
   have hdataNot :
       ¬ Execution.ResponseValue.semanticEquivalent
@@ -1106,7 +1198,6 @@ theorem
     hinclude,
     ProjectionResolverRef (Option FieldPairProbeTag),
     resolvers,
-    variableValues,
     baseFuel + 1,
     ProjectionResolverRef.root (none : Option FieldPairProbeTag),
     hminFuel,
@@ -1140,8 +1231,8 @@ theorem
         selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
           (schema := schema) (parentType := parentType)
           (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel leftFieldName rightFieldName leftArguments
-          rightArguments hschema hmembers hsupportMember hobject hbaseFuel
+          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
           hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
@@ -1166,6 +1257,7 @@ theorem
     {leftDirectives rightDirectives : List DirectiveApplication}
     {leftChildSelectionSet rightChildSelectionSet : List Selection}
     {leftFieldDefinition rightFieldDefinition : FieldDefinition} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -1196,6 +1288,7 @@ theorem
       -> leftFieldName ≠ rightFieldName
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -1204,7 +1297,12 @@ theorem
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-  let variableValues : Execution.VariableValues := []
+  let leftTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      leftFieldDefinition.arguments leftArguments
+  let rightTargetArguments :=
+    Execution.coerceArgumentValues schema variableValues
+      rightFieldDefinition.arguments rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -1215,8 +1313,9 @@ theorem
   let resolvers :=
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
-      parentType leftFieldName rightFieldName leftArguments rightArguments
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
+      parentType leftFieldName rightFieldName leftTargetArguments
+      rightTargetArguments
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
@@ -1275,8 +1374,8 @@ theorem
     exact hrightComposite
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightArguments ->
-          ¬ fieldProbeTarget parentType leftFieldName leftArguments
+        Argument.argumentsEquivalent arguments rightTargetArguments ->
+          ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments
             parentType rightFieldName arguments := by
     intro arguments _hrightArgs hleftTarget
     exact hfieldDiff hleftTarget.2.1.symm
@@ -1301,8 +1400,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := left)
-        variableValues baseFuel leftFieldName rightFieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
@@ -1325,8 +1424,8 @@ theorem
       selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
         (schema := schema) (parentType := parentType)
         (members := members) (selectionSet := right)
-        variableValues baseFuel leftFieldName rightFieldName leftArguments
-        rightArguments hschema hmembers (by simp [members]) hobject
+        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+        rightTargetArguments hschema hmembers (by simp [members]) hobject
         hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName leftFieldName leftArguments leftDirectives
@@ -1368,18 +1467,25 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
       variableValues parentType leftFieldName rightFieldName responseName
-      leftArguments rightArguments leftArguments
+      leftTargetArguments rightTargetArguments leftArguments
       (.object parentType (none : Option FieldPairProbeTag))
       leftChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff leftArguments) (baseFuel + 1)]
+      (fun candidateDefinition hcandidate => by
+        rw [hleftLookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [leftTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+      (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues baseFuel parentType leftFieldName rightFieldName
-        responseName leftArguments rightArguments leftArguments
+        responseName leftTargetArguments rightTargetArguments leftArguments
         leftChildSelectionSet leftFieldDefinition
-        (argumentsEquivalent_refl_forSyntaxDiff leftArguments) hleftLookup
+        (by
+          simpa [leftTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments) hleftLookup
         hleftFuel hleftLeaf
   have hrightPromote :
       selectionSetDeepPromotionAvailable schema rootSelectionSet parentType
@@ -1402,10 +1508,9 @@ theorem
       targetFieldDefinition htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
     exact
-      abstractRuntimeForFieldHeadDeep?_member_framed_promote_some_of_valid_normal_members
+      abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_members
         (schema := schema) (currentParent := parentType)
         (targetParent := targetParent) (targetField := targetField)
-        (targetArguments := targetArguments)
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := right) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
@@ -1474,8 +1579,8 @@ theorem
         rightFieldDefinition.outputType.namedType rightVariableDefinitions
         rightChildSelectionSet
         (baseFuel - leafProbeFuel rightFieldDefinition.outputType - 1)
-        rightRuntime parentType leftFieldName rightFieldName leftArguments
-        rightArguments FieldPairProbeTag.right hrightChildSize
+        rightRuntime parentType leftFieldName rightFieldName leftTargetArguments
+        rightTargetArguments FieldPairProbeTag.right hrightChildSize
         hrightChildFuel hrightChildValid hrightChildFree hrightChildNormal
         hrightInclude hrightChildPromote hrightChildHeadPromote with
     ⟨rightChildFields, rightChildErrors, hrightChildResponseRaw⟩
@@ -1491,7 +1596,7 @@ theorem
   have hrightChildResponse :
       Execution.executeSelectionSetAsResponse schema
           (fieldPairProbeResolvers schema rootSelectionSet parentType
-            leftFieldName rightFieldName leftArguments rightArguments)
+            leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
           variableValues
           (baseFuel - leafProbeFuel rightFieldDefinition.outputType)
           rightRuntime
@@ -1521,22 +1626,29 @@ theorem
     rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
       schema rootSelectionSet
       (fieldPairProbeResolvers schema rootSelectionSet parentType
-        leftFieldName rightFieldName leftArguments rightArguments)
+        leftFieldName rightFieldName leftTargetArguments rightTargetArguments)
       variableValues parentType leftFieldName rightFieldName responseName
-      leftArguments rightArguments rightArguments
+      leftTargetArguments rightTargetArguments rightArguments
       (.object parentType (none : Option FieldPairProbeTag))
       rightChildSelectionSet
-      (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+      (fun candidateDefinition hcandidate => by
+        rw [hrightLookup] at hcandidate
+        cases Option.some.inj hcandidate.symm
+        simpa [rightTargetArguments] using
+          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
       (baseFuel + 1)]
     have hraw :=
       executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_of_fuel_ge
         schema rootSelectionSet variableValues baseFuel parentType
-        leftFieldName rightFieldName responseName leftArguments rightArguments
+        leftFieldName rightFieldName responseName leftTargetArguments
+        rightTargetArguments
         rightArguments rightChildSelectionSet rightFieldDefinition
         rightRuntime
-        (hrightNotLeft rightArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightArguments))
-        (argumentsEquivalent_refl_forSyntaxDiff rightArguments)
+        (hrightNotLeft rightTargetArguments
+          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+        (by
+          simpa [rightTargetArguments] using
+            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
         hrightLookup hrightRuntime hrightInclude hrightFuel
     rw [hraw, hrightChildResponse, hrightWrapped]
     simp [Execution.singleFieldResult]
@@ -1560,7 +1672,6 @@ theorem
     hinclude,
     ProjectionResolverRef (Option FieldPairProbeTag),
     resolvers,
-    variableValues,
     baseFuel + 1,
     ProjectionResolverRef.root (none : Option FieldPairProbeTag),
     hminFuel,
@@ -1594,8 +1705,8 @@ theorem
         selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
           (schema := schema) (parentType := parentType)
           (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel leftFieldName rightFieldName leftArguments
-          rightArguments hschema hmembers hsupportMember hobject hbaseFuel
+          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
           hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
@@ -1617,6 +1728,7 @@ theorem
     {supportSelectionSets : List (List Selection)} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}
     {childSelectionSet : List Selection} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -1637,6 +1749,7 @@ theorem
       -> responseName ∉ right.filterMap Selection.responseName?
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -1644,7 +1757,6 @@ theorem
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-  let variableValues : Execution.VariableValues := []
   let source : Execution.ResolverValue PUnit :=
     .object parentType PUnit.unit
   let resolvers :=
@@ -1770,17 +1882,7 @@ theorem
     intro hrightKey
     rw [hrightResponseKeys] at hrightKey
     exact hrightCollectNo hrightKey
-  refine ⟨
-    hinclude,
-    PUnit,
-    resolvers,
-    variableValues,
-    baseFuel + 1,
-    PUnit.unit,
-    ?_,
-    ?_,
-    ?_
-  ⟩
+  refine ⟨hinclude, PUnit, resolvers, baseFuel + 1, PUnit.unit, ?_, ?_, ?_⟩
   · dsimp [baseFuel]
     omega
   · intro supportSelectionSet hsupport
@@ -1822,6 +1924,7 @@ theorem
     {supportSelectionSets : List (List Selection)} {responseName fieldName : Name}
     {arguments : List Argument} {directives : List DirectiveApplication}
     {childSelectionSet : List Selection} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -1842,6 +1945,7 @@ theorem
       -> responseName ∉ left.filterMap Selection.responseName?
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -1849,6 +1953,7 @@ theorem
   have hwitness :
       selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
         parentType parentType right left
+        (variableValues := variableValues)
         (fun selectionSet => selectionSet ∈ supportSelectionSets)
         minFuel :=
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
@@ -1863,13 +1968,12 @@ theorem
       hschema hrightValid hleftValid hrightFree hleftFree hrightNormal
       hleftNormal hobject hsupportValid hrightMem hleftNoResponseName
   rcases hwitness with
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
+    ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
       hsupport, hnot⟩
   exact ⟨
     hinclude,
     ObjectRef,
     resolvers,
-    variableValues,
     fuel,
     ref,
     hfuel,
@@ -1886,7 +1990,7 @@ theorem
     {parentType : Name} {left right : List Selection}
     {supportSelectionSets : List (List Selection)} {typeCondition : Name}
     {directives : List DirectiveApplication} {childSelectionSet : List Selection}
-    {minFuel : Nat}
+    {minFuel : Nat} {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -1906,6 +2010,7 @@ theorem
       -> typeCondition ∉ right.filterMap inlineFragmentTypeCondition?
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType typeCondition left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -1933,7 +2038,6 @@ theorem
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
-  let variableValues : Execution.VariableValues := []
   let source : Execution.ResolverValue PUnit :=
     .object typeCondition PUnit.unit
   let resolvers :=
@@ -2113,17 +2217,7 @@ theorem
       Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
       Execution.executeRootSelectionSet, hrightCollect,
       Execution.executeCollectedFields]
-  refine ⟨
-    hinclude,
-    PUnit,
-    resolvers,
-    variableValues,
-    baseFuel + 1,
-    PUnit.unit,
-    ?_,
-    ?_,
-    ?_
-  ⟩
+  refine ⟨hinclude, PUnit, resolvers, baseFuel + 1, PUnit.unit, ?_, ?_, ?_⟩
   · dsimp [baseFuel]
     omega
   · intro supportSelectionSet hsupport
@@ -2166,7 +2260,7 @@ theorem
     {parentType : Name} {left right : List Selection}
     {supportSelectionSets : List (List Selection)} {typeCondition : Name}
     {directives : List DirectiveApplication} {childSelectionSet : List Selection}
-    {minFuel : Nat}
+    {minFuel : Nat} {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -2187,6 +2281,7 @@ theorem
       -> typeCondition ∉ left.filterMap inlineFragmentTypeCondition?
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType typeCondition left right
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -2551,6 +2646,7 @@ theorem
       leftPref rightPref leftSuffix rightSuffix
       : List Selection}
     {supportSelectionSets : List (List Selection)} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : Validation.selectionSetValid schema leftVariableDefinitions parentType
         (leftPref
           ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
@@ -2585,6 +2681,7 @@ theorem
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           typeCondition runtimeType leftChildSelectionSet rightChildSelectionSet
+          (variableValues := variableValues)
           (fun childSelectionSet =>
             childSelectionSet
             ∈ abstractChildSupportSelectionSets typeCondition leftPref rightPref
@@ -2598,6 +2695,7 @@ theorem
           (rightPref
             ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
                 :: rightSuffix)
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hleftValid hrightValid hleftFree hrightFree hleftNormal
@@ -2638,9 +2736,9 @@ theorem
   change
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
       typeCondition runtimeType leftChildSelectionSet rightChildSelectionSet
-      childSupport minFuel at hwitness
+      (variableValues := variableValues) childSupport minFuel at hwitness
   rcases hwitness with
-    ⟨hchildInclude, ObjectRef, resolvers, variableValues, fuel, ref,
+    ⟨hchildInclude, ObjectRef, resolvers, fuel, ref,
       hfuel, hsupportResponse, hchildNot⟩
   have hruntimeEq : runtimeType = typeCondition :=
     typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema
@@ -2715,7 +2813,7 @@ theorem
         typeCondition (.object typeCondition ref) rightChildSelectionSet := by
     simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
       hrightMiddle, hrightFlatten]
-  refine ⟨hparentInclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel, ?_, ?_⟩
+  refine ⟨hparentInclude, ObjectRef, resolvers, fuel, ref, hfuel, ?_, ?_⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,

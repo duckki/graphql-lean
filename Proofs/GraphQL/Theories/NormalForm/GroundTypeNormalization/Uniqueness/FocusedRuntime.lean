@@ -472,8 +472,8 @@ theorem fieldHeadProbeRuntimeCoherent_of_child_pathCoherent
             selectionSetRuntimeActive schema fieldDefinition.outputType.namedType
               runtimeType childSelectionSet
             -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-            -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType rootSelectionSet
+            -> abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType)
       -> ∃ runtimeType,
           fieldHeadProbeRuntimeCoherent schema rootSelectionSet parentType
@@ -523,8 +523,8 @@ theorem SelectionSetProbePathCoherent.objectChild_of_runtimePreserving
             selectionSetRuntimeActive schema fieldDefinition.outputType.namedType
               runtimeType childSelectionSet
             -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-            -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType rootSelectionSet
+            -> abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType)
       -> SelectionSetProbePathCoherent schema rootSelectionSet parentType
           selectionSet (responseName :: childPath) := by

@@ -625,6 +625,7 @@ inductive NormalSelectionSetDiffObservableTrace (schema : Schema)
       -> NormalSelectionSetObservableResponsePath schema typeCondition
           childSelectionSet childPath
       -> NormalSelectionSetDiffObservableTrace schema parentType left right childPath
+
   | abstractRightTypeCondition
     {parentType : Name} {left right : List Selection}
     {typeCondition : Name}
@@ -638,6 +639,7 @@ inductive NormalSelectionSetDiffObservableTrace (schema : Schema)
       -> NormalSelectionSetObservableResponsePath schema typeCondition
           childSelectionSet childPath
       -> NormalSelectionSetDiffObservableTrace schema parentType left right childPath
+
   | abstractChild
     {parentType typeCondition : Name} {left right : List Selection}
     {leftDirectives rightDirectives : List DirectiveApplication}

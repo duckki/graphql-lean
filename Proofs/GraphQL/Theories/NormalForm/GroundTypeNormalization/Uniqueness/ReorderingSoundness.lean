@@ -455,12 +455,15 @@ theorem collectFields_allFields_directiveFree_nodup_eq_map
           rfl
 
 theorem selectionSetEqualUpToReordering_left_mem
+    {schema : Schema} {variableValues : VariableValues} {parentType : Name}
     {left right : List Selection} {leftSelection : Selection}
-    : SelectionSetEqualUpToReordering left right
+    : SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        parentType left right
       -> leftSelection ∈ left
       -> ∃ rightSelection,
           rightSelection ∈ right
-          ∧ SelectionEqualUpToReordering leftSelection rightSelection := by
+          ∧ SelectionEqualUpToReorderingWithCoercion schema variableValues variableValues
+              parentType leftSelection rightSelection := by
   intro hequal hleftMem
   rcases hequal with ⟨pairs, hleft, hright, hrelations⟩
   have hleftPair : leftSelection ∈ pairs.map Prod.fst :=
@@ -472,12 +475,15 @@ theorem selectionSetEqualUpToReordering_left_mem
   exact ⟨pair.2, hright.mem_iff.mp hrightPair, hpairLeft ▸ hrelations pair hpairMem⟩
 
 theorem selectionSetEqualUpToReordering_right_mem
+    {schema : Schema} {variableValues : VariableValues} {parentType : Name}
     {left right : List Selection} {rightSelection : Selection}
-    : SelectionSetEqualUpToReordering left right
+    : SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        parentType left right
       -> rightSelection ∈ right
       -> ∃ leftSelection,
           leftSelection ∈ left
-          ∧ SelectionEqualUpToReordering leftSelection rightSelection := by
+          ∧ SelectionEqualUpToReorderingWithCoercion schema variableValues variableValues
+              parentType leftSelection rightSelection := by
   intro hequal hrightMem
   rcases hequal with ⟨pairs, hleft, hright, hrelations⟩
   have hrightPair : rightSelection ∈ pairs.map Prod.snd :=
@@ -489,8 +495,10 @@ theorem selectionSetEqualUpToReordering_right_mem
   exact ⟨pair.1, hleft.mem_iff.mp hleftPair, hpairRight ▸ hrelations pair hpairMem⟩
 
 theorem inlineFragmentTypeCondition_mem_iff_of_equalUpToReordering
+    {schema : Schema} {variableValues : VariableValues} {parentType : Name}
     {left right : List Selection} {typeCondition : Name}
-    : SelectionSetEqualUpToReordering left right
+    : SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        parentType left right
       -> (typeCondition ∈ left.filterMap inlineFragmentTypeCondition?
           ↔ typeCondition ∈ right.filterMap inlineFragmentTypeCondition?) := by
   intro hequal
@@ -500,35 +508,29 @@ theorem inlineFragmentTypeCondition_mem_iff_of_equalUpToReordering
       ⟨leftSelection, hleftMem, hleftConditionValue⟩
     rcases selectionSetEqualUpToReordering_left_mem hequal hleftMem with
       ⟨rightSelection, hrightMem, hrelation⟩
-    cases hrelation with
-    | field responseName fieldName directives harguments hchildren =>
-        simp [inlineFragmentTypeCondition?] at hleftConditionValue
-    | inlineFragment maybeTypeCondition directives hchildren =>
-        cases maybeTypeCondition with
-        | none =>
-            simp [inlineFragmentTypeCondition?] at hleftConditionValue
-        | some matchedTypeCondition =>
-            exact List.mem_filterMap.mpr
-              ⟨_, hrightMem, by
-                simpa [inlineFragmentTypeCondition?] using
-                  hleftConditionValue⟩
+    have hsame :
+        inlineFragmentTypeCondition? leftSelection =
+          inlineFragmentTypeCondition? rightSelection := by
+      cases hrelation with
+      | field => rfl
+      | inlineFragment _parent maybeCondition _directives _hchildren =>
+          cases maybeCondition <;> rfl
+    exact List.mem_filterMap.mpr
+      ⟨_, hrightMem, by simpa [← hsame] using hleftConditionValue⟩
   · intro hrightCondition
     rcases List.mem_filterMap.mp hrightCondition with
       ⟨rightSelection, hrightMem, hrightConditionValue⟩
     rcases selectionSetEqualUpToReordering_right_mem hequal hrightMem with
       ⟨leftSelection, hleftMem, hrelation⟩
-    cases hrelation with
-    | field responseName fieldName directives harguments hchildren =>
-        simp [inlineFragmentTypeCondition?] at hrightConditionValue
-    | inlineFragment maybeTypeCondition directives hchildren =>
-        cases maybeTypeCondition with
-        | none =>
-            simp [inlineFragmentTypeCondition?] at hrightConditionValue
-        | some matchedTypeCondition =>
-            exact List.mem_filterMap.mpr
-              ⟨_, hleftMem, by
-                simpa [inlineFragmentTypeCondition?] using
-                  hrightConditionValue⟩
+    have hsame :
+        inlineFragmentTypeCondition? leftSelection =
+          inlineFragmentTypeCondition? rightSelection := by
+      cases hrelation with
+      | field => rfl
+      | inlineFragment _parent maybeCondition _directives _hchildren =>
+          cases maybeCondition <;> rfl
+    exact List.mem_filterMap.mpr
+      ⟨_, hleftMem, by simpa [hsame] using hrightConditionValue⟩
 
 private theorem fields_eq_singleton_of_map_fst_eq_singleton
     {fields : List (Name × ResponseValue)} {name : Name}
@@ -722,14 +724,17 @@ def CompleteValueSoundAtFuel (fuel : Nat) : Prop :=
     (executionParentType responseName fieldName : Name)
     (leftArguments rightArguments : List Argument)
     (leftChild rightChild : List Selection)
-    (normalChildParentType : Name)
     (fieldType : TypeRef) (value : ResolverValue ObjectRef),
-    Argument.argumentsEquivalent leftArguments rightArguments
+    (leftArguments.map Argument.name).Nodup
+    -> (rightArguments.map Argument.name).Nodup
+    -> Execution.selectionSetArgumentsNodup leftChild
+    -> Execution.selectionSetArgumentsNodup rightChild
     -> selectionSetDirectiveFree leftChild
     -> selectionSetDirectiveFree rightChild
-    -> selectionSetNormal schema normalChildParentType leftChild
-    -> selectionSetNormal schema normalChildParentType rightChild
-    -> SelectionSetEqualUpToReordering leftChild rightChild
+    -> selectionSetNormal schema fieldType.namedType leftChild
+    -> selectionSetNormal schema fieldType.namedType rightChild
+    -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        fieldType.namedType leftChild rightChild
     -> ResponseValueResultEquivalent
         (completeValue schema resolvers variableValues fuel fieldType
           [{
@@ -754,14 +759,18 @@ def SelectionSetSoundAtFuel (fuel : Nat) : Prop :=
     (variableValues : VariableValues)
     (normalParentType executionParentType runtimeType : Name)
     (ref : ObjectRef) (left right : List Selection),
-    selectionSetDirectiveFree left
+    Execution.selectionSetArgumentsNodup left
+    -> Execution.selectionSetArgumentsNodup right
+    -> selectionSetDirectiveFree left
     -> selectionSetDirectiveFree right
     -> selectionSetNormal schema normalParentType left
     -> selectionSetNormal schema normalParentType right
-    -> SelectionSetEqualUpToReordering left right
-    -> (objectTypeNameBool schema normalParentType = true
-        ∨ executionParentType = normalParentType
-        ∨ executionParentType = runtimeType)
+    -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        normalParentType left right
+    -> ((objectTypeNameBool schema normalParentType = true
+          ∧ executionParentType = normalParentType)
+        ∨ (objectTypeNameBool schema normalParentType = false
+            ∧ executionParentType = runtimeType))
     -> SelectionSetResultEquivalent
         (executeSelectionSet schema resolvers variableValues fuel
           executionParentType (.object runtimeType ref) left)
@@ -775,13 +784,23 @@ def SingletonFieldSoundAtFuel (fuel : Nat) : Prop :=
     (responseName executionParentType fieldName : Name)
     (leftArguments rightArguments : List Argument)
     (leftChild rightChild : List Selection)
-    (normalChildParentType : Name),
-    Argument.argumentsEquivalent leftArguments rightArguments
+    (fieldDefinition : FieldDefinition),
+    (leftArguments.map Argument.name).Nodup
+    -> (rightArguments.map Argument.name).Nodup
+    -> Execution.selectionSetArgumentsNodup leftChild
+    -> Execution.selectionSetArgumentsNodup rightChild
+    -> schema.lookupField executionParentType fieldName = some fieldDefinition
+    -> Argument.argumentsEquivalent
+        (coerceArgumentValues schema variableValues fieldDefinition.arguments
+          leftArguments)
+        (coerceArgumentValues schema variableValues fieldDefinition.arguments
+          rightArguments)
     -> selectionSetDirectiveFree leftChild
     -> selectionSetDirectiveFree rightChild
-    -> selectionSetNormal schema normalChildParentType leftChild
-    -> selectionSetNormal schema normalChildParentType rightChild
-    -> SelectionSetEqualUpToReordering leftChild rightChild
+    -> selectionSetNormal schema fieldDefinition.outputType.namedType leftChild
+    -> selectionSetNormal schema fieldDefinition.outputType.namedType rightChild
+    -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+        fieldDefinition.outputType.namedType leftChild rightChild
     -> SelectionSetResultEquivalent
         (executeField schema resolvers variableValues fuel source responseName
           [{
@@ -865,13 +884,23 @@ theorem executeField_singleton_equivalent_succ
     (responseName executionParentType fieldName : Name)
     (leftArguments rightArguments : List Argument)
     (leftChild rightChild : List Selection)
-    (normalChildParentType : Name)
-    : Argument.argumentsEquivalent leftArguments rightArguments
+    (fieldDefinition : FieldDefinition)
+    : (leftArguments.map Argument.name).Nodup
+      -> (rightArguments.map Argument.name).Nodup
+      -> Execution.selectionSetArgumentsNodup leftChild
+      -> Execution.selectionSetArgumentsNodup rightChild
+      -> schema.lookupField executionParentType fieldName = some fieldDefinition
+      -> Argument.argumentsEquivalent
+          (coerceArgumentValues schema variableValues fieldDefinition.arguments
+            leftArguments)
+          (coerceArgumentValues schema variableValues fieldDefinition.arguments
+            rightArguments)
       -> selectionSetDirectiveFree leftChild
       -> selectionSetDirectiveFree rightChild
-      -> selectionSetNormal schema normalChildParentType leftChild
-      -> selectionSetNormal schema normalChildParentType rightChild
-      -> SelectionSetEqualUpToReordering leftChild rightChild
+      -> selectionSetNormal schema fieldDefinition.outputType.namedType leftChild
+      -> selectionSetNormal schema fieldDefinition.outputType.namedType rightChild
+      -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+          fieldDefinition.outputType.namedType leftChild rightChild
       -> SelectionSetResultEquivalent
           (executeField schema resolvers variableValues (fuel + 1) source
             responseName
@@ -891,42 +920,54 @@ theorem executeField_singleton_equivalent_succ
               arguments := rightArguments
               selectionSet := rightChild
             }]) := by
-  intro harguments hleftFree hrightFree hleftNormal hrightNormal hequal
-  cases hlookup : schema.lookupField executionParentType fieldName with
+  intro hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
+    hrightChildrenNodup hlookup harguments hleftFree hrightFree hleftNormal hrightNormal
+    hequal
+  have hresolve :
+      resolvers.resolve executionParentType fieldName
+          (coerceArgumentValues schema variableValues fieldDefinition.arguments
+            leftArguments) source =
+        resolvers.resolve executionParentType fieldName
+          (coerceArgumentValues schema variableValues fieldDefinition.arguments
+            rightArguments) source := by
+    exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ harguments
+  cases hleftResolve
+        : resolvers.resolve executionParentType fieldName
+            (coerceArgumentValues schema variableValues
+              fieldDefinition.arguments leftArguments) source with
   | none =>
-      simp [executeField, hlookup, SelectionSetResultEquivalent]
-  | some fieldDefinition =>
-      have hresolve :=
-        resolvers.resolve_argumentsEquivalent executionParentType fieldName
-          leftArguments rightArguments source harguments
-      cases hleftResolve
-            : resolvers.resolve executionParentType fieldName leftArguments source with
-      | none =>
-          have hrightResolve :
-              resolvers.resolve executionParentType fieldName rightArguments
-                source = none := by
-            rw [← hresolve]
-            exact hleftResolve
-          simp only [executeField, hlookup, hleftResolve, hrightResolve]
-          exact selectionSetResultEquivalent_of_eq rfl
-      | some value =>
-          have hrightResolve :
-              resolvers.resolve executionParentType fieldName rightArguments
-                source = some value := by
-            rw [← hresolve]
-            exact hleftResolve
-          simp only [executeField, hlookup, hleftResolve, hrightResolve]
-          apply selectionSetResultEquivalent_singleFieldResult
-          exact hcomplete schema resolvers variableValues executionParentType
-            responseName fieldName leftArguments rightArguments leftChild
-            rightChild normalChildParentType fieldDefinition.outputType value
-            harguments hleftFree hrightFree hleftNormal hrightNormal hequal
+      have hrightResolve :
+          resolvers.resolve executionParentType fieldName
+            (coerceArgumentValues schema variableValues
+              fieldDefinition.arguments rightArguments) source = none := by
+        rw [← hresolve]
+        exact hleftResolve
+      simp only [executeField, resolveFieldValue, hlookup, hleftResolve,
+        hrightResolve]
+      exact selectionSetResultEquivalent_of_eq rfl
+  | some value =>
+      have hrightResolve :
+          resolvers.resolve executionParentType fieldName
+            (coerceArgumentValues schema variableValues
+              fieldDefinition.arguments rightArguments) source = some value := by
+        rw [← hresolve]
+        exact hleftResolve
+      simp only [executeField, resolveFieldValue, hlookup, hleftResolve,
+        hrightResolve]
+      apply selectionSetResultEquivalent_singleFieldResult
+      exact hcomplete schema resolvers variableValues executionParentType
+        responseName fieldName leftArguments rightArguments leftChild
+        rightChild fieldDefinition.outputType value
+        hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
+        hrightChildrenNodup hleftFree hrightFree hleftNormal
+        hrightNormal hequal
 
 theorem singletonFieldSoundAtFuel_zero : SingletonFieldSoundAtFuel 0 := by
   intro ObjectRef schema resolvers variableValues source responseName
     executionParentType fieldName leftArguments rightArguments leftChild
-    rightChild normalChildParentType _harguments _hleftFree _hrightFree
-    _hleftNormal _hrightNormal _hequal
+    rightChild fieldDefinition _hleftArgumentsNodup _hrightArgumentsNodup
+    _hleftChildrenNodup _hrightChildrenNodup _hlookup _harguments _hleftFree
+    _hrightFree _hleftNormal _hrightNormal _hequal
   exact executeField_singleton_equivalent_zero schema resolvers
     variableValues source responseName executionParentType fieldName
     leftArguments rightArguments leftChild rightChild
@@ -935,12 +976,15 @@ theorem singletonFieldSoundAtFuel_succ {fuel : Nat}
     : CompleteValueSoundAtFuel fuel -> SingletonFieldSoundAtFuel (fuel + 1) := by
   intro hcomplete ObjectRef schema resolvers variableValues source responseName
     executionParentType fieldName leftArguments rightArguments leftChild
-    rightChild normalChildParentType harguments hleftFree hrightFree
-    hleftNormal hrightNormal hequal
+    rightChild fieldDefinition hleftArgumentsNodup hrightArgumentsNodup
+    hleftChildrenNodup hrightChildrenNodup hlookup harguments hleftFree
+    hrightFree hleftNormal hrightNormal hequal
   exact executeField_singleton_equivalent_succ hcomplete schema resolvers
     variableValues source responseName executionParentType fieldName
-    leftArguments rightArguments leftChild rightChild normalChildParentType
-    harguments hleftFree hrightFree hleftNormal hrightNormal hequal
+    leftArguments rightArguments leftChild rightChild fieldDefinition
+    hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
+    hrightChildrenNodup hlookup harguments hleftFree hrightFree hleftNormal
+    hrightNormal hequal
 
 private theorem execute_paired_normal_field_groups_equivalent
     {fuel : Nat} (hfieldSound : SingletonFieldSoundAtFuel fuel)
@@ -950,15 +994,21 @@ private theorem execute_paired_normal_field_groups_equivalent
     (normalParentType executionParentType : Name)
     (source : ResolverValue ObjectRef)
     (left right : List Selection)
+    (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left)
+    (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right)
     (hleftFree : selectionSetDirectiveFree left)
     (hrightFree : selectionSetDirectiveFree right)
     (hleftNormal : selectionSetNormal schema normalParentType left)
     (hrightNormal : selectionSetNormal schema normalParentType right)
     (hobject : objectTypeNameBool schema normalParentType = true)
+    (hexecutionParent : executionParentType = normalParentType)
     : ∀ pairs : List (Selection × Selection),
         (∀ pair,
           pair ∈ pairs
-          -> pair.1 ∈ left ∧ pair.2 ∈ right ∧ SelectionEqualUpToReordering pair.1 pair.2)
+          -> pair.1 ∈ left
+              ∧ pair.2 ∈ right
+              ∧ SelectionEqualUpToReorderingWithCoercion schema variableValues
+                  variableValues normalParentType pair.1 pair.2)
         -> SelectionSetResultEquivalent
             (executeCollectedFields schema resolvers variableValues fuel source
               (pairs.map (fun pair => fieldGroupOfSelection executionParentType pair.1)))
@@ -976,18 +1026,24 @@ private theorem execute_paired_normal_field_groups_equivalent
       | inlineFragment typeCondition directives childSelectionSet =>
           simp [Selection.isField] at hleftField
       | field responseName fieldName leftArguments leftDirectives leftChild =>
-          cases hrelation with
-          | field _ _ _ harguments hchildren =>
+          cases hrelation
+          rename_i rightArguments rightChild fieldDefinition hlookup harguments hchildren
+          ·
               have hleftDirectives : leftDirectives = [] :=
                 selectionSetDirectiveFree_field_directives_nil_of_mem
                   hleftFree hleftMem
               subst leftDirectives
               have hleftChildFree : selectionSetDirectiveFree leftChild :=
                 selectionSetDirectiveFree_field_child_of_mem hleftFree hleftMem
-              rename_i rightArguments rightChild
               have hrightChildFree : selectionSetDirectiveFree rightChild :=
                 selectionSetDirectiveFree_field_child_of_mem hrightFree
                   hrightMem
+              have hleftSelectionNodup :=
+                Execution.selectionArgumentsNodup_of_mem hleftArgumentsNodup hleftMem
+              have hrightSelectionNodup :=
+                Execution.selectionArgumentsNodup_of_mem hrightArgumentsNodup hrightMem
+              simp [Execution.selectionArgumentsNodup] at hleftSelectionNodup
+              simp [Execution.selectionArgumentsNodup] at hrightSelectionNodup
               rcases selectionSetNormal_field_child_of_mem_with_returnType
                   hleftNormal hleftMem with
                 ⟨returnType, hreturnType, hleftChildNormal⟩
@@ -1000,17 +1056,27 @@ private theorem execute_paired_normal_field_groups_equivalent
               have hrightChildNormal :
                   selectionSetNormal schema returnType rightChild := by
                 simpa [hsameReturnType] using hrightChildNormal'
+              have hdefinitionReturnType :
+                  fieldDefinition.outputType.namedType = returnType := by
+                simp [Schema.fieldReturnType?, hlookup] at hreturnType
+                exact hreturnType
               apply executeCollectedFields_cons_equivalent schema
                 resolvers variableValues fuel source responseName _ _ _ _
               · exact hfieldSound schema resolvers variableValues source
                   responseName executionParentType fieldName leftArguments
-                  rightArguments leftChild rightChild returnType harguments
-                  hleftChildFree hrightChildFree hleftChildNormal
-                  hrightChildNormal hchildren
+                  rightArguments leftChild rightChild fieldDefinition
+                  hleftSelectionNodup.1 hrightSelectionNodup.1
+                  hleftSelectionNodup.2 hrightSelectionNodup.2
+                  (hexecutionParent ▸ hlookup) harguments
+                  hleftChildFree hrightChildFree
+                  (by simpa [hdefinitionReturnType] using hleftChildNormal)
+                  (by simpa [hdefinitionReturnType] using hrightChildNormal)
+                  hchildren
               · exact execute_paired_normal_field_groups_equivalent
                   hfieldSound schema resolvers variableValues normalParentType
-                  executionParentType source left right hleftFree hrightFree
-                  hleftNormal hrightNormal hobject rest
+                  executionParentType source left right hleftArgumentsNodup
+                  hrightArgumentsNodup hleftFree hrightFree
+                  hleftNormal hrightNormal hobject hexecutionParent rest
                   (by
                     intro pair hpair
                     exact hpairs pair (List.mem_cons_of_mem _ hpair))
@@ -1032,18 +1098,23 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
     (variableValues : VariableValues)
     (normalParentType executionParentType runtimeType : Name)
     (ref : ObjectRef) (left right : List Selection)
-    : selectionSetDirectiveFree left
+    : Execution.selectionSetArgumentsNodup left
+      -> Execution.selectionSetArgumentsNodup right
+      -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema normalParentType left
       -> selectionSetNormal schema normalParentType right
-      -> SelectionSetEqualUpToReordering left right
+      -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+          normalParentType left right
       -> objectTypeNameBool schema normalParentType = true
+      -> executionParentType = normalParentType
       -> SelectionSetResultEquivalent
           (executeSelectionSet schema resolvers variableValues fuel
             executionParentType (.object runtimeType ref) left)
           (executeSelectionSet schema resolvers variableValues fuel
             executionParentType (.object runtimeType ref) right) := by
-  intro hleftFree hrightFree hleftNormal hrightNormal hequal hobject
+  intro hleftArgumentsNodup hrightArgumentsNodup hleftFree hrightFree
+    hleftNormal hrightNormal hequal hobject hexecutionParent
   have hleftAll : selectionsAllFields left :=
     selectionSetNormal_allFields_of_object hleftNormal hobject
   have hrightAll : selectionsAllFields right :=
@@ -1101,8 +1172,9 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
           (.object runtimeType ref) rightPairGroups) := by
     apply execute_paired_normal_field_groups_equivalent hfieldSound schema
       resolvers variableValues normalParentType executionParentType
-      (.object runtimeType ref) left right hleftFree hrightFree hleftNormal
-      hrightNormal hobject pairs
+      (.object runtimeType ref) left right hleftArgumentsNodup hrightArgumentsNodup
+      hleftFree hrightFree hleftNormal
+      hrightNormal hobject hexecutionParent pairs
     intro pair hpair
     have hleftPairMem : pair.1 ∈ pairs.map Prod.fst :=
       List.mem_map.mpr ⟨pair, hpair, rfl⟩
@@ -1163,13 +1235,19 @@ private theorem executeSelectionSet_singleton_runtimeFragment_eq_child
 theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
     : SingletonFieldSoundAtFuel fuel -> SelectionSetSoundAtFuel fuel := by
   intro hfieldSound ObjectRef schema resolvers variableValues normalParentType
-    executionParentType runtimeType ref left right hleftFree hrightFree
-    hleftNormal hrightNormal hequal hexecutionScope
+    executionParentType runtimeType ref left right hleftArgumentsNodup
+    hrightArgumentsNodup hleftFree hrightFree hleftNormal hrightNormal hequal
+    hexecutionScope
   by_cases hobject : objectTypeNameBool schema normalParentType = true
-  · exact object_selectionSetSoundAtFuel_of_singletonFieldSound hfieldSound
+  · have hexecutionParent : executionParentType = normalParentType := by
+      rcases hexecutionScope with hobjectScope | hnonObjectScope
+      · exact hobjectScope.2
+      · simp [hobject] at hnonObjectScope
+    exact object_selectionSetSoundAtFuel_of_singletonFieldSound hfieldSound
       schema resolvers variableValues normalParentType executionParentType
-      runtimeType ref left right hleftFree hrightFree hleftNormal hrightNormal
-      hequal hobject
+      runtimeType ref left right hleftArgumentsNodup hrightArgumentsNodup
+      hleftFree hrightFree hleftNormal hrightNormal
+      hequal hobject hexecutionParent
   · have hnonObject :
         objectTypeNameBool schema normalParentType = false := by
       cases hvalue : objectTypeNameBool schema normalParentType
@@ -1199,9 +1277,9 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
               rcases selectionSetEqualUpToReordering_left_mem hequal
                   hleftMem with
                 ⟨rightSelection, hrightMem, hrelation⟩
-              cases hrelation with
-              | inlineFragment _ _ hchildren =>
-                  rename_i rightBody
+              cases hrelation
+              rename_i rightBody hchildren
+              ·
                   rcases selectionSetNormal_inlineFragment_child_of_mem
                       hleftNormal hleftMem with
                     ⟨hruntimeObjectProp, hleftBodyNormal⟩
@@ -1220,18 +1298,24 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
                       selectionSetDirectiveFree rightBody :=
                     selectionSetDirectiveFree_inlineFragment_child_of_mem
                       hrightFree hrightMem
+                  have hleftBodyArgumentsNodup :
+                      Execution.selectionSetArgumentsNodup leftBody := by
+                    simpa [Execution.selectionArgumentsNodup] using
+                      Execution.selectionArgumentsNodup_of_mem
+                        hleftArgumentsNodup hleftMem
+                  have hrightBodyArgumentsNodup :
+                      Execution.selectionSetArgumentsNodup rightBody := by
+                    simpa [Execution.selectionArgumentsNodup] using
+                      Execution.selectionArgumentsNodup_of_mem
+                        hrightArgumentsNodup hrightMem
                   rcases List.mem_iff_append.mp hleftMem with
                     ⟨leftPref, leftSuffix, hleftSelectionSet⟩
                   rcases List.mem_iff_append.mp hrightMem with
                     ⟨rightPref, rightSuffix, hrightSelectionSet⟩
-                  have hexecutionParent :
-                      executionParentType = normalParentType
-                        ∨ executionParentType = runtimeType := by
-                    rcases hexecutionScope with hnormalObject
-                      | hnormalExecution | hruntimeExecution
-                    · exact False.elim (hobject hnormalObject)
-                    · exact Or.inl hnormalExecution
-                    · exact Or.inr hruntimeExecution
+                  have hexecutionParent : executionParentType = runtimeType := by
+                    rcases hexecutionScope with hobjectScope | hnonObjectScope
+                    · exact False.elim (hobject hobjectScope.1)
+                    · exact hnonObjectScope.2
                   have hleftMiddle :
                       executeSelectionSet schema resolvers variableValues fuel
                         executionParentType (.object runtimeType ref) left =
@@ -1239,24 +1323,14 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
                         executionParentType (.object runtimeType ref)
                         [Selection.inlineFragment (some runtimeType) []
                           leftBody] := by
-                    rcases hexecutionParent with hnormalExecution
-                      | hruntimeExecution
-                    · subst executionParentType
-                      simpa [hleftSelectionSet] using
-                        executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_object_runtime_source
-                          schema resolvers variableValues fuel ref
-                          (pref := leftPref) (childSelectionSet := leftBody)
-                          (suffix := leftSuffix) hnonObject hruntimeObject
-                          (hleftSelectionSet ▸ hleftFree)
-                          (hleftSelectionSet ▸ hleftNormal)
-                    · subst executionParentType
-                      simpa [hleftSelectionSet] using
-                        executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
-                          schema resolvers variableValues fuel ref
-                          (pref := leftPref) (childSelectionSet := leftBody)
-                          (suffix := leftSuffix) hnonObject hruntimeObject
-                          (hleftSelectionSet ▸ hleftFree)
-                          (hleftSelectionSet ▸ hleftNormal)
+                    subst executionParentType
+                    simpa [hleftSelectionSet] using
+                      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+                        schema resolvers variableValues fuel ref
+                        (pref := leftPref) (childSelectionSet := leftBody)
+                        (suffix := leftSuffix) hnonObject hruntimeObject
+                        (hleftSelectionSet ▸ hleftFree)
+                        (hleftSelectionSet ▸ hleftNormal)
                   have hrightMiddle :
                       executeSelectionSet schema resolvers variableValues fuel
                         executionParentType (.object runtimeType ref) right =
@@ -1264,24 +1338,14 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
                         executionParentType (.object runtimeType ref)
                         [Selection.inlineFragment (some runtimeType) []
                           rightBody] := by
-                    rcases hexecutionParent with hnormalExecution
-                      | hruntimeExecution
-                    · subst executionParentType
-                      simpa [hrightSelectionSet] using
-                        executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_object_runtime_source
-                          schema resolvers variableValues fuel ref
-                          (pref := rightPref) (childSelectionSet := rightBody)
-                          (suffix := rightSuffix) hnonObject hruntimeObject
-                          (hrightSelectionSet ▸ hrightFree)
-                          (hrightSelectionSet ▸ hrightNormal)
-                    · subst executionParentType
-                      simpa [hrightSelectionSet] using
-                        executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
-                          schema resolvers variableValues fuel ref
-                          (pref := rightPref) (childSelectionSet := rightBody)
-                          (suffix := rightSuffix) hnonObject hruntimeObject
-                          (hrightSelectionSet ▸ hrightFree)
-                          (hrightSelectionSet ▸ hrightNormal)
+                    subst executionParentType
+                    simpa [hrightSelectionSet] using
+                      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+                        schema resolvers variableValues fuel ref
+                        (pref := rightPref) (childSelectionSet := rightBody)
+                        (suffix := rightSuffix) hnonObject hruntimeObject
+                        (hrightSelectionSet ▸ hrightFree)
+                        (hrightSelectionSet ▸ hrightNormal)
                   have hleftSingleton :
                       executeSelectionSet schema resolvers variableValues fuel
                         executionParentType (.object runtimeType ref)
@@ -1306,10 +1370,12 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
                       runtimeType ref rightBody hruntimeObject
                   have hbodyEquivalent :=
                     object_selectionSetSoundAtFuel_of_singletonFieldSound
-                      hfieldSound schema resolvers variableValues runtimeType
-                      executionParentType runtimeType ref leftBody rightBody
+                      hfieldSound schema resolvers variableValues
+                      runtimeType executionParentType runtimeType ref leftBody rightBody
+                      hleftBodyArgumentsNodup hrightBodyArgumentsNodup
                       hleftBodyFree hrightBodyFree hleftBodyNormal
                       hrightBodyNormal hchildren hruntimeObject
+                      hexecutionParent
                   rw [hleftMiddle, hrightMiddle, hleftSingleton,
                     hrightSingleton]
                   exact hbodyEquivalent
@@ -1335,7 +1401,9 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
 theorem completeValueSoundAtFuel_zero : CompleteValueSoundAtFuel 0 := by
   intro ObjectRef schema resolvers variableValues executionParentType
     responseName fieldName leftArguments rightArguments leftChild rightChild
-    normalChildParentType fieldType value _harguments _hleftFree _hrightFree
+    fieldType value _hleftArgumentsNodup
+    _hrightArgumentsNodup _hleftChildrenNodup _hrightChildrenNodup
+    _hleftFree _hrightFree
     _hleftNormal _hrightNormal _hequal
   simp [completeValue, outOfFuel, ResponseValueResultEquivalent]
 
@@ -1345,13 +1413,14 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
       -> CompleteValueSoundAtFuel (fuel + 1) := by
   intro hselection hcomplete ObjectRef schema resolvers variableValues
     executionParentType responseName fieldName leftArguments rightArguments
-    leftChild rightChild normalChildParentType fieldType value harguments
-    hleftFree hrightFree hleftNormal hrightNormal hequal
+    leftChild rightChild fieldType value hleftArgumentsNodup
+    hrightArgumentsNodup hleftChildrenNodup hrightChildrenNodup hleftFree
+    hrightFree hleftNormal hrightNormal hequal
   induction fieldType generalizing value with
   | nonNull inner ih =>
       simp only [completeValue]
       apply responseValueResultEquivalent_nonNullCompletion
-      exact ih value
+      exact ih value hleftNormal hrightNormal hequal
   | named typeName =>
       cases value with
       | null =>
@@ -1368,16 +1437,26 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
           by_cases hincludes :
               schema.typeIncludesObjectBool typeName runtimeType = true
           · have hscope :
-                objectTypeNameBool schema normalChildParentType = true
-                  ∨ runtimeType = normalChildParentType
-                  ∨ runtimeType = runtimeType := by
+                (objectTypeNameBool schema typeName = true
+                    ∧ runtimeType = typeName)
+                  ∨ (objectTypeNameBool schema typeName = false
+                    ∧ runtimeType = runtimeType) := by
               by_cases hchildObject :
-                  objectTypeNameBool schema normalChildParentType = true
-              · exact Or.inl hchildObject
-              · exact Or.inr (Or.inr rfl)
+                  objectTypeNameBool schema typeName = true
+              · exact Or.inl
+                  ⟨hchildObject,
+                    typeIncludesObjectBool_eq_of_objectTypeNameBool_true
+                      schema hchildObject hincludes⟩
+              · exact Or.inr
+                  ⟨by
+                    cases hvalue : objectTypeNameBool schema typeName
+                    · rfl
+                    · exact False.elim (hchildObject hvalue),
+                    rfl⟩
             have hchildEquivalent :=
-              hselection schema resolvers variableValues normalChildParentType
-                runtimeType runtimeType ref leftChild rightChild hleftFree
+              hselection schema resolvers variableValues typeName
+                runtimeType runtimeType ref leftChild rightChild
+                hleftChildrenNodup hrightChildrenNodup hleftFree
                 hrightFree hleftNormal hrightNormal hequal hscope
             simp only [completeValue, hincludes, if_true]
             apply selectionSetResultEquivalent_catchBubbleAsNull
@@ -1428,8 +1507,10 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
                 apply listResponseValueResultEquivalent_combine_cons
                 · exact hcomplete schema resolvers variableValues
                     executionParentType responseName fieldName leftArguments
-                    rightArguments leftChild rightChild normalChildParentType
-                    inner value harguments hleftFree hrightFree hleftNormal
+                    rightArguments leftChild rightChild inner value
+                    hleftArgumentsNodup hrightArgumentsNodup
+                    hleftChildrenNodup hrightChildrenNodup
+                    hleftFree hrightFree hleftNormal
                     hrightNormal hequal
                 · exact ih
           simp only [completeValue]
@@ -1464,45 +1545,75 @@ theorem responseEquivalent_of_selectionSetResultEquivalent
   all_goals exact hequivalent
 
 theorem normal_selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-    {schema : Schema} {parentType : Name} {left right : List Selection}
-    : selectionSetDirectiveFree left
+    {schema : Schema} {variableValues : VariableValues}
+    {parentType : Name} {left right : List Selection}
+    : Execution.selectionSetArgumentsNodup left
+      -> Execution.selectionSetArgumentsNodup right
+      -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
       -> selectionSetNormal schema parentType right
-      -> SelectionSetEqualUpToReordering left right
-      -> selectionSetsSemanticallyEquivalent schema parentType left right := by
-  intro hleftFree hrightFree hleftNormal hrightNormal hequal ObjectRef
-    resolvers variableValues fuel source hsource
+      -> objectTypeNameBool schema parentType = true
+      -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
+          parentType left right
+      -> selectionSetsSemanticallyEquivalentAtVariableValues schema
+          variableValues variableValues parentType left right := by
+  intro hleftArgumentsNodup hrightArgumentsNodup hleftFree hrightFree hleftNormal
+    hrightNormal hobject hequal ObjectRef resolvers fuel source hsource
   rcases hsource with ⟨runtimeType, ref, hsource, _hincludes⟩
   subst source
   have hresultEquivalent :=
     (selectionSetSound_completeValueSound_atFuel fuel).1 schema resolvers
       variableValues parentType parentType runtimeType ref left right
-      hleftFree hrightFree hleftNormal hrightNormal hequal
-      (Or.inr (Or.inl rfl))
+      hleftArgumentsNodup hrightArgumentsNodup hleftFree hrightFree
+      hleftNormal hrightNormal hequal
+      (Or.inl ⟨hobject, rfl⟩)
   exact responseEquivalent_of_selectionSetResultEquivalent
     hresultEquivalent
 
 end ReorderingSoundness
 
-theorem selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-    {schema : Schema} {parentType : Name} {left right : List Selection}
-    : normalSelectionSetsEqualUpToReorderingSemanticallyEquivalent
-        schema parentType left right :=
-  ReorderingSoundness.normal_selectionSetsSemanticallyEquivalent_of_equalUpToReordering
+theorem selectionSetEqualUpToReorderingWithCoercion_right_to_left
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
+    (hvalues : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    {parentType : Name} {left right : List Selection}
+    (hequal
+      : SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+          parentType left right)
+    : SelectionSetEqualUpToReorderingWithCoercion schema leftValues leftValues
+        parentType left right := by
+  refine SelectionSetEqualUpToReorderingWithCoercion.rec
+    (motive_1 := fun parentType left right _hequal =>
+      SelectionEqualUpToReorderingWithCoercion schema leftValues leftValues
+        parentType left right)
+    (motive_2 := fun parentType left right _hequal =>
+      SelectionSetEqualUpToReorderingWithCoercion schema leftValues leftValues
+        parentType left right)
+    ?_ ?_ ?_ hequal
+  · intro fieldParentType responseName fieldName leftArguments rightArguments
+      directives leftSelectionSet rightSelectionSet fieldDefinition hlookup
+      harguments _hchildren hchildren
+    apply SelectionEqualUpToReorderingWithCoercion.field fieldParentType
+      responseName fieldName directives fieldDefinition hlookup
+    · have hcoerced :=
+        Execution.coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
+          schema (Execution.variableValuesCoercionEquivalent_symm hvalues)
+          fieldDefinition.arguments rightArguments
+      exact Execution.argumentsEquivalent_trans_forCoercion harguments hcoerced
+    · exact hchildren
+  · intro fragmentParentType typeCondition directives leftSelectionSet
+      rightSelectionSet _hchildren hchildren
+    exact SelectionEqualUpToReorderingWithCoercion.inlineFragment
+      fragmentParentType typeCondition directives hchildren
+  · intro pairParentType pairLeft pairRight pairs hleft hright _hpairs hpairs
+    exact SelectionSetEqualUpToReorderingWithCoercion.paired pairs hleft hright hpairs
 
-theorem selectionSetsDataEquivalent_of_equalUpToReordering
-    {schema : Schema} {parentType : Name} {left right : List Selection}
-    : selectionSetDirectiveFree left
-      -> selectionSetDirectiveFree right
-      -> selectionSetNormal schema parentType left
-      -> selectionSetNormal schema parentType right
-      -> SelectionSetEqualUpToReordering left right
-      -> selectionSetsDataEquivalent schema parentType left right := by
-  intro hleftFree hrightFree hleftNormal hrightNormal hequal
-  exact selectionSetsDataEquivalent_of_selectionSetsSemanticallyEquivalent
-    (selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-      hleftFree hrightFree hleftNormal hrightNormal hequal)
+theorem selectionSetsSemanticallyEquivalent_of_equalUpToReordering
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {left right : List Selection}
+    : normalSelectionSetsEqualUpToReorderingSemanticallyEquivalent
+        schema variableValues parentType left right :=
+  ReorderingSoundness.normal_selectionSetsSemanticallyEquivalent_of_equalUpToReordering
 
 end GroundTypeNormalization
 

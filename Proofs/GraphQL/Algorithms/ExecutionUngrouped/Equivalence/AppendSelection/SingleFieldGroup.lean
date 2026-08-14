@@ -1371,7 +1371,10 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
     (directives : List DirectiveApplication) (selectionSet : List Selection)
     (resolved : Option (ResolverValue ObjectIdentity))
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -1403,10 +1406,14 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
       simp [executeField, GraphQL.Execution.executeField, executableField,
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              parentType fieldName arguments source = resolved := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
           simp [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
           have hcomplete :
@@ -1427,7 +1434,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
                 intro childDepth runtimeType identity hlt _hincludes
                 exact hchildren childDepth runtimeType identity hlt)
           simpa [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult] using
             congrArg (GraphQL.Execution.singleFieldResult responseName)
               hcomplete
@@ -1441,7 +1448,10 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
     (directives : List DirectiveApplication) (selectionSet : List Selection)
     (resolved : Option (ResolverValue ObjectIdentity))
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -1477,10 +1487,14 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
       simp [executeField, GraphQL.Execution.executeField, executableField,
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              parentType fieldName arguments source = resolved := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
           simp [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
           have hcomplete :
@@ -1502,7 +1516,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
                 exact hchildren childDepth runtimeType identity hlt
                   (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
           simpa [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult] using
             congrArg (GraphQL.Execution.singleFieldResult responseName)
               hcomplete
@@ -1516,7 +1530,10 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
     (directives : List DirectiveApplication) (selectionSet : List Selection)
     (resolved : Option (ResolverValue ObjectIdentity))
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -1553,10 +1570,14 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
       simp [executeField, GraphQL.Execution.executeField, executableField,
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              parentType fieldName arguments source = resolved := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
           simp [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
           have hcomplete :
@@ -1578,7 +1599,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
                 exact hchildren childDepth runtimeType identity hlt hcontains
                   (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
           simpa [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult] using
             congrArg (GraphQL.Execution.singleFieldResult responseName)
               hcomplete
@@ -1592,7 +1613,10 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
     (directives : List DirectiveApplication) (selectionSet : List Selection)
     (resolved : Option (ResolverValue ObjectIdentity))
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
-    (hresolve : resolvers.resolve parentType fieldName arguments source = resolved)
+    (hresolve
+      : resolveFieldValueByName schema resolvers variableValues
+          parentType fieldName arguments source
+        = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -1623,6 +1647,10 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
         hlookup, GraphQL.Execution.singleFieldResult,
         RootSelectionResultAlignedEquivalent, ErrorPresenceEquivalent]
   | some fieldDefinition =>
+      have hresolveRuntime :
+          resolveFieldValue schema resolvers variableValues fieldDefinition
+              parentType fieldName arguments source = resolved := by
+        simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
           cases fieldDefinition with
@@ -1630,7 +1658,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
               cases outputType <;>
                 simp [executeField, GraphQL.Execution.executeField,
                   executableField, reusablePreviousValue?_none, hlookup,
-                  hresolve, handleFieldError,
+                  hresolveRuntime, handleFieldError,
                   GraphQL.Execution.singleFieldResult,
                   RootSelectionResultAlignedEquivalent,
                   ErrorPresenceEquivalent]
@@ -1660,7 +1688,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
             simpa [GraphQL.Execution.mergedFieldSelectionSet, executableField]
               using hgroup
           simpa [executeField, GraphQL.Execution.executeField, executableField,
-            reusablePreviousValue?_none, hlookup, hresolve,
+            reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult] using
             ResponseValueResultAlignedEquivalent.singleFieldResult responseName
               hcomplete

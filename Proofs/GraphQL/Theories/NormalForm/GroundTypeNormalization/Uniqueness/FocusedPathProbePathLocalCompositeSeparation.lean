@@ -35,8 +35,8 @@ theorem
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType currentSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName parentType
+                  currentSelectionSet
                 = some runtimeType))
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
@@ -304,8 +304,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -315,8 +315,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -597,8 +597,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -608,8 +608,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -890,8 +890,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -901,8 +901,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -1126,8 +1126,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -1137,8 +1137,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -1372,8 +1372,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -1383,8 +1383,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -1588,8 +1588,8 @@ theorem
                   schema
                 = true
               ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                  leftFieldName leftArguments leftParentType
+              ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                  leftFieldName leftParentType
                   leftCurrentSelectionSet
                 = some leftChildRuntime))
       -> ((objectTypeNameBool schema rightFieldDefinition.outputType.namedType = true
@@ -1599,8 +1599,8 @@ theorem
                 = true
               ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                 = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                  rightFieldName rightArguments rightParentType
+              ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                  rightFieldName rightParentType
                   rightCurrentSelectionSet
                 = some rightChildRuntime))
       -> schema.typeIncludesObjectBool leftFieldDefinition.outputType.namedType
@@ -1804,8 +1804,8 @@ theorem
                     = true
                   ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType
                     = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                      leftFieldName leftArguments leftParentType
+                  ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                      leftFieldName leftParentType
                       leftCurrentSelectionSet
                     = some leftChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -1828,8 +1828,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                        rightFieldName rightArguments rightParentType
+                    ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                        rightFieldName rightParentType
                         rightCurrentSelectionSet
                       = some rightChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2007,7 +2007,9 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := leftArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues leftFieldDefinition.arguments leftArguments)
+            (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := left)
@@ -2017,7 +2019,9 @@ theorem
             hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
             hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff leftArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                leftFieldDefinition.arguments leftArguments)) with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2034,7 +2038,9 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := rightArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues rightFieldDefinition.arguments rightArguments)
+            (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := right)
@@ -2044,17 +2050,18 @@ theorem
             hschema hrightValid hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
             hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff rightArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                rightFieldDefinition.arguments rightArguments)) with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
             (Execution.ResponseValue.object leftChildFields)
             (Execution.ResponseValue.object rightChildFields) := by
         intro hchildSemantic
-        exact hchildNotData
-          (by
-            simpa [hleftChildResponse, hrightChildResponse] using
-              hchildSemantic)
+        apply hchildNotData
+        rw [hleftChildResponse, hrightChildResponse]
+        exact hchildSemantic
       exact
         responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge
           schema rootSelectionSet leftInitialSelectionSet
@@ -2129,8 +2136,8 @@ theorem
                     = true
                   ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType
                     = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                      leftFieldName leftArguments leftParentType
+                  ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                      leftFieldName leftParentType
                       leftCurrentSelectionSet
                     = some leftChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2153,8 +2160,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                        rightFieldName rightArguments rightParentType
+                    ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                        rightFieldName rightParentType
                         rightCurrentSelectionSet
                       = some rightChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2333,7 +2340,9 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := leftArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues leftFieldDefinition.arguments leftArguments)
+            (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := left)
@@ -2343,7 +2352,9 @@ theorem
             hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
             hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff leftArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                leftFieldDefinition.arguments leftArguments)) with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2360,7 +2371,9 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := rightArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues rightFieldDefinition.arguments rightArguments)
+            (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := right)
@@ -2370,17 +2383,18 @@ theorem
             hschema hrightValid hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
             hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff rightArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                rightFieldDefinition.arguments rightArguments)) with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
             (Execution.ResponseValue.object leftChildFields)
             (Execution.ResponseValue.object rightChildFields) := by
         intro hchildSemantic
-        exact hchildNotData
-          (by
-            simpa [hleftChildResponse, hrightChildResponse] using
-              hchildSemantic)
+        apply hchildNotData
+        rw [hleftChildResponse, hrightChildResponse]
+        exact hchildSemantic
       exact
         responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge_fuels
           schema rootSelectionSet leftInitialSelectionSet
@@ -2464,8 +2478,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                        leftFieldName leftArguments leftParentType
+                    ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                        leftFieldName leftParentType
                         leftCurrentSelectionSet
                       = some leftChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2480,8 +2494,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                        rightFieldName rightArguments rightParentType
+                    ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                        rightFieldName rightParentType
                         rightCurrentSelectionSet
                       = some rightChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2659,7 +2673,9 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := leftArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues leftFieldDefinition.arguments leftArguments)
+            (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := left)
@@ -2669,7 +2685,9 @@ theorem
             hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
             hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff leftArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                leftFieldDefinition.arguments leftArguments)) with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2686,7 +2704,9 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := rightArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues rightFieldDefinition.arguments rightArguments)
+            (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := right)
@@ -2696,17 +2716,18 @@ theorem
             hschema hrightValid hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
             hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff rightArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                rightFieldDefinition.arguments rightArguments)) with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
             (Execution.ResponseValue.object leftChildFields)
             (Execution.ResponseValue.object rightChildFields) := by
         intro hchildSemantic
-        exact hchildNotData
-          (by
-            simpa [hleftChildResponse, hrightChildResponse] using
-              hchildSemantic)
+        apply hchildNotData
+        rw [hleftChildResponse, hrightChildResponse]
+        exact hchildSemantic
       exact
         responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge
           schema rootSelectionSet leftInitialSelectionSet
@@ -2789,8 +2810,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema leftFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema leftParentType
-                        leftFieldName leftArguments leftParentType
+                    ∧ abstractRuntimeForFieldDeep? schema leftParentType
+                        leftFieldName leftParentType
                         leftCurrentSelectionSet
                       = some leftChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2805,8 +2826,8 @@ theorem
                       = true
                     ∧ objectTypeNameBool schema rightFieldDefinition.outputType.namedType
                       = false
-                    ∧ abstractRuntimeForFieldHeadDeep? schema rightParentType
-                        rightFieldName rightArguments rightParentType
+                    ∧ abstractRuntimeForFieldDeep? schema rightParentType
+                        rightFieldName rightParentType
                         rightCurrentSelectionSet
                       = some rightChildRuntime))
             -> schema.typeIncludesObjectBool
@@ -2985,7 +3006,9 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := leftArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues leftFieldDefinition.arguments leftArguments)
+            (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := left)
@@ -2995,7 +3018,9 @@ theorem
             hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
             hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff leftArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                leftFieldDefinition.arguments leftArguments)) with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -3012,7 +3037,9 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := rightArguments)
+            (targetArguments := Execution.coerceArgumentValues schema
+              variableValues rightFieldDefinition.arguments rightArguments)
+            (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
             (selectionSet := right)
@@ -3022,17 +3049,18 @@ theorem
             hschema hrightValid hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
             hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff rightArguments) with
+            (argumentsEquivalent_refl_forSyntaxDiff
+              (Execution.coerceArgumentValues schema variableValues
+                rightFieldDefinition.arguments rightArguments)) with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
             (Execution.ResponseValue.object leftChildFields)
             (Execution.ResponseValue.object rightChildFields) := by
         intro hchildSemantic
-        exact hchildNotData
-          (by
-            simpa [hleftChildResponse, hrightChildResponse] using
-              hchildSemantic)
+        apply hchildNotData
+        rw [hleftChildResponse, hrightChildResponse]
+        exact hchildSemantic
       exact
         responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge_fuels
           schema rootSelectionSet leftInitialSelectionSet
@@ -3166,8 +3194,8 @@ theorem
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType currentSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName parentType
+                  currentSelectionSet
                 = some runtimeType))
       -> PathLocalCurrentRuntimeSound schema (parentType, currentSelectionSet)
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel

@@ -109,6 +109,16 @@ theorem uncachedUngroupedCancelingEquivalenceStatementHasProofWitness
   GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
     interleavedDuplicateBeforeBubbleSchema interleavedDuplicateBeforeBubbleQuery
 
+theorem cancelingExecutorPassesCoercedArgumentsToGivenResolver
+    : responseEqBool
+        (GraphQL.Algorithms.ExecutionCancelingSiblings.executeQuery
+          coercedResolverSchema resolverArgumentPresenceResolvers []
+          omittedResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
+      = true := by
+  native_decide
+
 end ExecutionCancelingSiblings
 end Tests
 end GraphQL

@@ -59,19 +59,18 @@ def selectionSetDeepHeadPromotionPreservesRuntime
     (schema : Schema) (rootSelectionSet : List Selection)
     (parentType : Name) (selectionSet : List Selection)
     : Prop :=
-  ∀ abstractTargetParent abstractTargetField targetArguments
+  ∀ abstractTargetParent abstractTargetField (_targetArguments : List Argument)
     targetRuntimeType targetFieldDefinition,
     schema.lookupField abstractTargetParent abstractTargetField
       = some targetFieldDefinition
     -> (TypeRef.named targetFieldDefinition.outputType.namedType).isCompositeBool schema
         = true
     -> objectTypeNameBool schema targetFieldDefinition.outputType.namedType = false
-    -> abstractRuntimeForFieldHeadDeep? schema abstractTargetParent
-          abstractTargetField targetArguments parentType selectionSet
+    -> abstractRuntimeForFieldDeep? schema abstractTargetParent
+          abstractTargetField parentType selectionSet
         = some targetRuntimeType
-    -> abstractRuntimeForFieldHeadDeep? schema abstractTargetParent
-          abstractTargetField targetArguments abstractTargetParent
-          rootSelectionSet
+    -> abstractRuntimeForFieldDeep? schema abstractTargetParent
+          abstractTargetField abstractTargetParent rootSelectionSet
         = some targetRuntimeType
 
 theorem selectionSetDeepPromotionAvailable_of_preservesRuntime
@@ -117,7 +116,7 @@ theorem selectionSetDeepHeadPromotionAvailable_of_preservesRuntime
     hpreserve abstractTargetParent abstractTargetField targetArguments
       targetRuntimeType targetFieldDefinition htargetLookup
       htargetComposite htargetNonObject hlocalRuntime,
-    abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal hvalid
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid
       hfree hnormal htargetLookup htargetComposite htargetNonObject
       hlocalRuntime
   ⟩
@@ -207,7 +206,7 @@ theorem selectionSetDeepHeadPromotionPreservesRuntime_single_framed
   intro _abstractTargetParent _abstractTargetField _targetArguments
     _targetRuntimeType _targetFieldDefinition _htargetLookup
     _htargetComposite _htargetNonObject hlocalRuntime
-  exact abstractRuntimeForFieldHeadDeep?_framed_exact hlocalRuntime
+  exact abstractRuntimeForFieldDeep?_framed_exact hlocalRuntime
 
 theorem selectionSetDeepHeadPromotionAvailable_single_framed
     {schema : Schema}
@@ -306,9 +305,10 @@ theorem selectionSetDeepHeadPromotionAvailable_field_child_of_mem
     targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
     htargetNonObject hlocalRuntime
   rcases
-      abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem hlookup hlocalRuntime with
-    ⟨parentRuntimeType, hparentRuntime⟩
+      abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
+        hvalid hfree hnormal hmem hlookup htargetLookup htargetComposite
+        htargetNonObject hlocalRuntime with
+    ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
     hpromote abstractTargetParent abstractTargetField targetArguments
       parentRuntimeType targetFieldDefinition htargetLookup htargetComposite
@@ -334,9 +334,10 @@ theorem selectionSetDeepHeadPromotionAvailable_inlineFragment_child_of_mem
     targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
     htargetNonObject hlocalRuntime
   rcases
-      abstractRuntimeForFieldHeadDeep?_inlineFragment_child_promote_some_of_valid_normal
-        hvalid hfree hnormal hmem hlocalRuntime with
-    ⟨parentRuntimeType, hparentRuntime⟩
+      abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
+        hvalid hfree hnormal hmem htargetLookup htargetComposite
+        htargetNonObject hlocalRuntime with
+    ⟨parentRuntimeType, hparentRuntime, _hparentInclude⟩
   exact
     hpromote abstractTargetParent abstractTargetField targetArguments
       parentRuntimeType targetFieldDefinition htargetLookup htargetComposite

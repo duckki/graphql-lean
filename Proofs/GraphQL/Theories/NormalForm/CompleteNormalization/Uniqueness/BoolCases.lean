@@ -1,4 +1,6 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.OperationNormality
+import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.SyntaxDiff
 
 /-!
 Boolean-case assignments used to isolate complete-normal root branches.
@@ -9,10 +11,6 @@ namespace GraphQL
 namespace NormalForm
 
 namespace CompleteNormalization
-
-def boolCaseVariableValues (boolCase : BoolCase) (base : Execution.VariableValues := [])
-    : Execution.VariableValues :=
-  boolCase.map (fun entry => (entry.1, .boolean entry.2)) ++ base
 
 theorem BoolCase.lookup?_eq_of_pair_mem_nodup
     {boolCase : BoolCase} {varName : BoolVar} {value : Bool}
@@ -172,6 +170,108 @@ theorem boolCaseVariableValues_agree_of_equivalent
   intro varName value hmem
   exact boolCaseVariableValues_agree base hselected varName value
     ((hequivalent varName value).2 hmem)
+
+private theorem lookupVariableValue?_append_of_not_mem
+    {leading base : Execution.VariableValues} {name : Name}
+    (hnot : name ∉ leading.map Prod.fst)
+    : Execution.lookupVariableValue? (leading ++ base) name
+      = Execution.lookupVariableValue? base name := by
+  induction leading with
+  | nil => rfl
+  | cons head rest ih =>
+      rcases head with ⟨headName, headValue⟩
+      simp only [List.map_cons, List.mem_cons] at hnot
+      have hhead : headName ≠ name := by
+        intro heq
+        exact hnot (Or.inl heq.symm)
+      have hrest : name ∉ rest.map Prod.fst := by
+        intro hmem
+        exact hnot (Or.inr hmem)
+      simp [Execution.lookupVariableValue?, hhead, ih hrest]
+
+private theorem BoolCase.nodup_of_names_nodup {boolCase : BoolCase}
+    (hnodup : (boolCase.map Prod.fst).Nodup)
+    : boolCase.Nodup := by
+  induction boolCase with
+  | nil => simp
+  | cons pair rest ih =>
+      simp only [List.map_cons, List.nodup_cons] at hnodup ⊢
+      constructor
+      · intro hpair
+        exact hnodup.1 (List.mem_map.mpr ⟨pair, hpair, rfl⟩)
+      · exact ih hnodup.2
+
+private theorem variableValuesCoercionFuel_eq_of_perm
+    {left right : Execution.VariableValues} (hperm : left.Perm right)
+    : Execution.variableValuesCoercionFuel left
+      = Execution.variableValuesCoercionFuel right := by
+  induction hperm with
+  | nil => rfl
+  | cons entry hperm ih =>
+      rcases entry with ⟨name, value⟩
+      simp [Execution.variableValuesCoercionFuel, ih]
+  | swap first second rest =>
+      rcases first with ⟨firstName, firstValue⟩
+      rcases second with ⟨secondName, secondValue⟩
+      simp [Execution.variableValuesCoercionFuel, Nat.add_left_comm]
+  | trans hleft hright ihLeft ihRight => exact ihLeft.trans ihRight
+
+theorem boolCaseVariableValues_coercionEquivalent_of_equivalent
+    {leftVariables rightVariables : List BoolVar}
+    {leftCase rightCase : BoolCase} (base : Execution.VariableValues)
+    (hleft : completeNormalBoolCase leftVariables leftCase)
+    (hright : completeNormalBoolCase rightVariables rightCase)
+    (hequivalent : completeNormalBoolCasesEquivalent leftCase rightCase)
+    : Execution.variableValuesCoercionEquivalent
+        (boolCaseVariableValues leftCase base)
+        (boolCaseVariableValues rightCase base) := by
+  have hleftNodup := BoolCase.nodup_of_names_nodup hleft.2.1
+  have hrightNodup := BoolCase.nodup_of_names_nodup hright.2.1
+  have hcasePerm : leftCase.Perm rightCase :=
+    GroundTypeNormalization.listPermOfNodupSubsetSubset
+      hleftNodup hrightNodup
+      (fun pair hmem => (hequivalent pair.1 pair.2).1 hmem)
+      (fun pair hmem => (hequivalent pair.1 pair.2).2 hmem)
+  constructor
+  · intro name
+    by_cases hleftName : name ∈ leftCase.map Prod.fst
+    · rcases List.mem_map.mp hleftName with
+        ⟨⟨candidate, value⟩, hleftPair, hcandidate⟩
+      change candidate = name at hcandidate
+      subst candidate
+      have hrightPair : (name, value) ∈ rightCase :=
+        (hequivalent name value).1 hleftPair
+      rw [lookupVariableValue?_boolCaseVariableValues_of_mem base
+        hleft.2.1 hleftPair]
+      rw [lookupVariableValue?_boolCaseVariableValues_of_mem base
+        hright.2.1 hrightPair]
+      simpa using
+        GroundTypeNormalization.inputValue_equivalent_refl_forSyntaxDiff
+          (.boolean value)
+    · have hrightName : name ∉ rightCase.map Prod.fst := by
+        intro hmem
+        rcases List.mem_map.mp hmem with
+          ⟨⟨candidate, value⟩, hrightPair, hcandidate⟩
+        change candidate = name at hcandidate
+        subst candidate
+        exact hleftName (List.mem_map.mpr
+          ⟨(name, value), (hequivalent name value).2 hrightPair, rfl⟩)
+      have hlookupLeft := lookupVariableValue?_append_of_not_mem
+        (leading := leftCase.map fun entry => (entry.1, .boolean entry.2))
+        (base := base) (name := name) (by simpa using hleftName)
+      have hlookupRight := lookupVariableValue?_append_of_not_mem
+        (leading := rightCase.map fun entry => (entry.1, .boolean entry.2))
+        (base := base) (name := name) (by simpa using hrightName)
+      simp only [boolCaseVariableValues]
+      rw [hlookupLeft, hlookupRight]
+      cases Execution.lookupVariableValue? base name <;> simp
+      exact
+        GroundTypeNormalization.inputValue_equivalent_refl_forSyntaxDiff _
+  · apply variableValuesCoercionFuel_eq_of_perm
+    simp only [boolCaseVariableValues]
+    exact List.Perm.append_right base
+      (List.Perm.map
+        (fun entry => (entry.1, InputValue.boolean entry.2)) hcasePerm)
 
 private theorem completeNormalBoolCasesEquivalent_of_candidate_pairs
     {variables : List BoolVar} {selected candidate : BoolCase}

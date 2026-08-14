@@ -53,8 +53,9 @@ definition surfaces below.
   predicates, including field validity, argument validity, variable-use checks,
   selection-shape checks, fragment applicability, and merge compatibility.
 - [GraphQL/Execution.lean](GraphQL/Execution.lean): resolver-parametric
-  spec-facing execution with field collection, completion, null bubbling, and
-  response envelopes containing data plus execution-error counts.
+  spec-compliant execution with operation-variable defaults, schema-derived resolver
+  argument maps, field collection, completion, null bubbling, and response envelopes
+  containing data plus execution-error counts.
 - [GraphQL/NamedFragment/](GraphQL/NamedFragment/): fragment-aware operation
   syntax, validation, execution, translation, and inlining support.
 - [GraphQL/Algorithms/](GraphQL/Algorithms/): non-spec execution algorithms,

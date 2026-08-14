@@ -22,30 +22,35 @@ private theorem mem_selectionSetBooleanVariables_iff
       simp [selectionSetBooleanVariables, ih]
 
 private theorem selectionBooleanVariables_mem_iff_of_equalUpToReordering
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
+    {parentType : Name}
     {left right : Selection}
-    (hequal : SelectionEqualUpToReordering left right)
+    (hequal
+      : SelectionEqualUpToReorderingWithCoercion schema leftValues rightValues
+          parentType left right)
     (varName : BoolVar)
     : varName ∈ selectionBooleanVariables left
       ↔ varName ∈ selectionBooleanVariables right := by
-  refine SelectionEqualUpToReordering.rec
-    (motive_1 := fun left right _hequal =>
+  refine SelectionEqualUpToReorderingWithCoercion.rec
+    (motive_1 := fun _parentType left right _hequal =>
       ∀ varName,
         varName ∈ selectionBooleanVariables left
           ↔ varName ∈ selectionBooleanVariables right)
-    (motive_2 := fun left right _hequal =>
+    (motive_2 := fun _parentType left right _hequal =>
       ∀ varName,
         varName ∈ selectionSetBooleanVariables left
           ↔ varName ∈ selectionSetBooleanVariables right)
     ?_ ?_ ?_ hequal varName
-  · intro responseName fieldName leftArguments rightArguments directives
-      leftSelectionSet rightSelectionSet _harguments _hselectionSet ih varName
-    simp only [selectionBooleanVariables, List.mem_append]
-    exact or_congr Iff.rfl (ih varName)
-  · intro typeCondition directives leftSelectionSet rightSelectionSet
+  · intro _parentType responseName fieldName leftArguments rightArguments directives
+      leftSelectionSet rightSelectionSet _fieldDefinition _hlookup _harguments
       _hselectionSet ih varName
     simp only [selectionBooleanVariables, List.mem_append]
     exact or_congr Iff.rfl (ih varName)
-  · intro left right pairs hleft hright _hpairs ih varName
+  · intro _parentType typeCondition directives leftSelectionSet rightSelectionSet
+      _hselectionSet ih varName
+    simp only [selectionBooleanVariables, List.mem_append]
+    exact or_congr Iff.rfl (ih varName)
+  · intro _parentType left right pairs hleft hright _hpairs ih varName
     rw [mem_selectionSetBooleanVariables_iff,
       mem_selectionSetBooleanVariables_iff]
     constructor
@@ -71,30 +76,35 @@ private theorem selectionBooleanVariables_mem_iff_of_equalUpToReordering
           (by simpa [hpairRight] using hvarMem)
 
 private theorem selectionSetBooleanVariables_mem_iff_of_equalUpToReordering
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
+    {parentType : Name}
     {left right : List Selection}
-    (hequal : SelectionSetEqualUpToReordering left right)
+    (hequal
+      : SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+          parentType left right)
     (varName : BoolVar)
     : varName ∈ selectionSetBooleanVariables left
       ↔ varName ∈ selectionSetBooleanVariables right := by
-  refine SelectionSetEqualUpToReordering.rec
-    (motive_1 := fun left right _hequal =>
+  refine SelectionSetEqualUpToReorderingWithCoercion.rec
+    (motive_1 := fun _parentType left right _hequal =>
       ∀ varName,
         varName ∈ selectionBooleanVariables left
           ↔ varName ∈ selectionBooleanVariables right)
-    (motive_2 := fun left right _hequal =>
+    (motive_2 := fun _parentType left right _hequal =>
       ∀ varName,
         varName ∈ selectionSetBooleanVariables left
           ↔ varName ∈ selectionSetBooleanVariables right)
     ?_ ?_ ?_ hequal varName
-  · intro responseName fieldName leftArguments rightArguments directives
-      leftSelectionSet rightSelectionSet _harguments _hselectionSet ih varName
-    simp only [selectionBooleanVariables, List.mem_append]
-    exact or_congr Iff.rfl (ih varName)
-  · intro typeCondition directives leftSelectionSet rightSelectionSet
+  · intro _parentType responseName fieldName leftArguments rightArguments directives
+      leftSelectionSet rightSelectionSet _fieldDefinition _hlookup _harguments
       _hselectionSet ih varName
     simp only [selectionBooleanVariables, List.mem_append]
     exact or_congr Iff.rfl (ih varName)
-  · intro left right pairs hleft hright _hpairs ih varName
+  · intro _parentType typeCondition directives leftSelectionSet rightSelectionSet
+      _hselectionSet ih varName
+    simp only [selectionBooleanVariables, List.mem_append]
+    exact or_congr Iff.rfl (ih varName)
+  · intro _parentType left right pairs hleft hright _hpairs ih varName
     rw [mem_selectionSetBooleanVariables_iff,
       mem_selectionSetBooleanVariables_iff]
     constructor
@@ -120,8 +130,11 @@ private theorem selectionSetBooleanVariables_mem_iff_of_equalUpToReordering
           (by simpa [hpairRight] using hvarMem)
 
 private theorem operationBoolVarsEquivalent_of_selectionSetEqualUpToReordering
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
     {left right : Operation}
-    (hequal : SelectionSetEqualUpToReordering left.selectionSet right.selectionSet)
+    (hequal
+      : SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+          (left.rootType schema) left.selectionSet right.selectionSet)
     : operationBoolVarsEquivalent left right := by
   intro varName
   simp only [operationBoolVars, mem_dedupBoolVars_iff]
@@ -160,15 +173,17 @@ private theorem completeNormalBoolCasesEquivalent_variables
     exact (hleft.2.2 varName).1
       (List.mem_map.mpr ⟨(varName, value), hleftPair, rfl⟩)
 
-theorem operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering
-    {left right : Operation}
-    (hequal : completeNormalOperationsEqualUpToReordering left right)
+theorem
+    operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReorderingWithCoercion
+    {schema : Schema} {left right : Operation}
+    (hequal : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right)
     : operationBoolVarsEquivalent left right := by
   rcases hequal with ⟨_hroot, hselectionEqual⟩
   cases hleftVars : operationBoolVars left with
   | nil =>
+      rw [hleftVars] at hselectionEqual
       exact operationBoolVarsEquivalent_of_selectionSetEqualUpToReordering
-        (by simpa [hleftVars] using hselectionEqual)
+        (hselectionEqual [])
   | cons leftVar leftVariables =>
       have hleftSelectionSetNonempty : left.selectionSet ≠ [] := by
         intro hnil

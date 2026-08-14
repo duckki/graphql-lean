@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseBodies
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.SemanticVariables
@@ -16,19 +17,24 @@ namespace CompleteNormalization
 private theorem selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operations
     {schema : Schema} {variables : List BoolVar} {left right : Operation}
     : (left.rootType schema) = (right.rootType schema)
+      -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
       -> operationsSemanticallyEquivalentForCompleteBoolVars schema variables left right
       -> selectionSetsSemanticallyEquivalentForCompleteBoolVars schema variables
           (Execution.coerceVariableValues left)
           (Execution.coerceVariableValues right)
           (left.rootType schema) left.selectionSet right.selectionSet := by
-  intro hroot hsem
-  refine ⟨?_, ?_, ?_⟩
+  intro hroot hdefinitions hsem
+  refine ⟨?_, ?_, ?_, ?_⟩
   · intro variableValues name value hvalue
     exact inputValueBoolean?_coerceVariableValues_eq_some
       left variableValues hvalue
   · intro variableValues name value hvalue
     exact inputValueBoolean?_coerceVariableValues_eq_some
       right variableValues hvalue
+  · intro leftValues rightValues hvalues
+    exact
+      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+        hvalues hdefinitions
   · intro ObjectRef resolvers variableValues fuel source hcomplete hsource
     rcases hsource with ⟨runtimeType, _ref, hsourceEq, hinclude⟩
     have hleftRoot :
@@ -96,10 +102,12 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
     (hleftNormal : completeNormalOperation schema left)
     (hrightNormal : completeNormalOperation schema right)
     (hvariables : operationBoolVarsEquivalent left right)
+    (hdefinitions
+      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
     (hsem
       : operationsSemanticallyEquivalentForCompleteBoolVars schema
           (operationBoolVars left) left right)
-    : completeNormalOperationsEqualUpToReordering left right := by
+    : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right := by
   classical
   have hroot : (left.rootType schema) = (right.rootType schema) :=
     GroundTypeNormalization.operation_rootType_eq_of_operationDefinitionValid
@@ -126,7 +134,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
         GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering
           (schema := schema) (left := left) (right := right) hschema
           hleftValid hrightValid hleftShape.2 hrightShape.2
-          hleftShape.1 hrightShape.1 hsemAll
+          hleftShape.1 hrightShape.1 hdefinitions hsemAll
       simpa [hleftVars] using hground.2
   | cons leftVar leftVariables =>
       cases hrightVars : operationBoolVars right with
@@ -164,7 +172,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                 (left.rootType schema) left.selectionSet right.selectionSet := by
             simpa only [hleftVars] using
               selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operations
-                hroot hsem
+                hroot hdefinitions hsem
           have hcaseLeftToRight : ∀ boolCase,
               completeNormalBoolCase (leftVar :: leftVariables) boolCase ->
                 completeNormalBoolCase (rightVar :: rightVariables)
@@ -195,7 +203,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
               leftSelection ∈ left.selectionSet ->
                 ∃ rightSelection,
                   rightSelection ∈ right.selectionSet
-                    ∧ CompleteNormalSelectionMatch schema
+                    ∧ CompleteNormalSelectionMatch schema left right
                       (leftVar :: leftVariables)
                       (rightVar :: rightVariables) (left.rootType schema)
                       leftSelection rightSelection := by
@@ -207,7 +215,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
               rightSelection ∈ right.selectionSet ->
                 ∃ leftSelection,
                   leftSelection ∈ left.selectionSet
-                    ∧ CompleteNormalSelectionMatch schema
+                    ∧ CompleteNormalSelectionMatch schema right left
                       (rightVar :: rightVariables)
                       (leftVar :: leftVariables) (left.rootType schema)
                       rightSelection leftSelection := by
@@ -217,7 +225,11 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                   (Execution.coerceVariableValues right)
                   (Execution.coerceVariableValues left)
                   (left.rootType schema) right.selectionSet left.selectionSet := by
-              refine ⟨hselectionSem.2.1, hselectionSem.1, ?_⟩
+              refine ⟨hselectionSem.2.1, hselectionSem.1, ?_, ?_⟩
+              · intro rightValues leftValues hvalues
+                exact Execution.variableValuesCoercionEquivalent_symm
+                  (hselectionSem.2.2.1 leftValues rightValues
+                    (Execution.variableValuesCoercionEquivalent_symm hvalues))
               intro ObjectRef resolvers variableValues fuel source
                 hrightCompleteValues hsource
               have hleftCompleteValues :
@@ -233,7 +245,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                     (hvariables varName).1 hleftOperationMem
                   simpa [hrightVars] using hrightOperationMem
                 exact hrightCompleteValues varName hrightMem
-              have hresponse := hselectionSem.2.2 resolvers variableValues fuel
+              have hresponse := hselectionSem.2.2.2 resolvers variableValues fuel
                 source hleftCompleteValues hsource
               exact ⟨hresponse.1.symm, hresponse.2.symm⟩
             intro rightSelection hrightMem
@@ -249,7 +261,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
           have matchingRight_spec (leftSelection : Selection)
               (hleftMem : leftSelection ∈ left.selectionSet) :
               matchingRight leftSelection ∈ right.selectionSet
-                ∧ CompleteNormalSelectionMatch schema
+                ∧ CompleteNormalSelectionMatch schema left right
                   (leftVar :: leftVariables)
                   (rightVar :: rightVariables) (left.rootType schema) leftSelection
                   (matchingRight leftSelection) := by
@@ -304,17 +316,18 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
           have hpairsRight : (pairs.map Prod.snd).Perm right.selectionSet := by
             simpa [pairs, Function.comp_def] using hmatchingPerm
           have hpairsEqual : ∀ pair, pair ∈ pairs ->
-              CompleteNormalSelectionEqualUpToReordering
-                (leftVar :: leftVariables) (rightVar :: rightVariables)
-                pair.1 pair.2 := by
+              CompleteNormalSelectionEqualUpToReorderingWithCoercion schema
+                left right (left.rootType schema) (leftVar :: leftVariables)
+                (rightVar :: rightVariables) pair.1 pair.2 := by
             intro pair hpair
             rcases List.mem_map.mp hpair with
               ⟨leftSelection, hleftMem, rfl⟩
             exact completeNormalSelectionEqualUpToReordering_of_match
               (matchingRight_spec leftSelection hleftMem).2
           simpa [hleftVars] using
-            (show CompleteNormalSelectionSetEqualUpToReordering
-                (leftVar :: leftVariables) (rightVar :: rightVariables)
+            (show CompleteNormalSelectionSetEqualUpToReorderingWithCoercion schema
+                left right (left.rootType schema) (leftVar :: leftVariables)
+                (rightVar :: rightVariables)
                 left.selectionSet right.selectionSet from
               ⟨pairs, hpairsLeft, hpairsRight, hpairsEqual⟩)
 
@@ -322,13 +335,14 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
-  intro hschema hleftValid hrightValid hleftNormal hrightNormal hsem
+  intro hschema hleftValid hrightValid hleftNormal hrightNormal hdefinitions hsem
   have hvariables :=
     operationBoolVarsEquivalent_of_completeNormal_semantics hschema
       hleftValid hrightValid hleftNormal hrightNormal hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
+      hdefinitions
       (fun resolvers variableValues fuel source _hcomplete =>
         hsem resolvers variableValues fuel source)
 

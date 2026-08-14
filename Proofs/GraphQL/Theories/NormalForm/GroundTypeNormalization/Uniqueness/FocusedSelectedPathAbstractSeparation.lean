@@ -1881,7 +1881,7 @@ theorem
       -> selectionSetDirectiveFree childSelectionSet
       -> selectionSetNormal schema fieldDefinition.outputType.namedType childSelectionSet
       -> selectedObservableFieldSpineNext? fieldName arguments spine = none
-      -> abstractRuntimeForFieldHeadDeep? schema parentType fieldName arguments
+      -> abstractRuntimeForFieldDeep? schema parentType fieldName
             parentType currentSelectionSet
           = some runtimeType
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType

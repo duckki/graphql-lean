@@ -61,6 +61,10 @@ It identifies one resolver-compatible field batch. The child selection set is
 not part of the key. That is deliberate: two cousin fields with the same
 resolver call can share a batch even when their child continuations differ.
 
+The key retains executable argument syntax for collection and scheduling. It is
+not the resolver argument value: `executeScheduleItem` coerces it against the
+looked-up field definition immediately before invoking the batch resolver.
+
 In an implementation language like Rust, this is the natural hash or equality
 key for queue coalescing.
 
@@ -218,7 +222,14 @@ executeScheduleItem(item):
     frame = TraceFrame.field(item.key, Named(""), item.segmentLengths, slots)
     return ([], [frame])
 
-  resolved = resolver.resolve(item.key, sources)
+  arguments = coerceArgumentValues(schema,
+                                   variableValues,
+                                   fieldDefinition.arguments,
+                                   item.key.arguments)
+  resolved = resolver.resolve(item.key.parentType,
+                              item.key.fieldName,
+                              arguments,
+                              sources)
 
   if resolved.length != sources.length:
     slots = one field-error slot per source

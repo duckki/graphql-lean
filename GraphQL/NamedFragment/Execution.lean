@@ -222,8 +222,9 @@ mutual
             match schema.lookupField field.parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
-                match resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
+                match GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                        fieldDefinition
+                        field.parentType field.fieldName field.arguments source with
                 | none =>
                     GraphQL.Execution.singleFieldResult responseName
                       (GraphQL.Execution.handleFieldError fieldDefinition.outputType)

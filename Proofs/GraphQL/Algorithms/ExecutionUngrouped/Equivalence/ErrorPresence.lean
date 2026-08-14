@@ -174,8 +174,13 @@ mutual
             simp [executeField, hlookup, hprevious] at h
         | none =>
             cases hresolve
-                  : resolvers.resolve field.parentType field.fieldName
-                      field.arguments source with
+                  : resolveFieldValue schema resolvers variableValues
+                      {
+                        name := fieldDefinitionName,
+                        outputType := outputType,
+                        arguments := fieldArguments
+                      }
+                      field.parentType field.fieldName field.arguments source with
             | none =>
                 cases outputType with
                 | named typeName =>

@@ -67,13 +67,16 @@ mutual
         | some fieldDefinition =>
             cases hresolved :
                 resolvers.resolve field.parentType field.fieldName
-                  field.arguments source with
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments) source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  executableFieldToSpec, hfield, hresolved]
+                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  hfield, hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  executableFieldToSpec, hfield, hresolved,
+                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  hfield, hresolved,
                   completeValue_toSpec schema resolvers variableValues fuel
                     fieldDefinition.outputType (field :: fields) resolved hinlined]
   termination_by _schema _resolvers _variableValues fuel _source _responseName fields
@@ -263,13 +266,17 @@ mutual
               VisitedFragments.expandedExecutableFieldToSpec, hfield]
         | some fieldDefinition =>
             cases hresolved :
-                resolvers.resolve field.parentType field.fieldName field.arguments
+                resolvers.resolve field.parentType field.fieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments)
                   source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
+                  GraphQL.Execution.resolveFieldValue,
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
+                  GraphQL.Execution.resolveFieldValue,
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hresolved,
                   completeValue_toExpandedSpec schema resolvers variableValues
                     variableDefinitions original hunique hacyclic hall fuel

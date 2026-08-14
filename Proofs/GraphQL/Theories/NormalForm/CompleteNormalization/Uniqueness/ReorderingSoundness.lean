@@ -51,11 +51,267 @@ private theorem completeNormalSelection_body_normal_free
   cases heq.2
   exact ⟨hbodyNormal, hbodyFree⟩
 
+private theorem completeNormalBooleanStem_body_argumentsNodup
+    : ∀ {boolCase : BoolCase} {selection : Selection} {body : List Selection},
+        completeNormalBooleanStem boolCase selection body
+        -> Execution.selectionArgumentsNodup selection
+        -> Execution.selectionSetArgumentsNodup body
+  | [], _selection, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | [(varName, value)],
+      .inlineFragment none [directive] selectionSet, body, hstem, hnodup => by
+      rcases hstem with ⟨_hdirective, hbody⟩
+      subst selectionSet
+      exact hnodup
+  | (varName, value) :: (nextVar, nextValue) :: rest,
+      .inlineFragment none [directive] [child], body, hstem, hnodup => by
+      rcases hstem with ⟨_hdirective, hchildStem⟩
+      exact completeNormalBooleanStem_body_argumentsNodup hchildStem hnodup.1
+  | _ :: _ :: _, .field _ _ _ _ _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment none [] _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment none (_ :: _ :: _) _, _body, hstem,
+      _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment (some _) _ _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .field _ _ _ _ _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment none [] _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment none (_ :: _ :: _) _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment (some _) _ _, _body, hstem, _hnodup => by
+      simp [completeNormalBooleanStem] at hstem
+
+private theorem selection_size_pos_for_filter_nodup (selection : Selection)
+    : 0 < selection.size := by
+  cases selection <;> simp [Selection.size] <;> omega
+
+private theorem selectionSet_size_tail_lt_cons_for_filter_nodup
+    (selection : Selection) (rest : List Selection)
+    : SelectionSet.size rest < SelectionSet.size (selection :: rest) := by
+  simp [SelectionSet.size]
+  exact Nat.lt_add_of_pos_left (selection_size_pos_for_filter_nodup selection)
+
+private theorem selectionSet_size_child_lt_cons_field_for_filter_nodup
+    (responseName fieldName : Name) (arguments : List Argument)
+    (directives : List DirectiveApplication)
+    (selectionSet rest : List Selection)
+    : SelectionSet.size selectionSet
+      < SelectionSet.size
+          (Selection.field responseName fieldName arguments directives selectionSet
+            :: rest) := by
+  simp [SelectionSet.size, Selection.size]
+  omega
+
+private theorem selectionSet_size_child_lt_cons_inline_for_filter_nodup
+    (typeCondition : Option Name) (directives : List DirectiveApplication)
+    (selectionSet rest : List Selection)
+    : SelectionSet.size selectionSet
+      < SelectionSet.size
+          (Selection.inlineFragment typeCondition directives selectionSet :: rest) := by
+  simp [SelectionSet.size, Selection.size]
+  omega
+
+private theorem filterSelectionSetBoolCase_argumentsNodup (boolCase : BoolCase)
+    : ∀ selectionSet,
+        Execution.selectionSetArgumentsNodup selectionSet
+        -> Execution.selectionSetArgumentsNodup
+            (filterSelectionSetBoolCase boolCase selectionSet)
+  | [], _hnodup => by
+      simp [filterSelectionSetBoolCase, Execution.selectionSetArgumentsNodup]
+  | selection :: rest, hnodup => by
+      have hrest := filterSelectionSetBoolCase_argumentsNodup boolCase rest hnodup.2
+      cases selection with
+      | field responseName fieldName arguments directives selectionSet =>
+          by_cases hallow : directivesAllowIn boolCase directives = true
+          · have hchild := filterSelectionSetBoolCase_argumentsNodup boolCase
+              selectionSet hnodup.1.2
+            cases selectionSet with
+            | nil =>
+                simpa [filterSelectionSetBoolCase, hallow,
+                  Execution.selectionSetArgumentsNodup,
+                  Execution.selectionArgumentsNodup] using
+                  (show Execution.selectionSetArgumentsNodup
+                    (Selection.field responseName fieldName arguments [] [] ::
+                      filterSelectionSetBoolCase boolCase rest) from
+                    ⟨⟨hnodup.1.1, by simp [Execution.selectionSetArgumentsNodup]⟩,
+                      hrest⟩)
+            | cons child children =>
+                cases hfiltered : filterSelectionSetBoolCase boolCase
+                    (child :: children) with
+                | nil =>
+                    simpa [filterSelectionSetBoolCase, hallow, hfiltered,
+                      Execution.selectionSetArgumentsNodup,
+                      Execution.selectionArgumentsNodup] using
+                      (show Execution.selectionSetArgumentsNodup
+                        (Selection.field responseName fieldName arguments [] [] ::
+                          filterSelectionSetBoolCase boolCase rest) from
+                        ⟨⟨hnodup.1.1,
+                            by simp [Execution.selectionSetArgumentsNodup]⟩,
+                          hrest⟩)
+                | cons filteredChild filteredChildren =>
+                    have hfilteredNodup :
+                        Execution.selectionSetArgumentsNodup
+                          (filteredChild :: filteredChildren) := by
+                      simpa [hfiltered] using hchild
+                    simpa [filterSelectionSetBoolCase, hallow, hfiltered,
+                      Execution.selectionSetArgumentsNodup,
+                      Execution.selectionArgumentsNodup] using
+                      (show Execution.selectionSetArgumentsNodup
+                        (Selection.field responseName fieldName arguments []
+                          (filteredChild :: filteredChildren) ::
+                            filterSelectionSetBoolCase boolCase rest) from
+                        ⟨⟨hnodup.1.1, hfilteredNodup⟩, hrest⟩)
+          · have hfalse : directivesAllowIn boolCase directives = false := by
+              cases h : directivesAllowIn boolCase directives <;> simp_all
+            simpa [filterSelectionSetBoolCase, hfalse] using hrest
+      | inlineFragment typeCondition directives selectionSet =>
+          by_cases hallow : directivesAllowIn boolCase directives = true
+          · have hchild := filterSelectionSetBoolCase_argumentsNodup boolCase
+              selectionSet hnodup.1
+            cases hfiltered : filterSelectionSetBoolCase boolCase selectionSet with
+            | nil =>
+                simpa [filterSelectionSetBoolCase, hallow, hfiltered] using hrest
+            | cons filteredChild filteredChildren =>
+                have hfilteredNodup : Execution.selectionSetArgumentsNodup
+                    (filteredChild :: filteredChildren) := by
+                  simpa [hfiltered] using hchild
+                simpa [filterSelectionSetBoolCase, hallow, hfiltered,
+                  Execution.selectionSetArgumentsNodup,
+                  Execution.selectionArgumentsNodup] using
+                  (show Execution.selectionSetArgumentsNodup
+                    (Selection.inlineFragment typeCondition []
+                      (filteredChild :: filteredChildren) ::
+                        filterSelectionSetBoolCase boolCase rest) from
+                    ⟨hfilteredNodup, hrest⟩)
+          · have hfalse : directivesAllowIn boolCase directives = false := by
+              cases h : directivesAllowIn boolCase directives <;> simp_all
+            simpa [filterSelectionSetBoolCase, hfalse] using hrest
+termination_by selectionSet => SelectionSet.size selectionSet
+decreasing_by
+  all_goals
+    first
+    | exact selectionSet_size_tail_lt_cons_for_filter_nodup selection rest
+    | exact selectionSet_size_child_lt_cons_field_for_filter_nodup
+        responseName fieldName arguments directives selectionSet rest
+    | simp_all [SelectionSet.size, Selection.size]
+      omega
+
+private theorem wrapWithBoolCase_argumentsNodup
+    (boolCase : BoolCase) {selectionSet : List Selection}
+    (hnodup : Execution.selectionSetArgumentsNodup selectionSet)
+    : Execution.selectionSetArgumentsNodup (wrapWithBoolCase boolCase selectionSet) := by
+  induction boolCase with
+  | nil => exact hnodup
+  | cons entry rest ih =>
+      rcases entry with ⟨name, value⟩
+      simp [wrapWithBoolCase, Execution.selectionSetArgumentsNodup,
+        Execution.selectionArgumentsNodup, ih]
+
+private theorem selectionSetArgumentsNodup_flatten
+    : ∀ selectionSets : List (List Selection),
+        (∀ selectionSet,
+          selectionSet ∈ selectionSets
+          -> Execution.selectionSetArgumentsNodup selectionSet)
+        -> Execution.selectionSetArgumentsNodup selectionSets.flatten
+  | [], _hnodup => by simp [Execution.selectionSetArgumentsNodup]
+  | selectionSet :: rest, hnodup => by
+      rw [List.flatten_cons]
+      exact GroundTypeNormalization.selectionSetArgumentsNodup_append
+        (hnodup selectionSet (by simp))
+        (selectionSetArgumentsNodup_flatten rest fun candidate hmem =>
+          hnodup candidate (by simp [hmem]))
+
+private theorem completeNormalizeRootSelectionSet_argumentsNodup
+    (schema : Schema) (variables : List BoolVar) (parentType : Name)
+    {selectionSet : List Selection}
+    (hnodup : Execution.selectionSetArgumentsNodup selectionSet)
+    : Execution.selectionSetArgumentsNodup
+        (completeNormalizeRootSelectionSet schema variables parentType selectionSet) := by
+  unfold completeNormalizeRootSelectionSet
+  apply selectionSetArgumentsNodup_flatten
+  intro normalizedBranch hbranch
+  rcases List.mem_map.mp hbranch with ⟨boolCase, _hcase, rfl⟩
+  have hfiltered := filterSelectionSetBoolCase_argumentsNodup boolCase
+    selectionSet hnodup
+  have hnormalized :=
+    GroundTypeNormalization.normalizeSelectionSet_argumentsNodup schema
+      parentType (filterSelectionSetBoolCase boolCase selectionSet) hfiltered
+  cases hcaseNormalized
+        : normalizeSelectionSet schema
+            parentType (filterSelectionSetBoolCase boolCase selectionSet) with
+  | nil => simp [Execution.selectionSetArgumentsNodup]
+  | cons selection rest =>
+      apply wrapWithBoolCase_argumentsNodup
+      simpa [hcaseNormalized] using hnormalized
+
+private theorem completeNormalizeOperation_selectionSetArgumentsNodup
+    (schema : Schema) (operation : Operation)
+    (hnodup : Execution.selectionSetArgumentsNodup operation.selectionSet)
+    : Execution.selectionSetArgumentsNodup
+        (completeNormalizeOperation schema operation).selectionSet := by
+  rw [completeNormalizeOperation_selectionSet]
+  exact completeNormalizeRootSelectionSet_argumentsNodup schema
+    (operationBoolVars operation) (operation.rootType schema) hnodup
+
+private def CompleteNormalBodyEquality
+    (schema : Schema) (leftOperation rightOperation : Operation)
+    (parentType : Name) (leftVariables rightVariables : List BoolVar)
+    (leftCase rightCase : BoolCase) (leftBody rightBody : List Selection)
+    : Prop :=
+  ∀ variableValues,
+    boolVarsComplete leftVariables variableValues
+    -> variableValuesAgreeWithCase
+        (Execution.coerceVariableValues leftOperation variableValues)
+        leftCase leftVariables
+    -> variableValuesAgreeWithCase
+        (Execution.coerceVariableValues rightOperation variableValues)
+        rightCase rightVariables
+    -> SelectionSetEqualUpToReorderingWithCoercion schema
+        (Execution.coerceVariableValues leftOperation variableValues)
+        (Execution.coerceVariableValues rightOperation variableValues)
+        parentType leftBody rightBody
+
+private theorem variableValuesAgreeWithCase_of_equivalent
+    {leftValues rightValues : Execution.VariableValues}
+    (hvalues : Execution.variableValuesCoercionEquivalent leftValues rightValues)
+    {leftVariables rightVariables : List BoolVar}
+    (hvariables : ∀ name, name ∈ leftVariables ↔ name ∈ rightVariables)
+    {leftCase rightCase : BoolCase}
+    (hleftCase : completeNormalBoolCase leftVariables leftCase)
+    (hrightCase : completeNormalBoolCase rightVariables rightCase)
+    (hcases : completeNormalBoolCasesEquivalent leftCase rightCase)
+    (hagrees : variableValuesAgreeWithCase leftValues leftCase leftVariables)
+    : variableValuesAgreeWithCase rightValues rightCase rightVariables := by
+  intro name hrightMem
+  have hleftMem : name ∈ leftVariables := (hvariables name).2 hrightMem
+  have hleftPairMem : name ∈ leftCase.map Prod.fst :=
+    (hleftCase.2.2 name).2 hleftMem
+  rcases List.mem_map.mp hleftPairMem with
+    ⟨⟨candidate, value⟩, hleftPair, hcandidate⟩
+  change candidate = name at hcandidate
+  subst candidate
+  have hrightPair : (name, value) ∈ rightCase :=
+    (hcases name value).1 hleftPair
+  have hleftLookup : BoolCase.lookup? leftCase name = some value :=
+    BoolCase.lookup?_eq_of_pair_mem_nodup hleftCase.2.1 hleftPair
+  have hrightLookup : BoolCase.lookup? rightCase name = some value :=
+    BoolCase.lookup?_eq_of_pair_mem_nodup hrightCase.2.1 hrightPair
+  rw [hrightLookup, ← hleftLookup, ← hagrees name hleftMem]
+  exact (inputValueBoolean?_eq_of_variableValuesCoercionEquivalent hvalues
+          (.variable name)).symm
+
 private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
-    {schema : Schema} {parentType : Name}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {variableValues : Execution.VariableValues} {parentType : Name}
     {leftVar rightVar : BoolVar}
     {leftVariables rightVariables : List BoolVar}
     {left right : List Selection}
+    (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left)
+    (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right)
     (hleftNormal
       : completeNormalSelectionSet schema (leftVar :: leftVariables) parentType left)
     (hrightNormal
@@ -63,13 +319,30 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
     (hvariables
       : ∀ varName,
           varName ∈ leftVar :: leftVariables ↔ varName ∈ rightVar :: rightVariables)
+    (hdefinitions
+      : variableDefinitionsEquivalent
+          leftOperation.variableDefinitions rightOperation.variableDefinitions)
+    (hleftValues
+      : Execution.coerceVariableValues leftOperation variableValues = variableValues)
+    (hobject : objectTypeNameBool schema parentType = true)
     (hequal
-      : CompleteNormalSelectionSetEqualUpToReordering
+      : CompleteNormalSelectionSetEqualUpToReorderingWithCoercion schema
+          leftOperation rightOperation parentType
           (leftVar :: leftVariables) (rightVar :: rightVariables) left right)
-    : selectionSetsSemanticallyEquivalent schema parentType left right := by
+    : selectionSetsSemanticallyEquivalentAtVariableValues schema
+        variableValues variableValues parentType left right := by
   classical
   rcases hequal with ⟨pairs, hpairsLeft, hpairsRight, hpairsEqual⟩
-  intro ObjectRef resolvers variableValues fuel source hsource
+  have hpreparedValues :
+      Execution.variableValuesCoercionEquivalent variableValues
+        (Execution.coerceVariableValues rightOperation variableValues) := by
+    have hcoerced :=
+      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+        (left := leftOperation) (right := rightOperation)
+        (Execution.variableValuesCoercionEquivalent_refl variableValues)
+        hdefinitions
+    rwa [hleftValues] at hcoerced
+  intro ObjectRef resolvers fuel source hsource
   by_cases hcomplete : boolVarsComplete (leftVar :: leftVariables)
       variableValues
   · rcases allBoolCases_complete_for_variableValues variableValues
@@ -93,7 +366,9 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
           ∧ completeNormalBooleanStem leftCase pair.1 leftBody
           ∧ completeNormalBooleanStem rightCase pair.2 rightBody
           ∧ completeNormalBoolCasesEquivalent leftCase rightCase
-          ∧ SelectionSetEqualUpToReordering leftBody rightBody
+          ∧ CompleteNormalBodyEquality schema leftOperation rightOperation
+              parentType (leftVar :: leftVariables) (rightVar :: rightVariables)
+              leftCase rightCase leftBody rightBody
           ∧ completeNormalBoolCasesEquivalent runtimeCase leftCase
     · rcases hmatch with
         ⟨pair, leftCase, rightCase, leftBody, rightBody, hpair,
@@ -110,6 +385,12 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
         hleftMem hleftCase hleftStem
       have hrightBody := completeNormalSelection_body_normal_free hrightNormal
         hrightMem hrightCase hrightStem
+      have hleftBodyArgumentsNodup :=
+        completeNormalBooleanStem_body_argumentsNodup hleftStem
+          (Execution.selectionArgumentsNodup_of_mem hleftArgumentsNodup hleftMem)
+      have hrightBodyArgumentsNodup :=
+        completeNormalBooleanStem_body_argumentsNodup hrightStem
+          (Execution.selectionArgumentsNodup_of_mem hrightArgumentsNodup hrightMem)
       have hrightRuntimeEqual :
           completeNormalBoolCasesEquivalent runtimeCase rightCase :=
         completeNormalBoolCasesEquivalent_trans hruntimeEqual hcasesEqual
@@ -129,14 +410,34 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
       have hrightExecute := executeSelectionSet_eq_of_collectFields_eq schema
         resolvers variableValues fuel parentType source right rightBody
         hrightCollect
-      have hbodySem : selectionSetsSemanticallyEquivalent schema parentType
-          leftBody rightBody :=
+      have hagreesLeftCase :
+          variableValuesAgreeWithCase variableValues leftCase
+            (leftVar :: leftVariables) :=
+        variableValuesAgreeWithCase_of_equivalent
+          (Execution.variableValuesCoercionEquivalent_refl variableValues)
+          (fun name => Iff.rfl) hruntimeLeft hleftCase hruntimeEqual hagreesLeft
+      have hagreesRightCase :
+          variableValuesAgreeWithCase
+            (Execution.coerceVariableValues rightOperation variableValues)
+            rightCase (rightVar :: rightVariables) :=
+        variableValuesAgreeWithCase_of_equivalent hpreparedValues hvariables
+          hleftCase hrightCase hcasesEqual hagreesLeftCase
+      have hbodiesEqualCross := hbodiesEqual variableValues hcomplete
+        (by simpa [hleftValues] using hagreesLeftCase) hagreesRightCase
+      rw [hleftValues] at hbodiesEqualCross
+      have hbodiesEqualSame :=
+        GroundTypeNormalization.selectionSetEqualUpToReorderingWithCoercion_right_to_left
+          hpreparedValues hbodiesEqualCross
+      have hbodySem :
+          selectionSetsSemanticallyEquivalentAtVariableValues schema
+            variableValues variableValues parentType leftBody rightBody :=
         GroundTypeNormalization.selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-          hleftBody.2 hrightBody.2 hleftBody.1 hrightBody.1 hbodiesEqual
+          hleftBodyArgumentsNodup hrightBodyArgumentsNodup hleftBody.2
+          hrightBody.2 hleftBody.1 hrightBody.1 hobject hbodiesEqualSame
       unfold Execution.executeSelectionSetAsResponse
       rw [hleftExecute, hrightExecute]
       simpa [Execution.executeSelectionSetAsResponse] using
-        hbodySem resolvers variableValues fuel source hsource
+        hbodySem resolvers fuel source hsource
     · have hnoneLeft : ¬ ∃ selection candidate body,
           selection ∈ left
             ∧ completeNormalBoolCase (leftVar :: leftVariables) candidate
@@ -161,8 +462,11 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
             completeNormalBoolCasesEquivalent candidate rightCase := by
           simpa [hcaseBodyEq.1] using hcasesEqual
         have hcandidateBodiesEqual :
-            SelectionSetEqualUpToReordering body rightBody := by
-          simpa [hcaseBodyEq.2] using hbodiesEqual
+            CompleteNormalBodyEquality schema leftOperation rightOperation
+              parentType (leftVar :: leftVariables) (rightVar :: rightVariables)
+              candidate rightCase body rightBody := by
+          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2] using
+            hbodiesEqual
         exact hmatch ⟨pair, candidate, rightCase, body, rightBody,
           hpair, hcandidate, hrightCase, hcandidateStemAtPair, hrightStem,
           hcandidateCasesEqual, hcandidateBodiesEqual, hequivalent⟩
@@ -190,8 +494,11 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
             completeNormalBoolCasesEquivalent leftCase candidate := by
           simpa [hcaseBodyEq.1] using hcasesEqual
         have hleftCandidateBodiesEqual :
-            SelectionSetEqualUpToReordering leftBody body := by
-          simpa [hcaseBodyEq.2] using hbodiesEqual
+            CompleteNormalBodyEquality schema leftOperation rightOperation
+              parentType (leftVar :: leftVariables) (rightVar :: rightVariables)
+              leftCase candidate leftBody body := by
+          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2] using
+            hbodiesEqual
         have hruntimeLeftCase := completeNormalBoolCasesEquivalent_trans
           hequivalent
           (completeNormalBoolCasesEquivalent_symm hleftCandidateCasesEqual)
@@ -253,76 +560,34 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
     rw [hexecute]
     exact ⟨rfl, rfl⟩
 
-theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
+private theorem
+    complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
     {schema : Schema} {left right : Operation}
-    : completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
-        schema left right := by
-  intro hleftNormal hrightNormal hdefinitions hequal
+    (hrootObject : objectTypeNameBool schema (left.rootType schema) = true)
+    (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left.selectionSet)
+    (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right.selectionSet)
+    (hleftNormal : completeNormalOperation schema left)
+    (hrightNormal : completeNormalOperation schema right)
+    (hdefinitions
+      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+    (hequal : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right)
+    : operationsSemanticallyEquivalent schema left right := by
   have hvariables :=
-    operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReordering
+    operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReorderingWithCoercion
       hequal
   rcases hequal with ⟨_hroot, hselectionEqual⟩
   have hrootType : (left.rootType schema) = (right.rootType schema) := by
     cases left.operationType
     cases right.operationType
     rfl
-  have hselectionSem : selectionSetsSemanticallyEquivalent schema (left.rootType schema)
-      left.selectionSet right.selectionSet := by
-    cases hleftVars : operationBoolVars left with
-    | nil =>
-        have hrightVars : operationBoolVars right = [] :=
-          operationBoolVars_eq_nil_of_equivalent_left_nil hvariables hleftVars
-        have hleftShape := hleftNormal
-        have hrightShape := hrightNormal
-        simp [completeNormalOperation, completeNormalSelectionSet, hleftVars]
-          at hleftShape
-        simp [completeNormalOperation, completeNormalSelectionSet, hrightVars]
-          at hrightShape
-        have hrightSelectionNormal :
-            selectionSetNormal schema (left.rootType schema) right.selectionSet := by
-          simpa only [hrootType] using hrightShape.1
-        have hselectionEqualGround :
-            SelectionSetEqualUpToReordering left.selectionSet
-              right.selectionSet := by
-          simpa [hleftVars] using hselectionEqual
-        intro ObjectRef resolvers variableValues fuel source hsource
-        exact
-          GroundTypeNormalization.selectionSetsSemanticallyEquivalent_of_equalUpToReordering
-            hleftShape.2 hrightShape.2 hleftShape.1 hrightSelectionNormal
-            hselectionEqualGround resolvers variableValues fuel source hsource
-    | cons leftVar leftVariables =>
-        cases hrightVars : operationBoolVars right with
-        | nil =>
-            have hleftVarRight : leftVar ∈ operationBoolVars right :=
-              (hvariables leftVar).1 (by simp [hleftVars])
-            simp [hrightVars] at hleftVarRight
-        | cons rightVar rightVariables =>
-            have hleftComplete : completeNormalSelectionSet schema
-                (leftVar :: leftVariables) (left.rootType schema) left.selectionSet := by
-              simpa [completeNormalOperation, hleftVars] using hleftNormal
-            have hrightComplete : completeNormalSelectionSet schema
-                (rightVar :: rightVariables) (left.rootType schema) right.selectionSet := by
-              simpa [completeNormalOperation, hrightVars, hrootType] using
-                hrightNormal
-            have hselectionEqualComplete :
-                CompleteNormalSelectionSetEqualUpToReordering
-                  (leftVar :: leftVariables) (rightVar :: rightVariables)
-                  left.selectionSet right.selectionSet := by
-              simpa [hleftVars, hrightVars] using hselectionEqual
-            have hvariablesAtSupports : ∀ varName,
-                varName ∈ leftVar :: leftVariables ↔
-                  varName ∈ rightVar :: rightVariables := by
-              intro varName
-              simpa [hleftVars, hrightVars] using (hvariables varName)
-            intro ObjectRef resolvers variableValues fuel source hsource
-            exact completeNormalSelectionSets_semanticallyEquivalent_of_equal
-              hleftComplete hrightComplete hvariablesAtSupports
-              hselectionEqualComplete resolvers variableValues fuel source hsource
   intro ObjectRef resolvers variableValues fuel source
   have hcoercedValues :
-      Execution.coerceVariableValues right variableValues =
-        Execution.coerceVariableValues left variableValues := by
-    simp [Execution.coerceVariableValues, hdefinitions]
+      Execution.variableValuesCoercionEquivalent
+        (Execution.coerceVariableValues left variableValues)
+        (Execution.coerceVariableValues right variableValues) :=
+    Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+      (Execution.variableValuesCoercionEquivalent_refl variableValues)
+      hdefinitions
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
@@ -343,13 +608,114 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
       have hsource :=
         GroundTypeNormalization.rootSourceAppliesBool_true_object schema left
           source hleftRoot
+      have hselectionResponse :
+          Execution.Response.semanticEquivalent
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source left.selectionSet)
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source right.selectionSet) := by
+        cases hleftVars : operationBoolVars left with
+        | nil =>
+            have hrightVars : operationBoolVars right = [] :=
+              operationBoolVars_eq_nil_of_equivalent_left_nil hvariables hleftVars
+            have hleftShape := hleftNormal
+            have hrightShape := hrightNormal
+            simp [completeNormalOperation, completeNormalSelectionSet, hleftVars]
+              at hleftShape
+            simp [completeNormalOperation, completeNormalSelectionSet, hrightVars]
+              at hrightShape
+            have hrightSelectionNormal :
+                selectionSetNormal schema (left.rootType schema)
+                  right.selectionSet := by
+              simpa only [hrootType] using hrightShape.1
+            have hselectionEqualGround : ∀ suppliedValues,
+                SelectionSetEqualUpToReorderingWithCoercion schema
+                  (Execution.coerceVariableValues left suppliedValues)
+                  (Execution.coerceVariableValues right suppliedValues)
+                  (left.rootType schema) left.selectionSet right.selectionSet := by
+              simpa [hleftVars] using hselectionEqual
+            have hselectionEqualCross := hselectionEqualGround variableValues
+            have hselectionEqualSame :=
+              GroundTypeNormalization.selectionSetEqualUpToReorderingWithCoercion_right_to_left
+                hcoercedValues hselectionEqualCross
+            exact
+              GroundTypeNormalization.selectionSetsSemanticallyEquivalent_of_equalUpToReordering
+                hleftArgumentsNodup hrightArgumentsNodup hleftShape.2
+                hrightShape.2 hleftShape.1 hrightSelectionNormal hrootObject
+                hselectionEqualSame resolvers fuel source hsource
+        | cons leftVar leftVariables =>
+            cases hrightVars : operationBoolVars right with
+            | nil =>
+                have hleftVarRight : leftVar ∈ operationBoolVars right :=
+                  (hvariables leftVar).1 (by simp [hleftVars])
+                simp [hrightVars] at hleftVarRight
+            | cons rightVar rightVariables =>
+                have hleftComplete : completeNormalSelectionSet schema
+                    (leftVar :: leftVariables) (left.rootType schema)
+                    left.selectionSet := by
+                  simpa [completeNormalOperation, hleftVars] using hleftNormal
+                have hrightComplete : completeNormalSelectionSet schema
+                    (rightVar :: rightVariables) (left.rootType schema)
+                    right.selectionSet := by
+                  simpa [completeNormalOperation, hrightVars, hrootType] using
+                    hrightNormal
+                have hselectionEqualComplete :
+                    CompleteNormalSelectionSetEqualUpToReorderingWithCoercion
+                      schema left right (left.rootType schema)
+                      (leftVar :: leftVariables) (rightVar :: rightVariables)
+                      left.selectionSet right.selectionSet := by
+                  simpa [hleftVars, hrightVars] using hselectionEqual
+                have hvariablesAtSupports : ∀ varName,
+                    varName ∈ leftVar :: leftVariables ↔
+                      varName ∈ rightVar :: rightVariables := by
+                  intro varName
+                  simpa [hleftVars, hrightVars] using (hvariables varName)
+                exact completeNormalSelectionSets_semanticallyEquivalent_of_equal
+                  hleftArgumentsNodup hrightArgumentsNodup hleftComplete
+                  hrightComplete hvariablesAtSupports hdefinitions
+                  (coerceVariableValues_idempotent left variableValues)
+                  hrootObject hselectionEqualComplete resolvers fuel source hsource
+      have hrightExecution :
+          Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source right.selectionSet =
+            Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues right variableValues) fuel
+              (left.rootType schema) source right.selectionSet := by
+        unfold Execution.executeSelectionSetAsResponse
+        rw [executeSelectionSet_eq_of_variableValuesCoercionEquivalent schema
+          resolvers hcoercedValues fuel (left.rootType schema) source
+          right.selectionSet]
+      have hselectionResponse' :
+          Execution.Response.semanticEquivalent
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues left variableValues) fuel
+              (left.rootType schema) source left.selectionSet)
+            (Execution.executeSelectionSetAsResponse schema resolvers
+              (Execution.coerceVariableValues right variableValues) fuel
+              (left.rootType schema) source right.selectionSet) := by
+        rw [← hrightExecution]
+        exact hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
-        hcoercedValues,
-        Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hrootType] using
-          hselectionSem resolvers
-            (Execution.coerceVariableValues left variableValues)
-            fuel source hsource
+        Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
+        Execution.executeRootSelectionSet, hrootType] using hselectionResponse'
+
+theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
+    {schema : Schema} {left right : Operation}
+    : completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
+        schema left right := by
+  intro hschema hleftValid hrightValid hleftNormal hrightNormal hdefinitions hequal
+  exact
+    complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
+      (GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
+        hschema hleftValid)
+      (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+        (Validation.operationDefinitionValid_selectionSetValid hleftValid))
+      (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+        (Validation.operationDefinitionValid_selectionSetValid hrightValid))
+      hleftNormal hrightNormal hdefinitions hequal
 
 theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
@@ -363,13 +729,25 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
       (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_normal schema right hschema hrightValid
   have hnormalizedDefinitions :
-      (completeNormalizeOperation schema left).variableDefinitions =
+      variableDefinitionsEquivalent
+        (completeNormalizeOperation schema left).variableDefinitions
         (completeNormalizeOperation schema right).variableDefinitions := by
     simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
   have hnormalizedSemantics : operationsSemanticallyEquivalent schema
       (completeNormalizeOperation schema left)
       (completeNormalizeOperation schema right) :=
-    complete_normal_operations_equalUpToReordering_semanticallyEquivalent
+    complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
+      (by
+        simpa [completeNormalizeOperation, Operation.rootType,
+          OperationType.rootType] using
+          GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
+            hschema hleftValid)
+      (completeNormalizeOperation_selectionSetArgumentsNodup schema left
+        (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+          (Validation.operationDefinitionValid_selectionSetValid hleftValid)))
+      (completeNormalizeOperation_selectionSetArgumentsNodup schema right
+        (Execution.selectionSetArgumentsNodup_of_selectionSetValid
+          (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
       hleftNormal hrightNormal hnormalizedDefinitions hequal
   intro ObjectRef resolvers variableValues fuel source hleftComplete
   have hrightComplete : operationBoolVarsComplete right variableValues := by

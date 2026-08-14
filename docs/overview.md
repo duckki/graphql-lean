@@ -136,25 +136,14 @@ It should remain definition-only.
   feasible, and every admitted case retains a child in nonempty nested
   selection sets. This also lets the proof derive preservation of the
   all-variables-used validation rule.
-- `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization`: proof-facing
-  lemmas for the directive-free ground-type normalizer.
-- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`: proof-facing
-  lemmas for complete normalization, which lifts modeled `@skip`/`@include`
-  behavior into Boolean case branches and keeps bottom-branch fields
-  directive-free. Its proof
-  modules separate variable/directive facts, BoolCase wrappers, static
-  collection, normal-shape facts, operation variables/wrappers, field and
-  inline static-collection execution cases, BoolCase runtime selection,
-  child completion, scoped resolver bridges, validity preservation for
-  Boolean-filtered ground branches, final root semantics, and uniqueness up to
-  branch, stem, and sibling reordering.
 - `GraphQL.Execution`: fuel-bounded query execution over operation selections,
-  parameterized by abstract resolver functions. It
-  materializes missing operation variable defaults, collects executable fields
-  by response name, resolves each response name once, passes field arguments to
-  resolvers, applies `@skip` / `@include` filtering with the effective variable
-  map, completes values with list/object/non-null null bubbling, and returns a
-  response envelope with data plus a `Nat` execution-error count.
+  parameterized by abstract resolver functions. It materializes missing operation
+  variable defaults, collects executable fields by response name, looks up each field
+  definition once, materializes schema argument and nested input-object defaults, and
+  passes variable-free semantic argument maps to resolvers. It also applies `@skip` /
+  `@include` filtering with the effective variable map, completes values with
+  list/object/non-null null bubbling, and returns a response envelope with data plus a
+  `Nat` execution-error count.
   Runtime object values carry their GraphQL object type plus an optional
   resolver-owned opaque object reference; final responses do not carry object
   identity or detailed error metadata. Internal fuel exhaustion is represented
@@ -162,13 +151,8 @@ It should remain definition-only.
 - `GraphQL.NamedFragment/*`: fragment-aware operation syntax, validation,
   direct fragment-aware execution, inlining, and translation to the
   fragment-free operation syntax.
-- `Proofs.GraphQL.NamedFragment`: proof witnesses connecting fragment-aware
-  validity and execution with the inlined fragment-free representation.
 - `GraphQL.Algorithms.ExecutionCancelingSiblings`: collected-field execution
   that stops after a field result bubbles through its current selection set.
-- `Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings`: the unconditional
-  resolver-parametric proof that sibling cancellation preserves response data
-  and execution-error presence, though not exact error counts.
 - `GraphQL.Algorithms.ExecutionUngrouped`: public alternative execution
   algorithm that visits selections directly, caches field results by response
   position, retains resolver sources for composite values, and merges response
@@ -176,19 +160,13 @@ It should remain definition-only.
 - `GraphQL.Algorithms.ExecutionUngroupedUncached`: specialization that keeps
   completed response values but resolves composite fields again on later
   compatible visits instead of retaining resolver sources.
-- `Proofs.GraphQL.Algorithms.ExecutionUngrouped`: theorem modules for both the
-  source-caching algorithm and its uncached specialization. The checked public
-  witnesses preserve response data and error presence against
-  `GraphQL.Execution`, but not exact execution-error counts, and prove the same
-  equivalence against `GraphQL.Algorithms.ExecutionCancelingSiblings`. The
-  cached refinement tracks reusable composite sources recursively and proves
-  exact erasure to the uncached specialization for valid operations.
+  `GraphQL.Algorithms.ExecutionCancelingSiblings`. The cached refinement tracks
+  reusable composite sources recursively and proves exact erasure to the uncached
+  specialization for valid operations.
   Response-name grouping means the algorithms' exact error counts can differ.
 - `GraphQL.Algorithms.ExecutionBreadth`: public breadth-first execution model
   with vectorized resolver calls and explicit scheduling, trace, slot, and
   reverse-completion state.
-- `Proofs.GraphQL.Algorithms.ExecutionBreadth`: collection, resolver, slot,
-  scope, queue, and final semantic-preservation proofs for breadth execution.
 - `Tests.GraphQL`: ordinary test aggregator. Its modules live under
   `Tests/GraphQL/` and mirror the corresponding GraphQL or proof topic,
   including `Algorithms/ExecutionCancelingSiblings`,
@@ -211,22 +189,15 @@ The current flow is:
    completing values, and accumulating modeled execution-error counts.
 4. `GraphQL.Theories.NormalForm` provides project-specific normalization
    definitions and public resolver-parametric correctness predicates.
-5. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified
-   collected-field executor that cancels remaining sibling response positions
-   after a bubble.
+5. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
+   executor that cancels remaining sibling response positions after a bubble.
 6. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching
    alternative execution algorithm over the same operation syntax.
 7. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative
    with vectorized resolver calls.
 8. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
    validation, execution, inlining, and translation definitions.
-9. `Proofs.GraphQL.NamedFragment` provides equivalence and validity bridges through
-   inlining and translation to the fragment-free syntax, including duplicate-field
-   absorption for named fragments already visited during field collection.
-10. `Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization` provides
-   proof-facing ground-type lemmas.
-11. `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization` provides
-   proof-facing lemmas for directive-aware Boolean case branch normalization.
+
 
 Normal forms consume `GraphQL.Operation` directly. The directive-free
 `normalizeOperation` proof path assumes source operations have no modeled
@@ -241,9 +212,9 @@ Nested field child normalization receives that case as proof context and does
 not introduce another directive-only BoolCase DNF.
 
 Ungrouped execution is documented separately because it is an implementation
-strategy, not part of the spec-facing execution definition. Both the
-source-caching algorithm and its uncached specialization have checked theorem
-witnesses, summarized in `docs/algorithms.md`.
+strategy, not part of the spec execution definition. Both the source-caching
+algorithm and its uncached specialization have checked theorem witnesses summarized
+in `docs/algorithms.md`.
 
 Raw syntax remains permissive. Validation supplies the invariants that later
 semantic proofs should rely on.
@@ -251,7 +222,7 @@ semantic proofs should rely on.
 The normal-form correctness proofs are summarized in `docs/normal-form.md`.
 The ground and complete uniqueness arguments are detailed in
 `docs/normal-form-uniqueness.md`.
-Verified project algorithms are summarized in `docs/algorithms.md`.
+Project algorithms are summarized in `docs/algorithms.md`.
 
 Lean module organization rules are documented in
 `docs/lean-organization.md`.

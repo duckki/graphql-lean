@@ -217,8 +217,8 @@ theorem
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      arguments parentType rootSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType rootSelectionSet
                     = some runtimeType))
           -> taggedSelectionSetResponseDiffWitness schema rootSelectionSet
               variableValues (fuel - leafProbeFuel fieldDefinition.outputType)

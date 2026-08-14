@@ -12,3 +12,5 @@ check:
 
 fmt:
 	time lake exe fmt --recursive $(FMT_TARGETS)
+	time lake build
+	time lake lint

@@ -63,7 +63,8 @@ explicit fuel value, and source value, a well-formed schema and valid operation
 give equivalent ungrouped and spec-facing executions, assuming
 `NormalForm.operationBoolVarsComplete operation (Execution.coerceVariableValues
 operation variableValues)`. Both public executors materialize operation defaults
-before field collection.
+before field collection and materialize schema-derived argument values before
+calling resolvers.
 
 The equivalence relation is `responseDataAndErrorPresenceEquivalent`, not exact
 response equality:
@@ -108,7 +109,8 @@ additional subselections.
 This specialization is useful when calling a resolver is as cheap as caching its
 returned source value. Its public preservation statement is
 `GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution`,
-with proof witness
+with the same complete-Boolean-variable assumption as cached ungrouped execution.
+Its proof witness is
 `GraphQL.Algorithms.ExecutionUngroupedUncached.ungroupedExecutionPreservesSpecExecution_proof`
 in
 `Proofs/GraphQL/Algorithms/ExecutionUngrouped/Semantics/Final.lean`.
@@ -178,6 +180,11 @@ from the end of the trace. Field frames complete value slots and push
 segment-aligned field-result blocks keyed by `ScheduleKey`; scope frames consume
 those field blocks from the field store and push completed object values onto
 the positional value stack.
+
+`ScheduleKey.arguments` retains executable syntax for queue grouping. Immediately
+before a batch resolver call, `executeScheduleItem` looks up the field definition
+and passes the result of `coerceArgumentValues`; raw variable syntax therefore
+does not cross the resolver boundary.
 
 The Lean model intentionally omits JavaScript-specific concerns such as planning
 hooks, lazy promise queues, mutation root partitioning, and detailed formatted

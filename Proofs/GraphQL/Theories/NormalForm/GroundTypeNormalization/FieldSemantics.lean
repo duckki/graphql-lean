@@ -71,8 +71,9 @@ theorem executeField_singleton_eq_group_of_completeValue
     : let fieldDefinition? := schema.lookupField field.parentType field.fieldName
       (match fieldDefinition? with
         | some fieldDefinition =>
-            match resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+            match Execution.resolveFieldValue schema resolvers variableValues
+                    fieldDefinition field.parentType field.fieldName field.arguments
+                    source with
             | some value =>
                 Execution.completeValue schema resolvers variableValues depth
                   fieldDefinition.outputType
@@ -93,10 +94,10 @@ theorem executeField_singleton_eq_group_of_completeValue
       simp []
   | some fieldDefinition =>
       cases hresolved
-            : resolvers.resolve field.parentType field.fieldName
-                field.arguments source with
+            : Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source with
       | none =>
-          simp
+          simp [hresolved]
       | some value =>
           have hcomplete' :
               Execution.completeValue schema resolvers variableValues depth
@@ -105,7 +106,7 @@ theorem executeField_singleton_eq_group_of_completeValue
                 Execution.completeValue schema resolvers variableValues depth
                   fieldDefinition.outputType (field :: fields) value := by
             simpa [fieldDefinition?, hlookup, hresolved] using hcomplete
-          simp [Execution.singleFieldResult, hcomplete']
+          simp [hresolved, Execution.singleFieldResult, hcomplete']
 
 theorem executeField_singleton_eq_group_of_child_object_lt
     (schema : Schema)
@@ -137,12 +138,12 @@ theorem executeField_singleton_eq_group_of_child_object_lt
       simp []
   | some fieldDefinition =>
       cases hresolved
-            : resolvers.resolve field.parentType field.fieldName
-                field.arguments source with
+            : Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source with
       | none =>
-          simp
+          simp [hresolved]
       | some value =>
-          simp
+          simp [hresolved]
           apply completeValue_eq_of_child_object_lt schema resolvers variableValues
             depth fieldDefinition.outputType
             [{ field with selectionSet := normalizedSelectionSet }]
@@ -237,7 +238,8 @@ theorem executeSelectionSet_field_head_eq_of_completeValue
           = (responseName, sourceField :: sourceFields) :: sourceRest
       -> (match fieldDefinition? with
           | some fieldDefinition =>
-              match resolvers.resolve sourceField.parentType sourceField.fieldName
+              match Execution.resolveFieldValue schema resolvers variableValues
+                      fieldDefinition sourceField.parentType sourceField.fieldName
                       sourceField.arguments source with
               | some value =>
                   Execution.completeValue schema resolvers variableValues (depth - 1)
@@ -366,7 +368,8 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_of_completeValue
             :: normalizedRest
       -> (match schema.lookupField parentType fieldName with
           | some fieldDefinition =>
-              match resolvers.resolve parentType fieldName arguments source with
+              match Execution.resolveFieldValue schema resolvers variableValues
+                      fieldDefinition parentType fieldName arguments source with
               | some value =>
                   Execution.completeValue schema resolvers variableValues (depth - 1)
                     fieldDefinition.outputType
@@ -552,11 +555,13 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case
   · simpa [matching, mergedSubselections, returnType, normalizedRest]
       using hnormalizedFieldWithRest
   · rw [hlookup]
-    cases hresolved : resolvers.resolve parentType fieldName arguments source with
+    cases hresolved
+          : Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition parentType fieldName arguments source with
     | none =>
-        simp
+        simp [hresolved]
     | some value =>
-        simp
+        simp [hresolved]
         apply completeValue_eq_of_child_object_lt_includes schema resolvers
           variableValues
           (depth - 1)

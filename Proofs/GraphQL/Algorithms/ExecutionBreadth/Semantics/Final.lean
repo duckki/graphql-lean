@@ -623,15 +623,16 @@ theorem expectedChildQueueForItem_fieldBudgetReady
       have hwork :
           expectedPendingChildWorkScopeBudgetReady schema
             (expectedPendingChildWorkForItem schema resolvers
-              fieldDefinition.outputType item) :=
+              fieldDefinition.outputType item variableValues) :=
         expectedPendingChildWorkForItem_scopeBudgetReady
-          (ObjectRef := ObjectRef) schema resolvers fieldDefinition.outputType item
+          (ObjectRef := ObjectRef) schema resolvers variableValues
+          fieldDefinition.outputType item
           hfieldBound hbudget
       simpa [hlookup] using
         scheduleExpectedPendingChildWork_fieldBudgetReady
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
-            fieldDefinition.outputType item)
+            fieldDefinition.outputType item variableValues)
           ([] : ExpectedScheduleQueue ObjectRef)
           hwork
           (by simp [expectedScheduleQueueFieldBudgetReady])
@@ -1267,8 +1268,8 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_and_stepBudget
               (item :: rest)
             <= fuel + 1
         -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-              (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                materialized)
+              (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                item materialized)
               (enqueueExpectedScheduleItems rest
                 (expectedChildQueueForItem schema resolvers variableValues item).fst)
             <= fuel)
@@ -1378,7 +1379,7 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_and_stepBudget
               hchildBudget hrestBudget
           have htailDrainBudget :
               expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                  (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
                     materialized)
                   (enqueueExpectedScheduleItems rest
                     (expectedChildQueueForItem schema resolvers variableValues item).fst) <=
@@ -1387,7 +1388,7 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_and_stepBudget
               hfieldBudget hbudget
           simp [expectedDrainQueueReady]
           exact ⟨haligned, hnonempty, hdistinct, hitemReady,
-            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
                 materialized)
               (enqueueExpectedScheduleItems rest
                 (expectedChildQueueForItem schema resolvers variableValues item).fst)
@@ -1411,8 +1412,8 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_contains_and_stepBudget
               (item :: rest)
             <= fuel + 1
         -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                  materialized)
+                (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                  item materialized)
                 (enqueueExpectedScheduleItems rest
                   (expectedChildQueueForItem schema resolvers variableValues item).fst)
               <= fuel
@@ -1420,8 +1421,8 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_contains_and_stepBudget
                 schema variableValues
                 (enqueueExpectedScheduleItems rest
                   (expectedChildQueueForItem schema resolvers variableValues item).fst)
-                (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                  materialized))
+                (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                  item materialized))
       -> ∀ (materialized : MaterializedPendingScopes)
             (fuel : Nat) (queue : ExpectedScheduleQueue ObjectRef),
           expectedScheduleQueueFuelsAligned queue
@@ -1534,7 +1535,7 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_contains_and_stepBudget
           rcases hstep with ⟨htailDrainBudget, htailContains⟩
           simp [expectedDrainQueueReady]
           exact ⟨haligned, hnonempty, hdistinct, hitemReady,
-            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
                 materialized)
               (enqueueExpectedScheduleItems rest
                 (expectedChildQueueForItem schema resolvers variableValues item).fst)
@@ -1554,7 +1555,8 @@ theorem expectedRuntimeDrainStepBudget_lookup_none
             (item :: rest)
           <= fuel + 1
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= fuel := by
@@ -1568,14 +1570,19 @@ theorem expectedRuntimeDrainStepBudget_lookup_none
     expectedQueueItemRuntimeCreditWeight_lookup_none
       (ObjectRef := ObjectRef) schema resolvers materialized item hlookup
   have hmaterialized :
-      materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized =
+      materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item materialized =
         materialized :=
     materializeExpectedQueueItemRuntimeScopes_lookup_none
-      (ObjectRef := ObjectRef) schema resolvers materialized item hlookup
+      (ObjectRef := ObjectRef) schema resolvers variableValues materialized item hlookup
+  have hmaterializedEmpty :
+      materializeExpectedQueueItemRuntimeScopes schema resolvers [] item materialized =
+        materialized :=
+    materializeExpectedQueueItemRuntimeScopes_lookup_none
+      (ObjectRef := ObjectRef) schema resolvers [] materialized item hlookup
   have hchild :
       (expectedChildQueueForItem schema resolvers variableValues item).fst = [] := by
     simp [expectedChildQueueForItem, hlookup]
-  simp [expectedScheduleQueueRuntimeDrainBudget, hcredit, hmaterialized] at hbudget
+  simp [expectedScheduleQueueRuntimeDrainBudget, hcredit, hmaterializedEmpty] at hbudget
   simpa [hmaterialized, hchild, enqueueExpectedScheduleItems] using
     (by omega : expectedScheduleQueueRuntimeDrainBudget schema resolvers
         materialized rest <= fuel)
@@ -1589,18 +1596,20 @@ theorem expectedRuntimeDrainStepBudget_of_childRuntimeBudget_le
     (rest : ExpectedScheduleQueue ObjectRef)
     : item.segments ≠ []
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                  materialized) rest
+                (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                  item materialized) rest
               + expectedQueueItemRuntimeCreditWeight schema resolvers materialized item
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers materialized
             (item :: rest)
           <= fuel + 1
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= fuel := by
@@ -1609,7 +1618,17 @@ theorem expectedRuntimeDrainStepBudget_of_childRuntimeBudget_le
       0 < expectedQueueItemCurrentShapeCount item :=
     expectedQueueItemCurrentShapeCount_pos
       (ObjectRef := ObjectRef) item hsegments
+  have htailIrrel :
+      expectedScheduleQueueRuntimeDrainBudget schema resolvers
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
+            materialized) rest =
+        expectedScheduleQueueRuntimeDrainBudget schema resolvers
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
+            materialized) rest :=
+    expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
+      (ObjectRef := ObjectRef) schema resolvers rest _ _
   simp [expectedScheduleQueueRuntimeDrainBudget] at hbudget
+  rw [htailIrrel] at hbudget
   omega
 
 theorem expectedRuntimeDrainStepBudget_lookup_some_of_enqueue_le
@@ -1623,18 +1642,20 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_enqueue_le
     : schema.lookupField item.key.parentType item.key.fieldName = some fieldDefinition
       -> expectedScheduleQueueItemsNonempty (item :: rest)
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                  materialized) rest
+                (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                  item materialized) rest
               + expectedQueueItemRuntimeCreditWeight schema resolvers materialized item
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers materialized
             (item :: rest)
           <= fuel + 1
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= fuel := by
@@ -1662,7 +1683,8 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_childStepWeight_le
             (item :: rest)
           <= fuel + 1
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= fuel := by
@@ -1673,7 +1695,7 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_childStepWeight_le
   · have henqueue :=
       expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedScheduleItems_le
         (ObjectRef := ObjectRef) schema resolvers
-        (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
           materialized)
         rest
         (expectedChildQueueForItem schema resolvers variableValues item).fst
@@ -1698,7 +1720,8 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_mergedChildStepWeight_le
             (item :: rest)
           <= fuel + 1
       -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+              item materialized)
             (enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst)
           <= fuel := by
@@ -1710,7 +1733,7 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_mergedChildStepWeight_le
     have henqueue :=
       expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedScheduleItems_merged_le
         (ObjectRef := ObjectRef) schema resolvers
-        (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
           materialized)
         rest
         (expectedChildQueueForItem schema resolvers variableValues item).fst
@@ -1721,6 +1744,7 @@ theorem expectedRuntimeDrainStepBudget_lookup_some_of_mergedChildStepWeight_le
 theorem expectedPendingChildWorkBreadthShapeWeight_lookup_some_le_runtimeCredit
     (schema : Schema)
     (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (materialized : MaterializedPendingScopes)
     (item : ExpectedQueueItem ObjectRef)
     (fieldDefinition : FieldDefinition)
@@ -1728,12 +1752,13 @@ theorem expectedPendingChildWorkBreadthShapeWeight_lookup_some_le_runtimeCredit
       -> schema.lookupField item.key.parentType item.key.fieldName = some fieldDefinition
       -> expectedPendingChildWorkBreadthShapeWeight schema
             (expectedPendingChildWorkForItem schema resolvers
-              fieldDefinition.outputType item)
+              fieldDefinition.outputType item variableValues)
           <= expectedQueueItemRuntimeCreditWeight schema resolvers materialized item := by
   intro hschema hlookup
   have hactual :=
     expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChildShapes
-      (ObjectRef := ObjectRef) schema resolvers fieldDefinition.outputType item
+      (ObjectRef := ObjectRef) schema resolvers variableValues
+      fieldDefinition.outputType item
   have hpossibleLength :
       (schema.getPossibleTypes fieldDefinition.outputType.namedType).length <=
         schema.objectTypes.length + 1 := by
@@ -1767,7 +1792,7 @@ theorem expectedChildQueueForItem_mergedRuntimeStepWeight_lookup_some_le_runtime
       (ObjectRef := ObjectRef) schema resolvers variableValues item
       fieldDefinition hlookup)
     (expectedPendingChildWorkBreadthShapeWeight_lookup_some_le_runtimeCredit
-      (ObjectRef := ObjectRef) schema resolvers materialized item
+      (ObjectRef := ObjectRef) schema resolvers variableValues materialized item
       fieldDefinition hschema hlookup)
 
 theorem expectedRuntimeDrainStepBudget_of_ready
@@ -1786,8 +1811,8 @@ theorem expectedRuntimeDrainStepBudget_of_ready
                 (item :: rest)
               <= fuel + 1
           -> expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                (materializeExpectedQueueItemRuntimeScopes schema resolvers item
-                  materialized)
+                (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                  item materialized)
                 (enqueueExpectedScheduleItems rest
                   (expectedChildQueueForItem schema resolvers variableValues item).fst)
               <= fuel := by
@@ -1822,7 +1847,8 @@ theorem expectedRootTailQueue_contains_materializedRuntimeScopes
           schema variableValues
           (enqueueExpectedScheduleItems rest
             (expectedChildQueueForItem schema resolvers variableValues item).fst)
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item []) := by
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
+            []) := by
   intro _hqueue
   cases hlookup : schema.lookupField item.key.parentType item.key.fieldName with
   | none =>
@@ -1835,7 +1861,7 @@ theorem expectedRootTailQueue_contains_materializedRuntimeScopes
   | some fieldDefinition =>
       let work :=
         expectedPendingChildWorkForItem schema resolvers
-          fieldDefinition.outputType item
+          fieldDefinition.outputType item variableValues
       have htail :
           enqueueExpectedScheduleItems rest
               (expectedChildQueueForItem schema resolvers variableValues item).fst =
@@ -2064,7 +2090,7 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
     simpa [hfuel, hqueueFuel] using hrootRuntimeBudget'
   have htailRuntimeBudget :
       expectedScheduleQueueRuntimeDrainBudget schema resolvers
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item [])
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item [])
           tailQueue <= fuel :=
     expectedRuntimeDrainStepBudget_of_ready
       (ObjectRef := ObjectRef) schema resolvers variableValues hschema
@@ -2121,7 +2147,7 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
     (ObjectRef := ObjectRef) schema resolvers variableValues
     (expectedRuntimeDrainStepBudget_of_ready
       (ObjectRef := ObjectRef) schema resolvers variableValues hschema)
-    (materializeExpectedQueueItemRuntimeScopes schema resolvers item [])
+    (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item [])
     fuel tailQueue hshape.1 hshape.2.1 hshape.2.2 hbudget htailRuntimeBudget
 
 theorem expectedDrainQueueReady_root_preservationFuel

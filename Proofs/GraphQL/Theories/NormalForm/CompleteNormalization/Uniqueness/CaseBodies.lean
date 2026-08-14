@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.GroundBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 
@@ -81,7 +82,7 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
     {leftVariables rightVariables : List BoolVar}
     {leftSelectionSet rightSelectionSet : List Selection}
     {leftPrepare rightPrepare : Execution.VariableValues -> Execution.VariableValues}
-    {runtimeCase rightCase : BoolCase}
+    {leftCase rightCase : BoolCase}
     {leftSelection rightSelection : Selection}
     {leftBody rightBody : List Selection}
     (hleftNormal
@@ -92,11 +93,10 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
           (rightVarName :: rightVariables) parentType rightSelectionSet)
     (hleftMem : leftSelection ∈ leftSelectionSet)
     (hrightMem : rightSelection ∈ rightSelectionSet)
-    (hruntimeLeft : completeNormalBoolCase (leftVarName :: leftVariables) runtimeCase)
-    (hruntimeRight : completeNormalBoolCase (rightVarName :: rightVariables) runtimeCase)
+    (hleftCase : completeNormalBoolCase (leftVarName :: leftVariables) leftCase)
     (hrightCase : completeNormalBoolCase (rightVarName :: rightVariables) rightCase)
-    (hequivalent : completeNormalBoolCasesEquivalent runtimeCase rightCase)
-    (hleftStem : completeNormalBooleanStem runtimeCase leftSelection leftBody)
+    (_hequivalent : completeNormalBoolCasesEquivalent leftCase rightCase)
+    (hleftStem : completeNormalBooleanStem leftCase leftSelection leftBody)
     (hrightStem : completeNormalBooleanStem rightCase rightSelection rightBody)
     (hleftFree : selectionSetDirectiveFree leftBody)
     (hrightFree : selectionSetDirectiveFree rightBody)
@@ -104,71 +104,60 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
           (leftVarName :: leftVariables) leftPrepare rightPrepare parentType
           leftSelectionSet rightSelectionSet)
-    : selectionSetsSemanticallyEquivalent schema parentType leftBody rightBody := by
-  intro ObjectRef resolvers baseValues fuel source hsource
-  let caseValues := boolCaseVariableValues runtimeCase baseValues
-  let leftCaseValues := leftPrepare caseValues
-  let rightCaseValues := rightPrepare caseValues
-  have hagreesLeft :
-      variableValuesAgreeWithCase leftCaseValues runtimeCase
-        (leftVarName :: leftVariables) := by
-    intro name hmem
-    rcases boolVarsComplete_boolCaseVariableValues baseValues hruntimeLeft
-        name hmem with ⟨value, hvalue⟩
-    have hprepared := hsem.1 caseValues name value hvalue
-    exact hprepared.trans <| hvalue.symm.trans
-      (variableValuesAgreeWithCase_boolCaseVariableValues baseValues
-        hruntimeLeft name hmem)
-  have hagreesRight :
-      variableValuesAgreeWithCase rightCaseValues runtimeCase
-        (rightVarName :: rightVariables) := by
-    intro name hmem
-    rcases boolVarsComplete_boolCaseVariableValues baseValues hruntimeRight
-        name hmem with ⟨value, hvalue⟩
-    have hprepared := hsem.2.1 caseValues name value hvalue
-    exact hprepared.trans <| hvalue.symm.trans
-      (variableValuesAgreeWithCase_boolCaseVariableValues baseValues
-        hruntimeRight name hmem)
+    : ∀ variableValues,
+        boolVarsComplete (leftVarName :: leftVariables) variableValues
+        -> variableValuesAgreeWithCase (leftPrepare variableValues)
+            leftCase (leftVarName :: leftVariables)
+        -> variableValuesAgreeWithCase (rightPrepare variableValues)
+            rightCase (rightVarName :: rightVariables)
+        ->  let leftValues := leftPrepare variableValues
+            let rightValues := rightPrepare variableValues
+            Execution.variableValuesCoercionEquivalent leftValues rightValues
+            ∧ selectionSetsSemanticallyEquivalentAtVariableValues schema
+                leftValues rightValues parentType leftBody rightBody := by
+  intro variableValues hcomplete hagreesLeft hagreesRight
+  let leftValues := leftPrepare variableValues
+  let rightValues := rightPrepare variableValues
+  have heffectiveValues :
+      Execution.variableValuesCoercionEquivalent leftValues rightValues :=
+    hsem.2.2.1 variableValues variableValues
+      (Execution.variableValuesCoercionEquivalent_refl variableValues)
+  refine ⟨heffectiveValues, ?_⟩
+  intro ObjectRef resolvers fuel source hsource
   have hleftCollect :=
     collectFields_completeNormalSelectionSet_eq_body_of_equivalent_of_agrees
-      schema leftCaseValues parentType source hleftNormal hleftMem
-      hruntimeLeft hruntimeLeft hagreesLeft
-      (completeNormalBoolCasesEquivalent_refl runtimeCase) hleftStem hleftFree
+      schema leftValues parentType source hleftNormal hleftMem
+      hleftCase hleftCase hagreesLeft
+      (completeNormalBoolCasesEquivalent_refl leftCase) hleftStem hleftFree
   have hrightCollect :=
     collectFields_completeNormalSelectionSet_eq_body_of_equivalent_of_agrees
-      schema rightCaseValues parentType source hrightNormal hrightMem
-      hruntimeRight hrightCase hagreesRight hequivalent hrightStem hrightFree
+      schema rightValues parentType source hrightNormal hrightMem
+      hrightCase hrightCase hagreesRight
+      (completeNormalBoolCasesEquivalent_refl rightCase) hrightStem hrightFree
   have hleftExecute :=
-    executeSelectionSet_eq_of_collectFields_eq schema resolvers leftCaseValues fuel
+    executeSelectionSet_eq_of_collectFields_eq schema resolvers leftValues fuel
       parentType source leftSelectionSet leftBody hleftCollect
   have hrightExecute :=
-    executeSelectionSet_eq_of_collectFields_eq schema resolvers rightCaseValues fuel
+    executeSelectionSet_eq_of_collectFields_eq schema resolvers rightValues fuel
       parentType source rightSelectionSet rightBody hrightCollect
-  have hleftValues :=
-    executeSelectionSet_eq_of_directiveFree_variableValues schema resolvers
-      baseValues leftCaseValues fuel parentType source leftBody hleftFree
-  have hrightValues :=
-    executeSelectionSet_eq_of_directiveFree_variableValues schema resolvers
-      baseValues rightCaseValues fuel parentType source rightBody hrightFree
   have hleftResponse :
       Execution.executeSelectionSetAsResponse schema resolvers
-          baseValues fuel parentType source leftBody
+          leftValues fuel parentType source leftBody
         =
       Execution.executeSelectionSetAsResponse schema resolvers
-          leftCaseValues fuel parentType source leftSelectionSet := by
+          leftValues fuel parentType source leftSelectionSet := by
     unfold Execution.executeSelectionSetAsResponse
-    rw [hleftValues, ← hleftExecute]
+    rw [← hleftExecute]
   have hrightResponse :
       Execution.executeSelectionSetAsResponse schema resolvers
-          baseValues fuel parentType source rightBody
+          rightValues fuel parentType source rightBody
         =
       Execution.executeSelectionSetAsResponse schema resolvers
-          rightCaseValues fuel parentType source rightSelectionSet := by
+          rightValues fuel parentType source rightSelectionSet := by
     unfold Execution.executeSelectionSetAsResponse
-    rw [hrightValues, ← hrightExecute]
+    rw [← hrightExecute]
   rw [hleftResponse, hrightResponse]
-  exact hsem.2.2 resolvers caseValues fuel source
-    (boolVarsComplete_boolCaseVariableValues baseValues hruntimeLeft) hsource
+  exact hsem.2.2.2 resolvers variableValues fuel source hcomplete hsource
 
 private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
     {schema : Schema} {parentType : Name}
@@ -199,11 +188,23 @@ private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
           (leftVarName :: leftVariables) leftPrepare rightPrepare parentType
           leftSelectionSet rightSelectionSet)
-    : selectionSetsSemanticallyEquivalent schema parentType leftBody [] := by
-  intro ObjectRef resolvers baseValues fuel source hsource
+    : ∀ baseValues,
+        let leftValues := leftPrepare (boolCaseVariableValues runtimeCase baseValues)
+        let rightValues := rightPrepare (boolCaseVariableValues runtimeCase baseValues)
+        Execution.variableValuesCoercionEquivalent leftValues rightValues
+        ∧ selectionSetsSemanticallyEquivalentAtVariableValues schema
+            leftValues rightValues parentType leftBody [] := by
+  intro baseValues
   let caseValues := boolCaseVariableValues runtimeCase baseValues
   let leftCaseValues := leftPrepare caseValues
   let rightCaseValues := rightPrepare caseValues
+  have heffectiveValues :
+      Execution.variableValuesCoercionEquivalent leftCaseValues
+        rightCaseValues :=
+    hsem.2.2.1 caseValues caseValues
+      (Execution.variableValuesCoercionEquivalent_refl caseValues)
+  refine ⟨heffectiveValues, ?_⟩
+  intro ObjectRef resolvers fuel source hsource
   have hagreesLeft :
       variableValuesAgreeWithCase leftCaseValues runtimeCase
         (leftVarName :: leftVariables) := by
@@ -239,35 +240,45 @@ private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
   have hrightExecute :=
     executeSelectionSet_eq_of_collectFields_eq schema resolvers rightCaseValues fuel
       parentType source rightSelectionSet [] hrightCollect
-  have hleftValues :=
-    executeSelectionSet_eq_of_directiveFree_variableValues schema resolvers
-      baseValues leftCaseValues fuel parentType source leftBody hleftFree
-  have hrightValues :=
-    executeSelectionSet_eq_of_directiveFree_variableValues schema resolvers
-      baseValues rightCaseValues fuel parentType source []
-      selectionSetDirectiveFree_nil
   have hleftResponse :
       Execution.executeSelectionSetAsResponse schema resolvers
-          baseValues fuel parentType source leftBody
+          leftCaseValues fuel parentType source leftBody
         =
       Execution.executeSelectionSetAsResponse schema resolvers
           leftCaseValues fuel parentType source leftSelectionSet := by
     unfold Execution.executeSelectionSetAsResponse
-    rw [hleftValues, ← hleftExecute]
+    rw [← hleftExecute]
   have hrightResponse :
       Execution.executeSelectionSetAsResponse schema resolvers
-          baseValues fuel parentType source []
+          rightCaseValues fuel parentType source []
         =
       Execution.executeSelectionSetAsResponse schema resolvers
           rightCaseValues fuel parentType source rightSelectionSet := by
     unfold Execution.executeSelectionSetAsResponse
-    rw [hrightValues, ← hrightExecute]
+    rw [← hrightExecute]
   rw [hleftResponse, hrightResponse]
-  exact hsem.2.2 resolvers caseValues fuel source
+  exact hsem.2.2.2 resolvers caseValues fuel source
     (boolVarsComplete_boolCaseVariableValues baseValues hruntimeLeft) hsource
 
 private theorem selectionSetEqualUpToReordering_eq_nil {selectionSet : List Selection}
     : SelectionSetEqualUpToReordering selectionSet [] -> selectionSet = [] := by
+  intro hequal
+  cases hequal with
+  | paired pairs hleft hright _hpairs =>
+      have hpairsNil : pairs = [] := by
+        have hlength := hright.length_eq
+        simp at hlength
+        exact hlength
+      subst pairs
+      simp at hleft
+      exact hleft
+
+private theorem selectionSetEqualUpToReorderingWithCoercion_eq_nil
+    {schema : Schema} {leftValues rightValues : Execution.VariableValues}
+    {parentType : Name} {selectionSet : List Selection}
+    : SelectionSetEqualUpToReorderingWithCoercion schema leftValues rightValues
+        parentType selectionSet []
+      -> selectionSet = [] := by
   intro hequal
   cases hequal with
   | paired pairs hleft hright _hpairs =>
@@ -363,7 +374,8 @@ theorem completeNormalBooleanStem_case_body_eq
         completeNormalBooleanStem_wrapWithBoolCase_eq hrightStem])
 
 def CompleteNormalSelectionMatch
-    (schema : Schema) (leftVariables rightVariables : List BoolVar)
+    (schema : Schema) (leftOperation rightOperation : Operation)
+    (leftVariables rightVariables : List BoolVar)
     (parentType : Name) (left right : Selection)
     : Prop :=
   ∃ leftCase rightCase leftBody rightBody,
@@ -376,15 +388,28 @@ def CompleteNormalSelectionMatch
     ∧ selectionSetDirectiveFree leftBody
     ∧ selectionSetDirectiveFree rightBody
     ∧ completeNormalBoolCasesEquivalent leftCase rightCase
-    ∧ SelectionSetEqualUpToReordering leftBody rightBody
+    ∧ ∀ variableValues,
+        boolVarsComplete leftVariables variableValues
+        -> variableValuesAgreeWithCase
+            (Execution.coerceVariableValues leftOperation variableValues)
+            leftCase leftVariables
+        -> variableValuesAgreeWithCase
+            (Execution.coerceVariableValues rightOperation variableValues)
+            rightCase rightVariables
+        -> SelectionSetEqualUpToReorderingWithCoercion schema
+            (Execution.coerceVariableValues leftOperation variableValues)
+            (Execution.coerceVariableValues rightOperation variableValues)
+            parentType leftBody rightBody
 
 theorem completeNormalSelectionEqualUpToReordering_of_match
-    {schema : Schema} {leftVariables rightVariables : List BoolVar}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {leftVariables rightVariables : List BoolVar}
     {parentType : Name} {left right : Selection}
-    : CompleteNormalSelectionMatch schema leftVariables rightVariables
-        parentType left right
-      -> CompleteNormalSelectionEqualUpToReordering
-          leftVariables rightVariables left right := by
+    : CompleteNormalSelectionMatch schema leftOperation rightOperation
+        leftVariables rightVariables parentType left right
+      -> CompleteNormalSelectionEqualUpToReorderingWithCoercion schema
+          leftOperation rightOperation parentType leftVariables rightVariables
+          left right := by
   rintro ⟨leftCase, rightCase, leftBody, rightBody, hleftCase,
     hrightCase, hleftStem, hrightStem, _hleftNormal, _hrightNormal,
     _hleftFree, _hrightFree, hequivalent, hequal⟩
@@ -393,12 +418,12 @@ theorem completeNormalSelectionEqualUpToReordering_of_match
 
 theorem completeNormalSelection_has_match
     {schema : Schema}
+    {leftOperation rightOperation : Operation}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType : Name}
     {leftVarName rightVarName : BoolVar}
     {leftVariables rightVariables : List BoolVar}
     {leftSelectionSet rightSelectionSet : List Selection}
-    {leftPrepare rightPrepare : Execution.VariableValues -> Execution.VariableValues}
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleftValid
       : Validation.selectionSetValid schema
@@ -419,12 +444,14 @@ theorem completeNormalSelection_has_match
     (hobject : objectTypeNameBool schema parentType = true)
     (hsem
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-          (leftVarName :: leftVariables) leftPrepare rightPrepare parentType
+          (leftVarName :: leftVariables)
+          (Execution.coerceVariableValues leftOperation)
+          (Execution.coerceVariableValues rightOperation) parentType
           leftSelectionSet rightSelectionSet)
     {leftSelection : Selection} (hleftMem : leftSelection ∈ leftSelectionSet)
     : ∃ rightSelection,
         rightSelection ∈ rightSelectionSet
-        ∧ CompleteNormalSelectionMatch schema
+        ∧ CompleteNormalSelectionMatch schema leftOperation rightOperation
             (leftVarName :: leftVariables) (rightVarName :: rightVariables)
             parentType leftSelection rightSelection := by
   have hleftShape := hleftNormal
@@ -455,16 +482,28 @@ theorem completeNormalSelection_has_match
     have hrightReady :=
       completeNormalBooleanStem_body_valid_nonempty_of_mem hrightValid
         hrightMem hrightStem
-    have hbodySem :
-        selectionSetsSemanticallyEquivalent schema
-          parentType leftBody rightBody :=
+    have hbodySem :=
       selectedCompleteNormalBodies_semanticallyEquivalent hleftNormal
-        hrightNormal hleftMem hrightMem hleftCase hleftCaseRight hrightCase
+        hrightNormal hleftMem hrightMem hleftCase hrightCase
         hequivalent hleftStem hrightStem hleftBodyFree hrightBodyFree hsem
-    have hbodyEqual :=
-      validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
-        hschema hleftBodyValid hrightReady.1 hleftBodyFree hrightBodyFree
-        hleftBodyNormal hrightBodyNormal hobject hbodySem
+    have hbodyEqual : ∀ variableValues,
+        boolVarsComplete (leftVarName :: leftVariables) variableValues
+        -> variableValuesAgreeWithCase
+            (Execution.coerceVariableValues leftOperation variableValues)
+            leftCase (leftVarName :: leftVariables)
+        -> variableValuesAgreeWithCase
+            (Execution.coerceVariableValues rightOperation variableValues)
+            rightCase (rightVarName :: rightVariables)
+        ->
+        SelectionSetEqualUpToReorderingWithCoercion schema
+          (Execution.coerceVariableValues leftOperation variableValues)
+          (Execution.coerceVariableValues rightOperation variableValues)
+          parentType leftBody rightBody := by
+      intro variableValues hcomplete hagreesLeft hagreesRight
+      have hselected := hbodySem variableValues hcomplete hagreesLeft hagreesRight
+      exact validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
+        hselected.1 hschema hleftBodyValid hrightReady.1 hleftBodyFree
+        hrightBodyFree hleftBodyNormal hrightBodyNormal hobject hselected.2
     exact ⟨rightSelection, hrightMem, leftCase, rightCase, leftBody,
       rightBody, hleftCase, hrightCase, hleftStem, hrightStem,
       hleftBodyNormal, hrightBodyNormal, hleftBodyFree, hrightBodyFree,
@@ -493,25 +532,25 @@ theorem completeNormalSelection_has_match
       exact hmatch ⟨rightSelection, rightCase, rightBody, hrightMem,
         hrightCase, hrightStem, hequivalent,
         hnormalBody, hnormalFree⟩
-    have hbodyNilSem :
-        selectionSetsSemanticallyEquivalent schema
-          parentType leftBody [] :=
+    have hbodyNilSem :=
       selectedCompleteNormalBody_nil_semanticallyEquivalent hleftNormal
         hrightNormal hleftMem hleftCase hleftCaseRight hleftStem
         hleftBodyFree hnone hsem
+    have hselectedNil := hbodyNilSem []
     have hbodyNilEqual :=
       validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
         (rightVariableDefinitions := rightVariableDefinitions)
-        hschema hleftBodyValid
+        hselectedNil.1 hschema hleftBodyValid
         (by simp [Validation.selectionSetValid]) hleftBodyFree
         selectionSetDirectiveFree_nil hleftBodyNormal
-        (selectionSetNormal_nil schema parentType) hobject hbodyNilSem
+        (selectionSetNormal_nil schema parentType) hobject hselectedNil.2
     exact False.elim
       (hleftBodyNonempty
-        (selectionSetEqualUpToReordering_eq_nil hbodyNilEqual))
+        (selectionSetEqualUpToReorderingWithCoercion_eq_nil hbodyNilEqual))
 
 theorem completeNormalSelectionMatch_left_unique
-    {schema : Schema} {leftVariables rightVariables : List BoolVar}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {leftVariables rightVariables : List BoolVar}
     {parentType : Name} {leftSelectionSet : List Selection}
     (hleftNormal
       : completeNormalSelectionSet schema leftVariables parentType leftSelectionSet)
@@ -521,11 +560,11 @@ theorem completeNormalSelectionMatch_left_unique
     (hleftFirstMem : leftFirst ∈ leftSelectionSet)
     (hleftSecondMem : leftSecond ∈ leftSelectionSet)
     (hfirst
-      : CompleteNormalSelectionMatch schema leftVariables
-          rightVariables parentType leftFirst right)
+      : CompleteNormalSelectionMatch schema leftOperation rightOperation
+          leftVariables rightVariables parentType leftFirst right)
     (hsecond
-      : CompleteNormalSelectionMatch schema leftVariables
-          rightVariables parentType leftSecond right)
+      : CompleteNormalSelectionMatch schema leftOperation rightOperation
+          leftVariables rightVariables parentType leftSecond right)
     : leftFirst = leftSecond := by
   rcases hfirst with
     ⟨leftCaseFirst, rightCaseFirst, leftBodyFirst, rightBodyFirst,
@@ -559,7 +598,8 @@ theorem completeNormalSelectionMatch_left_unique
         hleftBodyFirstFree hleftBodySecondFree hleftCasesEquivalent
 
 theorem completeNormalSelectionMatch_reverse_right_unique
-    {schema : Schema} {leftVariables rightVariables : List BoolVar}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {leftVariables rightVariables : List BoolVar}
     {parentType : Name} {rightSelectionSet : List Selection}
     (hrightNormal
       : completeNormalSelectionSet schema rightVariables parentType rightSelectionSet)
@@ -569,11 +609,11 @@ theorem completeNormalSelectionMatch_reverse_right_unique
     (hrightForwardMem : rightForward ∈ rightSelectionSet)
     (hrightReverseMem : rightReverse ∈ rightSelectionSet)
     (hforward
-      : CompleteNormalSelectionMatch schema leftVariables
-          rightVariables parentType left rightForward)
+      : CompleteNormalSelectionMatch schema leftOperation rightOperation
+          leftVariables rightVariables parentType left rightForward)
     (hreverse
-      : CompleteNormalSelectionMatch schema rightVariables
-          leftVariables parentType rightReverse left)
+      : CompleteNormalSelectionMatch schema rightOperation leftOperation
+          rightVariables leftVariables parentType rightReverse left)
     : rightForward = rightReverse := by
   rcases hforward with
     ⟨leftCaseForward, rightCaseForward, leftBodyForward,

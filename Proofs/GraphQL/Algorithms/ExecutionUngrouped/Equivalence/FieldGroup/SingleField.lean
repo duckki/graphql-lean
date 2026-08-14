@@ -29,8 +29,8 @@ theorem resultValueOrNull_executeField_depth_zero_none
       simp [executeField, hlookup, resultValueOrNull]
   | some fieldDefinition =>
       cases hresolve
-            : resolvers.resolve field.parentType field.fieldName field.arguments
-                source with
+            : resolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source with
       | none =>
           rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
           cases fdOutput <;>
@@ -47,7 +47,8 @@ theorem
     (hfieldResponse : field.responseName = responseName)
     (hfieldParent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType identity,
@@ -85,6 +86,7 @@ theorem
       | none =>
           simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
       | some fieldDefinition =>
+          simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
           | none =>
               simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
@@ -134,7 +136,8 @@ theorem
     (hfieldResponse : field.responseName = responseName)
     (hfieldParent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType identity,
@@ -173,6 +176,7 @@ theorem
       | none =>
           simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
       | some fieldDefinition =>
+          simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
           | none =>
               simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
@@ -223,7 +227,8 @@ theorem visitSubfields_executableFieldSelections_single_aligned_of_contained_chi
     (hfieldResponse : field.responseName = responseName)
     (hfieldParent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType identity,
@@ -261,6 +266,7 @@ theorem visitSubfields_executableFieldSelections_single_aligned_of_contained_chi
             GroupedFieldVisitAlignedEquivalent,
             VisitStatusAlignedEquivalent, ErrorPresenceEquivalent]
       | some fieldDefinition =>
+          simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
           | none =>
               cases fieldDefinition with
@@ -337,7 +343,8 @@ theorem ExecutableFieldsMergedRaw_single_of_guarded_child_states
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -379,7 +386,8 @@ theorem ExecutableFieldsMergedRaw_single_of_contained_child_states
     (hresponse : field.responseName = responseName)
     (hparent : field.parentType = parentType)
     (hresolve
-      : resolvers.resolve field.parentType field.fieldName field.arguments source
+      : resolveFieldValueByName schema resolvers variableValues
+          field.parentType field.fieldName field.arguments source
         = resolved)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
@@ -582,7 +590,9 @@ theorem visitSubfields_executableFieldSelections_single_existing_eq_merge_comple
     (resolvedValue : ResolverValue ObjectIdentity) (previous : ResponseValue)
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolve
-      : resolvers.resolve parentType fieldName arguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName arguments source
+        = some resolvedValue)
     : visitSubfields schema resolvers variableValues (completionDepth + 1 + 1)
         parentType source
         (executableFieldSelections
@@ -657,9 +667,13 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_aligned_res
           fields (some resolvedValue))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolvers.resolve parentType fieldName arguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName arguments source
+        = some resolvedValue)
     (hresolveLater
-      : resolvers.resolve parentType fieldName laterArguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName laterArguments source
+        = some resolvedValue)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < completionDepth + 1
@@ -913,7 +927,9 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolvers.resolve parentType fieldName laterArguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName laterArguments source
+        = some resolvedValue)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < completionDepth + 1
@@ -1167,7 +1183,9 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolvers.resolve parentType fieldName laterArguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName laterArguments source
+        = some resolvedValue)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < completionDepth + 1
@@ -1428,7 +1446,9 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolvers.resolve parentType fieldName laterArguments source = some resolvedValue)
+      : resolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName laterArguments source
+        = some resolvedValue)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < completionDepth + 1

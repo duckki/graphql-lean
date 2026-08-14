@@ -990,16 +990,17 @@ theorem slots_expectedPendingChildWorkForResolved_append
 
 theorem slots_expectedPendingChildWorkForSources_append
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     (sources : List (ResolverValue ObjectRef))
     (specFuels : List Nat)
     (pending : ExpectedPendingChildWorkList ObjectRef)
     : expectedPendingChildWorkForSources schema resolvers fieldKey
-        selectionSet fieldType sources specFuels pending
+        selectionSet fieldType sources specFuels pending variableValues
       = pending
         ++ expectedPendingChildWorkForSources schema resolvers fieldKey
-            selectionSet fieldType sources specFuels [] := by
+            selectionSet fieldType sources specFuels [] variableValues := by
   induction sources generalizing specFuels pending with
   | nil =>
       simp [expectedPendingChildWorkForSources]
@@ -1012,54 +1013,56 @@ theorem slots_expectedPendingChildWorkForSources_append
           rw [ih specFuels
             (expectedPendingChildWorkForResolved schema selectionSet
               fieldType fuel
-              (resolvers.resolve fieldKey.parentType fieldKey.fieldName
-                fieldKey.arguments source)
+              (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                fieldKey.parentType fieldKey.fieldName fieldKey.arguments source)
               pending)]
           rw [slots_expectedPendingChildWorkForResolved_append
             schema selectionSet fieldType fuel
-            (resolvers.resolve fieldKey.parentType fieldKey.fieldName
-              fieldKey.arguments source)
+            (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              fieldKey.parentType fieldKey.fieldName fieldKey.arguments source)
             pending]
           have htail0 :=
             ih specFuels
               (expectedPendingChildWorkForResolved schema selectionSet
                 fieldType fuel
-                (resolvers.resolve fieldKey.parentType fieldKey.fieldName
-                  fieldKey.arguments source)
+                (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                  fieldKey.parentType fieldKey.fieldName fieldKey.arguments source)
                 [])
           simp [expectedPendingChildWorkForSources, List.append_assoc, htail0.symm]
 
 theorem slots_expectedPendingChildWorkForSegment_append
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
     : expectedPendingChildWorkForSegment schema resolvers fieldKey
-        fieldType segment pending
+        fieldType segment pending variableValues
       = pending
         ++ expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment [] := by
+            fieldType segment [] variableValues := by
   simpa [expectedPendingChildWorkForSegment] using
     slots_expectedPendingChildWorkForSources_append
-      (ObjectRef := ObjectRef) schema resolvers fieldKey
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType
       segment.segment.sources segment.specFuels pending
 
 theorem slots_expectedPendingChildWorkForSegments_append
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segments : List (ExpectedQueueSegment ObjectRef))
     (pending : ExpectedPendingChildWorkList ObjectRef)
     : (segments.foldl
         (fun pending segment =>
           expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending)
+            fieldType segment pending variableValues)
         pending)
       = pending
         ++ (segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               []) := by
   induction segments generalizing pending with
   | nil =>
@@ -1068,12 +1071,12 @@ theorem slots_expectedPendingChildWorkForSegments_append
       simp only [List.foldl_cons]
       rw [ih
         (expectedPendingChildWorkForSegment schema resolvers fieldKey
-          fieldType segment pending)]
+          fieldType segment pending variableValues)]
       rw [slots_expectedPendingChildWorkForSegment_append
-        schema resolvers fieldKey fieldType segment pending]
+        schema resolvers variableValues fieldKey fieldType segment pending]
       have htail :=
         ih (expectedPendingChildWorkForSegment schema resolvers fieldKey
-          fieldType segment [])
+          fieldType segment [] variableValues)
       simp [List.append_assoc, htail.symm]
 
 -----------------------------------------------------------------------------------------
@@ -1091,14 +1094,16 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
       -> typeRefCompleteValueFuelBound fieldDefinition.outputType < fuel
       -> completeSlot fieldDefinition.outputType
             (buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet []
-              (resolvers.resolve key.parentType key.fieldName key.arguments source)).snd
+              (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                key.parentType key.fieldName key.arguments source)).snd
             {
               valueStack :=
                 (expectedPendingChildWorkCompletionStack schema resolvers
                   variableValues
                   (expectedPendingChildWorkForResolved schema selectionSet
                     fieldDefinition.outputType fuel
-                    (resolvers.resolve key.parentType key.fieldName key.arguments source)
+                    (GraphQL.Execution.resolveFieldValueByName schema resolvers
+                      variableValues key.parentType key.fieldName key.arguments source)
                     [])).valueStack
                 ++ stack.valueStack
               fieldStore := stack.fieldStore
@@ -1111,8 +1116,13 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
           ) := by
   intro hlookup hready
   cases hresolve
-        : resolvers.resolve key.parentType key.fieldName key.arguments source with
+        : GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+            key.parentType key.fieldName key.arguments source with
   | none =>
+      have hresolveRuntime :
+          GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition key.parentType key.fieldName key.arguments source = none := by
+        simpa [GraphQL.Execution.resolveFieldValueByName, hlookup] using hresolve
       cases fuel with
       | zero =>
           have hpos := typeRefCompleteValueFuelBound_pos fieldDefinition.outputType
@@ -1120,11 +1130,17 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
       | succ fuel =>
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
             expectedPendingChildWorkCompletionStack, GraphQL.Execution.executeField,
-            ScheduleKey.executableField, hlookup, hresolve,
+            GraphQL.Execution.resolveFieldValueByName,
+            ScheduleKey.executableField, hlookup, hresolve, hresolveRuntime,
             slots_singleFieldResultValue_singleFieldResult] using
             slots_completeSlot_completed_handleFieldError_full
               fieldDefinition.outputType stack
   | some value =>
+      have hresolveRuntime :
+          GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition key.parentType key.fieldName key.arguments source =
+            some value := by
+        simpa [GraphQL.Execution.resolveFieldValueByName, hlookup] using hresolve
       cases fuel with
       | zero =>
           have hpos := typeRefCompleteValueFuelBound_pos fieldDefinition.outputType
@@ -1141,7 +1157,8 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
               fuel fieldDefinition.outputType value stack hpos hfuel
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
             GraphQL.Execution.executeField, ScheduleKey.executableField,
-            hlookup, hresolve, slots_singleFieldResultValue_singleFieldResult] using hcomplete
+            GraphQL.Execution.resolveFieldValueByName, hlookup, hresolve, hresolveRuntime,
+            slots_singleFieldResultValue_singleFieldResult] using hcomplete
 
 theorem
     slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
@@ -1159,14 +1176,16 @@ theorem
               (buildFieldSlotsForResolved schema fieldDefinition.outputType selectionSet
                 (sources.map
                   (fun source =>
-                    resolvers.resolve key.parentType key.fieldName key.arguments source))
+                    GraphQL.Execution.resolveFieldValueByName schema resolvers
+                      variableValues key.parentType key.fieldName key.arguments source))
                 []).snd
               {
                 valueStack :=
                   (expectedPendingChildWorkCompletionStack schema resolvers
                     variableValues
                     (expectedPendingChildWorkForSources schema resolvers key selectionSet
-                      fieldDefinition.outputType sources specFuels [])).valueStack
+                      fieldDefinition.outputType sources specFuels []
+                      variableValues)).valueStack
                   ++ stack.valueStack
                 fieldStore := stack.fieldStore
               }
@@ -1205,21 +1224,21 @@ theorem
           let headWork :=
             expectedPendingChildWorkForResolved schema selectionSet
               fieldDefinition.outputType fuel
-              (resolvers.resolve key.parentType key.fieldName
-                key.arguments source) []
+              (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                key.parentType key.fieldName key.arguments source) []
           let tailWork :=
             expectedPendingChildWorkForSources schema resolvers key
-              selectionSet fieldDefinition.outputType sources specFuels []
+              selectionSet fieldDefinition.outputType sources specFuels [] variableValues
           have hwork :
               expectedPendingChildWorkForSources schema resolvers key
                   selectionSet fieldDefinition.outputType
-                  (source :: sources) (fuel :: specFuels) [] =
+                  (source :: sources) (fuel :: specFuels) [] variableValues =
                 headWork ++ tailWork := by
             rw [expectedPendingChildWorkForSources]
             simp [headWork, tailWork]
             simpa [headWork, tailWork] using
               slots_expectedPendingChildWorkForSources_append
-                (ObjectRef := ObjectRef) schema resolvers key selectionSet
+                (ObjectRef := ObjectRef) schema resolvers variableValues key selectionSet
                 fieldDefinition.outputType sources specFuels headWork
           let tailStack : CompletionStack :=
             { valueStack :=
@@ -1232,7 +1251,7 @@ theorem
                   variableValues
                   (expectedPendingChildWorkForSources schema resolvers key
                     selectionSet fieldDefinition.outputType
-                    (source :: sources) (fuel :: specFuels) [])).valueStack ++
+                    (source :: sources) (fuel :: specFuels) [] variableValues)).valueStack ++
                   stack.valueStack
               fieldStore := stack.fieldStore }
           let splitStack : CompletionStack :=
@@ -1257,8 +1276,8 @@ theorem
                     (buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet)
                     []
                     (sources.map (fun source =>
-                      resolvers.resolve key.parentType key.fieldName
-                        key.arguments source))).snd
+                      GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                        key.parentType key.fieldName key.arguments source))).snd
                   tailStack =
                 ( expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
                     variableValues key selectionSet sources specFuels
@@ -1269,35 +1288,36 @@ theorem
                 (buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet)
                 (buildFieldSlotForResolved schema fieldDefinition.outputType
                   selectionSet []
-                  (resolvers.resolve key.parentType key.fieldName
-                    key.arguments source)).fst
+                  (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source)).fst
                 (sources.map (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source))).snd =
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source))).snd =
               (mapAccumList
                 (buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet)
                 []
                 (sources.map (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source))).snd := by
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source))).snd := by
             exact slots_mapAccumList_buildFieldSlotForResolved_snd_eq
               schema fieldDefinition.outputType selectionSet
               (sources.map (fun source =>
-                resolvers.resolve key.parentType key.fieldName
-                  key.arguments source))
+                GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                  key.parentType key.fieldName key.arguments source))
               (buildFieldSlotForResolved schema fieldDefinition.outputType
                 selectionSet []
-                (resolvers.resolve key.parentType key.fieldName
-                  key.arguments source)).fst
+                (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                  key.parentType key.fieldName key.arguments source)).fst
               []
           change completeSlotList fieldDefinition.outputType
               (mapAccumList
                 (buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet)
                 []
-                (resolvers.resolve key.parentType key.fieldName key.arguments source ::
+                (GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source ::
                   sources.map (fun source =>
-                    resolvers.resolve key.parentType key.fieldName
-                      key.arguments source))).snd
+                    GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                      key.parentType key.fieldName key.arguments source))).snd
               currentStack =
             ( expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
                 variableValues key selectionSet (source :: sources) (fuel :: specFuels)
@@ -1306,10 +1326,11 @@ theorem
           rw [slots_mapAccumList_cons
             (step := buildFieldSlotForResolved schema fieldDefinition.outputType selectionSet)
             (state := [])
-            (value := resolvers.resolve key.parentType key.fieldName key.arguments source)
+            (value := GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              key.parentType key.fieldName key.arguments source)
             (values := sources.map (fun source =>
-              resolvers.resolve key.parentType key.fieldName
-                key.arguments source))]
+              GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                key.parentType key.fieldName key.arguments source))]
           simp [completeSlotList]
           rw [hhead, hslots]
           constructor
@@ -1340,14 +1361,15 @@ theorem
               segment.segment.childSelectionSet
               (segment.segment.sources.map
                 (fun source =>
-                  resolvers.resolve key.parentType key.fieldName key.arguments source))
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues key.parentType key.fieldName key.arguments source))
               []).snd
             {
               valueStack :=
                 (expectedPendingChildWorkCompletionStack schema resolvers
                   variableValues
                   (expectedPendingChildWorkForSegment schema resolvers key
-                    fieldDefinition.outputType segment [])).valueStack
+                    fieldDefinition.outputType segment [] variableValues)).valueStack
                 ++ stack.valueStack
               fieldStore := stack.fieldStore
             }
@@ -1386,8 +1408,9 @@ theorem
                       segment.segment,
                       segment.segment.sources.map
                         (fun source =>
-                          resolvers.resolve key.parentType key.fieldName
-                            key.arguments source)
+                          GraphQL.Execution.resolveFieldValueByName schema resolvers
+                            variableValues key.parentType key.fieldName key.arguments
+                            source)
                     )))
                 []).snd
               {
@@ -1397,7 +1420,7 @@ theorem
                     (segments.foldl
                       (fun pending segment =>
                         expectedPendingChildWorkForSegment schema resolvers key
-                          fieldDefinition.outputType segment pending)
+                          fieldDefinition.outputType segment pending variableValues)
                       [])).valueStack
                   ++ stack.valueStack
                 fieldStore := stack.fieldStore
@@ -1418,25 +1441,25 @@ theorem
       intro stack hlookup haligned hready
       let headWork :=
         expectedPendingChildWorkForSegment schema resolvers key
-          fieldDefinition.outputType segment []
+          fieldDefinition.outputType segment [] variableValues
       let tailWork :=
         segments.foldl
           (fun pending segment =>
             expectedPendingChildWorkForSegment schema resolvers key
-              fieldDefinition.outputType segment pending)
+              fieldDefinition.outputType segment pending variableValues)
           []
       have hwork :
           (List.foldl
             (fun pending segment =>
               expectedPendingChildWorkForSegment schema resolvers key
-                fieldDefinition.outputType segment pending)
+                fieldDefinition.outputType segment pending variableValues)
             []
             (segment :: segments)) =
           headWork ++ tailWork := by
         rw [List.foldl_cons]
         simpa [headWork, tailWork] using
           slots_expectedPendingChildWorkForSegments_append
-            (ObjectRef := ObjectRef) schema resolvers key
+            (ObjectRef := ObjectRef) schema resolvers variableValues key
             fieldDefinition.outputType segments headWork
       let tailStack : CompletionStack :=
         { valueStack :=
@@ -1450,7 +1473,7 @@ theorem
               ((segment :: segments).foldl
                 (fun pending segment =>
                   expectedPendingChildWorkForSegment schema resolvers key
-                    fieldDefinition.outputType segment pending)
+                    fieldDefinition.outputType segment pending variableValues)
                 [])).valueStack ++
               stack.valueStack
           fieldStore := stack.fieldStore }
@@ -1489,8 +1512,8 @@ theorem
                 (segments.map (fun segment =>
                   ( segment.segment
                   , segment.segment.sources.map (fun source =>
-                      resolvers.resolve key.parentType key.fieldName
-                        key.arguments source) )))
+                      GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                        key.parentType key.fieldName key.arguments source) )))
                 []).snd
               tailStack =
             ( (segments.map
@@ -1503,33 +1526,33 @@ theorem
             (segments.map (fun segment =>
               ( segment.segment
               , segment.segment.sources.map (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source) )))
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source) )))
             (buildFieldSlotsForResolved schema fieldDefinition.outputType
               segment.segment.childSelectionSet
               (segment.segment.sources.map (fun source =>
-                resolvers.resolve key.parentType key.fieldName
-                  key.arguments source))
+                GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                  key.parentType key.fieldName key.arguments source))
               []).fst).snd =
           (buildFieldSlotsForResolvedSegments schema fieldDefinition.outputType
             (segments.map (fun segment =>
               ( segment.segment
               , segment.segment.sources.map (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source) )))
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source) )))
             []).snd := by
         exact slots_buildFieldSlotsForResolvedSegments_snd_eq
           schema fieldDefinition.outputType
           (segments.map (fun segment =>
             ( segment.segment
             , segment.segment.sources.map (fun source =>
-                resolvers.resolve key.parentType key.fieldName
-                  key.arguments source) )))
+                GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                  key.parentType key.fieldName key.arguments source) )))
           (buildFieldSlotsForResolved schema fieldDefinition.outputType
             segment.segment.childSelectionSet
             (segment.segment.sources.map (fun source =>
-              resolvers.resolve key.parentType key.fieldName
-                key.arguments source))
+              GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                key.parentType key.fieldName key.arguments source))
             []).fst
           []
       change completeSlotList fieldDefinition.outputType
@@ -1537,8 +1560,8 @@ theorem
             (((segment :: segments).map (fun segment =>
               ( segment.segment
               , segment.segment.sources.map (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source) ))))
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                    key.parentType key.fieldName key.arguments source) ))))
             []).snd
           currentStack =
         ( (((segment :: segments).map
@@ -1682,6 +1705,7 @@ theorem slots_expectedPendingChildWorkForResolved_toPending_eq_buildFieldSlotFor
 
 theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsForResolved
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
@@ -1690,11 +1714,12 @@ theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsFor
       -> (∀ fuel, fuel ∈ specFuels -> typeRefCompleteValueFuelBound fieldType < fuel)
       -> expectedPendingChildWorkToPending
             (expectedPendingChildWorkForSources schema resolvers fieldKey
-              selectionSet fieldType sources specFuels pending)
+              selectionSet fieldType sources specFuels pending variableValues)
           = (buildFieldSlotsForResolved schema fieldType selectionSet
               (sources.map
                 (fun source =>
-                  resolvers.resolve fieldKey.parentType fieldKey.fieldName
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues fieldKey.parentType fieldKey.fieldName
                     fieldKey.arguments source))
               (expectedPendingChildWorkToPending pending)).fst := by
   intro hlength hready
@@ -1717,7 +1742,8 @@ theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsFor
             intro tailFuel htailFuel
             exact hready tailFuel (by simp [htailFuel])
           cases hresolved
-                : resolvers.resolve fieldKey.parentType fieldKey.fieldName
+                : GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues fieldKey.parentType fieldKey.fieldName
                     fieldKey.arguments source with
           | none =>
               cases fuel with
@@ -1754,6 +1780,7 @@ theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsFor
 
 theorem slots_expectedPendingChildWorkForSegment_toPending_eq_buildFieldSlotsForResolved
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
@@ -1762,18 +1789,19 @@ theorem slots_expectedPendingChildWorkForSegment_toPending_eq_buildFieldSlotsFor
             fuel ∈ segment.specFuels -> typeRefCompleteValueFuelBound fieldType < fuel)
       -> expectedPendingChildWorkToPending
             (expectedPendingChildWorkForSegment schema resolvers fieldKey
-              fieldType segment pending)
+              fieldType segment pending variableValues)
           = (buildFieldSlotsForResolved schema fieldType
               segment.segment.childSelectionSet
               (segment.segment.sources.map
                 (fun source =>
-                  resolvers.resolve fieldKey.parentType fieldKey.fieldName
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues fieldKey.parentType fieldKey.fieldName
                     fieldKey.arguments source))
               (expectedPendingChildWorkToPending pending)).fst := by
   intro haligned hready
   simpa [expectedPendingChildWorkForSegment] using
     slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsForResolved
-      (ObjectRef := ObjectRef) schema resolvers fieldKey
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending
       (by simpa [expectedQueueSegmentFuelsAligned] using haligned)
@@ -1852,14 +1880,15 @@ theorem slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResults
               item.toScheduleItem.segments
               (item.toScheduleItem.sources.map
                 (fun source =>
-                  resolvers.resolve key.parentType key.fieldName
-                    key.arguments source))).snd
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues key.parentType key.fieldName key.arguments
+                    source))).snd
             {
               valueStack :=
                 (expectedPendingChildWorkCompletionStack schema resolvers
                   variableValues
                   (expectedPendingChildWorkForItem schema resolvers
-                    fieldDefinition.outputType item)).valueStack
+                    fieldDefinition.outputType item variableValues)).valueStack
                 ++ stack.valueStack
               fieldStore := stack.fieldStore
             }
@@ -1874,21 +1903,21 @@ theorem slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResults
   have hsplit :
       splitResolvedBySegments item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
-            resolvers.resolve item.key.parentType item.key.fieldName
-              item.key.arguments source)) =
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              item.key.parentType item.key.fieldName item.key.arguments source)) =
         item.segments.map (fun segment =>
           ( segment.segment
           , segment.segment.sources.map (fun source =>
-              resolvers.resolve item.key.parentType item.key.fieldName
-                item.key.arguments source) )) := by
+              GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                item.key.parentType item.key.fieldName item.key.arguments source) )) := by
     unfold ExpectedQueueItem.toScheduleItem ScheduleItem.sources
     rw [List.map_flatten]
     simpa [Function.comp_def] using
       slots_splitResolvedBySegments_map_sources
         (ObjectRef := ObjectRef) item.segments
         (fun source =>
-          resolvers.resolve item.key.parentType item.key.fieldName
-            item.key.arguments source)
+          GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+            item.key.parentType item.key.fieldName item.key.arguments source)
   simpa [buildFieldSlots, buildFieldSlotsLoop,
     expectedPendingChildWorkForItem, hsplit] using
     slots_completeSlotList_buildFieldSlotsForResolvedSegments_eq_expectedScheduleSegmentResultsFlatten
@@ -1898,7 +1927,7 @@ theorem slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResults
 theorem
     slots_expectedPendingChildWorkForSegments_toPending_eq_buildFieldSlotsForResolvedSegments
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
-    (fieldKey : ScheduleKey) (fieldType : TypeRef)
+    (variableValues : VariableValues) (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segments : List (ExpectedQueueSegment ObjectRef))
     (pending : ExpectedPendingChildWorkList ObjectRef)
     : (∀ segment, segment ∈ segments -> expectedQueueSegmentFuelsAligned segment)
@@ -1911,7 +1940,7 @@ theorem
             (segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               pending)
           = (buildFieldSlotsForResolvedSegments schema fieldType
               (segments.map
@@ -1920,7 +1949,8 @@ theorem
                     segment.segment,
                     segment.segment.sources.map
                       (fun source =>
-                        resolvers.resolve fieldKey.parentType fieldKey.fieldName
+                        GraphQL.Execution.resolveFieldValueByName schema resolvers
+                          variableValues fieldKey.parentType fieldKey.fieldName
                           fieldKey.arguments source)
                   )))
               (expectedPendingChildWorkToPending pending)).fst := by
@@ -1931,7 +1961,7 @@ theorem
   | cons segment rest ih =>
       have hhead :=
         slots_expectedPendingChildWorkForSegment_toPending_eq_buildFieldSlotsForResolved
-          (ObjectRef := ObjectRef) schema resolvers fieldKey fieldType
+          (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey fieldType
           segment pending
           (haligned segment (by simp))
           (hready segment (by simp))
@@ -1949,7 +1979,7 @@ theorem
       have htail :=
         ih
           (expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending)
+            fieldType segment pending variableValues)
           htailAligned htailReady
       rw [hhead] at htail
       simp [buildFieldSlotsForResolvedSegments] at htail ⊢
@@ -1957,6 +1987,7 @@ theorem
 
 theorem slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     : expectedQueueItemFuelsAligned item
       -> (∀ segment,
@@ -1965,44 +1996,46 @@ theorem slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
                 fuel ∈ segment.specFuels
                 -> typeRefCompleteValueFuelBound fieldType < fuel)
       -> expectedPendingChildWorkToPending
-            (expectedPendingChildWorkForItem schema resolvers fieldType item)
+            (expectedPendingChildWorkForItem schema resolvers fieldType item
+              variableValues)
           = (buildFieldSlots schema fieldType item.toScheduleItem.segments
               (item.toScheduleItem.sources.map
                 (fun source =>
-                  resolvers.resolve item.key.parentType item.key.fieldName
+                  GraphQL.Execution.resolveFieldValueByName schema resolvers
+                    variableValues item.key.parentType item.key.fieldName
                     item.key.arguments source))).fst := by
   intro haligned hready
   have hsegments :=
     slots_expectedPendingChildWorkForSegments_toPending_eq_buildFieldSlotsForResolvedSegments
-      (ObjectRef := ObjectRef) schema resolvers item.key fieldType
+      (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldType
       item.segments [] haligned hready
   have hsplit :
       splitResolvedBySegments item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
-            resolvers.resolve item.key.parentType item.key.fieldName
-              item.key.arguments source)) =
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              item.key.parentType item.key.fieldName item.key.arguments source)) =
         item.segments.map (fun segment =>
           ( segment.segment
           , segment.segment.sources.map (fun source =>
-              resolvers.resolve item.key.parentType item.key.fieldName
-                item.key.arguments source) )) := by
+              GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+                item.key.parentType item.key.fieldName item.key.arguments source) )) := by
     unfold ExpectedQueueItem.toScheduleItem ScheduleItem.sources
     rw [List.map_flatten]
     simpa [Function.comp_def] using
       slots_splitResolvedBySegments_map_sources
         (ObjectRef := ObjectRef) item.segments
         (fun source =>
-          resolvers.resolve item.key.parentType item.key.fieldName
-            item.key.arguments source)
+          GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+            item.key.parentType item.key.fieldName item.key.arguments source)
   rw [show buildFieldSlots schema fieldType item.toScheduleItem.segments
         (item.toScheduleItem.sources.map (fun source =>
-          resolvers.resolve item.key.parentType item.key.fieldName
-            item.key.arguments source)) =
+          GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+            item.key.parentType item.key.fieldName item.key.arguments source)) =
       buildFieldSlotsForResolvedSegments schema fieldType
         (splitResolvedBySegments item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
-            resolvers.resolve item.key.parentType item.key.fieldName
-              item.key.arguments source)))
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              item.key.parentType item.key.fieldName item.key.arguments source)))
         [] by
       simp [buildFieldSlots, buildFieldSlotsLoop]]
   rw [hsplit]

@@ -348,8 +348,8 @@ mutual
                       (some previous)
                 | _ => .error 1
         | none =>
-            match resolvers.resolve field.parentType field.fieldName
-                    field.arguments source with
+            match resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
             | none =>
                 handleFieldError fieldDefinition.outputType
             | some resolved =>

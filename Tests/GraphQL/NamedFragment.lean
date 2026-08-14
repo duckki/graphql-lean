@@ -59,6 +59,24 @@ def variableDefaultQuery : GraphQL.NamedFragment.Operation :=
       [.field "name" "name" [] [.include (.variable "includeName")] []]
   }
 
+def objectVariableDefaultQuery : GraphQL.NamedFragment.Operation :=
+  {
+    variableDefinitions :=
+      [{
+        name := "payload"
+        typeRef := .named "Payload"
+        defaultValue := some (.object [("z", .int 0), ("a", .int 1)])
+      }]
+    selectionSet := [.field "name" "name" [] [] []]
+  }
+
+theorem coerceVariableValuesPreservesOperationDefaultSyntax
+    : GraphQL.Execution.lookupVariableValue?
+        (GraphQL.NamedFragment.Execution.coerceVariableValues
+          objectVariableDefaultQuery []) "payload"
+      = some (.object [("z", .int 0), ("a", .int 1)]) := by
+  rfl
+
 theorem executeQueryUsesVariableDefaultSmoke
     : Execution.responseEqBool
         (GraphQL.NamedFragment.Execution.executeQuery Execution.sampleSchema
@@ -340,6 +358,22 @@ theorem collectSubfieldsUsesFreshVisitedFragments
           [pairSpreadExecutableField, pairSpreadExecutableField]
       groups.map (fun group => (group.fst, group.snd.length))
       = [("name", 2), ("age", 2)] := by
+  native_decide
+
+def omittedNamedFragmentResolverArgumentOperation : GraphQL.NamedFragment.Operation :=
+  {
+    name := some "OmittedNamedFragmentResolverArgument"
+    selectionSet := [.field "echo" "echo" [] [] []]
+  }
+
+theorem namedFragmentExecutorPassesCoercedArgumentsToGivenResolver
+    : Execution.responseEqBool
+        (GraphQL.NamedFragment.Execution.executeQuery Execution.coercedResolverSchema
+          Execution.resolverArgumentPresenceResolvers []
+          omittedNamedFragmentResolverArgumentOperation
+          (GraphQL.Execution.ResolverValue.object "Query" ())).data
+        (.object [("echo", .scalar "present")])
+      = true := by
   native_decide
 
 end NamedFragment

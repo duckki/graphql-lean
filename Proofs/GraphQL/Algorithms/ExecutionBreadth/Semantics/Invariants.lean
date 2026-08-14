@@ -1,6 +1,7 @@
 import Proofs.GraphQL.Algorithms.Common.SyntaxEq
 import GraphQL.Algorithms.ExecutionBreadth
 import Proofs.GraphQL.Algorithms.ExecutionBreadth.Semantics.Collection
+import Proofs.GraphQL.Execution.ArgumentCoercion
 
 /-!
 Proof-facing invariant vocabulary for the current breadth executor.
@@ -4446,37 +4447,43 @@ def expectedPendingChildWorkForSources
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
-    : List (ResolverValue ObjectRef) -> List Nat -> ExpectedPendingChildWorkList ObjectRef
-      -> ExpectedPendingChildWorkList ObjectRef
-  | [], _fuels, pending => pending
-  | _source :: _sources, [], pending => pending
-  | source :: sources, fuel :: fuels, pending =>
+    (sources : List (ResolverValue ObjectRef)) (fuels : List Nat)
+    (pending : ExpectedPendingChildWorkList ObjectRef)
+    (variableValues : VariableValues := [])
+    : ExpectedPendingChildWorkList ObjectRef :=
+  match sources, fuels with
+  | [], _fuels => pending
+  | _source :: _sources, [] => pending
+  | source :: sources, fuel :: fuels =>
       let resolved :=
-        resolvers.resolve fieldKey.parentType fieldKey.fieldName fieldKey.arguments source
+        GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+          fieldKey.parentType fieldKey.fieldName fieldKey.arguments source
       let pending :=
         expectedPendingChildWorkForResolved schema selectionSet
           fieldType fuel resolved pending
       expectedPendingChildWorkForSources schema resolvers fieldKey
-        selectionSet fieldType sources fuels pending
+        selectionSet fieldType sources fuels pending variableValues
 
 def expectedPendingChildWorkForSegment
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
+    (variableValues : VariableValues := [])
     : ExpectedPendingChildWorkList ObjectRef :=
   expectedPendingChildWorkForSources schema resolvers fieldKey
     segment.segment.childSelectionSet fieldType segment.segment.sources
-    segment.specFuels pending
+    segment.specFuels pending variableValues
 
 def expectedPendingChildWorkForItem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
+    (variableValues : VariableValues := [])
     : ExpectedPendingChildWorkList ObjectRef :=
   item.segments.foldl
     (fun pending segment =>
       expectedPendingChildWorkForSegment schema resolvers item.key fieldType
-        segment pending)
+        segment pending variableValues)
     []
 
 mutual
@@ -4627,6 +4634,7 @@ theorem expectedPendingChildWorkForResolved_selectionSet_mem
 
 theorem expectedPendingChildWorkForSources_selectionSet_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
@@ -4634,7 +4642,7 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
         (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForSources schema resolvers fieldKey
-              selectionSet fieldType sources specFuels pending
+              selectionSet fieldType sources specFuels pending variableValues
         -> childWork ∈ pending ∨ childWork.work.selectionSet = selectionSet := by
   intro sources
   induction sources with
@@ -4650,8 +4658,8 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
             simpa [expectedPendingChildWorkForSources] using hmem)
       | cons fuel fuels =>
           let resolved :=
-            resolvers.resolve fieldKey.parentType fieldKey.fieldName
-              fieldKey.arguments source
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              fieldKey.parentType fieldKey.fieldName fieldKey.arguments source
           have htail :=
             ih fuels
               (expectedPendingChildWorkForResolved schema selectionSet
@@ -4668,24 +4676,26 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
 
 theorem expectedPendingChildWorkForSegment_selectionSet_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
     : childWork
         ∈ expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending
+            fieldType segment pending variableValues
       -> childWork ∈ pending
           ∨ childWork.work.selectionSet = segment.segment.childSelectionSet := by
   intro hmem
   simpa [expectedPendingChildWorkForSegment] using
     expectedPendingChildWorkForSources_selectionSet_mem
-      (ObjectRef := ObjectRef) schema resolvers fieldKey
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending childWork hmem
 
 theorem expectedPendingChildWorkForSegments_selectionSet_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
         (pending : ExpectedPendingChildWorkList ObjectRef)
@@ -4694,7 +4704,7 @@ theorem expectedPendingChildWorkForSegments_selectionSet_mem
           ∈ segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               pending
         -> childWork ∈ pending
             ∨ ∃ segment,
@@ -4712,18 +4722,18 @@ theorem expectedPendingChildWorkForSegments_selectionSet_mem
             segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               (expectedPendingChildWorkForSegment schema resolvers fieldKey
-                fieldType segment pending) := by
+                fieldType segment pending variableValues) := by
         simpa [List.foldl_cons] using hmem
       have hrest := ih
         (expectedPendingChildWorkForSegment schema resolvers fieldKey
-          fieldType segment pending)
+          fieldType segment pending variableValues)
         childWork htail
       rcases hrest with hheadPending | hrestSegment
       · have hhead :=
           expectedPendingChildWorkForSegment_selectionSet_mem
-            (ObjectRef := ObjectRef) schema resolvers fieldKey fieldType
+            (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey fieldType
             segment pending childWork hheadPending
         rcases hhead with hpending | hselection
         · exact Or.inl hpending
@@ -4733,15 +4743,17 @@ theorem expectedPendingChildWorkForSegments_selectionSet_mem
 
 theorem expectedPendingChildWorkForItem_selectionSet_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
-    : childWork ∈ expectedPendingChildWorkForItem schema resolvers fieldType item
+    : childWork
+        ∈ expectedPendingChildWorkForItem schema resolvers fieldType item variableValues
       -> { selectionSet := childWork.work.selectionSet }
           ∈ expectedQueueItemChildSelectionSetShapes item := by
   intro hmem
   have hsegments :=
     expectedPendingChildWorkForSegments_selectionSet_mem
-      (ObjectRef := ObjectRef) schema resolvers item.key fieldType
+      (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldType
       item.segments [] childWork
       (by simpa [expectedPendingChildWorkForItem] using hmem)
   rcases hsegments with hnil | hsegment
@@ -4776,7 +4788,7 @@ theorem expectedPendingChildWorkForItem_selectionSet_materialized
     (ObjectRef := ObjectRef) { selectionSet := childWork.work.selectionSet }
     item materialized
     (expectedPendingChildWorkForItem_selectionSet_mem
-      (ObjectRef := ObjectRef) schema resolvers fieldType item childWork hmem)
+      (ObjectRef := ObjectRef) schema resolvers [] fieldType item childWork hmem)
 
 theorem expectedPendingChildWorkForItem_selectionSetShape_mem
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -4791,7 +4803,7 @@ theorem expectedPendingChildWorkForItem_selectionSetShape_mem
   subst shape
   simpa [expectedPendingChildWorkSelectionSetShape] using
     expectedPendingChildWorkForItem_selectionSet_mem
-      (ObjectRef := ObjectRef) schema resolvers fieldType item childWork
+      (ObjectRef := ObjectRef) schema resolvers [] fieldType item childWork
       hchildWork
 
 theorem expectedPendingChildWorkForItem_selectionSetShapeSet_mem
@@ -4963,6 +4975,7 @@ theorem expectedPendingChildWorkForResolved_runtimeType_includes
 
 theorem expectedPendingChildWorkForSources_runtimeType_includes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
@@ -4970,7 +4983,7 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
         (childWork : ExpectedPendingChildWork ObjectRef),
         childWork
           ∈ expectedPendingChildWorkForSources schema resolvers fieldKey
-              selectionSet fieldType sources specFuels pending
+              selectionSet fieldType sources specFuels pending variableValues
         -> childWork ∈ pending
             ∨ schema.typeIncludesObjectBool fieldType.namedType childWork.work.runtimeType
               = true := by
@@ -4988,8 +5001,8 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
             simpa [expectedPendingChildWorkForSources] using hmem)
       | cons fuel fuels =>
           let resolved :=
-            resolvers.resolve fieldKey.parentType fieldKey.fieldName
-              fieldKey.arguments source
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              fieldKey.parentType fieldKey.fieldName fieldKey.arguments source
           have htail :=
             ih fuels
               (expectedPendingChildWorkForResolved schema selectionSet
@@ -5006,25 +5019,27 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
 
 theorem expectedPendingChildWorkForSegment_runtimeType_includes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
     : childWork
         ∈ expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending
+            fieldType segment pending variableValues
       -> childWork ∈ pending
           ∨ schema.typeIncludesObjectBool fieldType.namedType childWork.work.runtimeType
             = true := by
   intro hmem
   simpa [expectedPendingChildWorkForSegment] using
     expectedPendingChildWorkForSources_runtimeType_includes
-      (ObjectRef := ObjectRef) schema resolvers fieldKey
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending childWork hmem
 
 theorem expectedPendingChildWorkForSegments_runtimeType_includes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
         (pending : ExpectedPendingChildWorkList ObjectRef)
@@ -5033,7 +5048,7 @@ theorem expectedPendingChildWorkForSegments_runtimeType_includes
           ∈ segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               pending
         -> childWork ∈ pending
             ∨ schema.typeIncludesObjectBool fieldType.namedType childWork.work.runtimeType
@@ -5050,32 +5065,34 @@ theorem expectedPendingChildWorkForSegments_runtimeType_includes
             segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               (expectedPendingChildWorkForSegment schema resolvers fieldKey
-                fieldType segment pending) := by
+                fieldType segment pending variableValues) := by
         simpa [List.foldl_cons] using hmem
       have hrest := ih
         (expectedPendingChildWorkForSegment schema resolvers fieldKey
-          fieldType segment pending)
+          fieldType segment pending variableValues)
         childWork htail
       rcases hrest with hheadPending | hincludes
       · exact
           expectedPendingChildWorkForSegment_runtimeType_includes
-            (ObjectRef := ObjectRef) schema resolvers fieldKey fieldType
+            (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey fieldType
             segment pending childWork hheadPending
       · exact Or.inr hincludes
 
 theorem expectedPendingChildWorkForItem_runtimeType_includes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
-    : childWork ∈ expectedPendingChildWorkForItem schema resolvers fieldType item
+    : childWork
+        ∈ expectedPendingChildWorkForItem schema resolvers fieldType item variableValues
       -> schema.typeIncludesObjectBool fieldType.namedType childWork.work.runtimeType
           = true := by
   intro hmem
   have hsegments :=
     expectedPendingChildWorkForSegments_runtimeType_includes
-      (ObjectRef := ObjectRef) schema resolvers item.key fieldType
+      (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldType
       item.segments [] childWork
       (by simpa [expectedPendingChildWorkForItem] using hmem)
   rcases hsegments with hnil | hincludes
@@ -5084,14 +5101,16 @@ theorem expectedPendingChildWorkForItem_runtimeType_includes
 
 theorem expectedPendingChildWorkForItem_runtimeType_mem_possibleTypes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
-    : childWork ∈ expectedPendingChildWorkForItem schema resolvers fieldType item
+    : childWork
+        ∈ expectedPendingChildWorkForItem schema resolvers fieldType item variableValues
       -> childWork.work.runtimeType ∈ schema.getPossibleTypes fieldType.namedType := by
   intro hmem
   have hincludes :=
     expectedPendingChildWorkForItem_runtimeType_includes
-      (ObjectRef := ObjectRef) schema resolvers fieldType item childWork hmem
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item childWork hmem
   simpa [Schema.typeIncludesObjectBool] using List.contains_iff_mem.mp hincludes
 
 theorem expectedPendingChildWorkScopeBudgetReady_append
@@ -5238,6 +5257,7 @@ theorem expectedPendingChildWorkForResolved_scopeBudgetReady
 
 theorem expectedPendingChildWorkForSources_scopeBudgetReady
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (selectionSet : List Selection)
     (fieldType : TypeRef)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
@@ -5247,7 +5267,7 @@ theorem expectedPendingChildWorkForSources_scopeBudgetReady
         -> expectedPendingChildWorkScopeBudgetReady schema pending
         -> expectedPendingChildWorkScopeBudgetReady schema
             (expectedPendingChildWorkForSources schema resolvers fieldKey
-              selectionSet fieldType sources specFuels pending) := by
+              selectionSet fieldType sources specFuels pending variableValues) := by
   intro sources
   induction sources with
   | nil =>
@@ -5260,8 +5280,8 @@ theorem expectedPendingChildWorkForSources_scopeBudgetReady
           simpa [expectedPendingChildWorkForSources] using hpending
       | cons fuel fuels =>
           let resolved :=
-            resolvers.resolve fieldKey.parentType fieldKey.fieldName
-              fieldKey.arguments source
+            GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
+              fieldKey.parentType fieldKey.fieldName fieldKey.arguments source
           have hhead :
               expectedPendingChildWorkScopeBudgetReady schema
                 (expectedPendingChildWorkForResolved schema selectionSet fieldType
@@ -5283,6 +5303,7 @@ theorem expectedPendingChildWorkForSources_scopeBudgetReady
 
 theorem expectedPendingChildWorkForSegment_scopeBudgetReady
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     (segment : ExpectedQueueSegment ObjectRef)
     (pending : ExpectedPendingChildWorkList ObjectRef)
@@ -5291,16 +5312,17 @@ theorem expectedPendingChildWorkForSegment_scopeBudgetReady
       -> expectedPendingChildWorkScopeBudgetReady schema pending
       -> expectedPendingChildWorkScopeBudgetReady schema
           (expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending) := by
+            fieldType segment pending variableValues) := by
   intro hfieldBound hbudget hpending
   simpa [expectedPendingChildWorkForSegment] using
     expectedPendingChildWorkForSources_scopeBudgetReady
-      (ObjectRef := ObjectRef) schema resolvers fieldKey
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending hfieldBound hbudget hpending
 
 theorem expectedPendingChildWorkForSegments_scopeBudgetReady
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldKey : ScheduleKey) (fieldType : TypeRef)
     : ∀ (segments : List (ExpectedQueueSegment ObjectRef))
         (pending : ExpectedPendingChildWorkList ObjectRef),
@@ -5312,7 +5334,7 @@ theorem expectedPendingChildWorkForSegments_scopeBudgetReady
             (segments.foldl
               (fun pending segment =>
                 expectedPendingChildWorkForSegment schema resolvers fieldKey
-                  fieldType segment pending)
+                  fieldType segment pending variableValues)
               pending) := by
   intro segments
   induction segments with
@@ -5327,9 +5349,9 @@ theorem expectedPendingChildWorkForSegments_scopeBudgetReady
       have hhead :
           expectedPendingChildWorkScopeBudgetReady schema
             (expectedPendingChildWorkForSegment schema resolvers fieldKey
-              fieldType segment pending) :=
+              fieldType segment pending variableValues) :=
         expectedPendingChildWorkForSegment_scopeBudgetReady
-          (ObjectRef := ObjectRef) schema resolvers fieldKey fieldType segment
+          (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey fieldType segment
           pending hfieldBound hsegment hpending
       have hrestBudget :
           ∀ restSegment, restSegment ∈ segments ->
@@ -5339,20 +5361,22 @@ theorem expectedPendingChildWorkForSegments_scopeBudgetReady
       simpa [List.foldl_cons] using
         ih
           (expectedPendingChildWorkForSegment schema resolvers fieldKey
-            fieldType segment pending)
+            fieldType segment pending variableValues)
           hfieldBound hrestBudget hhead
 
 theorem expectedPendingChildWorkForItem_scopeBudgetReady
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     : typeRefCompleteValueFuelBound fieldType <= schemaCompleteValueFuelBound schema
       -> expectedQueueItemFieldBudgetReady schema item
       -> expectedPendingChildWorkScopeBudgetReady schema
-          (expectedPendingChildWorkForItem schema resolvers fieldType item) := by
+          (expectedPendingChildWorkForItem schema resolvers fieldType item
+            variableValues) := by
   intro hfieldBound hbudget
   simpa [expectedPendingChildWorkForItem] using
     expectedPendingChildWorkForSegments_scopeBudgetReady
-      (ObjectRef := ObjectRef) schema resolvers item.key fieldType item.segments
+      (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldType item.segments
       [] hfieldBound hbudget
       (by simp [expectedPendingChildWorkScopeBudgetReady])
 
@@ -6787,7 +6811,8 @@ def expectedChildQueueForItem
   | none => ([], [])
   | some fieldDefinition =>
       scheduleExpectedPendingChildWork schema variableValues
-        (expectedPendingChildWorkForItem schema resolvers fieldDefinition.outputType item)
+        (expectedPendingChildWorkForItem schema resolvers fieldDefinition.outputType item
+          variableValues)
         []
 
 -----------------------------------------------------------------------------------------
@@ -6910,20 +6935,23 @@ theorem scheduleExpectedPendingChildWork_contains_materialized_scopes
 
 def expectedQueueItemRuntimeChildWork
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (item : ExpectedQueueItem ObjectRef)
     : ExpectedPendingChildWorkList ObjectRef :=
   match schema.lookupField item.key.parentType item.key.fieldName with
   | none => []
   | some fieldDefinition =>
       expectedPendingChildWorkForItem schema resolvers fieldDefinition.outputType item
+        variableValues
 
 def materializeExpectedQueueItemRuntimeScopes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (item : ExpectedQueueItem ObjectRef)
     (materialized : MaterializedPendingScopes)
     : MaterializedPendingScopes :=
   materializeExpectedPendingChildWorkScopes
-    (expectedQueueItemRuntimeChildWork schema resolvers item)
+    (expectedQueueItemRuntimeChildWork schema resolvers variableValues item)
     materialized
 
 def possiblePendingScopeShapesForSelectionSet
@@ -7096,9 +7124,11 @@ theorem expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le_of_shape_m
 
 theorem expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     (childWork : ExpectedPendingChildWork ObjectRef)
-    : childWork ∈ expectedPendingChildWorkForItem schema resolvers fieldType item
+    : childWork
+        ∈ expectedPendingChildWorkForItem schema resolvers fieldType item variableValues
       -> expectedPendingChildWorkShape childWork
           ∈ expectedQueueItemPossibleRuntimeChildShapes schema fieldType item := by
   intro hchildWork
@@ -7106,13 +7136,13 @@ theorem expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
       { selectionSet := childWork.work.selectionSet } ∈
         expectedQueueItemChildSelectionSetShapes item :=
     expectedPendingChildWorkForItem_selectionSet_mem
-      (ObjectRef := ObjectRef) schema resolvers fieldType item childWork
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item childWork
       hchildWork
   have hruntime :
       childWork.work.runtimeType ∈
         schema.getPossibleTypes fieldType.namedType :=
     expectedPendingChildWorkForItem_runtimeType_mem_possibleTypes
-      (ObjectRef := ObjectRef) schema resolvers fieldType item childWork
+      (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item childWork
       hchildWork
   have hraw :
       expectedPendingChildWorkShape childWork ∈
@@ -7145,12 +7175,13 @@ theorem expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
 
 theorem expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChildShapes
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (fieldType : TypeRef) (item : ExpectedQueueItem ObjectRef)
     : expectedPendingChildWorkBreadthShapeWeight schema
-        (expectedPendingChildWorkForItem schema resolvers fieldType item)
+        (expectedPendingChildWorkForItem schema resolvers fieldType item variableValues)
       <= pendingScopeShapeBreadthSetWeight schema
           (expectedQueueItemPossibleRuntimeChildShapes schema fieldType item) := by
-  let work := expectedPendingChildWorkForItem schema resolvers fieldType item
+  let work := expectedPendingChildWorkForItem schema resolvers fieldType item variableValues
   let possible := expectedQueueItemPossibleRuntimeChildShapes schema fieldType item
   have hactualNoDup :
       pendingScopeShapeNoDup
@@ -7168,7 +7199,7 @@ theorem expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChi
         expectedPendingChildWorkShape childWork ∈ possible := by
       simpa [work, possible] using
         expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
-          (ObjectRef := ObjectRef) schema resolvers fieldType item childWork
+          (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item childWork
           hchildWork
     exact pendingScopeShapeMemberBool_true_of_mem
       (expectedPendingChildWorkShape childWork) possible hpossible
@@ -7206,7 +7237,8 @@ def expectedScheduleQueueRuntimeDrainBudget
       expectedQueueItemCurrentShapeCount item
       + expectedQueueItemRuntimeCreditWeight schema resolvers materialized item
       + expectedScheduleQueueRuntimeDrainBudget schema resolvers
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
+            materialized)
           rest
 
 theorem expectedScheduleQueueRuntimeDrainBudget_nil
@@ -7225,15 +7257,17 @@ theorem expectedScheduleQueueRuntimeDrainBudget_cons
       = expectedQueueItemCurrentShapeCount item
         + expectedQueueItemRuntimeCreditWeight schema resolvers materialized item
         + expectedScheduleQueueRuntimeDrainBudget schema resolvers
-            (materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized)
+            (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
+              materialized)
             rest := by
   rfl
 
 theorem expectedQueueItemRuntimeChildWork_lookup_none
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (item : ExpectedQueueItem ObjectRef)
     : schema.lookupField item.key.parentType item.key.fieldName = none
-      -> expectedQueueItemRuntimeChildWork schema resolvers item = [] := by
+      -> expectedQueueItemRuntimeChildWork schema resolvers variableValues item = [] := by
   intro hlookup
   simp [expectedQueueItemRuntimeChildWork, hlookup]
 
@@ -7248,26 +7282,29 @@ theorem expectedQueueItemRuntimeCreditWeight_lookup_none
 
 theorem materializeExpectedQueueItemRuntimeScopes_lookup_none
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (materialized : MaterializedPendingScopes)
     (item : ExpectedQueueItem ObjectRef)
     : schema.lookupField item.key.parentType item.key.fieldName = none
-      -> materializeExpectedQueueItemRuntimeScopes schema resolvers item materialized
+      -> materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
+            materialized
           = materialized := by
   intro hlookup
   simp [materializeExpectedQueueItemRuntimeScopes,
     materializeExpectedPendingChildWorkScopes,
     expectedQueueItemRuntimeChildWork_lookup_none
-      (ObjectRef := ObjectRef) schema resolvers item hlookup,
+      (ObjectRef := ObjectRef) schema resolvers variableValues item hlookup,
     expectedPendingChildWorkShapes]
 
 theorem expectedQueueItemRuntimeChildWork_lookup_some
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (item : ExpectedQueueItem ObjectRef)
     (fieldDefinition : FieldDefinition)
     : schema.lookupField item.key.parentType item.key.fieldName = some fieldDefinition
-      -> expectedQueueItemRuntimeChildWork schema resolvers item
+      -> expectedQueueItemRuntimeChildWork schema resolvers variableValues item
           = expectedPendingChildWorkForItem schema resolvers
-              fieldDefinition.outputType item := by
+              fieldDefinition.outputType item variableValues := by
   intro hlookup
   simp [expectedQueueItemRuntimeChildWork, hlookup]
 
@@ -7878,8 +7915,8 @@ theorem expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
       have htail :=
         expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
           schema resolvers rest
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item left)
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item right)
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item left)
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item right)
       have hcredit :
           expectedQueueItemRuntimeCreditWeight schema resolvers left item =
             expectedQueueItemRuntimeCreditWeight schema resolvers right item := by
@@ -7924,12 +7961,12 @@ theorem expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegment_le
               segment
           have htail :
               expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                  (materializeExpectedQueueItemRuntimeScopes schema resolvers
+                  (materializeExpectedQueueItemRuntimeScopes schema resolvers []
                     { item with segments := item.segments ++ [segment] }
                     materialized)
                   rest =
                 expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                  (materializeExpectedQueueItemRuntimeScopes schema resolvers
+                  (materializeExpectedQueueItemRuntimeScopes schema resolvers []
                     item materialized)
                   rest :=
             expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
@@ -7941,7 +7978,7 @@ theorem expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegment_le
           have htail :=
             expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegment_le
               schema resolvers
-              (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+              (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
                 materialized)
               key segment rest
           simp [enqueueExpectedSegment, hkey,
@@ -7994,12 +8031,12 @@ theorem
               segment hshape
           have htail :
               expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                  (materializeExpectedQueueItemRuntimeScopes schema resolvers
+                  (materializeExpectedQueueItemRuntimeScopes schema resolvers []
                     { item with segments := item.segments ++ [segment] }
                     materialized)
                   rest =
                 expectedScheduleQueueRuntimeDrainBudget schema resolvers
-                  (materializeExpectedQueueItemRuntimeScopes schema resolvers
+                  (materializeExpectedQueueItemRuntimeScopes schema resolvers []
                     item materialized)
                   rest :=
             expectedScheduleQueueRuntimeDrainBudget_materialized_irrel
@@ -8028,7 +8065,7 @@ theorem
           have htail :=
             expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegment_le_of_contains_shape
               schema resolvers
-              (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+              (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
                 materialized)
               key segment rest hrestDistinct hrestContains
           simp [enqueueExpectedSegment, hkeyFalse,
@@ -9028,7 +9065,7 @@ theorem expectedScheduleQueueRuntimeDrainBudget_le_itemStepWeight
       have hrest :=
         expectedScheduleQueueRuntimeDrainBudget_le_itemStepWeight
           schema resolvers
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers item
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers [] item
             materialized)
           rest
       simp [expectedScheduleQueueRuntimeDrainBudget,
@@ -9050,7 +9087,7 @@ theorem expectedChildQueueForItem_fuelsAligned
         scheduleExpectedPendingChildWork_fuelsAligned
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
-            fieldDefinition.outputType item)
+            fieldDefinition.outputType item variableValues)
           []
           (by simp [expectedScheduleQueueFuelsAligned])
 
@@ -9069,7 +9106,7 @@ theorem expectedChildQueueForItem_itemsNonempty
         scheduleExpectedPendingChildWork_itemsNonempty
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
-            fieldDefinition.outputType item)
+            fieldDefinition.outputType item variableValues)
           []
           (by simp [expectedScheduleQueueItemsNonempty])
 
@@ -9088,7 +9125,7 @@ theorem expectedChildQueueForItem_keysDistinct
         scheduleExpectedPendingChildWork_keysDistinct
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
-            fieldDefinition.outputType item)
+            fieldDefinition.outputType item variableValues)
           []
           (by simp [expectedScheduleQueueKeysDistinct])
 
@@ -9114,7 +9151,7 @@ theorem expectedChildQueueForItem_shapeWeight_lookup_some_le_pendingShapeWeight
             (expectedChildQueueForItem schema resolvers variableValues item).fst
           <= expectedPendingChildWorkShapeWeight schema
               (expectedPendingChildWorkForItem schema resolvers
-                fieldDefinition.outputType item) := by
+                fieldDefinition.outputType item variableValues) := by
   intro hlookup
   unfold expectedChildQueueForItem
   simp [hlookup]
@@ -9122,7 +9159,7 @@ theorem expectedChildQueueForItem_shapeWeight_lookup_some_le_pendingShapeWeight
     scheduleExpectedPendingChildWork_shapeWeight_le_shapeWeight
       (ObjectRef := ObjectRef) schema variableValues
       (expectedPendingChildWorkForItem schema resolvers
-        fieldDefinition.outputType item)
+        fieldDefinition.outputType item variableValues)
       ([] : ExpectedScheduleQueue ObjectRef)
       (by simp [expectedScheduleQueueKeysDistinct])
 
@@ -9136,7 +9173,7 @@ theorem expectedChildQueueForItem_drainBudget_lookup_some_le_pendingShapeWeight
             (expectedChildQueueForItem schema resolvers variableValues item).fst
           <= expectedPendingChildWorkShapeWeight schema
               (expectedPendingChildWorkForItem schema resolvers
-                fieldDefinition.outputType item) := by
+                fieldDefinition.outputType item variableValues) := by
   intro hlookup
   exact Nat.le_trans
     (expectedScheduleQueueDrainBudget_le_shapeWeight
@@ -9156,11 +9193,11 @@ theorem
             (expectedChildQueueForItem schema resolvers variableValues item).fst
           <= expectedPendingChildWorkBreadthShapeWeight schema
               (expectedPendingChildWorkForItem schema resolvers
-                fieldDefinition.outputType item) := by
+                fieldDefinition.outputType item variableValues) := by
   intro hlookup
   let work :=
     expectedPendingChildWorkForItem schema resolvers
-      fieldDefinition.outputType item
+      fieldDefinition.outputType item variableValues
   have hmerged :=
     expectedScheduleQueueMergedRuntimeStepWeight_le_runtimeItemStepWeight
       (ObjectRef := ObjectRef) schema

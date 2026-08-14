@@ -41,7 +41,8 @@ theorem executeField_ok_responseFields_singleton
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
               cases hresolve
-                    : resolvers.resolve field.parentType field.fieldName
+                    : Execution.resolveFieldValue schema resolvers variableValues
+                        fieldDefinition field.parentType field.fieldName
                         field.arguments source with
               | none =>
                   cases hhandled

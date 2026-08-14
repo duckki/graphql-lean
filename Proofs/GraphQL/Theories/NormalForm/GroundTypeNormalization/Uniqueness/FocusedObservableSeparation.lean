@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.DataSeparation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.FocusedTrace
 
@@ -301,6 +302,7 @@ theorem
             -> NormalSelectionSetDiffObservableTrace schema returnType
                 leftChildSelectionSet rightChildSelectionSet childPath
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
+      -> Execution.argumentCoercionReflectsSyntaxAtEmpty schema
       -> SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -312,8 +314,19 @@ theorem
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
-    hargumentsCompositeLeft hchild hschema hleftValid hrightValid
+    hargumentsCompositeLeft hchild hcoercionReflects hschema hleftValid hrightValid
     hleftFree hrightFree hleftNormal hrightNormal hobject htrace
+  have hcoercedArgumentsDiff
+      {definitions : List InputValueDefinition}
+      {leftArguments rightArguments : List Argument}
+      (hargumentsDiff :
+        ¬ Argument.argumentsEquivalent leftArguments rightArguments) :
+      ¬ Argument.argumentsEquivalent
+          (Execution.coerceArgumentValues schema [] definitions leftArguments)
+          (Execution.coerceArgumentValues schema [] definitions rightArguments) := by
+    intro hcoerced
+    exact hargumentsDiff
+      (hcoercionReflects definitions leftArguments rightArguments hcoerced)
   cases htrace with
   | objectLeftResponseName _hobjectDiff hleftMem hrightNoResponseName =>
       exact
@@ -371,7 +384,9 @@ theorem
               Option.some.inj hcandidate.symm
             subst candidate
             exact hleaf)
-          hargumentsDiff
+          (by
+            simpa [Execution.coercedArgumentsForField, hlookup] using
+              hcoercedArgumentsDiff hargumentsDiff)
   | objectArgumentsCompositeLeft _hobjectDiff hleftMem hrightMem hlookup
       hcomposite hobservable hargumentsDiff =>
       exact
@@ -489,6 +504,7 @@ theorem
             -> NormalSelectionSetDiffObservableTrace schema returnType
                 leftChildSelectionSet rightChildSelectionSet childPath
             -> ¬ selectionSetsDataEquivalent schema parentType left right)
+      -> Execution.argumentCoercionReflectsSyntaxAtEmpty schema
       -> SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
@@ -500,7 +516,7 @@ theorem
       -> NormalSelectionSetDiffObservableTrace schema parentType left right responsePath
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
-    hargumentsCompositeLeft hchildSplit hschema hleftValid hrightValid
+    hargumentsCompositeLeft hchildSplit hcoercionReflects hschema hleftValid hrightValid
     hleftFree hrightFree hleftNormal hrightNormal hobject htrace
   apply
     not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
@@ -520,6 +536,7 @@ theorem
         (parentType := parentType) (left := left) (right := right)
         hchildSplit hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal
+  · exact hcoercionReflects
   · exact hschema
   · exact hleftValid
   · exact hrightValid

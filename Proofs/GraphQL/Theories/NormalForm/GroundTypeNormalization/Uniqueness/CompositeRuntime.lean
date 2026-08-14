@@ -46,8 +46,8 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      arguments parentType
+                  ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType
                       [Selection.inlineFragment (some parentType) []
                         (List.flatten members)]
                     = some runtimeType))
@@ -69,14 +69,13 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
       · rfl
       · contradiction
     rcases
-        abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+        abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
           hvalid hnormal hmem hlookup hcomposite hnonObject with
       ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
     rcases
-        abstractRuntimeForFieldHeadDeep?_member_framed_promote_some_of_valid_normal_members
+        abstractRuntimeForFieldDeep?_member_framed_promote_some_of_valid_normal_members
           (schema := schema) (currentParent := parentType)
           (targetParent := parentType) (targetField := fieldName)
-          (targetArguments := arguments)
           (targetRuntimeType := localRuntimeType)
           (selectionSet := selectionSet) (members := members)
           (targetFieldDefinition := fieldDefinition)
@@ -107,8 +106,8 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      arguments parentType rootSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType rootSelectionSet
                     = some runtimeType))
             ∧ schema.typeIncludesObjectBool
                 fieldDefinition.outputType.namedType runtimeType
@@ -128,7 +127,7 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
       · rfl
       · contradiction
     rcases
-        abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
+        abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
           hvalid hnormal hmem hlookup hcomposite hnonObject with
       ⟨localRuntimeType, hlocalRuntime, _hlocalInclude⟩
     rcases

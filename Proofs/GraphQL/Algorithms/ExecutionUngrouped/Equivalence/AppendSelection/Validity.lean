@@ -25,8 +25,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet
             state.window.variableValues state.window.parentType
             state.window.source state.window.selectionSet))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_grouped_validation state
   · exact collectFields_pairKeysNodup state.window.schema
@@ -52,8 +52,8 @@ theorem
             state.window.variableValues state.window.parentType
             state.window.source state.window.selectionSet))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet state
     variableDefinitions hselectionSet
@@ -79,8 +79,8 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_scopedCo
           (FieldMerge.collectFields state.window.schema state.window.parentType
             state.window.selectionSet))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet state
     variableDefinitions hselectionSet
@@ -105,8 +105,8 @@ theorem
           (FieldMerge.collectFields state.window.schema state.window.parentType
             state.window.selectionSet))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_scopedCompatible
     state variableDefinitions hselectionSet
@@ -132,8 +132,8 @@ theorem
                 state.window.selectionSet
           -> ScopedFieldRuntimeApplies state.window.schema runtimeType scopedField)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_scopedCompatible
     state variableDefinitions hselectionSet
@@ -162,8 +162,8 @@ theorem
               state.window.variableValues state.window.parentType
               state.window.source state.window.selectionSet)))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet state
     variableDefinitions hselectionSet
@@ -192,8 +192,8 @@ theorem
               state.window.variableValues state.window.parentType
               state.window.source state.window.selectionSet)))
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.resolvers
-          state.window.source)
+      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
+          state.window.resolvers state.window.variableValues state.window.source)
     : ExecutionValidFieldSemanticStateInvariant state := by
   apply ExecutionValidFieldSemanticStateInvariant.of_grouped_validation state
   · exact collectFields_pairKeysNodup state.window.schema
@@ -220,7 +220,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_c
       : Validation.selectionSetValid schema variableDefinitions parentType selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence resolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
     : ExecutionValidFieldSemanticStateInvariant
         {
@@ -264,7 +264,7 @@ theorem
       : Validation.selectionSetValid schema variableDefinitions parentType selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence resolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
     : ExecutionValidFieldSemanticStateInvariant
         {
@@ -307,7 +307,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_operation_canM
       : ScopedParentRuntimeApplies schema runtimeType (operation.rootType schema))
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence resolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
     : ExecutionValidFieldSemanticStateInvariant
         {
@@ -340,7 +340,7 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_root_operation_canMer
     (hroot : rootSourceAppliesBool schema operation (.object runtimeType identity) = true)
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence resolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
     : ExecutionValidFieldSemanticStateInvariant
         {
@@ -371,7 +371,7 @@ theorem ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge
     (hroot : rootSourceAppliesBool schema operation (.object runtimeType identity) = true)
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence resolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
     : ExecutionCollectedFieldInvariant
         {
@@ -435,21 +435,26 @@ theorem
       _hparent
     exact hfieldCompatible responseName fields hmem first later hfirst hlater
       hresponse
+  have hargumentsNodup : CollectedGroupsArgumentsNodup groups := by
+    dsimp [groups]
+    exact collectFields_argumentsNodup_of_selectionSetValid schema
+      variableDefinitions variableValues collectParent validParent
+      (.object runtimeType identity) selectionSet hselectionSet
   constructor
   · dsimp [groups]
     exact collectFields_pairKeysNodup schema variableValues collectParent
       (.object runtimeType identity) selectionSet
   · dsimp [groups]
     exact
-      CollectedGroupsValidationMergeCompatible.resolveStable resolvers
-        (.object runtimeType identity)
+      CollectedGroupsValidationMergeCompatible.resolveStableValid schema resolvers
+        variableValues (.object runtimeType identity)
         (GraphQL.Execution.collectFields schema variableValues collectParent
           (.object runtimeType identity) selectionSet)
-        (Resolvers.respectArgumentEquivalence resolvers
+        (Resolvers.respectValidArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
         (collectFields_sameResponseParent schema variableValues collectParent
           (.object runtimeType identity) selectionSet)
-        hvalidationCompatible
+        hvalidationCompatible hargumentsNodup
 
 theorem
     ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge_argumentEquivalence
@@ -504,7 +509,9 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_noAliasColl
     (initial : ResponseValue)
     (hvalid : Validation.operationDefinitionValid schema operation)
     (hnoAlias : OperationNoAliasCollision schema operation)
-    (hresolvers : ResolversRespectValidFieldAndArgumentEquivalence resolvers source)
+    (hresolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
+          source)
     : ExecutionValidFieldSemanticStateInvariant
         {
           window :=
@@ -547,7 +554,9 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_operation_sameScopedP
       : ScopedFieldsSameResponseParent
           (FieldMerge.collectFields schema (operation.rootType schema)
             operation.selectionSet))
-    (hresolvers : ResolversRespectValidFieldAndArgumentEquivalence resolvers source)
+    (hresolvers
+      : ResolversRespectValidFieldAndArgumentEquivalence schema resolvers variableValues
+          source)
     : ExecutionValidFieldSemanticStateInvariant
         {
           window :=

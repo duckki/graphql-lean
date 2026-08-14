@@ -47,16 +47,6 @@ theorem directiveAllowsIn_include_variable_false (boolCase : BoolCase) (varName 
   simp [directiveAllowsIn,
     inputValueBoolIn?, hvalue]
 
-def variableValuesAgreeWithCase
-    (variableValues : Execution.VariableValues)
-    (boolCase : BoolCase)
-    (variables : List BoolVar)
-    : Prop :=
-  ∀ varName,
-    varName ∈ variables
-    -> Execution.inputValueBoolean? variableValues (.variable varName)
-        = BoolCase.lookup? boolCase varName
-
 theorem inputValueBoolInCase_eq_execution
     (variableValues : Execution.VariableValues)
     (boolCase : BoolCase)

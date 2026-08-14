@@ -166,14 +166,14 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
       cases previous? with
       | none =>
           cases hresolve
-                : resolvers.resolve field.parentType field.fieldName field.arguments
-                    source with
+                : resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
           | none =>
-              simpa using
+              simpa [hlookup, hresolve] using
                 (resultValueOrNull_handleFieldError_cacheReady
                   (ObjectRef := ObjectRef) fieldDefinition.outputType)
           | some resolved =>
-              exact
+              simpa [hlookup, hresolve] using
                 hcomplete fieldDefinition.outputType field.selectionSet resolved none
                   (by intro previous h; cases h)
       | some previous =>

@@ -147,8 +147,9 @@ theorem queue_singleFieldResult_executeField_roundtrip
                 GraphQL.Execution.singleFieldResult]
           | some fieldDefinition =>
               cases hresolve
-                    : resolvers.resolve field.parentType field.fieldName
-                        field.arguments source with
+                    : GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                        fieldDefinition field.parentType field.fieldName field.arguments
+                        source with
               | none =>
                   simp [GraphQL.Execution.executeField, hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]
@@ -526,13 +527,14 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
                 item.toScheduleItem.segments
                 (item.toScheduleItem.sources.map
                   (fun source =>
-                    resolvers.resolve item.key.parentType item.key.fieldName
+                    GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                      fieldDefinition item.key.parentType item.key.fieldName
                       item.key.arguments source))).snd]
             {
               valueStack :=
                 (expectedPendingChildWorkCompletionStack schema resolvers variableValues
                   (expectedPendingChildWorkForItem schema resolvers
-                    fieldDefinition.outputType item)).valueStack
+                    fieldDefinition.outputType item variableValues)).valueStack
               fieldStore :=
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
                   rest).fieldStore
@@ -551,16 +553,17 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              resolvers.resolve item.key.parentType item.key.fieldName
+              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                fieldDefinition item.key.parentType item.key.fieldName
                 item.key.arguments source))).snd
           { valueStack :=
               (expectedPendingChildWorkCompletionStack schema resolvers variableValues
                 (expectedPendingChildWorkForItem schema resolvers
-                  fieldDefinition.outputType item)).valueStack ++
+                  fieldDefinition.outputType item variableValues)).valueStack ++
                 restStack.valueStack
             fieldStore := restStack.fieldStore } =
         (blocks.flatten, restStack) := by
-    simpa [blocks, restStack] using
+    simpa [GraphQL.Execution.resolveFieldValueByName, hlookup, blocks, restStack] using
       slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResultsFlatten
         (ObjectRef := ObjectRef) schema resolvers variableValues item.key
         fieldDefinition item restStack hlookup rfl haligned hready
@@ -577,12 +580,13 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              resolvers.resolve item.key.parentType item.key.fieldName
+              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                fieldDefinition item.key.parentType item.key.fieldName
                 item.key.arguments source))).snd
           { valueStack :=
               (expectedPendingChildWorkCompletionStack schema resolvers variableValues
                 (expectedPendingChildWorkForItem schema resolvers
-                  fieldDefinition.outputType item)).valueStack
+                  fieldDefinition.outputType item variableValues)).valueStack
             fieldStore :=
               (expectedScheduleQueueCompletionStack schema resolvers variableValues
                 rest).fieldStore } =
@@ -600,12 +604,13 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
         (buildFieldSlots schema fieldDefinition.outputType
           item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
-            resolvers.resolve item.key.parentType item.key.fieldName
+            GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              fieldDefinition item.key.parentType item.key.fieldName
               item.key.arguments source))).snd
         { valueStack :=
             (expectedPendingChildWorkCompletionStack schema resolvers variableValues
               (expectedPendingChildWorkForItem schema resolvers
-                fieldDefinition.outputType item)).valueStack
+                fieldDefinition.outputType item variableValues)).valueStack
           fieldStore :=
             (expectedScheduleQueueCompletionStack schema resolvers variableValues
               rest).fieldStore } =
@@ -2719,7 +2724,7 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
                   (scheduleExpectedPendingChildWork schema variableValues
                     (expectedPendingChildWorkForItem schema resolvers
-                      fieldDefinition.outputType item)
+                      fieldDefinition.outputType item variableValues)
                     rest).fst).fieldStore
             }
           = expectedScheduleQueueCompletionStack schema resolvers variableValues
@@ -2727,12 +2732,14 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
   intro hlookup haligned hready hrestNonempty
   let work :=
     expectedPendingChildWorkForItem schema resolvers fieldDefinition.outputType item
+      variableValues
   let expectedScheduled :=
     scheduleExpectedPendingChildWork schema variableValues work rest
   let resolved :=
     item.toScheduleItem.sources.map (fun source =>
-      resolvers.resolve item.key.parentType item.key.fieldName
-        item.key.arguments source)
+      GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+        fieldDefinition item.key.parentType item.key.fieldName item.key.arguments
+        source)
   let built :=
     buildFieldSlots schema fieldDefinition.outputType item.toScheduleItem.segments
       resolved
@@ -2740,9 +2747,11 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
     schedulePendingChildWork schema variableValues built.fst []
   have htoPending :
       expectedPendingChildWorkToPending work = built.fst := by
-    simpa [work, built, resolved] using
+    simpa [GraphQL.Execution.resolveFieldValueByName, hlookup, work, built, resolved]
+      using
       slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
-        (ObjectRef := ObjectRef) schema resolvers fieldDefinition.outputType item
+        (ObjectRef := ObjectRef) schema resolvers variableValues
+        fieldDefinition.outputType item
         haligned hready
   have hframesEmpty :
       (scheduleExpectedPendingChildWork schema variableValues work []).snd =
@@ -2764,9 +2773,10 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              resolvers.resolve item.toScheduleItem.key.parentType
-                item.toScheduleItem.key.fieldName
-                item.toScheduleItem.key.arguments source))).fst
+              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                fieldDefinition item.toScheduleItem.key.parentType
+                item.toScheduleItem.key.fieldName item.toScheduleItem.key.arguments
+                source))).fst
           []).snd =
         expectedScheduled.snd := by
     simpa [runtimeScheduled, built, resolved, ExpectedQueueItem.toScheduleItem] using
@@ -2820,6 +2830,7 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_enqueued
   intro hlookup haligned hready hrestNonempty
   let work :=
     expectedPendingChildWorkForItem schema resolvers fieldDefinition.outputType item
+      variableValues
   have hstack :
       expectedScheduleQueueCompletionStack schema resolvers variableValues
           (enqueueExpectedScheduleItems rest

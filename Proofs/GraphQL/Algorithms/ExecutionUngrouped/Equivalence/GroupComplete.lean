@@ -25,7 +25,9 @@ structure ExecutedFieldGroupComplete
   parent_eq
     : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType
   resolved_eq
-    : resolvers.resolve field.parentType field.fieldName field.arguments source = resolved
+    : resolveFieldValueByName schema resolvers variableValues field.parentType
+        field.fieldName field.arguments source
+      = resolved
   mergedComplete
     : ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields resolved
@@ -44,7 +46,8 @@ theorem mergedComplete_resolved
           parentType source responseName field fields)
     : ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields
-        (resolvers.resolve field.parentType field.fieldName field.arguments source) := by
+        (resolveFieldValueByName schema resolvers variableValues field.parentType
+          field.fieldName field.arguments source) := by
   rw [group.resolved_eq]
   exact group.mergedComplete
 
@@ -61,14 +64,15 @@ def of_containedAppendInvariant
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hlookups : CollectedGroupsFieldLookupValid schema parentType groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
     : ExecutedFieldGroupComplete schema resolvers variableValues depth parentType
         source responseName field fields where
   resolved :=
-    resolvers.resolve field.parentType field.fieldName field.arguments source
+    resolveFieldValueByName schema resolvers variableValues field.parentType
+      field.fieldName field.arguments source
   responseName_eq := hresponses responseName (field :: fields) hgroup
   parent_eq := hparents responseName (field :: fields) hgroup
   resolved_eq := rfl
@@ -81,7 +85,7 @@ def of_containedAppendInvariant
       hparents responseName (field :: fields) hgroup field (by simp)
     apply ExecutableFieldsMergedComplete_of_contained_appendSteps schema
       resolvers variableValues depth parentType source responseName field fields
-      (resolvers.resolve field.parentType field.fieldName field.arguments source)
+      (resolveFieldValueByName schema resolvers variableValues field.parentType field.fieldName field.arguments source)
       hfieldResponse hfieldParent rfl
       (hlookups responseName field fields hgroup)
     · intro childDepth runtimeType identity hlt hcontains hincludes
@@ -206,7 +210,7 @@ def of_collected_groups_containedAppendInvariant
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hlookups : CollectedGroupsFieldLookupValid schema parentType groups)
-    (hstable : CollectedGroupsResolveStable resolvers source groups)
+    (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hinvariant
       : CollectedFieldGroupContainedAppendInvariant schema resolvers
           variableValues depth source groups)
@@ -261,7 +265,7 @@ def of_collected_groups_containedAppendInvariant
           (CollectedGroupsParent_tail hparents)
           (CollectedGroupsFieldValidationMergeCompatible_tail hcompatible)
           tailLookups
-          (CollectedGroupsResolveStable.tail resolvers source
+          (CollectedGroupsResolveStable.tail schema resolvers variableValues source
             (responseName, field :: fields) rest hstable)
           tailInvariant
       ⟩
@@ -499,7 +503,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_containedAppendInvar
     simpa [state] using
       ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
         hcollect
-  have hstable : CollectedGroupsResolveStable resolvers source groups := by
+  have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hcollected hcollect

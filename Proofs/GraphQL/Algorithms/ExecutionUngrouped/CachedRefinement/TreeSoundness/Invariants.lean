@@ -95,7 +95,8 @@ mutual
     | succ fuel source groups output
       (hready : FieldCacheMergeReady output)
       (haligned : ObjectFieldCachesInternallyAligned output)
-      (hsource : OutputCacheSoundForGroups schema resolvers source groups output)
+      (hsource
+        : OutputCacheSoundForGroups schema resolvers variableValues source groups output)
       (hobjects
         : ∀ responseName fields previousSource previousFields,
             (responseName, fields) ∈ groups
@@ -216,8 +217,8 @@ theorem OutputCacheTreeSoundForGroups.empty_object {ObjectRef : Type}
       · intro responseName previous hprevious
         simp [objectField?, lookupField?] at hprevious
       · exact
-          OutputCacheSoundForGroups.empty_object schema resolvers source
-            objectSource groups
+          OutputCacheSoundForGroups.empty_object schema resolvers variableValues
+            source objectSource groups
       · intro responseName fields previousSource previousFields hgroup hprevious
         simp [objectField?, lookupField?] at hprevious
       · intro responseName fields sourceValues previousValues hgroup hprevious
@@ -397,12 +398,13 @@ theorem collectedExecutableFields_mem_exists_group
 
 theorem OutputCacheSoundForGroups.to_flat {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (output : FieldCacheValue ObjectRef)
     : ExecutionUngroupedUncached.Eager.CollectedGroupsResponseName groups
-      -> OutputCacheSoundForGroups schema resolvers source groups output
-      -> OutputCacheSoundForFields schema resolvers source
+      -> OutputCacheSoundForGroups schema resolvers variableValues source groups output
+      -> OutputCacheSoundForFields schema resolvers variableValues source
           (ExecutionUngroupedUncached.Eager.collectedExecutableFields groups)
           output := by
   intro hresponses hsound field fieldDefinition previous hfield hprevious hlookup
@@ -416,14 +418,16 @@ theorem OutputCacheSoundForGroups.to_flat {ObjectRef : Type}
 
 theorem OutputCacheSoundForFields.to_groups {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (output : FieldCacheValue ObjectRef)
     : ExecutionUngroupedUncached.Eager.CollectedGroupsResponseName groups
-      -> OutputCacheSoundForFields schema resolvers source
+      -> OutputCacheSoundForFields schema resolvers variableValues source
           (ExecutionUngroupedUncached.Eager.collectedExecutableFields groups)
           output
-      -> OutputCacheSoundForGroups schema resolvers source groups output := by
+      -> OutputCacheSoundForGroups schema resolvers variableValues source groups
+          output := by
   intro hresponses hsound responseName fields field fieldDefinition previous hgroup hfield
     hprevious hlookup
   have hflat :
@@ -514,7 +518,7 @@ theorem OutputCacheTreeSoundForGroups.merge_field {ObjectRef : Type}
       -> ObjectFieldCachesInternallyAligned
           (mergeResponseFieldIntoObject responseName incoming
             (.object objectSource outputFields))
-      -> OutputCacheSoundForGroups schema resolvers source groups
+      -> OutputCacheSoundForGroups schema resolvers variableValues source groups
           (mergeResponseFieldIntoObject responseName incoming
             (.object objectSource outputFields))
       -> OutputCacheTreeSoundForGroups schema resolvers variableValues
@@ -593,7 +597,8 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
       : ∀ fieldDefinition previous,
           schema.lookupField field.parentType field.fieldName = some fieldDefinition
           -> previous? = some previous
-          -> PreviousCacheSound schema resolvers source fieldDefinition field previous)
+          -> PreviousCacheSound schema resolvers variableValues source fieldDefinition
+              field previous)
     : outputResult FieldCacheValue.output
         (executeField schema resolvers variableValues completionFuel source
           previous? field)
@@ -607,13 +612,14 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
       cases previous? with
       | none =>
           cases hresolve
-                : resolvers.resolve field.parentType field.fieldName field.arguments
-                    source with
+                : resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
           | none =>
-              simp [handleFieldError_output,
+              simp [hresolve, handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
           | some resolved =>
-              simp [hcomplete, ExecutionUngroupedUncached.reusablePreviousValue?]
+              simp [hresolve, hcomplete,
+                ExecutionUngroupedUncached.reusablePreviousValue?]
       | some previous =>
           cases hreuse
                 : reusablePreviousValue? schema fieldDefinition.outputType previous with
@@ -639,8 +645,8 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
                         none := by
                     simpa using hreuseOut
                   have hresolve' :
-                      resolvers.resolve field.parentType field.fieldName
-                          field.arguments source
+                      resolveFieldValue schema resolvers variableValues fieldDefinition
+                          field.parentType field.fieldName field.arguments source
                         =
                         some previousSource := by
                     simpa using hresolve
@@ -663,8 +669,8 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
                             none := by
                         simpa using hreuseOut
                       have hresolve' :
-                          resolvers.resolve field.parentType field.fieldName
-                              field.arguments source
+                          resolveFieldValue schema resolvers variableValues fieldDefinition
+                              field.parentType field.fieldName field.arguments source
                             =
                             some (ResolverValue.list sourceValues) := by
                         simpa using hresolve
@@ -688,7 +694,8 @@ theorem executeField_output_of_completeValue_and_fieldPreviousCacheSound
           = ExecutionUngroupedUncached.completeValue schema resolvers variableValues
               completionFuel fieldType selectionSet value
               (previous?.map FieldCacheValue.output))
-    (hsound : FieldPreviousCacheSound schema resolvers source previous? field)
+    (hsound
+      : FieldPreviousCacheSound schema resolvers variableValues source previous? field)
     : outputResult FieldCacheValue.output
         (executeField schema resolvers variableValues completionFuel source
           previous? field)
@@ -705,7 +712,8 @@ theorem executeField_output_of_completionCacheSound
     (hfresh
       : ∀ fieldDefinition resolved,
           schema.lookupField field.parentType field.fieldName = some fieldDefinition
-          -> resolvers.resolve field.parentType field.fieldName field.arguments source
+          -> resolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source
               = some resolved
           -> CompletionCacheSound schema resolvers variableValues
               completionFuel fieldDefinition.outputType field.selectionSet resolved none)
@@ -728,16 +736,17 @@ theorem executeField_output_of_completionCacheSound
       cases previous? with
       | none =>
           cases hresolve
-                : resolvers.resolve field.parentType field.fieldName field.arguments
-                    source with
+                : resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
           | none =>
-              simp [handleFieldError_output,
+              simp [hresolve, handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
           | some resolved =>
               have hcompletion :=
                 hfresh fieldDefinition resolved hlookup hresolve
-              simp [ExecutionUngroupedUncached.reusablePreviousValue?]
-              exact hcompletion
+              simpa [CompletionCacheSound, hresolve,
+                ExecutionUngroupedUncached.reusablePreviousValue?] using
+                hcompletion
       | some previous =>
           have hcontinuation := hprevious fieldDefinition previous hlookup rfl
           cases hreuse
@@ -763,8 +772,8 @@ theorem executeField_output_of_completionCacheSound
                         = none := by
                     simpa using hreuseOut
                   have hresolve' :
-                      resolvers.resolve field.parentType field.fieldName
-                          field.arguments source
+                      resolveFieldValue schema resolvers variableValues fieldDefinition
+                          field.parentType field.fieldName field.arguments source
                         = some previousSource := by
                     simpa using hresolve
                   have hcompletion :
@@ -793,8 +802,8 @@ theorem executeField_output_of_completionCacheSound
                             = none := by
                         simpa using hreuseOut
                       have hresolve' :
-                          resolvers.resolve field.parentType field.fieldName
-                              field.arguments source
+                          resolveFieldValue schema resolvers variableValues fieldDefinition
+                              field.parentType field.fieldName field.arguments source
                             = some (ResolverValue.list sourceValues) := by
                         simpa using hresolve
                       have hcompletion :

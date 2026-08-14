@@ -52,8 +52,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_field
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType rootSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType rootSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
                               fieldDefinition.outputType.namedType childRuntimeType
@@ -92,8 +92,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_field
                                 ∧ objectTypeNameBool schema
                                     fieldDefinition.outputType.namedType
                                   = false
-                                ∧ abstractRuntimeForFieldHeadDeep? schema parentType
-                                    fieldName arguments parentType rootSelectionSet
+                                ∧ abstractRuntimeForFieldDeep? schema parentType
+                                    fieldName parentType rootSelectionSet
                                   = some childRuntimeType))
                           ∧ schema.typeIncludesObjectBool
                               fieldDefinition.outputType.namedType childRuntimeType
@@ -252,8 +252,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_of_fiel
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  arguments parentType rootSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType))
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
@@ -454,16 +454,16 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  leftArguments parentType rootSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType))
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true
               ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-              ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                  rightArguments parentType rootSelectionSet
+              ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                  parentType rootSelectionSet
                 = some runtimeType))
       -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
           = true
@@ -761,8 +761,8 @@ theorem
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      leftArguments parentType rootSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType rootSelectionSet
                     = some runtimeType))
           -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
                 ∧ runtimeType = fieldDefinition.outputType.namedType)
@@ -770,8 +770,8 @@ theorem
                       schema
                     = true
                   ∧ objectTypeNameBool schema fieldDefinition.outputType.namedType = false
-                  ∧ abstractRuntimeForFieldHeadDeep? schema parentType fieldName
-                      rightArguments parentType rootSelectionSet
+                  ∧ abstractRuntimeForFieldDeep? schema parentType fieldName
+                      parentType rootSelectionSet
                     = some runtimeType))
           -> schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
                 runtimeType
@@ -890,33 +890,21 @@ theorem
   have hleftChildHeadPromote :
       selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
         fieldDefinition.outputType.namedType leftChildSelectionSet := by
-    intro abstractTargetParent abstractTargetField targetArguments
+    intro abstractTargetParent abstractTargetField _targetArguments
       targetRuntimeType targetFieldDefinition htargetLookup
       htargetComposite htargetNonObject hlocalRuntime
-    rcases
-        abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-          hleftValid hleftFree hleftNormal hleftMem hlookup
-          hlocalRuntime with
-      ⟨parentRuntimeType, hparentRuntime⟩
-    exact
-      hleftHeadPromote abstractTargetParent abstractTargetField
-        targetArguments parentRuntimeType targetFieldDefinition
-        htargetLookup htargetComposite htargetNonObject hparentRuntime
+    exact hleftChildPromote abstractTargetParent abstractTargetField
+      targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
+      htargetNonObject hlocalRuntime
   have hrightChildHeadPromote :
       selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
         fieldDefinition.outputType.namedType rightChildSelectionSet := by
-    intro abstractTargetParent abstractTargetField targetArguments
+    intro abstractTargetParent abstractTargetField _targetArguments
       targetRuntimeType targetFieldDefinition htargetLookup
       htargetComposite htargetNonObject hlocalRuntime
-    rcases
-        abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
-          hrightValid hrightFree hrightNormal hrightMem hlookup
-          hlocalRuntime with
-      ⟨parentRuntimeType, hparentRuntime⟩
-    exact
-      hrightHeadPromote abstractTargetParent abstractTargetField
-        targetArguments parentRuntimeType targetFieldDefinition
-        htargetLookup htargetComposite htargetNonObject hparentRuntime
+    exact hrightChildPromote abstractTargetParent abstractTargetField
+      targetRuntimeType targetFieldDefinition htargetLookup htargetComposite
+      htargetNonObject hlocalRuntime
   rcases
       executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
         schema rootSelectionSet variableValues hschema

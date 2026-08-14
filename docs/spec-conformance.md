@@ -39,6 +39,13 @@ default-value branch of spec 6.1.2 `CoerceVariableValues`: a missing supplied
 variable receives its operation default, including an explicit `null` default,
 while any supplied value, including supplied `null`, takes precedence.
 
+The `GraphQL.Execution.Resolvers` boundary receives the schema-derived argument map.
+Before it is invoked, `coerceArgumentValues` removes variable syntax and materializes
+schema argument defaults plus nested input-object field defaults. An omitted value or
+undefined variable activates a default; explicit `null` does not. Recursive default
+expansion is bounded while raw schema default cycles remain outside schema
+well-formedness.
+
 This defaulting step is observable for the modeled directives. Their `if`
 argument has type `Boolean!`, while spec 5.8.5 permits a nullable `Boolean`
 variable at that location when its operation definition has a non-null default.
@@ -70,6 +77,9 @@ practical:
 - `executeRootSelectionSet`, `executeCollectedFields`, `executeField`,
   `completeValue`, and `completeValueList` model the spec 6.3/6.4 execution
   ladder at an explicit recursion-fuel bound.
+- `executeField` performs the schema lookup once and passes the resulting
+  `FieldDefinition` to `resolveFieldValue`; resolver argument coercion reuses that
+  definition instead of repeating the lookup.
 - `Result` carries the spec 6.4.4 null-bubbling control flow. `.error n` means
   an execution error has bubbled through a non-null response position;
   `.ok (value, n)` means completion produced data and accumulated `n` execution
@@ -106,9 +116,9 @@ The main public modules are:
   default exception, plus required non-empty root/composite selection sets and
   same-response-name merge compatibility checks.
 - `GraphQL.Execution`: bounded resolver-based execution with compatibility data
-  projection, operation-variable default materialization, response null bubbling
-  through non-null output wrappers, and a query response envelope containing data
-  plus a `Nat` execution-error count.
+  projection, operation-variable default materialization, schema-aware resolver
+  argument materialization, response null bubbling through non-null output wrappers,
+  and a query response envelope containing data plus a `Nat` execution-error count.
 - `GraphQL.NamedFragment`: fragment-aware public operation syntax, validation, direct
   fragment-aware execution, and static inlining with equivalence proofs. Direct field
   collection threads the spec `visitedFragments` context and filters repeated spreads. The
@@ -168,9 +178,9 @@ These GraphQL features and runtime details are intentionally not modeled:
 - subscription execution;
 - custom directives and directive definitions beyond modeled `@skip` and
   `@include`;
-- full input coercion and result coercion beyond materializing operation
-  variable defaults;
-- scalar and enum literal coercion details;
+- scalar/enum parsing and coercion details for supplied inputs, plus result coercion;
+  supplied values are still assumed type-conformant, while argument/default
+  materialization is modeled;
 - introspection and meta-fields;
 - request errors;
 - detailed execution error maps, `extensions`, error paths, error locations,
@@ -191,8 +201,5 @@ out by validity assumptions where needed.
 
 - `docs/overview.md`: project structure and module dependency map.
 - `docs/references.md`: GraphCoQL notes and proof strategy references.
-- `docs/normal-form.md`: project-specific normal forms and their correctness
-  properties.
-- `docs/algorithms.md`: verified project algorithms outside the GraphQL spec.
 - `README.md`: build, lint, and entry-point information.
 - `conformance/graphql-js/README.md`: graphql-js fixture and oracle workflow.

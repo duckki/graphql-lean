@@ -14,13 +14,33 @@ namespace ExecutionUngrouped
 
 open GraphQL.Execution
 
+theorem collectedExecutableFields_argumentsNodup
+    {groups : List (Name × List ExecutableField)}
+    (hnodup : ExecutionUngroupedUncached.Eager.CollectedGroupsArgumentsNodup groups)
+    : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup
+        (ExecutionUngroupedUncached.Eager.collectedExecutableFields groups) := by
+  intro field hfield
+  induction groups with
+  | nil => simp [ExecutionUngroupedUncached.Eager.collectedExecutableFields] at hfield
+  | cons group rest ih =>
+      rcases group with ⟨responseName, fields⟩
+      simp only [ExecutionUngroupedUncached.Eager.collectedExecutableFields,
+        List.mem_append] at hfield
+      rcases hfield with hfield | hfield
+      · exact hnodup responseName fields (by simp) field hfield
+      · apply ih
+        · intro restResponseName restFields hrest
+          exact hnodup restResponseName restFields (by simp [hrest])
+        · exact hfield
+
 theorem OutputCacheSoundForFields.merge_depthZero {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues)
     (source : ResolverValue ObjectRef) (fields : List ExecutableField)
     (output : FieldCacheValue ObjectRef) (responseName : Name)
-    : OutputCacheSoundForFields schema resolvers source fields output
+    : OutputCacheSoundForFields schema resolvers variableValues source fields output
       -> FieldCacheMergeReady output
-      -> OutputCacheSoundForFields schema resolvers source fields
+      -> OutputCacheSoundForFields schema resolvers variableValues source fields
           (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
             responseName
             (match objectField? responseName output with
@@ -82,6 +102,8 @@ mutual
       (hcompatible
         : ExecutionUngroupedUncached.Eager.ExecutableFieldsFieldValidationMergeCompatible
             fields)
+      (hargumentsNodup
+        : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup fields)
       (hlookup
         : ∀ field,
             field ∈ fields
@@ -92,8 +114,9 @@ mutual
           SelectionFieldsWithin schema variableValues parentType source fields selection
           -> FieldCacheMergeReady output
           -> ObjectFieldCachesInternallyAligned output
-          -> OutputCacheSoundForFields schema resolvers source fields output
-          -> OutputCacheSoundForFields schema resolvers source fields
+          -> OutputCacheSoundForFields schema resolvers variableValues source fields
+              output
+          -> OutputCacheSoundForFields schema resolvers variableValues source fields
               (visitSelection schema resolvers variableValues fuel parentType source
                 selection output).value := by
     intro selection output hwithin hready haligned hsound
@@ -126,12 +149,12 @@ mutual
                 Eq.mpr
                   (congrArg
                     (fun incoming =>
-                      OutputCacheSoundForFields schema resolvers source fields
+                      OutputCacheSoundForFields schema resolvers variableValues source fields
                         (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
                           responseName incoming output))
                     hvalue)
                   (OutputCacheSoundForFields.merge_depthZero schema resolvers
-                    source fields output responseName hsound hready)
+                    variableValues source fields output responseName hsound hready)
           | succ completionFuel =>
               rcases hlookup field hfield with ⟨fieldDefinition, hfieldLookup⟩
               simp only [visitSelection, hallows, if_true,
@@ -139,8 +162,8 @@ mutual
               exact
                 OutputCacheSoundForFields.merge_executeField schema resolvers
                   variableValues completionFuel parentType source fields output field
-                  fieldDefinition hschema hparents hcompatible hsound hready haligned
-                  hfield hfieldLookup
+                  fieldDefinition hschema hparents hcompatible hargumentsNodup hsound
+                  hready haligned hfield hfieldLookup
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives
@@ -157,8 +180,8 @@ mutual
               simpa [visitSelection, hallows] using
                 visitSubfields_outputCacheSoundForFields schema resolvers
                   variableValues fuel parentType source fields hschema hparents
-                  hcompatible hlookup selectionSet output (hwithin' hallows) hready
-                  haligned hsound
+                  hcompatible hargumentsNodup hlookup selectionSet output
+                  (hwithin' hallows) hready haligned hsound
           | some typeCondition =>
               have hwithin' := hwithin
               simp [SelectionFieldsWithin] at hwithin'
@@ -168,7 +191,7 @@ mutual
               · simpa [visitSelection, hallows, happly] using
                   visitSubfields_outputCacheSoundForFields schema resolvers
                     variableValues fuel parentType source fields hschema hparents
-                    hcompatible hlookup selectionSet output
+                    hcompatible hargumentsNodup hlookup selectionSet output
                     (hwithin' hallows happly) hready haligned hsound
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType source typeCondition =
@@ -207,6 +230,8 @@ mutual
       (hcompatible
         : ExecutionUngroupedUncached.Eager.ExecutableFieldsFieldValidationMergeCompatible
             fields)
+      (hargumentsNodup
+        : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup fields)
       (hlookup
         : ∀ field,
             field ∈ fields
@@ -218,8 +243,9 @@ mutual
             selectionSet
           -> FieldCacheMergeReady output
           -> ObjectFieldCachesInternallyAligned output
-          -> OutputCacheSoundForFields schema resolvers source fields output
-          -> OutputCacheSoundForFields schema resolvers source fields
+          -> OutputCacheSoundForFields schema resolvers variableValues source fields
+              output
+          -> OutputCacheSoundForFields schema resolvers variableValues source fields
               (visitSubfields schema resolvers variableValues fuel parentType source
                 selectionSet output).value := by
     intro selectionSet output hwithin hready haligned hsound
@@ -247,19 +273,19 @@ mutual
           visitSelection_objectFieldCachesInternallyAligned schema resolvers
             variableValues fuel parentType source selection output hready haligned
         have hheadSound :
-            OutputCacheSoundForFields schema resolvers source fields head.value :=
+            OutputCacheSoundForFields schema resolvers variableValues source fields head.value :=
           visitSelection_outputCacheSoundForFields schema resolvers variableValues
-            fuel parentType source fields hschema hparents hcompatible hlookup
-            selection output hselectionWithin hready haligned hsound
+            fuel parentType source fields hschema hparents hcompatible hargumentsNodup
+            hlookup selection output hselectionWithin hready haligned hsound
         cases hstatus : head.status with
         | error errors =>
             simpa [visitSubfields, head, hstatus] using hheadSound
         | ok ok =>
             have htailSound :=
               visitSubfields_outputCacheSoundForFields schema resolvers
-                variableValues fuel parentType source fields hschema hparents
-                hcompatible hlookup rest head.value hrestWithin hheadReady
-                hheadAligned hheadSound
+                variableValues fuel parentType source fields hschema hparents hcompatible
+                hargumentsNodup hlookup rest head.value hrestWithin
+                hheadReady hheadAligned hheadSound
             simpa [visitSubfields, head, hstatus] using htailSound
   termination_by selectionSet output _hwithin _hready _haligned _hsound =>
     (sizeOf selectionSet, 1)
@@ -669,7 +695,8 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
           runtimeType parentType
       -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
       -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> OutputCacheSoundForFields schema resolvers
+      -> Execution.selectionSetArgumentsNodup selectionSet
+      -> OutputCacheSoundForFields schema resolvers variableValues
           (.object runtimeType identity)
           (ExecutionUngroupedUncached.Eager.collectedExecutableFields
             (GraphQL.Execution.collectFields schema variableValues parentType
@@ -677,7 +704,7 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
           (visitSubfields schema resolvers variableValues fuel parentType
             (.object runtimeType identity) selectionSet
             (.object (.object runtimeType identity) [])).value := by
-  intro hschema hobject hparentRuntime hready hmerge
+  intro hschema hobject hparentRuntime hready hmerge hargumentsNodup
   let source : ResolverValue ObjectRef := .object runtimeType identity
   let fields :=
     ExecutionUngroupedUncached.Eager.collectedExecutableFields
@@ -694,6 +721,9 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
       (collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object schema
         variableValues parentType parentType runtimeType identity selectionSet
         hmerge hparentRuntime hlookupValid)
+      (collectedExecutableFields_argumentsNodup
+        (ExecutionUngroupedUncached.Eager.collectFields_argumentsAndChildrenNodup
+          schema variableValues parentType source selectionSet hargumentsNodup).1)
       (collectFields_flat_lookupValid_of_selectionSetSemanticsReady_object schema
         variableValues parentType runtimeType identity selectionSet hobject
         hparentRuntime hready)
@@ -709,7 +739,8 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
         simp at hresponse)
   · intro responseName previous hprevious
     simp [objectField?, lookupField?] at hprevious
-  · exact OutputCacheSoundForFields.empty_object schema resolvers source source fields
+  · exact OutputCacheSoundForFields.empty_object schema resolvers variableValues
+      source source fields
 
 end ExecutionUngrouped
 end Algorithms

@@ -29,7 +29,9 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
     (hfresh
       : ∀ fieldDefinition resolved,
           schema.lookupField parentType fieldName = some fieldDefinition
-          -> resolvers.resolve parentType fieldName arguments source = some resolved
+          -> resolveFieldValue schema resolvers variableValues fieldDefinition
+                parentType fieldName arguments source
+              = some resolved
           -> CompletionCacheSound schema resolvers variableValues
               completionFuel fieldDefinition.outputType selectionSet resolved none)
     : outputVisitResult
@@ -50,9 +52,6 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
         (by
           intro fieldDefinition resolved hlookup hresolve
           change (schema.lookupField parentType fieldName = some fieldDefinition) at hlookup
-          change
-            (resolvers.resolve parentType fieldName arguments source
-              = some resolved) at hresolve
           exact hfresh fieldDefinition resolved hlookup hresolve)
         (by
           intro fieldDefinition previous hlookup hprevious
@@ -1227,9 +1226,10 @@ theorem executeField_result_continuationTreeSound
       cases previous? with
       | none =>
           cases hresolve
-                : resolvers.resolve field.parentType field.fieldName field.arguments
-                    source with
+                : resolveFieldValue schema resolvers variableValues fieldDefinition
+                    field.parentType field.fieldName field.arguments source with
           | none =>
+              simp only [hresolve]
               change
                 FieldCacheContinuationTreeSound schema resolvers variableValues
                   completionFuel universeSet
@@ -1239,6 +1239,7 @@ theorem executeField_result_continuationTreeSound
                 simp [handleFieldError, resultValueOrNull,
                   FieldCacheContinuationTreeSound]
           | some resolved =>
+              simp only [hresolve]
               exact
                 FieldCacheTreeSound.toContinuationTreeSound schema resolvers
                   variableValues completionFuel universeSet resolved _

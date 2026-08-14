@@ -1308,8 +1308,9 @@ mutual
                   none = none :=
               reusablePreviousValue?_none schema fieldDefinition.outputType
             cases hresolve
-                  : resolvers.resolve field.parentType field.fieldName
-                      field.arguments source with
+                  : resolveFieldValue schema resolvers variableValues
+                      fieldDefinition field.parentType field.fieldName field.arguments
+                      source with
             | none =>
                 simpa [executeField, hlookup, hreuse, hresolve] using
                   resultValueOrNull_handleFieldError_ready
@@ -1349,7 +1350,8 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolvers.resolve field.parentType field.fieldName
+                          : resolveFieldValue schema resolvers variableValues
+                              fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1380,7 +1382,8 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolvers.resolve field.parentType field.fieldName
+                          : resolveFieldValue schema resolvers variableValues
+                              fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1411,7 +1414,8 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolvers.resolve field.parentType field.fieldName
+                          : resolveFieldValue schema resolvers variableValues
+                              fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using

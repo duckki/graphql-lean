@@ -16,14 +16,12 @@ namespace NormalForm
 namespace GroundTypeNormalization
 
 def focusedSelectionSetTargetChildrenSupported
-    (targetField : Name) (leftArguments rightArguments : List Argument)
+    (targetField : Name) (_leftArguments _rightArguments : List Argument)
     (selectionSet : List Selection) (support : List Selection -> Prop)
     : Prop :=
   ∀ responseName arguments directives childSelectionSet,
     Selection.field responseName targetField arguments directives childSelectionSet
       ∈ selectionSet
-    -> (Argument.argumentsEquivalent arguments leftArguments
-        ∨ Argument.argumentsEquivalent arguments rightArguments)
     -> support childSelectionSet
 
 noncomputable def focusedSelectionSetTargetChildSelectionSets
@@ -34,9 +32,7 @@ noncomputable def focusedSelectionSetTargetChildSelectionSets
       childSelectionSet :: rest => by
       classical
       exact
-        if fieldName = targetField
-          ∧ (Argument.argumentsEquivalent arguments leftArguments
-            ∨ Argument.argumentsEquivalent arguments rightArguments) then
+        if fieldName = targetField then
           childSelectionSet ::
             focusedSelectionSetTargetChildSelectionSets targetField
               leftArguments rightArguments rest
@@ -56,7 +52,7 @@ theorem focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
           childSelectionSet
           ∈ focusedSelectionSetTargetChildSelectionSets targetField
               leftArguments rightArguments selectionSet) := by
-  intro responseName arguments directives childSelectionSet hmem harguments
+  intro responseName arguments directives childSelectionSet hmem
   induction selectionSet with
   | nil =>
       simp at hmem
@@ -67,11 +63,8 @@ theorem focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
           simp only [List.mem_cons] at hmem
           rcases hmem with hhead | htail
           · cases hhead
-            simp [focusedSelectionSetTargetChildSelectionSets, harguments]
-          · by_cases htarget :
-              fieldName = targetField
-                ∧ (Argument.argumentsEquivalent headArguments leftArguments
-                  ∨ Argument.argumentsEquivalent headArguments rightArguments)
+            simp [focusedSelectionSetTargetChildSelectionSets]
+          · by_cases htarget : fieldName = targetField
             · simp [focusedSelectionSetTargetChildSelectionSets, htarget,
                 ih htail]
             · simpa [focusedSelectionSetTargetChildSelectionSets, htarget]
@@ -151,12 +144,11 @@ theorem focusedSelectionSetTargetChildrenSupported_supportTargetChildSelectionSe
             ∈ focusedSupportTargetChildSelectionSets targetField leftArguments
                 rightArguments supportSelectionSets) := by
   intro hselection responseName arguments directives childSelectionSet hmem
-    harguments
   have htarget :=
     focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
       (targetField := targetField) (leftArguments := leftArguments)
       (rightArguments := rightArguments) (selectionSet := selectionSet)
-      responseName arguments directives childSelectionSet hmem harguments
+      responseName arguments directives childSelectionSet hmem
   exact
     focusedSelectionSetTargetChildSelectionSets_subset_supportTargetChildSelectionSets_of_mem
       (targetField := targetField) (leftArguments := leftArguments)
@@ -172,9 +164,7 @@ theorem focusedSelectionSetTargetChildSelectionSets_mem
             rightArguments selectionSet
       -> ∃ responseName arguments directives,
           Selection.field responseName targetField arguments directives childSelectionSet
-            ∈ selectionSet
-          ∧ (Argument.argumentsEquivalent arguments leftArguments
-              ∨ Argument.argumentsEquivalent arguments rightArguments) := by
+          ∈ selectionSet := by
   intro hmem
   induction selectionSet with
   | nil =>
@@ -182,47 +172,38 @@ theorem focusedSelectionSetTargetChildSelectionSets_mem
   | cons selection rest ih =>
       cases selection with
       | field responseName fieldName arguments directives headChildSelectionSet =>
-          by_cases htarget :
-              fieldName = targetField
-                ∧ (Argument.argumentsEquivalent arguments leftArguments
-                  ∨ Argument.argumentsEquivalent arguments rightArguments)
+          by_cases htarget : fieldName = targetField
           · simp [focusedSelectionSetTargetChildSelectionSets, htarget] at hmem
             rcases hmem with hhead | htail
             · subst childSelectionSet
-              refine ⟨responseName, arguments, directives, ?_, htarget.2⟩
-              simp [htarget.1]
+              refine ⟨responseName, arguments, directives, ?_⟩
+              simp [htarget]
             · rcases ih htail with
-                ⟨tailResponseName, tailArguments, tailDirectives,
-                  htailMem, htailArguments⟩
+                ⟨tailResponseName, tailArguments, tailDirectives, htailMem⟩
               exact ⟨
                 tailResponseName,
                 tailArguments,
                 tailDirectives,
-                List.mem_cons_of_mem _ htailMem,
-                htailArguments
+                List.mem_cons_of_mem _ htailMem
               ⟩
           · simp [focusedSelectionSetTargetChildSelectionSets, htarget] at hmem
             rcases ih hmem with
-              ⟨tailResponseName, tailArguments, tailDirectives, htailMem,
-                htailArguments⟩
+              ⟨tailResponseName, tailArguments, tailDirectives, htailMem⟩
             exact ⟨
               tailResponseName,
               tailArguments,
               tailDirectives,
-              List.mem_cons_of_mem _ htailMem,
-              htailArguments
+              List.mem_cons_of_mem _ htailMem
             ⟩
       | inlineFragment typeCondition directives inlineSelectionSet =>
           simp [focusedSelectionSetTargetChildSelectionSets] at hmem
           rcases ih hmem with
-            ⟨tailResponseName, tailArguments, tailDirectives, htailMem,
-              htailArguments⟩
+            ⟨tailResponseName, tailArguments, tailDirectives, htailMem⟩
           exact ⟨
             tailResponseName,
             tailArguments,
             tailDirectives,
-            List.mem_cons_of_mem _ htailMem,
-            htailArguments
+            List.mem_cons_of_mem _ htailMem
           ⟩
 
 theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
@@ -246,7 +227,7 @@ theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
           ∧ selectionSetNormal schema returnType childSelectionSet := by
   intro hvalid hfree hnormal hlookup hreturnType hcomposite hmem
   rcases focusedSelectionSetTargetChildSelectionSets_mem hmem with
-    ⟨responseName, arguments, directives, hfieldMem, _harguments⟩
+    ⟨responseName, arguments, directives, hfieldMem⟩
   rcases selectionSetValid_field_lookup_of_mem hvalid hfieldMem with
     ⟨candidateFieldDefinition, hcandidateLookup, _hargs,
       hfieldSelectionValid⟩
@@ -301,7 +282,7 @@ theorem
   intro hfieldSubset hvalid hfree hnormal hlookup hreturnType hcomposite
     hmem
   rcases focusedSelectionSetTargetChildSelectionSets_mem hmem with
-    ⟨responseName, arguments, directives, hfieldMem, _harguments⟩
+    ⟨responseName, arguments, directives, hfieldMem⟩
   have hwholeMem :
       Selection.field responseName targetField arguments directives
         childSelectionSet ∈ whole :=
@@ -638,6 +619,7 @@ theorem
       leftPref rightPref leftSuffix rightSuffix
       : List Selection}
     {fieldDefinition : FieldDefinition} {support : List Selection -> Prop} {minFuel : Nat}
+    {variableValues : Execution.VariableValues}
     : schema.lookupField parentType fieldName = some fieldDefinition
       -> fieldDefinition.outputType.namedType = returnType
       -> selectionSetDirectiveFree
@@ -680,7 +662,11 @@ theorem
                   fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                     (parentObjectProbeFieldResolvers base parentType fieldName
                       childRuntimeType ref fieldDefinition.outputType)
-                    parentType fieldName fieldName leftArguments rightArguments
+                    parentType fieldName fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments leftArguments)
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments rightArguments)
                 let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
                 let parentSource :=
                   projectionRootResolverValue
@@ -689,9 +675,16 @@ theorem
                   Selection.field otherResponseName otherFieldName arguments directives
                       childSelectionSet
                     ∈ leftPref
-                  -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                        leftArguments rightArguments parentType otherFieldName
-                        arguments
+                  -> (∀ candidate,
+                        schema.lookupField parentType otherFieldName = some candidate
+                        -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments leftArguments)
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments rightArguments)
+                              parentType otherFieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                candidate.arguments arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
                         parentSource otherResponseName
@@ -714,7 +707,11 @@ theorem
                   fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                     (parentObjectProbeFieldResolvers base parentType fieldName
                       childRuntimeType ref fieldDefinition.outputType)
-                    parentType fieldName fieldName leftArguments rightArguments
+                    parentType fieldName fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments leftArguments)
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments rightArguments)
                 let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
                 let parentSource :=
                   projectionRootResolverValue
@@ -723,9 +720,16 @@ theorem
                   Selection.field otherResponseName otherFieldName arguments directives
                       childSelectionSet
                     ∈ rightPref
-                  -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                        leftArguments rightArguments parentType otherFieldName
-                        arguments
+                  -> (∀ candidate,
+                        schema.lookupField parentType otherFieldName = some candidate
+                        -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments leftArguments)
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments rightArguments)
+                              parentType otherFieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                candidate.arguments arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
                         parentSource otherResponseName
@@ -748,7 +752,11 @@ theorem
                   fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                     (parentObjectProbeFieldResolvers base parentType fieldName
                       childRuntimeType ref fieldDefinition.outputType)
-                    parentType fieldName fieldName leftArguments rightArguments
+                    parentType fieldName fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments leftArguments)
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments rightArguments)
                 let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
                 let parentSource :=
                   projectionRootResolverValue
@@ -757,9 +765,16 @@ theorem
                   Selection.field otherResponseName otherFieldName arguments directives
                       childSelectionSet
                     ∈ leftSuffix
-                  -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                        leftArguments rightArguments parentType otherFieldName
-                        arguments
+                  -> (∀ candidate,
+                        schema.lookupField parentType otherFieldName = some candidate
+                        -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments leftArguments)
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments rightArguments)
+                              parentType otherFieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                candidate.arguments arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
                         parentSource otherResponseName
@@ -782,7 +797,11 @@ theorem
                   fieldPairOrDeepSuccessResolvers schema rootSelectionSet
                     (parentObjectProbeFieldResolvers base parentType fieldName
                       childRuntimeType ref fieldDefinition.outputType)
-                    parentType fieldName fieldName leftArguments rightArguments
+                    parentType fieldName fieldName
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments leftArguments)
+                    (Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments rightArguments)
                 let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
                 let parentSource :=
                   projectionRootResolverValue
@@ -791,9 +810,16 @@ theorem
                   Selection.field otherResponseName otherFieldName arguments directives
                       childSelectionSet
                     ∈ rightSuffix
-                  -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                        leftArguments rightArguments parentType otherFieldName
-                        arguments
+                  -> (∀ candidate,
+                        schema.lookupField parentType otherFieldName = some candidate
+                        -> ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments leftArguments)
+                              (Execution.coerceArgumentValues schema variableValues
+                                fieldDefinition.arguments rightArguments)
+                              parentType otherFieldName
+                              (Execution.coerceArgumentValues schema variableValues
+                                candidate.arguments arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
                         parentSource otherResponseName
@@ -806,7 +832,8 @@ theorem
                         }]
                       = .ok ([(otherResponseName, responseValue)], fieldErrors))
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
-          runtimeType leftChildSelectionSet rightChildSelectionSet support
+          runtimeType leftChildSelectionSet rightChildSelectionSet
+          (variableValues := variableValues) support
           minFuel
       -> ¬ selectionSetsDataEquivalent schema parentType
             (leftPref
@@ -822,7 +849,7 @@ theorem
     hleftSuffixSupported hrightSuffixSupported hleftPrefOther
     hrightPrefOther hleftSuffixOther hrightSuffixOther hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, base, variableValues, fuel, ref,
+    ⟨hinclude, ObjectRef, base, fuel, ref,
       hfuelGe, hsupportResponse, hchildNot⟩
   have hfieldInclude :
       schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
@@ -833,7 +860,11 @@ theorem
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
           (parentObjectProbeFieldResolvers base parentType fieldName
             runtimeType ref fieldDefinition.outputType)
-          parentType fieldName fieldName leftArguments rightArguments)
+          parentType fieldName fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments)
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments rightArguments))
         variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType
@@ -842,22 +873,26 @@ theorem
         leftPref :=
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
       schema rootSelectionSet base variableValues fuel parentType fieldName
-      leftArguments rightArguments fieldDefinition runtimeType ref leftPref
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments)
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments)
+      fieldDefinition runtimeType ref leftPref
       hlookup hfieldInclude
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hleftPrefSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inl harguments)))
+              childSelectionSet hmem))
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hleftPrefSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inr harguments)))
+              childSelectionSet hmem))
       (hleftPrefOther base variableValues fuel runtimeType ref hfieldInclude
         hfuelGe)
   have hrightPrefFieldsOk :
@@ -865,7 +900,11 @@ theorem
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
           (parentObjectProbeFieldResolvers base parentType fieldName
             runtimeType ref fieldDefinition.outputType)
-          parentType fieldName fieldName leftArguments rightArguments)
+          parentType fieldName fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments)
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments rightArguments))
         variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType
@@ -874,22 +913,26 @@ theorem
         rightPref :=
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
       schema rootSelectionSet base variableValues fuel parentType fieldName
-      leftArguments rightArguments fieldDefinition runtimeType ref rightPref
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments)
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments)
+      fieldDefinition runtimeType ref rightPref
       hlookup hfieldInclude
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hrightPrefSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inl harguments)))
+              childSelectionSet hmem))
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hrightPrefSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inr harguments)))
+              childSelectionSet hmem))
       (hrightPrefOther base variableValues fuel runtimeType ref hfieldInclude
         hfuelGe)
   have hleftSuffixFieldsOk :
@@ -897,7 +940,11 @@ theorem
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
           (parentObjectProbeFieldResolvers base parentType fieldName
             runtimeType ref fieldDefinition.outputType)
-          parentType fieldName fieldName leftArguments rightArguments)
+          parentType fieldName fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments)
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments rightArguments))
         variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType
@@ -906,22 +953,26 @@ theorem
         leftSuffix :=
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
       schema rootSelectionSet base variableValues fuel parentType fieldName
-      leftArguments rightArguments fieldDefinition runtimeType ref leftSuffix
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments)
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments)
+      fieldDefinition runtimeType ref leftSuffix
       hlookup hfieldInclude
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hleftSuffixSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inl harguments)))
+              childSelectionSet hmem))
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hleftSuffixSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inr harguments)))
+              childSelectionSet hmem))
       (hleftSuffixOther base variableValues fuel runtimeType ref hfieldInclude
         hfuelGe)
   have hrightSuffixFieldsOk :
@@ -929,7 +980,11 @@ theorem
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
           (parentObjectProbeFieldResolvers base parentType fieldName
             runtimeType ref fieldDefinition.outputType)
-          parentType fieldName fieldName leftArguments rightArguments)
+          parentType fieldName fieldName
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments)
+          (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments rightArguments))
         variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType
@@ -938,22 +993,26 @@ theorem
         rightSuffix :=
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
       schema rootSelectionSet base variableValues fuel parentType fieldName
-      leftArguments rightArguments fieldDefinition runtimeType ref rightSuffix
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments)
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments)
+      fieldDefinition runtimeType ref rightSuffix
       hlookup hfieldInclude
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hrightSuffixSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inl harguments)))
+              childSelectionSet hmem))
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem _harguments
         exact
           hsupportResponse childSelectionSet
             (hrightSuffixSupported currentResponseName arguments directives
-              childSelectionSet hmem (Or.inr harguments)))
+              childSelectionSet hmem))
       (hrightSuffixOther base variableValues fuel runtimeType ref hfieldInclude
         hfuelGe)
   exact
@@ -977,6 +1036,7 @@ theorem
       leftPref rightPref leftSuffix rightSuffix
       : List Selection}
     {fieldDefinition : FieldDefinition} {support : List Selection -> Prop}
+    {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType
           (leftPref
@@ -1020,7 +1080,8 @@ theorem
       -> focusedSelectionSetTargetChildrenSupported fieldName leftArguments
           rightArguments rightSuffix support
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
-          runtimeType leftChildSelectionSet rightChildSelectionSet support
+          runtimeType leftChildSelectionSet rightChildSelectionSet
+          (variableValues := variableValues) support
           (selectionSetDeepProbeFuel schema parentType
               ((leftPref
                   ++ Selection.field responseName fieldName leftArguments []
@@ -1072,7 +1133,11 @@ theorem
             fieldPairOrDeepSuccessResolvers schema rootSelectionSet
               (parentObjectProbeFieldResolvers base parentType fieldName
                 childRuntimeType ref fieldDefinition.outputType)
-              parentType fieldName fieldName leftArguments rightArguments
+              parentType fieldName fieldName
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments leftArguments)
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments rightArguments)
           let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
           let parentSource :=
             projectionRootResolverValue
@@ -1081,9 +1146,16 @@ theorem
               childSelectionSet,
             Selection.field otherResponseName otherFieldName arguments
                 directives childSelectionSet ∈ selectionSet ->
-            ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                leftArguments rightArguments parentType otherFieldName
-                arguments ->
+            (∀ candidate,
+              schema.lookupField parentType otherFieldName = some candidate ->
+                ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments leftArguments)
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments rightArguments)
+                  parentType otherFieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    candidate.arguments arguments)) ->
               ∃ responseValue fieldErrors,
                 Execution.executeField schema resolvers variableValues
                   parentFuel parentSource otherResponseName
@@ -1108,7 +1180,11 @@ theorem
         schema rootSelectionSet base variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType fieldName childRuntimeType ref fieldDefinition.outputType
-        leftArguments rightArguments selectionSet
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments leftArguments)
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments rightArguments)
+        selectionSet
         (by
           intro otherResponseName otherFieldName arguments directives
             childSelectionSet hmem
@@ -1155,7 +1231,11 @@ theorem
             fieldPairOrDeepSuccessResolvers schema rootSelectionSet
               (parentObjectProbeFieldResolvers base parentType fieldName
                 childRuntimeType ref fieldDefinition.outputType)
-              parentType fieldName fieldName leftArguments rightArguments
+              parentType fieldName fieldName
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments leftArguments)
+              (Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments rightArguments)
           let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
           let parentSource :=
             projectionRootResolverValue
@@ -1164,9 +1244,16 @@ theorem
               childSelectionSet,
             Selection.field otherResponseName otherFieldName arguments
                 directives childSelectionSet ∈ selectionSet ->
-            ¬ fieldPairProjectionTarget parentType fieldName fieldName
-                leftArguments rightArguments parentType otherFieldName
-                arguments ->
+            (∀ candidate,
+              schema.lookupField parentType otherFieldName = some candidate ->
+                ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments leftArguments)
+                  (Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments rightArguments)
+                  parentType otherFieldName
+                  (Execution.coerceArgumentValues schema variableValues
+                    candidate.arguments arguments)) ->
               ∃ responseValue fieldErrors,
                 Execution.executeField schema resolvers variableValues
                   parentFuel parentSource otherResponseName
@@ -1191,7 +1278,11 @@ theorem
         schema rootSelectionSet base variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
         parentType fieldName childRuntimeType ref fieldDefinition.outputType
-        leftArguments rightArguments selectionSet
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments leftArguments)
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments rightArguments)
+        selectionSet
         (by
           intro otherResponseName otherFieldName arguments directives
             childSelectionSet hmem
@@ -1279,7 +1370,7 @@ theorem
     {leftChildSelectionSet rightChildSelectionSet
       leftPref rightPref leftSuffix rightSuffix
       : List Selection}
-    {fieldDefinition : FieldDefinition}
+    {fieldDefinition : FieldDefinition} {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType
           (leftPref
@@ -1316,6 +1407,7 @@ theorem
       -> objectTypeNameBool schema parentType = true
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
           runtimeType leftChildSelectionSet rightChildSelectionSet
+          (variableValues := variableValues)
           (fun childSelectionSet =>
             childSelectionSet
             ∈ focusedSplitTargetChildSelectionSets fieldName leftArguments
@@ -1363,43 +1455,43 @@ theorem
       hrightFree hleftNormal hrightNormal hparentObject
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem
         have htarget :=
           focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
             (targetField := fieldName) (leftArguments := leftArguments)
             (rightArguments := rightArguments) (selectionSet := leftPref)
             currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem
         simp [focusedSplitTargetChildSelectionSets, htarget])
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem
         have htarget :=
           focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
             (targetField := fieldName) (leftArguments := leftArguments)
             (rightArguments := rightArguments) (selectionSet := rightPref)
             currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem
         simp [focusedSplitTargetChildSelectionSets, htarget])
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem
         have htarget :=
           focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
             (targetField := fieldName) (leftArguments := leftArguments)
             (rightArguments := rightArguments) (selectionSet := leftSuffix)
             currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem
         simp [focusedSplitTargetChildSelectionSets, htarget])
       (by
         intro currentResponseName arguments directives childSelectionSet
-          hmem harguments
+          hmem
         have htarget :=
           focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
             (targetField := fieldName) (leftArguments := leftArguments)
             (rightArguments := rightArguments) (selectionSet := rightSuffix)
             currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem
         simp [focusedSplitTargetChildSelectionSets, htarget])
       hwitness
 
@@ -1413,7 +1505,7 @@ theorem
       leftPref rightPref leftSuffix rightSuffix
       : List Selection}
     {supportSelectionSets : List (List Selection)} {fieldDefinition : FieldDefinition}
-    {minFuel : Nat}
+    {minFuel : Nat} {variableValues : Execution.VariableValues}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType
           (leftPref
@@ -1457,6 +1549,7 @@ theorem
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
           runtimeType leftChildSelectionSet rightChildSelectionSet
+          (variableValues := variableValues)
           (fun childSelectionSet =>
             childSelectionSet
             ∈ focusedObjectChildSupportSelectionSets fieldName leftArguments
@@ -1486,6 +1579,7 @@ theorem
             ++ Selection.field responseName fieldName rightArguments []
                   rightChildSelectionSet
                 :: rightSuffix)
+          (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
   intro hschema hleftValid hrightValid hlookup hreturnType hleftFree
@@ -1533,52 +1627,44 @@ theorem
       focusedSelectionSetTargetChildrenSupported fieldName leftArguments
         rightArguments leftPref childSupport := by
     intro currentResponseName arguments directives childSelectionSet hmem
-      harguments
     have htarget :=
       focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
         (targetField := fieldName) (leftArguments := leftArguments)
         (rightArguments := rightArguments) (selectionSet := leftPref)
         currentResponseName arguments directives childSelectionSet hmem
-        harguments
     simp [childSupport, focusedObjectChildSupportSelectionSets,
       focusedSplitTargetChildSelectionSets, htarget]
   have hrightPrefSupported :
       focusedSelectionSetTargetChildrenSupported fieldName leftArguments
         rightArguments rightPref childSupport := by
     intro currentResponseName arguments directives childSelectionSet hmem
-      harguments
     have htarget :=
       focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
         (targetField := fieldName) (leftArguments := leftArguments)
         (rightArguments := rightArguments) (selectionSet := rightPref)
         currentResponseName arguments directives childSelectionSet hmem
-        harguments
     simp [childSupport, focusedObjectChildSupportSelectionSets,
       focusedSplitTargetChildSelectionSets, htarget]
   have hleftSuffixSupported :
       focusedSelectionSetTargetChildrenSupported fieldName leftArguments
         rightArguments leftSuffix childSupport := by
     intro currentResponseName arguments directives childSelectionSet hmem
-      harguments
     have htarget :=
       focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
         (targetField := fieldName) (leftArguments := leftArguments)
         (rightArguments := rightArguments) (selectionSet := leftSuffix)
         currentResponseName arguments directives childSelectionSet hmem
-        harguments
     simp [childSupport, focusedObjectChildSupportSelectionSets,
       focusedSplitTargetChildSelectionSets, htarget]
   have hrightSuffixSupported :
       focusedSelectionSetTargetChildrenSupported fieldName leftArguments
         rightArguments rightSuffix childSupport := by
     intro currentResponseName arguments directives childSelectionSet hmem
-      harguments
     have htarget :=
       focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
         (targetField := fieldName) (leftArguments := leftArguments)
         (rightArguments := rightArguments) (selectionSet := rightSuffix)
         currentResponseName arguments directives childSelectionSet hmem
-        harguments
     simp [childSupport, focusedObjectChildSupportSelectionSets,
       focusedSplitTargetChildSelectionSets, htarget]
   have hsupportSupported :
@@ -1587,7 +1673,7 @@ theorem
           focusedSelectionSetTargetChildrenSupported fieldName leftArguments
             rightArguments supportSelectionSet childSupport := by
     intro supportSelectionSet hsupport currentResponseName arguments
-      directives childSelectionSet hmem harguments
+      directives childSelectionSet hmem
     have htarget :=
       focusedSelectionSetTargetChildrenSupported_supportTargetChildSelectionSets
         (targetField := fieldName) (leftArguments := leftArguments)
@@ -1595,14 +1681,14 @@ theorem
         (supportSelectionSets := supportSelectionSets)
         (selectionSet := supportSelectionSet)
         hsupport currentResponseName arguments directives childSelectionSet
-        hmem harguments
+        hmem
     simp [childSupport, focusedObjectChildSupportSelectionSets, htarget]
   change
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema returnType
-      runtimeType leftChildSelectionSet rightChildSelectionSet childSupport
-      childMinFuel at hwitness
+      runtimeType leftChildSelectionSet rightChildSelectionSet
+      (variableValues := variableValues) childSupport childMinFuel at hwitness
   rcases hwitness with
-    ⟨hinclude, ObjectRef, base, variableValues, fuel, ref, hfuelGe,
+    ⟨hinclude, ObjectRef, base, fuel, ref, hfuelGe,
       hsupportResponse, hchildNot⟩
   have hfieldInclude :
       schema.typeIncludesObjectBool fieldDefinition.outputType.namedType
@@ -1612,7 +1698,11 @@ theorem
     fieldPairOrDeepSuccessResolvers schema rootSelectionSet
       (parentObjectProbeFieldResolvers base parentType fieldName runtimeType
         ref fieldDefinition.outputType)
-      parentType fieldName fieldName leftArguments rightArguments
+      parentType fieldName fieldName
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments)
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments)
   let parentFuel := fuel + leafProbeFuel fieldDefinition.outputType + 1
   let parentSource : Execution.ResolverValue
       (ProjectionResolverRef (Option ObjectRef)) :=
@@ -1649,9 +1739,16 @@ theorem
             (childSelectionSet : List Selection),
           Selection.field otherResponseName otherFieldName arguments
               directives childSelectionSet ∈ selectionSet ->
-          ¬ fieldPairProjectionTarget parentType fieldName fieldName
-              leftArguments rightArguments parentType otherFieldName
-              arguments ->
+          (∀ candidate,
+            schema.lookupField parentType otherFieldName = some candidate ->
+              ¬ fieldPairProjectionTarget parentType fieldName fieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments leftArguments)
+                (Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments rightArguments)
+                parentType otherFieldName
+                (Execution.coerceArgumentValues schema variableValues
+                  candidate.arguments arguments)) ->
             ∃ responseValue fieldErrors,
               Execution.executeField schema parentResolvers variableValues
                 parentFuel parentSource otherResponseName
@@ -1668,8 +1765,12 @@ theorem
     exact
       selectionSetOtherFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_deepSuccessWithRef_ok
         schema rootSelectionSet base variableValues parentFuel parentType
-        fieldName runtimeType ref fieldDefinition.outputType leftArguments
-        rightArguments selectionSet
+        fieldName runtimeType ref fieldDefinition.outputType
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments leftArguments)
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments rightArguments)
+        selectionSet
         (by
           intro otherResponseName otherFieldName arguments directives
             childSelectionSet hmem
@@ -1704,22 +1805,26 @@ theorem
     simpa [parentResolvers, parentFuel, parentSource] using
       selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
         schema rootSelectionSet base variableValues fuel parentType fieldName
-        leftArguments rightArguments fieldDefinition runtimeType ref
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments leftArguments)
+        (Execution.coerceArgumentValues schema variableValues
+          fieldDefinition.arguments rightArguments)
+        fieldDefinition runtimeType ref
         selectionSet hlookup hfieldInclude
         (by
           intro currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem _harguments
           exact
             hsupportResponse childSelectionSet
               (hsupported currentResponseName arguments directives
-                childSelectionSet hmem (Or.inl harguments)))
+                childSelectionSet hmem))
         (by
           intro currentResponseName arguments directives childSelectionSet
-            hmem harguments
+            hmem _harguments
           exact
             hsupportResponse childSelectionSet
               (hsupported currentResponseName arguments directives
-                childSelectionSet hmem (Or.inr harguments)))
+                childSelectionSet hmem))
         (by
           simpa [parentResolvers, parentFuel, parentSource] using
             hotherOfSubset selectionSet wholeSelectionSet hmember hsubset)
@@ -1791,7 +1896,6 @@ theorem
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hparentObject,
     ProjectionResolverRef (Option ObjectRef),
     parentResolvers,
-    variableValues,
     parentFuel,
     ProjectionResolverRef.root (none : Option ObjectRef),
     hminFuel,

@@ -26,6 +26,7 @@ mutual
               runtimeType parentType
           -> NormalForm.selectionSetSemanticsReady schema parentType universeSet
           -> FieldMerge.fieldsInSetCanMerge schema parentType universeSet
+          -> Execution.selectionSetArgumentsNodup universeSet
           -> SelectionFieldsWithin schema variableValues parentType
               (.object runtimeType ref)
               (ExecutionUngroupedUncached.Eager.collectedExecutableFields
@@ -53,7 +54,7 @@ mutual
                     (.object runtimeType ref) selection
                     (.object (.object runtimeType ref) outputFields)).value := by
     intro fuel parentType runtimeType ref universeSet selection outputFields hschema
-      hobject hparentRuntime hready hmerge hwithin htree
+      hobject hparentRuntime hready hmerge hargumentsNodup hwithin htree
     let source : ResolverValue ObjectRef := .object runtimeType ref
     let groups :=
       GraphQL.Execution.collectFields schema variableValues parentType source
@@ -84,6 +85,13 @@ mutual
       collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object schema
         variableValues parentType parentType runtimeType ref universeSet hmerge
         hparentRuntime hlookupValid
+    have hcollectedArgumentsAndChildrenNodup :=
+      ExecutionUngroupedUncached.Eager.collectFields_argumentsAndChildrenNodup
+        schema variableValues parentType source universeSet hargumentsNodup
+    have hflatArgumentsNodup :
+        ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup flatFields :=
+      collectedExecutableFields_argumentsNodup
+        hcollectedArgumentsAndChildrenNodup.1
     have hlookups :
         ∀ field,
           field ∈ flatFields
@@ -151,6 +159,15 @@ mutual
               | succ _ _ _ _ hmergeReady haligned hsource hobjects hlists =>
                   rcases hlookups field hfield with
                     ⟨fieldDefinition, hfieldLookup⟩
+                  have hchildArgumentsNodup :
+                      Execution.selectionSetArgumentsNodup
+                        (GraphQL.Execution.mergedFieldSelectionSet groupFields) := by
+                    apply
+                      ExecutionUngroupedUncached.Eager.selectionSetArgumentsNodup_mergedFieldSelectionSet
+                    intro candidate hcandidate
+                    exact hcollectedArgumentsAndChildrenNodup.2 candidate
+                      (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_of_group_mem
+                        hgroup hcandidate)
                   have hchildVisit :
                       ∀ visitFuel childRuntime (childRef : ObjectRef) childFields,
                         visitFuel < completionFuel + 1
@@ -230,8 +247,8 @@ mutual
                             childRef
                             (GraphQL.Execution.mergedFieldSelectionSet groupFields)
                             selectionSet childFields hschema hchildObject hchildSelf
-                            hchildReady (hchildMerge childRuntime) hchildWithin
-                            hchildTree).1
+                            hchildReady (hchildMerge childRuntime) hchildArgumentsNodup
+                            hchildWithin hchildTree).1
                   have hcompletionExact :
                       ∀ resolved completionPrevious?,
                         (∀ previous,
@@ -303,6 +320,7 @@ mutual
                                 schema variableValues parentType runtimeType ref
                                 universeSet responseName groupFields hmerge
                                 hparentRuntime hlookupValid hgroup) childRuntime)
+                              hchildArgumentsNodup
                               (by
                                 apply
                                   SelectionSetFieldsWithin.of_selectionSet_subset
@@ -459,13 +477,13 @@ mutual
                   have hpostSourceFlat :=
                     visitSelection_outputCacheSoundForFields schema resolvers
                       variableValues (completionFuel + 1) parentType source flatFields
-                      hschema hparents hcompatible hlookups
+                      hschema hparents hcompatible hflatArgumentsNodup hlookups
                       (.field responseName fieldName arguments directives selectionSet)
                       (.object source outputFields) hwithin hmergeReady haligned
-                      (OutputCacheSoundForGroups.to_flat schema resolvers source
+                      (OutputCacheSoundForGroups.to_flat schema resolvers variableValues source
                         groups (.object source outputFields) hresponses hsource)
                   have hpostSource :=
-                    OutputCacheSoundForFields.to_groups schema resolvers source groups
+                    OutputCacheSoundForFields.to_groups schema resolvers variableValues source groups
                       (visitSelection schema resolvers variableValues
                         (completionFuel + 1) parentType source
                         (.field responseName fieldName arguments directives selectionSet)
@@ -535,7 +553,7 @@ mutual
                 visitSubfields_output_eq_uncached_and_treeSound_object schema
                   resolvers variableValues fuel parentType runtimeType ref universeSet
                   selectionSet outputFields hschema hobject hparentRuntime hready
-                  hmerge (hwithin' hallows) htree
+                  hmerge hargumentsNodup (hwithin' hallows) htree
           | some typeCondition =>
               have hwithin' := hwithin
               simp [SelectionFieldsWithin] at hwithin'
@@ -548,7 +566,8 @@ mutual
                   visitSubfields_output_eq_uncached_and_treeSound_object schema
                     resolvers variableValues fuel parentType runtimeType ref
                     universeSet selectionSet outputFields hschema hobject
-                    hparentRuntime hready hmerge (hwithin' hallows happly) htree
+                    hparentRuntime hready hmerge hargumentsNodup
+                    (hwithin' hallows happly) htree
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType
                         (.object runtimeType ref) typeCondition
@@ -576,7 +595,7 @@ mutual
                 ExecutionUngroupedUncached.visitOk]
           · cases typeCondition <;>
               simpa [visitSelection, hfalse] using htree
-  termination_by fuel parentType runtimeType ref universeSet selection outputFields
+  termination_by fuel parentType runtimeType ref universeSet selection _outputFields
       _hschema _hobject _hparentRuntime _hready _hmerge _hwithin _htree =>
     (fuel, sizeOf selection, 0)
   decreasing_by
@@ -600,6 +619,7 @@ mutual
               runtimeType parentType
           -> NormalForm.selectionSetSemanticsReady schema parentType universeSet
           -> FieldMerge.fieldsInSetCanMerge schema parentType universeSet
+          -> Execution.selectionSetArgumentsNodup universeSet
           -> SelectionSetFieldsWithin schema variableValues parentType
               (.object runtimeType ref)
               (ExecutionUngroupedUncached.Eager.collectedExecutableFields
@@ -627,7 +647,7 @@ mutual
                     (.object runtimeType ref) selectionSet
                     (.object (.object runtimeType ref) outputFields)).value := by
     intro fuel parentType runtimeType ref universeSet selectionSet outputFields
-      hschema hobject hparentRuntime hready hmerge hwithin htree
+      hschema hobject hparentRuntime hready hmerge hargumentsNodup hwithin htree
     cases selectionSet with
     | nil =>
         constructor
@@ -660,7 +680,7 @@ mutual
           visitSelection_output_eq_uncached_and_treeSound_object schema resolvers
             variableValues fuel parentType runtimeType ref universeSet selection
             outputFields hschema hobject hparentRuntime hready hmerge
-            hselectionWithin htree
+            hargumentsNodup hselectionWithin htree
         rcases hhead with ⟨hheadOutput, hheadTree⟩
         rw [hheadEq] at hheadOutput hheadTree
         rcases
@@ -698,7 +718,7 @@ mutual
               visitSubfields_output_eq_uncached_and_treeSound_object schema
                 resolvers variableValues fuel parentType runtimeType ref universeSet
                 rest headFields hschema hobject hparentRuntime hready hmerge
-                hrestWithin hheadTree
+                hargumentsNodup hrestWithin hheadTree
             rcases htail with ⟨htailOutput, htailTree⟩
             constructor
             · simp [visitSubfields, ExecutionUngroupedUncached.visitSubfields,
@@ -709,7 +729,7 @@ mutual
             · simp [visitSubfields, hheadEq, hstatus]
               rw [hheadValue]
               exact htailTree
-  termination_by fuel parentType runtimeType ref universeSet selectionSet outputFields
+  termination_by fuel parentType runtimeType ref universeSet selectionSet _outputFields
       _hschema _hobject _hparentRuntime _hready _hmerge _hwithin _htree =>
     (fuel, sizeOf selectionSet, 1)
   decreasing_by
@@ -727,7 +747,7 @@ mutual
   theorem visitSubfields_output_eq_uncached_of_globalCacheSound
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+      (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
       : ∀ fuel parentType source selectionSet output,
           outputVisitResult
             (visitSubfields schema resolvers variableValues fuel parentType source
@@ -778,7 +798,7 @@ mutual
   theorem visitSelection_output_eq_uncached_of_globalCacheSound
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+      (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
       : ∀ fuel parentType source selection output,
           outputVisitResult
             (visitSelection schema resolvers variableValues fuel parentType source
@@ -823,7 +843,7 @@ mutual
                 executableField parentType responseName fieldName arguments
                   selectionSet
               have hs :
-                  FieldPreviousCacheSound schema resolvers source
+                  FieldPreviousCacheSound schema resolvers variableValues source
                     (objectField? responseName output) field := by
                 intro fieldDefinition previous hlookup hpreviousEq
                 cases hprevious : objectField? responseName output with
@@ -920,9 +940,9 @@ mutual
   theorem executeField_output_eq_uncached_of_globalCacheSound
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+      (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
       : ∀ completionFuel source previous? field,
-          FieldPreviousCacheSound schema resolvers source previous? field
+          FieldPreviousCacheSound schema resolvers variableValues source previous? field
           -> outputResult FieldCacheValue.output
                 (executeField schema resolvers variableValues completionFuel source
                   previous? field)
@@ -940,7 +960,7 @@ mutual
   theorem completeValue_output_eq_uncached_of_globalCacheSound
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+      (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
       : ∀ fuel fieldType selectionSet value previous?,
           outputResult FieldCacheValue.output
             (completeValue schema resolvers variableValues fuel fieldType
@@ -1183,7 +1203,7 @@ mutual
   theorem completeValueList_output_eq_uncached_of_globalCacheSound
       {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (hcache : GlobalFieldPreviousCacheSound schema resolvers)
+      (hcache : GlobalFieldPreviousCacheSound schema resolvers variableValues)
       : ∀ fuel itemType selectionSet values previousValues,
           outputResult outputValues
             (completeValueList schema resolvers variableValues fuel itemType
