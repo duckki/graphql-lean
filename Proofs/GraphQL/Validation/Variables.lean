@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Validation.FieldMerge
+import Proofs.GraphQL.Validation.SelectionValidity
 
 /-! Variable-collector facts used by validation-preservation proofs. -/
 
@@ -281,6 +282,243 @@ theorem argumentsVariables_mem_iff_of_equivalent
       ⟨argument', hargument',
         (argumentVariables_mem_iff_of_equivalent variableName
           hargumentEquivalent).2 hargumentVariable⟩
+
+mutual
+  private theorem constInputValue_toInputValue_variables_empty
+      : ∀ (value : ConstInputValue), inputValueVariables value.toInputValue = []
+    | .null
+    | .int _
+    | .float _
+    | .string _
+    | .boolean _
+    | .enum _ => rfl
+    | .list values => by
+        simp only [ConstInputValue.toInputValue, inputValueVariables]
+        exact constInputValues_toInputValues_variables_empty values
+    | .object fields => by
+        simp only [ConstInputValue.toInputValue, inputValueVariables]
+        exact constInputObjectFields_toInputFields_variables_empty fields
+
+  private theorem constInputValues_toInputValues_variables_empty
+      : ∀ (values : List ConstInputValue),
+          inputValuesVariables (ConstInputValue.valuesToInputValues values) = []
+    | [] => rfl
+    | value :: rest => by
+        simp [ConstInputValue.valuesToInputValues, inputValuesVariables,
+          constInputValue_toInputValue_variables_empty value,
+          constInputValues_toInputValues_variables_empty rest]
+
+  private theorem constInputObjectFields_toInputFields_variables_empty
+      : ∀ (fields : List (Name × ConstInputValue)),
+          inputObjectFieldsVariables (ConstInputValue.objectFieldsToInputFields fields)
+          = []
+    | [] => rfl
+    | (_, value) :: rest => by
+        simp [ConstInputValue.objectFieldsToInputFields, inputObjectFieldsVariables,
+          constInputValue_toInputValue_variables_empty value,
+          constInputObjectFields_toInputFields_variables_empty rest]
+end
+
+private theorem inputValuesVariables_exists {variableName : Name}
+    : ∀ values,
+        variableName ∈ inputValuesVariables values
+        -> ∃ value, value ∈ values ∧ variableName ∈ inputValueVariables value
+  | [], hvariable => by cases hvariable
+  | value :: rest, hvariable => by
+      simp only [inputValuesVariables, List.mem_append] at hvariable
+      rcases hvariable with hvalue | hrest
+      · exact ⟨value, by simp, hvalue⟩
+      · rcases inputValuesVariables_exists rest hrest with
+          ⟨candidate, hcandidate, hcandidateVariable⟩
+        exact ⟨candidate, by simp [hcandidate], hcandidateVariable⟩
+
+private theorem inputObjectFieldsVariables_exists {variableName : Name}
+    : ∀ fields,
+        variableName ∈ inputObjectFieldsVariables fields
+        -> ∃ name value, (name, value) ∈ fields ∧ variableName ∈ inputValueVariables value
+  | [], hvariable => by cases hvariable
+  | (name, value) :: rest, hvariable => by
+      simp only [inputObjectFieldsVariables, List.mem_append] at hvariable
+      rcases hvariable with hvalue | hrest
+      · exact ⟨name, value, by simp, hvalue⟩
+      · rcases inputObjectFieldsVariables_exists rest hrest with
+          ⟨candidateName, candidateValue, hcandidate, hcandidateVariable⟩
+        exact ⟨candidateName, candidateValue, by simp [hcandidate],
+          hcandidateVariable⟩
+
+theorem valueIsCorrectTypeAtLocation_variable_defined
+    {schema : Schema} {variableDefinitions : List VariableDefinition}
+    {value : InputValue} {expectedType : TypeRef}
+    {locationDefault : Option ConstInputValue}
+    (hvalid
+      : ValueIsCorrectTypeAtLocation schema variableDefinitions value expectedType
+          locationDefault)
+    {variableName : Name}
+    (hvariable : variableName ∈ inputValueVariables value)
+    : ∃ definition,
+        getVariableDefinition? variableDefinitions variableName = some definition := by
+  apply (ValueIsCorrectTypeAtLocation.rec
+    (motive_1 := fun value _expectedType _locationDefault _hvalid =>
+      variableName ∈ inputValueVariables value
+      -> ∃ definition,
+          getVariableDefinition? variableDefinitions variableName = some definition)
+    (motive_2 := fun _definitions fields _hvalid =>
+      variableName ∈ inputObjectFieldsVariables fields
+      -> ∃ definition,
+          getVariableDefinition? variableDefinitions variableName = some definition)
+    (motive_3 := fun fields _inner _hvalid =>
+      variableName ∈ inputObjectFieldsVariables fields
+      -> ∃ definition,
+          getVariableDefinition? variableDefinitions variableName = some definition)
+    (fun definedName _expectedType _locationDefault definition _hinput hlookup
+        _husage hvariable => by
+      simp [inputValueVariables] at hvariable
+      subst variableName
+      exact ⟨definition, hlookup⟩)
+    (fun _typeName _locationDefault _hinput hvariable => by
+      simp [inputValueVariables] at hvariable)
+    (fun _inner _locationDefault _hinput hvariable => by
+      simp [inputValueVariables] at hvariable)
+    (fun _value _inner _locationDefault _hinput _hnotNull _hnotVariable _hinner ih
+        hvariable => ih hvariable)
+    (fun values _inner _locationDefault _hinput _hitems ihItems hvariable => by
+      rcases inputValuesVariables_exists values hvariable with
+        ⟨item, hitem, hitemVariable⟩
+      exact ihItems item hitem hitemVariable)
+    (fun _fields _typeName _locationDefault _inputObject _hinput _hlookup _hfields
+        ihFields hvariable => ihFields hvariable)
+    (fun _fields _inner _locationDefault _hinput _hitem ihItem hvariable =>
+      ihItem hvariable)
+    (fun _value _inner _locationDefault _hinput _hnotList _hnotObject _hnotNull
+        _hnotVariable _hitem ih hvariable => ih hvariable)
+    (fun _value _typeName _locationDefault _hinput _hnotObject _hnotNull
+        _hnotVariable hconst _hlookup hvariable => by
+      rcases hconst with ⟨constValue, rfl⟩
+      rw [constInputValue_toInputValue_variables_empty] at hvariable
+      cases hvariable)
+    (fun definitions fields _hnodup hknown _htyped _hrequiredPresent
+        _hrequiredNonNull ihTyped hvariable => by
+      rcases inputObjectFieldsVariables_exists fields hvariable with
+        ⟨fieldName, fieldValue, hfield, hfieldVariable⟩
+      have hknownField := hknown fieldName fieldValue hfield
+      cases hdefinition : Schema.lookupArgumentDefinition definitions fieldName with
+      | none => simp [hdefinition] at hknownField
+      | some definition =>
+          exact ihTyped fieldName fieldValue definition hfield hdefinition
+            hfieldVariable)
+    (fun _fields _inner _hvalue ih hvariable => ih hvariable)
+    hvalid) hvariable
+
+theorem argumentsValid_variable_defined
+    {schema : Schema} {definitions : List InputValueDefinition}
+    {variableDefinitions : List VariableDefinition} {arguments : List Argument}
+    (hvalid : argumentsValid schema definitions variableDefinitions arguments)
+    {variableName : Name}
+    (hvariable : variableName ∈ argumentsVariables arguments)
+    : ∃ definition,
+        getVariableDefinition? variableDefinitions variableName = some definition := by
+  rcases (argumentsVariables_mem_iff variableName arguments).1 hvariable with
+    ⟨argument, hargument, hargumentVariable⟩
+  rcases hvalid.2.1 argument hargument with
+    ⟨definition, _hlookup, hvalue⟩
+  exact valueIsCorrectTypeAtLocation_variable_defined hvalue hargumentVariable
+
+private theorem directivesVariables_exists {variableName : Name}
+    : ∀ directives,
+        variableName ∈ directivesVariables directives
+        -> ∃ directive,
+            directive ∈ directives ∧ variableName ∈ directiveVariables directive
+  | [], hvariable => by cases hvariable
+  | directive :: rest, hvariable => by
+      simp only [directivesVariables, List.mem_append] at hvariable
+      rcases hvariable with hdirective | hrest
+      · exact ⟨directive, by simp, hdirective⟩
+      · rcases directivesVariables_exists rest hrest with
+          ⟨candidate, hcandidate, hcandidateVariable⟩
+        exact ⟨candidate, by simp [hcandidate], hcandidateVariable⟩
+
+theorem directivesValid_variable_defined
+    {schema : Schema} {variableDefinitions : List VariableDefinition}
+    {directives : List DirectiveApplication}
+    (hvalid : directivesValid schema variableDefinitions directives)
+    {variableName : Name}
+    (hvariable : variableName ∈ directivesVariables directives)
+    : ∃ definition,
+        getVariableDefinition? variableDefinitions variableName = some definition := by
+  rcases directivesVariables_exists directives hvariable with
+    ⟨directive, hdirective, hdirectiveVariable⟩
+  have hdirectiveValid := hvalid.2 directive hdirective
+  cases directive <;> rename_i ifArgument <;> cases ifArgument <;>
+    simp [directiveVariables, directiveValid, directiveIfArgumentValid,
+      inputValueVariables] at hdirectiveVariable hdirectiveValid
+  all_goals
+    subst variableName
+    rcases hdirectiveValid with ⟨definition, hlookup, _husage⟩
+    exact ⟨definition, hlookup⟩
+
+mutual
+  theorem selectionValid_variable_defined
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {parentType : Name} {selection : Selection}
+      (hvalid : selectionValid schema variableDefinitions parentType selection)
+      {variableName : Name}
+      (hvariable : variableName ∈ selectionVariables selection)
+      : ∃ definition,
+          getVariableDefinition? variableDefinitions variableName = some definition := by
+    cases selection with
+    | field responseName fieldName arguments directives selectionSet =>
+        rcases selectionValid_field_lookup hvalid with
+          ⟨fieldDefinition, _hlookup, harguments, hselectionSet⟩
+        simp only [selectionVariables, List.mem_append] at hvariable
+        rcases hvariable with hhead | hchildren
+        · rcases hhead with hargumentsVariable | hdirectives
+          · exact argumentsValid_variable_defined harguments hargumentsVariable
+          · exact directivesValid_variable_defined
+              (selectionValid_field_directivesValid hvalid) hdirectives
+        · simp [fieldSelectionSetValid] at hselectionSet
+          rcases hselectionSet.2 with hleaf | hcomposite
+          · rw [hleaf.2] at hchildren
+            cases hchildren
+          · exact selectionSetValid_variable_defined selectionSet
+              hcomposite.2.2 hchildren
+    | inlineFragment typeCondition directives selectionSet =>
+        simp only [selectionVariables, List.mem_append] at hvariable
+        cases typeCondition with
+        | none =>
+            simp only [selectionValid] at hvalid
+            rcases hvariable with hdirectives | hchildren
+            · exact directivesValid_variable_defined hvalid.1 hdirectives
+            · exact selectionSetValid_variable_defined selectionSet hvalid.2.2
+                hchildren
+        | some typeCondition =>
+            simp only [selectionValid] at hvalid
+            rcases hvariable with hdirectives | hchildren
+            · exact directivesValid_variable_defined hvalid.1 hdirectives
+            · exact selectionSetValid_variable_defined selectionSet hvalid.2.2.2.2
+                hchildren
+
+  theorem selectionSetValid_variable_defined
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {parentType : Name}
+      : ∀ selectionSet,
+          selectionSetValid schema variableDefinitions parentType selectionSet
+          -> ∀ {variableName},
+              variableName ∈ selectionSetVariables selectionSet
+              -> ∃ definition,
+                  getVariableDefinition? variableDefinitions variableName
+                  = some definition
+    | [], _hvalid, _variableName, hvariable => by cases hvariable
+    | selection :: rest, hvalid, variableName, hvariable => by
+        unfold selectionSetValid at hvalid
+        simp only [selectionSetVariables, List.mem_append] at hvariable
+        rcases hvariable with hselection | hrest
+        · exact selectionValid_variable_defined (hvalid selection (by simp))
+            hselection
+        · exact selectionSetValid_variable_defined rest (by
+              unfold selectionSetValid
+              intro candidate hcandidate
+              exact hvalid candidate (by simp [hcandidate])) hrest
+end
 
 end Validation
 

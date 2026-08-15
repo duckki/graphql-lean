@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.ExecutionReadiness
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.GroundBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 
@@ -76,8 +77,106 @@ private theorem completeNormalBooleanStem_body_valid_nonempty_of_mem
   exact completeNormalBooleanStem_body_valid_nonempty hstem
     (hvalid selection hmem)
 
+private theorem completeNormalBooleanStem_body_argumentsCoercible
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name}
+    : ∀ {boolCase : BoolCase} {selection : Selection} {body : List Selection},
+        completeNormalBooleanStem boolCase selection body
+        -> (∀ varName value,
+              (varName, value) ∈ boolCase
+              -> Execution.inputValueBoolean? variableValues (.variable varName)
+                  = some value)
+        -> selectionArgumentsCoercible schema variableValues parentType selection
+        -> selectionSetArgumentsCoercible schema variableValues parentType body
+  | [], _selection, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | [(varName, value)],
+      .inlineFragment none [directive] selectionSet, body, hstem, hagrees, hready => by
+      rcases hstem with ⟨hdirective, rfl⟩
+      subst directive
+      exact hready
+        (selectionDirectivesAllowBool_boolCaseBit_of_agrees variableValues
+          varName value (hagrees varName value (by simp))) trivial
+  | (varName, value) :: (nextVar, nextValue) :: rest,
+      .inlineFragment none [directive] [child], body, hstem, hagrees, hready => by
+      rcases hstem with ⟨hdirective, hchildStem⟩
+      subst directive
+      have hchildReady :
+          selectionArgumentsCoercible schema variableValues parentType child := by
+        have hchildrenReady :
+            selectionSetArgumentsCoercible schema variableValues parentType [child] := by
+          exact hready
+            (selectionDirectivesAllowBool_boolCaseBit_of_agrees variableValues
+              varName value (hagrees varName value (by simp))) trivial
+        exact hchildrenReady.1
+      exact completeNormalBooleanStem_body_argumentsCoercible hchildStem
+        (by
+          intro candidate candidateValue hmem
+          exact hagrees candidate candidateValue (by simp [hmem]))
+        hchildReady
+  | _ :: _ :: _, .field _ _ _ _ _, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment none [] _, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment none (_ :: _ :: _) _, _body, hstem,
+      _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | _ :: _ :: _, .inlineFragment (some _) _ _, _body, hstem, _hagrees,
+      _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .field _ _ _ _ _, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment none [] _, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment none (_ :: _ :: _) _, _body, hstem, _hagrees,
+      _hready => by
+      simp [completeNormalBooleanStem] at hstem
+  | [_], .inlineFragment (some _) _ _, _body, hstem, _hagrees, _hready => by
+      simp [completeNormalBooleanStem] at hstem
+
+private theorem completeNormalBooleanStem_body_argumentsCoercible_of_mem
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {selectionSet : List Selection}
+    {boolCase : BoolCase} {selection : Selection} {body : List Selection}
+    (hready
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hmem : selection ∈ selectionSet)
+    {variables : List BoolVar}
+    (hcomplete : completeNormalBoolCase variables boolCase)
+    (hagrees : variableValuesAgreeWithCase variableValues boolCase variables)
+    (hstem : completeNormalBooleanStem boolCase selection body)
+    : selectionSetArgumentsCoercible schema variableValues parentType body := by
+  exact completeNormalBooleanStem_body_argumentsCoercible hstem
+    (by
+      intro varName value hpair
+      exact inputValueBoolean?_eq_of_agrees_completeNormalBoolCase
+        hcomplete hagrees hpair)
+    (selectionArgumentsCoercible_of_mem hready hmem)
+
+private theorem variableValuesAgreeWithCase_coerceVariableValues
+    (operation : Operation) {variables : List BoolVar} {boolCase : BoolCase}
+    {variableValues : Execution.VariableValues}
+    (hcomplete : completeNormalBoolCase variables boolCase)
+    (hagrees : variableValuesAgreeWithCase variableValues boolCase variables)
+    : variableValuesAgreeWithCase
+        (Execution.coerceVariableValues operation variableValues) boolCase variables := by
+  intro varName hmem
+  have hcaseVar : varName ∈ boolCase.map Prod.fst :=
+    (hcomplete.2.2 varName).2 hmem
+  rcases List.mem_map.mp hcaseVar with
+    ⟨⟨candidateVar, value⟩, hpair, hvarEq⟩
+  change candidateVar = varName at hvarEq
+  subst candidateVar
+  have hlookup := BoolCase.lookup?_eq_of_pair_mem_nodup hcomplete.2.1 hpair
+  have hvalue :
+      Execution.inputValueBoolean? variableValues (.variable varName) = some value := by
+    simpa [hlookup] using hagrees varName hmem
+  exact (inputValueBoolean?_coerceVariableValues_eq_some operation variableValues
+    hvalue).trans hlookup.symm
+
 private theorem selectedCompleteNormalBodies_semanticallyEquivalent
-    {schema : Schema} {parentType : Name}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {parentType : Name}
     {leftVarName rightVarName : BoolVar}
     {leftVariables rightVariables : List BoolVar}
     {leftSelectionSet rightSelectionSet : List Selection}
@@ -102,10 +201,12 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
     (hrightFree : selectionSetDirectiveFree rightBody)
     (hsem
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-          (leftVarName :: leftVariables) leftPrepare rightPrepare parentType
-          leftSelectionSet rightSelectionSet)
+          (leftVarName :: leftVariables) leftOperation rightOperation
+          leftPrepare rightPrepare parentType leftSelectionSet rightSelectionSet)
     : ∀ variableValues,
         boolVarsComplete (leftVarName :: leftVariables) variableValues
+        -> operationArgumentsCoercible schema variableValues leftOperation
+        -> operationArgumentsCoercible schema variableValues rightOperation
         -> variableValuesAgreeWithCase (leftPrepare variableValues)
             leftCase (leftVarName :: leftVariables)
         -> variableValuesAgreeWithCase (rightPrepare variableValues)
@@ -115,7 +216,7 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
             Execution.variableValuesCoercionEquivalent leftValues rightValues
             ∧ selectionSetsSemanticallyEquivalentAtVariableValues schema
                 leftValues rightValues parentType leftBody rightBody := by
-  intro variableValues hcomplete hagreesLeft hagreesRight
+  intro variableValues hcomplete hleftReady hrightReady hagreesLeft hagreesRight
   let leftValues := leftPrepare variableValues
   let rightValues := rightPrepare variableValues
   have heffectiveValues :
@@ -157,10 +258,12 @@ private theorem selectedCompleteNormalBodies_semanticallyEquivalent
     unfold Execution.executeSelectionSetAsResponse
     rw [← hrightExecute]
   rw [hleftResponse, hrightResponse]
-  exact hsem.2.2.2 resolvers variableValues fuel source hcomplete hsource
+  exact hsem.2.2.2 resolvers variableValues fuel source hcomplete
+    hleftReady hrightReady hsource
 
 private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
-    {schema : Schema} {parentType : Name}
+    {schema : Schema} {leftOperation rightOperation : Operation}
+    {parentType : Name}
     {leftVarName rightVarName : BoolVar}
     {leftVariables rightVariables : List BoolVar}
     {leftSelectionSet rightSelectionSet : List Selection}
@@ -186,15 +289,20 @@ private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
             ∧ completeNormalBoolCasesEquivalent runtimeCase candidate)
     (hsem
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-          (leftVarName :: leftVariables) leftPrepare rightPrepare parentType
-          leftSelectionSet rightSelectionSet)
+          (leftVarName :: leftVariables) leftOperation rightOperation
+          leftPrepare rightPrepare parentType leftSelectionSet rightSelectionSet)
     : ∀ baseValues,
-        let leftValues := leftPrepare (boolCaseVariableValues runtimeCase baseValues)
-        let rightValues := rightPrepare (boolCaseVariableValues runtimeCase baseValues)
-        Execution.variableValuesCoercionEquivalent leftValues rightValues
-        ∧ selectionSetsSemanticallyEquivalentAtVariableValues schema
-            leftValues rightValues parentType leftBody [] := by
-  intro baseValues
+        operationArgumentsCoercible schema
+          (boolCaseVariableValues runtimeCase baseValues) leftOperation
+        -> operationArgumentsCoercible schema
+            (boolCaseVariableValues runtimeCase baseValues) rightOperation
+        ->  let leftValues := leftPrepare (boolCaseVariableValues runtimeCase baseValues)
+            let rightValues :=
+              rightPrepare (boolCaseVariableValues runtimeCase baseValues)
+            Execution.variableValuesCoercionEquivalent leftValues rightValues
+            ∧ selectionSetsSemanticallyEquivalentAtVariableValues schema
+                leftValues rightValues parentType leftBody [] := by
+  intro baseValues hleftReady hrightReady
   let caseValues := boolCaseVariableValues runtimeCase baseValues
   let leftCaseValues := leftPrepare caseValues
   let rightCaseValues := rightPrepare caseValues
@@ -258,7 +366,8 @@ private theorem selectedCompleteNormalBody_nil_semanticallyEquivalent
     rw [← hrightExecute]
   rw [hleftResponse, hrightResponse]
   exact hsem.2.2.2 resolvers caseValues fuel source
-    (boolVarsComplete_boolCaseVariableValues baseValues hruntimeLeft) hsource
+    (boolVarsComplete_boolCaseVariableValues baseValues hruntimeLeft)
+    hleftReady hrightReady hsource
 
 private theorem selectionSetEqualUpToReordering_eq_nil {selectionSet : List Selection}
     : SelectionSetEqualUpToReordering selectionSet [] -> selectionSet = [] := by
@@ -389,7 +498,9 @@ def CompleteNormalSelectionMatch
     ∧ selectionSetDirectiveFree rightBody
     ∧ completeNormalBoolCasesEquivalent leftCase rightCase
     ∧ ∀ variableValues,
-        boolVarsComplete leftVariables variableValues
+        operationArgumentsCoercible schema variableValues leftOperation
+        -> operationArgumentsCoercible schema variableValues rightOperation
+        -> boolVarsComplete leftVariables variableValues
         -> variableValuesAgreeWithCase
             (Execution.coerceVariableValues leftOperation variableValues)
             leftCase leftVariables
@@ -431,6 +542,12 @@ theorem completeNormalSelection_has_match
     (hrightValid
       : Validation.selectionSetValid schema
           rightVariableDefinitions parentType rightSelectionSet)
+    (hleftRoot : leftOperation.rootType schema = parentType)
+    (hrightRoot : rightOperation.rootType schema = parentType)
+    (hleftSelectionSet : leftOperation.selectionSet = leftSelectionSet)
+    (hrightSelectionSet : rightOperation.selectionSet = rightSelectionSet)
+    (hleftBoolVars : operationBoolVars leftOperation = leftVarName :: leftVariables)
+    (hjoint : completeBoolCasesJointlyCoercible schema leftOperation rightOperation)
     (hleftNormal
       : completeNormalSelectionSet schema
           (leftVarName :: leftVariables) parentType leftSelectionSet)
@@ -444,7 +561,7 @@ theorem completeNormalSelection_has_match
     (hobject : objectTypeNameBool schema parentType = true)
     (hsem
       : selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-          (leftVarName :: leftVariables)
+          (leftVarName :: leftVariables) leftOperation rightOperation
           (Execution.coerceVariableValues leftOperation)
           (Execution.coerceVariableValues rightOperation) parentType
           leftSelectionSet rightSelectionSet)
@@ -487,7 +604,9 @@ theorem completeNormalSelection_has_match
         hrightNormal hleftMem hrightMem hleftCase hrightCase
         hequivalent hleftStem hrightStem hleftBodyFree hrightBodyFree hsem
     have hbodyEqual : ∀ variableValues,
-        boolVarsComplete (leftVarName :: leftVariables) variableValues
+        operationArgumentsCoercible schema variableValues leftOperation
+        -> operationArgumentsCoercible schema variableValues rightOperation
+        -> boolVarsComplete (leftVarName :: leftVariables) variableValues
         -> variableValuesAgreeWithCase
             (Execution.coerceVariableValues leftOperation variableValues)
             leftCase (leftVarName :: leftVariables)
@@ -499,10 +618,31 @@ theorem completeNormalSelection_has_match
           (Execution.coerceVariableValues leftOperation variableValues)
           (Execution.coerceVariableValues rightOperation variableValues)
           parentType leftBody rightBody := by
-      intro variableValues hcomplete hagreesLeft hagreesRight
-      have hselected := hbodySem variableValues hcomplete hagreesLeft hagreesRight
+      intro variableValues hleftOperationReady hrightOperationReady hcomplete
+        hagreesLeft hagreesRight
+      have hselected := hbodySem variableValues hcomplete hleftOperationReady
+        hrightOperationReady hagreesLeft hagreesRight
+      have hleftSelectionSetReady :
+          selectionSetArgumentsCoercible schema
+            (Execution.coerceVariableValues leftOperation variableValues)
+            parentType leftSelectionSet := by
+        unfold operationArgumentsCoercible at hleftOperationReady
+        simpa [hleftRoot, hleftSelectionSet] using hleftOperationReady
+      have hrightSelectionSetReady :
+          selectionSetArgumentsCoercible schema
+            (Execution.coerceVariableValues rightOperation variableValues)
+            parentType rightSelectionSet := by
+        unfold operationArgumentsCoercible at hrightOperationReady
+        simpa [hrightRoot, hrightSelectionSet] using hrightOperationReady
+      have hleftCoercion :=
+        completeNormalBooleanStem_body_argumentsCoercible_of_mem
+          hleftSelectionSetReady hleftMem hleftCase hagreesLeft hleftStem
+      have hrightCoercion :=
+        completeNormalBooleanStem_body_argumentsCoercible_of_mem
+          hrightSelectionSetReady hrightMem hrightCase hagreesRight hrightStem
       exact validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
-        hselected.1 hschema hleftBodyValid hrightReady.1 hleftBodyFree
+        hselected.1 hschema hleftBodyValid hrightReady.1 hleftCoercion
+        hrightCoercion hleftBodyFree
         hrightBodyFree hleftBodyNormal hrightBodyNormal hobject hselected.2
     exact ⟨rightSelection, hrightMem, leftCase, rightCase, leftBody,
       rightBody, hleftCase, hrightCase, hleftStem, hrightStem,
@@ -536,12 +676,40 @@ theorem completeNormalSelection_has_match
       selectedCompleteNormalBody_nil_semanticallyEquivalent hleftNormal
         hrightNormal hleftMem hleftCase hleftCaseRight hleftStem
         hleftBodyFree hnone hsem
-    have hselectedNil := hbodyNilSem []
+    have hleftCaseAtOperation :
+        completeNormalBoolCase (operationBoolVars leftOperation) leftCase := by
+      simpa [hleftBoolVars] using hleftCase
+    rcases hjoint leftCase hleftCaseAtOperation with
+      ⟨baseValues, hleftOperationReady, hrightOperationReady⟩
+    have hselectedNil :=
+      hbodyNilSem baseValues hleftOperationReady hrightOperationReady
+    have hleftSelectionSetReady :
+        selectionSetArgumentsCoercible schema
+          (Execution.coerceVariableValues leftOperation
+            (boolCaseVariableValues leftCase baseValues))
+          parentType leftSelectionSet := by
+      unfold operationArgumentsCoercible at hleftOperationReady
+      simpa [hleftRoot, hleftSelectionSet] using hleftOperationReady
+    have hleftCoercion :=
+      completeNormalBooleanStem_body_argumentsCoercible_of_mem
+        hleftSelectionSetReady hleftMem hleftCaseAtOperation
+          (variableValuesAgreeWithCase_coerceVariableValues leftOperation
+            hleftCaseAtOperation
+            (variableValuesAgreeWithCase_boolCaseVariableValues baseValues
+              hleftCaseAtOperation))
+          hleftStem
+    have hrightCoercion :
+        selectionSetArgumentsCoercible schema
+          (Execution.coerceVariableValues rightOperation
+            (boolCaseVariableValues leftCase baseValues))
+          parentType [] := by
+      simp [selectionSetArgumentsCoercible]
     have hbodyNilEqual :=
       validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
         (rightVariableDefinitions := rightVariableDefinitions)
         hselectedNil.1 hschema hleftBodyValid
-        (by simp [Validation.selectionSetValid]) hleftBodyFree
+        (by simp [Validation.selectionSetValid]) hleftCoercion hrightCoercion
+        hleftBodyFree
         selectionSetDirectiveFree_nil hleftBodyNormal
         (selectionSetNormal_nil schema parentType) hobject hselectedNil.2
     exact False.elim

@@ -136,7 +136,7 @@ theorem ungroupedExecutionPreservesSpecExecution_of_executeQueryWithFuel_eq_unca
         -> Validation.operationDefinitionValid schema operation
         -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
               variableValues fuel (source : ResolverValue ObjectRef),
-            NormalForm.operationBoolVarsComplete operation
+            operationBoolVarsComplete operation
               (GraphQL.Execution.coerceVariableValues operation variableValues)
             -> executeQueryWithFuel schema resolvers variableValues operation fuel source
                 = ExecutionUngroupedUncached.executeQueryWithFuel schema resolvers
@@ -161,7 +161,7 @@ theorem
         -> Validation.operationDefinitionValid schema operation
         -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
               variableValues fuel (source : ResolverValue ObjectRef),
-            NormalForm.operationBoolVarsComplete operation
+            operationBoolVarsComplete operation
               (GraphQL.Execution.coerceVariableValues operation variableValues)
             -> executeQueryWithFuel schema resolvers variableValues operation fuel source
                 = ExecutionUngroupedUncached.executeQueryWithFuel schema resolvers

@@ -17,11 +17,11 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField parentType sourceRuntimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {selectionSet : List Selection} {responseName fieldName : Name}
-    {arguments : List Argument} {directives : List DirectiveApplication}
-    {childSelectionSet : List Selection} {fieldDefinition : FieldDefinition}
-    {runtimeType : Name}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {selectionSet : List Selection}
+    {responseName fieldName : Name} {arguments : List Argument}
+    {directives : List DirectiveApplication} {childSelectionSet : List Selection}
+    {fieldDefinition : FieldDefinition} {runtimeType : Name}
     {leftChildFields rightChildFields : List (Name × Execution.ResponseValue)}
     {leftChildErrors rightChildErrors : Nat}
     : selectionSetDirectiveFree selectionSet
@@ -30,6 +30,9 @@ theorem
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -157,7 +160,7 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     currentSelectionSet)))
               selectionSet).data := by
-  intro hfree hnormal hobject hmem hlookup hruntime hinclude hfuel
+  intro hfree hnormal hobject hmem hlookup hcoercion hruntime hinclude hfuel
     hleftChildResponse hrightChildResponse hchildNot hleftFieldOk
     hrightFieldOk
   let resolvers :=
@@ -210,7 +213,7 @@ theorem
         targetParent leftField rightField parentType fieldName
         sourceRuntimeType responseName leftArguments rightArguments
         arguments leftRuntime rightRuntime FieldPairProbeTag.left
-        childSelectionSet fieldDefinition runtimeType hlookup hruntime
+        childSelectionSet fieldDefinition runtimeType hlookup hcoercion hruntime
         hinclude hfuel]
     rw [hleftChildResponse]
     simp [Execution.singleFieldResult, hleftWrapped]
@@ -234,7 +237,7 @@ theorem
         targetParent leftField rightField parentType fieldName
         sourceRuntimeType responseName leftArguments rightArguments
         arguments leftRuntime rightRuntime FieldPairProbeTag.right
-        childSelectionSet fieldDefinition runtimeType hlookup hruntime
+        childSelectionSet fieldDefinition runtimeType hlookup hcoercion hruntime
         hinclude hfuel]
     rw [hrightChildResponse]
     simp [Execution.singleFieldResult, hrightWrapped]
@@ -274,7 +277,7 @@ theorem
       leftParentType rightParentType leftSourceRuntimeType
       rightSourceRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -298,6 +301,12 @@ theorem
           ∈ right
       -> schema.lookupField leftParentType leftFieldName = some leftFieldDefinition
       -> schema.lookupField rightParentType rightFieldName = some rightFieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            leftFieldDefinition.arguments leftArguments).isSuccess
+          = true
+      -> (Execution.coerceArgumentValues schema variableValues
+            rightFieldDefinition.arguments rightArguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
             ∧ leftChildRuntime = leftFieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
@@ -458,8 +467,9 @@ theorem
                     rightCurrentSelectionSet)))
               right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
-    hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftRuntime
-    hrightRuntime hleftInclude hrightInclude hleftFuel hrightFuel
+    hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftCoercion
+    hrightCoercion hleftRuntime hrightRuntime hleftInclude hrightInclude
+    hleftFuel hrightFuel
     hleftChildResponse hrightChildResponse hchildNot hleftFieldOk
     hrightFieldOk
   let resolvers :=
@@ -515,7 +525,7 @@ theorem
         leftFieldName leftSourceRuntimeType responseName
         targetLeftArguments targetRightArguments leftArguments leftRuntime
         rightRuntime FieldPairProbeTag.left leftChildSelectionSet
-        leftFieldDefinition leftChildRuntime hleftLookup hleftRuntime
+        leftFieldDefinition leftChildRuntime hleftLookup hleftCoercion hleftRuntime
         hleftInclude hleftFuel]
     rw [hleftChildResponse]
     simp [Execution.singleFieldResult, hleftWrapped]
@@ -540,7 +550,7 @@ theorem
         rightFieldName rightSourceRuntimeType responseName
         targetLeftArguments targetRightArguments rightArguments leftRuntime
         rightRuntime FieldPairProbeTag.right rightChildSelectionSet
-        rightFieldDefinition rightChildRuntime hrightLookup hrightRuntime
+        rightFieldDefinition rightChildRuntime hrightLookup hrightCoercion hrightRuntime
         hrightInclude hrightFuel]
     rw [hrightChildResponse]
     simp [Execution.singleFieldResult, hrightWrapped]
@@ -567,7 +577,7 @@ theorem
       leftParentType rightParentType leftSourceRuntimeType
       rightSourceRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -591,6 +601,12 @@ theorem
           ∈ right
       -> schema.lookupField leftParentType leftFieldName = some leftFieldDefinition
       -> schema.lookupField rightParentType rightFieldName = some rightFieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            leftFieldDefinition.arguments leftArguments).isSuccess
+          = true
+      -> (Execution.coerceArgumentValues schema variableValues
+            rightFieldDefinition.arguments rightArguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema leftFieldDefinition.outputType.namedType = true
             ∧ leftChildRuntime = leftFieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
@@ -751,8 +767,9 @@ theorem
                     rightCurrentSelectionSet)))
               right).data := by
   intro hleftFree hrightFree hleftNormal hrightNormal hleftObject
-    hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftRuntime
-    hrightRuntime hleftInclude hrightInclude hleftFuel hrightFuel
+    hrightObject hleftMem hrightMem hleftLookup hrightLookup hleftCoercion
+    hrightCoercion hleftRuntime hrightRuntime hleftInclude hrightInclude
+    hleftFuel hrightFuel
     hleftChildResponse hrightChildResponse hchildNot hleftFieldOk
     hrightFieldOk
   let resolvers :=
@@ -809,7 +826,7 @@ theorem
         targetLeftArguments targetRightArguments leftArguments
         leftRuntime rightRuntime FieldPairProbeTag.left
         leftChildSelectionSet leftFieldDefinition leftChildRuntime
-        hleftLookup hleftRuntime hleftInclude hleftFuel]
+        hleftLookup hleftCoercion hleftRuntime hleftInclude hleftFuel]
     rw [hleftChildResponse]
     simp [Execution.singleFieldResult, hleftWrapped]
   have hrightTarget :
@@ -834,7 +851,7 @@ theorem
         targetLeftArguments targetRightArguments rightArguments
         leftRuntime rightRuntime FieldPairProbeTag.right
         rightChildSelectionSet rightFieldDefinition rightChildRuntime
-        hrightLookup hrightRuntime hrightInclude hrightFuel]
+        hrightLookup hrightCoercion hrightRuntime hrightInclude hrightFuel]
     rw [hrightChildResponse]
     simp [Execution.singleFieldResult, hrightWrapped]
   have hvalueNot :
@@ -860,7 +877,7 @@ theorem
       leftParentType rightParentType leftSourceRuntimeType
       rightSourceRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -1081,7 +1098,12 @@ theorem
       leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
       targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
       hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup hleftRuntime hrightRuntime hleftInclude
+      hleftLookup hrightLookup
+      (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
+        hleftChildren hleftMem hleftLookup)
+      (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
+        hrightChildren hrightMem hrightLookup)
+      hleftRuntime hrightRuntime hleftInclude
       hrightInclude hleftFuel hrightFuel hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
@@ -1096,7 +1118,7 @@ theorem
       rightProbeField leftParentType rightParentType
       leftSourceRuntimeType rightSourceRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -1319,6 +1341,10 @@ theorem
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       hleftFree hrightFree hleftNormal hrightNormal hleftObject
       hrightObject hleftMem hrightMem hleftLookup hrightLookup
+      (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
+        hleftChildren hleftMem hleftLookup)
+      (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
+        hrightChildren hrightMem hrightLookup)
       hleftRuntime hrightRuntime hleftInclude hrightInclude hleftFuel
       hrightFuel hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
@@ -1331,7 +1357,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -1346,6 +1372,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -1471,7 +1499,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hleftLookup
     hrightLookup hleftRuntime hrightRuntime hleftInclude hrightInclude
@@ -1489,7 +1518,7 @@ theorem
       left fuel targetParent leftProbeField rightProbeField
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       FieldPairProbeTag.left leftCurrentSelectionSet (by omega) hleftFuel
-      hleftValid hleftFree hleftNormal hleftObject hleftSupport
+      hleftValid hleftCoercion hleftFree hleftNormal hleftObject hleftSupport
       hleftContext
   have hrightChildren :
       PathLocalSelectionSetFieldChildrenReady schema rootSelectionSet
@@ -1504,7 +1533,7 @@ theorem
       rightVariableDefinitions right fuel targetParent leftProbeField
       rightProbeField targetLeftArguments targetRightArguments leftRuntime
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
-      (by omega) hrightFuel hrightValid hrightFree hrightNormal
+      (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
   exact
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children
@@ -1547,7 +1576,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (leftFuel rightFuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
     {leftArguments rightArguments : List Argument}
@@ -1562,6 +1591,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -1687,7 +1718,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hrightMem hleftLookup
     hrightLookup hleftRuntime hrightRuntime hleftInclude hrightInclude
@@ -1705,7 +1737,7 @@ theorem
       left leftFuel targetParent leftProbeField rightProbeField
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       FieldPairProbeTag.left leftCurrentSelectionSet (by omega) hleftFuel
-      hleftValid hleftFree hleftNormal hleftObject hleftSupport
+      hleftValid hleftCoercion hleftFree hleftNormal hleftObject hleftSupport
       hleftContext
   have hrightChildren :
       PathLocalSelectionSetFieldChildrenReady schema rootSelectionSet
@@ -1720,7 +1752,7 @@ theorem
       rightVariableDefinitions right rightFuel targetParent leftProbeField
       rightProbeField targetLeftArguments targetRightArguments leftRuntime
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
-      (by omega) hrightFuel hrightValid hrightFree hrightNormal
+      (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
   exact
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children_fuels
@@ -1763,7 +1795,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName : Name} {leftArguments : List Argument}
     {leftDirectives : List DirectiveApplication} {leftChildSelectionSet : List Selection}
@@ -1773,6 +1805,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -1901,7 +1935,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hleftLookup
     hleftComposite hchildDataNot
@@ -1931,7 +1966,8 @@ theorem
           rightCurrentSelectionSet variableValues fuel targetParent
           leftProbeField rightProbeField leftParentType rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSupport hrightSupport hleftContext hrightContext hleftMem
           hrightMem hleftLookup hrightLookup hleftComposite hrightLeaf
@@ -2007,8 +2043,6 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues leftFieldDefinition.arguments leftArguments)
             (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2016,12 +2050,10 @@ theorem
             (childSelectionSet := leftChildSelectionSet)
             (fieldDefinition := leftFieldDefinition) (fuel := fuel)
             (tag := FieldPairProbeTag.left)
-            hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
+            hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject
+            hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
-            hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                leftFieldDefinition.arguments leftArguments)) with
+            hleftInclude with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2038,8 +2070,6 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues rightFieldDefinition.arguments rightArguments)
             (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2047,12 +2077,9 @@ theorem
             (childSelectionSet := rightChildSelectionSet)
             (fieldDefinition := rightFieldDefinition) (fuel := fuel)
             (tag := FieldPairProbeTag.right)
-            hschema hrightValid hrightFree hrightNormal hrightObject
+            hschema hrightValid hrightCoercion hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
-            hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                rightFieldDefinition.arguments rightArguments)) with
+            hrightComposite hrightInclude with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
@@ -2069,7 +2096,8 @@ theorem
           rightCurrentSelectionSet variableValues fuel targetParent
           leftProbeField rightProbeField leftParentType rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSupport hrightSupport hleftContext hrightContext hleftMem
           hrightMem hleftLookup hrightLookup hleftRuntime hrightRuntime
@@ -2082,7 +2110,8 @@ theorem
         rightCurrentSelectionSet variableValues fuel targetParent
         leftProbeField rightProbeField leftParentType rightParentType
         targetLeftArguments targetRightArguments leftRuntime rightRuntime
-        hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+        hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+        hrightFree hleftNormal
         hrightNormal hleftObject hrightObject hleftFuel hrightFuel
         hleftSupport hrightSupport hleftContext hrightContext hleftMem
         hrightResponseName
@@ -2095,7 +2124,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (leftFuel rightFuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName leftFieldName : Name} {leftArguments : List Argument}
     {leftDirectives : List DirectiveApplication} {leftChildSelectionSet : List Selection}
@@ -2105,6 +2134,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -2233,7 +2264,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hleftMem hleftLookup
     hleftComposite hchildDataNot
@@ -2264,7 +2296,8 @@ theorem
           targetParent leftProbeField rightProbeField leftParentType
           rightParentType targetLeftArguments targetRightArguments
           leftRuntime rightRuntime hschema hleftValid hrightValid
-          hleftFree hrightFree hleftNormal hrightNormal hleftObject
+          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
+          hrightNormal hleftObject
           hrightObject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftMem hrightMem hleftLookup
           hrightLookup hleftComposite hrightLeaf
@@ -2340,8 +2373,6 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues leftFieldDefinition.arguments leftArguments)
             (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2349,12 +2380,10 @@ theorem
             (childSelectionSet := leftChildSelectionSet)
             (fieldDefinition := leftFieldDefinition) (fuel := leftFuel)
             (tag := FieldPairProbeTag.left)
-            hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
+            hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject
+            hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
-            hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                leftFieldDefinition.arguments leftArguments)) with
+            hleftInclude with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2371,8 +2400,6 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues rightFieldDefinition.arguments rightArguments)
             (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2380,12 +2407,9 @@ theorem
             (childSelectionSet := rightChildSelectionSet)
             (fieldDefinition := rightFieldDefinition) (fuel := rightFuel)
             (tag := FieldPairProbeTag.right)
-            hschema hrightValid hrightFree hrightNormal hrightObject
+            hschema hrightValid hrightCoercion hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
-            hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                rightFieldDefinition.arguments rightArguments)) with
+            hrightComposite hrightInclude with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
@@ -2403,7 +2427,8 @@ theorem
           targetParent leftProbeField rightProbeField leftParentType
           rightParentType targetLeftArguments targetRightArguments
           leftRuntime rightRuntime hschema hleftValid hrightValid
-          hleftFree hrightFree hleftNormal hrightNormal hleftObject
+          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
+          hrightNormal hleftObject
           hrightObject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftMem hrightMem hleftLookup
           hrightLookup hleftRuntime hrightRuntime hleftInclude
@@ -2416,8 +2441,9 @@ theorem
         rightCurrentSelectionSet variableValues leftFuel rightFuel
         targetParent leftProbeField rightProbeField leftParentType
         rightParentType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime hschema hleftValid hrightValid hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
+        hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
+        hrightObject
         hleftFuel hrightFuel hleftSupport hrightSupport hleftContext
         hrightContext hleftMem hrightResponseName
 
@@ -2429,7 +2455,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName rightFieldName : Name} {rightArguments : List Argument}
     {rightDirectives : List DirectiveApplication}
@@ -2439,6 +2465,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -2567,7 +2595,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hrightMem hrightLookup
     hrightComposite hchildDataNot
@@ -2597,7 +2626,8 @@ theorem
           rightCurrentSelectionSet variableValues fuel targetParent
           leftProbeField rightProbeField leftParentType rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSupport hrightSupport hleftContext hrightContext hleftMem
           hrightMem hleftLookup hrightLookup hleftLeaf hrightComposite
@@ -2673,8 +2703,6 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues leftFieldDefinition.arguments leftArguments)
             (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2682,12 +2710,10 @@ theorem
             (childSelectionSet := leftChildSelectionSet)
             (fieldDefinition := leftFieldDefinition) (fuel := fuel)
             (tag := FieldPairProbeTag.left)
-            hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
+            hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject
+            hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
-            hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                leftFieldDefinition.arguments leftArguments)) with
+            hleftInclude with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -2704,8 +2730,6 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues rightFieldDefinition.arguments rightArguments)
             (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -2713,12 +2737,9 @@ theorem
             (childSelectionSet := rightChildSelectionSet)
             (fieldDefinition := rightFieldDefinition) (fuel := fuel)
             (tag := FieldPairProbeTag.right)
-            hschema hrightValid hrightFree hrightNormal hrightObject
+            hschema hrightValid hrightCoercion hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
-            hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                rightFieldDefinition.arguments rightArguments)) with
+            hrightComposite hrightInclude with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
@@ -2735,7 +2756,8 @@ theorem
           rightCurrentSelectionSet variableValues fuel targetParent
           leftProbeField rightProbeField leftParentType rightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSupport hrightSupport hleftContext hrightContext hleftMem
           hrightMem hleftLookup hrightLookup hleftRuntime hrightRuntime
@@ -2748,7 +2770,8 @@ theorem
         rightCurrentSelectionSet variableValues fuel targetParent
         leftProbeField rightProbeField leftParentType rightParentType
         targetLeftArguments targetRightArguments leftRuntime rightRuntime
-        hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+        hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+        hrightFree hleftNormal
         hrightNormal hleftObject hrightObject hleftFuel hrightFuel
         hleftSupport hrightSupport hleftContext hrightContext hrightMem
         hleftResponseName
@@ -2761,7 +2784,7 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (leftFuel rightFuel : Nat)
     (targetParent leftProbeField rightProbeField leftParentType rightParentType : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name) {left right : List Selection}
     {responseName rightFieldName : Name} {rightArguments : List Argument}
     {rightDirectives : List DirectiveApplication}
@@ -2771,6 +2794,8 @@ theorem
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -2899,7 +2924,8 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftSupport
     hrightSupport hleftContext hrightContext hrightMem hrightLookup
     hrightComposite hchildDataNot
@@ -2930,7 +2956,8 @@ theorem
           targetParent leftProbeField rightProbeField leftParentType
           rightParentType targetLeftArguments targetRightArguments
           leftRuntime rightRuntime hschema hleftValid hrightValid
-          hleftFree hrightFree hleftNormal hrightNormal hleftObject
+          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
+          hrightNormal hleftObject
           hrightObject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftMem hrightMem hleftLookup
           hrightLookup hleftLeaf hrightComposite
@@ -3006,8 +3033,6 @@ theorem
             (responseName := responseName) (fieldName := leftFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues leftFieldDefinition.arguments leftArguments)
             (pathArguments := leftArguments)
             (arguments := leftArguments) (directives := leftDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -3015,12 +3040,10 @@ theorem
             (childSelectionSet := leftChildSelectionSet)
             (fieldDefinition := leftFieldDefinition) (fuel := leftFuel)
             (tag := FieldPairProbeTag.left)
-            hschema hleftValid hleftFree hleftNormal hleftObject hleftFuel
+            hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject
+            hleftFuel
             hleftSupport hleftContext hleftMem hleftLookup hleftComposite
-            hleftInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                leftFieldDefinition.arguments leftArguments)) with
+            hleftInclude with
         ⟨leftChildFields, leftChildErrors, hleftChildResponse⟩
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
@@ -3037,8 +3060,6 @@ theorem
             (responseName := responseName) (fieldName := rightFieldName)
             (targetLeftArguments := targetLeftArguments)
             (targetRightArguments := targetRightArguments)
-            (targetArguments := Execution.coerceArgumentValues schema
-              variableValues rightFieldDefinition.arguments rightArguments)
             (pathArguments := rightArguments)
             (arguments := rightArguments) (directives := rightDirectives)
             (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
@@ -3046,12 +3067,9 @@ theorem
             (childSelectionSet := rightChildSelectionSet)
             (fieldDefinition := rightFieldDefinition) (fuel := rightFuel)
             (tag := FieldPairProbeTag.right)
-            hschema hrightValid hrightFree hrightNormal hrightObject
+            hschema hrightValid hrightCoercion hrightFree hrightNormal hrightObject
             hrightFuel hrightSupport hrightContext hrightMem hrightLookup
-            hrightComposite hrightInclude
-            (argumentsEquivalent_refl_forSyntaxDiff
-              (Execution.coerceArgumentValues schema variableValues
-                rightFieldDefinition.arguments rightArguments)) with
+            hrightComposite hrightInclude with
         ⟨rightChildFields, rightChildErrors, hrightChildResponse⟩
       have hchildObjectNot :
           ¬ Execution.ResponseValue.semanticEquivalent
@@ -3069,7 +3087,8 @@ theorem
           targetParent leftProbeField rightProbeField leftParentType
           rightParentType targetLeftArguments targetRightArguments
           leftRuntime rightRuntime hschema hleftValid hrightValid
-          hleftFree hrightFree hleftNormal hrightNormal hleftObject
+          hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
+          hrightNormal hleftObject
           hrightObject hleftFuel hrightFuel hleftSupport hrightSupport
           hleftContext hrightContext hleftMem hrightMem hleftLookup
           hrightLookup hleftRuntime hrightRuntime hleftInclude
@@ -3082,8 +3101,9 @@ theorem
         rightCurrentSelectionSet variableValues leftFuel rightFuel
         targetParent leftProbeField rightProbeField leftParentType
         rightParentType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime hschema hleftValid hrightValid hleftFree
-        hrightFree hleftNormal hrightNormal hleftObject hrightObject
+        leftRuntime rightRuntime hschema hleftValid hrightValid hleftCoercion
+        hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
+        hrightObject
         hleftFuel hrightFuel hleftSupport hrightSupport hleftContext
         hrightContext hrightMem hleftResponseName
 
@@ -3176,11 +3196,11 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField parentType sourceRuntimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {selectionSet : List Selection} {responseName fieldName : Name}
-    {arguments : List Argument} {directives : List DirectiveApplication}
-    {childSelectionSet : List Selection} {fieldDefinition : FieldDefinition}
-    {runtimeType : Name}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {selectionSet : List Selection}
+    {responseName fieldName : Name} {arguments : List Argument}
+    {directives : List DirectiveApplication} {childSelectionSet : List Selection}
+    {fieldDefinition : FieldDefinition} {runtimeType : Name}
     {leftChildFields rightChildFields : List (Name × Execution.ResponseValue)}
     {leftChildErrors rightChildErrors : Nat}
     : selectionSetDirectiveFree selectionSet
@@ -3189,6 +3209,9 @@ theorem
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
       -> schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -3315,7 +3338,7 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     currentSelectionSet)))
               selectionSet).data := by
-  intro hfree hnormal hobject hmem hlookup hruntime hsound hfuel
+  intro hfree hnormal hobject hmem hlookup hcoercion hruntime hsound hfuel
     hleftChildResponse hrightChildResponse hchildNot hleftFieldOk
     hrightFieldOk
   have hinclude :
@@ -3337,7 +3360,7 @@ theorem
       rightInitialSelectionSet currentSelectionSet variableValues fuel
       targetParent leftField rightField parentType sourceRuntimeType
       leftArguments rightArguments leftRuntime rightRuntime hfree hnormal
-      hobject hmem hlookup hruntime hinclude hfuel hleftChildResponse
+      hobject hmem hlookup hcoercion hruntime hinclude hfuel hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
 theorem
@@ -3347,8 +3370,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {pref suffix bodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {pref suffix bodySelectionSet : List Selection}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
       -> selectionSetDirectiveFree
@@ -3523,7 +3546,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name)
     {left right leftBodySelectionSet rightBodySelectionSet : List Selection}
     {leftDirectives rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
@@ -3714,7 +3738,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name)
     {left right leftBodySelectionSet rightBodySelectionSet : List Selection}
     {leftDirectives rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
@@ -3904,8 +3929,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     {leftDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4057,8 +4082,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     {rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4211,8 +4236,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     {leftDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4365,8 +4390,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     {rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4518,8 +4543,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     {leftDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4630,8 +4655,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     {rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4743,8 +4768,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     {leftDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4858,8 +4883,8 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     {rightDirectives : List DirectiveApplication}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
@@ -4973,13 +4998,17 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     {leftDirectives : List DirectiveApplication}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions normalParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
+          normalParentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          normalParentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
           normalParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
@@ -5060,8 +5089,9 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hruntimeObject _hinclude hleftFuel
+  intro hschema hleftValid hrightValid hleftCoercion _hrightCoercion hleftFree
+    hrightFree hleftNormal
+    hrightNormal hnonObject hruntimeObject hinclude hleftFuel
     _hrightFuel hleftSupport _hrightSupport hleftContext _hrightContext
     hleftMem hmatching
   have hleftBodyValid :
@@ -5076,6 +5106,13 @@ theorem
   rcases selectionSetNormal_inlineFragment_child_of_mem hleftNormal
       hleftMem with
     ⟨_htypeObject, hleftBodyNormal⟩
+  have hleftBodyCoercion :
+      selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+        runtimeType leftBodySelectionSet :=
+    selectionSetArgumentsCoercibleInPossibleTypes_of_object hruntimeObject
+      (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+        (hleftCoercion runtimeType hinclude) hleftFree hleftMem
+        (typeIncludesObjectBool_self_of_objectTypeNameBool schema hruntimeObject))
   have hleftBodyFuel :
       selectionSetDeepProbeFuel schema runtimeType leftBodySelectionSet ≤
         fuel := by
@@ -5125,7 +5162,7 @@ theorem
           targetParent leftField rightField leftArguments rightArguments
           leftRuntime rightRuntime FieldPairProbeTag.left
           leftCurrentSelectionSet (by omega) hleftBodyFuel
-          hleftBodyValid hleftBodyFree hleftBodyNormal hbodyInclude
+          hleftBodyValid hleftBodyCoercion hleftBodyFree hleftBodyNormal hbodyInclude
           hleftSupport (fun _hobject => hleftContext hleftMem)
           (fun hbodyNonObject => by
             rw [hruntimeObject] at hbodyNonObject
@@ -5155,13 +5192,17 @@ theorem
       : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     {rightDirectives : List DirectiveApplication}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions normalParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
+          normalParentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          normalParentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
           normalParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
@@ -5242,8 +5283,9 @@ theorem
                   (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                     rightCurrentSelectionSet)))
               right).data := by
-  intro hschema _hleftValid hrightValid hleftFree hrightFree hleftNormal
-    hrightNormal hnonObject hruntimeObject _hinclude _hleftFuel
+  intro hschema _hleftValid hrightValid _hleftCoercion hrightCoercion hleftFree
+    hrightFree hleftNormal
+    hrightNormal hnonObject hruntimeObject hinclude _hleftFuel
     hrightFuel _hleftSupport hrightSupport _hleftContext hrightContext
     hrightMem hmatching
   have hrightBodyValid :
@@ -5260,6 +5302,13 @@ theorem
   rcases selectionSetNormal_inlineFragment_child_of_mem hrightNormal
       hrightMem with
     ⟨_htypeObject, hrightBodyNormal⟩
+  have hrightBodyCoercion :
+      selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+        runtimeType rightBodySelectionSet :=
+    selectionSetArgumentsCoercibleInPossibleTypes_of_object hruntimeObject
+      (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+        (hrightCoercion runtimeType hinclude) hrightFree hrightMem
+        (typeIncludesObjectBool_self_of_objectTypeNameBool schema hruntimeObject))
   have hrightBodyFuel :
       selectionSetDeepProbeFuel schema runtimeType rightBodySelectionSet ≤
         fuel := by
@@ -5309,7 +5358,7 @@ theorem
           targetParent leftField rightField leftArguments rightArguments
           leftRuntime rightRuntime FieldPairProbeTag.right
           rightCurrentSelectionSet (by omega) hrightBodyFuel
-          hrightBodyValid hrightBodyFree hrightBodyNormal hbodyInclude
+          hrightBodyValid hrightBodyCoercion hrightBodyFree hrightBodyNormal hbodyInclude
           hrightSupport (fun _hobject => hrightContext hrightMem)
           (fun hbodyNonObject => by
             rw [hruntimeObject] at hbodyNonObject

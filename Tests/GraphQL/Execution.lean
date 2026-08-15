@@ -1,5 +1,5 @@
 import GraphQL.Algorithms.Common
-import GraphQL.Execution
+import Proofs.GraphQL.Execution.Fuel
 
 namespace GraphQL
 namespace Tests
@@ -261,7 +261,7 @@ theorem collectSubfieldsMatchesGroupedSelections
 
 theorem executeRootSelectionSetSmoke
     : (match GraphQL.Execution.executeRootSelectionSet sampleSchema sampleResolvers []
-              (GraphQL.Execution.executeQueryFuelBound sampleHeroQuery)
+              (GraphQL.Execution.executeQueryFuelBound sampleSchema sampleHeroQuery)
               "Query"
               (GraphQL.Execution.ResolverValue.object "Query" ())
               sampleHeroQuery.selectionSet with
@@ -318,7 +318,8 @@ def rootNameResolvers : GraphQL.Execution.Resolvers :=
 
 theorem coerceVariableValuesUsesMissingDefault
     : GraphQL.Execution.lookupVariableValue?
-        (GraphQL.Execution.coerceVariableValues variableDefaultQuery []) "includeName"
+        (GraphQL.Execution.coerceVariableValues variableDefaultQuery [])
+        "includeName"
       = some (.boolean true) := by
   rfl
 
@@ -493,8 +494,18 @@ def omittedResolverArgumentOperation : Operation :=
     selectionSet := [.field "echo" "echo" [] [] []]
   }
 
+def coercedArgumentsEqBool
+    (result : GraphQL.Execution.ArgumentCoercionResult)
+    (expected : List Argument)
+    : Bool :=
+  match result with
+  | .success arguments =>
+      GraphQL.Algorithms.argumentListEqBool
+        (arguments.map GraphQL.Execution.CoercedArgument.toArgument) expected
+  | .error => false
+
 theorem coerceArgumentValuesUsesArgumentDefaultForOmittedArgument
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
           [resolverPayloadDefinition] [])
         [{ name := "payload", value := defaultedResolverPayload }]
@@ -502,7 +513,7 @@ theorem coerceArgumentValuesUsesArgumentDefaultForOmittedArgument
   native_decide
 
 theorem coerceArgumentValuesUsesArgumentDefaultForUndefinedVariable
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
           [resolverPayloadDefinition]
           [{ name := "payload", value := .variable "undefined" }])
@@ -511,7 +522,7 @@ theorem coerceArgumentValuesUsesArgumentDefaultForUndefinedVariable
   native_decide
 
 theorem coerceArgumentValuesPreservesExplicitNull
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
           [resolverPayloadDefinition] [{ name := "payload", value := .null }])
         [{ name := "payload", value := .null }]
@@ -519,7 +530,7 @@ theorem coerceArgumentValuesPreservesExplicitNull
   native_decide
 
 theorem coerceArgumentValuesUsesOperationDefaultBeforeArgumentDefault
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema
           (GraphQL.Execution.coerceVariableValues coercedResolverOperation [])
           [resolverPayloadDefinition]
@@ -529,7 +540,7 @@ theorem coerceArgumentValuesUsesOperationDefaultBeforeArgumentDefault
   native_decide
 
 theorem coerceArgumentValuesUsesSuppliedNullBeforeOperationAndArgumentDefaults
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema
           (GraphQL.Execution.coerceVariableValues coercedResolverOperation
             [("payload", .null)])
@@ -540,7 +551,7 @@ theorem coerceArgumentValuesUsesSuppliedNullBeforeOperationAndArgumentDefaults
   native_decide
 
 theorem coerceArgumentValuesHandlesMissingUndefinedNullAndSuppliedObjectFields
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
           [resolverPayloadDefinition]
           [{
@@ -567,7 +578,7 @@ theorem coerceArgumentValuesHandlesMissingUndefinedNullAndSuppliedObjectFields
   native_decide
 
 theorem coerceArgumentValuesUsesSchemaOrderWithoutCanonicalizingObjectFields
-    : GraphQL.Algorithms.argumentListEqBool
+    : coercedArgumentsEqBool
         (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
           [resolverPayloadDefinition]
           [{
@@ -584,20 +595,134 @@ theorem coerceArgumentValuesUsesSchemaOrderWithoutCanonicalizingObjectFields
       = true := by
   native_decide
 
+theorem coerceInputValueWrapsScalarAtListLocation
+    : (match GraphQL.Execution.coerceInputValue coercedResolverSchema []
+              (.list (.named "Int")) (.int 7) with
+        | .success value =>
+            GraphQL.Algorithms.inputValueEqBool value.toInputValue (.list [.int 7])
+        | _ => false)
+      = true := by
+  native_decide
+
+theorem coerceInputValueRejectsUnknownInputObjectField
+    : (match GraphQL.Execution.coerceInputValue coercedResolverSchema []
+              (.named "ResolverInput") (.object [("unknown", .int 1)]) with
+        | .error => true
+        | _ => false)
+      = true := by
+  native_decide
+
+def requiredArgumentSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.object
+        {
+          name := "Query"
+          fields :=
+            [{
+              name := "echo"
+              outputType := .named "String"
+              arguments :=
+                [{ name := "required", inputType := .nonNull (.named "Boolean") }]
+            }]
+        }]
+  }
+
+def nullAtRequiredArgumentOperation : Operation :=
+  {
+    variableDefinitions :=
+      [{
+        name := "required"
+        typeRef := .named "Boolean"
+        defaultValue := some (.boolean false)
+      }]
+    selectionSet :=
+      [.field "echo" "echo" [{ name := "required", value := .variable "required" }] [] []]
+  }
+
+def argumentFailureSentinelResolvers : GraphQL.Execution.Resolvers :=
+  {
+    resolve := fun _parentType _fieldName _arguments _source => some (.scalar "called")
+    resolve_argumentsEquivalent := by intros; rfl
+  }
+
+-- A supplied null overrides the nullable variable's default, then fails at the
+-- non-null field-argument location. The resolver's sentinel value is absent because
+-- argument coercion fails before resolver invocation.
+theorem fieldArgumentCoercionFailureSkipsResolver
+    : let response :=
+        GraphQL.Execution.executeQuery requiredArgumentSchema
+          argumentFailureSentinelResolvers [("required", .null)]
+          nullAtRequiredArgumentOperation (.object "Query" ())
+      response.errors = 1
+      ∧ responseEqBool response.data (.object [("echo", .null)]) = true := by
+  native_decide
+
+-- Raw schemas remain executable even when validation would reject a default cycle.
+-- This fixture makes fuel exhaustion observable, so the equality below specifically
+-- checks that an unrelated runtime variable cannot change local input coercion.
+def cyclicInputDefaultSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.inputObject
+        {
+          name := "CyclicInput"
+          inputFields :=
+            [{
+              name := "next"
+              inputType := .named "CyclicInput"
+              defaultValue := some (.object [])
+            }]
+        }]
+  }
+
+theorem coerceInputValueIgnoresUnreferencedRuntimeValues
+    : (match GraphQL.Execution.coerceInputValue cyclicInputDefaultSchema
+              [("payload", .object [])] (.named "CyclicInput") (.variable "payload"),
+              GraphQL.Execution.coerceInputValue cyclicInputDefaultSchema
+                [
+                  ("payload", .object []),
+                  ("unrelated", .object [("nested", .list [.object [], .object []])])
+                ]
+                (.named "CyclicInput") (.variable "payload") with
+        | .undefined, .undefined => true
+        | .success left, .success right =>
+            GraphQL.Algorithms.inputValueEqBool left.toInputValue right.toInputValue
+        | .error, .error => true
+        | _, _ => false)
+      = true := by
+  native_decide
+
+-- The type of runtime variable values excludes `.variable` by construction.
+example : GraphQL.Execution.VariableValues :=
+  [("payload", .object [("nested", .list [.object [], .null])]), ("flag", .boolean true)]
+
 theorem mergeCompatibleArgumentOrdersCoerceToTheSameResolverArguments
-    : GraphQL.Algorithms.argumentListEqBool
-        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
-          [
-            { name := "first", inputType := .named "Int" },
-            { name := "second", inputType := .named "Int" }
-          ]
-          [{ name := "first", value := .int 1 }, { name := "second", value := .int 2 }])
-        (GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
-          [
-            { name := "first", inputType := .named "Int" },
-            { name := "second", inputType := .named "Int" }
-          ]
-          [{ name := "second", value := .int 2 }, { name := "first", value := .int 1 }])
+    : (match GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+              [
+                { name := "first", inputType := .named "Int" },
+                { name := "second", inputType := .named "Int" }
+              ]
+              [
+                { name := "first", value := .int 1 },
+                { name := "second", value := .int 2 }
+              ],
+              GraphQL.Execution.coerceArgumentValues coercedResolverSchema []
+                [
+                  { name := "first", inputType := .named "Int" },
+                  { name := "second", inputType := .named "Int" }
+                ]
+                [
+                  { name := "second", value := .int 2 },
+                  { name := "first", value := .int 1 }
+                ] with
+        | .success left, .success right =>
+            GraphQL.Algorithms.argumentListEqBool
+              (left.map GraphQL.Execution.CoercedArgument.toArgument)
+              (right.map GraphQL.Execution.CoercedArgument.toArgument)
+        | _, _ => false)
       = true := by
   native_decide
 
@@ -640,6 +765,48 @@ theorem specExecutorPassesCoercedArgumentsToGivenResolver
           (GraphQL.Execution.ResolverValue.object "Query" ())).data
         (.object [("echo", .scalar "present")])
       = true := by
+  native_decide
+
+def deeplyWrappedListSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.object
+        {
+          name := "Query"
+          fields :=
+            [{
+              name := "deep"
+              outputType := .list (.list (.list (.named "String")))
+            }]
+        }]
+  }
+
+def deeplyWrappedListOperation : Operation :=
+  { selectionSet := [.field "deep" "deep" [] [] []] }
+
+def deeplyWrappedListResolvers : GraphQL.Execution.Resolvers :=
+  {
+    resolve :=
+      fun _parentType _fieldName _arguments _source =>
+        some (.list [.list [.list [.scalar "value"]]])
+    resolve_argumentsEquivalent := by intros; rfl
+  }
+
+-- The schema-aware fuel bound accounts for nested schema list wrappers and completes
+-- the value without out-of-fuel.
+theorem executeQueryFuelBoundCoversDeepListWrappersSmoke
+    : GraphQL.Execution.executeQueryFuelBound deeplyWrappedListSchema
+          deeplyWrappedListOperation
+        = 6
+      ∧ let response :=
+          GraphQL.Execution.executeQuery deeplyWrappedListSchema
+            deeplyWrappedListResolvers [] deeplyWrappedListOperation
+            (.object "Query" ())
+        response.errors = 0
+        ∧ responseEqBool response.data
+            (.object [("deep", .list [.list [.list [.scalar "value"]]])])
+          = true := by
   native_decide
 
 end Execution

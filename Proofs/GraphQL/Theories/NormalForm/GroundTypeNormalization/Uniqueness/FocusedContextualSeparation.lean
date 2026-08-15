@@ -19,18 +19,44 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
+private theorem validNormalMembers_of_readiness
+    {schema : Schema} {parentType : Name} {members : List (List Selection)}
+    {Ready : List Selection -> Prop}
+    (hmembers
+      : ∀ memberSelectionSet,
+          memberSelectionSet ∈ members
+          -> ∃ variableDefinitions,
+              Validation.selectionSetValid schema variableDefinitions parentType
+                memberSelectionSet
+              ∧ Ready memberSelectionSet
+              ∧ selectionSetDirectiveFree memberSelectionSet
+              ∧ selectionSetNormal schema parentType memberSelectionSet)
+    : ∀ memberSelectionSet,
+        memberSelectionSet ∈ members
+        -> ∃ variableDefinitions,
+            Validation.selectionSetValid schema variableDefinitions parentType
+              memberSelectionSet
+            ∧ selectionSetDirectiveFree memberSelectionSet
+            ∧ selectionSetNormal schema parentType memberSelectionSet := by
+  intro memberSelectionSet hmember
+  rcases hmembers memberSelectionSet hmember with
+    ⟨variableDefinitions, hvalid, _hready, hfree, hnormal⟩
+  exact ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+
 theorem
     selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
     {schema : Schema} {parentType : Name} {members : List (List Selection)}
     {selectionSet : List Selection} (variableValues : Execution.VariableValues)
     (fuel : Nat) (leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     : SchemaWellFormedness.schemaWellFormed schema
       -> (∀ memberSelectionSet,
             memberSelectionSet ∈ members
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   memberSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    memberSelectionSet
                 ∧ selectionSetDirectiveFree memberSelectionSet
                 ∧ selectionSetNormal schema parentType memberSelectionSet)
       -> selectionSet ∈ members
@@ -45,7 +71,7 @@ theorem
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = false)
       -> (∀ arguments,
-            Argument.argumentsEquivalent arguments rightArguments
+            Execution.CoercedArgument.argumentsEquivalent arguments rightArguments
             -> ¬ fieldProbeTarget parentType leftField leftArguments parentType
                   rightField arguments)
       -> ∀ responseName fieldName arguments directives childSelectionSet,
@@ -81,9 +107,12 @@ theorem
     fieldPairProbeResolvers schema rootSelectionSet parentType leftField
       rightField leftArguments rightArguments
   rcases hmembers selectionSet hmember with
-    ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+    ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
   rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
-    ⟨fieldDefinition, hlookup, _hargsValid, _hfieldSelectionValid⟩
+    ⟨fieldDefinition, hlookup, hargsValid, _hfieldSelectionValid⟩
+  have hfieldCoercion :=
+    selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hcoercion hfree hmem hlookup
   have hmemFlatten :
       Selection.field responseName fieldName arguments directives
         childSelectionSet ∈ List.flatten members := by
@@ -91,8 +120,8 @@ theorem
     exact ⟨selectionSet, hmember, hmem⟩
   by_cases htargetLeft :
       fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -115,28 +144,32 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        exact harguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType leftField arguments
+            fieldDefinition leftArguments hlookup hfieldCoercion harguments)
       (fuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues fuel parentType leftField rightField responseName
         leftArguments rightArguments arguments childSelectionSet fieldDefinition
-        harguments hlookup hfuel hleaf
+        harguments hlookup hfieldCoercion hfuel hleaf
   · by_cases htargetRight :
         fieldProbeTarget parentType rightField rightArguments parentType
           fieldName
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            fieldName arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
           ¬ fieldProbeTarget parentType leftField leftArguments parentType
             rightField
-            (Execution.coerceArgumentValues schema variableValues
-              fieldDefinition.arguments arguments) :=
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField arguments) :=
         hrightNotLeft
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments) harguments
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField arguments)
+          harguments
       have hleaf := hrightLeaf fieldDefinition hlookup
       have hfuel :
           leafProbeFuel fieldDefinition.outputType ≤ fuel := by
@@ -157,22 +190,36 @@ theorem
         (fun candidateDefinition hcandidate => by
           rw [hlookup] at hcandidate
           cases Option.some.inj hcandidate.symm
-          exact harguments)
+          exact
+            Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+              schema variableValues parentType rightField arguments
+              fieldDefinition rightArguments hlookup hfieldCoercion harguments)
         (fuel + 1)]
       exact
         executeField_fieldPairProbe_right_root_leaf_of_not_left schema
           rootSelectionSet variableValues fuel parentType leftField
           rightField responseName leftArguments rightArguments arguments
           childSelectionSet fieldDefinition hnotLeft harguments hlookup
-          hfuel hleaf
+          hfieldCoercion hfuel hleaf
     · have hnotProjection :
-          ∀ candidateDefinition,
+          ∀ candidateDefinition coercedArguments,
             schema.lookupField parentType fieldName = some candidateDefinition ->
+              Execution.coerceArgumentValues schema variableValues
+                  candidateDefinition.arguments arguments
+                = .success coercedArguments ->
               ¬ fieldPairProjectionTarget parentType leftField rightField
                 leftArguments rightArguments parentType fieldName
-                (Execution.coerceArgumentValues schema variableValues
-                  candidateDefinition.arguments arguments) := by
-        intro candidateDefinition hcandidate hprojection
+                coercedArguments := by
+        intro candidateDefinition coercedArguments hcandidate hcoercionResult
+          hprojection
+        have hcoercedArguments :
+            Execution.coercedArgumentsForField schema variableValues parentType
+                fieldName arguments
+              = coercedArguments :=
+          Execution.coercedArgumentsForField_eq_of_success schema variableValues
+            parentType fieldName arguments candidateDefinition coercedArguments
+            hcandidate hcoercionResult
+        rw [← hcoercedArguments] at hprojection
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
         rcases hprojection with ⟨_hparent, htarget⟩
@@ -215,7 +262,8 @@ theorem
             (targetRuntimeType := targetRuntimeType)
             (selectionSet := selectionSet) (members := members)
             (targetFieldDefinition := targetFieldDefinition)
-            hmembers hmember htargetLookup htargetComposite
+            (validNormalMembers_of_readiness hmembers) hmember htargetLookup
+            htargetComposite
             htargetNonObject hlocalRuntime
       rcases
           deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
@@ -224,7 +272,7 @@ theorem
               ProjectionResolverRef (Option FieldPairProbeTag))
             variableValues hschema (SelectionSet.size selectionSet + 1)
             parentType variableDefinitions selectionSet fuel
-            (by omega) hselectionFuel hvalid hfree hnormal hobject
+            (by omega) hselectionFuel hvalid hcoercion hfree hnormal hobject
             hpromote responseName fieldName arguments directives
             childSelectionSet hmem with
         ⟨fieldDefinition, hlookup, hleafFuel, hready⟩
@@ -255,13 +303,15 @@ theorem
     {schema : Schema} {parentType : Name} {members : List (List Selection)}
     {selectionSet : List Selection} (variableValues : Execution.VariableValues)
     (fuel : Nat) (leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     : SchemaWellFormedness.schemaWellFormed schema
       -> (∀ memberSelectionSet,
             memberSelectionSet ∈ members
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   memberSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    memberSelectionSet
                 ∧ selectionSetDirectiveFree memberSelectionSet
                 ∧ selectionSetNormal schema parentType memberSelectionSet)
       -> selectionSet ∈ members
@@ -276,7 +326,7 @@ theorem
             -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
                 = true)
       -> (∀ arguments,
-            Argument.argumentsEquivalent arguments rightArguments
+            Execution.CoercedArgument.argumentsEquivalent arguments rightArguments
             -> ¬ fieldProbeTarget parentType leftField leftArguments parentType
                   rightField arguments)
       -> ∀ responseName fieldName arguments directives childSelectionSet,
@@ -312,9 +362,12 @@ theorem
     fieldPairProbeResolvers schema rootSelectionSet parentType leftField
       rightField leftArguments rightArguments
   rcases hmembers selectionSet hmember with
-    ⟨variableDefinitions, hvalid, hfree, hnormal⟩
+    ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
   rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
-    ⟨fieldDefinition, hlookup, _hargsValid, _hfieldSelectionValid⟩
+    ⟨fieldDefinition, hlookup, hargsValid, _hfieldSelectionValid⟩
+  have hfieldCoercion :=
+    selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hcoercion hfree hmem hlookup
   have hmemFlatten :
       Selection.field responseName fieldName arguments directives
         childSelectionSet ∈ List.flatten members := by
@@ -332,7 +385,8 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := selectionSet) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers hmember htargetLookup htargetComposite htargetNonObject
+        (validNormalMembers_of_readiness hmembers) hmember htargetLookup
+        htargetComposite htargetNonObject
         hlocalRuntime
   have hheadPromoteMember :
       selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
@@ -347,12 +401,13 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := selectionSet) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers hmember htargetLookup htargetComposite htargetNonObject
+        (validNormalMembers_of_readiness hmembers) hmember htargetLookup
+        htargetComposite htargetNonObject
         hlocalRuntime
   by_cases htargetLeft :
       fieldProbeTarget parentType leftField leftArguments parentType fieldName
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+        (Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName arguments)
   · rcases htargetLeft with ⟨_hparent, hfield, harguments⟩
     subst fieldName
     have hleaf := hleftLeaf fieldDefinition hlookup
@@ -375,28 +430,32 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        exact harguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType leftField arguments
+            fieldDefinition leftArguments hlookup hfieldCoercion harguments)
       (fuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
         variableValues fuel parentType leftField rightField responseName
         leftArguments rightArguments arguments childSelectionSet fieldDefinition
-        harguments hlookup hfuel hleaf
+        harguments hlookup hfieldCoercion hfuel hleaf
   · by_cases htargetRight :
         fieldProbeTarget parentType rightField rightArguments parentType
           fieldName
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            fieldName arguments)
     · rcases htargetRight with ⟨_hparent, hfield, harguments⟩
       subst fieldName
       have hnotLeft :
           ¬ fieldProbeTarget parentType leftField leftArguments parentType
             rightField
-            (Execution.coerceArgumentValues schema variableValues
-              fieldDefinition.arguments arguments) :=
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              rightField arguments) :=
         hrightNotLeft
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments) harguments
+          (Execution.coercedArgumentsForField schema variableValues parentType
+            rightField arguments)
+          harguments
       have hcomposite := hrightComposite fieldDefinition hlookup
       have hleafFuel :
           leafProbeFuel fieldDefinition.outputType ≤ fuel := by
@@ -406,7 +465,8 @@ theorem
         omega
       rcases
           fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
-            hvalid hnormal hmembers hmember hmem hlookup hcomposite with
+            hvalid hnormal (validNormalMembers_of_readiness hmembers) hmember
+            hmem hlookup hcomposite with
         ⟨runtimeType, hruntime, hinclude⟩
       have hchildValid :
           Validation.selectionSetValid schema variableDefinitions
@@ -466,7 +526,10 @@ theorem
             (fuel - leafProbeFuel fieldDefinition.outputType - 1)
             runtimeType parentType leftField rightField leftArguments
             rightArguments FieldPairProbeTag.right hchildSize hchildFuel
-            hchildValid hchildFree hchildNormal hinclude hchildPromote
+            hchildValid
+            (selectionSetArgumentsCoercible_field_children_of_directiveFree
+              hcoercion hfree hmem hlookup)
+            hchildFree hchildNormal hinclude hchildPromote
             hchildHeadPromote with
         ⟨childFields, childErrors, hchildResponseRaw⟩
       have hchildFuelEq :
@@ -494,7 +557,7 @@ theorem
             schema rootSelectionSet variableValues fuel parentType leftField
             rightField responseName leftArguments rightArguments arguments
             childSelectionSet fieldDefinition runtimeType childFields
-            childErrors hnotLeft harguments hlookup hruntime hinclude
+            childErrors hnotLeft harguments hlookup hfieldCoercion hruntime hinclude
             hleafFuel hchildResponse with
         ⟨responseValue, fieldErrors, hprobe, _hnonNull⟩
       refine ⟨responseValue, fieldErrors, ?_⟩
@@ -506,17 +569,31 @@ theorem
         (fun candidateDefinition hcandidate => by
           rw [hlookup] at hcandidate
           cases Option.some.inj hcandidate.symm
-          exact harguments)
+          exact
+            Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+              schema variableValues parentType rightField arguments
+              fieldDefinition rightArguments hlookup hfieldCoercion harguments)
         (fuel + 1)]
       exact hprobe
     · have hnotProjection :
-          ∀ candidateDefinition,
+          ∀ candidateDefinition coercedArguments,
             schema.lookupField parentType fieldName = some candidateDefinition ->
+              Execution.coerceArgumentValues schema variableValues
+                  candidateDefinition.arguments arguments
+                = .success coercedArguments ->
               ¬ fieldPairProjectionTarget parentType leftField rightField
                 leftArguments rightArguments parentType fieldName
-                (Execution.coerceArgumentValues schema variableValues
-                  candidateDefinition.arguments arguments) := by
-        intro candidateDefinition hcandidate hprojection
+                coercedArguments := by
+        intro candidateDefinition coercedArguments hcandidate hcoercionResult
+          hprojection
+        have hcoercedArguments :
+            Execution.coercedArgumentsForField schema variableValues parentType
+                fieldName arguments
+              = coercedArguments :=
+          Execution.coercedArgumentsForField_eq_of_success schema variableValues
+            parentType fieldName arguments candidateDefinition coercedArguments
+            hcandidate hcoercionResult
+        rw [← hcoercedArguments] at hprojection
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
         rcases hprojection with ⟨_hparent, htarget⟩
@@ -537,7 +614,7 @@ theorem
               ProjectionResolverRef (Option FieldPairProbeTag))
             variableValues hschema (SelectionSet.size selectionSet + 1)
             parentType variableDefinitions selectionSet fuel
-            (by omega) hselectionFuel hvalid hfree hnormal hobject
+            (by omega) hselectionFuel hvalid hcoercion hfree hnormal hobject
             hpromoteMember responseName fieldName arguments directives
             childSelectionSet hmem with
         ⟨fieldDefinition, hlookup, hleafFuel, hready⟩
@@ -577,6 +654,8 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema variableValues parentType left
+      -> selectionSetArgumentsCoercible schema variableValues parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -587,6 +666,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.field responseName fieldName leftArguments leftDirectives
@@ -598,28 +679,29 @@ theorem
       -> schema.lookupField parentType fieldName = some fieldDefinition
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> ¬ Argument.argumentsEquivalent
-            (Execution.coerceArgumentValues schema variableValues
-              fieldDefinition.arguments leftArguments)
-            (Execution.coerceArgumentValues schema variableValues
-              fieldDefinition.arguments rightArguments)
+      -> ¬ Execution.CoercedArgument.argumentsEquivalent
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName leftArguments)
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName rightArguments)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
           parentType parentType left right
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hlookup hleaf
     hargumentsDiff
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let leftTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      fieldDefinition.arguments leftArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      fieldName leftArguments
   let rightTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      fieldDefinition.arguments rightArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      fieldName rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -641,15 +723,18 @@ theorem
           ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions
               parentType memberSelectionSet
+            ∧ selectionSetArgumentsCoercible schema variableValues parentType
+              memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree,
+        hleftNormal⟩
     · subst memberSelectionSet
-      exact ⟨rightVariableDefinitions, hrightValid, hrightFree,
+      exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
         hrightNormal⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hbaseFuel :
@@ -657,6 +742,26 @@ theorem
         ≤ baseFuel := by
     dsimp [baseFuel]
     exact Nat.le_max_right _ _
+  have hleftArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments leftArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hlookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact
+      selectionSetArgumentsCoercible_field_success_of_directiveFree
+        hleftCoercion hleftFree hleftMem hlookup
+  have hrightArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        fieldDefinition.arguments rightArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hlookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact
+      selectionSetArgumentsCoercible_field_success_of_directiveFree
+        hrightCoercion hrightFree hrightMem hlookup
   have hminFuel : minFuel ≤ baseFuel + 1 := by
     have hle : minFuel ≤ baseFuel := by
       dsimp [baseFuel]
@@ -677,14 +782,14 @@ theorem
     exact hleaf
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightTargetArguments ->
+        Execution.CoercedArgument.argumentsEquivalent arguments rightTargetArguments ->
           ¬ fieldProbeTarget parentType fieldName leftTargetArguments parentType
             fieldName arguments := by
     intro arguments hrightArgs hleftTarget
     rcases hleftTarget with ⟨_hparent, _hfield, hleftArgs⟩
     exact (by
-      have htargets := argumentsEquivalent_trans
-        (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs
+      have htargets := Execution.CoercedArgument.argumentsEquivalent_trans
+        (Execution.CoercedArgument.argumentsEquivalent_symm hleftArgs) hrightArgs
       exact hargumentsDiff (by
         simpa [leftTargetArguments, rightTargetArguments] using htargets))
   have hleftFieldOk :
@@ -783,8 +888,14 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [leftTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType fieldName leftArguments
+            fieldDefinition leftTargetArguments hlookup hleftArgumentCoercion
+            (by
+              simpa [leftTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  leftTargetArguments))
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
@@ -792,8 +903,8 @@ theorem
         leftTargetArguments rightTargetArguments leftArguments leftChildSelectionSet
         fieldDefinition (by
           simpa [leftTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
-        hlookup hleftFuel hleaf
+            Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+        hlookup hleftArgumentCoercion hleftFuel hleaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
         (baseFuel + 1) source responseName
@@ -820,8 +931,14 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hlookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [rightTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType fieldName rightArguments
+            fieldDefinition rightTargetArguments hlookup hrightArgumentCoercion
+            (by
+              simpa [rightTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  rightTargetArguments))
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
@@ -829,11 +946,11 @@ theorem
         fieldName responseName leftTargetArguments rightTargetArguments rightArguments
         rightChildSelectionSet fieldDefinition
         (hrightNotLeft rightTargetArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+          (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments))
         (by
           simpa [rightTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments) hlookup
-        hrightFuel hleaf
+            Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments) hlookup
+        hrightArgumentCoercion hrightFuel hleaf
   have hdataNot :
       ¬ Execution.ResponseValue.semanticEquivalent
         (Execution.executeSelectionSetAsResponse schema resolvers variableValues
@@ -859,7 +976,7 @@ theorem
   ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨supportVariableDefinitions, _hsupportValid, hsupportFree,
+      ⟨supportVariableDefinitions, _hsupportValid, _hsupportCoercion, hsupportFree,
         hsupportNormal⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
@@ -914,6 +1031,8 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema variableValues parentType left
+      -> selectionSetArgumentsCoercible schema variableValues parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -924,6 +1043,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.field responseName leftFieldName leftArguments leftDirectives
@@ -944,18 +1065,19 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hleftLookup
     hrightLookup hleftLeaf hrightLeaf hfieldDiff
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let leftTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      leftFieldDefinition.arguments leftArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      leftFieldName leftArguments
   let rightTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      rightFieldDefinition.arguments rightArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      rightFieldName rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -978,15 +1100,18 @@ theorem
           ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions
               parentType memberSelectionSet
+            ∧ selectionSetArgumentsCoercible schema variableValues parentType
+              memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree,
+        hleftNormal⟩
     · subst memberSelectionSet
-      exact ⟨rightVariableDefinitions, hrightValid, hrightFree,
+      exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
         hrightNormal⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hbaseFuel :
@@ -1027,7 +1152,7 @@ theorem
     exact hrightLeaf
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightTargetArguments ->
+        Execution.CoercedArgument.argumentsEquivalent arguments rightTargetArguments ->
           ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments
             parentType rightFieldName arguments := by
     intro arguments _hrightArgs hleftTarget
@@ -1102,6 +1227,24 @@ theorem
       leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
         parentType hrightMemFlatten hrightLookup
     omega
+  have hleftArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        leftFieldDefinition.arguments leftArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hleftLookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hleftCoercion hleftFree hleftMem hleftLookup
+  have hrightArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        rightFieldDefinition.arguments rightArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hrightLookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hrightCoercion hrightFree hrightMem hrightLookup
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
         (baseFuel + 1) source responseName
@@ -1128,8 +1271,15 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hleftLookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [leftTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType leftFieldName leftArguments
+            leftFieldDefinition leftTargetArguments hleftLookup
+            hleftArgumentCoercion
+            (by
+              simpa [leftTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  leftTargetArguments))
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
@@ -1138,8 +1288,8 @@ theorem
         leftChildSelectionSet leftFieldDefinition
         (by
           simpa [leftTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments) hleftLookup
-        hleftFuel hleftLeaf
+            Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments) hleftLookup
+        hleftArgumentCoercion hleftFuel hleftLeaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
         (baseFuel + 1) source responseName
@@ -1166,8 +1316,15 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hrightLookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [rightTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType rightFieldName rightArguments
+            rightFieldDefinition rightTargetArguments hrightLookup
+            hrightArgumentCoercion
+            (by
+              simpa [rightTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  rightTargetArguments))
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_right_root_leaf_of_not_left schema
@@ -1175,11 +1332,11 @@ theorem
         rightFieldName responseName leftTargetArguments rightTargetArguments
         rightArguments rightChildSelectionSet rightFieldDefinition
         (hrightNotLeft rightTargetArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+          (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments))
         (by
           simpa [rightTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments) hrightLookup
-        hrightFuel hrightLeaf
+            Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments) hrightLookup
+        hrightArgumentCoercion hrightFuel hrightLeaf
   have hdataNot :
       ¬ Execution.ResponseValue.semanticEquivalent
         (Execution.executeSelectionSetAsResponse schema resolvers variableValues
@@ -1206,7 +1363,7 @@ theorem
   ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,
+      ⟨_supportVariableDefinitions, _hsupportValid, _hsupportCoercion, hsupportFree,
         hsupportNormal⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
@@ -1261,6 +1418,8 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema variableValues parentType left
+      -> selectionSetArgumentsCoercible schema variableValues parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -1271,6 +1430,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.field responseName leftFieldName leftArguments leftDirectives
@@ -1291,18 +1452,19 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightMem hleftLookup
     hrightLookup hleftLeaf hrightComposite hfieldDiff
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
   let leftTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      leftFieldDefinition.arguments leftArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      leftFieldName leftArguments
   let rightTargetArguments :=
-    Execution.coerceArgumentValues schema variableValues
-      rightFieldDefinition.arguments rightArguments
+    Execution.coercedArgumentsForField schema variableValues parentType
+      rightFieldName rightArguments
   let baseFuel :=
     max minFuel (selectionSetDeepProbeFuel schema parentType
       (List.flatten members))
@@ -1325,15 +1487,18 @@ theorem
           ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions
               parentType memberSelectionSet
+            ∧ selectionSetArgumentsCoercible schema variableValues parentType
+              memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree,
+        hleftNormal⟩
     · subst memberSelectionSet
-      exact ⟨rightVariableDefinitions, hrightValid, hrightFree,
+      exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
         hrightNormal⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hbaseFuel :
@@ -1374,7 +1539,7 @@ theorem
     exact hrightComposite
   have hrightNotLeft :
       ∀ arguments,
-        Argument.argumentsEquivalent arguments rightTargetArguments ->
+        Execution.CoercedArgument.argumentsEquivalent arguments rightTargetArguments ->
           ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments
             parentType rightFieldName arguments := by
     intro arguments _hrightArgs hleftTarget
@@ -1449,6 +1614,24 @@ theorem
       leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
         parentType hrightMemFlatten hrightLookup
     omega
+  have hleftArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        leftFieldDefinition.arguments leftArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hleftLookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hleftCoercion hleftFree hleftMem hleftLookup
+  have hrightArgumentCoercion :
+      (Execution.coerceArgumentValues schema variableValues
+        rightFieldDefinition.arguments rightArguments).isSuccess = true := by
+    rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
+      ⟨candidateDefinition, hcandidateLookup, hargumentsValid, _⟩
+    rw [hrightLookup] at hcandidateLookup
+    cases Option.some.inj hcandidateLookup.symm
+    exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+      hrightCoercion hrightFree hrightMem hrightLookup
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
         (baseFuel + 1) source responseName
@@ -1475,8 +1658,15 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hleftLookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [leftTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType leftFieldName leftArguments
+            leftFieldDefinition leftTargetArguments hleftLookup
+            hleftArgumentCoercion
+            (by
+              simpa [leftTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  leftTargetArguments))
       (baseFuel + 1)]
     exact
       executeField_fieldPairProbe_left_root_leaf schema rootSelectionSet
@@ -1485,8 +1675,8 @@ theorem
         leftChildSelectionSet leftFieldDefinition
         (by
           simpa [leftTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff leftTargetArguments) hleftLookup
-        hleftFuel hleftLeaf
+            Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments) hleftLookup
+        hleftArgumentCoercion hleftFuel hleftLeaf
   have hrightPromote :
       selectionSetDeepPromotionAvailable schema rootSelectionSet parentType
         right := by
@@ -1499,7 +1689,8 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := right) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers (by simp [members]) htargetLookup htargetComposite
+        (validNormalMembers_of_readiness hmembers) (by simp [members])
+        htargetLookup htargetComposite
         htargetNonObject hlocalRuntime
   have hrightHeadPromote :
       selectionSetDeepHeadPromotionAvailable schema rootSelectionSet
@@ -1514,11 +1705,13 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := right) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers (by simp [members]) htargetLookup htargetComposite
+        (validNormalMembers_of_readiness hmembers) (by simp [members])
+        htargetLookup htargetComposite
         htargetNonObject hlocalRuntime
   rcases
       fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
-        hrightValid hrightNormal hmembers (by simp [members]) hrightMem
+        hrightValid hrightNormal (validNormalMembers_of_readiness hmembers)
+        (by simp [members]) hrightMem
         hrightLookup hrightComposite with
     ⟨rightRuntime, hrightRuntime, hrightInclude⟩
   have hrightChildValid :
@@ -1581,7 +1774,11 @@ theorem
         (baseFuel - leafProbeFuel rightFieldDefinition.outputType - 1)
         rightRuntime parentType leftFieldName rightFieldName leftTargetArguments
         rightTargetArguments FieldPairProbeTag.right hrightChildSize
-        hrightChildFuel hrightChildValid hrightChildFree hrightChildNormal
+        hrightChildFuel hrightChildValid
+        (selectionSetArgumentsCoercible_field_children_of_directiveFree
+          hrightCoercion hrightFree hrightMem hrightLookup)
+        hrightChildFree
+        hrightChildNormal
         hrightInclude hrightChildPromote hrightChildHeadPromote with
     ⟨rightChildFields, rightChildErrors, hrightChildResponseRaw⟩
   have hrightChildFuelEq :
@@ -1634,8 +1831,15 @@ theorem
       (fun candidateDefinition hcandidate => by
         rw [hrightLookup] at hcandidate
         cases Option.some.inj hcandidate.symm
-        simpa [rightTargetArguments] using
-          argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
+        exact
+          Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+            schema variableValues parentType rightFieldName rightArguments
+            rightFieldDefinition rightTargetArguments hrightLookup
+            hrightArgumentCoercion
+            (by
+              simpa [rightTargetArguments] using
+                Execution.CoercedArgument.argumentsEquivalent_refl
+                  rightTargetArguments))
       (baseFuel + 1)]
     have hraw :=
       executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_of_fuel_ge
@@ -1645,11 +1849,11 @@ theorem
         rightArguments rightChildSelectionSet rightFieldDefinition
         rightRuntime
         (hrightNotLeft rightTargetArguments
-          (argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments))
+          (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments))
         (by
           simpa [rightTargetArguments] using
-            argumentsEquivalent_refl_forSyntaxDiff rightTargetArguments)
-        hrightLookup hrightRuntime hrightInclude hrightFuel
+            Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+        hrightLookup hrightArgumentCoercion hrightRuntime hrightInclude hrightFuel
     rw [hraw, hrightChildResponse, hrightWrapped]
     simp [Execution.singleFieldResult]
   have hdataNot :
@@ -1680,7 +1884,7 @@ theorem
   ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,
+      ⟨_supportVariableDefinitions, _hsupportValid, _hsupportCoercion, hsupportFree,
         hsupportNormal⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
@@ -1732,6 +1936,8 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema variableValues parentType left
+      -> selectionSetArgumentsCoercible schema variableValues parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -1742,6 +1948,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.field responseName fieldName arguments directives childSelectionSet
@@ -1752,7 +1960,8 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hleftMem hrightNoResponseName
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
@@ -1779,15 +1988,18 @@ theorem
           ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions
               parentType memberSelectionSet
+            ∧ selectionSetArgumentsCoercible schema variableValues parentType
+              memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree,
+        hleftNormal⟩
     · subst memberSelectionSet
-      exact ⟨rightVariableDefinitions, hrightValid, hrightFree,
+      exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
         hrightNormal⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hpromoteOfMember :
@@ -1819,7 +2031,8 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := memberSelectionSet) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers hmember hlookup hcomposite hnonObject hlocalRuntime
+        (validNormalMembers_of_readiness hmembers) hmember hlookup hcomposite
+        hnonObject hlocalRuntime
   have hleftFuel :
       selectionSetDeepProbeFuel schema parentType left ≤ baseFuel := by
     have hmemberFuel :=
@@ -1837,14 +2050,15 @@ theorem
   rcases
       executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge
         schema rootSelectionSet PUnit.unit variableValues hschema parentType
-        leftVariableDefinitions left baseFuel source hleftValid hleftFree
+        leftVariableDefinitions left baseFuel source hleftValid hleftCoercion hleftFree
         hleftNormal hobject hsource
         (hpromoteOfMember left (by simp [members])) hleftFuel with
     ⟨leftFields, leftErrors, hleftExec⟩
   rcases
       executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge
         schema rootSelectionSet PUnit.unit variableValues hschema parentType
-        rightVariableDefinitions right baseFuel source hrightValid hrightFree
+        rightVariableDefinitions right baseFuel source hrightValid hrightCoercion
+        hrightFree
         hrightNormal hobject hsource
         (hpromoteOfMember right (by simp [members])) hrightFuel with
     ⟨rightFields, rightErrors, hrightExec⟩
@@ -1887,7 +2101,7 @@ theorem
     omega
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨supportVariableDefinitions, hsupportSelectionValid,
+      ⟨supportVariableDefinitions, hsupportSelectionValid, hsupportCoercion,
         hsupportFree, hsupportNormal⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
@@ -1904,7 +2118,8 @@ theorem
       executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge
         schema rootSelectionSet PUnit.unit variableValues hschema parentType
         supportVariableDefinitions supportSelectionSet baseFuel source
-        hsupportSelectionValid hsupportFree hsupportNormal hobject hsource
+        hsupportSelectionValid hsupportCoercion hsupportFree hsupportNormal hobject
+        hsource
         (hpromoteOfMember supportSelectionSet hsupportMember)
         hsupportFuel
   · intro hsemantic
@@ -1928,6 +2143,8 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema variableValues parentType left
+      -> selectionSetArgumentsCoercible schema variableValues parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -1938,6 +2155,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                    supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.field responseName fieldName arguments directives childSelectionSet
@@ -1948,7 +2167,8 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hobject hsupportValid hrightMem hleftNoResponseName
   have hwitness :
       selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
@@ -1965,7 +2185,8 @@ theorem
       (responseName := responseName) (fieldName := fieldName)
       (arguments := arguments) (directives := directives)
       (childSelectionSet := childSelectionSet) (minFuel := minFuel)
-      hschema hrightValid hleftValid hrightFree hleftFree hrightNormal
+      hschema hrightValid hleftValid hrightCoercion hleftCoercion hrightFree
+      hleftFree hrightNormal
       hleftNormal hobject hsupportValid hrightMem hleftNoResponseName
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, fuel, ref, hfuel,
@@ -1994,6 +2215,10 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -2004,6 +2229,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema
+                    variableValues parentType supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet ∈ left
@@ -2013,7 +2240,8 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hnonObject hsupportValid hleftMem hrightNoTypeCondition
   have hdirectives : directives = [] :=
     selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem
@@ -2035,6 +2263,12 @@ theorem
   have htypeObject :
       objectTypeNameBool schema typeCondition = true :=
     objectTypeNameBool_of_typeIncludesObjectBool hschema hinclude
+  have hchildCoercion :
+      selectionSetArgumentsCoercible schema variableValues typeCondition
+        childSelectionSet :=
+    selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+      (hleftCoercion typeCondition hinclude) hleftFree hleftMemNil
+      (object_typeIncludesObjectBool_self schema htypeObjectProp)
   let members : List (List Selection) := left :: right :: supportSelectionSets
   let rootSelectionSet :=
     [Selection.inlineFragment (some parentType) [] (List.flatten members)]
@@ -2052,15 +2286,18 @@ theorem
           ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions
               parentType memberSelectionSet
+            ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+                parentType memberSelectionSet
             ∧ selectionSetDirectiveFree memberSelectionSet
             ∧ selectionSetNormal schema parentType memberSelectionSet := by
     intro memberSelectionSet hmember
     simp [members] at hmember
     rcases hmember with hleft | hright | hsupport
     · subst memberSelectionSet
-      exact ⟨leftVariableDefinitions, hleftValid, hleftFree, hleftNormal⟩
+      exact ⟨leftVariableDefinitions, hleftValid, hleftCoercion, hleftFree,
+        hleftNormal⟩
     · subst memberSelectionSet
-      exact ⟨rightVariableDefinitions, hrightValid, hrightFree,
+      exact ⟨rightVariableDefinitions, hrightValid, hrightCoercion, hrightFree,
         hrightNormal⟩
     · exact hsupportValid memberSelectionSet hsupport
   have hpromoteOfMember :
@@ -2092,7 +2329,8 @@ theorem
         (targetRuntimeType := targetRuntimeType)
         (selectionSet := memberSelectionSet) (members := members)
         (targetFieldDefinition := targetFieldDefinition)
-        hmembers hmember hlookup hcomposite htargetNonObject hlocalRuntime
+        (validNormalMembers_of_readiness hmembers) hmember hlookup hcomposite
+        htargetNonObject hlocalRuntime
   have hchildValid :
       Validation.selectionSetValid schema leftVariableDefinitions
         typeCondition childSelectionSet :=
@@ -2182,7 +2420,7 @@ theorem
           schema rootSelectionSet PUnit.unit variableValues hschema
           (SelectionSet.size childSelectionSet + 1) typeCondition
           leftVariableDefinitions childSelectionSet baseFuel (by omega)
-          hchildFuel hchildValid hchildFree hchildNormal htypeObject
+          hchildFuel hchildValid hchildCoercion hchildFree hchildNormal htypeObject
           hchildPromote bodyResponseName bodyFieldName bodyArguments
           bodyDirectives bodyChildSelectionSet hbodyFieldMem with
       ⟨candidateDefinition, hcandidateLookup, _hcandidateFuel,
@@ -2222,7 +2460,7 @@ theorem
     omega
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨supportVariableDefinitions, hsupportSelectionValid,
+      ⟨supportVariableDefinitions, hsupportSelectionValid, hsupportCoercion,
         hsupportFree, hsupportNormal⟩
     have hsupportMember : supportSelectionSet ∈ members := by
       simp [members, hsupport]
@@ -2241,7 +2479,7 @@ theorem
         (SelectionSet.size supportSelectionSet + 1) parentType
         supportVariableDefinitions supportSelectionSet baseFuel
         typeCondition (by omega) hsupportFuel hsupportSelectionValid
-        hsupportFree hsupportNormal hinclude
+        hsupportCoercion hsupportFree hsupportNormal hinclude
         (hpromoteOfMember supportSelectionSet hsupportMember)
   · intro hsemantic
     have hobjects :
@@ -2264,6 +2502,10 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -2274,6 +2516,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema
+                    variableValues parentType supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
@@ -2284,7 +2528,8 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition
   exact
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
@@ -2296,7 +2541,8 @@ theorem
         (supportSelectionSets := supportSelectionSets)
         (typeCondition := typeCondition) (directives := directives)
         (childSelectionSet := childSelectionSet) (minFuel := minFuel)
-        hschema hrightValid hleftValid hrightFree hleftFree hrightNormal
+        hschema hrightValid hleftValid hrightCoercion hleftCoercion hrightFree
+        hleftFree hrightNormal
         hleftNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition)
 
 noncomputable def selectionSetTargetInlineFragmentSelectionSets (typeCondition : Name)
@@ -2462,17 +2708,78 @@ theorem selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of
     (selectionSetNormal_inlineFragment_child_of_mem hnormal hwholeMem).2
   ⟩
 
+theorem
+    selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
+    {schema : Schema} {variableDefinitions : List VariableDefinition}
+    {parentType typeCondition : Name}
+    {whole selectionSet childSelectionSet : List Selection}
+    {variableValues : Execution.VariableValues}
+    : (∀ directives childSelectionSet,
+        Selection.inlineFragment (some typeCondition) directives childSelectionSet
+          ∈ selectionSet
+        -> Selection.inlineFragment (some typeCondition) directives childSelectionSet
+            ∈ whole)
+      -> Validation.selectionSetValid schema variableDefinitions parentType whole
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType whole
+      -> selectionSetDirectiveFree whole
+      -> selectionSetNormal schema parentType whole
+      -> childSelectionSet
+          ∈ selectionSetTargetInlineFragmentSelectionSets typeCondition selectionSet
+      -> Validation.selectionSetValid schema variableDefinitions typeCondition
+            childSelectionSet
+          ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+              typeCondition childSelectionSet
+          ∧ selectionSetDirectiveFree childSelectionSet
+          ∧ selectionSetNormal schema typeCondition childSelectionSet := by
+  intro hsubset hvalid hcoercible hfree hnormal hmem
+  rcases selectionSetTargetInlineFragmentSelectionSets_mem hmem with
+    ⟨directives, hinlineMem⟩
+  have hwholeMem := hsubset directives childSelectionSet hinlineMem
+  have hchildNormal :=
+    selectionSetNormal_inlineFragment_child_of_mem hnormal hwholeMem
+  have hinclude :
+      schema.typeIncludesObjectBool parentType typeCondition = true :=
+    typeIncludesObjectBool_of_typesOverlap_object schema
+      (selectionSetValid_inlineFragment_some_typesOverlap_of_mem hvalid hwholeMem)
+      hchildNormal.1
+  have hchildCoercible :
+      selectionSetArgumentsCoercible schema variableValues typeCondition
+        childSelectionSet :=
+    selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+      (hcoercible typeCondition hinclude) hfree hwholeMem
+      (object_typeIncludesObjectBool_self schema hchildNormal.1)
+  exact ⟨
+    selectionSetValid_inlineFragment_some_child_of_mem hvalid hwholeMem,
+    selectionSetArgumentsCoercibleInPossibleTypes_of_object
+      (objectTypeNameBool_eq_true_of_objectType_forNormality schema hchildNormal.1)
+      hchildCoercible,
+    selectionSetDirectiveFree_inlineFragment_child_of_mem hfree hwholeMem,
+    hchildNormal.2
+  ⟩
+
 theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
     {schema : Schema}
     {leftVariableDefinitions rightVariableDefinitions : List VariableDefinition}
     {parentType typeCondition : Name}
     {leftPref rightPref leftSuffix rightSuffix : List Selection}
     {leftChildSelectionSet rightChildSelectionSet childSelectionSet : List Selection}
+    {variableValues : Execution.VariableValues}
     : Validation.selectionSetValid schema leftVariableDefinitions parentType
         (leftPref
           ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
               :: leftSuffix)
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType
+          (rightPref
+            ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType
+          (leftPref
+            ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
+                :: leftSuffix)
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType
           (rightPref
             ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
                 :: rightSuffix)
@@ -2498,15 +2805,17 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
       -> ∃ variableDefinitions,
           Validation.selectionSetValid schema variableDefinitions typeCondition
             childSelectionSet
+          ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+              typeCondition childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
           ∧ selectionSetNormal schema typeCondition childSelectionSet := by
-  intro hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hmem
   simp [splitTargetInlineFragmentSelectionSets] at hmem
   rcases hmem with hleftPref | hrightPref | hleftSuffix | hrightSuffix
-  · exact ⟨
-      leftVariableDefinitions,
-      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+  · rcases
+      selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
         (schema := schema) (parentType := parentType)
         (typeCondition := typeCondition)
         (whole :=
@@ -2518,11 +2827,11 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
         (by
           intro directives childSelectionSet hchildMem
           exact List.mem_append_left _ hchildMem)
-        hleftValid hleftFree hleftNormal hleftPref
-    ⟩
-  · exact ⟨
-      rightVariableDefinitions,
-      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        hleftValid hleftCoercion hleftFree hleftNormal hleftPref with
+      ⟨hvalid, hcoercible, hfree, hnormal⟩
+    exact ⟨leftVariableDefinitions, hvalid, hcoercible, hfree, hnormal⟩
+  · rcases
+      selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
         (schema := schema) (parentType := parentType)
         (typeCondition := typeCondition)
         (whole :=
@@ -2534,11 +2843,11 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
         (by
           intro directives childSelectionSet hchildMem
           exact List.mem_append_left _ hchildMem)
-        hrightValid hrightFree hrightNormal hrightPref
-    ⟩
-  · exact ⟨
-      leftVariableDefinitions,
-      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        hrightValid hrightCoercion hrightFree hrightNormal hrightPref with
+      ⟨hvalid, hcoercible, hfree, hnormal⟩
+    exact ⟨rightVariableDefinitions, hvalid, hcoercible, hfree, hnormal⟩
+  · rcases
+      selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
         (schema := schema) (parentType := parentType)
         (typeCondition := typeCondition)
         (whole :=
@@ -2554,11 +2863,11 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
               (List.mem_cons_of_mem
                 (Selection.inlineFragment (some typeCondition) []
                   leftChildSelectionSet) hchildMem))
-        hleftValid hleftFree hleftNormal hleftSuffix
-    ⟩
-  · exact ⟨
-      rightVariableDefinitions,
-      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        hleftValid hleftCoercion hleftFree hleftNormal hleftSuffix with
+      ⟨hvalid, hcoercible, hfree, hnormal⟩
+    exact ⟨leftVariableDefinitions, hvalid, hcoercible, hfree, hnormal⟩
+  · rcases
+      selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
         (schema := schema) (parentType := parentType)
         (typeCondition := typeCondition)
         (whole :=
@@ -2574,8 +2883,9 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
               (List.mem_cons_of_mem
                 (Selection.inlineFragment (some typeCondition) []
                   rightChildSelectionSet) hchildMem))
-        hrightValid hrightFree hrightNormal hrightSuffix
-    ⟩
+        hrightValid hrightCoercion hrightFree hrightNormal hrightSuffix with
+      ⟨hvalid, hcoercible, hfree, hnormal⟩
+    exact ⟨rightVariableDefinitions, hvalid, hcoercible, hfree, hnormal⟩
 
 theorem
     selectionSetTargetInlineFragmentSelectionSets_subset_supportTargetInlineFragmentSelectionSets_of_mem
@@ -2603,11 +2913,14 @@ theorem supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
     {schema : Schema} {parentType typeCondition : Name}
     {supportSelectionSets : List (List Selection)}
     {childSelectionSet : List Selection}
+    {variableValues : Execution.VariableValues}
     : (∀ supportSelectionSet,
         supportSelectionSet ∈ supportSelectionSets
         -> ∃ variableDefinitions,
             Validation.selectionSetValid schema variableDefinitions parentType
               supportSelectionSet
+            ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+                parentType supportSelectionSet
             ∧ selectionSetDirectiveFree supportSelectionSet
             ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> childSelectionSet
@@ -2615,6 +2928,8 @@ theorem supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
       -> ∃ variableDefinitions,
           Validation.selectionSetValid schema variableDefinitions typeCondition
             childSelectionSet
+          ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+              typeCondition childSelectionSet
           ∧ selectionSetDirectiveFree childSelectionSet
           ∧ selectionSetNormal schema typeCondition childSelectionSet := by
   intro hsupportValid hmem
@@ -2625,12 +2940,19 @@ theorem supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
       simp [supportTargetInlineFragmentSelectionSets] at hmem
       rcases hmem with hhead | htail
       · rcases hsupportValid supportSelectionSet (by simp) with
-          ⟨variableDefinitions, hvalid, hfree, hnormal⟩
-        exact ⟨
-          variableDefinitions,
-          selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal
-            hvalid hfree hnormal hhead
-        ⟩
+          ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+        rcases
+            selectionSetTargetInlineFragmentSelectionSets_child_ready_valid_free_normal_of_subset
+              (schema := schema) (parentType := parentType)
+              (typeCondition := typeCondition)
+              (whole := supportSelectionSet)
+              (selectionSet := supportSelectionSet)
+              (childSelectionSet := childSelectionSet)
+              (by simp)
+              hvalid hcoercion hfree hnormal hhead with
+          ⟨hchildValid, hchildCoercion, hchildFree, hchildNormal⟩
+        exact ⟨variableDefinitions, hchildValid, hchildCoercion, hchildFree,
+          hchildNormal⟩
       · exact
           ih (by
             intro tailSupportSelectionSet htailSupport
@@ -2652,6 +2974,16 @@ theorem
           ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
               :: leftSuffix)
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType
+          (rightPref
+            ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
+                :: rightSuffix)
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType
+          (leftPref
+            ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
+                :: leftSuffix)
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType
           (rightPref
             ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
                 :: rightSuffix)
@@ -2677,6 +3009,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema
+                    variableValues parentType supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> selectionSetContextualRuntimeDataDiffWitnessWithFuelGe schema
@@ -2698,7 +3032,8 @@ theorem
           (variableValues := variableValues)
           (fun selectionSet => selectionSet ∈ supportSelectionSets)
           minFuel := by
-  intro hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hleftValid hrightValid _hleftCoercion _hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hnonObject hsupportValid hwitness
   let leftSelectionSet :=
     leftPref ++ Selection.inlineFragment (some typeCondition) []
@@ -2816,8 +3151,8 @@ theorem
   refine ⟨hparentInclude, ObjectRef, resolvers, fuel, ref, hfuel, ?_, ?_⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
-      ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,
-        hsupportNormal⟩
+      ⟨_supportVariableDefinitions, _hsupportValid, _hsupportCoercion,
+        hsupportFree, hsupportNormal⟩
     by_cases htypeMem :
         typeCondition ∈
           supportSelectionSet.filterMap inlineFragmentTypeCondition?

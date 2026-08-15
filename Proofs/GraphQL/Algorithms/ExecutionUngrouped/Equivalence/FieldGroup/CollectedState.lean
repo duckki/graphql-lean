@@ -277,7 +277,7 @@ theorem executeQuery_eq_spec
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (state
       : ExecutedSingleGroupSelectionState schema resolvers
@@ -1332,7 +1332,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_state_of_invariant
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -1786,7 +1786,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_steps_of_invariant
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2180,7 +2180,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_of_invariant
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema

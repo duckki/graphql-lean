@@ -324,7 +324,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendSteps
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -390,7 +390,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -526,7 +526,7 @@ theorem executeQuery_eq_spec_of_executedFieldGroup
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -697,7 +697,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendPlan
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema

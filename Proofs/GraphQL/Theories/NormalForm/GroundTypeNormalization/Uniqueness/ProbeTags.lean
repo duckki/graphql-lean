@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Probes
 
 /-!
@@ -28,32 +29,32 @@ def FieldPairProbeTag.scalar : FieldPairProbeTag -> String
   | .filler => "filler"
 
 def fieldProbeTarget
-    (targetParent targetField : Name) (targetArguments : List Argument)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (targetParent targetField : Name) (targetArguments : Execution.CoercedArguments)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     : Prop :=
   parentType = targetParent
   ∧ fieldName = targetField
-  ∧ Argument.argumentsEquivalent arguments targetArguments
+  ∧ Execution.CoercedArgument.argumentsEquivalent arguments targetArguments
 
 theorem fieldProbeTarget_iff_of_argumentsEquivalent
-    (targetParent targetField : Name) (targetArguments : List Argument)
+    (targetParent targetField : Name) (targetArguments : Execution.CoercedArguments)
     (parentType fieldName : Name)
-    (firstArguments laterArguments : List Argument)
-    : Argument.argumentsEquivalent firstArguments laterArguments
+    (firstArguments laterArguments : Execution.CoercedArguments)
+    : Execution.CoercedArgument.argumentsEquivalent firstArguments laterArguments
       -> (fieldProbeTarget targetParent targetField targetArguments parentType
             fieldName firstArguments
           ↔ fieldProbeTarget targetParent targetField targetArguments parentType
               fieldName laterArguments) := by
   intro harguments
   have hiff :
-      Argument.argumentsEquivalent firstArguments targetArguments
-        ↔ Argument.argumentsEquivalent laterArguments targetArguments := by
+      Execution.CoercedArgument.argumentsEquivalent firstArguments targetArguments
+        ↔ Execution.CoercedArgument.argumentsEquivalent laterArguments targetArguments := by
     constructor
     · intro hfirst
-      exact argumentsEquivalent_trans
-        (FieldMerge.argumentsEquivalent_symm harguments) hfirst
+      exact Execution.CoercedArgument.argumentsEquivalent_trans
+        (Execution.CoercedArgument.argumentsEquivalent_symm harguments) hfirst
     · intro hlater
-      exact argumentsEquivalent_trans harguments hlater
+      exact Execution.CoercedArgument.argumentsEquivalent_trans harguments hlater
   constructor
   · intro htarget
     exact ⟨htarget.1, htarget.2.1, hiff.mp htarget.2.2⟩
@@ -62,8 +63,8 @@ theorem fieldProbeTarget_iff_of_argumentsEquivalent
 
 noncomputable def fieldPairProbeTag
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     : FieldPairProbeTag := by
   classical
   exact
@@ -78,10 +79,10 @@ noncomputable def fieldPairProbeTag
 
 theorem fieldPairProbeTag_eq_of_argumentsEquivalent
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     (parentType fieldName : Name)
-    (firstArguments laterArguments : List Argument)
-    : Argument.argumentsEquivalent firstArguments laterArguments
+    (firstArguments laterArguments : Execution.CoercedArguments)
+    : Execution.CoercedArgument.argumentsEquivalent firstArguments laterArguments
       -> fieldPairProbeTag targetParent leftField rightField leftArguments
             rightArguments parentType fieldName firstArguments
           = fieldPairProbeTag targetParent leftField rightField leftArguments
@@ -278,7 +279,7 @@ theorem fieldPairProbeResolverValue_eq_objectProbeResolverValueWithRuntime
 
 noncomputable def fieldPairProbeHeadResolverValue
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag)
     : TypeRef -> Execution.ResolverValue (Option FieldPairProbeTag)
   | .named typeName =>
@@ -302,9 +303,10 @@ noncomputable def fieldPairProbeHeadResolverValue
 
 theorem fieldPairProbeHeadResolverValue_eq_of_argumentsEquivalent
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName : Name) {firstArguments laterArguments : List Argument}
+    (parentType fieldName : Name)
+    {firstArguments laterArguments : Execution.CoercedArguments}
     (tag : FieldPairProbeTag)
-    : Argument.argumentsEquivalent firstArguments laterArguments
+    : Execution.CoercedArgument.argumentsEquivalent firstArguments laterArguments
       -> ∀ outputType,
           fieldPairProbeHeadResolverValue schema rootSelectionSet parentType
             fieldName firstArguments tag outputType
@@ -329,7 +331,7 @@ theorem fieldPairProbeHeadResolverValue_eq_of_argumentsEquivalent
 
 theorem fieldPairProbeHeadResolverValue_leaf_eq_leafProbeResolverValue
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag)
     : ∀ outputType,
         (TypeRef.named outputType.namedType).isCompositeBool schema = false
@@ -356,7 +358,7 @@ theorem fieldPairProbeHeadResolverValue_leaf_eq_leafProbeResolverValue
 
 theorem fieldPairProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag)
     : ∀ outputType,
         objectTypeNameBool schema outputType.namedType = true
@@ -395,7 +397,8 @@ theorem fieldPairProbeHeadResolverValue_object_eq_objectProbeResolverValueWithRu
 
 theorem fieldPairProbeHeadResolverValue_abstract_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName runtimeType : Name) (arguments : List Argument)
+    (parentType fieldName runtimeType : Name)
+    (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag)
     : ∀ outputType,
         (TypeRef.named outputType.namedType).isCompositeBool schema = true
@@ -435,7 +438,8 @@ theorem fieldPairProbeHeadResolverValue_abstract_eq_objectProbeResolverValueWith
 
 theorem fieldPairProbeHeadResolverValue_eq_objectProbeResolverValueWithRuntime
     (schema : Schema) (rootSelectionSet : List Selection)
-    (parentType fieldName runtimeType : Name) (arguments : List Argument)
+    (parentType fieldName runtimeType : Name)
+    (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag) (outputType : TypeRef)
     : ((objectTypeNameBool schema outputType.namedType = true
           ∧ runtimeType = outputType.namedType)
@@ -463,7 +467,7 @@ theorem fieldPairProbeHeadResolverValue_eq_objectProbeResolverValueWithRuntime
 noncomputable def fieldPairProbeResolvers
     (schema : Schema) (rootSelectionSet : List Selection)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     : Execution.Resolvers (Option FieldPairProbeTag) where
   resolve parentType fieldName arguments source := by
     classical
@@ -575,9 +579,10 @@ noncomputable def fieldPairProbeResolvers
 theorem fieldPairProbeResolvers_left_root
     (schema : Schema) (rootSelectionSet : List Selection)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : Execution.CoercedArguments)
     (fieldDefinition : FieldDefinition)
-    : Argument.argumentsEquivalent arguments leftArguments
+    : Execution.CoercedArgument.argumentsEquivalent arguments leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
       -> (fieldPairProbeResolvers schema rootSelectionSet targetParent
             leftField rightField leftArguments rightArguments).resolve
@@ -596,11 +601,12 @@ theorem fieldPairProbeResolvers_left_root
 theorem fieldPairProbeResolvers_right_root_of_not_left
     (schema : Schema) (rootSelectionSet : List Selection)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : Execution.CoercedArguments)
     (fieldDefinition : FieldDefinition)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
           rightField arguments
-      -> Argument.argumentsEquivalent arguments rightArguments
+      -> Execution.CoercedArgument.argumentsEquivalent arguments rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
       -> (fieldPairProbeResolvers schema rootSelectionSet targetParent
             leftField rightField leftArguments rightArguments).resolve
@@ -620,7 +626,8 @@ theorem fieldPairProbeResolvers_right_root_of_not_left
 theorem fieldPairProbeResolvers_tagged_object
     (schema : Schema) (rootSelectionSet : List Selection)
     (targetParent leftField rightField parentType fieldName runtimeType : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : Execution.CoercedArguments)
     (tag : FieldPairProbeTag) (fieldDefinition : FieldDefinition)
     : schema.lookupField parentType fieldName = some fieldDefinition
       -> (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -637,9 +644,13 @@ theorem executeField_fieldPairProbe_tagged_object_leaf (schema : Schema)
     (fuel : Nat)
     (targetParent leftField rightField parentType fieldName sourceRuntimeType responseName
       : Name)
-    (leftArguments rightArguments arguments : List Argument) (tag : FieldPairProbeTag)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument) (tag : FieldPairProbeTag)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
@@ -663,9 +674,11 @@ theorem executeField_fieldPairProbe_tagged_object_leaf (schema : Schema)
                 )],
                 0
               ) := by
-  intro hlookup hfuel hleaf
+  intro hlookup hcoerce hfuel hleaf
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition parentType fieldName arguments
@@ -675,17 +688,16 @@ theorem executeField_fieldPairProbe_tagged_object_leaf (schema : Schema)
         (leafProbeResolverValue
           (ObjectRef := Option FieldPairProbeTag)
           fieldDefinition.outputType tag.scalar) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_tagged_object schema rootSelectionSet
       targetParent leftField rightField parentType fieldName
       sourceRuntimeType leftArguments rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments) tag
+      coercedArguments tag
       fieldDefinition hlookup]
     rw [fieldPairProbeHeadResolverValue_leaf_eq_leafProbeResolverValue schema
       rootSelectionSet parentType fieldName
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments) tag
+      coercedArguments tag
       fieldDefinition.outputType hleaf]
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema
@@ -700,10 +712,14 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_response_of_fuel_g
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField parentType fieldName sourceRuntimeType responseName
       : Name)
-    (leftArguments rightArguments arguments : List Argument) (tag : FieldPairProbeTag)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument) (tag : FieldPairProbeTag)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -736,9 +752,11 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_response_of_fuel_g
                   (fuel - leafProbeFuel fieldDefinition.outputType)
                   runtimeType (.object runtimeType (some tag))
                   childSelectionSet)) := by
-  intro hlookup hruntime hinclude hfuel
+  intro hlookup hcoerce hruntime hinclude hfuel
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition parentType fieldName arguments
@@ -747,17 +765,16 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_response_of_fuel_g
       some
         (objectProbeResolverValueWithRuntime runtimeType (some tag)
           fieldDefinition.outputType) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_tagged_object schema rootSelectionSet
       targetParent leftField rightField parentType fieldName
       sourceRuntimeType leftArguments rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments) tag
+      coercedArguments tag
       fieldDefinition hlookup]
     rw [fieldPairProbeHeadResolverValue_eq_objectProbeResolverValueWithRuntime
       schema rootSelectionSet parentType fieldName runtimeType
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments) tag
+      coercedArguments tag
       fieldDefinition.outputType hruntime]
   exact
     executeField_objectProbeWithRuntime_response_of_fuel_ge schema
@@ -772,11 +789,15 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_ok_of_child_respon
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField parentType fieldName sourceRuntimeType responseName
       : Name)
-    (leftArguments rightArguments arguments : List Argument) (tag : FieldPairProbeTag)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument) (tag : FieldPairProbeTag)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name) (responseFields : List (Name × Execution.ResponseValue))
     (childErrors : Nat)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -815,13 +836,13 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_ok_of_child_respon
               }]
             = .ok ([(responseName, responseValue)], fieldErrors)
           ∧ responseValue ≠ Execution.ResponseValue.null := by
-  intro hlookup hruntime hinclude hfuel hchildResponse
+  intro hlookup hcoerce hruntime hinclude hfuel hchildResponse
   have hfield :=
     executeField_fieldPairProbe_tagged_object_objectProbe_response_of_fuel_ge
       schema rootSelectionSet variableValues fuel targetParent leftField
       rightField parentType fieldName sourceRuntimeType responseName
       leftArguments rightArguments arguments tag childSelectionSet
-      fieldDefinition runtimeType hlookup hruntime hinclude hfuel
+      fieldDefinition runtimeType hlookup hcoerce hruntime hinclude hfuel
   rcases
       wrapTypeRefSelectionSetResult_ok_nonNull_of_object_response
         fieldDefinition.outputType responseFields childErrors with
@@ -834,13 +855,17 @@ theorem executeField_fieldPairProbe_left_root_leaf
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
-    : Argument.argumentsEquivalent
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+    : Execution.CoercedArgument.argumentsEquivalent
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          leftField arguments)
         leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
@@ -864,9 +889,16 @@ theorem executeField_fieldPairProbe_left_root_leaf
                 )],
                 0
               ) := by
-  intro harguments hlookup hfuel hleaf
+  intro harguments hlookup hcoerce hfuel hleaf
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
+  have hcoercedArguments :
+      Execution.CoercedArgument.argumentsEquivalent coercedArguments
+        leftArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      harguments
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition targetParent leftField arguments
@@ -876,17 +908,14 @@ theorem executeField_fieldPairProbe_left_root_leaf
         (leafProbeResolverValue
           (ObjectRef := Option FieldPairProbeTag)
           fieldDefinition.outputType FieldPairProbeTag.left.scalar) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_left_root schema rootSelectionSet
       targetParent leftField rightField leftArguments rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      fieldDefinition harguments hlookup]
+      coercedArguments fieldDefinition hcoercedArguments hlookup]
     rw [fieldPairProbeHeadResolverValue_leaf_eq_leafProbeResolverValue schema
       rootSelectionSet targetParent leftField
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      FieldPairProbeTag.left
+      coercedArguments FieldPairProbeTag.left
       fieldDefinition.outputType hleaf]
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema
@@ -900,17 +929,21 @@ theorem executeField_fieldPairProbe_right_root_leaf_of_not_left
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
           rightField
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
-      -> Argument.argumentsEquivalent
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
+      -> Execution.CoercedArgument.argumentsEquivalent
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
           rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
@@ -934,9 +967,21 @@ theorem executeField_fieldPairProbe_right_root_leaf_of_not_left
                 )],
                 0
               ) := by
-  intro hnotLeft harguments hlookup hfuel hleaf
+  intro hnotLeft harguments hlookup hcoerce hfuel hleaf
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
+  have hcoercedArguments :
+      Execution.CoercedArgument.argumentsEquivalent coercedArguments
+        rightArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      harguments
+  have hnotLeftCoerced :
+      ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
+        rightField coercedArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      hnotLeft
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition targetParent rightField arguments
@@ -946,18 +991,15 @@ theorem executeField_fieldPairProbe_right_root_leaf_of_not_left
         (leafProbeResolverValue
           (ObjectRef := Option FieldPairProbeTag)
           fieldDefinition.outputType FieldPairProbeTag.right.scalar) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_right_root_of_not_left schema
       rootSelectionSet targetParent leftField rightField leftArguments
-      rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      fieldDefinition hnotLeft harguments hlookup]
+      rightArguments coercedArguments fieldDefinition hnotLeftCoerced
+      hcoercedArguments hlookup]
     rw [fieldPairProbeHeadResolverValue_leaf_eq_leafProbeResolverValue schema
       rootSelectionSet targetParent rightField
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      FieldPairProbeTag.right
+      coercedArguments FieldPairProbeTag.right
       fieldDefinition.outputType hleaf]
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema
@@ -971,14 +1013,18 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
-    : Argument.argumentsEquivalent
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+    : Execution.CoercedArgument.argumentsEquivalent
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          leftField arguments)
         leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1012,9 +1058,16 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType (some FieldPairProbeTag.left))
                       childSelectionSet)))) := by
-  intro harguments hlookup hruntime hinclude
+  intro harguments hlookup hcoerce hruntime hinclude
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
+  have hcoercedArguments :
+      Execution.CoercedArgument.argumentsEquivalent coercedArguments
+        leftArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      harguments
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition targetParent leftField arguments
@@ -1023,17 +1076,14 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
       some
         (objectProbeResolverValueWithRuntime runtimeType
           (some FieldPairProbeTag.left) fieldDefinition.outputType) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_left_root schema rootSelectionSet
       targetParent leftField rightField leftArguments rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      fieldDefinition harguments hlookup]
+      coercedArguments fieldDefinition hcoercedArguments hlookup]
     rw [fieldPairProbeHeadResolverValue_eq_objectProbeResolverValueWithRuntime
       schema rootSelectionSet targetParent leftField runtimeType
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      FieldPairProbeTag.left fieldDefinition.outputType hruntime]
+      coercedArguments FieldPairProbeTag.left fieldDefinition.outputType hruntime]
   exact
     executeField_objectProbeWithRuntime_response schema
       (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -1046,14 +1096,18 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response_of_fuel_ge
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
-    : Argument.argumentsEquivalent
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+    : Execution.CoercedArgument.argumentsEquivalent
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          leftField arguments)
         leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1085,14 +1139,14 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response_of_fuel_ge
                   (fuel - leafProbeFuel fieldDefinition.outputType)
                   runtimeType (.object runtimeType (some FieldPairProbeTag.left))
                   childSelectionSet)) := by
-  intro harguments hlookup hruntime hinclude hfuel
+  intro harguments hlookup hcoerce hruntime hinclude hfuel
   have hexecute :=
     executeField_fieldPairProbe_left_root_objectProbe_response schema
       rootSelectionSet variableValues
       (fuel - leafProbeFuel fieldDefinition.outputType) targetParent
       leftField rightField responseName leftArguments rightArguments
       arguments childSelectionSet fieldDefinition runtimeType harguments
-      hlookup hruntime hinclude
+      hlookup hcoerce hruntime hinclude
   have hfuelEq :
       fuel - leafProbeFuel fieldDefinition.outputType
           + leafProbeFuel fieldDefinition.outputType + 1
@@ -1106,16 +1160,20 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_ok_of_child_response
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
     (responseFields : List (Name × Execution.ResponseValue))
     (childErrors : Nat)
-    : Argument.argumentsEquivalent
-        (Execution.coerceArgumentValues schema variableValues
-          fieldDefinition.arguments arguments)
+    : Execution.CoercedArgument.argumentsEquivalent
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          leftField arguments)
         leftArguments
       -> schema.lookupField targetParent leftField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1154,13 +1212,13 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_ok_of_child_response
               }]
             = .ok ([(responseName, responseValue)], fieldErrors)
           ∧ responseValue ≠ Execution.ResponseValue.null := by
-  intro harguments hlookup hruntime hinclude hfuel hchildResponse
+  intro harguments hlookup hcoerce hruntime hinclude hfuel hchildResponse
   have hfield :=
     executeField_fieldPairProbe_left_root_objectProbe_response_of_fuel_ge
       schema rootSelectionSet variableValues fuel targetParent leftField
       rightField responseName leftArguments rightArguments arguments
       childSelectionSet fieldDefinition runtimeType harguments hlookup
-      hruntime hinclude hfuel
+      hcoerce hruntime hinclude hfuel
   rcases
       wrapTypeRefSelectionSetResult_ok_nonNull_of_object_response
         fieldDefinition.outputType responseFields childErrors with
@@ -1173,18 +1231,22 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
           rightField
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
-      -> Argument.argumentsEquivalent
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
+      -> Execution.CoercedArgument.argumentsEquivalent
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
           rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1218,9 +1280,21 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType (some FieldPairProbeTag.right))
                       childSelectionSet)))) := by
-  intro hnotLeft harguments hlookup hruntime hinclude
+  intro hnotLeft harguments hlookup hcoerce hruntime hinclude
+  rcases Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
+    ⟨coercedArguments, hcoercionResult⟩
+  have hcoercedArguments :
+      Execution.CoercedArgument.argumentsEquivalent coercedArguments
+        rightArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      harguments
+  have hnotLeftCoerced :
+      ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
+        rightField coercedArguments := by
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
+      hnotLeft
   have hresolve :
-      Execution.resolveFieldValue schema
+      Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
           leftField rightField leftArguments rightArguments)
         variableValues fieldDefinition targetParent rightField arguments
@@ -1229,17 +1303,14 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
       some
         (objectProbeResolverValueWithRuntime runtimeType
           (some FieldPairProbeTag.right) fieldDefinition.outputType) := by
-    simp only [Execution.resolveFieldValue]
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
     rw [fieldPairProbeResolvers_right_root_of_not_left schema rootSelectionSet
       targetParent leftField rightField leftArguments rightArguments
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      fieldDefinition hnotLeft harguments hlookup]
+      coercedArguments fieldDefinition hnotLeftCoerced hcoercedArguments hlookup]
     rw [fieldPairProbeHeadResolverValue_eq_objectProbeResolverValueWithRuntime
       schema rootSelectionSet targetParent rightField runtimeType
-      (Execution.coerceArgumentValues schema variableValues
-        fieldDefinition.arguments arguments)
-      FieldPairProbeTag.right fieldDefinition.outputType hruntime]
+      coercedArguments FieldPairProbeTag.right fieldDefinition.outputType hruntime]
   exact
     executeField_objectProbeWithRuntime_response schema
       (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -1252,18 +1323,22 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
           rightField
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
-      -> Argument.argumentsEquivalent
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
+      -> Execution.CoercedArgument.argumentsEquivalent
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
           rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1295,14 +1370,14 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_
                   (fuel - leafProbeFuel fieldDefinition.outputType)
                   runtimeType (.object runtimeType (some FieldPairProbeTag.right))
                   childSelectionSet)) := by
-  intro hnotLeft harguments hlookup hruntime hinclude hfuel
+  intro hnotLeft harguments hlookup hcoerce hruntime hinclude hfuel
   have hexecute :=
     executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
       schema rootSelectionSet variableValues
       (fuel - leafProbeFuel fieldDefinition.outputType) targetParent
       leftField rightField responseName leftArguments rightArguments
       arguments childSelectionSet fieldDefinition runtimeType hnotLeft
-      harguments hlookup hruntime hinclude
+      harguments hlookup hcoerce hruntime hinclude
   have hfuelEq :
       fuel - leafProbeFuel fieldDefinition.outputType
           + leafProbeFuel fieldDefinition.outputType + 1
@@ -1316,20 +1391,24 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_ok_of_child_response
     (schema : Schema) (rootSelectionSet : List Selection)
     (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
     (runtimeType : Name)
     (responseFields : List (Name × Execution.ResponseValue))
     (childErrors : Nat)
     : ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
           rightField
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
-      -> Argument.argumentsEquivalent
-          (Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments)
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
+      -> Execution.CoercedArgument.argumentsEquivalent
+          (Execution.coercedArgumentsForField schema variableValues targetParent
+            rightField arguments)
           rightArguments
       -> schema.lookupField targetParent rightField = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> ((objectTypeNameBool schema fieldDefinition.outputType.namedType = true
             ∧ runtimeType = fieldDefinition.outputType.namedType)
           ∨ ((TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
@@ -1368,13 +1447,13 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_ok_of_child_response
               }]
             = .ok ([(responseName, responseValue)], fieldErrors)
           ∧ responseValue ≠ Execution.ResponseValue.null := by
-  intro hnotLeft harguments hlookup hruntime hinclude hfuel hchildResponse
+  intro hnotLeft harguments hlookup hcoerce hruntime hinclude hfuel hchildResponse
   have hfield :=
     executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_of_fuel_ge
       schema rootSelectionSet variableValues fuel targetParent leftField
       rightField responseName leftArguments rightArguments arguments
       childSelectionSet fieldDefinition runtimeType hnotLeft harguments
-      hlookup hruntime hinclude hfuel
+      hlookup hcoerce hruntime hinclude hfuel
   rcases
       wrapTypeRefSelectionSetResult_ok_nonNull_of_object_response
         fieldDefinition.outputType responseFields childErrors with

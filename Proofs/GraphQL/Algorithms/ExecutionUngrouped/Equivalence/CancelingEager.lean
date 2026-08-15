@@ -587,7 +587,8 @@ private theorem fuelImplementations_canceling_eager_aligned
         split <;> rename_i hlookup
         · rw [hlookup]
           simp [StrongResultAligned]
-        · rw [hlookup]
+        · rename_i fieldDefinition
+          rw [hlookup]
           simp only
           split <;> rename_i hreuse
           · rw [hreuse]
@@ -595,13 +596,23 @@ private theorem fuelImplementations_canceling_eager_aligned
             simp [StrongResultAligned, ErrorPresenceEquivalent]
           · rw [hreuse]
             simp only
-            split <;> rename_i hresolve
-            · rw [hresolve]
-              simp only
-              exact handleFieldError_strongResultAligned _
-            · rw [hresolve]
-              simp only
-              exact hcomplete _ field.selectionSet _ previous
+            cases hcoerce
+                  : coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments with
+            | error =>
+                simpa [coerceAndResolveFieldValue, hcoerce] using
+                  handleFieldError_strongResultAligned fieldDefinition.outputType
+            | success coercedArguments =>
+                cases hresolved
+                      : resolveFieldValue resolvers field.parentType
+                          field.fieldName coercedArguments source with
+                | none =>
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
+                      handleFieldError_strongResultAligned fieldDefinition.outputType
+                | some resolved =>
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
+                      hcomplete fieldDefinition.outputType field.selectionSet resolved
+                        previous
       refine {
         completeValue := hcomplete
         completeValueList := hlist
@@ -783,7 +794,8 @@ private theorem fuelImplementations_canceling_eager_aligned
         split <;> rename_i hlookup
         · rw [hlookup]
           simp [StrongResultAligned]
-        · rw [hlookup]
+        · rename_i fieldDefinition
+          rw [hlookup]
           simp only
           split <;> rename_i hreuse
           · rw [hreuse]
@@ -791,13 +803,23 @@ private theorem fuelImplementations_canceling_eager_aligned
             simp [StrongResultAligned, ErrorPresenceEquivalent]
           · rw [hreuse]
             simp only
-            split <;> rename_i hresolve
-            · rw [hresolve]
-              simp only
-              exact handleFieldError_strongResultAligned _
-            · rw [hresolve]
-              simp only
-              exact hcomplete _ field.selectionSet _ previous
+            cases hcoerce
+                  : coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments field.arguments with
+            | error =>
+                simpa [coerceAndResolveFieldValue, hcoerce] using
+                  handleFieldError_strongResultAligned fieldDefinition.outputType
+            | success coercedArguments =>
+                cases hresolved
+                      : resolveFieldValue resolvers field.parentType
+                          field.fieldName coercedArguments source with
+                | none =>
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
+                      handleFieldError_strongResultAligned fieldDefinition.outputType
+                | some resolved =>
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
+                      hcomplete fieldDefinition.outputType field.selectionSet resolved
+                        previous
       refine {
         completeValue := hcomplete
         completeValueList := hlist

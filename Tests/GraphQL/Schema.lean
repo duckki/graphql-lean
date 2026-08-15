@@ -1,4 +1,5 @@
 import Tests.GraphQL.Common
+import GraphQL.SchemaWellFormedness
 
 namespace GraphQL
 namespace Tests
@@ -33,6 +34,61 @@ theorem possibleTypesObjectSmoke
 
 theorem typeIncludesObjectSmoke
     : sampleSchema.typeIncludesObjectBool "Character" "Character" = true := by
+  rfl
+
+def nullableRecursiveInputSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.inputObject
+        {
+          name := "Recursive"
+          inputFields := [{ name := "next", inputType := .named "Recursive" }]
+        }]
+  }
+
+def nonNullRecursiveInputSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.inputObject
+        {
+          name := "Recursive"
+          inputFields :=
+            [{ name := "next", inputType := .nonNull (.named "Recursive") }]
+        }]
+  }
+
+def recursiveDefaultInputSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [.inputObject
+        {
+          name := "Recursive"
+          inputFields :=
+            [{
+              name := "next"
+              inputType := .named "Recursive"
+              defaultValue := some (.object [])
+            }]
+        }]
+  }
+
+theorem nullableInputObjectRecursionIsValid
+    : SchemaWellFormedness.inputObjectCircularReferencesValid
+        nullableRecursiveInputSchema := by
+  constructor <;> rfl
+
+theorem nonNullSingularInputObjectRecursionIsInvalid
+    : SchemaWellFormedness.inputObjectNonNullSingularCircularReferencesValidBool
+        nonNullRecursiveInputSchema
+      = false := by
+  rfl
+
+theorem recursiveInputObjectDefaultIsInvalid
+    : SchemaWellFormedness.inputDefaultExpansionAcyclicBool recursiveDefaultInputSchema
+      = false := by
   rfl
 
 end Schema

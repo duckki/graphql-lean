@@ -1,5 +1,6 @@
 import GraphQL.Execution
 import Proofs.GraphQL.Validation.SelectionValidity
+import Proofs.GraphQL.Validation.Variables
 
 /-!
 Proof-facing relations and scope predicates for coerced resolver arguments.
@@ -12,6 +13,13 @@ the supplied values directly and never canonicalizes them.
 namespace GraphQL
 
 namespace Execution
+
+theorem ArgumentCoercionResult.exists_success_of_isSuccess
+    {result : ArgumentCoercionResult} (hresult : result.isSuccess = true)
+    : ∃ arguments, result = .success arguments := by
+  cases result with
+  | success arguments => exact ⟨arguments, rfl⟩
+  | error => simp at hresult
 
 mutual
   def selectionArgumentsNodup : Selection -> Prop
@@ -295,98 +303,50 @@ private theorem lookupInputObjectFieldValue?_canonical_map_eq
     _ = (lookupInputObjectFieldValue? right name).map InputValue.canonical :=
       lookupInputObjectFieldValue?_canonicalObjectFields right name
 
-private theorem optionGetD_canonical_eq
-    {left right : Option InputValue}
-    (hcanonical : left.map InputValue.canonical = right.map InputValue.canonical)
-    : (left.getD .null).canonical = (right.getD .null).canonical := by
-  cases left <;> cases right <;> simp at hcanonical ⊢
-  exact hcanonical
+private theorem inputObjectFieldsKnownBool_insertObjectFieldSorted
+    (definitions : List InputValueDefinition) (field : Name × InputValue)
+    : ∀ fields,
+        inputObjectFieldsKnownBool definitions
+          (InputValue.insertObjectFieldSorted field fields)
+        = ((Schema.lookupArgumentDefinition definitions field.1).isSome
+            && inputObjectFieldsKnownBool definitions fields)
+  | [] => by
+      simp [InputValue.insertObjectFieldSorted, inputObjectFieldsKnownBool]
+  | candidate :: rest => by
+      by_cases hle : field.1 <= candidate.1
+      · simp [InputValue.insertObjectFieldSorted, hle, inputObjectFieldsKnownBool]
+      · simp [InputValue.insertObjectFieldSorted, hle, inputObjectFieldsKnownBool,
+          inputObjectFieldsKnownBool_insertObjectFieldSorted definitions field rest,
+          Bool.and_assoc, Bool.and_left_comm, Bool.and_comm]
 
-private def coercedInputObjectFieldValue? (schema : Schema)
-    (variableValues : VariableValues) (fuel : Nat)
-    (definition : InputValueDefinition) (fields : List (Name × InputValue))
-    : Option InputValue :=
-  match match lookupInputObjectFieldValue? fields definition.name with
-        | some value =>
-            coerceInputValueBounded schema variableValues fuel definition.inputType value
-        | none => none with
-  | some value => some value
-  | none =>
-      definition.defaultValue.map
-        (fun value =>
-          (coerceInputValueBounded schema variableValues fuel definition.inputType
-            value.toInputValue).getD
-            .null)
+private theorem inputObjectFieldsKnownBool_sortObjectFieldsByName
+    (definitions : List InputValueDefinition)
+    : ∀ fields,
+        inputObjectFieldsKnownBool definitions (InputValue.sortObjectFieldsByName fields)
+        = inputObjectFieldsKnownBool definitions fields
+  | [] => rfl
+  | field :: rest => by
+      simp [InputValue.sortObjectFieldsByName, inputObjectFieldsKnownBool,
+        inputObjectFieldsKnownBool_insertObjectFieldSorted,
+        inputObjectFieldsKnownBool_sortObjectFieldsByName definitions rest]
 
-private theorem coercedInputObjectFieldValue?_canonical_map_eq
-    (schema : Schema) {left right : VariableValues} (fuel : Nat)
-    (hcoerce
-      : ∀ inputType leftValue rightValue,
-          leftValue.canonical = rightValue.canonical
-          -> (coerceInputValueBounded schema left fuel inputType leftValue).map
-                InputValue.canonical
-              = (coerceInputValueBounded schema right fuel inputType rightValue).map
-                  InputValue.canonical)
-    (definition : InputValueDefinition)
-    {leftFields rightFields : List (Name × InputValue)}
-    (hfields
-      : (lookupInputObjectFieldValue? leftFields definition.name).map InputValue.canonical
-        = (lookupInputObjectFieldValue? rightFields definition.name).map
-            InputValue.canonical)
-    : (coercedInputObjectFieldValue? schema left fuel definition leftFields).map
-        InputValue.canonical
-      = (coercedInputObjectFieldValue? schema right fuel definition rightFields).map
-          InputValue.canonical := by
-  cases hleftLookup : lookupInputObjectFieldValue? leftFields definition.name with
-  | none =>
-      cases hrightLookup : lookupInputObjectFieldValue? rightFields definition.name with
-      | some rightValue => simp [hleftLookup, hrightLookup] at hfields
-      | none =>
-          cases hdefault : definition.defaultValue with
-          | none =>
-              simp [coercedInputObjectFieldValue?, hleftLookup, hrightLookup,
-                hdefault]
-          | some defaultValue =>
-              have hdefaultCoerced := hcoerce definition.inputType
-                defaultValue.toInputValue defaultValue.toInputValue rfl
-              have hdefaultValue := optionGetD_canonical_eq hdefaultCoerced
-              simp [coercedInputObjectFieldValue?, hleftLookup, hrightLookup,
-                hdefault, hdefaultValue]
-  | some leftValue =>
-      cases hrightLookup : lookupInputObjectFieldValue? rightFields definition.name with
-      | none => simp [hleftLookup, hrightLookup] at hfields
-      | some rightValue =>
-          have hvalue : leftValue.canonical = rightValue.canonical := by
-            simpa [hleftLookup, hrightLookup] using hfields
-          have hcoerced := hcoerce definition.inputType leftValue rightValue hvalue
-          cases hleftCoerced
-                : coerceInputValueBounded schema left fuel definition.inputType
-                    leftValue with
-          | none =>
-              cases hrightCoerced
-                    : coerceInputValueBounded schema right fuel definition.inputType
-                        rightValue with
-              | some rightCoerced =>
-                  simp [hleftCoerced, hrightCoerced] at hcoerced
-              | none =>
-                  cases hdefault : definition.defaultValue with
-                  | none =>
-                      simp [coercedInputObjectFieldValue?, hleftLookup, hrightLookup,
-                        hleftCoerced, hrightCoerced, hdefault]
-                  | some defaultValue =>
-                      have hdefaultCoerced := hcoerce definition.inputType
-                        defaultValue.toInputValue defaultValue.toInputValue rfl
-                      have hdefaultValue := optionGetD_canonical_eq hdefaultCoerced
-                      simp [coercedInputObjectFieldValue?, hleftLookup, hrightLookup,
-                        hleftCoerced, hrightCoerced, hdefault, hdefaultValue]
-          | some leftCoerced =>
-              cases hrightCoerced
-                    : coerceInputValueBounded schema right fuel definition.inputType
-                        rightValue with
-              | none => simp [hleftCoerced, hrightCoerced] at hcoerced
-              | some rightCoerced =>
-                  simpa [coercedInputObjectFieldValue?, hleftLookup, hrightLookup,
-                    hleftCoerced, hrightCoerced] using hcoerced
+private theorem inputObjectFieldsKnownBool_canonicalObjectFields
+    (definitions : List InputValueDefinition)
+    : ∀ fields,
+        inputObjectFieldsKnownBool definitions (InputValue.canonicalObjectFields fields)
+        = inputObjectFieldsKnownBool definitions fields
+  | [] => rfl
+  | (_name, _value) :: rest => by
+      simp [InputValue.canonicalObjectFields, inputObjectFieldsKnownBool,
+        inputObjectFieldsKnownBool_canonicalObjectFields definitions rest]
+
+private theorem inputObjectFieldsKnownBool_canonical
+    (definitions : List InputValueDefinition) (fields : List (Name × InputValue))
+    : inputObjectFieldsKnownBool definitions
+        (InputValue.sortObjectFieldsByName (InputValue.canonicalObjectFields fields))
+      = inputObjectFieldsKnownBool definitions fields := by
+  rw [inputObjectFieldsKnownBool_sortObjectFieldsByName,
+    inputObjectFieldsKnownBool_canonicalObjectFields]
 
 private theorem inputObjectFieldsCoercionFuel_insertObjectFieldSorted
     (field : Name × InputValue)
@@ -467,12 +427,566 @@ private theorem inputValueCoercionFuel_eq_of_equivalent
       inputValueCoercionFuel_canonical right
 
 -- Variable environments are equivalent for input coercion when lookup is
--- extensionally equivalent and the bounded coercer receives the same fuel.
+-- extensionally equivalent and the legacy whole-environment fuel measure agrees.
+-- Local input coercion uses only the first component; the stronger relation remains
+-- useful to existing whole-execution equivalence theorems.
+def variableValueLookupsEquivalent (left right : VariableValues) : Prop :=
+  ∀ name,
+    Option.Rel
+      (fun leftValue rightValue =>
+        InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+      (lookupVariableValue? left name) (lookupVariableValue? right name)
+
 def variableValuesCoercionEquivalent (left right : VariableValues) : Prop :=
-  (∀ name,
-    Option.Rel InputValue.equivalent
-      (lookupVariableValue? left name) (lookupVariableValue? right name))
+  variableValueLookupsEquivalent left right
   ∧ variableValuesCoercionFuel left = variableValuesCoercionFuel right
+
+private theorem referencedVariableObjectFieldsCoercionFuel_insertObjectFieldSorted
+    (variableValues : VariableValues) (field : Name × InputValue)
+    : ∀ fields,
+        referencedVariableObjectFieldsCoercionFuel variableValues
+          (InputValue.insertObjectFieldSorted field fields)
+        = referencedVariableValuesCoercionFuel variableValues field.2
+          + referencedVariableObjectFieldsCoercionFuel variableValues fields
+  | [] => by
+      simp [InputValue.insertObjectFieldSorted,
+        referencedVariableObjectFieldsCoercionFuel]
+  | candidate :: rest => by
+      by_cases hname : field.1 <= candidate.1
+      · simp [InputValue.insertObjectFieldSorted, hname,
+          referencedVariableObjectFieldsCoercionFuel]
+      · simp [InputValue.insertObjectFieldSorted, hname,
+          referencedVariableObjectFieldsCoercionFuel,
+          referencedVariableObjectFieldsCoercionFuel_insertObjectFieldSorted
+            variableValues field rest,
+          Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+
+private theorem referencedVariableObjectFieldsCoercionFuel_sortObjectFieldsByName
+    (variableValues : VariableValues)
+    : ∀ fields,
+        referencedVariableObjectFieldsCoercionFuel variableValues
+          (InputValue.sortObjectFieldsByName fields)
+        = referencedVariableObjectFieldsCoercionFuel variableValues fields
+  | [] => by
+      simp [InputValue.sortObjectFieldsByName,
+        referencedVariableObjectFieldsCoercionFuel]
+  | field :: rest => by
+      simp [InputValue.sortObjectFieldsByName,
+        referencedVariableObjectFieldsCoercionFuel,
+        referencedVariableObjectFieldsCoercionFuel_insertObjectFieldSorted,
+        referencedVariableObjectFieldsCoercionFuel_sortObjectFieldsByName
+          variableValues rest]
+
+mutual
+  private theorem referencedVariableValuesCoercionFuel_canonical
+      (variableValues : VariableValues)
+      : ∀ value,
+          referencedVariableValuesCoercionFuel variableValues value.canonical
+          = referencedVariableValuesCoercionFuel variableValues value
+    | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ | .variable _ => rfl
+    | .list values => by
+        simp [InputValue.canonical, referencedVariableValuesCoercionFuel,
+          referencedVariableValueListCoercionFuel_canonical variableValues values]
+    | .object fields => by
+        simp [InputValue.canonical, referencedVariableValuesCoercionFuel,
+          referencedVariableObjectFieldsCoercionFuel_sortObjectFieldsByName,
+          referencedVariableObjectFieldsCoercionFuel_canonical variableValues fields]
+
+  private theorem referencedVariableValueListCoercionFuel_canonical
+      (variableValues : VariableValues)
+      : ∀ values,
+          referencedVariableValueListCoercionFuel variableValues
+            (InputValue.canonicalValues values)
+          = referencedVariableValueListCoercionFuel variableValues values
+    | [] => rfl
+    | value :: rest => by
+        simp [InputValue.canonicalValues, referencedVariableValueListCoercionFuel,
+          referencedVariableValuesCoercionFuel_canonical variableValues value,
+          referencedVariableValueListCoercionFuel_canonical variableValues rest]
+
+  private theorem referencedVariableObjectFieldsCoercionFuel_canonical
+      (variableValues : VariableValues)
+      : ∀ fields,
+          referencedVariableObjectFieldsCoercionFuel variableValues
+            (InputValue.canonicalObjectFields fields)
+          = referencedVariableObjectFieldsCoercionFuel variableValues fields
+    | [] => rfl
+    | (_, value) :: rest => by
+        simp [InputValue.canonicalObjectFields,
+          referencedVariableObjectFieldsCoercionFuel,
+          referencedVariableValuesCoercionFuel_canonical variableValues value,
+          referencedVariableObjectFieldsCoercionFuel_canonical variableValues rest]
+end
+
+mutual
+  private theorem referencedVariableValuesCoercionFuel_eq_of_lookupsEquivalent
+      {left right : VariableValues}
+      (hequivalent : variableValueLookupsEquivalent left right)
+      : ∀ value,
+          referencedVariableValuesCoercionFuel left value
+          = referencedVariableValuesCoercionFuel right value
+    | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ => rfl
+    | .variable name => by
+        have hlookup := hequivalent name
+        cases hleft : lookupVariableValue? left name with
+        | none =>
+            cases hright : lookupVariableValue? right name with
+            | none => simp [referencedVariableValuesCoercionFuel, hleft, hright]
+            | some rightValue => simp [hleft, hright] at hlookup
+        | some leftValue =>
+            cases hright : lookupVariableValue? right name with
+            | none => simp [hleft, hright] at hlookup
+            | some rightValue =>
+                have hvalue : leftValue.toInputValue.equivalent rightValue.toInputValue := by
+                  simpa [hleft, hright] using hlookup
+                simpa [referencedVariableValuesCoercionFuel, hleft, hright]
+                  using inputValueCoercionFuel_eq_of_equivalent hvalue
+    | .list values =>
+        referencedVariableValueListCoercionFuel_eq_of_lookupsEquivalent hequivalent values
+    | .object fields =>
+        referencedVariableObjectFieldsCoercionFuel_eq_of_lookupsEquivalent
+          hequivalent fields
+
+  private theorem referencedVariableValueListCoercionFuel_eq_of_lookupsEquivalent
+      {left right : VariableValues}
+      (hequivalent : variableValueLookupsEquivalent left right)
+      : ∀ values,
+          referencedVariableValueListCoercionFuel left values
+          = referencedVariableValueListCoercionFuel right values
+    | [] => rfl
+    | value :: rest => by
+        simp only [referencedVariableValueListCoercionFuel]
+        rw [referencedVariableValuesCoercionFuel_eq_of_lookupsEquivalent
+            hequivalent value,
+          referencedVariableValueListCoercionFuel_eq_of_lookupsEquivalent
+            hequivalent rest]
+
+  private theorem referencedVariableObjectFieldsCoercionFuel_eq_of_lookupsEquivalent
+      {left right : VariableValues}
+      (hequivalent : variableValueLookupsEquivalent left right)
+      : ∀ fields,
+          referencedVariableObjectFieldsCoercionFuel left fields
+          = referencedVariableObjectFieldsCoercionFuel right fields
+    | [] => rfl
+    | (_, value) :: rest => by
+        simp only [referencedVariableObjectFieldsCoercionFuel]
+        rw [referencedVariableValuesCoercionFuel_eq_of_lookupsEquivalent
+            hequivalent value,
+          referencedVariableObjectFieldsCoercionFuel_eq_of_lookupsEquivalent
+            hequivalent rest]
+end
+
+private theorem referencedVariableValuesCoercionFuel_eq_of_equivalent
+    {left right : VariableValues} {leftValue rightValue : InputValue}
+    (hvalues : variableValueLookupsEquivalent left right)
+    (hvalue : leftValue.equivalent rightValue)
+    : referencedVariableValuesCoercionFuel left leftValue
+      = referencedVariableValuesCoercionFuel right rightValue := by
+  calc
+    referencedVariableValuesCoercionFuel left leftValue
+        = referencedVariableValuesCoercionFuel left leftValue.canonical :=
+      (referencedVariableValuesCoercionFuel_canonical left leftValue).symm
+    _ = referencedVariableValuesCoercionFuel right leftValue.canonical :=
+      referencedVariableValuesCoercionFuel_eq_of_lookupsEquivalent hvalues _
+    _ = referencedVariableValuesCoercionFuel right rightValue.canonical := by
+      rw [inputValue_canonical_eq_of_equivalent hvalue]
+    _ = referencedVariableValuesCoercionFuel right rightValue :=
+      referencedVariableValuesCoercionFuel_canonical right rightValue
+
+mutual
+  private theorem referencedVariableValuesCoercionFuel_eq_of_lookup_agreement
+      {left right : VariableValues}
+      : ∀ value,
+          (∀ name,
+            name ∈ Validation.inputValueVariables value
+            -> Option.Rel
+                (fun leftValue rightValue =>
+                  InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                (lookupVariableValue? left name) (lookupVariableValue? right name))
+          -> referencedVariableValuesCoercionFuel left value
+              = referencedVariableValuesCoercionFuel right value
+    | .null, _hlookups
+    | .int _, _hlookups
+    | .float _, _hlookups
+    | .string _, _hlookups
+    | .boolean _, _hlookups
+    | .enum _, _hlookups => rfl
+    | .variable name, hlookups => by
+        have hlookup := hlookups name (by
+          simp [Validation.inputValueVariables])
+        cases hleft : lookupVariableValue? left name with
+        | none =>
+            cases hright : lookupVariableValue? right name with
+            | none => simp [referencedVariableValuesCoercionFuel, hleft, hright]
+            | some rightValue => simp [hleft, hright] at hlookup
+        | some leftValue =>
+            cases hright : lookupVariableValue? right name with
+            | none => simp [hleft, hright] at hlookup
+            | some rightValue =>
+                have hvalue : leftValue.toInputValue.equivalent
+                    rightValue.toInputValue := by
+                  simpa [hleft, hright] using hlookup
+                simpa [referencedVariableValuesCoercionFuel, hleft, hright] using
+                  inputValueCoercionFuel_eq_of_equivalent hvalue
+    | .list values, hlookups =>
+        referencedVariableValueListCoercionFuel_eq_of_lookup_agreement values
+          hlookups
+    | .object fields, hlookups =>
+        referencedVariableObjectFieldsCoercionFuel_eq_of_lookup_agreement fields
+          hlookups
+
+  private theorem referencedVariableValueListCoercionFuel_eq_of_lookup_agreement
+      {left right : VariableValues}
+      : ∀ values,
+          (∀ name,
+            name ∈ Validation.inputValuesVariables values
+            -> Option.Rel
+                (fun leftValue rightValue =>
+                  InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                (lookupVariableValue? left name) (lookupVariableValue? right name))
+          -> referencedVariableValueListCoercionFuel left values
+              = referencedVariableValueListCoercionFuel right values
+    | [], _hlookups => rfl
+    | value :: rest, hlookups => by
+        simp only [referencedVariableValueListCoercionFuel]
+        rw [referencedVariableValuesCoercionFuel_eq_of_lookup_agreement value (by
+              intro name hname
+              exact hlookups name (List.mem_append_left _ hname)),
+          referencedVariableValueListCoercionFuel_eq_of_lookup_agreement rest (by
+              intro name hname
+              exact hlookups name (List.mem_append_right _ hname))]
+
+  private theorem referencedVariableObjectFieldsCoercionFuel_eq_of_lookup_agreement
+      {left right : VariableValues}
+      : ∀ fields,
+          (∀ name,
+            name ∈ Validation.inputObjectFieldsVariables fields
+            -> Option.Rel
+                (fun leftValue rightValue =>
+                  InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                (lookupVariableValue? left name) (lookupVariableValue? right name))
+          -> referencedVariableObjectFieldsCoercionFuel left fields
+              = referencedVariableObjectFieldsCoercionFuel right fields
+    | [], _hlookups => rfl
+    | (_, value) :: rest, hlookups => by
+        simp only [referencedVariableObjectFieldsCoercionFuel]
+        rw [referencedVariableValuesCoercionFuel_eq_of_lookup_agreement value (by
+              intro name hname
+              exact hlookups name (List.mem_append_left _ hname)),
+          referencedVariableObjectFieldsCoercionFuel_eq_of_lookup_agreement rest (by
+              intro name hname
+              exact hlookups name (List.mem_append_right _ hname))]
+end
+
+mutual
+  private def inputValueVariableCount : InputValue -> Nat
+    | .variable _name => 1
+    | .list values => inputValueListVariableCount values
+    | .object fields => inputValueObjectFieldsVariableCount fields
+    | _ => 0
+
+  private def inputValueListVariableCount : List InputValue -> Nat
+    | [] => 0
+    | value :: rest =>
+        inputValueVariableCount value + inputValueListVariableCount rest
+
+  private def inputValueObjectFieldsVariableCount : List (Name × InputValue) -> Nat
+    | [] => 0
+    | (_, value) :: rest =>
+        inputValueVariableCount value + inputValueObjectFieldsVariableCount rest
+end
+
+private theorem inputValueObjectFieldsVariableCount_insertObjectFieldSorted
+    (field : Name × InputValue)
+    : ∀ fields,
+        inputValueObjectFieldsVariableCount
+          (InputValue.insertObjectFieldSorted field fields)
+        = inputValueVariableCount field.2 + inputValueObjectFieldsVariableCount fields
+  | [] => by
+      simp [InputValue.insertObjectFieldSorted,
+        inputValueObjectFieldsVariableCount]
+  | candidate :: rest => by
+      by_cases hname : field.1 <= candidate.1
+      · simp [InputValue.insertObjectFieldSorted, hname,
+          inputValueObjectFieldsVariableCount]
+      · simp [InputValue.insertObjectFieldSorted, hname,
+          inputValueObjectFieldsVariableCount,
+          inputValueObjectFieldsVariableCount_insertObjectFieldSorted field rest,
+          Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
+
+private theorem inputValueObjectFieldsVariableCount_sortObjectFieldsByName
+    : ∀ fields,
+        inputValueObjectFieldsVariableCount (InputValue.sortObjectFieldsByName fields)
+        = inputValueObjectFieldsVariableCount fields
+  | [] => rfl
+  | field :: rest => by
+      simp [InputValue.sortObjectFieldsByName,
+        inputValueObjectFieldsVariableCount,
+        inputValueObjectFieldsVariableCount_insertObjectFieldSorted,
+        inputValueObjectFieldsVariableCount_sortObjectFieldsByName rest]
+
+mutual
+  private theorem inputValueVariableCount_canonical
+      : ∀ value, inputValueVariableCount value.canonical = inputValueVariableCount value
+    | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ | .variable _ => rfl
+    | .list values => by
+        simp [InputValue.canonical, inputValueVariableCount,
+          inputValueListVariableCount_canonical values]
+    | .object fields => by
+        simp [InputValue.canonical, inputValueVariableCount,
+          inputValueObjectFieldsVariableCount_sortObjectFieldsByName,
+          inputValueObjectFieldsVariableCount_canonical fields]
+
+  private theorem inputValueListVariableCount_canonical
+      : ∀ values,
+          inputValueListVariableCount (InputValue.canonicalValues values)
+          = inputValueListVariableCount values
+    | [] => rfl
+    | value :: rest => by
+        simp [InputValue.canonicalValues, inputValueListVariableCount,
+          inputValueVariableCount_canonical value,
+          inputValueListVariableCount_canonical rest]
+
+  private theorem inputValueObjectFieldsVariableCount_canonical
+      : ∀ fields,
+          inputValueObjectFieldsVariableCount (InputValue.canonicalObjectFields fields)
+          = inputValueObjectFieldsVariableCount fields
+    | [] => rfl
+    | (_, value) :: rest => by
+        simp [InputValue.canonicalObjectFields, inputValueObjectFieldsVariableCount,
+          inputValueVariableCount_canonical value,
+          inputValueObjectFieldsVariableCount_canonical rest]
+end
+
+private theorem inputValueVariableCount_eq_of_equivalent
+    {left right : InputValue} (hequivalent : left.equivalent right)
+    : inputValueVariableCount left = inputValueVariableCount right := by
+  calc
+    inputValueVariableCount left = inputValueVariableCount left.canonical :=
+      (inputValueVariableCount_canonical left).symm
+    _ = inputValueVariableCount right.canonical := by
+      rw [inputValue_canonical_eq_of_equivalent hequivalent]
+    _ = inputValueVariableCount right := inputValueVariableCount_canonical right
+
+mutual
+  private theorem constInputValue_variableCount_toInputValue
+      : ∀ value : ConstInputValue, inputValueVariableCount value.toInputValue = 0
+    | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ => rfl
+    | .list values => by
+        simp [ConstInputValue.toInputValue, inputValueVariableCount,
+          constInputValues_variableCount_toInputValues values]
+    | .object fields => by
+        simp [ConstInputValue.toInputValue, inputValueVariableCount,
+          constInputObjectFields_variableCount_toInputFields fields]
+
+  private theorem constInputValues_variableCount_toInputValues
+      : ∀ values : List ConstInputValue,
+          inputValueListVariableCount (ConstInputValue.valuesToInputValues values) = 0
+    | [] => rfl
+    | value :: rest => by
+        simp [ConstInputValue.valuesToInputValues, inputValueListVariableCount,
+          constInputValue_variableCount_toInputValue value,
+          constInputValues_variableCount_toInputValues rest]
+
+  private theorem constInputObjectFields_variableCount_toInputFields
+      : ∀ fields : List (Name × ConstInputValue),
+          inputValueObjectFieldsVariableCount
+            (ConstInputValue.objectFieldsToInputFields fields)
+          = 0
+    | [] => rfl
+    | (_, value) :: rest => by
+        simp [ConstInputValue.objectFieldsToInputFields,
+          inputValueObjectFieldsVariableCount,
+          constInputValue_variableCount_toInputValue value,
+          constInputObjectFields_variableCount_toInputFields rest]
+end
+
+mutual
+  private theorem constInputValue_toInputValue_ofInputValue?_eq_some
+      : ∀ {inputValue : InputValue} {constValue : ConstInputValue},
+          ConstInputValue.ofInputValue? inputValue = some constValue
+          -> constValue.toInputValue = inputValue
+    | .null, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .int value, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .float value, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .string value, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .boolean value, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .enum value, constValue, h => by
+        simp [ConstInputValue.ofInputValue?] at h
+        subst constValue
+        rfl
+    | .variable _, constValue, h => by simp [ConstInputValue.ofInputValue?] at h
+    | .list values, constValue, h => by
+        simp only [ConstInputValue.ofInputValue?] at h
+        cases hvalues : ConstInputValue.inputValuesToConstInputValues? values with
+        | none => simp [hvalues] at h
+        | some constValues =>
+            simp [hvalues] at h
+            subst constValue
+            simp [ConstInputValue.toInputValue]
+            exact constInputValues_toInputValues_ofInputValues?_eq_some hvalues
+    | .object fields, constValue, h => by
+        simp only [ConstInputValue.ofInputValue?] at h
+        cases hfields : ConstInputValue.inputFieldsToConstInputFields? fields with
+        | none => simp [hfields] at h
+        | some constFields =>
+            simp [hfields] at h
+            subst constValue
+            simp [ConstInputValue.toInputValue]
+            exact constInputFields_toInputFields_ofInputFields?_eq_some hfields
+
+  private theorem constInputValues_toInputValues_ofInputValues?_eq_some
+      : ∀ {inputValues : List InputValue} {constValues : List ConstInputValue},
+          ConstInputValue.inputValuesToConstInputValues? inputValues = some constValues
+          -> ConstInputValue.valuesToInputValues constValues = inputValues
+    | [], constValues, h => by
+        simp [ConstInputValue.inputValuesToConstInputValues?] at h
+        subst constValues
+        rfl
+    | value :: rest, constValues, h => by
+        simp only [ConstInputValue.inputValuesToConstInputValues?] at h
+        cases hvalue : ConstInputValue.ofInputValue? value with
+        | none => simp [hvalue] at h
+        | some constValue =>
+            cases hrest : ConstInputValue.inputValuesToConstInputValues? rest with
+            | none => simp [hvalue, hrest] at h
+            | some constRest =>
+                simp [hvalue, hrest] at h
+                subst constValues
+                simp [ConstInputValue.valuesToInputValues,
+                  constInputValue_toInputValue_ofInputValue?_eq_some hvalue,
+                  constInputValues_toInputValues_ofInputValues?_eq_some hrest]
+
+  private theorem constInputFields_toInputFields_ofInputFields?_eq_some
+      : ∀ {inputFields : List (Name × InputValue)}
+          {constFields : List (Name × ConstInputValue)},
+          ConstInputValue.inputFieldsToConstInputFields? inputFields = some constFields
+          -> ConstInputValue.objectFieldsToInputFields constFields = inputFields
+    | [], constFields, h => by
+        simp [ConstInputValue.inputFieldsToConstInputFields?] at h
+        subst constFields
+        rfl
+    | (name, value) :: rest, constFields, h => by
+        simp only [ConstInputValue.inputFieldsToConstInputFields?] at h
+        cases hvalue : ConstInputValue.ofInputValue? value with
+        | none => simp [hvalue] at h
+        | some constValue =>
+            cases hrest : ConstInputValue.inputFieldsToConstInputFields? rest with
+            | none => simp [hvalue, hrest] at h
+            | some constRest =>
+                simp [hvalue, hrest] at h
+                subst constFields
+                simp [ConstInputValue.objectFieldsToInputFields,
+                  constInputValue_toInputValue_ofInputValue?_eq_some hvalue,
+                  constInputFields_toInputFields_ofInputFields?_eq_some hrest]
+end
+
+mutual
+  private theorem constInputValue_ofInputValue?_exists_of_variableCount_eq_zero
+      : ∀ value,
+          inputValueVariableCount value = 0
+          -> ∃ constValue, ConstInputValue.ofInputValue? value = some constValue
+    | .null => fun _ => ⟨.null, rfl⟩
+    | .int value => fun _ => ⟨.int value, rfl⟩
+    | .float value => fun _ => ⟨.float value, rfl⟩
+    | .string value => fun _ => ⟨.string value, rfl⟩
+    | .boolean value => fun _ => ⟨.boolean value, rfl⟩
+    | .enum value => fun _ => ⟨.enum value, rfl⟩
+    | .variable name => by simp [inputValueVariableCount]
+    | .list values => by
+        intro hcount
+        rcases constInputValues_ofInputValues?_exists_of_variableCount_eq_zero
+            values hcount with ⟨constValues, hvalues⟩
+        exact ⟨.list constValues, by simp [ConstInputValue.ofInputValue?, hvalues]⟩
+    | .object fields => by
+        intro hcount
+        rcases constInputFields_ofInputFields?_exists_of_variableCount_eq_zero
+            fields hcount with ⟨constFields, hfields⟩
+        exact ⟨.object constFields, by simp [ConstInputValue.ofInputValue?, hfields]⟩
+
+  private theorem constInputValues_ofInputValues?_exists_of_variableCount_eq_zero
+      : ∀ values,
+          inputValueListVariableCount values = 0
+          -> ∃ constValues,
+              ConstInputValue.inputValuesToConstInputValues? values = some constValues
+    | [] => fun _ => ⟨[], rfl⟩
+    | value :: rest => by
+        intro hcount
+        simp only [inputValueListVariableCount, Nat.add_eq_zero_iff] at hcount
+        rcases constInputValue_ofInputValue?_exists_of_variableCount_eq_zero
+            value hcount.1 with ⟨constValue, hvalue⟩
+        rcases constInputValues_ofInputValues?_exists_of_variableCount_eq_zero
+            rest hcount.2 with ⟨constRest, hrest⟩
+        exact ⟨constValue :: constRest, by
+          simp [ConstInputValue.inputValuesToConstInputValues?, hvalue, hrest]⟩
+
+  private theorem constInputFields_ofInputFields?_exists_of_variableCount_eq_zero
+      : ∀ fields,
+          inputValueObjectFieldsVariableCount fields = 0
+          -> ∃ constFields,
+              ConstInputValue.inputFieldsToConstInputFields? fields = some constFields
+    | [] => fun _ => ⟨[], rfl⟩
+    | (name, value) :: rest => by
+        intro hcount
+        simp only [inputValueObjectFieldsVariableCount, Nat.add_eq_zero_iff] at hcount
+        rcases constInputValue_ofInputValue?_exists_of_variableCount_eq_zero
+            value hcount.1 with ⟨constValue, hvalue⟩
+        rcases constInputFields_ofInputFields?_exists_of_variableCount_eq_zero
+            rest hcount.2 with ⟨constRest, hrest⟩
+        exact ⟨(name, constValue) :: constRest, by
+          simp [ConstInputValue.inputFieldsToConstInputFields?, hvalue, hrest]⟩
+end
+
+private def coercedInputValuesEquivalent (left right : CoercedInputValue) : Prop :=
+  left.toInputValue.equivalent right.toInputValue
+
+private theorem constInputValue_ofInputValue?_rel_of_equivalent
+    {left right : InputValue} (hequivalent : left.equivalent right)
+    : Option.Rel coercedInputValuesEquivalent
+        (ConstInputValue.ofInputValue? left)
+        (ConstInputValue.ofInputValue? right) := by
+  have hcount := inputValueVariableCount_eq_of_equivalent hequivalent
+  cases hleft : ConstInputValue.ofInputValue? left with
+  | none =>
+      cases hright : ConstInputValue.ofInputValue? right with
+      | none => exact .none
+      | some rightValue =>
+          have hrightCount : inputValueVariableCount right = 0 := by
+            rw [← constInputValue_toInputValue_ofInputValue?_eq_some hright]
+            exact constInputValue_variableCount_toInputValue rightValue
+          have hleftCount : inputValueVariableCount left = 0 := hcount.trans hrightCount
+          rcases constInputValue_ofInputValue?_exists_of_variableCount_eq_zero
+              left hleftCount with ⟨leftValue, hsome⟩
+          rw [hleft] at hsome
+          contradiction
+  | some leftValue =>
+      have hleftCount : inputValueVariableCount left = 0 := by
+        rw [← constInputValue_toInputValue_ofInputValue?_eq_some hleft]
+        exact constInputValue_variableCount_toInputValue leftValue
+      have hrightCount : inputValueVariableCount right = 0 := hcount.symm.trans hleftCount
+      rcases constInputValue_ofInputValue?_exists_of_variableCount_eq_zero
+          right hrightCount with ⟨rightValue, hright⟩
+      simp only [hright]
+      apply Option.Rel.some
+      unfold coercedInputValuesEquivalent
+      rw [constInputValue_toInputValue_ofInputValue?_eq_some hleft,
+        constInputValue_toInputValue_ofInputValue?_eq_some hright]
+      exact hequivalent
 
 theorem variableValuesCoercionEquivalent_refl (values : VariableValues)
     : variableValuesCoercionEquivalent values values := by
@@ -511,225 +1025,745 @@ theorem variableValuesCoercionEquivalent_trans
     exact inputValue_equivalent_trans_forCoercion hleftLookup hrightLookup
   · exact hleft.2.trans hright.2
 
-private theorem coerceInputValueBounded_canonical_map_eq_of_lookup
+private def inputCoercionResultsEquivalent
+    : InputCoercionResult -> InputCoercionResult -> Prop
+  | .undefined, .undefined => True
+  | .success left, .success right => coercedInputValuesEquivalent left right
+  | .error, .error => True
+  | _, _ => False
+
+private inductive CoercedInputValueListsEquivalent
+    : List CoercedInputValue -> List CoercedInputValue -> Prop where
+  | nil : CoercedInputValueListsEquivalent [] []
+  | cons
+    : coercedInputValuesEquivalent left right
+      -> CoercedInputValueListsEquivalent leftRest rightRest
+      -> CoercedInputValueListsEquivalent (left :: leftRest) (right :: rightRest)
+
+private def coercedInputValueListResultsEquivalent
+    : Except Unit (List CoercedInputValue) -> Except Unit (List CoercedInputValue) -> Prop
+  | .ok left, .ok right => CoercedInputValueListsEquivalent left right
+  | .error _, .error _ => True
+  | _, _ => False
+
+private def coercedInputObjectFieldEquivalent (left right : Name × CoercedInputValue)
+    : Prop :=
+  left.1 = right.1 ∧ coercedInputValuesEquivalent left.2 right.2
+
+private inductive CoercedInputObjectFieldsEquivalent
+    : List (Name × CoercedInputValue) -> List (Name × CoercedInputValue) -> Prop where
+  | nil : CoercedInputObjectFieldsEquivalent [] []
+  | cons
+    : coercedInputObjectFieldEquivalent left right
+      -> CoercedInputObjectFieldsEquivalent leftRest rightRest
+      -> CoercedInputObjectFieldsEquivalent (left :: leftRest) (right :: rightRest)
+
+private def coercedInputObjectFieldResultsEquivalent
+    : Except Unit (List (Name × CoercedInputValue))
+      -> Except Unit (List (Name × CoercedInputValue)) -> Prop
+  | .ok left, .ok right => CoercedInputObjectFieldsEquivalent left right
+  | .error _, .error _ => True
+  | _, _ => False
+
+private theorem coercedInputValueLists_canonical_eq
+    {left right : List CoercedInputValue}
+    (hequivalent : CoercedInputValueListsEquivalent left right)
+    : InputValue.canonicalValues (ConstInputValue.valuesToInputValues left)
+      = InputValue.canonicalValues (ConstInputValue.valuesToInputValues right) := by
+  induction hequivalent with
+  | nil => rfl
+  | cons hvalue _hrest ih =>
+      simp only [ConstInputValue.valuesToInputValues,
+        InputValue.canonicalValues]
+      rw [inputValue_canonical_eq_of_equivalent hvalue, ih]
+
+private theorem coercedInputValuesEquivalent_list
+    {left right : List CoercedInputValue}
+    (hequivalent : CoercedInputValueListsEquivalent left right)
+    : coercedInputValuesEquivalent (.list left) (.list right) := by
+  unfold coercedInputValuesEquivalent
+  apply inputValue_equivalent_of_canonical_eq_forCoercion
+  simp only [ConstInputValue.toInputValue, InputValue.canonical]
+  rw [coercedInputValueLists_canonical_eq hequivalent]
+
+private theorem coercedInputObjectFields_canonical_eq
+    {left right : List (Name × CoercedInputValue)}
+    (hequivalent : CoercedInputObjectFieldsEquivalent left right)
+    : InputValue.canonicalObjectFields (ConstInputValue.objectFieldsToInputFields left)
+      = InputValue.canonicalObjectFields
+          (ConstInputValue.objectFieldsToInputFields right) := by
+  induction hequivalent with
+  | nil => rfl
+  | @cons leftField rightField leftRest rightRest hfield _hrest ih =>
+      rcases leftField with ⟨leftName, leftValue⟩
+      rcases rightField with ⟨rightName, rightValue⟩
+      rcases hfield with ⟨hname, hvalue⟩
+      change leftName = rightName at hname
+      change coercedInputValuesEquivalent leftValue rightValue at hvalue
+      subst rightName
+      simp only [ConstInputValue.objectFieldsToInputFields,
+        InputValue.canonicalObjectFields]
+      rw [inputValue_canonical_eq_of_equivalent hvalue, ih]
+
+private theorem coercedInputValuesEquivalent_object
+    {left right : List (Name × CoercedInputValue)}
+    (hequivalent : CoercedInputObjectFieldsEquivalent left right)
+    : coercedInputValuesEquivalent (.object left) (.object right) := by
+  unfold coercedInputValuesEquivalent
+  apply inputValue_equivalent_of_canonical_eq_forCoercion
+  simp only [ConstInputValue.toInputValue, InputValue.canonical]
+  rw [coercedInputObjectFields_canonical_eq hequivalent]
+
+private def coerceInputObjectFieldValueBounded
+    (schema : Schema) (variableValues : VariableValues) (fuel : Nat)
+    (definition : InputValueDefinition) (fields : List (Name × InputValue))
+    : InputCoercionResult :=
+  let suppliedResult :=
+    match lookupInputObjectFieldValue? fields definition.name with
+    | some value =>
+        coerceInputValueBounded schema variableValues fuel definition.inputType value
+    | none => .undefined
+  match suppliedResult with
+  | .success value => .success value
+  | .error => .error
+  | .undefined =>
+      match definition.defaultValue with
+      | some value =>
+          coerceInputValueBounded schema variableValues fuel definition.inputType
+            value.toInputValue
+      | none => if definition.inputType.isNonNull then .error else .undefined
+
+private theorem coerceInputObjectFieldsBounded_cons
+    (schema : Schema) (variableValues : VariableValues) (fuel : Nat)
+    (definition : InputValueDefinition) (definitions : List InputValueDefinition)
+    (fields : List (Name × InputValue))
+    : coerceInputObjectFieldsBounded schema variableValues fuel
+        (definition :: definitions) fields
+      = match coerceInputObjectFieldValueBounded schema variableValues fuel definition
+                fields with
+        | .error => .error ()
+        | .undefined =>
+            coerceInputObjectFieldsBounded schema variableValues fuel definitions fields
+        | .success value =>
+            match coerceInputObjectFieldsBounded schema variableValues fuel definitions
+                    fields with
+            | .error _ => .error ()
+            | .ok coerced => .ok ((definition.name, value) :: coerced) := by
+  cases hlookup : lookupInputObjectFieldValue? fields definition.name with
+  | some value =>
+      cases hvalue
+            : coerceInputValueBounded schema variableValues fuel
+                definition.inputType value with
+      | success coerced =>
+          simp [coerceInputObjectFieldsBounded, coerceInputObjectFieldValueBounded,
+            hlookup, hvalue] <;> rfl
+      | error =>
+          simp [coerceInputObjectFieldsBounded, coerceInputObjectFieldValueBounded,
+            hlookup, hvalue]
+      | undefined =>
+          cases hdefault : definition.defaultValue with
+          | some defaultValue =>
+              cases hdefaultResult : coerceInputValueBounded schema variableValues fuel
+                  definition.inputType defaultValue.toInputValue <;>
+                simp [coerceInputObjectFieldsBounded,
+                  coerceInputObjectFieldValueBounded, hlookup, hvalue, hdefault,
+                  hdefaultResult] <;> rfl
+          | none =>
+              cases hnonNull : definition.inputType.isNonNull <;>
+                simp [coerceInputObjectFieldsBounded,
+                  coerceInputObjectFieldValueBounded, hlookup, hvalue, hdefault,
+                  hnonNull]
+  | none =>
+      cases hdefault : definition.defaultValue with
+      | some defaultValue =>
+          cases hdefaultResult : coerceInputValueBounded schema variableValues fuel
+              definition.inputType defaultValue.toInputValue <;>
+            simp [coerceInputObjectFieldsBounded, coerceInputObjectFieldValueBounded,
+              hlookup, hdefault, hdefaultResult] <;> rfl
+      | none =>
+          cases hnonNull : definition.inputType.isNonNull <;>
+            simp [coerceInputObjectFieldsBounded, coerceInputObjectFieldValueBounded,
+              hlookup, hdefault, hnonNull]
+
+private theorem inputValueVariables_mem_inputObjectFieldsVariables_of_lookup
+    {fields : List (Name × InputValue)} {fieldName : Name} {value : InputValue}
+    (hlookup : lookupInputObjectFieldValue? fields fieldName = some value)
+    {variableName : Name}
+    (hvariable : variableName ∈ Validation.inputValueVariables value)
+    : variableName ∈ Validation.inputObjectFieldsVariables fields := by
+  induction fields generalizing value with
+  | nil => simp [lookupInputObjectFieldValue?] at hlookup
+  | cons field rest ih =>
+      rcases field with ⟨candidateName, candidateValue⟩
+      by_cases hname : candidateName = fieldName
+      · simp [lookupInputObjectFieldValue?, hname] at hlookup
+        subst value
+        exact List.mem_append_left _ hvariable
+      · simp only [lookupInputObjectFieldValue?, hname, if_false] at hlookup
+        exact List.mem_append_right _ (ih hlookup hvariable)
+
+mutual
+  private theorem constInputValue_toInputValue_has_no_variables
+      : ∀ (value : ConstInputValue) variableName,
+          variableName ∉ Validation.inputValueVariables value.toInputValue
+    | .null, _
+    | .int _, _
+    | .float _, _
+    | .string _, _
+    | .boolean _, _
+    | .enum _, _ => by simp [ConstInputValue.toInputValue,
+        Validation.inputValueVariables]
+    | .list values, variableName => by
+        simpa [ConstInputValue.toInputValue, Validation.inputValueVariables] using
+          constInputValues_toInputValues_have_no_variables values variableName
+    | .object fields, variableName => by
+        simpa [ConstInputValue.toInputValue, Validation.inputValueVariables] using
+          constInputObjectFields_toInputFields_have_no_variables fields variableName
+
+  private theorem constInputValues_toInputValues_have_no_variables
+      : ∀ (values : List ConstInputValue) variableName,
+          variableName
+          ∉ Validation.inputValuesVariables (ConstInputValue.valuesToInputValues values)
+    | [], _ => by simp [ConstInputValue.valuesToInputValues,
+        Validation.inputValuesVariables]
+    | value :: rest, variableName => by
+        simp only [ConstInputValue.valuesToInputValues,
+          Validation.inputValuesVariables, List.mem_append, not_or]
+        exact ⟨constInputValue_toInputValue_has_no_variables value variableName,
+          constInputValues_toInputValues_have_no_variables rest variableName⟩
+
+  private theorem constInputObjectFields_toInputFields_have_no_variables
+      : ∀ (fields : List (Name × ConstInputValue)) variableName,
+          variableName
+          ∉ Validation.inputObjectFieldsVariables
+              (ConstInputValue.objectFieldsToInputFields fields)
+    | [], _ => by simp [ConstInputValue.objectFieldsToInputFields,
+        Validation.inputObjectFieldsVariables]
+    | (name, value) :: rest, variableName => by
+        simp only [ConstInputValue.objectFieldsToInputFields,
+          Validation.inputObjectFieldsVariables, List.mem_append, not_or]
+        exact ⟨constInputValue_toInputValue_has_no_variables value variableName,
+          constInputObjectFields_toInputFields_have_no_variables rest variableName⟩
+end
+
+private theorem coerceInputValueBounded_equivalent
     (schema : Schema) {left right : VariableValues}
-    (hlookup
-      : ∀ name,
-          (lookupVariableValue? left name).map InputValue.canonical
-          = (lookupVariableValue? right name).map InputValue.canonical)
     : ∀ fuel inputType leftValue rightValue,
-        leftValue.canonical = rightValue.canonical
-        -> (coerceInputValueBounded schema left fuel inputType leftValue).map
-              InputValue.canonical
-            = (coerceInputValueBounded schema right fuel inputType rightValue).map
-                InputValue.canonical := by
+        leftValue.equivalent rightValue
+        -> (∀ name,
+              name ∈ Validation.inputValueVariables leftValue
+              -> Option.Rel
+                  (fun leftValue rightValue =>
+                    InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                  (lookupVariableValue? left name) (lookupVariableValue? right name))
+        -> inputCoercionResultsEquivalent
+            (coerceInputValueBounded schema left fuel inputType leftValue)
+            (coerceInputValueBounded schema right fuel inputType rightValue) := by
   intro fuel
   induction fuel with
   | zero =>
-      intro inputType leftValue rightValue hcanonical
-      simp [coerceInputValueBounded]
+      intro inputType leftValue rightValue hequivalent _hlookups
+      simp [coerceInputValueBounded, inputCoercionResultsEquivalent]
   | succ fuel ih =>
       have hlist : ∀ inputType leftValues rightValues,
-          InputValue.canonicalValues leftValues =
-              InputValue.canonicalValues rightValues ->
-          InputValue.canonicalValues
-              (coerceInputValueList schema left fuel inputType leftValues) =
-            InputValue.canonicalValues
-              (coerceInputValueList schema right fuel inputType rightValues) := by
+          InputValue.structuralValuesEquivalent
+              (InputValue.canonicalValues leftValues)
+              (InputValue.canonicalValues rightValues)
+          -> (∀ name,
+            name ∈ Validation.inputValuesVariables leftValues
+            -> Option.Rel
+                (fun leftValue rightValue =>
+                  InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                (lookupVariableValue? left name) (lookupVariableValue? right name))
+          -> coercedInputValueListResultsEquivalent
+              (coerceInputValueListBounded schema left fuel inputType leftValues)
+              (coerceInputValueListBounded schema right fuel inputType rightValues) := by
         intro inputType leftValues
         induction leftValues with
         | nil =>
-            intro rightValues hcanonical
+            intro rightValues hequivalent _hlookups
             cases rightValues with
-            | nil => simp [coerceInputValueList, InputValue.canonicalValues]
+            | nil =>
+                simp only [coerceInputValueListBounded,
+                  coercedInputValueListResultsEquivalent]
+                exact .nil
             | cons rightValue rightRest =>
-                simp [InputValue.canonicalValues] at hcanonical
-        | cons leftValue leftRest ihValues =>
-            intro rightValues hcanonical
+                simp [InputValue.canonicalValues,
+                  InputValue.structuralValuesEquivalent] at hequivalent
+        | cons leftValue leftRest ihRest =>
+            intro rightValues hequivalent hlookups
             cases rightValues with
-            | nil => simp [InputValue.canonicalValues] at hcanonical
+            | nil =>
+                simp [InputValue.canonicalValues,
+                  InputValue.structuralValuesEquivalent] at hequivalent
             | cons rightValue rightRest =>
-                simp only [InputValue.canonicalValues] at hcanonical
-                have hhead : leftValue.canonical = rightValue.canonical := by
-                  exact List.cons.inj hcanonical |>.1
-                have hrest : InputValue.canonicalValues leftRest =
-                    InputValue.canonicalValues rightRest := by
-                  exact List.cons.inj hcanonical |>.2
-                simp only [coerceInputValueList, InputValue.canonicalValues]
-                congr 1
-                · exact optionGetD_canonical_eq
-                    (ih inputType leftValue rightValue hhead)
-                · exact ihValues rightRest hrest
+                simp only [InputValue.canonicalValues,
+                  InputValue.structuralValuesEquivalent] at hequivalent
+                have hhead := ih inputType leftValue rightValue hequivalent.1 (by
+                  intro name hname
+                  exact hlookups name (by
+                    exact List.mem_append_left _ hname))
+                have htail := ihRest rightRest hequivalent.2 (by
+                  intro name hname
+                  exact hlookups name (by
+                    exact List.mem_append_right _ hname))
+                cases hleftHead : coerceInputValueBounded schema left fuel inputType
+                    leftValue <;>
+                  cases hrightHead : coerceInputValueBounded schema right fuel inputType
+                    rightValue <;>
+                  simp [hleftHead, hrightHead, inputCoercionResultsEquivalent] at hhead
+                all_goals
+                  cases hnonNull : inputType.isNonNull <;>
+                    cases hleftTail : coerceInputValueListBounded schema left fuel
+                        inputType leftRest <;>
+                    cases hrightTail : coerceInputValueListBounded schema right fuel
+                        inputType rightRest <;>
+                    simp [coerceInputValueListBounded, hleftHead, hrightHead,
+                      hnonNull, hleftTail, hrightTail,
+                      coercedInputValueListResultsEquivalent] at htail ⊢
+                  all_goals
+                    first
+                    | exact .cons hhead htail
+                    | exact .cons
+                        (inputValue_equivalent_refl_forCoercion
+                          ConstInputValue.null.toInputValue)
+                        htail
       have hobject : ∀ definitions leftFields rightFields,
           (∀ name,
-            (lookupInputObjectFieldValue? leftFields name).map
-                InputValue.canonical =
-              (lookupInputObjectFieldValue? rightFields name).map
-                InputValue.canonical) ->
-          InputValue.canonicalObjectFields
-              (coerceInputObjectFields schema left fuel definitions leftFields) =
-            InputValue.canonicalObjectFields
-              (coerceInputObjectFields schema right fuel definitions rightFields) := by
+            Option.Rel InputValue.equivalent
+              (lookupInputObjectFieldValue? leftFields name)
+              (lookupInputObjectFieldValue? rightFields name))
+          -> (∀ name,
+            name ∈ Validation.inputObjectFieldsVariables leftFields
+            -> Option.Rel
+                (fun leftValue rightValue =>
+                  InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+                (lookupVariableValue? left name) (lookupVariableValue? right name))
+          -> coercedInputObjectFieldResultsEquivalent
+              (coerceInputObjectFieldsBounded schema left fuel definitions leftFields)
+              (coerceInputObjectFieldsBounded schema right fuel definitions
+                rightFields) := by
         intro definitions
         induction definitions with
         | nil =>
-            intro leftFields rightFields hfields
-            simp [coerceInputObjectFields, InputValue.canonicalObjectFields]
-        | cons definition rest ihDefinitions =>
-            intro leftFields rightFields hfields
-            have heffective := coercedInputObjectFieldValue?_canonical_map_eq
-              schema fuel ih definition (hfields definition.name)
-            rw [coerceInputObjectFields, coerceInputObjectFields]
-            split
-            case h_1 hleftEffective =>
-              split
-              case h_1 hrightEffective =>
-                exact ihDefinitions leftFields rightFields hfields
-              case h_2 rightValue hrightEffective =>
-                have hmapped :=
-                  (congrArg (Option.map InputValue.canonical) hleftEffective).symm.trans
-                    (heffective.trans
-                      (congrArg (Option.map InputValue.canonical) hrightEffective))
-                simp at hmapped
-            case h_2 leftValue hleftEffective =>
-              split
-              case h_1 hrightEffective =>
-                have hmapped :=
-                  (congrArg (Option.map InputValue.canonical) hleftEffective).symm.trans
-                    (heffective.trans
-                      (congrArg (Option.map InputValue.canonical) hrightEffective))
-                simp at hmapped
-              case h_2 rightValue hrightEffective =>
-                have hmapped :=
-                  (congrArg (Option.map InputValue.canonical) hleftEffective).symm.trans
-                    (heffective.trans
-                      (congrArg (Option.map InputValue.canonical) hrightEffective))
-                have hvalue : leftValue.canonical = rightValue.canonical :=
-                  Option.some.inj hmapped
-                simp [InputValue.canonicalObjectFields, hvalue,
-                  ihDefinitions leftFields rightFields hfields]
-      intro inputType leftValue rightValue hcanonical
+            intro leftFields rightFields hfields _hlookups
+            simp only [coerceInputObjectFieldsBounded,
+              coercedInputObjectFieldResultsEquivalent]
+            exact .nil
+        | cons definition rest ihRest =>
+            intro leftFields rightFields hfields hlookups
+            have hfield : inputCoercionResultsEquivalent
+                (coerceInputObjectFieldValueBounded schema left fuel definition
+                  leftFields)
+                (coerceInputObjectFieldValueBounded schema right fuel definition
+                  rightFields) := by
+              have hlookup := hfields definition.name
+              cases hleftLookup
+                    : lookupInputObjectFieldValue? leftFields definition.name with
+              | none =>
+                  cases hrightLookup
+                        : lookupInputObjectFieldValue? rightFields definition.name with
+                  | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
+                  | none =>
+                      cases hdefault : definition.defaultValue with
+                      | none =>
+                          cases hnonNull : definition.inputType.isNonNull <;>
+                            simp [coerceInputObjectFieldValueBounded, hleftLookup,
+                              hrightLookup, hdefault, hnonNull,
+                              inputCoercionResultsEquivalent]
+                      | some defaultValue =>
+                          simpa [coerceInputObjectFieldValueBounded, hleftLookup,
+                            hrightLookup, hdefault] using
+                            ih definition.inputType defaultValue.toInputValue
+                              defaultValue.toInputValue
+                              (inputValue_equivalent_refl_forCoercion
+                                defaultValue.toInputValue) (by
+                                  intro name hname
+                                  exact False.elim
+                                    (constInputValue_toInputValue_has_no_variables
+                                      defaultValue name hname))
+              | some leftValue =>
+                  cases hrightLookup
+                        : lookupInputObjectFieldValue? rightFields definition.name with
+                  | none => simp [hleftLookup, hrightLookup] at hlookup
+                  | some rightValue =>
+                      have hvalue : leftValue.equivalent rightValue := by
+                        simpa [hleftLookup, hrightLookup] using hlookup
+                      have hsupplied :=
+                        ih definition.inputType leftValue rightValue hvalue (by
+                          intro name hname
+                          exact hlookups name
+                            (inputValueVariables_mem_inputObjectFieldsVariables_of_lookup
+                              hleftLookup hname))
+                      have hdefault : inputCoercionResultsEquivalent
+                          (match definition.defaultValue with
+                          | some defaultValue =>
+                              coerceInputValueBounded schema left fuel
+                                definition.inputType defaultValue.toInputValue
+                          | none =>
+                              if definition.inputType.isNonNull then .error
+                              else .undefined)
+                          (match definition.defaultValue with
+                          | some defaultValue =>
+                              coerceInputValueBounded schema right fuel
+                                definition.inputType defaultValue.toInputValue
+                          | none =>
+                              if definition.inputType.isNonNull then .error
+                              else .undefined) := by
+                        cases hdefaultValue : definition.defaultValue with
+                        | none =>
+                            cases hnonNull : definition.inputType.isNonNull <;>
+                              simp [inputCoercionResultsEquivalent]
+                        | some defaultValue =>
+                            simpa [hdefaultValue] using
+                              ih definition.inputType defaultValue.toInputValue
+                                defaultValue.toInputValue
+                                (inputValue_equivalent_refl_forCoercion
+                                  defaultValue.toInputValue) (by
+                                    intro name hname
+                                    exact False.elim
+                                      (constInputValue_toInputValue_has_no_variables
+                                        defaultValue name hname))
+                      cases hleftSupplied : coerceInputValueBounded schema left fuel
+                              definition.inputType leftValue
+                      <;>
+                        cases hrightSupplied : coerceInputValueBounded schema right fuel
+                              definition.inputType rightValue
+                      <;>
+                          simp [hleftSupplied, hrightSupplied,
+                            inputCoercionResultsEquivalent] at hsupplied
+                      all_goals
+                        simp [coerceInputObjectFieldValueBounded, hleftLookup,
+                          hrightLookup, hleftSupplied, hrightSupplied]
+                      all_goals first | exact hsupplied | exact hdefault | trivial
+            have hrest := ihRest leftFields rightFields hfields hlookups
+            rw [coerceInputObjectFieldsBounded_cons,
+              coerceInputObjectFieldsBounded_cons]
+            cases hleftField : coerceInputObjectFieldValueBounded schema left fuel
+                    definition leftFields
+            <;>
+              cases hrightField : coerceInputObjectFieldValueBounded schema right fuel
+                    definition rightFields
+            <;>
+                simp [hleftField, hrightField, inputCoercionResultsEquivalent] at hfield
+            all_goals
+              cases hleftRest : coerceInputObjectFieldsBounded schema left fuel rest
+                      leftFields <;>
+                cases hrightRest : coerceInputObjectFieldsBounded schema right fuel rest
+                      rightFields <;>
+                simp [hleftRest, hrightRest,
+                  coercedInputObjectFieldResultsEquivalent] at hrest ⊢
+            all_goals first | exact .cons ⟨rfl, hfield⟩ hrest | exact hrest | trivial
+      intro inputType leftValue rightValue hequivalent hlookups
+      have hcanonical := inputValue_canonical_eq_of_equivalent hequivalent
       cases leftValue <;> cases rightValue <;>
         simp [InputValue.canonical] at hcanonical
       case null.null =>
-        cases inputType <;> simp [coerceInputValueBounded]
+        cases inputType <;>
+          simp [coerceInputValueBounded, inputCoercionResultsEquivalent,
+            coercedInputValuesEquivalent,
+            inputValue_equivalent_refl_forCoercion]
       case int.int leftInt rightInt =>
         subst rightInt
         cases inputType with
-        | named typeName => simp [coerceInputValueBounded]
-        | list inner => simp [coerceInputValueBounded]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.int leftInt) (.int leftInt) rfl
+              ih inner (.int leftInt) (.int leftInt)
+                (inputValue_equivalent_refl_forCoercion (.int leftInt)) hlookups
+        | list inner =>
+            have hcoerced := ih inner (.int leftInt) (.int leftInt)
+              (inputValue_equivalent_refl_forCoercion (.int leftInt)) hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.int leftInt) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.int leftInt) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName <;>
+              simp [coerceInputValueBounded, hinputObject,
+                ConstInputValue.ofInputValue?,
+                inputCoercionResultsEquivalent, coercedInputValuesEquivalent,
+                inputValue_equivalent_refl_forCoercion]
       case float.float leftFloat rightFloat =>
         subst rightFloat
         cases inputType with
-        | named typeName => simp [coerceInputValueBounded]
-        | list inner => simp [coerceInputValueBounded]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.float leftFloat) (.float leftFloat) rfl
+              ih inner (.float leftFloat) (.float leftFloat)
+                (inputValue_equivalent_refl_forCoercion (.float leftFloat)) hlookups
+        | list inner =>
+            have hcoerced := ih inner (.float leftFloat) (.float leftFloat)
+              (inputValue_equivalent_refl_forCoercion (.float leftFloat)) hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.float leftFloat) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.float leftFloat) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName <;>
+              simp [coerceInputValueBounded, hinputObject,
+                ConstInputValue.ofInputValue?,
+                inputCoercionResultsEquivalent, coercedInputValuesEquivalent,
+                inputValue_equivalent_refl_forCoercion]
       case string.string leftString rightString =>
         subst rightString
         cases inputType with
-        | named typeName => simp [coerceInputValueBounded]
-        | list inner => simp [coerceInputValueBounded]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.string leftString) (.string leftString) rfl
+              ih inner (.string leftString) (.string leftString)
+                (inputValue_equivalent_refl_forCoercion (.string leftString)) hlookups
+        | list inner =>
+            have hcoerced := ih inner (.string leftString) (.string leftString)
+              (inputValue_equivalent_refl_forCoercion (.string leftString)) hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.string leftString) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.string leftString) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName <;>
+              simp [coerceInputValueBounded, hinputObject,
+                ConstInputValue.ofInputValue?,
+                inputCoercionResultsEquivalent, coercedInputValuesEquivalent,
+                inputValue_equivalent_refl_forCoercion]
       case boolean.boolean leftBool rightBool =>
         subst rightBool
         cases inputType with
-        | named typeName => simp [coerceInputValueBounded]
-        | list inner => simp [coerceInputValueBounded]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.boolean leftBool) (.boolean leftBool) rfl
+              ih inner (.boolean leftBool) (.boolean leftBool)
+                (inputValue_equivalent_refl_forCoercion (.boolean leftBool)) hlookups
+        | list inner =>
+            have hcoerced := ih inner (.boolean leftBool) (.boolean leftBool)
+              (inputValue_equivalent_refl_forCoercion (.boolean leftBool)) hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.boolean leftBool) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.boolean leftBool) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName <;>
+              simp [coerceInputValueBounded, hinputObject,
+                ConstInputValue.ofInputValue?,
+                inputCoercionResultsEquivalent, coercedInputValuesEquivalent,
+                inputValue_equivalent_refl_forCoercion]
       case enum.enum leftEnum rightEnum =>
         subst rightEnum
         cases inputType with
-        | named typeName => simp [coerceInputValueBounded]
-        | list inner => simp [coerceInputValueBounded]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.enum leftEnum) (.enum leftEnum) rfl
+              ih inner (.enum leftEnum) (.enum leftEnum)
+                (inputValue_equivalent_refl_forCoercion (.enum leftEnum)) hlookups
+        | list inner =>
+            have hcoerced := ih inner (.enum leftEnum) (.enum leftEnum)
+              (inputValue_equivalent_refl_forCoercion (.enum leftEnum)) hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.enum leftEnum) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.enum leftEnum) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName <;>
+              simp [coerceInputValueBounded, hinputObject,
+                ConstInputValue.ofInputValue?,
+                inputCoercionResultsEquivalent, coercedInputValuesEquivalent,
+                inputValue_equivalent_refl_forCoercion]
       case list.list leftValues rightValues =>
         cases inputType with
-        | named typeName =>
-            simpa [coerceInputValueBounded, InputValue.canonical] using hcanonical
-        | list inner =>
-            simp [coerceInputValueBounded, InputValue.canonical,
-              hlist inner leftValues rightValues hcanonical]
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.list leftValues) (.list rightValues) (by
-                simpa [InputValue.canonical] using hcanonical)
-      case object.object leftFields rightFields =>
-        cases inputType with
+              ih inner (.list leftValues) (.list rightValues)
+                (inputValue_equivalent_of_canonical_eq_forCoercion (by
+                  simpa [InputValue.canonical] using hcanonical)) hlookups
+        | list inner =>
+            have hcoerced := hlist inner leftValues rightValues (by
+              simpa [InputValue.equivalent, InputValue.canonical,
+                InputValue.structuralEquivalent] using hequivalent) hlookups
+            cases hleft : coerceInputValueListBounded schema left fuel inner
+                    leftValues <;>
+              cases hright : coerceInputValueListBounded schema right fuel inner
+                    rightValues <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                coercedInputValueListResultsEquivalent,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list hcoerced
         | named typeName =>
             cases hinputObject : schema.lookupInputObject typeName with
-            | none => simp [coerceInputValueBounded, hinputObject,
-                coerceInputObjectFields, InputValue.canonical]
             | some inputObject =>
-                have hfields : ∀ name,
-                    (lookupInputObjectFieldValue? leftFields name).map
-                        InputValue.canonical =
-                      (lookupInputObjectFieldValue? rightFields name).map
-                        InputValue.canonical :=
-                  lookupInputObjectFieldValue?_canonical_map_eq hcanonical
-                have hcoercedFields := hobject inputObject.inputFields leftFields
-                  rightFields hfields
-                simp [coerceInputValueBounded, hinputObject, InputValue.canonical,
-                  hcoercedFields]
-        | list inner =>
-            simpa [coerceInputValueBounded, InputValue.canonical] using hcanonical
+                simp [coerceInputValueBounded, hinputObject,
+                  inputCoercionResultsEquivalent]
+            | none =>
+                have hvalue : (InputValue.list leftValues).equivalent
+                    (.list rightValues) :=
+                  inputValue_equivalent_of_canonical_eq_forCoercion (by
+                    simpa [InputValue.canonical] using hcanonical)
+                have hconst :=
+                  constInputValue_ofInputValue?_rel_of_equivalent hvalue
+                cases hleft : ConstInputValue.ofInputValue? (.list leftValues) <;>
+                  cases hright : ConstInputValue.ofInputValue? (.list rightValues) <;>
+                  simp [coerceInputValueBounded, hinputObject, hleft, hright,
+                    inputCoercionResultsEquivalent] at hconst ⊢
+                exact hconst
+      case object.object leftFields rightFields =>
+        cases inputType with
         | nonNull inner =>
             simpa [coerceInputValueBounded] using
-              ih inner (.object leftFields) (.object rightFields) (by
+              ih inner (.object leftFields) (.object rightFields)
+                (inputValue_equivalent_of_canonical_eq_forCoercion (by
+                  simpa [InputValue.canonical] using hcanonical)) hlookups
+        | list inner =>
+            have hvalue : (InputValue.object leftFields).equivalent
+                (.object rightFields) :=
+              inputValue_equivalent_of_canonical_eq_forCoercion (by
                 simpa [InputValue.canonical] using hcanonical)
+            have hcoerced := ih inner (.object leftFields) (.object rightFields) hvalue
+              hlookups
+            cases hleft : coerceInputValueBounded schema left fuel inner
+                    (.object leftFields) <;>
+              cases hright : coerceInputValueBounded schema right fuel inner
+                    (.object rightFields) <;>
+              simp [coerceInputValueBounded, hleft, hright,
+                inputCoercionResultsEquivalent] at hcoerced ⊢
+            exact coercedInputValuesEquivalent_list (.cons hcoerced .nil)
+        | named typeName =>
+            cases hinputObject : schema.lookupInputObject typeName with
+            | none =>
+                simp [coerceInputValueBounded, hinputObject,
+                  inputCoercionResultsEquivalent]
+            | some inputObject =>
+                have hcanonicalFields :
+                    InputValue.sortObjectFieldsByName
+                        (InputValue.canonicalObjectFields leftFields)
+                      = InputValue.sortObjectFieldsByName
+                        (InputValue.canonicalObjectFields rightFields) := by
+                  simpa [InputValue.canonical] using hcanonical
+                have hknown :
+                    inputObjectFieldsKnownBool inputObject.inputFields leftFields
+                      = inputObjectFieldsKnownBool inputObject.inputFields
+                        rightFields := by
+                  calc
+                    inputObjectFieldsKnownBool inputObject.inputFields leftFields
+                        = inputObjectFieldsKnownBool inputObject.inputFields
+                            (InputValue.sortObjectFieldsByName
+                              (InputValue.canonicalObjectFields leftFields)) :=
+                      (inputObjectFieldsKnownBool_canonical
+                        inputObject.inputFields leftFields).symm
+                    _ = inputObjectFieldsKnownBool inputObject.inputFields
+                          (InputValue.sortObjectFieldsByName
+                            (InputValue.canonicalObjectFields rightFields)) := by
+                      rw [hcanonicalFields]
+                    _ = inputObjectFieldsKnownBool inputObject.inputFields rightFields :=
+                      inputObjectFieldsKnownBool_canonical
+                        inputObject.inputFields rightFields
+                have hfields : ∀ name,
+                    Option.Rel InputValue.equivalent
+                      (lookupInputObjectFieldValue? leftFields name)
+                      (lookupInputObjectFieldValue? rightFields name) := by
+                  intro name
+                  exact optionRel_inputValueEquivalent_iff_canonical_map_eq.mpr
+                    (lookupInputObjectFieldValue?_canonical_map_eq
+                      hcanonicalFields name)
+                have hcoerced := hobject inputObject.inputFields leftFields
+                  rightFields hfields hlookups
+                cases hknownLeft : inputObjectFieldsKnownBool
+                        inputObject.inputFields leftFields <;>
+                  cases hknownRight : inputObjectFieldsKnownBool
+                        inputObject.inputFields rightFields <;>
+                  simp [hknownLeft, hknownRight] at hknown
+                all_goals
+                  cases hleftFields : coerceInputObjectFieldsBounded schema left fuel
+                          inputObject.inputFields leftFields <;>
+                    cases hrightFields : coerceInputObjectFieldsBounded schema right fuel
+                          inputObject.inputFields rightFields <;>
+                    simp [coerceInputValueBounded, hinputObject, hknownLeft,
+                      hknownRight, hleftFields, hrightFields,
+                      coercedInputObjectFieldResultsEquivalent,
+                      inputCoercionResultsEquivalent] at hcoerced ⊢
+                exact coercedInputValuesEquivalent_object hcoerced
       case variable.variable leftName rightName =>
         subst rightName
-        have hrelated := hlookup leftName
+        have hrelated := hlookups leftName (by
+          simp [Validation.inputValueVariables])
         cases hleft : lookupVariableValue? left leftName with
         | none =>
             cases hright : lookupVariableValue? right leftName with
-            | none => simp [coerceInputValueBounded, hleft, hright]
+            | none =>
+                simp [coerceInputValueBounded, hleft, hright,
+                  inputCoercionResultsEquivalent]
             | some rightValue => simp [hleft, hright] at hrelated
         | some leftValue =>
             cases hright : lookupVariableValue? right leftName with
             | none => simp [hleft, hright] at hrelated
             | some rightValue =>
-                have hvalue : leftValue.canonical = rightValue.canonical := by
+                have hvalue : leftValue.toInputValue.equivalent
+                    rightValue.toInputValue := by
                   simpa [hleft, hright] using hrelated
                 simpa [coerceInputValueBounded, hleft, hright] using
-                  ih inputType leftValue rightValue hvalue
+                  ih inputType leftValue.toInputValue rightValue.toInputValue hvalue (by
+                    intro name hname
+                    exact False.elim
+                      (constInputValue_toInputValue_has_no_variables leftValue name
+                        hname))
 
-theorem coerceInputValue_rel_of_equivalent
+theorem coerceInputValue_equivalent_of_equivalent
     (schema : Schema) {left right : VariableValues}
     (hvalues : variableValuesCoercionEquivalent left right)
     (inputType : TypeRef) {leftValue rightValue : InputValue}
     (hvalue : leftValue.equivalent rightValue)
-    : Option.Rel InputValue.equivalent
+    : inputCoercionResultsEquivalent
         (coerceInputValue schema left inputType leftValue)
         (coerceInputValue schema right inputType rightValue) := by
-  unfold coerceInputValue
-  rw [hvalues.2, inputValueCoercionFuel_eq_of_equivalent hvalue]
-  rw [optionRel_inputValueEquivalent_iff_canonical_map_eq]
-  apply coerceInputValueBounded_canonical_map_eq_of_lookup schema
-  · intro name
-    rw [← optionRel_inputValueEquivalent_iff_canonical_map_eq]
-    exact hvalues.1 name
-  · exact inputValue_canonical_eq_of_equivalent hvalue
+  have hfuel := referencedVariableValuesCoercionFuel_eq_of_equivalent
+    hvalues.1 hvalue
+  have hvalueFuel := inputValueCoercionFuel_eq_of_equivalent hvalue
+  simpa [coerceInputValue, coerceInputValueFuel, hfuel, hvalueFuel] using
+    coerceInputValueBounded_equivalent schema
+      (schemaInputCoercionFuel schema
+        + referencedVariableValuesCoercionFuel right rightValue
+        + inputValueCoercionFuel rightValue)
+      inputType leftValue rightValue hvalue (fun name _hname => hvalues.1 name)
 
-theorem coerceInputValue_rel_of_variableValuesCoercionEquivalent
+theorem coerceInputValue_equivalent_of_variableValuesCoercionEquivalent
     (schema : Schema) {left right : VariableValues}
-    (hequivalent : variableValuesCoercionEquivalent left right)
+    (hvalues : variableValuesCoercionEquivalent left right)
     (inputType : TypeRef) (value : InputValue)
-    : Option.Rel InputValue.equivalent
+    : inputCoercionResultsEquivalent
         (coerceInputValue schema left inputType value)
         (coerceInputValue schema right inputType value) :=
-  coerceInputValue_rel_of_equivalent schema hequivalent inputType
+  coerceInputValue_equivalent_of_equivalent schema hvalues inputType
     (inputValue_equivalent_refl_forCoercion value)
+
+theorem coerceInputValue_equivalent_of_lookup_agreement
+    (schema : Schema) {left right : VariableValues}
+    (inputType : TypeRef) (value : InputValue)
+    (hlookups
+      : ∀ name,
+          name ∈ Validation.inputValueVariables value
+          -> Option.Rel
+              (fun leftValue rightValue =>
+                InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+              (lookupVariableValue? left name) (lookupVariableValue? right name))
+    : inputCoercionResultsEquivalent
+        (coerceInputValue schema left inputType value)
+        (coerceInputValue schema right inputType value) := by
+  have hfuel := referencedVariableValuesCoercionFuel_eq_of_lookup_agreement value
+    hlookups
+  simpa [coerceInputValue, coerceInputValueFuel, hfuel] using
+    coerceInputValueBounded_equivalent schema
+      (schemaInputCoercionFuel schema
+        + referencedVariableValuesCoercionFuel right value
+        + inputValueCoercionFuel value)
+      inputType value value (inputValue_equivalent_refl_forCoercion value) hlookups
 
 private theorem lookupValue_eq_some_of_mem
     {arguments : List Argument} {argument : Argument} {name : Name}
@@ -861,19 +1895,112 @@ theorem argumentsEquivalent_trans_forCoercion
         inputValue_equivalent_trans_forCoercion hleftEquivalent.2
           hrightEquivalent.2⟩⟩
 
-private def coercedArgumentValue? (schema : Schema)
-    (variableValues : VariableValues) (definition : InputValueDefinition)
-    (arguments : List Argument)
-    : Option InputValue :=
-  match (Argument.lookupValue? arguments definition.name).bind
-          (coerceInputValue schema variableValues definition.inputType) with
-  | some value => some value
-  | none =>
-      definition.defaultValue.bind
-        (fun value =>
-          coerceInputValue schema variableValues definition.inputType value.toInputValue)
+private theorem coercedArgumentsEquivalent_nil
+    : CoercedArgument.argumentsEquivalent [] [] := by
+  simp [CoercedArgument.argumentsEquivalent]
 
-private theorem coercedArgumentValue?_rel_of_lookup
+private theorem coercedArgumentsEquivalent_cons
+    {leftArgument rightArgument : CoercedArgument}
+    {leftRest rightRest : CoercedArguments}
+    (hargument : leftArgument.equivalent rightArgument)
+    (hrest : CoercedArgument.argumentsEquivalent leftRest rightRest)
+    : CoercedArgument.argumentsEquivalent (leftArgument :: leftRest)
+        (rightArgument :: rightRest) := by
+  constructor
+  · intro argument hmem
+    rcases List.mem_cons.mp hmem with rfl | hmem
+    · exact ⟨rightArgument, by simp, hargument⟩
+    · rcases hrest.1 argument hmem with ⟨other, hother, hequivalent⟩
+      exact ⟨other, by simp [hother], hequivalent⟩
+  · intro argument hmem
+    rcases List.mem_cons.mp hmem with rfl | hmem
+    · exact ⟨leftArgument, by simp, hargument⟩
+    · rcases hrest.2 argument hmem with ⟨other, hother, hequivalent⟩
+      exact ⟨other, by simp [hother], hequivalent⟩
+
+theorem CoercedArgument.argumentsEquivalent_trans
+    {left middle right : CoercedArguments}
+    (hleft : CoercedArgument.argumentsEquivalent left middle)
+    (hright : CoercedArgument.argumentsEquivalent middle right)
+    : CoercedArgument.argumentsEquivalent left right := by
+  constructor
+  · intro argument hargument
+    rcases hleft.1 argument hargument with
+      ⟨middleArgument, hmiddle, hleftEquivalent⟩
+    rcases hright.1 middleArgument hmiddle with
+      ⟨rightArgument, hrightArgument, hrightEquivalent⟩
+    exact ⟨rightArgument, hrightArgument,
+      ⟨hleftEquivalent.1.trans hrightEquivalent.1,
+        inputValue_equivalent_trans_forCoercion hleftEquivalent.2
+          hrightEquivalent.2⟩⟩
+  · intro argument hargument
+    rcases hright.2 argument hargument with
+      ⟨middleArgument, hmiddle, hrightEquivalent⟩
+    rcases hleft.2 middleArgument hmiddle with
+      ⟨leftArgument, hleftArgument, hleftEquivalent⟩
+    exact ⟨leftArgument, hleftArgument,
+      ⟨hleftEquivalent.1.trans hrightEquivalent.1,
+        inputValue_equivalent_trans_forCoercion hleftEquivalent.2
+          hrightEquivalent.2⟩⟩
+
+theorem CoercedArgument.argumentsEquivalent_refl (arguments : CoercedArguments)
+    : CoercedArgument.argumentsEquivalent arguments arguments := by
+  constructor <;> intro argument hargument <;>
+    exact ⟨argument, hargument,
+      ⟨rfl, inputValue_equivalent_refl_forCoercion argument.value.toInputValue⟩⟩
+
+theorem CoercedArgument.argumentsEquivalent_symm
+    {left right : CoercedArguments}
+    (hequivalent : CoercedArgument.argumentsEquivalent left right)
+    : CoercedArgument.argumentsEquivalent right left := by
+  constructor
+  · intro argument hargument
+    rcases hequivalent.2 argument hargument with
+      ⟨other, hother, hargumentEquivalent⟩
+    exact ⟨other, hother,
+      ⟨hargumentEquivalent.1.symm,
+        inputValue_equivalent_symm_forCoercion hargumentEquivalent.2⟩⟩
+  · intro argument hargument
+    rcases hequivalent.1 argument hargument with
+      ⟨other, hother, hargumentEquivalent⟩
+    exact ⟨other, hother,
+      ⟨hargumentEquivalent.1.symm,
+        inputValue_equivalent_symm_forCoercion hargumentEquivalent.2⟩⟩
+
+theorem ArgumentCoercionResult.equivalent_trans
+    {left middle right : ArgumentCoercionResult}
+    (hleft : left.equivalent middle) (hright : middle.equivalent right)
+    : left.equivalent right := by
+  cases left <;> cases middle <;> cases right <;>
+    simp [ArgumentCoercionResult.equivalent] at hleft hright ⊢
+  exact CoercedArgument.argumentsEquivalent_trans hleft hright
+
+theorem ArgumentCoercionResult.equivalent_symm
+    {left right : ArgumentCoercionResult}
+    (hequivalent : left.equivalent right)
+    : right.equivalent left := by
+  cases left <;> cases right <;>
+    simp [ArgumentCoercionResult.equivalent] at hequivalent ⊢
+  exact CoercedArgument.argumentsEquivalent_symm hequivalent
+
+private theorem coerceArgumentDefault_equivalent
+    (schema : Schema) {left right : VariableValues}
+    (hvalues : variableValuesCoercionEquivalent left right)
+    (definition : InputValueDefinition)
+    : inputCoercionResultsEquivalent
+        (coerceArgumentDefault schema left definition)
+        (coerceArgumentDefault schema right definition) := by
+  cases hdefault : definition.defaultValue with
+  | none =>
+      cases hnonNull : definition.inputType.isNonNull <;>
+        simp [coerceArgumentDefault, hdefault, hnonNull,
+          inputCoercionResultsEquivalent]
+  | some defaultValue =>
+      simpa [coerceArgumentDefault, hdefault] using
+        coerceInputValue_equivalent_of_variableValuesCoercionEquivalent
+          schema hvalues definition.inputType defaultValue.toInputValue
+
+private theorem coerceArgumentValue_equivalent_of_lookup
     (schema : Schema) {leftValues rightValues : VariableValues}
     (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
     (definition : InputValueDefinition) {leftArguments rightArguments : List Argument}
@@ -881,24 +2008,15 @@ private theorem coercedArgumentValue?_rel_of_lookup
       : Option.Rel InputValue.equivalent
           (Argument.lookupValue? leftArguments definition.name)
           (Argument.lookupValue? rightArguments definition.name))
-    : Option.Rel InputValue.equivalent
-        (coercedArgumentValue? schema leftValues definition leftArguments)
-        (coercedArgumentValue? schema rightValues definition rightArguments) := by
-  have hdefault : Option.Rel InputValue.equivalent
-      (definition.defaultValue.bind (fun value =>
-        coerceInputValue schema leftValues definition.inputType value.toInputValue))
-      (definition.defaultValue.bind (fun value =>
-        coerceInputValue schema rightValues definition.inputType value.toInputValue)) := by
-    cases definition.defaultValue with
-    | none => exact .none
-    | some defaultValue =>
-        exact coerceInputValue_rel_of_equivalent schema hvalues definition.inputType
-          (inputValue_equivalent_refl_forCoercion defaultValue.toInputValue)
+    : inputCoercionResultsEquivalent
+        (coerceArgumentValue schema leftValues definition leftArguments)
+        (coerceArgumentValue schema rightValues definition rightArguments) := by
   cases hleftLookup : Argument.lookupValue? leftArguments definition.name with
   | none =>
       cases hrightLookup : Argument.lookupValue? rightArguments definition.name with
       | none =>
-          simpa [coercedArgumentValue?, hleftLookup, hrightLookup] using hdefault
+          simpa [coerceArgumentValue, hleftLookup, hrightLookup] using
+            coerceArgumentDefault_equivalent schema hvalues definition
       | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
   | some leftValue =>
       cases hrightLookup : Argument.lookupValue? rightArguments definition.name with
@@ -906,74 +2024,63 @@ private theorem coercedArgumentValue?_rel_of_lookup
       | some rightValue =>
           have hvalue : leftValue.equivalent rightValue := by
             simpa [hleftLookup, hrightLookup] using hlookup
-          have hcoerced := coerceInputValue_rel_of_equivalent schema hvalues
-            definition.inputType hvalue
-          cases hleftCoerced
-                : coerceInputValue schema leftValues definition.inputType leftValue with
-          | none =>
-              cases hrightCoerced
-                    : coerceInputValue schema rightValues definition.inputType
-                        rightValue with
-              | none =>
-                  simpa [coercedArgumentValue?, hleftLookup, hrightLookup,
-                    hleftCoerced, hrightCoerced] using hdefault
-              | some rightCoerced =>
-                  simp [hleftCoerced, hrightCoerced] at hcoerced
-          | some leftCoerced =>
-              cases hrightCoerced
-                    : coerceInputValue schema rightValues definition.inputType
-                        rightValue with
-              | none => simp [hleftCoerced, hrightCoerced] at hcoerced
-              | some rightCoerced =>
-                  simpa [coercedArgumentValue?, hleftLookup, hrightLookup,
-                    hleftCoerced, hrightCoerced] using hcoerced
+          have hsupplied := coerceInputValue_equivalent_of_equivalent
+            schema hvalues definition.inputType hvalue
+          have hdefault := coerceArgumentDefault_equivalent schema hvalues definition
+          cases hleftSupplied : coerceInputValue schema leftValues
+                  definition.inputType leftValue <;>
+            cases hrightSupplied : coerceInputValue schema rightValues
+                  definition.inputType rightValue <;>
+            simp [hleftSupplied, hrightSupplied, inputCoercionResultsEquivalent]
+              at hsupplied
+          all_goals
+            simp [coerceArgumentValue, hleftLookup, hrightLookup, hleftSupplied,
+              hrightSupplied]
+          all_goals first | exact hsupplied | exact hdefault | trivial
 
-private theorem coerceArgumentValues_equivalent_of_lookups (schema : Schema)
-    {leftValues rightValues : VariableValues}
+private theorem coerceArgumentValues_equivalent_of_lookups
+    (schema : Schema) {leftValues rightValues : VariableValues}
     (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
-    (definitions : List InputValueDefinition)
-    (leftArguments rightArguments : List Argument)
-    (hlookup
-      : ∀ name,
+    : ∀ definitions leftArguments rightArguments,
+        (∀ name,
           Option.Rel InputValue.equivalent
             (Argument.lookupValue? leftArguments name)
             (Argument.lookupValue? rightArguments name))
-    : Argument.argumentsEquivalent
-        (coerceArgumentValues schema leftValues definitions leftArguments)
-        (coerceArgumentValues schema rightValues definitions rightArguments) := by
-  induction definitions with
-  | nil => exact argumentsEquivalent_nil_forCoercion
-  | cons definition rest ih =>
-      change Argument.argumentsEquivalent
-        (match coercedArgumentValue? schema leftValues definition leftArguments with
-        | none => coerceArgumentValues schema leftValues rest leftArguments
-        | some value => { name := definition.name, value := value } ::
-            coerceArgumentValues schema leftValues rest leftArguments)
-        (match coercedArgumentValue? schema rightValues definition rightArguments with
-        | none => coerceArgumentValues schema rightValues rest rightArguments
-        | some value => { name := definition.name, value := value } ::
-            coerceArgumentValues schema rightValues rest rightArguments)
-      have heffective := coercedArgumentValue?_rel_of_lookup schema hvalues definition
-        (hlookup definition.name)
-      cases hleftEffective
-            : coercedArgumentValue? schema leftValues definition leftArguments with
-      | none =>
-          cases hrightEffective
-                : coercedArgumentValue? schema rightValues definition rightArguments with
-          | none => simpa [hleftEffective, hrightEffective] using ih
-          | some rightValue => simp [hleftEffective, hrightEffective] at heffective
-      | some leftValue =>
-          cases hrightEffective
-                : coercedArgumentValue? schema rightValues definition rightArguments with
-          | none => simp [hleftEffective, hrightEffective] at heffective
-          | some rightValue =>
-              have hvalue : leftValue.equivalent rightValue := by
-                simpa [hleftEffective, hrightEffective] using heffective
-              simpa [hleftEffective, hrightEffective] using
-                argumentsEquivalent_cons_forCoercion
-                  (leftArgument := { name := definition.name, value := leftValue })
-                  (rightArgument := { name := definition.name, value := rightValue })
-                  ⟨rfl, hvalue⟩ ih
+        -> ArgumentCoercionResult.equivalent
+            (coerceArgumentValues schema leftValues definitions leftArguments)
+            (coerceArgumentValues schema rightValues definitions rightArguments)
+  | [], _leftArguments, _rightArguments, _hlookup =>
+      coercedArgumentsEquivalent_nil
+  | definition :: definitions, leftArguments, rightArguments, hlookup => by
+      have hrest := coerceArgumentValues_equivalent_of_lookups schema hvalues
+        definitions leftArguments rightArguments hlookup
+      cases hleftRest : coerceArgumentValues schema leftValues definitions
+              leftArguments <;>
+        cases hrightRest : coerceArgumentValues schema rightValues definitions
+              rightArguments <;>
+        simp [hleftRest, hrightRest, ArgumentCoercionResult.equivalent] at hrest
+      case error.error =>
+        simp [coerceArgumentValues, hleftRest, hrightRest,
+          ArgumentCoercionResult.equivalent]
+      case success.success leftRest rightRest =>
+        have heffective := coerceArgumentValue_equivalent_of_lookup schema hvalues
+          definition (hlookup definition.name)
+        cases hleftEffective : coerceArgumentValue schema leftValues definition
+                leftArguments <;>
+          cases hrightEffective : coerceArgumentValue schema rightValues definition
+                rightArguments <;>
+          simp [hleftEffective, hrightEffective, inputCoercionResultsEquivalent]
+            at heffective
+        · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent] using hrest
+        · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent] using
+            coercedArgumentsEquivalent_cons
+              (leftArgument := ⟨definition.name, _⟩)
+              (rightArgument := ⟨definition.name, _⟩)
+              (by exact ⟨rfl, heffective⟩) hrest
+        · simp [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent]
 
 theorem coerceArgumentValues_equivalent_of_equivalent
     (schema : Schema) (variableValues : VariableValues)
@@ -981,7 +2088,7 @@ theorem coerceArgumentValues_equivalent_of_equivalent
     (hleft : (left.map Argument.name).Nodup)
     (hright : (right.map Argument.name).Nodup)
     (hequivalent : Argument.argumentsEquivalent left right)
-    : Argument.argumentsEquivalent
+    : ArgumentCoercionResult.equivalent
         (coerceArgumentValues schema variableValues definitions left)
         (coerceArgumentValues schema variableValues definitions right) := by
   apply coerceArgumentValues_equivalent_of_lookups schema
@@ -992,7 +2099,7 @@ theorem coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
     (schema : Schema) {left right : VariableValues}
     (hequivalent : variableValuesCoercionEquivalent left right)
     (definitions : List InputValueDefinition) (arguments : List Argument)
-    : Argument.argumentsEquivalent
+    : ArgumentCoercionResult.equivalent
         (coerceArgumentValues schema left definitions arguments)
         (coerceArgumentValues schema right definitions arguments) := by
   apply coerceArgumentValues_equivalent_of_lookups schema hequivalent
@@ -1001,10 +2108,152 @@ theorem coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
   | none => exact .none
   | some value => exact .some (inputValue_equivalent_refl_forCoercion value)
 
-private theorem variableValuesCoercionEquivalent_cons
-    {left right : VariableValues} {leftValue rightValue : InputValue}
+private theorem coerceArgumentDefault_equivalent_of_lookup_agreement
+    (schema : Schema) {left right : VariableValues}
+    (definition : InputValueDefinition)
+    : inputCoercionResultsEquivalent
+        (coerceArgumentDefault schema left definition)
+        (coerceArgumentDefault schema right definition) := by
+  cases hdefault : definition.defaultValue with
+  | none =>
+      cases hnonNull : definition.inputType.isNonNull <;>
+        simp [coerceArgumentDefault, hdefault, hnonNull,
+          inputCoercionResultsEquivalent]
+  | some defaultValue =>
+      simpa [coerceArgumentDefault, hdefault] using
+        coerceInputValue_equivalent_of_lookup_agreement schema definition.inputType
+          defaultValue.toInputValue (by
+            intro name hname
+            exact False.elim
+              (constInputValue_toInputValue_has_no_variables defaultValue name hname))
+
+private theorem coerceArgumentValue_equivalent_of_lookup_agreement
+    (schema : Schema) {left right : VariableValues}
+    (definition : InputValueDefinition) (arguments : List Argument)
+    (hlookups
+      : ∀ name,
+          name ∈ Validation.argumentsVariables arguments
+          -> Option.Rel
+              (fun leftValue rightValue =>
+                InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+              (lookupVariableValue? left name) (lookupVariableValue? right name))
+    : inputCoercionResultsEquivalent
+        (coerceArgumentValue schema left definition arguments)
+        (coerceArgumentValue schema right definition arguments) := by
+  cases hlookup : Argument.lookupValue? arguments definition.name with
+  | none =>
+      simpa [coerceArgumentValue, hlookup] using
+        coerceArgumentDefault_equivalent_of_lookup_agreement schema definition
+  | some value =>
+      have hsupplied := coerceInputValue_equivalent_of_lookup_agreement schema
+        definition.inputType value (by
+          intro name hname
+          rcases lookupValue_eq_some_mem hlookup with
+            ⟨argument, hargument, _hargumentName, hargumentValue⟩
+          subst value
+          exact hlookups name
+            ((Validation.argumentsVariables_mem_iff name arguments).2
+              ⟨argument, hargument, hname⟩))
+      have hdefault :=
+        coerceArgumentDefault_equivalent_of_lookup_agreement
+          (left := left) (right := right) schema definition
+      cases hleftSupplied : coerceInputValue schema left definition.inputType value <;>
+        cases hrightSupplied : coerceInputValue schema right definition.inputType value <;>
+        simp [hleftSupplied, hrightSupplied, inputCoercionResultsEquivalent] at hsupplied
+      all_goals
+        simp [coerceArgumentValue, hlookup, hleftSupplied, hrightSupplied]
+      all_goals first | exact hsupplied | exact hdefault | trivial
+
+theorem coerceArgumentValues_equivalent_of_lookup_agreement
+    (schema : Schema) {left right : VariableValues}
+    (definitions : List InputValueDefinition) (arguments : List Argument)
+    (hlookups
+      : ∀ name,
+          name ∈ Validation.argumentsVariables arguments
+          -> Option.Rel
+              (fun leftValue rightValue =>
+                InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+              (lookupVariableValue? left name) (lookupVariableValue? right name))
+    : ArgumentCoercionResult.equivalent
+        (coerceArgumentValues schema left definitions arguments)
+        (coerceArgumentValues schema right definitions arguments) := by
+  induction definitions with
+  | nil => exact coercedArgumentsEquivalent_nil
+  | cons definition rest ih =>
+      cases hleftRest : coerceArgumentValues schema left rest arguments <;>
+        cases hrightRest : coerceArgumentValues schema right rest arguments <;>
+        simp [hleftRest, hrightRest, ArgumentCoercionResult.equivalent] at ih
+      case error.error =>
+        simp [coerceArgumentValues, hleftRest, hrightRest,
+          ArgumentCoercionResult.equivalent]
+      case success.success leftRest rightRest =>
+        have heffective := coerceArgumentValue_equivalent_of_lookup_agreement
+          schema definition arguments hlookups
+        cases hleftEffective : coerceArgumentValue schema left definition arguments <;>
+          cases hrightEffective : coerceArgumentValue schema right definition arguments <;>
+          simp [hleftEffective, hrightEffective, inputCoercionResultsEquivalent]
+            at heffective
+        · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent] using ih
+        · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent] using
+            coercedArgumentsEquivalent_cons
+              (leftArgument := ⟨definition.name, _⟩)
+              (rightArgument := ⟨definition.name, _⟩)
+              (by exact ⟨rfl, heffective⟩) ih
+        · simp [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
+            hrightEffective, ArgumentCoercionResult.equivalent]
+
+theorem ArgumentCoercionResult.isSuccess_eq_of_equivalent
+    {left right : ArgumentCoercionResult} (hequivalent : left.equivalent right)
+    : left.isSuccess = right.isSuccess := by
+  cases left <;> cases right <;>
+    simp [ArgumentCoercionResult.equivalent] at hequivalent ⊢
+
+theorem coerceArgumentValues_isSuccess_eq_of_variableValuesCoercionEquivalent
+    (schema : Schema) {left right : VariableValues}
     (hequivalent : variableValuesCoercionEquivalent left right)
-    (name : Name) (hvalue : leftValue.equivalent rightValue)
+    (definitions : List InputValueDefinition) (arguments : List Argument)
+    : (coerceArgumentValues schema left definitions arguments).isSuccess
+      = (coerceArgumentValues schema right definitions arguments).isSuccess :=
+  ArgumentCoercionResult.isSuccess_eq_of_equivalent
+    (coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
+      schema hequivalent definitions arguments)
+
+theorem coerceArgumentValues_isSuccess_eq_of_equivalent
+    (schema : Schema) (variableValues : VariableValues)
+    (definitions : List InputValueDefinition) {left right : List Argument}
+    (hleft : (left.map Argument.name).Nodup)
+    (hright : (right.map Argument.name).Nodup)
+    (hequivalent : Argument.argumentsEquivalent left right)
+    : (coerceArgumentValues schema variableValues definitions left).isSuccess
+      = (coerceArgumentValues schema variableValues definitions right).isSuccess :=
+  ArgumentCoercionResult.isSuccess_eq_of_equivalent
+    (coerceArgumentValues_equivalent_of_equivalent schema variableValues definitions
+      hleft hright hequivalent)
+
+def validArgumentsCoercionSucceeds (schema : Schema) (variableValues : VariableValues)
+    (variableDefinitions : List VariableDefinition)
+    : Prop :=
+  ∀ definitions arguments,
+    Validation.argumentsValid schema definitions variableDefinitions arguments
+    -> (coerceArgumentValues schema variableValues definitions arguments).isSuccess = true
+
+theorem validArgumentsCoercionSucceeds_of_variableValuesCoercionEquivalent
+    (schema : Schema) {left right : VariableValues}
+    (hequivalent : variableValuesCoercionEquivalent left right)
+    {variableDefinitions : List VariableDefinition}
+    : validArgumentsCoercionSucceeds schema right variableDefinitions
+      -> validArgumentsCoercionSucceeds schema left variableDefinitions := by
+  intro hright definitions arguments hvalid
+  rw [coerceArgumentValues_isSuccess_eq_of_variableValuesCoercionEquivalent
+    schema hequivalent definitions arguments]
+  exact hright definitions arguments hvalid
+
+private theorem variableValuesCoercionEquivalent_cons
+    {left right : VariableValues} {leftValue rightValue : ConstInputValue}
+    (hequivalent : variableValuesCoercionEquivalent left right)
+    (name : Name) (hvalue : leftValue.toInputValue.equivalent rightValue.toInputValue)
     : variableValuesCoercionEquivalent ((name, leftValue) :: left)
         ((name, rightValue) :: right) := by
   constructor
@@ -1015,90 +2264,553 @@ private theorem variableValuesCoercionEquivalent_cons
   · simp [variableValuesCoercionFuel, hequivalent.2,
       inputValueCoercionFuel_eq_of_equivalent hvalue]
 
-private theorem variableDefinitionsEquivalent_foldl_defaults_coercionEquivalent
-    : ∀ {left right : List VariableDefinition} {leftValues rightValues : VariableValues},
-        variableValuesCoercionEquivalent leftValues rightValues
-        -> variableDefinitionsEquivalent left right
-        -> variableValuesCoercionEquivalent
-            (left.foldl
-              (fun coercedValues variableDefinition =>
-                match lookupVariableValue? coercedValues variableDefinition.name with
-                | some _value => coercedValues
-                | none =>
-                    match variableDefinition.defaultValue with
-                    | some defaultValue =>
-                        (variableDefinition.name, defaultValue.toInputValue)
-                        :: coercedValues
-                    | none => coercedValues)
-              leftValues)
-            (right.foldl
-              (fun coercedValues variableDefinition =>
-                match lookupVariableValue? coercedValues variableDefinition.name with
-                | some _value => coercedValues
-                | none =>
-                    match variableDefinition.defaultValue with
-                    | some defaultValue =>
-                        (variableDefinition.name, defaultValue.toInputValue)
-                        :: coercedValues
-                    | none => coercedValues)
-              rightValues)
-  | [], [], _leftValues, _rightValues, hvalues, _hdefinitions => hvalues
-  | left :: leftRest, right :: rightRest, leftValues, rightValues,
-      hvalues, hdefinitions => by
-      rcases left with ⟨leftName, leftType, leftDefault⟩
-      rcases right with ⟨rightName, rightType, rightDefault⟩
-      simp only [variableDefinitionsEquivalent] at hdefinitions
-      rcases hdefinitions with ⟨hname, hdefaults⟩
-      subst rightName
-      have hlookup := hvalues.1 leftName
-      cases hleftLookup : lookupVariableValue? leftValues leftName with
-      | none =>
-          cases hrightLookup : lookupVariableValue? rightValues leftName with
-          | none =>
-              cases leftDefault with
-              | none =>
-                  cases rightDefault with
-                  | none =>
-                      simpa [hleftLookup, hrightLookup] using
-                        variableDefinitionsEquivalent_foldl_defaults_coercionEquivalent
-                          hvalues hdefaults
-                  | some rightDefault => simp at hdefaults
-              | some leftDefault =>
-                  cases rightDefault with
-                  | none => simp at hdefaults
-                  | some rightDefault =>
-                      simp only at hdefaults
-                      simpa [hleftLookup, hrightLookup] using
-                        variableDefinitionsEquivalent_foldl_defaults_coercionEquivalent
-                          (variableValuesCoercionEquivalent_cons hvalues leftName
-                            hdefaults.1)
-                          hdefaults.2
-          | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
-      | some leftValue =>
-          cases hrightLookup : lookupVariableValue? rightValues leftName with
-          | none => simp [hleftLookup, hrightLookup] at hlookup
-          | some rightValue =>
-              cases leftDefault <;> cases rightDefault <;>
-                simp only at hdefaults
-              all_goals
-                simpa [hleftLookup, hrightLookup] using
-                  variableDefinitionsEquivalent_foldl_defaults_coercionEquivalent
-                    hvalues (by first | exact hdefaults | exact hdefaults.2)
+private def materializeVariableDefault (values : VariableValues)
+    (definition : VariableDefinition)
+    : VariableValues :=
+  match lookupVariableValue? values definition.name with
+  | some _value => values
+  | none =>
+      match definition.defaultValue with
+      | some defaultValue => (definition.name, defaultValue) :: values
+      | none => values
 
-theorem coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+private def variableDefaultFuelContribution (values : VariableValues)
+    (definition : VariableDefinition)
+    : Nat :=
+  match lookupVariableValue? values definition.name, definition.defaultValue with
+  | none, some defaultValue => inputValueCoercionFuel defaultValue.toInputValue
+  | _, _ => 0
+
+private theorem lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+    (definitions : List VariableDefinition) (variableValues : VariableValues)
+    (name : Name) (hname : name ∉ definitions.map VariableDefinition.name)
+    : lookupVariableValue?
+        (definitions.foldl materializeVariableDefault variableValues) name
+      = lookupVariableValue? variableValues name := by
+  induction definitions generalizing variableValues with
+  | nil => rfl
+  | cons definition rest ih =>
+      simp only [List.map_cons, List.mem_cons, not_or] at hname
+      simp only [List.foldl_cons]
+      apply (ih _ hname.2).trans
+      simp only [materializeVariableDefault]
+      split
+      · rfl
+      · split
+        · simp only [lookupVariableValue?]
+          split
+          · rename_i heq
+            exact (hname.1 heq.symm).elim
+          · rfl
+        · rfl
+
+private theorem lookupVariableValue?_foldl_materializeVariableDefault_at_definition
+    {definitions : List VariableDefinition} {definition : VariableDefinition}
+    (hnodup : (definitions.map VariableDefinition.name).Nodup)
+    (hdefinition : definition ∈ definitions) (variableValues : VariableValues)
+    : lookupVariableValue?
+        (definitions.foldl materializeVariableDefault variableValues) definition.name
+      = match lookupVariableValue? variableValues definition.name with
+        | some value => some value
+        | none => definition.defaultValue := by
+  induction definitions generalizing variableValues with
+  | nil => simp at hdefinition
+  | cons candidate rest ih =>
+      simp only [List.map_cons, List.nodup_cons] at hnodup
+      rcases List.mem_cons.mp hdefinition with rfl | hrest
+      · simp only [List.foldl_cons, materializeVariableDefault]
+        cases hlookup : lookupVariableValue? variableValues definition.name with
+        | some value =>
+            simpa [hlookup] using
+              lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+                rest variableValues definition.name hnodup.1
+        | none =>
+            cases hdefault : definition.defaultValue with
+            | none =>
+                simpa [hlookup, hdefault] using
+                  lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+                    rest variableValues definition.name hnodup.1
+            | some defaultValue =>
+                have hadded : lookupVariableValue?
+                    ((definition.name, defaultValue) :: variableValues)
+                    definition.name = some defaultValue := by
+                  simp [lookupVariableValue?]
+                simpa [hlookup, hdefault] using
+                  (lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+                    rest ((definition.name, defaultValue) :: variableValues)
+                    definition.name hnodup.1).trans hadded
+      · simp only [List.foldl_cons]
+        let nextValues := materializeVariableDefault variableValues candidate
+        have hne : candidate.name ≠ definition.name := by
+          intro heq
+          apply hnodup.1
+          rw [heq]
+          exact List.mem_map.mpr ⟨definition, hrest, rfl⟩
+        have hnextLookup : lookupVariableValue? nextValues definition.name
+            = lookupVariableValue? variableValues definition.name := by
+          simp only [nextValues, materializeVariableDefault]
+          split
+          · rfl
+          · split
+            · simp [lookupVariableValue?, hne]
+            · rfl
+        rw [ih hnodup.2 hrest nextValues, hnextLookup]
+
+private theorem variableValuesCoercionFuel_foldl_materializeVariableDefault
+    {definitions : List VariableDefinition}
+    (hnodup : (definitions.map VariableDefinition.name).Nodup)
+    (values : VariableValues)
+    : variableValuesCoercionFuel (definitions.foldl materializeVariableDefault values)
+      = variableValuesCoercionFuel values
+        + (definitions.map (variableDefaultFuelContribution values)).sum := by
+  induction definitions generalizing values with
+  | nil => simp
+  | cons definition rest ih =>
+      simp only [List.map_cons, List.nodup_cons] at hnodup
+      simp only [List.foldl_cons]
+      let nextValues := materializeVariableDefault values definition
+      rw [ih hnodup.2 nextValues]
+      have hcontributions :
+          rest.map (variableDefaultFuelContribution nextValues)
+            = rest.map (variableDefaultFuelContribution values) := by
+        apply List.map_congr_left
+        intro candidate hcandidate
+        have hne : definition.name ≠ candidate.name := by
+          intro heq
+          apply hnodup.1
+          exact List.mem_map.mpr ⟨candidate, hcandidate, heq.symm⟩
+        simp only [nextValues, materializeVariableDefault]
+        split
+        · rfl
+        · split
+          · simp [variableDefaultFuelContribution, lookupVariableValue?, hne]
+          · rfl
+      rw [hcontributions]
+      simp only [nextValues, materializeVariableDefault]
+      split <;> rename_i hlookup
+      · simp [variableDefaultFuelContribution, hlookup]
+      · split <;> rename_i hdefault
+        · simp [variableDefaultFuelContribution, variableValuesCoercionFuel,
+            hlookup, hdefault, Nat.add_assoc, Nat.add_left_comm]
+        · simp [variableDefaultFuelContribution, hlookup, hdefault]
+
+private theorem mem_erase_of_ne_of_mem_forVariableDefinitions
+    {α : Type} [BEq α] [LawfulBEq α] {a b : α} {items : List α}
+    : a ≠ b -> a ∈ items -> a ∈ items.erase b := by
+  intro hne hmem
+  induction items with
+  | nil => simp at hmem
+  | cons head tail ih =>
+      by_cases hhead : head = b
+      · subst head
+        rw [List.erase_cons_head]
+        rcases List.mem_cons.mp hmem with hsame | htail
+        · exact False.elim (hne hsame)
+        · exact htail
+      · have htailErase : ¬(head == b) = true := by
+          have hbeq : (head == b) = false := (beq_eq_false_iff_ne).2 hhead
+          simp [hbeq]
+        rw [List.erase_cons_tail htailErase]
+        rcases List.mem_cons.mp hmem with hsame | htail
+        · exact List.mem_cons.mpr (Or.inl hsame)
+        · exact List.mem_cons_of_mem head (ih htail)
+
+private theorem not_mem_erase_self_forVariableDefinitions
+    {α : Type} [BEq α] [LawfulBEq α] (a : α)
+    : ∀ items : List α, items.Nodup -> a ∉ items.erase a
+  | [], _hnodup => by simp
+  | head :: tail, hnodup => by
+      have hparts : head ∉ tail ∧ tail.Nodup := by simpa using hnodup
+      by_cases hhead : head = a
+      · subst head
+        rw [List.erase_cons_head]
+        exact hparts.1
+      · have htailErase : ¬(head == a) = true := by
+          have hbeq : (head == a) = false := (beq_eq_false_iff_ne).2 hhead
+          simp [hbeq]
+        rw [List.erase_cons_tail htailErase]
+        intro hmem
+        rcases List.mem_cons.mp hmem with hheadMem | htailMem
+        · exact hhead hheadMem.symm
+        · exact not_mem_erase_self_forVariableDefinitions a tail hparts.2 htailMem
+
+private theorem listPermOfNodupSubsetSubset_forVariableDefinitions
+    {α : Type} [BEq α] [LawfulBEq α] {left right : List α}
+    : left.Nodup
+      -> right.Nodup
+      -> (∀ item, item ∈ left -> item ∈ right)
+      -> (∀ item, item ∈ right -> item ∈ left)
+      -> left.Perm right := by
+  intro hleftNodup
+  induction left generalizing right with
+  | nil =>
+      intro _hrightNodup _hleftSubset hrightSubset
+      cases right with
+      | nil => exact List.Perm.nil
+      | cons head tail =>
+          have hfalse : False := by
+            have hmember := hrightSubset head (by simp)
+            simpa using hmember
+          exact hfalse.elim
+  | cons head tail ih =>
+      intro hrightNodup hleftSubset hrightSubset
+      have hleftParts : head ∉ tail ∧ tail.Nodup := by simpa using hleftNodup
+      have hheadRight : head ∈ right := hleftSubset head (by simp)
+      have htailSubset : ∀ item, item ∈ tail -> item ∈ right.erase head := by
+        intro item hitem
+        apply mem_erase_of_ne_of_mem_forVariableDefinitions
+        · intro heq
+          subst item
+          exact hleftParts.1 hitem
+        · exact hleftSubset item (List.mem_cons_of_mem head hitem)
+      have hrightEraseSubset : ∀ item, item ∈ right.erase head -> item ∈ tail := by
+        intro item hitemErase
+        rcases List.mem_cons.mp
+            (hrightSubset item (List.mem_of_mem_erase hitemErase)) with hitemHead | hitemTail
+        · subst item
+          exact False.elim
+            ((not_mem_erase_self_forVariableDefinitions head right hrightNodup)
+              hitemErase)
+        · exact hitemTail
+      have htailPerm : tail.Perm (right.erase head) :=
+        ih hleftParts.2 (List.Nodup.erase head hrightNodup) htailSubset
+          hrightEraseSubset
+      exact (List.Perm.cons head htailPerm).trans
+        (List.perm_cons_erase hheadRight).symm
+
+private theorem variableDefinitionContributionPairs_nodup
+    (definitions : List VariableDefinition) (contribution : VariableDefinition -> Nat)
+    (hnodup : (definitions.map VariableDefinition.name).Nodup)
+    : (definitions.map
+        fun definition => (definition.name, contribution definition)).Nodup := by
+  induction definitions with
+  | nil => simp
+  | cons definition rest ih =>
+      simp only [List.map_cons, List.nodup_cons] at hnodup ⊢
+      constructor
+      · intro hmember
+        rcases List.mem_map.mp hmember with ⟨candidate, hcandidate, heq⟩
+        apply hnodup.1
+        exact List.mem_map.mpr ⟨candidate, hcandidate, congrArg Prod.fst heq⟩
+      · exact ih hnodup.2
+
+private theorem variableValuesCoercionFuel_eq_of_perm
+    {left right : List Nat} (hperm : left.Perm right)
+    : left.sum = right.sum := by
+  induction hperm with
+  | nil => rfl
+  | cons value _hperm ih => simp [ih]
+  | swap first second rest => simp [Nat.add_left_comm]
+  | trans _ _ ihLeft ihRight => exact ihLeft.trans ihRight
+
+private theorem variableDefaultFuelContribution_eq_of_equivalent
+    {leftValues rightValues : VariableValues} {left right : VariableDefinition}
+    (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
+    (hequivalent : VariableDefinition.equivalent left right)
+    : variableDefaultFuelContribution leftValues left
+      = variableDefaultFuelContribution rightValues right := by
+  rcases left with ⟨leftName, leftType, leftDefault⟩
+  rcases right with ⟨rightName, rightType, rightDefault⟩
+  simp only [VariableDefinition.equivalent] at hequivalent
+  rcases hequivalent with ⟨rfl, _htype, hdefault⟩
+  have hlookup := hvalues.1 leftName
+  cases hleftLookup : lookupVariableValue? leftValues leftName with
+  | none =>
+      cases hrightLookup : lookupVariableValue? rightValues leftName with
+      | none =>
+          cases leftDefault <;> cases rightDefault <;>
+            simp [variableDefaultFuelContribution, hleftLookup, hrightLookup] at hdefault ⊢
+          exact inputValueCoercionFuel_eq_of_equivalent hdefault
+      | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
+  | some leftValue =>
+      cases hrightLookup : lookupVariableValue? rightValues leftName with
+      | none => simp [hleftLookup, hrightLookup] at hlookup
+      | some rightValue =>
+          simp [variableDefaultFuelContribution, hleftLookup, hrightLookup]
+
+private theorem variableLookupWithDefault_equivalent
+    {leftValues rightValues : VariableValues} {left right : VariableDefinition}
+    (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
+    (hequivalent : VariableDefinition.equivalent left right)
+    : Option.Rel
+        (fun leftValue rightValue =>
+          InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+        (match lookupVariableValue? leftValues left.name with
+          | some value => some value
+          | none => left.defaultValue)
+        (match lookupVariableValue? rightValues right.name with
+          | some value => some value
+          | none => right.defaultValue) := by
+  rcases left with ⟨leftName, leftType, leftDefault⟩
+  rcases right with ⟨rightName, rightType, rightDefault⟩
+  simp only [VariableDefinition.equivalent] at hequivalent
+  rcases hequivalent with ⟨rfl, _htype, hdefault⟩
+  have hlookup := hvalues.1 leftName
+  cases hleftLookup : lookupVariableValue? leftValues leftName with
+  | none =>
+      cases hrightLookup : lookupVariableValue? rightValues leftName with
+      | none =>
+          cases leftDefault <;> cases rightDefault <;>
+            simp at hdefault ⊢
+          exact hdefault
+      | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
+  | some leftValue =>
+      cases hrightLookup : lookupVariableValue? rightValues leftName with
+      | none => simp [hleftLookup, hrightLookup] at hlookup
+      | some rightValue => simpa [hleftLookup, hrightLookup] using hlookup
+
+private theorem
+    variableDefinitionsSyntacticallyEquivalent_foldl_defaults_coercionEquivalent
+    {left right : List VariableDefinition} {leftValues rightValues : VariableValues}
+    (hleftNodup : (left.map VariableDefinition.name).Nodup)
+    (hrightNodup : (right.map VariableDefinition.name).Nodup)
+    (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
+    (hdefinitions : variableDefinitionsSyntacticallyEquivalent left right)
+    : variableValuesCoercionEquivalent
+        (left.foldl materializeVariableDefault leftValues)
+        (right.foldl materializeVariableDefault rightValues) := by
+  constructor
+  · intro name
+    by_cases hleftName : name ∈ left.map VariableDefinition.name
+    · rcases List.mem_map.mp hleftName with
+        ⟨leftDefinition, hleftDefinition, hleftDefinitionName⟩
+      rcases hdefinitions.1 leftDefinition hleftDefinition with
+        ⟨rightDefinition, hrightDefinition, hequivalent⟩
+      have hrightDefinitionName : rightDefinition.name = name :=
+        hequivalent.1.symm.trans hleftDefinitionName
+      have hleftLookup :
+          lookupVariableValue? (left.foldl materializeVariableDefault leftValues) name
+            = match lookupVariableValue? leftValues name with
+              | some value => some value
+              | none => leftDefinition.defaultValue := by
+        simpa only [hleftDefinitionName] using
+          lookupVariableValue?_foldl_materializeVariableDefault_at_definition
+            hleftNodup hleftDefinition leftValues
+      have hrightLookup :
+          lookupVariableValue? (right.foldl materializeVariableDefault rightValues) name
+            = match lookupVariableValue? rightValues name with
+              | some value => some value
+              | none => rightDefinition.defaultValue := by
+        simpa only [hrightDefinitionName] using
+          lookupVariableValue?_foldl_materializeVariableDefault_at_definition
+            hrightNodup hrightDefinition rightValues
+      rw [hleftLookup, hrightLookup]
+      simpa only [hleftDefinitionName, hrightDefinitionName] using
+        variableLookupWithDefault_equivalent hvalues hequivalent
+    · have hrightName : name ∉ right.map VariableDefinition.name := by
+        intro hmember
+        rcases List.mem_map.mp hmember with
+          ⟨rightDefinition, hrightDefinition, hrightDefinitionName⟩
+        rcases hdefinitions.2 rightDefinition hrightDefinition with
+          ⟨leftDefinition, hleftDefinition, hequivalent⟩
+        apply hleftName
+        exact List.mem_map.mpr
+          ⟨leftDefinition, hleftDefinition,
+            hequivalent.1.trans hrightDefinitionName⟩
+      rw [lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+          left leftValues name hleftName,
+        lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+          right rightValues name hrightName]
+      exact hvalues.1 name
+  · rw [variableValuesCoercionFuel_foldl_materializeVariableDefault hleftNodup,
+      variableValuesCoercionFuel_foldl_materializeVariableDefault hrightNodup,
+      hvalues.2]
+    let leftPairs := left.map
+      (fun definition =>
+        (definition.name, variableDefaultFuelContribution leftValues definition))
+    let rightPairs := right.map
+      (fun definition =>
+        (definition.name, variableDefaultFuelContribution rightValues definition))
+    have hleftPairsNodup : leftPairs.Nodup :=
+      variableDefinitionContributionPairs_nodup left
+        (variableDefaultFuelContribution leftValues) hleftNodup
+    have hrightPairsNodup : rightPairs.Nodup :=
+      variableDefinitionContributionPairs_nodup right
+        (variableDefaultFuelContribution rightValues) hrightNodup
+    have hleftSubset : ∀ pair, pair ∈ leftPairs -> pair ∈ rightPairs := by
+      intro pair hpair
+      rcases List.mem_map.mp hpair with ⟨definition, hdefinition, rfl⟩
+      rcases hdefinitions.1 definition hdefinition with
+        ⟨definition', hdefinition', hequivalent⟩
+      apply List.mem_map.mpr
+      refine ⟨definition', hdefinition', ?_⟩
+      apply Prod.ext
+      · exact hequivalent.1.symm
+      · exact (variableDefaultFuelContribution_eq_of_equivalent hvalues
+          hequivalent).symm
+    have hrightSubset : ∀ pair, pair ∈ rightPairs -> pair ∈ leftPairs := by
+      intro pair hpair
+      rcases List.mem_map.mp hpair with ⟨definition, hdefinition, rfl⟩
+      rcases hdefinitions.2 definition hdefinition with
+        ⟨definition', hdefinition', hequivalent⟩
+      apply List.mem_map.mpr
+      refine ⟨definition', hdefinition', ?_⟩
+      apply Prod.ext
+      · exact hequivalent.1
+      · exact variableDefaultFuelContribution_eq_of_equivalent hvalues hequivalent
+    have hpairs : leftPairs.Perm rightPairs :=
+      listPermOfNodupSubsetSubset_forVariableDefinitions hleftPairsNodup
+        hrightPairsNodup hleftSubset hrightSubset
+    have hcontributions :
+        (left.map (variableDefaultFuelContribution leftValues)).Perm
+          (right.map (variableDefaultFuelContribution rightValues)) := by
+      change (left.map
+                (Prod.snd
+                  ∘ fun definition =>
+                      (
+                        definition.name,
+                        variableDefaultFuelContribution leftValues definition
+                      ))).Perm
+              (right.map
+                (Prod.snd
+                  ∘ fun definition =>
+                      (
+                        definition.name,
+                        variableDefaultFuelContribution rightValues definition
+                      )))
+      simpa only [leftPairs, rightPairs, List.map_map] using hpairs.map Prod.snd
+    exact congrArg (variableValuesCoercionFuel rightValues + ·)
+      (variableValuesCoercionFuel_eq_of_perm hcontributions)
+
+theorem
+    coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
     {left right : Operation} {leftValues rightValues : VariableValues}
+    (hleftNodup : (left.variableDefinitions.map VariableDefinition.name).Nodup)
+    (hrightNodup : (right.variableDefinitions.map VariableDefinition.name).Nodup)
     (hvalues : variableValuesCoercionEquivalent leftValues rightValues)
     (hdefinitions
-      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+      : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+          right.variableDefinitions)
     : variableValuesCoercionEquivalent
         (coerceVariableValues left leftValues)
         (coerceVariableValues right rightValues) := by
-  exact variableDefinitionsEquivalent_foldl_defaults_coercionEquivalent
-    hvalues hdefinitions
+  exact variableDefinitionsSyntacticallyEquivalent_foldl_defaults_coercionEquivalent
+    hleftNodup hrightNodup hvalues hdefinitions
+
+-- Proof-facing wrapper for statements that reason about field-argument coercion and
+-- resolver dispatch as one step. Spec-facing executors keep the two steps explicit.
+def coerceAndResolveFieldValue (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : ResolverValue ObjectRef)
+    : Option (ResolverValue ObjectRef) :=
+  match coerceArgumentValues schema variableValues fieldDefinition.arguments
+          arguments with
+  | .error => none
+  | .success coercedArguments =>
+      resolveFieldValue resolvers parentType fieldName coercedArguments source
+
+@[simp]
+theorem coerceAndResolveFieldValue_eq_none_of_error
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : ResolverValue ObjectRef)
+    (hcoerce
+      : coerceArgumentValues schema variableValues fieldDefinition.arguments arguments
+        = .error)
+    : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+        parentType fieldName arguments source
+      = none := by
+  simp [coerceAndResolveFieldValue, hcoerce]
+
+@[simp]
+theorem coerceAndResolveFieldValue_eq_of_success
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : ResolverValue ObjectRef) (coercedArguments : CoercedArguments)
+    (hcoerce
+      : coerceArgumentValues schema variableValues fieldDefinition.arguments arguments
+        = .success coercedArguments)
+    : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+        parentType fieldName arguments source
+      = resolveFieldValue resolvers parentType fieldName coercedArguments source := by
+  simp [coerceAndResolveFieldValue, hcoerce]
+
+theorem coerceAndResolveFieldValue_eq_some_iff
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : ResolverValue ObjectRef) (resolved : ResolverValue ObjectRef)
+    : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+          parentType fieldName arguments source
+        = some resolved
+      ↔ ∃ coercedArguments,
+          coerceArgumentValues schema variableValues fieldDefinition.arguments arguments
+            = .success coercedArguments
+          ∧ resolveFieldValue resolvers parentType fieldName coercedArguments source
+            = some resolved := by
+  unfold coerceAndResolveFieldValue
+  cases hcoerce
+        : coerceArgumentValues schema variableValues fieldDefinition.arguments
+            arguments with
+  | error => simp
+  | success coercedArguments =>
+      refine ⟨fun hresolve => ⟨coercedArguments, rfl, hresolve⟩, ?_⟩
+      rintro ⟨candidate, hcandidate, hresolve⟩
+      injection hcandidate with hcandidate
+      subst candidate
+      exact hresolve
+
+@[simp]
+theorem match_coerceArgumentValues_resolveFieldValue
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fieldDefinition : FieldDefinition)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (source : ResolverValue ObjectRef) (onFailure : α)
+    (onSuccess : ResolverValue ObjectRef -> α)
+    : (match coerceArgumentValues schema variableValues fieldDefinition.arguments
+              arguments with
+        | .error => onFailure
+        | .success coercedArguments =>
+            match resolveFieldValue resolvers parentType fieldName coercedArguments
+                    source with
+            | none => onFailure
+            | some resolved => onSuccess resolved)
+      = match coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+                parentType fieldName arguments source with
+        | none => onFailure
+        | some resolved => onSuccess resolved := by
+  unfold coerceAndResolveFieldValue
+  cases hcoerce
+        : coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments with
+  | error => rfl
+  | success coercedArguments =>
+      cases resolveFieldValue resolvers parentType fieldName coercedArguments source <;>
+        rfl
+
+@[simp]
+theorem executeField_succ_eq_coerceAndResolveFieldValue
+    (schema : Schema) (resolvers : Resolvers ObjectRef)
+    (variableValues : VariableValues) (fuel : Nat)
+    (source : ResolverValue ObjectRef) (responseName : Name)
+    (field : ExecutableField) (fields : List ExecutableField)
+    (fieldDefinition : FieldDefinition)
+    (hlookup : schema.lookupField field.parentType field.fieldName = some fieldDefinition)
+    : executeField schema resolvers variableValues (fuel + 1) source responseName
+        (field :: fields)
+      = match coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+                field.parentType field.fieldName field.arguments source with
+        | none =>
+            singleFieldResult responseName (handleFieldError fieldDefinition.outputType)
+        | some resolved =>
+            singleFieldResult responseName
+              (completeValue schema resolvers variableValues fuel
+                fieldDefinition.outputType (field :: fields) resolved) := by
+  simp only [executeField, hlookup]
+  exact match_coerceArgumentValues_resolveFieldValue schema resolvers variableValues
+    fieldDefinition field.parentType field.fieldName field.arguments source
+    (singleFieldResult responseName (handleFieldError fieldDefinition.outputType))
+    (fun resolved =>
+      singleFieldResult responseName
+        (completeValue schema resolvers variableValues fuel fieldDefinition.outputType
+          (field :: fields) resolved))
 
 -- Proof-facing name-based resolution for statements that intentionally quantify over
 -- arbitrary field names without carrying a successful schema lookup witness. Runtime
--- executors pass their already-looked-up field definition to `resolveFieldValue`.
+-- executors coerce arguments after lookup and pass them to `resolveFieldValue`.
 def resolveFieldValueByName (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (parentType fieldName : Name)
     (arguments : List Argument) (source : ResolverValue ObjectRef)
@@ -1106,8 +2818,8 @@ def resolveFieldValueByName (schema : Schema) (resolvers : Resolvers ObjectRef)
   match schema.lookupField parentType fieldName with
   | none => none
   | some fieldDefinition =>
-      resolveFieldValue schema resolvers variableValues fieldDefinition parentType
-        fieldName arguments source
+      coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
+        parentType fieldName arguments source
 
 -- Proof-facing field lookup wrapper used by resolver probes. Runtime execution calls
 -- `coerceArgumentValues` directly after the same lookup.
@@ -1117,14 +2829,53 @@ def coercedArgumentsForField (schema : Schema) (variableValues : VariableValues)
   match schema.lookupField parentType fieldName with
   | none => []
   | some fieldDefinition =>
-      coerceArgumentValues schema variableValues fieldDefinition.arguments arguments
+      match coerceArgumentValues schema variableValues fieldDefinition.arguments
+              arguments with
+      | .success coercedArguments => coercedArguments
+      | .error => []
 
--- Two variable environments are indistinguishable at the resolver boundary when
--- every field-argument definition and syntax pair produces equivalent semantic maps.
+theorem coercedArgumentsForField_eq_of_success
+    (schema : Schema) (variableValues : VariableValues)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (fieldDefinition : FieldDefinition) (coercedArguments : CoercedArguments)
+    (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
+    (hcoercion
+      : coerceArgumentValues schema variableValues fieldDefinition.arguments arguments
+        = .success coercedArguments)
+    : coercedArgumentsForField schema variableValues parentType fieldName arguments
+      = coercedArguments := by
+  simp [coercedArgumentsForField, hlookup, hcoercion]
+
+theorem coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
+    (schema : Schema) (variableValues : VariableValues)
+    (parentType fieldName : Name) (arguments : List Argument)
+    (fieldDefinition : FieldDefinition) (targetArguments : CoercedArguments)
+    (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
+    (hsuccess
+      : (coerceArgumentValues schema variableValues fieldDefinition.arguments
+          arguments).isSuccess
+        = true)
+    (harguments
+      : CoercedArgument.argumentsEquivalent
+          (coercedArgumentsForField schema variableValues parentType fieldName arguments)
+          targetArguments)
+    : ArgumentCoercionResult.equivalent
+        (coerceArgumentValues schema variableValues fieldDefinition.arguments arguments)
+        (.success targetArguments) := by
+  cases hcoercion
+        : coerceArgumentValues schema variableValues fieldDefinition.arguments
+            arguments with
+  | error => simp [hcoercion] at hsuccess
+  | success coercedArguments =>
+      simpa [ArgumentCoercionResult.equivalent, hcoercion,
+        coercedArgumentsForField, hlookup] using harguments
+
+-- Two variable environments are indistinguishable at the resolver boundary when every
+-- field-argument definition and syntax pair produces equivalent coercion results.
 def argumentCoercionEquivalent (schema : Schema) (leftValues rightValues : VariableValues)
     : Prop :=
   ∀ definitions arguments,
-    Argument.argumentsEquivalent
+    ArgumentCoercionResult.equivalent
       (coerceArgumentValues schema leftValues definitions arguments)
       (coerceArgumentValues schema rightValues definitions arguments)
 
@@ -1148,7 +2899,7 @@ def operationArgumentCoercionInvariant (schema : Schema) (operation : Operation)
 -- environment used by the separating probes.
 def argumentCoercionReflectsSyntaxAtEmpty (schema : Schema) : Prop :=
   ∀ definitions leftArguments rightArguments,
-    Argument.argumentsEquivalent
+    ArgumentCoercionResult.equivalent
       (coerceArgumentValues schema [] definitions leftArguments)
       (coerceArgumentValues schema [] definitions rightArguments)
     -> Argument.argumentsEquivalent leftArguments rightArguments

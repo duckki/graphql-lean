@@ -85,8 +85,8 @@ and variable assignment in the theorem's stated runtime domain.
 
 Both statements compare `Execution.executeQueryWithFuel` at the same explicit
 fuel. This avoids making a false syntax-size preservation claim: normalization
-can change the operation size, so comparing default operation-derived fuel
-bounds would not be stable.
+can change the operation size, so comparing schema-aware default fuel bounds
+would not be stable.
 
 ### Validity Preservation
 
@@ -238,7 +238,7 @@ relations use the `*EqualUpToReorderingWithCoercion` suffix.
 
 Every operation-level soundness and uniqueness statement assumes the binary
 relation
-`variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions`.
+`variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions`.
 It compares the lists positionally, requiring equal names and equivalent defaults;
 it intentionally does not compare variable types.
 
@@ -284,7 +284,7 @@ it intentionally does not compare variable types.
   variable support.
 
 The ground and complete proofs are summarized in
-`docs/normal-form-uniqueness.md`.
+`docs/theories/normal-form-uniqueness.md`.
 
 ## Proof Shape
 

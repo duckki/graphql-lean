@@ -84,7 +84,7 @@ private theorem inputValueBoolean?_boolCaseVariableValues_of_mem
       = some value := by
   simp [Execution.inputValueBoolean?,
     lookupVariableValue?_boolCaseVariableValues_of_mem base hnodup hmem,
-    InputValue.staticBoolean?]
+    ConstInputValue.toInputValue, InputValue.staticBoolean?]
 
 private theorem boolCase_value_eq_of_map_fst_nodup
     {boolCase : BoolCase} {varName : BoolVar} {leftValue rightValue : Bool}
@@ -245,7 +245,7 @@ theorem boolCaseVariableValues_coercionEquivalent_of_equivalent
         hleft.2.1 hleftPair]
       rw [lookupVariableValue?_boolCaseVariableValues_of_mem base
         hright.2.1 hrightPair]
-      simpa using
+      simpa [ConstInputValue.toInputValue] using
         GroundTypeNormalization.inputValue_equivalent_refl_forSyntaxDiff
           (.boolean value)
     · have hrightName : name ∉ rightCase.map Prod.fst := by
@@ -271,7 +271,7 @@ theorem boolCaseVariableValues_coercionEquivalent_of_equivalent
     simp only [boolCaseVariableValues]
     exact List.Perm.append_right base
       (List.Perm.map
-        (fun entry => (entry.1, InputValue.boolean entry.2)) hcasePerm)
+        (fun entry => (entry.1, ConstInputValue.boolean entry.2)) hcasePerm)
 
 private theorem completeNormalBoolCasesEquivalent_of_candidate_pairs
     {variables : List BoolVar} {selected candidate : BoolCase}

@@ -45,13 +45,13 @@ This package uses leanfmt from
 Format all Lean sources:
 
 ```sh
-lake exe fmt --recursive *.lean GraphQL Proofs Tests Lint
+lake exe fmt --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
 ```
 
 Check formatting without rewriting files:
 
 ```sh
-lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Lint
+lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
 ```
 
 ## Lean Roots

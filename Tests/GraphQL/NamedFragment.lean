@@ -46,6 +46,12 @@ theorem executeNamedFragmentQuerySmoke
       = true := by
   native_decide
 
+theorem namedFragmentExecuteQueryFuelBoundSmoke
+    : GraphQL.NamedFragment.Execution.executeQueryFuelBound Execution.sampleSchema
+        heroWithNamedFragment
+      > 0 := by
+  native_decide
+
 def variableDefaultQuery : GraphQL.NamedFragment.Operation :=
   {
     name := some "VariableDefault"

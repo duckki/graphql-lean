@@ -65,18 +65,24 @@ mutual
             simp [Execution.executeField, GraphQL.Execution.executeField,
               executableFieldToSpec, hfield]
         | some fieldDefinition =>
+            cases hcoerce : GraphQL.Execution.coerceArgumentValues schema
+                variableValues fieldDefinition.arguments field.arguments with
+            | error =>
+                simp [Execution.executeField, GraphQL.Execution.executeField,
+                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  hfield, hcoerce]
+            | success coercedArguments =>
             cases hresolved :
                 resolvers.resolve field.parentType field.fieldName
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments field.arguments) source with
+                  coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
                   GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
-                  hfield, hresolved]
+                  hfield, hcoerce, hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
                   GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
-                  hfield, hresolved,
+                  hfield, hcoerce, hresolved,
                   completeValue_toSpec schema resolvers variableValues fuel
                     fieldDefinition.outputType (field :: fields) resolved hinlined]
   termination_by _schema _resolvers _variableValues fuel _source _responseName fields
@@ -265,19 +271,26 @@ mutual
             simp [Execution.executeField, GraphQL.Execution.executeField,
               VisitedFragments.expandedExecutableFieldToSpec, hfield]
         | some fieldDefinition =>
+            cases hcoerce : GraphQL.Execution.coerceArgumentValues schema
+                variableValues fieldDefinition.arguments field.arguments with
+            | error =>
+                simp [Execution.executeField, GraphQL.Execution.executeField,
+                  GraphQL.Execution.resolveFieldValue,
+                  VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce]
+            | success coercedArguments =>
             cases hresolved :
                 resolvers.resolve field.parentType field.fieldName
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments field.arguments)
-                  source with
+                  coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
                   GraphQL.Execution.resolveFieldValue,
-                  VisitedFragments.expandedExecutableFieldToSpec, hfield, hresolved]
+                  VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce,
+                  hresolved]
             | some resolved =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
                   GraphQL.Execution.resolveFieldValue,
-                  VisitedFragments.expandedExecutableFieldToSpec, hfield, hresolved,
+                  VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce,
+                  hresolved,
                   completeValue_toExpandedSpec schema resolvers variableValues
                     variableDefinitions original hunique hacyclic hall fuel
                     fieldDefinition.outputType (field :: fields) resolved hfields]

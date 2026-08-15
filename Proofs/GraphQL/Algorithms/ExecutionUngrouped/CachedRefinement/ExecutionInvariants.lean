@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.CacheInvariants
 
 /-!
@@ -165,17 +166,25 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve
-                : resolveFieldValue schema resolvers variableValues fieldDefinition
-                    field.parentType field.fieldName field.arguments source with
-          | none =>
-              simpa [hlookup, hresolve] using
+          cases hcoerce
+                : coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments with
+          | error =>
+              simpa [hlookup, hcoerce] using
                 (resultValueOrNull_handleFieldError_cacheReady
                   (ObjectRef := ObjectRef) fieldDefinition.outputType)
-          | some resolved =>
-              simpa [hlookup, hresolve] using
-                hcomplete fieldDefinition.outputType field.selectionSet resolved none
-                  (by intro previous h; cases h)
+          | success coercedArguments =>
+              cases hresolve
+                    : resolveFieldValue resolvers field.parentType
+                        field.fieldName coercedArguments source with
+              | none =>
+                  simpa [hlookup, hcoerce, hresolve] using
+                    (resultValueOrNull_handleFieldError_cacheReady
+                      (ObjectRef := ObjectRef) fieldDefinition.outputType)
+              | some resolved =>
+                  simpa [hlookup, hcoerce, hresolve] using
+                    hcomplete fieldDefinition.outputType field.selectionSet resolved none
+                      (by intro previous h; cases h)
       | some previous =>
           have hpreviousReady : FieldCacheMergeReady previous :=
             hprevious previous rfl

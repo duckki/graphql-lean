@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldExecution
 
 namespace GraphQL
@@ -1308,7 +1309,7 @@ mutual
                   none = none :=
               reusablePreviousValue?_none schema fieldDefinition.outputType
             cases hresolve
-                  : resolveFieldValue schema resolvers variableValues
+                  : coerceAndResolveFieldValue schema resolvers variableValues
                       fieldDefinition field.parentType field.fieldName field.arguments
                       source with
             | none =>
@@ -1350,7 +1351,7 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolveFieldValue schema resolvers variableValues
+                          : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>
@@ -1382,7 +1383,7 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolveFieldValue schema resolvers variableValues
+                          : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>
@@ -1414,7 +1415,7 @@ mutual
                       hpreviousReady
                 | none =>
                     cases hresolve
-                          : resolveFieldValue schema resolvers variableValues
+                          : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition field.parentType field.fieldName
                               field.arguments source with
                     | none =>

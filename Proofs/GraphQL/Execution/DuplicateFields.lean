@@ -597,16 +597,22 @@ mutual
                 cases hlookup : schema.lookupField field.parentType field.fieldName with
                 | none => simp [executeField, hlookup]
                 | some fieldDefinition =>
-                    cases hresolve : resolvers.resolve field.parentType field.fieldName
-                      (coerceArgumentValues schema variableValues
-                        fieldDefinition.arguments field.arguments) source with
-                    | none =>
-                        simp [executeField, resolveFieldValue, hlookup, hresolve]
-                    | some resolved =>
-                        simp [executeField, resolveFieldValue, hlookup, hresolve,
-                          completeValue_firstOccurrences schema resolvers variableValues
-                            fuel fieldDefinition.outputType resolved
-                            (FirstOccurrences.keep [] field rest)]
+                    cases hcoerce : coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments field.arguments with
+                    | error =>
+                        simp [executeField, resolveFieldValue, hlookup, hcoerce]
+                    | success coercedArguments =>
+                        cases hresolve : resolvers.resolve field.parentType
+                            field.fieldName coercedArguments source with
+                        | none =>
+                            simp [executeField, resolveFieldValue, hlookup, hresolve,
+                              hcoerce]
+                        | some resolved =>
+                            simp [executeField, resolveFieldValue, hlookup, hresolve,
+                              hcoerce,
+                              completeValue_firstOccurrences schema resolvers
+                                variableValues fuel fieldDefinition.outputType resolved
+                                (FirstOccurrences.keep [] field rest)]
   termination_by _schema _resolvers _variableValues fuel _source _responseName left
       _right _trace =>
     (fuel, 3, 0, sizeOf left)

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldExecution
 
 namespace GraphQL
@@ -174,7 +175,7 @@ mutual
             simp [executeField, hlookup, hprevious] at h
         | none =>
             cases hresolve
-                  : resolveFieldValue schema resolvers variableValues
+                  : coerceAndResolveFieldValue schema resolvers variableValues
                       {
                         name := fieldDefinitionName,
                         outputType := outputType,

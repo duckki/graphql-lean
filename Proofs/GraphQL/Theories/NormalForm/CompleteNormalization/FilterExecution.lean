@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.FilterCollection
 
 /-!
@@ -368,7 +369,7 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                       simp []
                   | some fieldDefinition =>
                       cases hresolved
-                            : Execution.resolveFieldValue schema resolvers
+                            : Execution.coerceAndResolveFieldValue schema resolvers
                                 variableValues fieldDefinition field.parentType
                                 field.fieldName field.arguments source with
                       | none =>

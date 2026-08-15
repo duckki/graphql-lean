@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.InternalAlignment
 
 /-!
@@ -26,11 +27,11 @@ def PreviousCacheSound {ObjectRef : Type} (schema : Schema)
         = none
       ∧ match previous with
         | .object previousSource _fields =>
-            resolveFieldValue schema resolvers variableValues fieldDefinition
+            coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               field.parentType field.fieldName field.arguments source
             = some previousSource
         | .list (some sourceValues) _values =>
-            resolveFieldValue schema resolvers variableValues fieldDefinition
+            coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               field.parentType field.fieldName field.arguments source
             = some (.list sourceValues)
         | _ => False
@@ -146,7 +147,7 @@ theorem PreviousCacheSound.object {ObjectRef : Type} (schema : Schema)
           fieldDefinition.outputType
           (some (ResponseValue.object (outputFields fields)))
         = none
-      -> resolveFieldValue schema resolvers variableValues fieldDefinition
+      -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
             field.parentType field.fieldName field.arguments source
           = some previousSource
       -> PreviousCacheSound schema resolvers variableValues source fieldDefinition field
@@ -163,7 +164,7 @@ theorem PreviousCacheSound.object_of_composite {ObjectRef : Type}
     (fieldDefinition : FieldDefinition) (field : ExecutableField)
     (fields : List (Name × FieldCacheValue ObjectRef))
     : fieldDefinition.outputType.isCompositeBool schema = true
-      -> resolveFieldValue schema resolvers variableValues fieldDefinition
+      -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
             field.parentType field.fieldName field.arguments source
           = some previousSource
       -> PreviousCacheSound schema resolvers variableValues source fieldDefinition field
@@ -183,7 +184,7 @@ theorem PreviousCacheSound.list_some {ObjectRef : Type} (schema : Schema)
     : ExecutionUngroupedUncached.reusablePreviousValue? schema
           fieldDefinition.outputType (some (ResponseValue.list (outputValues values)))
         = none
-      -> resolveFieldValue schema resolvers variableValues fieldDefinition
+      -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
             field.parentType field.fieldName field.arguments source
           = some (.list sourceValues)
       -> PreviousCacheSound schema resolvers variableValues source fieldDefinition field
@@ -201,7 +202,7 @@ theorem PreviousCacheSound.list_some_of_composite {ObjectRef : Type}
     (fieldDefinition : FieldDefinition) (field : ExecutableField)
     (values : List (FieldCacheValue ObjectRef))
     : fieldDefinition.outputType.isCompositeBool schema = true
-      -> resolveFieldValue schema resolvers variableValues fieldDefinition
+      -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
             field.parentType field.fieldName field.arguments source
           = some (.list sourceValues)
       -> PreviousCacheSound schema resolvers variableValues source fieldDefinition field
@@ -254,7 +255,15 @@ theorem PreviousCacheSound.of_isCompositeBool_eq_of_arguments_eq {ObjectRef : Ty
       constructor
       · simp [ExecutionUngroupedUncached.reusablePreviousValue?] at hreuseOutLeft ⊢
         simpa [hcomposite] using hreuseOutLeft
-      · simpa [resolveFieldValue, harguments] using hsource
+      · have hresolveEq :
+            coerceAndResolveFieldValue schema resolvers variableValues leftDefinition
+                field.parentType field.fieldName field.arguments source
+              = coerceAndResolveFieldValue schema resolvers variableValues rightDefinition
+                  field.parentType field.fieldName field.arguments source := by
+            unfold coerceAndResolveFieldValue
+            rw [harguments]
+        rw [← hresolveEq]
+        exact hsource
   | list sourceValues? values =>
       cases sourceValues? with
       | none =>
@@ -281,7 +290,15 @@ theorem PreviousCacheSound.of_isCompositeBool_eq_of_arguments_eq {ObjectRef : Ty
           constructor
           · simp [ExecutionUngroupedUncached.reusablePreviousValue?] at hreuseOutLeft ⊢
             simpa [hcomposite] using hreuseOutLeft
-          · simpa [resolveFieldValue, harguments] using hsource
+          · have hresolveEq :
+                coerceAndResolveFieldValue schema resolvers variableValues leftDefinition
+                    field.parentType field.fieldName field.arguments source
+                  = coerceAndResolveFieldValue schema resolvers variableValues rightDefinition
+                      field.parentType field.fieldName field.arguments source := by
+                unfold coerceAndResolveFieldValue
+                rw [harguments]
+            rw [← hresolveEq]
+            exact hsource
 
 theorem PreviousCacheSound.resultValueOrNull_nonNullCompletion {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -314,7 +331,7 @@ theorem completeValue_fresh_result_previousCacheSound {ObjectRef : Type}
     (variableValues : VariableValues)
     : ∀ fuel fieldType selectionSet value parentSource fieldDefinition field,
         GraphQL.FieldMerge.sameResponseShape schema fieldType fieldDefinition.outputType
-        -> resolveFieldValue schema resolvers variableValues fieldDefinition
+        -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               field.parentType field.fieldName field.arguments parentSource
             = some value
         -> PreviousCacheSound schema resolvers variableValues parentSource fieldDefinition
@@ -531,9 +548,9 @@ theorem executeField_none_result_previousCacheSound_of_sameResponseShape
       -> schema.lookupField later.parentType later.fieldName = some laterDefinition
       -> GraphQL.FieldMerge.sameResponseShape schema firstDefinition.outputType
           laterDefinition.outputType
-      -> resolveFieldValue schema resolvers variableValues firstDefinition
+      -> coerceAndResolveFieldValue schema resolvers variableValues firstDefinition
             first.parentType first.fieldName first.arguments source
-          = resolveFieldValue schema resolvers variableValues laterDefinition
+          = coerceAndResolveFieldValue schema resolvers variableValues laterDefinition
               later.parentType later.fieldName later.arguments source
       -> PreviousCacheSound schema resolvers variableValues source laterDefinition later
           (resultValueOrNull
@@ -541,28 +558,40 @@ theorem executeField_none_result_previousCacheSound_of_sameResponseShape
               first)) := by
   intro hlookupFirst _hlookupLater hshape hresolveEq
   unfold executeField
-  simp [hlookupFirst]
-  cases hresolveFirst
-        : resolveFieldValue schema resolvers variableValues firstDefinition
-            first.parentType first.fieldName first.arguments source with
-  | none =>
-      simp [handleFieldError, resultValueOrNull]
+  cases hcoerce
+        : coerceArgumentValues schema variableValues firstDefinition.arguments
+            first.arguments with
+  | error =>
+      simp [hlookupFirst, hcoerce, handleFieldError, resultValueOrNull]
       cases firstDefinition.outputType <;>
         exact PreviousCacheSound.null schema resolvers source laterDefinition later
-  | some resolved =>
-      have hresolveLater :
-          resolveFieldValue schema resolvers variableValues laterDefinition
-              later.parentType later.fieldName later.arguments source
-            =
-            some resolved := by
-        rw [← hresolveEq]
-        exact hresolveFirst
-      simp
-      exact
-        completeValue_fresh_result_previousCacheSound schema resolvers
-          variableValues completionFuel firstDefinition.outputType
-          first.selectionSet resolved source laterDefinition later hshape
-          hresolveLater
+  | success coercedArguments =>
+      cases hresolve
+            : resolveFieldValue resolvers first.parentType first.fieldName
+                coercedArguments source with
+      | none =>
+          simp [hlookupFirst, hcoerce, hresolve, handleFieldError, resultValueOrNull]
+          cases firstDefinition.outputType <;>
+            exact PreviousCacheSound.null schema resolvers source laterDefinition later
+      | some resolved =>
+          have hresolveFirst :
+              coerceAndResolveFieldValue schema resolvers variableValues firstDefinition
+                  first.parentType first.fieldName first.arguments source
+                = some resolved := by
+            simp [coerceAndResolveFieldValue, hcoerce, hresolve]
+          have hresolveLater :
+              coerceAndResolveFieldValue schema resolvers variableValues laterDefinition
+                  later.parentType later.fieldName later.arguments source
+                =
+                some resolved := by
+            rw [← hresolveEq]
+            exact hresolveFirst
+          simp [hlookupFirst, hcoerce, hresolve]
+          exact
+            completeValue_fresh_result_previousCacheSound schema resolvers
+              variableValues completionFuel firstDefinition.outputType
+              first.selectionSet resolved source laterDefinition later hshape
+              hresolveLater
 
 theorem PreviousCacheSound.mergeResponse_left {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -1093,9 +1122,9 @@ theorem executeField_none_result_previousCacheSound_of_collectedGroup
         hgroup)
       first later hfirst hlater hresponseEq
   have hresolveEq :
-      resolveFieldValue schema resolvers variableValues firstDefinition
+      coerceAndResolveFieldValue schema resolvers variableValues firstDefinition
           first.parentType first.fieldName first.arguments source
-        = resolveFieldValue schema resolvers variableValues laterDefinition
+        = coerceAndResolveFieldValue schema resolvers variableValues laterDefinition
             later.parentType later.fieldName later.arguments source := by
     simpa [resolveFieldValueByName, hlookupFirst, hlookupLater] using
       hresolveEqByName
@@ -1161,12 +1190,20 @@ theorem executableFields_resolve_eq_of_fieldCompatible
   have hparentLater : later.parentType = parentType := hparents later hlater
   rw [hparentFirst, hparentLater, hfieldEq]
   simp only [resolveFieldValueByName]
-  split
-  · rfl
-  · simp only [resolveFieldValue]
-    apply resolvers.resolve_argumentsEquivalent
-    exact coerceArgumentValues_equivalent_of_equivalent schema variableValues _
-      (hargumentsNodup first hfirst) (hargumentsNodup later hlater) hargumentsEq
+  cases hfield : schema.lookupField parentType later.fieldName with
+  | none => rfl
+  | some fieldDefinition =>
+      simp only [coerceAndResolveFieldValue]
+      have hcoercion := coerceArgumentValues_equivalent_of_equivalent
+        schema variableValues fieldDefinition.arguments (hargumentsNodup first hfirst)
+          (hargumentsNodup later hlater) hargumentsEq
+      cases hfirstCoercion : coerceArgumentValues schema variableValues
+              fieldDefinition.arguments first.arguments <;>
+        cases hlaterCoercion : coerceArgumentValues schema variableValues
+              fieldDefinition.arguments later.arguments <;>
+        simp [hfirstCoercion, hlaterCoercion,
+          ArgumentCoercionResult.equivalent] at hcoercion ⊢
+      exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ hcoercion
 
 theorem executeField_none_result_previousCacheSound_of_executableFields
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -1200,9 +1237,9 @@ theorem executeField_none_result_previousCacheSound_of_executableFields
       source parentType fields first later hparents hcompatible hargumentsNodup
       hfirst hlater hresponseEq
   have hresolveEq :
-      resolveFieldValue schema resolvers variableValues firstDefinition
+      coerceAndResolveFieldValue schema resolvers variableValues firstDefinition
           first.parentType first.fieldName first.arguments source
-        = resolveFieldValue schema resolvers variableValues laterDefinition
+        = coerceAndResolveFieldValue schema resolvers variableValues laterDefinition
             later.parentType later.fieldName later.arguments source := by
     simpa [resolveFieldValueByName, hlookupFirst, hlookupLater] using
       hresolveEqByName

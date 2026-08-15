@@ -68,14 +68,14 @@ def executeQueryDataWithFuel
     : ResponseValue :=
   (executeQueryWithFuel schema resolvers variableValues operation fuel source).data
 
--- Default compatibility data projection using the local operation-derived fuel bound.
+-- Default compatibility data projection using the schema-aware fuel bound.
 def executeQueryData
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (operation : Operation)
     (source : ResolverValue ObjectRef)
     : ResponseValue :=
   executeQueryDataWithFuel schema resolvers variableValues operation
-    (executeQueryFuelBound operation) source
+    (executeQueryFuelBound schema operation) source
 
 end Execution
 

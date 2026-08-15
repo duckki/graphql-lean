@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Statements
 
 /-!
@@ -71,36 +72,48 @@ theorem executeField_ok_keys
           | none =>
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
-              cases hresolve
-                    : Execution.resolveFieldValue schema resolvers variableValues
-                        fieldDefinition field.parentType field.fieldName
-                        field.arguments source with
-              | none =>
+              cases hcoerce
+                    : Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments field.arguments with
+              | error =>
                   cases hhandled
                         : Execution.handleFieldError fieldDefinition.outputType with
                   | error fieldErrors =>
-                      simp [Execution.executeField, hlookup, hresolve,
-                        Execution.singleFieldResult,
-                        hhandled] at hok
+                      simp [Execution.executeField, hlookup, hcoerce,
+                        Execution.singleFieldResult, hhandled] at hok
                   | ok handled =>
                       rcases handled with ⟨responseValue, fieldErrors⟩
-                      simp [Execution.executeField, hlookup, hresolve,
-                        Execution.singleFieldResult,
-                        hhandled] at hok
+                      simp [Execution.executeField, hlookup, hcoerce,
+                        Execution.singleFieldResult, hhandled] at hok
                       exact hok.1 ▸ rfl
-              | some resolved =>
-                  cases hcomplete
-                        : Execution.completeValue schema resolvers variableValues
-                            fuel' fieldDefinition.outputType (field :: rest)
-                            resolved with
-                  | error completeErrors =>
-                      simp [Execution.executeField, hlookup, hresolve,
-                        Execution.singleFieldResult, hcomplete] at hok
-                  | ok completed =>
-                      rcases completed with ⟨responseValue, childErrors⟩
-                      simp [Execution.executeField, hlookup, hresolve,
-                        Execution.singleFieldResult, hcomplete] at hok
-                      exact hok.1 ▸ rfl
+              | success coercedArguments =>
+                  cases hresolve
+                        : Execution.resolveFieldValue resolvers
+                            field.parentType field.fieldName coercedArguments source with
+                  | none =>
+                      cases hhandled
+                            : Execution.handleFieldError fieldDefinition.outputType with
+                      | error fieldErrors =>
+                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                            Execution.singleFieldResult, hhandled] at hok
+                      | ok handled =>
+                          rcases handled with ⟨responseValue, fieldErrors⟩
+                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                            Execution.singleFieldResult, hhandled] at hok
+                          exact hok.1 ▸ rfl
+                  | some resolved =>
+                      cases hcomplete
+                            : Execution.completeValue schema resolvers variableValues
+                                fuel' fieldDefinition.outputType (field :: rest)
+                                resolved with
+                      | error completeErrors =>
+                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                            Execution.singleFieldResult, hcomplete] at hok
+                      | ok completed =>
+                          rcases completed with ⟨responseValue, childErrors⟩
+                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                            Execution.singleFieldResult, hcomplete] at hok
+                          exact hok.1 ▸ rfl
 
 theorem executeCollectedFields_ok_keys
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)

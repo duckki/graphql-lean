@@ -53,7 +53,7 @@ the domain on which complete normalization preserves source-operation execution.
 
 For operations that are already complete-normal, equality up to reordering implies
 unrestricted semantic equivalence when
-`variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions`
+`variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions`
 holds. That extra condition is necessary because public execution applies
 operation-specific defaults, while the operation equality relation does not compare
 variable definitions.
@@ -129,7 +129,7 @@ The public proposition definitions live in `GraphQL/Theories/NormalForm.lean`. T
 witnesses live in the corresponding uniqueness proof modules.
 
 All operation-level statements below assume
-`variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions`.
+`variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions`.
 This position-wise relation requires equal variable names and equivalent defaults,
 with matching presence or absence. It intentionally ignores variable types because
 the execution model assumes supplied values are already coerced and type-conformant.
@@ -154,7 +154,7 @@ def normalOperationsEqualUpToReorderingSemanticallyEquivalent
   -> operationDirectiveFree right
   -> operationNormal schema left
   -> operationNormal schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsEqualUpToReorderingWithCoercion schema left right
   -> operationsSemanticallyEquivalent schema left right
 ```
@@ -169,7 +169,7 @@ def normalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsEqualUpToReorderingWithCoercion schema
       (normalizeOperation schema left)
       (normalizeOperation schema right)
@@ -188,7 +188,7 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> operationDirectiveFree right
   -> operationNormal schema left
   -> operationNormal schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema left right
 ```
@@ -207,7 +207,7 @@ def normalizeOperationUniqueUpToReordering
   -> operationFieldsValidInPossibleTypes schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema
       (normalizeOperation schema left) (normalizeOperation schema right)
@@ -244,7 +244,7 @@ def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
   -> operationsSemanticallyEquivalent schema left right
 ```
@@ -273,7 +273,7 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)
@@ -297,7 +297,7 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
 ```
@@ -323,7 +323,7 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
   -> operationBoolVarsEquivalent left right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)

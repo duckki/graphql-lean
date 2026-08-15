@@ -306,6 +306,8 @@ theorem
       -> SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema [] parentType left
+      -> selectionSetArgumentsCoercible schema [] parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -315,13 +317,14 @@ theorem
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchild hcoercionReflects hschema hleftValid hrightValid
+    hleftCoercion hrightCoercion
     hleftFree hrightFree hleftNormal hrightNormal hobject htrace
   have hcoercedArgumentsDiff
       {definitions : List InputValueDefinition}
       {leftArguments rightArguments : List Argument}
       (hargumentsDiff :
         ¬ Argument.argumentsEquivalent leftArguments rightArguments) :
-      ¬ Argument.argumentsEquivalent
+      ¬ Execution.ArgumentCoercionResult.equivalent
           (Execution.coerceArgumentValues schema [] definitions leftArguments)
           (Execution.coerceArgumentValues schema [] definitions rightArguments) := by
     intro hcoerced
@@ -331,18 +334,18 @@ theorem
   | objectLeftResponseName _hobjectDiff hleftMem hrightNoResponseName =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_left_responseName_diff
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
           hrightNormal hobject hleftMem hrightNoResponseName
   | objectRightResponseName _hobjectDiff hrightMem hleftNoResponseName =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_right_responseName_diff
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
           hrightNormal hobject hrightMem hleftNoResponseName
   | objectFieldNameLeaf _hobjectDiff hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf hfieldNameDiff =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_leaf
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
           hrightNormal hobject hleftMem hrightMem
           (by
             intro candidate hcandidate
@@ -375,7 +378,7 @@ theorem
       hargumentsDiff =>
       exact
         not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_leaf
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
           hrightNormal hobject hleftMem hrightMem
           (by
             intro candidate hcandidate
@@ -385,8 +388,33 @@ theorem
             subst candidate
             exact hleaf)
           (by
-            simpa [Execution.coercedArgumentsForField, hlookup] using
-              hcoercedArgumentsDiff hargumentsDiff)
+            rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
+              ⟨leftDefinition, hleftLookup, hleftArgumentsValid, _⟩
+            rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
+              ⟨rightDefinition, hrightLookup, hrightArgumentsValid, _⟩
+            have hdefinitions : rightDefinition = leftDefinition := by
+              rw [hleftLookup] at hrightLookup
+              exact (Option.some.inj hrightLookup).symm
+            subst rightDefinition
+            have hleftSuccess :=
+              selectionSetArgumentsCoercible_field_success_of_directiveFree
+                hleftCoercion hleftFree hleftMem hleftLookup
+            have hrightSuccess :=
+              selectionSetArgumentsCoercible_field_success_of_directiveFree
+                hrightCoercion hrightFree hrightMem hrightLookup
+            intro hcoerced
+            apply hcoercedArgumentsDiff hargumentsDiff
+            cases hleftResult : Execution.coerceArgumentValues schema []
+                leftDefinition.arguments _ with
+            | error => simp [hleftResult] at hleftSuccess
+            | success leftCoerced =>
+                cases hrightResult : Execution.coerceArgumentValues schema []
+                    leftDefinition.arguments _ with
+                | error => simp [hrightResult] at hrightSuccess
+                | success rightCoerced =>
+                    simpa [Execution.ArgumentCoercionResult.equivalent,
+                      Execution.coercedArgumentsForField, hleftLookup, hleftResult,
+                      hrightResult] using hcoerced)
   | objectArgumentsCompositeLeft _hobjectDiff hleftMem hrightMem hlookup
       hcomposite hobservable hargumentsDiff =>
       exact
@@ -508,6 +536,8 @@ theorem
       -> SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercible schema [] parentType left
+      -> selectionSetArgumentsCoercible schema [] parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -517,7 +547,7 @@ theorem
       -> ¬ selectionSetsDataEquivalent schema parentType left right := by
   intro hfieldNameCompositeLeft hfieldNameCompositeRight
     hargumentsCompositeLeft hchildSplit hcoercionReflects hschema hleftValid hrightValid
-    hleftFree hrightFree hleftNormal hrightNormal hobject htrace
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hobject htrace
   apply
     not_selectionSetsDataEquivalent_of_valid_normal_object_diff_observable_trace_of_separators
       (schema := schema)
@@ -540,6 +570,8 @@ theorem
   · exact hschema
   · exact hleftValid
   · exact hrightValid
+  · exact hleftCoercion
+  · exact hrightCoercion
   · exact hleftFree
   · exact hrightFree
   · exact hleftNormal

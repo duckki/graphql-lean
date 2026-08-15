@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.CollectedSourceSoundness
 
 /-!
@@ -611,15 +612,22 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve
-                : resolveFieldValue schema resolvers variableValues fieldDefinition
-                    field.parentType field.fieldName field.arguments source with
-          | none =>
-              simp [hresolve, handleFieldError_output,
+          cases hcoerce
+                : coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments with
+          | error =>
+              simp [hcoerce, handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
-          | some resolved =>
-              simp [hresolve, hcomplete,
-                ExecutionUngroupedUncached.reusablePreviousValue?]
+          | success coercedArguments =>
+              cases hresolve
+                    : resolveFieldValue resolvers field.parentType
+                        field.fieldName coercedArguments source with
+              | none =>
+                  simp [hcoerce, hresolve, handleFieldError_output,
+                    ExecutionUngroupedUncached.reusablePreviousValue?]
+              | some resolved =>
+                  simp [hcoerce, hresolve, hcomplete,
+                    ExecutionUngroupedUncached.reusablePreviousValue?]
       | some previous =>
           cases hreuse
                 : reusablePreviousValue? schema fieldDefinition.outputType previous with
@@ -645,12 +653,16 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
                         none := by
                     simpa using hreuseOut
                   have hresolve' :
-                      resolveFieldValue schema resolvers variableValues fieldDefinition
+                      coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                           field.parentType field.fieldName field.arguments source
                         =
                         some previousSource := by
                     simpa using hresolve
-                  simp [hreuseOut', hresolve']
+                  rcases (coerceAndResolveFieldValue_eq_some_iff schema resolvers
+                      variableValues fieldDefinition field.parentType field.fieldName
+                      field.arguments source previousSource).1 hresolve' with
+                    ⟨coercedArguments, hcoerce, hrawResolve⟩
+                  simp [hreuseOut', hcoerce, hrawResolve]
                   rw [hreuse]
                   exact
                     hcomplete fieldDefinition.outputType field.selectionSet
@@ -669,12 +681,16 @@ theorem executeField_output_of_completeValue_and_previousCacheSound
                             none := by
                         simpa using hreuseOut
                       have hresolve' :
-                          resolveFieldValue schema resolvers variableValues fieldDefinition
+                          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                               field.parentType field.fieldName field.arguments source
                             =
                             some (ResolverValue.list sourceValues) := by
                         simpa using hresolve
-                      simp [hreuseOut', hresolve']
+                      rcases (coerceAndResolveFieldValue_eq_some_iff schema resolvers
+                          variableValues fieldDefinition field.parentType field.fieldName
+                          field.arguments source (.list sourceValues)).1 hresolve' with
+                        ⟨coercedArguments, hcoerce, hrawResolve⟩
+                      simp [hreuseOut', hcoerce, hrawResolve]
                       rw [hreuse]
                       exact
                         hcomplete fieldDefinition.outputType field.selectionSet
@@ -712,7 +728,7 @@ theorem executeField_output_of_completionCacheSound
     (hfresh
       : ∀ fieldDefinition resolved,
           schema.lookupField field.parentType field.fieldName = some fieldDefinition
-          -> resolveFieldValue schema resolvers variableValues fieldDefinition
+          -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                 field.parentType field.fieldName field.arguments source
               = some resolved
           -> CompletionCacheSound schema resolvers variableValues
@@ -735,18 +751,30 @@ theorem executeField_output_of_completionCacheSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve
-                : resolveFieldValue schema resolvers variableValues fieldDefinition
-                    field.parentType field.fieldName field.arguments source with
-          | none =>
-              simp [hresolve, handleFieldError_output,
+          cases hcoerce
+                : coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments field.arguments with
+          | error =>
+              simp [hcoerce, handleFieldError_output,
                 ExecutionUngroupedUncached.reusablePreviousValue?]
-          | some resolved =>
-              have hcompletion :=
-                hfresh fieldDefinition resolved hlookup hresolve
-              simpa [CompletionCacheSound, hresolve,
-                ExecutionUngroupedUncached.reusablePreviousValue?] using
-                hcompletion
+          | success coercedArguments =>
+              cases hresolve
+                    : resolveFieldValue resolvers field.parentType
+                        field.fieldName coercedArguments source with
+              | none =>
+                  simp [hcoerce, hresolve, handleFieldError_output,
+                    ExecutionUngroupedUncached.reusablePreviousValue?]
+              | some resolved =>
+                  have hresolved :
+                      coerceAndResolveFieldValue schema resolvers variableValues
+                          fieldDefinition field.parentType field.fieldName
+                          field.arguments source = some resolved := by
+                    simp [coerceAndResolveFieldValue, hcoerce, hresolve]
+                  have hcompletion :=
+                    hfresh fieldDefinition resolved hlookup hresolved
+                  simpa [CompletionCacheSound, hcoerce, hresolve,
+                    ExecutionUngroupedUncached.reusablePreviousValue?] using
+                    hcompletion
       | some previous =>
           have hcontinuation := hprevious fieldDefinition previous hlookup rfl
           cases hreuse
@@ -772,10 +800,14 @@ theorem executeField_output_of_completionCacheSound
                         = none := by
                     simpa using hreuseOut
                   have hresolve' :
-                      resolveFieldValue schema resolvers variableValues fieldDefinition
+                      coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                           field.parentType field.fieldName field.arguments source
                         = some previousSource := by
                     simpa using hresolve
+                  rcases (coerceAndResolveFieldValue_eq_some_iff schema resolvers
+                      variableValues fieldDefinition field.parentType field.fieldName
+                      field.arguments source previousSource).1 hresolve' with
+                    ⟨coercedArguments, hcoerce, hrawResolve⟩
                   have hcompletion :
                       outputResult FieldCacheValue.output
                           (completeValue schema resolvers variableValues completionFuel
@@ -787,7 +819,7 @@ theorem executeField_output_of_completionCacheSound
                             field.selectionSet previousSource
                             (some (ResponseValue.object (outputFields fields))) := by
                     exact hcontinuation.2
-                  simp [hreuseOut', hresolve']
+                  simp [hreuseOut', hcoerce, hrawResolve]
                   rw [hreuse]
                   exact hcompletion
               | list sourceValues? values =>
@@ -802,10 +834,14 @@ theorem executeField_output_of_completionCacheSound
                             = none := by
                         simpa using hreuseOut
                       have hresolve' :
-                          resolveFieldValue schema resolvers variableValues fieldDefinition
+                          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                               field.parentType field.fieldName field.arguments source
                             = some (ResolverValue.list sourceValues) := by
                         simpa using hresolve
+                      rcases (coerceAndResolveFieldValue_eq_some_iff schema resolvers
+                          variableValues fieldDefinition field.parentType field.fieldName
+                          field.arguments source (.list sourceValues)).1 hresolve' with
+                        ⟨coercedArguments, hcoerce, hrawResolve⟩
                       have hcompletion :
                           outputResult FieldCacheValue.output
                               (completeValue schema resolvers variableValues
@@ -819,7 +855,7 @@ theorem executeField_output_of_completionCacheSound
                                 (.list sourceValues)
                                 (some (ResponseValue.list (outputValues values))) := by
                         exact hcontinuation.2
-                      simp [hreuseOut', hresolve']
+                      simp [hreuseOut', hcoerce, hrawResolve]
                       rw [hreuse]
                       exact hcompletion
 

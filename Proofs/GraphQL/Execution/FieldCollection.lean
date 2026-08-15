@@ -116,15 +116,17 @@ theorem executeField_same_head_eq_of_completeValue
       let fieldDefinition? := schema.lookupField parentType fieldName
       (match fieldDefinition? with
         | some fieldDefinition =>
-            match resolvers.resolve parentType fieldName
-                    (coerceArgumentValues schema variableValues fieldDefinition.arguments
-                      arguments) source with
-            | some value =>
-                completeValue schema resolvers variableValues depth
-                  fieldDefinition.outputType (leftField :: leftFields) value
-                = completeValue schema resolvers variableValues depth
-                    fieldDefinition.outputType (rightField :: rightFields) value
-            | none => True
+            match coerceArgumentValues schema variableValues fieldDefinition.arguments
+                    arguments with
+            | .error => True
+            | .success coercedArguments =>
+                match resolvers.resolve parentType fieldName coercedArguments source with
+                | some value =>
+                    completeValue schema resolvers variableValues depth
+                      fieldDefinition.outputType (leftField :: leftFields) value
+                    = completeValue schema resolvers variableValues depth
+                        fieldDefinition.outputType (rightField :: rightFields) value
+                | none => True
         | none => True)
       -> executeField schema resolvers variableValues (depth + 1)
             source responseName (leftField :: leftFields)
@@ -136,22 +138,26 @@ theorem executeField_same_head_eq_of_completeValue
   | none =>
       simp
   | some fieldDefinition =>
-      cases hresolved
-            : resolvers.resolve parentType fieldName
-                (coerceArgumentValues schema variableValues fieldDefinition.arguments
-                  arguments) source with
-      | none =>
-          simp [resolveFieldValue, hresolved]
-      | some value =>
-          have hcomplete' :
-              completeValue schema resolvers variableValues depth
-                fieldDefinition.outputType (leftField :: leftFields) value =
-              completeValue schema resolvers variableValues depth
-                fieldDefinition.outputType (rightField :: rightFields) value := by
-            simpa [fieldDefinition?, hlookup, hresolved] using hcomplete
-          simp [resolveFieldValue, hresolved,
-            singleFieldResult,
-            leftField, rightField, hcomplete']
+      cases hcoerce
+            : coerceArgumentValues schema variableValues
+                fieldDefinition.arguments arguments with
+      | error =>
+          simp [resolveFieldValue, hcoerce]
+      | success coercedArguments =>
+          cases hresolved
+                : resolvers.resolve parentType fieldName coercedArguments source with
+          | none =>
+              simp [resolveFieldValue, hcoerce, hresolved]
+          | some value =>
+              have hcomplete' :
+                  completeValue schema resolvers variableValues depth
+                    fieldDefinition.outputType (leftField :: leftFields) value =
+                  completeValue schema resolvers variableValues depth
+                    fieldDefinition.outputType (rightField :: rightFields) value := by
+                simpa [fieldDefinition?, hlookup, hcoerce, hresolved] using hcomplete
+              simp [resolveFieldValue, hcoerce, hresolved,
+                singleFieldResult,
+                leftField, rightField, hcomplete']
 
 theorem executeSelectionSet_field_head_same_group_eq_of_completeValue
     (schema : Schema)
@@ -185,15 +191,18 @@ theorem executeSelectionSet_field_head_same_group_eq_of_completeValue
           = (responseName, rightField :: rightFields) :: rightRest
       -> (match schema.lookupField parentType fieldName with
           | some fieldDefinition =>
-              match resolvers.resolve parentType fieldName
-                      (coerceArgumentValues schema variableValues
-                        fieldDefinition.arguments arguments) source with
-              | some value =>
-                  completeValue schema resolvers variableValues fieldDepth
-                    fieldDefinition.outputType (leftField :: leftFields) value
-                  = completeValue schema resolvers variableValues fieldDepth
-                      fieldDefinition.outputType (rightField :: rightFields) value
-              | none => True
+              match coerceArgumentValues schema variableValues fieldDefinition.arguments
+                      arguments with
+              | .error => True
+              | .success coercedArguments =>
+                  match resolvers.resolve parentType fieldName coercedArguments
+                          source with
+                  | some value =>
+                      completeValue schema resolvers variableValues fieldDepth
+                        fieldDefinition.outputType (leftField :: leftFields) value
+                      = completeValue schema resolvers variableValues fieldDepth
+                          fieldDefinition.outputType (rightField :: rightFields) value
+                  | none => True
           | none => True)
       -> executeCollectedFields schema resolvers variableValues
             (fieldDepth + 1) source leftRest

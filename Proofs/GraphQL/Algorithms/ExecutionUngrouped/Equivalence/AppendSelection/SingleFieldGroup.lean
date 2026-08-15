@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.AppendSelection.State
 
 /-!
@@ -1407,7 +1408,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               parentType fieldName arguments source = resolved := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
@@ -1488,7 +1489,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               parentType fieldName arguments source = resolved := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
@@ -1571,7 +1572,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
         hlookup, GraphQL.Execution.singleFieldResult]
   | some fieldDefinition =>
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               parentType fieldName arguments source = resolved := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
@@ -1648,7 +1649,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
         RootSelectionResultAlignedEquivalent, ErrorPresenceEquivalent]
   | some fieldDefinition =>
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               parentType fieldName arguments source = resolved := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.DepthZero
 import Proofs.GraphQL.Execution.ResolverValue
 
@@ -194,8 +195,12 @@ theorem executeField_key_mem
                 GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
                 hlookup] at hmem
           | some fieldDefinition =>
+              have hfieldExecution :=
+                GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                  schema resolvers variableValues depth' source _groupName field fields
+                  fieldDefinition hlookup
               cases hresolve :
-                  GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                  GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
                     fieldDefinition field.parentType field.fieldName field.arguments
                     source with
               | none =>
@@ -204,14 +209,14 @@ theorem executeField_key_mem
                         fieldDefinition.outputType with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted] at hmem
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simpa [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted] using hmem
@@ -222,14 +227,14 @@ theorem executeField_key_mem
                         (field :: fields) resolved with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted] at hmem
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simpa [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted] using hmem
@@ -331,9 +336,13 @@ theorem executeField_pairKeysNodup
                 GraphQL.Execution.executeField, GraphQL.Execution.Result.getD,
                 hlookup]
           | some fieldDefinition =>
+              have hfieldExecution :=
+                GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                  schema resolvers variableValues depth' source groupName field rest
+                  fieldDefinition hlookup
               cases hresolve
-                    : GraphQL.Execution.resolveFieldValue schema resolvers variableValues
-                        fieldDefinition field.parentType field.fieldName
+                    : GraphQL.Execution.coerceAndResolveFieldValue schema resolvers
+                        variableValues fieldDefinition field.parentType field.fieldName
                         field.arguments source with
               | none =>
                   cases hcompleted
@@ -341,14 +350,14 @@ theorem executeField_pairKeysNodup
                             fieldDefinition.outputType with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted]
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted]
@@ -359,14 +368,14 @@ theorem executeField_pairKeysNodup
                             (field :: rest) resolved with
                   | error errors =>
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted]
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simp [GraphQL.Execution.executeFieldData,
-                        GraphQL.Execution.executeField,
+                        hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
                         GraphQL.Execution.Result.getD, hlookup, hresolve,
                         hcompleted]
@@ -789,8 +798,12 @@ mutual
                   hlookup] using
                   ResponseMergeReady_empty_object
             | some fieldDefinition =>
+                have hfieldExecution :=
+                  GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                    schema resolvers variableValues depth' source responseName field rest
+                    fieldDefinition hlookup
                 cases hresolve :
-                    GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+                    GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
                       fieldDefinition field.parentType field.fieldName field.arguments
                       source with
                 | none =>
@@ -799,7 +812,7 @@ mutual
                           fieldDefinition.outputType with
                     | error errors =>
                         simpa [GraphQL.Execution.executeFieldData,
-                          GraphQL.Execution.executeField,
+                          hfieldExecution,
                           GraphQL.Execution.singleFieldResult,
                           GraphQL.Execution.Result.getD, hlookup, hresolve,
                           hcompleted] using
@@ -811,7 +824,7 @@ mutual
                             resultValueOrNull_handleFieldError_ready
                               fieldDefinition.outputType
                         simpa [GraphQL.Execution.executeFieldData,
-                          GraphQL.Execution.executeField,
+                          hfieldExecution,
                           GraphQL.Execution.singleFieldResult,
                           GraphQL.Execution.Result.getD, hlookup, hresolve,
                           hcompleted] using
@@ -829,7 +842,7 @@ mutual
                           (field :: rest) resolved with
                     | error errors =>
                         simpa [GraphQL.Execution.executeFieldData,
-                          GraphQL.Execution.executeField,
+                          hfieldExecution,
                           GraphQL.Execution.singleFieldResult,
                           GraphQL.Execution.Result.getD, hlookup, hresolve,
                           hcompleted] using
@@ -844,7 +857,7 @@ mutual
                               fieldDefinition.outputType (field :: rest)
                               resolved
                         simpa [GraphQL.Execution.executeFieldData,
-                          GraphQL.Execution.executeField,
+                          hfieldExecution,
                           GraphQL.Execution.singleFieldResult,
                           GraphQL.Execution.Result.getD, hlookup, hresolve,
                           hcompleted] using

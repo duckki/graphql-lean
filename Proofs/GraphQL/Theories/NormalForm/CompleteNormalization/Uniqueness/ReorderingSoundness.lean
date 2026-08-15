@@ -2,6 +2,7 @@ import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseB
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.ReorderingVariables
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.StemExecution
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness
 
 /-!
@@ -263,7 +264,9 @@ private def CompleteNormalBodyEquality
     (leftCase rightCase : BoolCase) (leftBody rightBody : List Selection)
     : Prop :=
   ∀ variableValues,
-    boolVarsComplete leftVariables variableValues
+    operationArgumentsCoercible schema variableValues leftOperation
+    -> operationArgumentsCoercible schema variableValues rightOperation
+    -> boolVarsComplete leftVariables variableValues
     -> variableValuesAgreeWithCase
         (Execution.coerceVariableValues leftOperation variableValues)
         leftCase leftVariables
@@ -319,11 +322,19 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
     (hvariables
       : ∀ varName,
           varName ∈ leftVar :: leftVariables ↔ varName ∈ rightVar :: rightVariables)
+    (hleftDefinitionsNodup
+      : (leftOperation.variableDefinitions.map VariableDefinition.name).Nodup)
+    (hrightDefinitionsNodup
+      : (rightOperation.variableDefinitions.map VariableDefinition.name).Nodup)
     (hdefinitions
-      : variableDefinitionsEquivalent
+      : variableDefinitionsSyntacticallyEquivalent
           leftOperation.variableDefinitions rightOperation.variableDefinitions)
     (hleftValues
       : Execution.coerceVariableValues leftOperation variableValues = variableValues)
+    (hleftOperationReady
+      : operationArgumentsCoercible schema variableValues leftOperation)
+    (hrightOperationReady
+      : operationArgumentsCoercible schema variableValues rightOperation)
     (hobject : objectTypeNameBool schema parentType = true)
     (hequal
       : CompleteNormalSelectionSetEqualUpToReorderingWithCoercion schema
@@ -337,8 +348,9 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
       Execution.variableValuesCoercionEquivalent variableValues
         (Execution.coerceVariableValues rightOperation variableValues) := by
     have hcoerced :=
-      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
         (left := leftOperation) (right := rightOperation)
+        hleftDefinitionsNodup hrightDefinitionsNodup
         (Execution.variableValuesCoercionEquivalent_refl variableValues)
         hdefinitions
     rwa [hleftValues] at hcoerced
@@ -422,7 +434,8 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
             rightCase (rightVar :: rightVariables) :=
         variableValuesAgreeWithCase_of_equivalent hpreparedValues hvariables
           hleftCase hrightCase hcasesEqual hagreesLeftCase
-      have hbodiesEqualCross := hbodiesEqual variableValues hcomplete
+      have hbodiesEqualCross := hbodiesEqual variableValues hleftOperationReady
+        hrightOperationReady hcomplete
         (by simpa [hleftValues] using hagreesLeftCase) hagreesRightCase
       rw [hleftValues] at hbodiesEqualCross
       have hbodiesEqualSame :=
@@ -566,28 +579,62 @@ private theorem
     (hrootObject : objectTypeNameBool schema (left.rootType schema) = true)
     (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left.selectionSet)
     (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right.selectionSet)
+    (hleftDefinitionsNodup : (left.variableDefinitions.map VariableDefinition.name).Nodup)
+    (hrightDefinitionsNodup
+      : (right.variableDefinitions.map VariableDefinition.name).Nodup)
     (hleftNormal : completeNormalOperation schema left)
     (hrightNormal : completeNormalOperation schema right)
     (hdefinitions
-      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+      : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+          right.variableDefinitions)
     (hequal : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right)
     : operationsSemanticallyEquivalent schema left right := by
-  have hvariables :=
-    operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReorderingWithCoercion
-      hequal
-  rcases hequal with ⟨_hroot, hselectionEqual⟩
+  rcases hequal with ⟨_hroot, hvariables, hselectionEqual⟩
   have hrootType : (left.rootType schema) = (right.rootType schema) := by
     cases left.operationType
     cases right.operationType
     rfl
-  intro ObjectRef resolvers variableValues fuel source
+  intro ObjectRef resolvers variableValues fuel source hleftOperationReady
+    hrightOperationReady
   have hcoercedValues :
       Execution.variableValuesCoercionEquivalent
         (Execution.coerceVariableValues left variableValues)
         (Execution.coerceVariableValues right variableValues) :=
-    Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+    Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
+      hleftDefinitionsNodup hrightDefinitionsNodup
       (Execution.variableValuesCoercionEquivalent_refl variableValues)
       hdefinitions
+  have hleftEffectiveReady :
+      operationArgumentsCoercible schema
+        (Execution.coerceVariableValues left variableValues) left := by
+    unfold operationArgumentsCoercible at hleftOperationReady ⊢
+    rw [coerceVariableValues_idempotent]
+    exact hleftOperationReady
+  have hrightEffectiveReady :
+      operationArgumentsCoercible schema
+        (Execution.coerceVariableValues left variableValues) right := by
+    unfold operationArgumentsCoercible at hrightOperationReady ⊢
+    apply selectionSetArgumentsCoercible_of_variableValuesCoercionEquivalent
+      (parentType := right.rootType schema)
+      (selectionSet := right.selectionSet)
+      (rightValues := Execution.coerceVariableValues right variableValues)
+    · have hdefinitionsRefl :
+          variableDefinitionsSyntacticallyEquivalent right.variableDefinitions
+            right.variableDefinitions := by
+        constructor
+        <;> intro definition hmember
+        <;>
+            refine ⟨definition, hmember, rfl, rfl, ?_⟩
+        <;> cases definition.defaultValue with
+        | none => trivial
+        | some defaultValue =>
+            exact GroundTypeNormalization.inputValue_equivalent_refl _
+      have hcoercedAgain :=
+        Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
+          (left := right) (right := right) hrightDefinitionsNodup
+          hrightDefinitionsNodup hcoercedValues hdefinitionsRefl
+      simpa [coerceVariableValues_idempotent] using hcoercedAgain
+    · exact hrightOperationReady
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
@@ -630,13 +677,15 @@ private theorem
                 selectionSetNormal schema (left.rootType schema)
                   right.selectionSet := by
               simpa only [hrootType] using hrightShape.1
-            have hselectionEqualGround : ∀ suppliedValues,
+            have hselectionEqualCross :
                 SelectionSetEqualUpToReorderingWithCoercion schema
-                  (Execution.coerceVariableValues left suppliedValues)
-                  (Execution.coerceVariableValues right suppliedValues)
+                  (Execution.coerceVariableValues left variableValues)
+                  (Execution.coerceVariableValues right variableValues)
                   (left.rootType schema) left.selectionSet right.selectionSet := by
-              simpa [hleftVars] using hselectionEqual
-            have hselectionEqualCross := hselectionEqualGround variableValues
+              have hselectionEqualGround := hselectionEqual
+              rw [hleftVars] at hselectionEqualGround
+              exact hselectionEqualGround variableValues hleftOperationReady
+                hrightOperationReady
             have hselectionEqualSame :=
               GroundTypeNormalization.selectionSetEqualUpToReorderingWithCoercion_right_to_left
                 hcoercedValues hselectionEqualCross
@@ -674,8 +723,10 @@ private theorem
                   simpa [hleftVars, hrightVars] using (hvariables varName)
                 exact completeNormalSelectionSets_semanticallyEquivalent_of_equal
                   hleftArgumentsNodup hrightArgumentsNodup hleftComplete
-                  hrightComplete hvariablesAtSupports hdefinitions
+                  hrightComplete hvariablesAtSupports hleftDefinitionsNodup
+                  hrightDefinitionsNodup hdefinitions
                   (coerceVariableValues_idempotent left variableValues)
+                  hleftEffectiveReady hrightEffectiveReady
                   hrootObject hselectionEqualComplete resolvers fuel source hsource
       have hrightExecution :
           Execution.executeSelectionSetAsResponse schema resolvers
@@ -715,6 +766,8 @@ theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
         (Validation.operationDefinitionValid_selectionSetValid hleftValid))
       (Execution.selectionSetArgumentsNodup_of_selectionSetValid
         (Validation.operationDefinitionValid_selectionSetValid hrightValid))
+      (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1
+      (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1
       hleftNormal hrightNormal hdefinitions hequal
 
 theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
@@ -729,7 +782,7 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
       (completeNormalizeOperation schema right) :=
     completeNormalizeOperation_normal schema right hschema hrightValid
   have hnormalizedDefinitions :
-      variableDefinitionsEquivalent
+      variableDefinitionsSyntacticallyEquivalent
         (completeNormalizeOperation schema left).variableDefinitions
         (completeNormalizeOperation schema right).variableDefinitions := by
     simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
@@ -748,8 +801,15 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
       (completeNormalizeOperation_selectionSetArgumentsNodup schema right
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
+      (by
+        simpa [completeNormalizeOperation_variableDefinitions] using
+          (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1)
+      (by
+        simpa [completeNormalizeOperation_variableDefinitions] using
+          (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1)
       hleftNormal hrightNormal hnormalizedDefinitions hequal
-  intro ObjectRef resolvers variableValues fuel source hleftComplete
+  intro ObjectRef resolvers variableValues fuel source hleftComplete hleftReady
+    hrightReady
   have hrightComplete : operationBoolVarsComplete right variableValues := by
     intro varName hmem
     exact hleftComplete varName ((hvariables varName).2 hmem)
@@ -761,8 +821,19 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
     hschema hrightValid resolvers variableValues fuel source
     (operationBoolVarsComplete_coerceVariableValues
       right variableValues hrightComplete)
+  have hleftNormalizedReady :
+      operationArgumentsCoercible schema variableValues
+        (completeNormalizeOperation schema left) :=
+    operationArgumentsCoercible_completeNormalizeOperation schema left
+      variableValues hschema hleftValid hleftComplete hleftReady
+  have hrightNormalizedReady :
+      operationArgumentsCoercible schema variableValues
+        (completeNormalizeOperation schema right) :=
+    operationArgumentsCoercible_completeNormalizeOperation schema right
+      variableValues hschema hrightValid hrightComplete hrightReady
   rw [hleftPreserved, hrightPreserved]
   exact hnormalizedSemantics resolvers variableValues fuel source
+    hleftNormalizedReady hrightNormalizedReady
 
 end CompleteNormalization
 

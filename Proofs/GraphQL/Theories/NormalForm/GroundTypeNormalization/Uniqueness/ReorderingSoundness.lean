@@ -790,7 +790,7 @@ def SingletonFieldSoundAtFuel (fuel : Nat) : Prop :=
     -> Execution.selectionSetArgumentsNodup leftChild
     -> Execution.selectionSetArgumentsNodup rightChild
     -> schema.lookupField executionParentType fieldName = some fieldDefinition
-    -> Argument.argumentsEquivalent
+    -> ArgumentCoercionResult.equivalent
         (coerceArgumentValues schema variableValues fieldDefinition.arguments
           leftArguments)
         (coerceArgumentValues schema variableValues fieldDefinition.arguments
@@ -799,8 +799,11 @@ def SingletonFieldSoundAtFuel (fuel : Nat) : Prop :=
     -> selectionSetDirectiveFree rightChild
     -> selectionSetNormal schema fieldDefinition.outputType.namedType leftChild
     -> selectionSetNormal schema fieldDefinition.outputType.namedType rightChild
-    -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
-        fieldDefinition.outputType.namedType leftChild rightChild
+    -> ((coerceArgumentValues schema variableValues fieldDefinition.arguments
+            leftArguments).isSuccess
+          = true
+        -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues
+            variableValues fieldDefinition.outputType.namedType leftChild rightChild)
     -> SelectionSetResultEquivalent
         (executeField schema resolvers variableValues fuel source responseName
           [{
@@ -890,7 +893,7 @@ theorem executeField_singleton_equivalent_succ
       -> Execution.selectionSetArgumentsNodup leftChild
       -> Execution.selectionSetArgumentsNodup rightChild
       -> schema.lookupField executionParentType fieldName = some fieldDefinition
-      -> Argument.argumentsEquivalent
+      -> ArgumentCoercionResult.equivalent
           (coerceArgumentValues schema variableValues fieldDefinition.arguments
             leftArguments)
           (coerceArgumentValues schema variableValues fieldDefinition.arguments
@@ -899,8 +902,11 @@ theorem executeField_singleton_equivalent_succ
       -> selectionSetDirectiveFree rightChild
       -> selectionSetNormal schema fieldDefinition.outputType.namedType leftChild
       -> selectionSetNormal schema fieldDefinition.outputType.namedType rightChild
-      -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues variableValues
-          fieldDefinition.outputType.namedType leftChild rightChild
+      -> ((coerceArgumentValues schema variableValues fieldDefinition.arguments
+              leftArguments).isSuccess
+            = true
+          -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues
+              variableValues fieldDefinition.outputType.namedType leftChild rightChild)
       -> SelectionSetResultEquivalent
           (executeField schema resolvers variableValues (fuel + 1) source
             responseName
@@ -921,52 +927,74 @@ theorem executeField_singleton_equivalent_succ
               selectionSet := rightChild
             }]) := by
   intro hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
-    hrightChildrenNodup hlookup harguments hleftFree hrightFree hleftNormal hrightNormal
-    hequal
-  have hresolve :
-      resolvers.resolve executionParentType fieldName
-          (coerceArgumentValues schema variableValues fieldDefinition.arguments
-            leftArguments) source =
-        resolvers.resolve executionParentType fieldName
-          (coerceArgumentValues schema variableValues fieldDefinition.arguments
-            rightArguments) source := by
-    exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ harguments
-  cases hleftResolve
-        : resolvers.resolve executionParentType fieldName
-            (coerceArgumentValues schema variableValues
-              fieldDefinition.arguments leftArguments) source with
-  | none =>
-      have hrightResolve :
-          resolvers.resolve executionParentType fieldName
-            (coerceArgumentValues schema variableValues
-              fieldDefinition.arguments rightArguments) source = none := by
-        rw [← hresolve]
-        exact hleftResolve
-      simp only [executeField, resolveFieldValue, hlookup, hleftResolve,
-        hrightResolve]
-      exact selectionSetResultEquivalent_of_eq rfl
-  | some value =>
-      have hrightResolve :
-          resolvers.resolve executionParentType fieldName
-            (coerceArgumentValues schema variableValues
-              fieldDefinition.arguments rightArguments) source = some value := by
-        rw [← hresolve]
-        exact hleftResolve
-      simp only [executeField, resolveFieldValue, hlookup, hleftResolve,
-        hrightResolve]
-      apply selectionSetResultEquivalent_singleFieldResult
-      exact hcomplete schema resolvers variableValues executionParentType
-        responseName fieldName leftArguments rightArguments leftChild
-        rightChild fieldDefinition.outputType value
-        hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
-        hrightChildrenNodup hleftFree hrightFree hleftNormal
-        hrightNormal hequal
+    hrightChildrenNodup hlookup hcoercion hleftFree hrightFree hleftNormal
+    hrightNormal hequal
+  cases hleftCoercion
+        : coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments with
+  | error =>
+      cases hrightCoercion
+            : coerceArgumentValues schema variableValues
+                fieldDefinition.arguments rightArguments with
+      | error =>
+          simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+            hrightCoercion]
+          exact selectionSetResultEquivalent_of_eq rfl
+      | success rightCoercedArguments =>
+          simp [ArgumentCoercionResult.equivalent, hleftCoercion,
+            hrightCoercion] at hcoercion
+  | success leftCoercedArguments =>
+      cases hrightCoercion
+            : coerceArgumentValues schema variableValues
+                fieldDefinition.arguments rightArguments with
+      | error =>
+          simp [ArgumentCoercionResult.equivalent, hleftCoercion,
+            hrightCoercion] at hcoercion
+      | success rightCoercedArguments =>
+          have harguments :
+              CoercedArgument.argumentsEquivalent leftCoercedArguments
+                rightCoercedArguments := by
+            simpa [ArgumentCoercionResult.equivalent, hleftCoercion,
+              hrightCoercion] using hcoercion
+          have hresolve :
+              resolvers.resolve executionParentType fieldName leftCoercedArguments
+                  source =
+                resolvers.resolve executionParentType fieldName
+                  rightCoercedArguments source :=
+            resolvers.resolve_argumentsEquivalent _ _ _ _ _ harguments
+          cases hleftResolve
+                : resolvers.resolve executionParentType fieldName
+                    leftCoercedArguments source with
+          | none =>
+              have hrightResolve :
+                  resolvers.resolve executionParentType fieldName
+                    rightCoercedArguments source = none := by
+                rw [← hresolve]
+                exact hleftResolve
+              simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+                hrightCoercion, hleftResolve, hrightResolve]
+              exact selectionSetResultEquivalent_of_eq rfl
+          | some value =>
+              have hrightResolve :
+                  resolvers.resolve executionParentType fieldName
+                    rightCoercedArguments source = some value := by
+                rw [← hresolve]
+                exact hleftResolve
+              simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+                hrightCoercion, hleftResolve, hrightResolve]
+              apply selectionSetResultEquivalent_singleFieldResult
+              exact hcomplete schema resolvers variableValues executionParentType
+                responseName fieldName leftArguments rightArguments leftChild
+                rightChild fieldDefinition.outputType value
+                hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
+                hrightChildrenNodup hleftFree hrightFree hleftNormal
+                hrightNormal (hequal (by simp [hleftCoercion]))
 
 theorem singletonFieldSoundAtFuel_zero : SingletonFieldSoundAtFuel 0 := by
   intro ObjectRef schema resolvers variableValues source responseName
     executionParentType fieldName leftArguments rightArguments leftChild
     rightChild fieldDefinition _hleftArgumentsNodup _hrightArgumentsNodup
-    _hleftChildrenNodup _hrightChildrenNodup _hlookup _harguments _hleftFree
+    _hleftChildrenNodup _hrightChildrenNodup _hlookup _hcoercion _hleftFree
     _hrightFree _hleftNormal _hrightNormal _hequal
   exact executeField_singleton_equivalent_zero schema resolvers
     variableValues source responseName executionParentType fieldName
@@ -977,13 +1005,13 @@ theorem singletonFieldSoundAtFuel_succ {fuel : Nat}
   intro hcomplete ObjectRef schema resolvers variableValues source responseName
     executionParentType fieldName leftArguments rightArguments leftChild
     rightChild fieldDefinition hleftArgumentsNodup hrightArgumentsNodup
-    hleftChildrenNodup hrightChildrenNodup hlookup harguments hleftFree
+    hleftChildrenNodup hrightChildrenNodup hlookup hcoercion hleftFree
     hrightFree hleftNormal hrightNormal hequal
   exact executeField_singleton_equivalent_succ hcomplete schema resolvers
     variableValues source responseName executionParentType fieldName
     leftArguments rightArguments leftChild rightChild fieldDefinition
     hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
-    hrightChildrenNodup hlookup harguments hleftFree hrightFree hleftNormal
+    hrightChildrenNodup hlookup hcoercion hleftFree hrightFree hleftNormal
     hrightNormal hequal
 
 private theorem execute_paired_normal_field_groups_equivalent
@@ -1027,7 +1055,7 @@ private theorem execute_paired_normal_field_groups_equivalent
           simp [Selection.isField] at hleftField
       | field responseName fieldName leftArguments leftDirectives leftChild =>
           cases hrelation
-          rename_i rightArguments rightChild fieldDefinition hlookup harguments hchildren
+          rename_i rightArguments rightChild fieldDefinition hlookup hcoercion hchildren
           ·
               have hleftDirectives : leftDirectives = [] :=
                 selectionSetDirectiveFree_field_directives_nil_of_mem
@@ -1067,7 +1095,7 @@ private theorem execute_paired_normal_field_groups_equivalent
                   rightArguments leftChild rightChild fieldDefinition
                   hleftSelectionNodup.1 hrightSelectionNodup.1
                   hleftSelectionNodup.2 hrightSelectionNodup.2
-                  (hexecutionParent ▸ hlookup) harguments
+                  (hexecutionParent ▸ hlookup) hcoercion
                   hleftChildFree hrightChildFree
                   (by simpa [hdefinitionReturnType] using hleftChildNormal)
                   (by simpa [hdefinitionReturnType] using hrightChildNormal)
@@ -1592,14 +1620,14 @@ theorem selectionSetEqualUpToReorderingWithCoercion_right_to_left
     ?_ ?_ ?_ hequal
   · intro fieldParentType responseName fieldName leftArguments rightArguments
       directives leftSelectionSet rightSelectionSet fieldDefinition hlookup
-      harguments _hchildren hchildren
+      hcoercion _hchildren hchildren
     apply SelectionEqualUpToReorderingWithCoercion.field fieldParentType
       responseName fieldName directives fieldDefinition hlookup
     · have hcoerced :=
         Execution.coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
           schema (Execution.variableValuesCoercionEquivalent_symm hvalues)
           fieldDefinition.arguments rightArguments
-      exact Execution.argumentsEquivalent_trans_forCoercion harguments hcoerced
+      exact Execution.ArgumentCoercionResult.equivalent_trans hcoercion hcoerced
     · exact hchildren
   · intro fragmentParentType typeCondition directives leftSelectionSet
       rightSelectionSet _hchildren hchildren

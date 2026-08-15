@@ -1,7 +1,13 @@
 import Proofs.GraphQL.Execution.SemanticEquivalence
+import Proofs.GraphQL.Execution.Fuel
 import Proofs.GraphQL.NamedFragment.Semantics.Inline
 import Proofs.GraphQL.NamedFragment.Semantics.Validation
 import Proofs.GraphQL.Theories.NormalForm
+import Proofs.GraphQL.Theories.AnnotatedExecution
+import Proofs.GraphQL.Theories.SelectionConditions.BooleanVariables
+import Proofs.GraphQL.Execution.FieldGroups
+import Proofs.GraphQL.Theories.SelectionConditions.Runtime
+import Proofs.GraphQL.Theories.QueryInclusion
 import Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings
 import Proofs.GraphQL.Algorithms.ExecutionBreadth
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped

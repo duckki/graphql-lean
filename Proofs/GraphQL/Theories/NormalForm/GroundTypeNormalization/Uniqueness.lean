@@ -21,12 +21,16 @@ private theorem
     (hrootObject : objectTypeNameBool schema (left.rootType schema) = true)
     (hleftArgumentsNodup : Execution.selectionSetArgumentsNodup left.selectionSet)
     (hrightArgumentsNodup : Execution.selectionSetArgumentsNodup right.selectionSet)
+    (hleftDefinitionsNodup : (left.variableDefinitions.map VariableDefinition.name).Nodup)
+    (hrightDefinitionsNodup
+      : (right.variableDefinitions.map VariableDefinition.name).Nodup)
     (hleftFree : operationDirectiveFree left)
     (hrightFree : operationDirectiveFree right)
     (hleftNormal : operationNormal schema left)
     (hrightNormal : operationNormal schema right)
     (hdefinitions
-      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+      : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+          right.variableDefinitions)
     (hequal : operationsEqualUpToReorderingWithCoercion schema left right)
     : operationsSemanticallyEquivalent schema left right := by
   rcases hequal with ⟨_hroot, hselectionEqual⟩
@@ -37,7 +41,8 @@ private theorem
   have hrightSelectionNormal :
     selectionSetNormal schema (left.rootType schema) right.selectionSet := by
     simpa [operationNormal, hrootType] using hrightNormal
-  intro ObjectRef resolvers variableValues fuel source
+  intro ObjectRef resolvers variableValues fuel source hleftCoercible
+    hrightCoercible
   have hrootApplies :
       Execution.rootSourceAppliesBool schema left source =
         Execution.rootSourceAppliesBool schema right source := by
@@ -61,12 +66,13 @@ private theorem
           Execution.variableValuesCoercionEquivalent
             (Execution.coerceVariableValues left variableValues)
             (Execution.coerceVariableValues right variableValues) :=
-        Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+        Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
+          hleftDefinitionsNodup hrightDefinitionsNodup
           (Execution.variableValuesCoercionEquivalent_refl variableValues)
           hdefinitions
       have hselectionEqualSame :=
         selectionSetEqualUpToReorderingWithCoercion_right_to_left heffectiveValues
-          (hselectionEqual variableValues)
+          (hselectionEqual variableValues hleftCoercible hrightCoercible)
       have hselectionResponse :=
         selectionSetsSemanticallyEquivalent_of_equalUpToReordering
           hleftArgumentsNodup hrightArgumentsNodup
@@ -111,6 +117,8 @@ theorem normal_operations_equalUpToReordering_semanticallyEquivalent
         (Validation.operationDefinitionValid_selectionSetValid hleftValid))
       (Execution.selectionSetArgumentsNodup_of_selectionSetValid
         (Validation.operationDefinitionValid_selectionSetValid hrightValid))
+      (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1
+      (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1
       hleftFree hrightFree hleftNormal hrightNormal hdefinitions hequal
 
 theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
@@ -132,7 +140,7 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     simpa [normalizeOperationNormal] using
       normalizeOperation_normal schema right hschema hrightValid
   have hnormalizedDefinitions :
-      variableDefinitionsEquivalent
+      variableDefinitionsSyntacticallyEquivalent
         (normalizeOperation schema left).variableDefinitions
         (normalizeOperation schema right).variableDefinitions := by
     simpa [normalizeOperation_variableDefinitions] using hdefinitions
@@ -150,6 +158,12 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
       (normalizeOperation_selectionSetArgumentsNodup schema right
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
+      (by
+        simpa [normalizeOperation_variableDefinitions] using
+          (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1)
+      (by
+        simpa [normalizeOperation_variableDefinitions] using
+          (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1)
       hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
       hrightNormalizedNormal hnormalizedDefinitions hequal
   have hleftEquivalent :
@@ -160,13 +174,25 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
       operationsEquivalent schema right (normalizeOperation schema right) :=
     groundTypeNormalFormSemanticsPreservation schema right hschema hrightValid
       hrightFree
-  intro ObjectRef resolvers variableValues fuel source
+  intro ObjectRef resolvers variableValues fuel source hleftCoercible
+    hrightCoercible
+  have hleftNormalizedCoercible :
+      operationArgumentsCoercible schema variableValues
+        (normalizeOperation schema left) :=
+    operationArgumentsCoercible_normalizeOperation schema left variableValues
+      hschema hleftValid hleftFree hleftCoercible
+  have hrightNormalizedCoercible :
+      operationArgumentsCoercible schema variableValues
+        (normalizeOperation schema right) :=
+    operationArgumentsCoercible_normalizeOperation schema right variableValues
+      hschema hrightValid hrightFree hrightCoercible
   have hleftResponse :=
     hleftEquivalent resolvers variableValues fuel source
   have hrightResponse :=
     hrightEquivalent resolvers variableValues fuel source
   simpa [hleftResponse, hrightResponse] using
     hnormalizedSemantics resolvers variableValues fuel source
+      hleftNormalizedCoercible hrightNormalizedCoercible
 
 theorem normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}

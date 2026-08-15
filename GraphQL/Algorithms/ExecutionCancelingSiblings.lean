@@ -54,16 +54,22 @@ mutual
             match schema.lookupField field.parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
-                match resolveFieldValue schema resolvers variableValues fieldDefinition
-                        field.parentType field.fieldName field.arguments source with
-                | none =>
+                match coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments field.arguments with
+                | .error =>
                     singleFieldResult responseName
                       (handleFieldError fieldDefinition.outputType)
-                | some resolved =>
-                    singleFieldResult responseName
-                      (completeValue schema resolvers variableValues
-                        fuel' fieldDefinition.outputType
-                        (field :: fields) resolved)
+                | .success coercedArguments =>
+                    match resolveFieldValue resolvers field.parentType field.fieldName
+                            coercedArguments source with
+                    | none =>
+                        singleFieldResult responseName
+                          (handleFieldError fieldDefinition.outputType)
+                    | some resolved =>
+                        singleFieldResult responseName
+                          (completeValue schema resolvers variableValues
+                            fuel' fieldDefinition.outputType
+                            (field :: fields) resolved)
 
   -- Spec 6.4.3 `CompleteValue`, using sibling-canceling execution for nested
   -- collected selection sets.
@@ -156,7 +162,7 @@ def executeQuery
     (source : ResolverValue ObjectRef)
     : Response :=
   executeQueryWithFuel schema resolvers variableValues operation
-    (executeQueryFuelBound operation) source
+    (executeQueryFuelBound schema operation) source
 
 -- Response data and the presence of execution errors agree, although exact
 -- execution-error counts may differ.

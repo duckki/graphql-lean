@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.TreeSoundness.Invariants
 
 /-!
@@ -29,7 +30,7 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
     (hfresh
       : ∀ fieldDefinition resolved,
           schema.lookupField parentType fieldName = some fieldDefinition
-          -> resolveFieldValue schema resolvers variableValues fieldDefinition
+          -> coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                 parentType fieldName arguments source
               = some resolved
           -> CompletionCacheSound schema resolvers variableValues
@@ -1225,11 +1226,11 @@ theorem executeField_result_continuationTreeSound
   | some fieldDefinition =>
       cases previous? with
       | none =>
-          cases hresolve
-                : resolveFieldValue schema resolvers variableValues fieldDefinition
-                    field.parentType field.fieldName field.arguments source with
-          | none =>
-              simp only [hresolve]
+          cases hcoerce
+                : coerceArgumentValues schema variableValues fieldDefinition.arguments
+                    field.arguments with
+          | error =>
+              simp only [hlookup, hcoerce]
               change
                 FieldCacheContinuationTreeSound schema resolvers variableValues
                   completionFuel universeSet
@@ -1238,14 +1239,28 @@ theorem executeField_result_continuationTreeSound
               cases fieldDefinition.outputType <;>
                 simp [handleFieldError, resultValueOrNull,
                   FieldCacheContinuationTreeSound]
-          | some resolved =>
-              simp only [hresolve]
-              exact
-                FieldCacheTreeSound.toContinuationTreeSound schema resolvers
-                  variableValues completionFuel universeSet resolved _
-                  (hcomplete fieldDefinition resolved none hlookup (by
-                    intro previous hprevious
-                    simp at hprevious))
+          | success coercedArguments =>
+              cases hresolve
+                    : resolveFieldValue resolvers field.parentType field.fieldName
+                        coercedArguments source with
+              | none =>
+                  simp only [hlookup, hcoerce, hresolve]
+                  change
+                    FieldCacheContinuationTreeSound schema resolvers variableValues
+                      completionFuel universeSet
+                      (resultValueOrNull
+                        (handleFieldError fieldDefinition.outputType))
+                  cases fieldDefinition.outputType <;>
+                    simp [handleFieldError, resultValueOrNull,
+                      FieldCacheContinuationTreeSound]
+              | some resolved =>
+                  simp only [hlookup, hcoerce, hresolve]
+                  exact
+                    FieldCacheTreeSound.toContinuationTreeSound schema resolvers
+                      variableValues completionFuel universeSet resolved _
+                      (hcomplete fieldDefinition resolved none hlookup (by
+                        intro previous hprevious
+                        simp at hprevious))
       | some previous =>
           have hpreviousTree := hprevious fieldDefinition previous hlookup rfl
           cases previous with

@@ -14,6 +14,7 @@ namespace CompleteNormalization
 
 def selectionSetsSemanticallyEquivalentForCompleteBoolVars
     (schema : Schema) (variables : List BoolVar)
+    (leftOperation rightOperation : Operation)
     (leftPrepare rightPrepare : Execution.VariableValues -> Execution.VariableValues)
     (parentType : Name) (left right : List Selection)
     : Prop :=
@@ -32,6 +33,8 @@ def selectionSetsSemanticallyEquivalentForCompleteBoolVars
   ∧ ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
       variableValues fuel (source : Execution.ResolverValue ObjectRef),
       boolVarsComplete variables variableValues
+      -> operationArgumentsCoercible schema variableValues leftOperation
+      -> operationArgumentsCoercible schema variableValues rightOperation
       -> (∃ runtimeType ref,
             source = Execution.ResolverValue.object runtimeType ref
             ∧ schema.typeIncludesObjectBool parentType runtimeType = true)

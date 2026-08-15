@@ -35,6 +35,9 @@ theory.
   unlike the earlier paper/Coq normalizers, and its canonicity theorems prove
   that semantic equivalence of operations can be reduced to comparison of normal
   forms.
+- [QueryInclusion](GraphQL/Theories/QueryInclusion.lean) provides a verified,
+  condition-aware decision procedure for recursive response inclusion that preserves
+  resolver-call provenance.
 
 ## GraphQL Layout
 
@@ -62,7 +65,8 @@ definition surfaces below.
   including sibling-canceling execution, source-caching and uncached ungrouped
   execution, and breadth-first execution.
 - [GraphQL/Theories/](GraphQL/Theories/): public project theories, currently
-  including normal forms and their public statements.
+  including normal forms, annotated execution, selection-condition extraction, and
+  query inclusion.
 
 Proof witnesses are under [Proofs/](Proofs/). Ordinary tests are under
 [Tests/GraphQL/](Tests/GraphQL/), and generated or fixture-driven conformance
@@ -81,8 +85,10 @@ lake build
   spec-conformance scope and out-of-scope boundaries.
 - [docs/algorithms.md](docs/algorithms.md): algorithmic alternatives to the
   spec-facing executor and their proof status.
-- [docs/normal-form.md](docs/normal-form.md): normal-form definitions and
+- [docs/theories/query-inclusion.md](docs/theories/query-inclusion.md): query-inclusion
+  semantics, correctness domain, checker design, and proof structure.
+- [docs/theories/normal-form.md](docs/theories/normal-form.md): normal-form definitions and
   preservation theorems.
-- [docs/normal-form-uniqueness.md](docs/normal-form-uniqueness.md): canonicity
+- [docs/theories/normal-form-uniqueness.md](docs/theories/normal-form-uniqueness.md): canonicity
   and semantic-equivalence results for normal forms.
 - [docs/development.md](docs/development.md): developer guide.

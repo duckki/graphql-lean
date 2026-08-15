@@ -579,23 +579,29 @@ theorem executeField_cons_eq_cons_of_completeValue
       | none =>
           simp []
       | some fieldDefinition =>
-          cases hresolved
-                : Execution.resolveFieldValue schema resolvers variableValues
-                    fieldDefinition sourceField.parentType sourceField.fieldName
-                    sourceField.arguments source with
-          | none =>
-              simp [hresolved]
-          | some value =>
-              have hcomplete' :
-                  Execution.completeValue schema resolvers variableValues
-                      fieldDepth fieldDefinition.outputType
-                      (normalizedField :: normalizedFields) value =
-                    Execution.completeValue schema resolvers variableValues
-                      fieldDepth fieldDefinition.outputType
-                      (sourceField :: sourceFields) value := by
-                simpa [Execution.resolveFieldValueByName, hlookup, hresolved]
-                  using hcomplete
-              simp [hresolved, Execution.singleFieldResult, hcomplete']
+          cases hcoerce
+                : Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments sourceField.arguments with
+          | error =>
+              simp [hcoerce]
+          | success coercedArguments =>
+              cases hresolved
+                    : Execution.resolveFieldValue resolvers sourceField.parentType
+                        sourceField.fieldName coercedArguments source with
+              | none =>
+                  simp [hcoerce, hresolved]
+              | some value =>
+                  have hcomplete' :
+                      Execution.completeValue schema resolvers variableValues
+                          fieldDepth fieldDefinition.outputType
+                          (normalizedField :: normalizedFields) value =
+                        Execution.completeValue schema resolvers variableValues
+                          fieldDepth fieldDefinition.outputType
+                          (sourceField :: sourceFields) value := by
+                    simpa [Execution.resolveFieldValueByName, hlookup,
+                      Execution.coerceAndResolveFieldValue, hcoerce, hresolved]
+                      using hcomplete
+                  simp [hcoerce, hresolved, Execution.singleFieldResult, hcomplete']
 
 theorem executeSelectionSet_field_head_group_eq_of_completeValue
     (schema : Schema)

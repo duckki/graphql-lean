@@ -27,3 +27,7 @@ root = "Lint"
 [[lean_exe]]
 name = "import-closure"
 root = "Lint.ImportClosureMain"
+
+[[lean_exe]]
+name = "query-inclusion-bench"
+root = "Benchmarks.QueryInclusion"

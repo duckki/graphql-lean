@@ -357,11 +357,10 @@ private theorem fuelImplementationsAligned
                 simp [executeField, GraphQL.Execution.executeField, hlookup,
                   StrongResultAligned]
             | some fieldDefinition =>
-                cases hresolve
-                      : resolvers.resolve field.parentType field.fieldName
-                          (coerceArgumentValues schema variableValues
-                            fieldDefinition.arguments field.arguments) source with
-                | none =>
+                cases hcoerce
+                      : coerceArgumentValues schema variableValues
+                          fieldDefinition.arguments field.arguments with
+                | error =>
                     have hhandle :
                         StrongResultAligned
                           (handleFieldError fieldDefinition.outputType)
@@ -370,14 +369,31 @@ private theorem fuelImplementationsAligned
                         simp [handleFieldError, StrongResultAligned,
                           ErrorPresenceEquivalent]
                     simpa [executeField, GraphQL.Execution.executeField,
-                      GraphQL.Execution.resolveFieldValue, hlookup, hresolve] using
+                      GraphQL.Execution.resolveFieldValue, hlookup, hcoerce] using
                         StrongResultAligned.singleFieldResult responseName hhandle
-                | some resolved =>
-                    simpa [executeField, GraphQL.Execution.executeField,
-                      GraphQL.Execution.resolveFieldValue, hlookup, hresolve] using
-                        StrongResultAligned.singleFieldResult responseName
-                          (ih.completeValue fieldDefinition.outputType
-                            (field :: fields) resolved)
+                | success coercedArguments =>
+                    cases hresolve
+                          : resolvers.resolve field.parentType field.fieldName
+                              coercedArguments source with
+                    | none =>
+                        have hhandle :
+                            StrongResultAligned
+                              (handleFieldError fieldDefinition.outputType)
+                              (handleFieldError fieldDefinition.outputType) := by
+                          cases fieldDefinition.outputType <;>
+                            simp [handleFieldError, StrongResultAligned,
+                              ErrorPresenceEquivalent]
+                        simpa [executeField, GraphQL.Execution.executeField,
+                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce,
+                          hresolve] using
+                            StrongResultAligned.singleFieldResult responseName hhandle
+                    | some resolved =>
+                        simpa [executeField, GraphQL.Execution.executeField,
+                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce,
+                          hresolve] using
+                            StrongResultAligned.singleFieldResult responseName
+                              (ih.completeValue fieldDefinition.outputType
+                                (field :: fields) resolved)
       have hcollected :
           ∀ source groups,
             StrongResultAligned

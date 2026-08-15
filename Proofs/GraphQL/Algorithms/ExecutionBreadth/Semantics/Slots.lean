@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionBreadth.Semantics.Resolver
 import Proofs.GraphQL.Algorithms.ExecutionBreadth.Semantics.Invariants
 
@@ -181,6 +182,86 @@ theorem slots_buildFieldSlots_nil
     : buildFieldSlots schema fieldType [] resolved = ([], []) := by
   simp [buildFieldSlots, buildFieldSlotsLoop,
     buildFieldSlotsForResolvedSegments, slots_splitResolvedBySegments_nil]
+
+theorem slots_buildFieldSlotsForResolved_map_none
+    (schema : Schema) (fieldType : TypeRef) (selectionSet : List Selection)
+    (sources : List (ResolverValue ObjectRef))
+    (pending : PendingChildWorkList ObjectRef)
+    : buildFieldSlotsForResolved schema fieldType selectionSet
+        (sources.map (fun _source => none)) pending
+      = (
+        pending,
+        List.replicate sources.length (.completed (handleFieldError fieldType))
+      ) := by
+  induction sources generalizing pending with
+  | nil =>
+      simp [buildFieldSlotsForResolved, mapAccumList]
+  | cons source rest ih =>
+      have ih' := ih pending
+      simp only [buildFieldSlotsForResolved] at ih'
+      simp [buildFieldSlotsForResolved, mapAccumList, buildFieldSlotForResolved,
+        ih', List.replicate_succ]
+
+theorem slots_splitResolvedByScheduleSegments_map_sources
+    (segments : List (ScheduleSegment ObjectRef))
+    (resolve : ResolverValue ObjectRef -> Option (ResolverValue ObjectRef))
+    : splitResolvedBySegments segments
+        (((segments.map ScheduleSegment.sources).flatten).map resolve)
+      = segments.map (fun segment => (segment, segment.sources.map resolve)) := by
+  induction segments with
+  | nil => rfl
+  | cons segment rest ih =>
+      let headResolved := segment.sources.map resolve
+      let tailSources := (rest.map ScheduleSegment.sources).flatten
+      have hflatten :
+          (((segment :: rest).map ScheduleSegment.sources).flatten).map resolve
+            = headResolved ++ tailSources.map resolve := by
+        simp [headResolved, tailSources, List.map_flatten]
+      have htake :
+          List.take segment.sources.length
+              ((((segment :: rest).map ScheduleSegment.sources).flatten).map resolve)
+            = headResolved := by
+        rw [hflatten]
+        simp [headResolved]
+      have hdrop :
+          List.drop segment.sources.length
+              ((((segment :: rest).map ScheduleSegment.sources).flatten).map resolve)
+            = tailSources.map resolve := by
+        rw [hflatten]
+        simp [headResolved]
+      change (
+                  segment,
+                  List.take segment.sources.length
+                    ((((segment :: rest).map ScheduleSegment.sources).flatten).map
+                      resolve)
+                )
+                :: splitResolvedBySegments rest
+                    (List.drop segment.sources.length
+                      ((((segment :: rest).map ScheduleSegment.sources).flatten).map
+                        resolve))
+              = (segment, segment.sources.map resolve)
+                :: rest.map (fun candidate => (candidate, candidate.sources.map resolve))
+      rw [htake, hdrop]
+      simpa [headResolved, tailSources, List.map_flatten] using ih
+
+theorem slots_buildFieldSlots_map_none
+    (schema : Schema) (fieldType : TypeRef)
+    (segments : List (ScheduleSegment ObjectRef))
+    : buildFieldSlots schema fieldType segments
+        (((segments.map ScheduleSegment.sources).flatten).map (fun _source => none))
+      = (
+        [],
+        List.replicate ((segments.map ScheduleSegment.sources).flatten).length
+          (.completed (handleFieldError fieldType))
+      ) := by
+  unfold buildFieldSlots buildFieldSlotsLoop
+  rw [slots_splitResolvedByScheduleSegments_map_sources]
+  induction segments with
+  | nil =>
+      simp [buildFieldSlotsForResolvedSegments]
+  | cons segment rest ih =>
+      simp [buildFieldSlotsForResolvedSegments,
+        slots_buildFieldSlotsForResolved_map_none, ih]
 
 theorem slots_completeSlot_completed_preserves_stack
     (fieldType : TypeRef) (result : Result ResponseValue)
@@ -1120,7 +1201,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
             key.parentType key.fieldName key.arguments source with
   | none =>
       have hresolveRuntime :
-          GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+          GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
               fieldDefinition key.parentType key.fieldName key.arguments source = none := by
         simpa [GraphQL.Execution.resolveFieldValueByName, hlookup] using hresolve
       cases fuel with
@@ -1128,8 +1209,12 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
           have hpos := typeRefCompleteValueFuelBound_pos fieldDefinition.outputType
           omega
       | succ fuel =>
+          rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
+            schema resolvers variableValues fuel source key.responseName
+            (key.executableField selectionSet) [] fieldDefinition
+            (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
-            expectedPendingChildWorkCompletionStack, GraphQL.Execution.executeField,
+            expectedPendingChildWorkCompletionStack,
             GraphQL.Execution.resolveFieldValueByName,
             ScheduleKey.executableField, hlookup, hresolve, hresolveRuntime,
             slots_singleFieldResultValue_singleFieldResult] using
@@ -1137,7 +1222,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
               fieldDefinition.outputType stack
   | some value =>
       have hresolveRuntime :
-          GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+          GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
               fieldDefinition key.parentType key.fieldName key.arguments source =
             some value := by
         simpa [GraphQL.Execution.resolveFieldValueByName, hlookup] using hresolve
@@ -1155,8 +1240,12 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
             slots_completeSlot_buildValueSlot_eq_completeValue
               (ObjectRef := ObjectRef) schema resolvers variableValues selectionSet key
               fuel fieldDefinition.outputType value stack hpos hfuel
+          rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
+            schema resolvers variableValues fuel source key.responseName
+            (key.executableField selectionSet) [] fieldDefinition
+            (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
-            GraphQL.Execution.executeField, ScheduleKey.executableField,
+            ScheduleKey.executableField,
             GraphQL.Execution.resolveFieldValueByName, hlookup, hresolve, hresolveRuntime,
             slots_singleFieldResultValue_singleFieldResult] using hcomplete
 

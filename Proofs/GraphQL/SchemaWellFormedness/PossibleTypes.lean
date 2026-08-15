@@ -8,24 +8,30 @@ namespace GraphQL
 
 namespace SchemaWellFormedness
 
+-- Schema well-formedness includes the spec 3.10 default-expansion-cycle check.
+theorem schemaWellFormed_inputDefaultExpansionAcyclic {schema : Schema}
+    : schemaWellFormed schema -> inputDefaultExpansionAcyclic schema := by
+  intro hschema
+  exact hschema.2.2.2.1.2
+
 theorem schemaWellFormed_possibleTypesAreObjects {schema : Schema}
     : schemaWellFormed schema
       -> ∀ typeName objectTypeName,
           objectTypeName ∈ schema.getPossibleTypes typeName
           -> schema.objectType objectTypeName := by
   intro hschema
-  exact hschema.2.2.2.1
+  exact hschema.2.2.2.2.1
 
 theorem schemaWellFormed_possibleTypesNodup {schema : Schema}
     : schemaWellFormed schema
       -> ∀ typeName, (schema.getPossibleTypes typeName).Nodup := by
   intro hschema
-  exact hschema.2.2.2.2.1
+  exact hschema.2.2.2.2.2.1
 
 theorem schemaWellFormed_possibleObjectFieldDefinitionsImplement {schema : Schema}
     : schemaWellFormed schema -> possibleObjectFieldDefinitionsImplement schema := by
   intro hschema
-  exact hschema.2.2.2.2.2
+  exact hschema.2.2.2.2.2.2
 
 theorem schemaWellFormed_possibleObject_lookupField_implements
     {schema : Schema} {parentType objectTypeName fieldName : Name}

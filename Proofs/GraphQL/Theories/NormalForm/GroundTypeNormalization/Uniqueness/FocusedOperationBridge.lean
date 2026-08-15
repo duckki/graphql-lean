@@ -27,14 +27,24 @@ theorem
   · cases left.operationType
     cases right.operationType
     rfl
-  · intro variableValues
+  · intro variableValues hleftCoercible hrightCoercible
     let leftValues := Execution.coerceVariableValues left variableValues
     let rightValues := Execution.coerceVariableValues right variableValues
     have hvalues :
         Execution.variableValuesCoercionEquivalent leftValues rightValues :=
-      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
+      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
+        (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1
+        (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1
         (Execution.variableValuesCoercionEquivalent_refl variableValues)
         hdefinitions
+    have hleftCoercion :
+        selectionSetArgumentsCoercible schema leftValues
+          (left.rootType schema) left.selectionSet := by
+      simpa [operationArgumentsCoercible, leftValues] using hleftCoercible
+    have hrightCoercion :
+        selectionSetArgumentsCoercible schema rightValues
+          (right.rootType schema) right.selectionSet := by
+      simpa [operationArgumentsCoercible, rightValues] using hrightCoercible
     have hleftSelectionValid :=
       Validation.operationDefinitionValid_selectionSetValid hleftValid
     have hrightSelectionValid :
@@ -53,7 +63,8 @@ theorem
       operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid
     apply
       CompleteNormalization.validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReordering
-        hvalues hschema hleftSelectionValid hrightSelectionValid hleftFree
+        hvalues hschema hleftSelectionValid hrightSelectionValid
+        hleftCoercion hrightCoercion hleftFree
         hrightFree hleftSelectionNormal hrightSelectionNormal hobject
     intro ObjectRef resolvers fuel source hsource
     rcases hsource with ⟨runtimeType, ref, hsource, hinclude⟩
@@ -72,7 +83,7 @@ theorem
     simpa only [leftValues, rightValues, Execution.executeQueryWithFuel,
       hleftRoot, hrightRoot, if_true, Execution.executeSelectionSetAsResponse,
       Execution.executeSelectionSet, hroot] using
-        hsem resolvers variableValues fuel source
+        hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
 
 end GroundTypeNormalization
 

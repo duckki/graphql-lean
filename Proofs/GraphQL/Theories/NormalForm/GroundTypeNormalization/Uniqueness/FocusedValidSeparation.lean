@@ -19,6 +19,37 @@ namespace NormalForm
 
 namespace GroundTypeNormalization
 
+private theorem supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {supportSelectionSets : List (List Selection)}
+    (hobject : objectTypeNameBool schema parentType = true)
+    (hsupport
+      : ∀ supportSelectionSet,
+          supportSelectionSet ∈ supportSelectionSets
+          -> ∃ variableDefinitions,
+              Validation.selectionSetValid schema variableDefinitions parentType
+                supportSelectionSet
+              ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+                  parentType supportSelectionSet
+              ∧ selectionSetDirectiveFree supportSelectionSet
+              ∧ selectionSetNormal schema parentType supportSelectionSet)
+    : ∀ supportSelectionSet,
+        supportSelectionSet ∈ supportSelectionSets
+        -> ∃ variableDefinitions,
+            Validation.selectionSetValid schema variableDefinitions parentType
+              supportSelectionSet
+            ∧ selectionSetArgumentsCoercible schema variableValues parentType
+                supportSelectionSet
+            ∧ selectionSetDirectiveFree supportSelectionSet
+            ∧ selectionSetNormal schema parentType supportSelectionSet := by
+  intro supportSelectionSet hmem
+  rcases hsupport supportSelectionSet hmem with
+    ⟨variableDefinitions, hvalid, hcoercion, hfree, hnormal⟩
+  exact ⟨variableDefinitions, hvalid,
+    selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+      hobject hcoercion,
+    hfree, hnormal⟩
+
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_coercion_diff
     {schema : Schema}
@@ -29,6 +60,10 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions parentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions parentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema parentType left
@@ -38,6 +73,8 @@ theorem
             -> ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions parentType
                   supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+                    parentType supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema parentType supportSelectionSet)
       -> NormalSelectionSetResolverDiff schema variableValues parentType left right
@@ -47,9 +84,11 @@ theorem
             (variableValues := variableValues)
             (fun selectionSet => selectionSet ∈ supportSelectionSets)
             minFuel := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hsupportValid hdiff
-  revert hleftValid hrightValid hleftFree hrightFree hleftNormal
+  revert hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hsupportValid
   revert leftVariableDefinitions rightVariableDefinitions supportSelectionSets
     minFuel
@@ -58,8 +97,18 @@ theorem
       rename_i parentType left right responseName fieldName arguments
         directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
+      have hleftObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hleftCoercion
+      have hrightObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hrightCoercion
+      have hsupportObjectValid :=
+        supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hsupportValid
       exact ⟨
         parentType,
         selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
@@ -67,15 +116,26 @@ theorem
           (rightVariableDefinitions := rightVariableDefinitions)
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
-          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
-          hsupportValid hleftMem hrightNoResponseName
+          hleftValid hrightValid hleftObjectCoercion hrightObjectCoercion
+          hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportObjectValid hleftMem hrightNoResponseName
       ⟩
   | objectRightResponseName hobject hrightMem hleftNoResponseName =>
       rename_i parentType left right responseName fieldName arguments
         directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
+      have hleftObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hleftCoercion
+      have hrightObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hrightCoercion
+      have hsupportObjectValid :=
+        supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hsupportValid
       exact ⟨
         parentType,
         selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
@@ -83,16 +143,27 @@ theorem
           (rightVariableDefinitions := rightVariableDefinitions)
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
-          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
-          hsupportValid hrightMem hleftNoResponseName
+          hleftValid hrightValid hleftObjectCoercion hrightObjectCoercion
+          hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportObjectValid hrightMem hleftNoResponseName
       ⟩
   | objectFieldName hobject hleftMem hrightMem hfieldDiff =>
       rename_i parentType left right responseName leftFieldName rightFieldName
         leftArguments rightArguments leftDirectives rightDirectives
         leftChildSelectionSet rightChildSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
+      have hleftObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hleftCoercion
+      have hrightObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hrightCoercion
+      have hsupportObjectValid :=
+        supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hsupportValid
       rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
         ⟨leftFieldDefinition, hleftLookup, _hleftArguments, _hleftFieldValid⟩
       rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
@@ -106,8 +177,9 @@ theorem
         · exact ⟨
             parentType,
             selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
-              (variableValues := variableValues) hschema hleftValid hrightValid hleftFree
-              hrightFree hleftNormal hrightNormal hobject hsupportValid hleftMem hrightMem
+              (variableValues := variableValues) hschema hleftValid hrightValid
+              hleftObjectCoercion hrightObjectCoercion hleftFree
+              hrightFree hleftNormal hrightNormal hobject hsupportObjectValid hleftMem hrightMem
               hleftLookup hrightLookup hleftLeaf hrightLeaf hfieldDiff
           ⟩
         · have hrightComposite :
@@ -118,8 +190,9 @@ theorem
           exact ⟨
             parentType,
             selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
-              (variableValues := variableValues) hschema hleftValid hrightValid hleftFree
-              hrightFree hleftNormal hrightNormal hobject hsupportValid hleftMem hrightMem
+              (variableValues := variableValues) hschema hleftValid hrightValid
+              hleftObjectCoercion hrightObjectCoercion hleftFree
+              hrightFree hleftNormal hrightNormal hobject hsupportObjectValid hleftMem hrightMem
               hleftLookup hrightLookup hleftLeaf hrightComposite hfieldDiff
           ⟩
       · have hleftComposite :
@@ -146,8 +219,10 @@ theorem
               (leftFieldDefinition := rightFieldDefinition)
               (rightFieldDefinition := leftFieldDefinition)
               (minFuel := minFuel) (variableValues := variableValues)
-              hschema hrightValid hleftValid hrightFree hleftFree hrightNormal
-              hleftNormal hobject hsupportValid hrightMem hleftMem hrightLookup
+              hschema hrightValid hleftValid hrightObjectCoercion
+              hleftObjectCoercion
+              hrightFree hleftFree hrightNormal
+              hleftNormal hobject hsupportObjectValid hrightMem hleftMem hrightLookup
               hleftLookup hrightLeaf hleftComposite (by
                 intro hsame
                 exact hfieldDiff hsame.symm)
@@ -160,24 +235,25 @@ theorem
               simp [h] at hrightLeaf ⊢
           have hrightNotLeft :
               ∀ arguments,
-                Argument.argumentsEquivalent
-                    (Execution.coerceArgumentValues schema variableValues
-                      rightFieldDefinition.arguments arguments)
-                    (Execution.coerceArgumentValues schema variableValues
-                      rightFieldDefinition.arguments rightArguments) ->
+                Execution.CoercedArgument.argumentsEquivalent
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType rightFieldName arguments)
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType rightFieldName rightArguments) ->
                   ¬ fieldProbeTarget parentType leftFieldName
-                    (Execution.coerceArgumentValues schema variableValues
-                      leftFieldDefinition.arguments leftArguments)
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType leftFieldName leftArguments)
                     parentType rightFieldName
-                    (Execution.coerceArgumentValues schema variableValues
-                      rightFieldDefinition.arguments arguments) := by
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType rightFieldName arguments) := by
             intro arguments _hrightArgs hleftTarget
             exact hfieldDiff hleftTarget.2.1.symm
           exact ⟨
             parentType,
             selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
-              (variableValues := variableValues) hschema hleftValid hrightValid hleftFree
-              hrightFree hleftNormal hrightNormal hobject hsupportValid hleftMem hrightMem
+              (variableValues := variableValues) hschema hleftValid hrightValid
+              hleftObjectCoercion hrightObjectCoercion hleftFree
+              hrightFree hleftNormal hrightNormal hobject hsupportObjectValid hleftMem hrightMem
               hleftLookup hrightLookup hleftComposite hrightComposite hrightNotLeft
           ⟩
   | objectArguments fieldDefinition hobject hleftMem hrightMem hlookup
@@ -186,59 +262,111 @@ theorem
         rightArguments leftDirectives rightDirectives leftChildSelectionSet
         rightChildSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
+      have hleftObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hleftCoercion
+      have hrightObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hrightCoercion
+      have hsupportObjectValid :=
+        supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hsupportValid
+      let leftTargetArguments :=
+        Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName leftArguments
+      let rightTargetArguments :=
+        Execution.coercedArgumentsForField schema variableValues parentType
+          fieldName rightArguments
+      have hleftSuccess :=
+        (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+          hleftObjectCoercion hleftFree)
+          responseName fieldName leftArguments leftDirectives
+          leftChildSelectionSet hleftMem fieldDefinition hlookup
+      have hrightSuccess :=
+        (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+          hrightObjectCoercion hrightFree)
+          responseName fieldName rightArguments rightDirectives
+          rightChildSelectionSet hrightMem fieldDefinition hlookup
+      have htargetArgumentsDiff :
+          ¬ Execution.CoercedArgument.argumentsEquivalent leftTargetArguments
+            rightTargetArguments := by
+        intro htargetEquivalent
+        apply hargumentsDiff
+        cases hleftResult
+              : Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments leftArguments with
+        | error => simp [hleftResult] at hleftSuccess
+        | success leftCoercedArguments =>
+            cases hrightResult
+                  : Execution.coerceArgumentValues schema variableValues
+                      fieldDefinition.arguments rightArguments with
+            | error => simp [hrightResult] at hrightSuccess
+            | success rightCoercedArguments =>
+                simpa [Execution.ArgumentCoercionResult.equivalent,
+                  hleftResult, hrightResult, leftTargetArguments,
+                  rightTargetArguments, Execution.coercedArgumentsForField,
+                  hlookup] using htargetEquivalent
       by_cases hleaf :
           (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
             = false
       · exact ⟨
           parentType,
           selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_arguments_diff_leaf_finiteSupport
-            (variableValues := variableValues) hschema hleftValid hrightValid hleftFree
-            hrightFree hleftNormal hrightNormal hobject hsupportValid hleftMem hrightMem
-            hlookup hleaf hargumentsDiff
+            (variableValues := variableValues) hschema hleftValid hrightValid
+            hleftObjectCoercion hrightObjectCoercion hleftFree
+            hrightFree hleftNormal hrightNormal hobject hsupportObjectValid hleftMem hrightMem
+            hlookup hleaf htargetArgumentsDiff
         ⟩
       · have hcomposite :
             (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
               = true := by
           cases h : (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema <;>
             simp [h] at hleaf ⊢
-        let leftTargetArguments :=
-          Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments leftArguments
-        let rightTargetArguments :=
-          Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments rightArguments
         have hrightNotLeft :
             ∀ arguments,
-              Argument.argumentsEquivalent
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments arguments)
+              Execution.CoercedArgument.argumentsEquivalent
+                  (Execution.coercedArgumentsForField schema variableValues
+                    parentType fieldName arguments)
                   rightTargetArguments ->
                 ¬ fieldProbeTarget parentType fieldName leftTargetArguments
                   parentType fieldName
-                    (Execution.coerceArgumentValues schema variableValues
-                      fieldDefinition.arguments arguments) := by
+                    (Execution.coercedArgumentsForField schema variableValues
+                      parentType fieldName arguments) := by
           intro arguments hrightArgs hleftTarget
           rcases hleftTarget with ⟨_hparent, _hfield, hleftArgs⟩
-          exact hargumentsDiff
-            (argumentsEquivalent_trans
-              (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs)
+          exact htargetArgumentsDiff
+            (Execution.CoercedArgument.argumentsEquivalent_trans
+              (Execution.CoercedArgument.argumentsEquivalent_symm hleftArgs)
+              hrightArgs)
         exact ⟨
           parentType,
           selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
-            (variableValues := variableValues) hschema hleftValid hrightValid hleftFree
-            hrightFree hleftNormal hrightNormal hobject hsupportValid hleftMem hrightMem
+            (variableValues := variableValues) hschema hleftValid hrightValid
+            hleftObjectCoercion hrightObjectCoercion hleftFree
+            hrightFree hleftNormal hrightNormal hobject hsupportObjectValid hleftMem hrightMem
             hlookup hlookup hcomposite hcomposite hrightNotLeft
         ⟩
   | objectChild fieldDefinition hobject hleftMem hrightMem hlookup harguments
-      hchildDiff ih =>
+      _hsuccess hchildDiff ih =>
       rename_i parentType left right responseName fieldName
         leftArguments rightArguments leftDirectives rightDirectives
         leftChildSelectionSet rightChildSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
+      have hleftObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hleftCoercion
+      have hrightObjectCoercion :=
+        selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hrightCoercion
+      have hsupportObjectValid :=
+        supportSelectionSetsArgumentsCoercible_of_inPossibleTypes_of_object
+          hobject hsupportValid
       let returnType := fieldDefinition.outputType.namedType
       rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
         ⟨leftFieldDefinition, hleftLookup, _hleftArguments, hleftFieldValid⟩
@@ -314,6 +442,18 @@ theorem
         ⟨rightPref, rightSuffix, hrightEq⟩
       subst left
       subst right
+      have hleftChildCoercion :
+          selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+            returnType leftChildSelectionSet := by
+        simpa [returnType] using
+          selectionSetArgumentsCoercible_field_children_of_directiveFree
+            hleftObjectCoercion hleftFree hleftMem hlookup
+      have hrightChildCoercion :
+          selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+            returnType rightChildSelectionSet := by
+        simpa [returnType] using
+          selectionSetArgumentsCoercible_field_children_of_directiveFree
+            hrightObjectCoercion hrightFree hrightMem hlookup
       have hchildSupportValid :
           ∀ supportSelectionSet,
             supportSelectionSet ∈
@@ -323,6 +463,8 @@ theorem
               ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions
                   returnType supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema
+                    variableValues returnType supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema returnType supportSelectionSet := by
         intro supportSelectionSet hsupport
@@ -341,10 +483,13 @@ theorem
             (supportSelectionSets := supportSelectionSets)
             (childSelectionSet := supportSelectionSet)
             (fieldDefinition := fieldDefinition)
-            hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hsupportValid hlookup hnamedType hcomposite hsupport
+            hleftValid hrightValid hleftObjectCoercion hrightObjectCoercion
+            hleftFree hrightFree hleftNormal
+            hrightNormal hsupportObjectValid hlookup hnamedType hcomposite hsupport
       rcases
-          ih hleftChildValid hrightChildValid hleftChildFree
+          ih hleftChildValid hrightChildValid hleftChildCoercion
+            hrightChildCoercion
+            hleftChildFree
             hrightChildFree hleftChildNormal hrightChildNormal
             hchildSupportValid
             (supportSelectionSets :=
@@ -381,13 +526,15 @@ theorem
           (rightPref := rightPref) (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
           (supportSelectionSets := supportSelectionSets)
           (fieldDefinition := fieldDefinition) (minFuel := minFuel) hschema hleftValid
-          hrightValid hlookup hnamedType hleftFree hrightFree hleftNormal hrightNormal
-          hobject hsupportValid hchildWitness
+          hrightValid hleftObjectCoercion hrightObjectCoercion hlookup hnamedType
+          hleftFree hrightFree hleftNormal hrightNormal
+          hobject hsupportObjectValid hchildWitness
       ⟩
   | abstractLeftTypeCondition hnonObject hleftMem hrightNoTypeCondition =>
       rename_i parentType left right typeCondition directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
       exact ⟨
         typeCondition,
@@ -397,13 +544,15 @@ theorem
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
           (directives := directives) (childSelectionSet := childSelectionSet)
-          (minFuel := minFuel) hschema hleftValid hrightValid hleftFree hrightFree
+          (minFuel := minFuel) hschema hleftValid hrightValid
+          hleftCoercion hrightCoercion hleftFree hrightFree
           hleftNormal hrightNormal hnonObject hsupportValid hleftMem hrightNoTypeCondition
       ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition =>
       rename_i parentType left right typeCondition directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
       exact ⟨
         typeCondition,
@@ -413,14 +562,16 @@ theorem
           (parentType := parentType) (left := left) (right := right)
           (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
           (directives := directives) (childSelectionSet := childSelectionSet)
-          (minFuel := minFuel) hschema hleftValid hrightValid hleftFree hrightFree
+          (minFuel := minFuel) hschema hleftValid hrightValid
+          hleftCoercion hrightCoercion hleftFree hrightFree
           hleftNormal hrightNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition
       ⟩
   | abstractChild hnonObject hleftMem hrightMem hchildDiff ih =>
       rename_i parentType typeCondition left right leftDirectives
         rightDirectives leftChildSelectionSet rightChildSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
-        minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
+        minFuel hleftValid hrightValid hleftCoercion hrightCoercion
+        hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
       have hleftDirectivesNil : leftDirectives = [] :=
         selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem
@@ -456,6 +607,38 @@ theorem
           selectionSetNormal schema typeCondition rightChildSelectionSet :=
         (selectionSetNormal_inlineFragment_child_of_mem hrightNormal
           hrightMem).2
+      have htypeObject :=
+        (selectionSetNormal_inlineFragment_child_of_mem hleftNormal
+          hleftMem).1
+      have htypeObjectBool :
+          objectTypeNameBool schema typeCondition = true :=
+        objectTypeNameBool_eq_true_of_objectType_forNormality schema
+          htypeObject
+      have hoverlap : schema.typesOverlap parentType typeCondition :=
+        selectionSetValid_inlineFragment_some_typesOverlap_of_mem hleftValid
+          hleftMem
+      have hinclude :
+          schema.typeIncludesObjectBool parentType typeCondition = true :=
+        typeIncludesObjectBool_of_typesOverlap_object schema hoverlap
+          htypeObject
+      have hleftChildCoercion :
+          selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+            typeCondition leftChildSelectionSet :=
+        selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          htypeObjectBool
+          (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+            (hleftCoercion typeCondition hinclude) hleftFree hleftMem
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              htypeObjectBool))
+      have hrightChildCoercion :
+          selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+            typeCondition rightChildSelectionSet :=
+        selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          htypeObjectBool
+          (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+            (hrightCoercion typeCondition hinclude) hrightFree hrightMem
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              htypeObjectBool))
       rcases List.mem_iff_append.mp hleftMem with
         ⟨leftPref, leftSuffix, hleftEq⟩
       rcases List.mem_iff_append.mp hrightMem with
@@ -470,6 +653,8 @@ theorem
               ∃ variableDefinitions,
                 Validation.selectionSetValid schema variableDefinitions
                   typeCondition supportSelectionSet
+                ∧ selectionSetArgumentsCoercibleInPossibleTypes schema
+                    variableValues typeCondition supportSelectionSet
                 ∧ selectionSetDirectiveFree supportSelectionSet
                 ∧ selectionSetNormal schema typeCondition
                   supportSelectionSet := by
@@ -488,7 +673,8 @@ theorem
               (leftPref := leftPref) (rightPref := rightPref)
               (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
               (childSelectionSet := supportSelectionSet)
-              hleftValid hrightValid hleftFree hrightFree hleftNormal
+              hleftValid hrightValid hleftCoercion hrightCoercion
+              hleftFree hrightFree hleftNormal
               hrightNormal hsplit
         · exact
             supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
@@ -498,7 +684,9 @@ theorem
               (childSelectionSet := supportSelectionSet)
               hsupportValid hsupportTarget
       rcases
-          ih hleftChildValid hrightChildValid hleftChildFree
+          ih hleftChildValid hrightChildValid hleftChildCoercion
+            hrightChildCoercion
+            hleftChildFree
             hrightChildFree hleftChildNormal hrightChildNormal
             hchildSupportValid
             (supportSelectionSets :=
@@ -517,7 +705,8 @@ theorem
           (rightChildSelectionSet := rightChildSelectionSet) (leftPref := leftPref)
           (rightPref := rightPref) (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
           (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hleftValid
-          hrightValid hleftFree hrightFree hleftNormal hrightNormal hnonObject
+          hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+          hleftNormal hrightNormal hnonObject
           hsupportValid hchildWitness
       ⟩
 

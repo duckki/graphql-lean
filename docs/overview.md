@@ -31,9 +31,16 @@ flowchart TD
   SchemaWF["GraphQL.SchemaWellFormedness"]
   Operation["GraphQL.Operation"]
   Validation["GraphQL.Validation"]
+  ExecutionReadiness["GraphQL.Theories.ExecutionReadiness"]
   NormalForm["GraphQL.Theories.NormalForm"]
+  AnnotatedExecution["GraphQL.Theories.AnnotatedExecution"]
+  SelectionConditions["GraphQL.Theories.SelectionConditions"]
+  ResponseDepth["GraphQL.Theories.ResponseDepth"]
+  QueryInclusion["GraphQL.Theories.QueryInclusion"]
   NormalFormGround["Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization"]
   CompleteNormalization["Proofs.GraphQL.Theories.NormalForm.CompleteNormalization"]
+  ProofAnnotatedExecution["Proofs.GraphQL.Theories.AnnotatedExecution"]
+  ProofQueryInclusion["Proofs.GraphQL.Theories.QueryInclusion/*"]
   Execution["GraphQL.Execution"]
   NamedFragment["GraphQL.NamedFragment/*"]
   Canceling["GraphQL.Algorithms.ExecutionCancelingSiblings"]
@@ -56,6 +63,15 @@ flowchart TD
   Operation --> Validation
   Operation --> NormalForm
   Operation --> Execution
+  Execution --> ExecutionReadiness
+  Execution --> AnnotatedExecution
+  Execution --> SelectionConditions
+  Operation --> ResponseDepth
+  ExecutionReadiness --> NormalForm
+  ExecutionReadiness --> QueryInclusion
+  SelectionConditions --> QueryInclusion
+  ResponseDepth --> QueryInclusion
+  AnnotatedExecution --> QueryInclusion
   Operation --> NamedFragment
   SchemaWF --> NormalForm
   Validation --> NormalForm
@@ -65,14 +81,18 @@ flowchart TD
   Execution --> Ungrouped
   Execution --> UngroupedUncached
   Execution --> Breadth
-  NormalForm --> Ungrouped
-  NormalForm --> UngroupedUncached
-  NormalForm --> Breadth
+  ExecutionReadiness --> Ungrouped
+  ExecutionReadiness --> UngroupedUncached
+  ExecutionReadiness --> Breadth
   Canceling --> Ungrouped
   Canceling --> UngroupedUncached
   NamedFragment --> GraphQLRoot
   NormalFormGround --> ProofRoot
   CompleteNormalization --> ProofRoot
+  AnnotatedExecution --> ProofAnnotatedExecution
+  QueryInclusion --> ProofQueryInclusion
+  ProofQueryInclusion --> ProofRoot
+  ProofAnnotatedExecution --> ProofRoot
   Canceling --> ProofCanceling
   ProofCanceling --> ProofRoot
   Ungrouped --> ProofUngrouped
@@ -84,11 +104,16 @@ flowchart TD
   SchemaWF --> GraphQLRoot
   Operation --> GraphQLRoot
   Validation --> GraphQLRoot
+  ExecutionReadiness --> GraphQLRoot
   Canceling --> GraphQLRoot
   Ungrouped --> GraphQLRoot
   UngroupedUncached --> GraphQLRoot
   Breadth --> GraphQLRoot
   NormalForm --> GraphQLRoot
+  AnnotatedExecution --> GraphQLRoot
+  SelectionConditions --> GraphQLRoot
+  ResponseDepth --> GraphQLRoot
+  QueryInclusion --> GraphQLRoot
   Execution --> GraphQLRoot
   GraphQLRoot --> TestsGraphQL
   ProofRoot --> TestsGraphQL
@@ -122,6 +147,10 @@ It should remain definition-only.
   input/output type checks, required non-empty selection sets, modeled
   `@skip`/`@include`, same-response-name field merge checks, and inline-fragment
   applicability.
+- `GraphQL.Theories.ExecutionReadiness`: shared Boolean-support extraction and
+  environment-completeness definitions, together with concrete-environment
+  field-argument coercion predicates used by executors and analyses such as
+  normalization and query inclusion.
 - `GraphQL.Theories.NormalForm`: ground-typed normal form and non-redundancy
   predicates over operation selection sets, a normalization pass for field
   merging and abstract-type grounding, and the public resolver-parametric semantic
@@ -136,6 +165,19 @@ It should remain definition-only.
   feasible, and every admitted case retains a child in nonempty nested
   selection sets. This also lets the proof derive preservation of the
   all-variables-used validation rule.
+- `GraphQL.Theories.AnnotatedExecution`: execution with the same response semantics as
+  `GraphQL.Execution`, enriched with the original and coerced resolver call attached to
+  every response field. Erasing those annotations is proved to recover ordinary
+  execution exactly.
+- `GraphQL.Theories.SelectionConditions`: tree-free extraction of response-field
+  occurrences annotated with their cumulative type and Boolean conditions. Query
+  inclusion consumes this shared condition algebra.
+- `GraphQL.Theories.ResponseDepth`: a structural response-field depth metric shared by
+  recursive execution theories; inline fragments do not consume response depth.
+- `GraphQL.Theories.QueryInclusion`: recursive response-field inclusion with resolver
+  provenance, a simple reference checker, and the optimized guarded field-group checker.
+  Its proof modules establish soundness and completeness for valid operations under the
+  documented error-free, coercibility, and composite-return inhabitance conditions.
 - `GraphQL.Execution`: fuel-bounded query execution over operation selections,
   parameterized by abstract resolver functions. It materializes missing operation
   variable defaults, collects executable fields by response name, looks up each field
@@ -170,8 +212,9 @@ It should remain definition-only.
 - `Tests.GraphQL`: ordinary test aggregator. Its modules live under
   `Tests/GraphQL/` and mirror the corresponding GraphQL or proof topic,
   including `Algorithms/ExecutionCancelingSiblings`,
-  `Algorithms/ExecutionUngrouped`, `Algorithms/ExecutionBreadth`, and
-  `Theories/NormalForm`.
+  `Algorithms/ExecutionUngrouped`, `Algorithms/ExecutionBreadth`,
+  `Theories/NormalForm`, `Theories/AnnotatedExecution`,
+  and `Theories/QueryInclusion`.
 - `Tests.Conformance`: generated and fixture-driven conformance test
   aggregator. Its modules live under `Tests/Conformance/`.
 - `Lint`: local project tooling. `Lint.ImportClosure` checks that tracked Lean
@@ -189,13 +232,17 @@ The current flow is:
    completing values, and accumulating modeled execution-error counts.
 4. `GraphQL.Theories.NormalForm` provides project-specific normalization
    definitions and public resolver-parametric correctness predicates.
-5. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
+5. `GraphQL.Theories.AnnotatedExecution` preserves execution data while recording
+   resolver provenance for response analyses.
+6. `GraphQL.Theories.QueryInclusion` decides recursive, provenance-preserving inclusion
+   over the response fields of valid operations.
+7. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
    executor that cancels remaining sibling response positions after a bubble.
-6. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching
+8. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching
    alternative execution algorithm over the same operation syntax.
-7. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative
+9. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative
    with vectorized resolver calls.
-8. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
+10. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
    validation, execution, inlining, and translation definitions.
 
 
@@ -219,9 +266,11 @@ in `docs/algorithms.md`.
 Raw syntax remains permissive. Validation supplies the invariants that later
 semantic proofs should rely on.
 
-The normal-form correctness proofs are summarized in `docs/normal-form.md`.
+The normal-form correctness proofs are summarized in `docs/theories/normal-form.md`.
 The ground and complete uniqueness arguments are detailed in
-`docs/normal-form-uniqueness.md`.
+`docs/theories/normal-form-uniqueness.md`.
+Query-inclusion semantics, checker design, and correctness premises are detailed in
+`docs/theories/query-inclusion.md`.
 Project algorithms are summarized in `docs/algorithms.md`.
 
 Lean module organization rules are documented in

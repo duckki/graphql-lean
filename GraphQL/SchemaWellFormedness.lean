@@ -8,8 +8,8 @@ Spec reference: GraphQL September 2025.
 - 3.6-3.10 Object, Interface, Union, Enum, and Input Object validation: modeled partially,
   covering uniqueness, non-empty member/field lists, default-value validity, and
   object/interface field implementation compatibility.
-- Fidelity note: several normative rules are omitted, including reserved `__` names,
-  interface cycles, input-object cycles/default cycles, directive validation, extensions,
+-- Fidelity note: several normative rules are omitted, including reserved `__` names,
+  interface cycles, directive validation, extensions,
   OneOf, mutation/subscription roots, and introspection.
 -/
 
@@ -125,11 +125,142 @@ def enumTypeWellFormed (enumType : EnumType) : Prop :=
   listNonempty enumType.values ∧ namesAreUnique enumType.values
 
 -- Spec 3.10 input object type rules: checks non-empty input field definitions but omits
--- input-object cycles, default-value cycles, and OneOf rules.
+-- OneOf rules.
 def inputObjectTypeWellFormed (schema : Schema) (inputObjectType : InputObjectType)
     : Prop :=
   listNonempty inputObjectType.inputFields
   ∧ inputValueDefinitionsWellFormed schema inputObjectType.inputFields
+
+-- Spec 3.10 circular-reference rule: only an unbroken chain of singular non-null input
+-- object fields is forbidden. Nullable and list fields deliberately break the chain, so
+-- schemas may still represent finite recursive input values.
+private def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
+  match inputType with
+  | .nonNull (.named target) => some target
+  | _ => none
+
+private def inputObjectHasNonNullSingularCycleFrom (schema : Schema)
+    : Nat -> List Name -> Name -> Bool
+  | 0, _visited, _current => false
+  | fuel + 1, visited, current =>
+      if visited.contains current then
+        true
+      else
+        match schema.lookupInputObject current with
+        | none => false
+        | some inputObject =>
+            inputObject.inputFields.any
+              fun field =>
+                match nonNullSingularInputObjectTarget? field.inputType with
+                | none => false
+                | some target =>
+                    inputObjectHasNonNullSingularCycleFrom schema fuel
+                      (current :: visited) target
+
+def inputObjectNonNullSingularCircularReferencesValidBool (schema : Schema) : Bool :=
+  (schema.types.filterMap
+    fun typeDefinition =>
+      match typeDefinition with
+      | .inputObject inputObject => some inputObject.name
+      | _ => none).all
+    fun inputObjectName =>
+      !(inputObjectHasNonNullSingularCycleFrom schema (schema.types.length + 1) []
+          inputObjectName)
+
+def inputObjectNonNullSingularCircularReferencesValid (schema : Schema) : Prop :=
+  inputObjectNonNullSingularCircularReferencesValidBool schema = true
+
+mutual
+  private def constInputValueSize : ConstInputValue -> Nat
+    | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ => 1
+    | .list values => 1 + constInputValueListSize values
+    | .object fields => 1 + constInputValueFieldSize fields
+
+  private def constInputValueListSize : List ConstInputValue -> Nat
+    | [] => 0
+    | value :: values => constInputValueSize value + constInputValueListSize values
+
+  private def constInputValueFieldSize : List (Name × ConstInputValue) -> Nat
+    | [] => 0
+    | (_, value) :: fields => constInputValueSize value + constInputValueFieldSize fields
+end
+
+-- The bound covers every schema default's finite syntax tree plus every input-object
+-- field. It bounds traversal of defaults, not the depth of supplied runtime input.
+private def inputObjectDefaultExpansionFuel (schema : Schema) : Nat :=
+  schema.types.foldr
+    (fun typeDefinition fuel =>
+      match typeDefinition with
+      | .inputObject inputObject =>
+          inputObject.inputFields.foldr
+            (fun field fuel =>
+              1
+              + (match field.defaultValue with
+                  | none => 0
+                  | some value => constInputValueSize value)
+              + fuel)
+            fuel
+      | _ => fuel)
+    1
+
+-- Spec 3.10 `InputObjectDefaultValueHasCycle`: supplied object entries take precedence;
+-- absent entries follow their field default. Re-visiting a defaulted input field is the
+-- cycle witness. The fuel makes this executable on arbitrary raw schemas.
+private def inputObjectDefaultValueHasCycleWithFuel (schema : Schema)
+    : Nat -> InputObjectType -> ConstInputValue -> List (Name × Name) -> Bool
+  | 0, _inputObject, _value, _visited => false
+  | fuel + 1, inputObject, value, visited =>
+      match value with
+      | .list values =>
+          values.any
+            fun value =>
+              inputObjectDefaultValueHasCycleWithFuel schema fuel inputObject value
+                visited
+      | .object fields =>
+          inputObject.inputFields.any
+            fun field =>
+              match schema.lookupInputObject field.inputType.namedType with
+              | none => false
+              | some fieldInputObject =>
+                  match Schema.getConstInputObjectField? fields field.name,
+                        field.defaultValue with
+                  | some fieldValue, _ =>
+                      inputObjectDefaultValueHasCycleWithFuel schema fuel fieldInputObject
+                        fieldValue visited
+                  | none, some defaultValue =>
+                      let coordinate := (inputObject.name, field.name)
+                      if visited.contains coordinate then
+                        true
+                      else
+                        inputObjectDefaultValueHasCycleWithFuel schema fuel
+                          fieldInputObject defaultValue (coordinate :: visited)
+                  | none, none => false
+      | _ => false
+
+def inputObjectDefaultValueHasCycle (schema : Schema) (inputObject : InputObjectType)
+    : Bool :=
+  inputObjectDefaultValueHasCycleWithFuel schema (inputObjectDefaultExpansionFuel schema)
+    inputObject (.object []) []
+
+-- Spec 3.10 requires every input object to be free of default-expansion cycles. This
+-- establishes `inputDefaultExpansionAcyclic`; it does not bound finite user values that
+-- use nullable or list recursive fields.
+def inputDefaultExpansionAcyclicBool (schema : Schema) : Bool :=
+  (schema.types.filterMap
+    fun typeDefinition =>
+      match typeDefinition with
+      | .inputObject inputObject => some inputObject
+      | _ => none).all
+    fun inputObject =>
+      !(inputObjectDefaultValueHasCycle schema inputObject)
+
+def inputDefaultExpansionAcyclic (schema : Schema) : Prop :=
+  inputDefaultExpansionAcyclicBool schema = true
+
+-- Spec 3.10 input-object circular-reference validation.
+def inputObjectCircularReferencesValid (schema : Schema) : Prop :=
+  inputObjectNonNullSingularCircularReferencesValid schema
+  ∧ inputDefaultExpansionAcyclic schema
 
 -- Spec 3.4-3.10 type well-formedness dispatcher: partial in the same ways as the
 -- per-type predicates.
@@ -163,6 +294,7 @@ def schemaWellFormed (schema : Schema) : Prop :=
   ∧ schema.objectType schema.queryType
   ∧ (∀ typeDefinition,
       typeDefinition ∈ schema.types -> typeDefinitionWellFormed schema typeDefinition)
+  ∧ inputObjectCircularReferencesValid schema
   ∧ (∀ typeName objectTypeName,
       objectTypeName ∈ schema.getPossibleTypes typeName
       -> schema.objectType objectTypeName)

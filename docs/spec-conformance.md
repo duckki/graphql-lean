@@ -42,9 +42,10 @@ while any supplied value, including supplied `null`, takes precedence.
 The `GraphQL.Execution.Resolvers` boundary receives the schema-derived argument map.
 Before it is invoked, `coerceArgumentValues` removes variable syntax and materializes
 schema argument defaults plus nested input-object field defaults. An omitted value or
-undefined variable activates a default; explicit `null` does not. Recursive default
-expansion is bounded while raw schema default cycles remain outside schema
-well-formedness.
+undefined variable activates a default; explicit `null` does not. Schema well-formedness
+rejects the spec's input-object default-expansion cycles; execution remains bounded for
+permissive raw schemas. This does not bound finite, user-supplied recursive inputs through
+nullable or list fields, which the spec permits.
 
 This defaulting step is observable for the modeled directives. Their `if`
 argument has type `Boolean!`, while spec 5.8.5 permits a nullable `Boolean`
@@ -106,7 +107,8 @@ The main public modules are:
   helpers for interface implementation checks.
 - `GraphQL.SchemaWellFormedness`: schema well-formedness predicates for the
   scoped fragment, including uniqueness, non-empty definition/member lists,
-  valid type references/defaults, query root existence, and object/interface
+  valid type references/defaults, input-object circular-reference and
+  default-expansion-cycle validity, query root existence, and object/interface
   implementation compatibility.
 - `GraphQL.Operation`: core operation syntax, variables, inline fragments, and
   modeled directive applications.
@@ -126,9 +128,8 @@ The main public modules are:
   absorbed during execution. Its all-variables-used check follows fragment spreads
   transitively and does not count uses in unreferenced fragments.
 
-The non-spec algorithms and proof-status details, including ungrouped execution
-and normal-form work, are documented separately in `docs/algorithms.md` and
-`docs/normal-form.md`.
+The non-spec algorithms and project-theory proof details are documented separately in
+`docs/algorithms.md` and `docs/theories/`.
 
 ## Conformance Fixtures
 

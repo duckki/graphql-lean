@@ -5,7 +5,14 @@ open System
 namespace Lint.ImportClosure
 
 def defaultRoots : List String :=
-  ["GraphQL", "Proofs", "Tests", "Lint", "Lint.ImportClosureMain"]
+  [
+    "GraphQL",
+    "Proofs",
+    "Tests",
+    "Benchmarks.QueryInclusion",
+    "Lint",
+    "Lint.ImportClosureMain"
+  ]
 
 def usage : String :=
   s!"Usage: lake exe import-closure [ROOT ...]\n\n"

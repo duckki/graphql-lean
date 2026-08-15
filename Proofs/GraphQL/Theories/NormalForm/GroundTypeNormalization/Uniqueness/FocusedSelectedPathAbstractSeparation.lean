@@ -19,7 +19,7 @@ def SelectedPathSelectionSetsResponseDataDiff
     (leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     (leftCurrentSelectionSet rightCurrentSelectionSet : List Selection)
     (leftSpine rightSpine : List NormalSelectionSetObservableFieldStep)
@@ -70,7 +70,7 @@ def SelectedPathSelectionSetsResponseDataDiffRightPruned
     (leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     (leftCurrentSelectionSet : List Selection)
     (leftSpine : List NormalSelectionSetObservableFieldStep)
@@ -106,7 +106,7 @@ def SelectedPathSelectionSetsResponseDataDiffLeftPruned
     (leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     (rightCurrentSelectionSet : List Selection)
     (rightSpine : List NormalSelectionSetObservableFieldStep)
@@ -142,7 +142,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_dataNot
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {leftSpine rightSpine : List NormalSelectionSetObservableFieldStep}
@@ -202,7 +202,7 @@ theorem selectedPathSelectionSetsResponseDataDiffRightPruned_of_dataNot
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet : List Selection}
     {leftSpine : List NormalSelectionSetObservableFieldStep}
@@ -246,7 +246,7 @@ theorem selectedPathSelectionSetsResponseDataDiffLeftPruned_of_dataNot
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {rightCurrentSelectionSet : List Selection}
     {rightSpine : List NormalSelectionSetObservableFieldStep}
@@ -289,7 +289,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_taggedWitness_sameFuel
     {variableValues : Execution.VariableValues}
     {fuel : Nat}
     {normalParentType runtimeType targetParent leftField rightField : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
@@ -330,8 +330,9 @@ theorem
       : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    (tag : FieldPairProbeTag) {selectionSet bodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) (tag : FieldPairProbeTag)
+    {selectionSet bodySelectionSet : List Selection}
     : objectTypeNameBool schema normalParentType = false
       -> objectTypeNameBool schema runtimeType = true
       -> selectionSetDirectiveFree selectionSet
@@ -426,7 +427,7 @@ theorem
       : List NormalSelectionSetObservableFieldStep}
     {variableValues : Execution.VariableValues} {fuel : Nat}
     {normalParentType runtimeType targetParent leftField rightField : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right leftBodySelectionSet rightBodySelectionSet : List Selection}
@@ -496,8 +497,9 @@ theorem
       : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    (tag : FieldPairProbeTag) {selectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) (tag : FieldPairProbeTag)
+    {selectionSet : List Selection}
     : objectTypeNameBool schema normalParentType = false
       -> selectionSetDirectiveFree selectionSet
       -> selectionSetNormal schema normalParentType selectionSet
@@ -564,11 +566,13 @@ theorem
       : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right leftBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right leftBodySelectionSet : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions
           runtimeType leftBodySelectionSet
+      -> selectionSetArgumentsCoercible schema variableValues runtimeType
+          leftBodySelectionSet
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetDirectiveFree leftBodySelectionSet
@@ -593,7 +597,7 @@ theorem
           leftArguments rightArguments leftRuntime rightRuntime
           leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
           rightSpine left right := by
-  intro hschema hleftBodyValid hleftFree hrightFree hleftBodyFree
+  intro hschema hleftBodyValid hleftCoercion hleftFree hrightFree hleftBodyFree
     hleftNormal hrightNormal hleftBodyNormal hnonObject hruntimeObject
     hinclude hleftMem hrightMissing hfuel hleftSpineValid hleftSupport
     hleftContextReady hleftBodyNonempty
@@ -606,7 +610,10 @@ theorem
         runtimeType targetParent leftField rightField leftArguments
         rightArguments leftRuntime rightRuntime FieldPairProbeTag.left
         leftCurrentSelectionSet leftSpine (by omega) hfuel
-        hleftBodyValid hleftBodyFree hleftBodyNormal hleftSpineValid
+        hleftBodyValid
+        (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          hruntimeObject hleftCoercion)
+        hleftBodyFree hleftBodyNormal hleftSpineValid
         hleftSupport hleftContextReady with
     ⟨leftFields, leftErrors, hleftBodyResponse⟩
   have hleftEq :=
@@ -695,11 +702,13 @@ theorem
       : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField normalParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
-    {left right rightBodySelectionSet : List Selection}
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name) {left right rightBodySelectionSet : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema rightVariableDefinitions
           runtimeType rightBodySelectionSet
+      -> selectionSetArgumentsCoercible schema variableValues runtimeType
+          rightBodySelectionSet
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetDirectiveFree rightBodySelectionSet
@@ -724,7 +733,7 @@ theorem
           leftArguments rightArguments leftRuntime rightRuntime
           leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
           rightSpine left right := by
-  intro hschema hrightBodyValid hleftFree hrightFree hrightBodyFree
+  intro hschema hrightBodyValid hrightCoercion hleftFree hrightFree hrightBodyFree
     hleftNormal hrightNormal hrightBodyNormal hnonObject hruntimeObject
     hinclude hrightMem hleftMissing hfuel hrightSpineValid hrightSupport
     hrightContextReady hrightBodyNonempty
@@ -737,7 +746,10 @@ theorem
         runtimeType targetParent leftField rightField leftArguments
         rightArguments leftRuntime rightRuntime FieldPairProbeTag.right
         rightCurrentSelectionSet rightSpine (by omega) hfuel
-        hrightBodyValid hrightBodyFree hrightBodyNormal hrightSpineValid
+        hrightBodyValid
+        (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          hruntimeObject hrightCoercion)
+        hrightBodyFree hrightBodyNormal hrightSpineValid
         hrightSupport hrightContextReady with
     ⟨rightFields, rightErrors, hrightBodyResponse⟩
   have hleftResponse :=
@@ -826,7 +838,8 @@ theorem
       : List NormalSelectionSetObservableFieldStep)
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField leftParentType rightParentType runtimeType : Name)
-    (leftArguments rightArguments : List Argument) (leftRuntime rightRuntime : Name)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (leftRuntime rightRuntime : Name)
     {left right leftBodySelectionSet rightBodySelectionSet : List Selection}
     : objectTypeNameBool schema leftParentType = false
       -> objectTypeNameBool schema rightParentType = false
@@ -921,7 +934,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_inlineFragme
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right rightBodySelectionSet : List Selection}
@@ -983,7 +996,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_inlineFragmen
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left leftBodySelectionSet right : List Selection}
@@ -1047,10 +1060,12 @@ theorem
           NormalSelectionSetObservableResponsePath schema normalParentType
             selectionSet responsePath
           -> ∀ variableDefinitions fuel targetParent leftField rightField
-                (targetLeftArguments targetRightArguments : List Argument)
+                (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
                 (leftRuntime rightRuntime : Name),
               Validation.selectionSetValid schema variableDefinitions
                 normalParentType selectionSet
+              -> selectionSetArgumentsCoercibleInPossibleTypes schema
+                  variableValues normalParentType selectionSet
               -> selectionSetDirectiveFree selectionSet
               -> selectionSetNormal schema normalParentType selectionSet
               -> selectionSetDeepProbeFuel schema normalParentType selectionSet ≤ fuel
@@ -1082,7 +1097,7 @@ theorem
     rightCurrentSelectionSet selectionSet responsePath hpath
     variableDefinitions fuel targetParent leftField rightField
     targetLeftArguments targetRightArguments leftRuntime rightRuntime hvalid
-    hfree hnormal hfuel
+    hcoercion hfree hnormal hfuel
   rcases
       responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_observableResponsePath_valid_normal_pair_support_context_fuel_ge
         schema rootSelectionSet leftInitialSelectionSet
@@ -1090,7 +1105,7 @@ theorem
         variableValues hschema normalParentType leftCurrentSelectionSet
         rightCurrentSelectionSet selectionSet hpath variableDefinitions
         fuel targetParent leftField rightField targetLeftArguments
-        targetRightArguments leftRuntime rightRuntime hvalid hfree
+        targetRightArguments leftRuntime rightRuntime hvalid hcoercion hfree
         hnormal hfuel with
     ⟨selectedRuntimeType, selectedFieldSpine, hselectedInclude,
       hselectedSpineValid, hdataBuilder⟩
@@ -1128,7 +1143,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_typeConditio
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
@@ -1182,7 +1197,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_typeCondition
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
@@ -1236,7 +1251,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_missing_runt
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
@@ -1299,7 +1314,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runti
     {leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
@@ -1362,9 +1377,11 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> ∀ variableDefinitions parentType currentSelectionSet
             (selectionSet : List Selection) fuel targetParent leftField
-            rightField (targetLeftArguments targetRightArguments : List Argument)
+            rightField
+            (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
             (leftRuntime rightRuntime : Name) (tag : FieldPairProbeTag),
           Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
@@ -1393,7 +1410,7 @@ theorem
                 (Execution.ResponseValue.object []) := by
   intro hschema variableDefinitions parentType currentSelectionSet
     selectionSet fuel targetParent leftField rightField targetLeftArguments
-    targetRightArguments leftRuntime rightRuntime tag hvalid hfree hnormal
+    targetRightArguments leftRuntime rightRuntime tag hvalid hcoercion hfree hnormal
     hobject hfuel hspineValid hsupport hcontextReady hnonempty
   rcases
       executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_contextReady_fuel_ge_size
@@ -1403,7 +1420,10 @@ theorem
         parentType variableDefinitions selectionSet fuel parentType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments leftRuntime rightRuntime tag currentSelectionSet
-        spine (by omega) hfuel hvalid hfree hnormal hspineValid
+        spine (by omega) hfuel hvalid
+        (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          hobject hcoercion)
+        hfree hnormal hspineValid
         hsupport hcontextReady with
     ⟨fields, errors, hresponse⟩
   exact
@@ -1433,9 +1453,11 @@ theorem
     : SchemaWellFormedness.schemaWellFormed schema
       -> ∀ variableDefinitions parentType currentSelectionSet
             (selectionSet : List Selection) fuel targetParent leftField
-            rightField (targetLeftArguments targetRightArguments : List Argument)
+            rightField
+            (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
             (leftRuntime rightRuntime : Name) (tag : FieldPairProbeTag),
           Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
@@ -1464,7 +1486,7 @@ theorem
                   selectionSet).data := by
   intro hschema variableDefinitions parentType currentSelectionSet
     selectionSet fuel targetParent leftField rightField targetLeftArguments
-    targetRightArguments leftRuntime rightRuntime tag hvalid hfree hnormal
+    targetRightArguments leftRuntime rightRuntime tag hvalid hcoercion hfree hnormal
     hobject hfuel hspineValid hsupport hcontextReady hnonempty
   rcases
       executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_contextReady_fuel_ge_size
@@ -1474,7 +1496,10 @@ theorem
         parentType variableDefinitions selectionSet fuel parentType
         targetParent leftField rightField targetLeftArguments
         targetRightArguments leftRuntime rightRuntime tag currentSelectionSet
-        spine (by omega) hfuel hvalid hfree hnormal hspineValid
+        spine (by omega) hfuel hvalid
+        (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+          hobject hcoercion)
+        hfree hnormal hspineValid
         hsupport hcontextReady with
     ⟨fields, errors, hresponse⟩
   exact
@@ -1504,12 +1529,13 @@ theorem
     {leftVariableDefinitions : List VariableDefinition} {leftFuel rightFuel : Nat}
     {leftParentType rightParentType rightRuntimeType targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -1532,7 +1558,7 @@ theorem
           leftField rightField targetLeftArguments targetRightArguments
           leftRuntime rightRuntime leftCurrentSelectionSet
           rightCurrentSelectionSet leftSpine rightSpine left right := by
-  intro hschema hleftValid hleftFree hrightFree hleftNormal hrightNormal
+  intro hschema hleftValid hleftCoercion hleftFree hrightFree hleftNormal hrightNormal
     hleftObject hrightNonObject hrightInclude hleftFuel hleftSpineValid
     hrightSpineValid hleftSupport hleftContextReady hleftNonempty
     hrightMissing
@@ -1560,7 +1586,7 @@ theorem
       leftSpine variableValues hschema leftVariableDefinitions
       leftParentType leftCurrentSelectionSet left leftFuel targetParent
       leftField rightField targetLeftArguments targetRightArguments
-      leftRuntime rightRuntime FieldPairProbeTag.left hleftValid hleftFree
+      leftRuntime rightRuntime FieldPairProbeTag.left hleftValid hleftCoercion hleftFree
       hleftNormal hleftObject hleftFuel hleftSpineValid hleftSupport
       hleftContextReady hleftNonempty
   exact
@@ -1599,13 +1625,14 @@ theorem
     {rightVariableDefinitions : List VariableDefinition} {leftFuel rightFuel : Nat}
     {leftParentType rightParentType leftRuntimeType targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -1628,7 +1655,7 @@ theorem
           leftField rightField targetLeftArguments targetRightArguments
           leftRuntime rightRuntime leftCurrentSelectionSet
           rightCurrentSelectionSet leftSpine rightSpine left right := by
-  intro hschema hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hrightValid hrightCoercion hleftFree hrightFree hleftNormal
     hrightNormal hleftNonObject hrightObject hleftInclude hrightFuel
     hleftSpineValid hrightSpineValid hrightSupport hrightContextReady
     hrightNonempty hleftMissing
@@ -1656,7 +1683,7 @@ theorem
       rightSpine variableValues hschema rightVariableDefinitions
       rightParentType rightCurrentSelectionSet right rightFuel targetParent
       leftField rightField targetLeftArguments targetRightArguments
-      leftRuntime rightRuntime FieldPairProbeTag.right hrightValid
+      leftRuntime rightRuntime FieldPairProbeTag.right hrightValid hrightCoercion
       hrightFree hrightNormal hrightObject hrightFuel hrightSpineValid
       hrightSupport hrightContextReady hrightNonempty
   exact
@@ -1696,12 +1723,13 @@ theorem selectedPathSelectionSetsResponseDataDiffRightPruned_of_left_object_none
     {leftFuel rightFuel : Nat}
     {leftParentType rightParentType rightRuntimeType targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {leftCurrentSelectionSet : List Selection}
     {left right : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
       -> selectionSetDirectiveFree left
       -> selectionSetNormal schema leftParentType left
       -> objectTypeNameBool schema leftParentType = true
@@ -1719,7 +1747,7 @@ theorem selectedPathSelectionSetsResponseDataDiffRightPruned_of_left_object_none
           rightRuntimeType targetParent leftField rightField
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           leftCurrentSelectionSet leftSpine left right := by
-  intro hschema hleftValid hleftFree hleftNormal hleftObject hrightInclude
+  intro hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject hrightInclude
     hleftFuel hleftSpineValid hleftSupport hleftContextReady
     hleftNonempty
   have hleftNotEmpty :
@@ -1746,7 +1774,7 @@ theorem selectedPathSelectionSetsResponseDataDiffRightPruned_of_left_object_none
       leftSpine variableValues hschema leftVariableDefinitions
       leftParentType leftCurrentSelectionSet left leftFuel targetParent
       leftField rightField targetLeftArguments targetRightArguments
-      leftRuntime rightRuntime FieldPairProbeTag.left hleftValid hleftFree
+      leftRuntime rightRuntime FieldPairProbeTag.left hleftValid hleftCoercion hleftFree
       hleftNormal hleftObject hleftFuel hleftSpineValid hleftSupport
       hleftContextReady hleftNonempty
   exact
@@ -1782,13 +1810,14 @@ theorem selectedPathSelectionSetsResponseDataDiffLeftPruned_of_right_object_none
     {leftFuel rightFuel : Nat}
     {leftParentType rightParentType leftRuntimeType targetParent leftField rightField
       : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name}
     {rightCurrentSelectionSet : List Selection}
     {left right : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema rightParentType right
       -> objectTypeNameBool schema rightParentType = true
@@ -1806,7 +1835,7 @@ theorem selectedPathSelectionSetsResponseDataDiffLeftPruned_of_right_object_none
           rightParentType targetParent leftField rightField
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           rightCurrentSelectionSet rightSpine left right := by
-  intro hschema hrightValid hrightFree hrightNormal hrightObject
+  intro hschema hrightValid hrightCoercion hrightFree hrightNormal hrightObject
     hleftInclude hrightFuel hrightSpineValid hrightSupport
     hrightContextReady hrightNonempty
   have hrightNotEmpty :
@@ -1833,7 +1862,7 @@ theorem selectedPathSelectionSetsResponseDataDiffLeftPruned_of_right_object_none
       rightSpine variableValues hschema rightVariableDefinitions
       rightParentType rightCurrentSelectionSet right rightFuel targetParent
       leftField rightField targetLeftArguments targetRightArguments
-      leftRuntime rightRuntime FieldPairProbeTag.right hrightValid
+      leftRuntime rightRuntime FieldPairProbeTag.right hrightValid hrightCoercion
       hrightFree hrightNormal hrightObject hrightFuel hrightSpineValid
       hrightSupport hrightContextReady hrightNonempty
   exact
@@ -1870,11 +1899,14 @@ theorem
     (variableValues : Execution.VariableValues) (fuel : Nat)
     (targetParent leftField rightField parentType fieldName sourceRuntimeType responseName
       : Name)
-    (targetLeftArguments targetRightArguments arguments : List Argument)
-    (leftRuntime rightRuntime : Name) (tag : FieldPairProbeTag)
-    (childSelectionSet : List Selection) (fieldDefinition : FieldDefinition)
-    (runtimeType : Name)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
+    (arguments : List Argument) (leftRuntime rightRuntime : Name)
+    (tag : FieldPairProbeTag) (childSelectionSet : List Selection)
+    (fieldDefinition : FieldDefinition) (runtimeType : Name)
     : schema.lookupField parentType fieldName = some fieldDefinition
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments arguments).isSuccess
+          = true
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = true
       -> objectTypeNameBool schema fieldDefinition.outputType.namedType = false
@@ -1912,7 +1944,7 @@ theorem
               }]
             = .ok ([(responseName, responseValue)], fieldErrors)
           ∧ responseValue ≠ Execution.ResponseValue.null := by
-  intro hlookup hcomposite hnonObject hchildFree hchildNormal
+  intro hlookup hcoercion hcomposite hnonObject hchildFree hchildNormal
     hselectedNone hruntime hinclude hmissing hfuel
   let childFuel := fuel - leafProbeFuel fieldDefinition.outputType - 1
   have hchildFuelEq :
@@ -1977,7 +2009,7 @@ theorem
       rightField parentType fieldName sourceRuntimeType responseName
       targetLeftArguments targetRightArguments arguments leftRuntime
       rightRuntime tag childSelectionSet fieldDefinition runtimeType []
-      0 hlookup hcomposite hnonObject hselectedNone hruntime hinclude
+      0 hlookup hcoercion hcomposite hnonObject hselectedNone hruntime hinclude
       (by omega) hchildResponse
 
 theorem compositeChildResponse_of_selectedPathFieldChildrenReady
@@ -1989,7 +2021,7 @@ theorem compositeChildResponse_of_selectedPathFieldChildrenReady
       : List NormalSelectionSetObservableFieldStep}
     {variableValues : Execution.VariableValues}
     {fuel : Nat} {targetParent leftField rightField parentType : Name}
-    {targetLeftArguments targetRightArguments : List Argument}
+    {targetLeftArguments targetRightArguments : Execution.CoercedArguments}
     {leftRuntime rightRuntime : Name} {tag : FieldPairProbeTag}
     {responseName fieldName : Name} {arguments : List Argument}
     {directives : List DirectiveApplication}
@@ -2040,7 +2072,7 @@ theorem compositeChildResponse_of_selectedPathFieldChildrenReady
   intro hready hmem hlookup hcomposite
   rcases hready responseName fieldName arguments directives
       childSelectionSet hmem with
-    ⟨candidateDefinition, hcandidateLookup, hfuel, hcase⟩
+    ⟨candidateDefinition, hcandidateLookup, _hcoercion, hfuel, hcase⟩
   have hcandidateEq : candidateDefinition = fieldDefinition := by
     rw [hlookup] at hcandidateLookup
     exact Option.some.inj hcandidateLookup.symm
@@ -2048,48 +2080,48 @@ theorem compositeChildResponse_of_selectedPathFieldChildrenReady
   rcases hcase with hleaf | hcase
   · rw [hcomposite] at hleaf
     simp at hleaf
-  rcases hcase with hselected | hcase
-  · rcases hselected with
-      ⟨childRuntimeType, tail, responseFields, childErrors, hselected,
-        hruntimeCase, hinclude, hchildResponse⟩
-    exact ⟨
-      childRuntimeType,
-      tail,
-      responseFields,
-      childErrors,
-      Or.inl ⟨hselected, hruntimeCase⟩,
-      hinclude,
-      hfuel,
-      hchildResponse
-    ⟩
-  rcases hcase with hobjectCase | habstractFallback
-  · rcases hobjectCase with
-      ⟨responseFields, childErrors, hobjectOutput, hchildResponse⟩
-    exact ⟨
-      fieldDefinition.outputType.namedType,
-      selectedObservableFieldSpineTailForRuntime
-        fieldDefinition.outputType.namedType fieldName arguments spine,
-      responseFields,
-      childErrors,
-      Or.inr (Or.inl ⟨hobjectOutput, rfl, rfl⟩),
-      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobjectOutput,
-      hfuel,
-      hchildResponse
-    ⟩
-  · rcases habstractFallback with
-      ⟨childRuntimeType, responseFields, childErrors, hcomposite,
-        hnonObject, hselectedNone, hruntime, hinclude,
-        hchildResponse⟩
-    exact ⟨
-      childRuntimeType,
-      [],
-      responseFields,
-      childErrors,
-      Or.inr (Or.inr ⟨hcomposite, hnonObject, hselectedNone, hruntime, rfl⟩),
-      hinclude,
-      hfuel,
-      hchildResponse
-    ⟩
+  · rcases hcase with hselected | hcase
+    · rcases hselected with
+        ⟨childRuntimeType, tail, responseFields, childErrors, hselected,
+          hruntimeCase, hinclude, hchildResponse⟩
+      exact ⟨
+        childRuntimeType,
+        tail,
+        responseFields,
+        childErrors,
+        Or.inl ⟨hselected, hruntimeCase⟩,
+        hinclude,
+        hfuel,
+        hchildResponse
+      ⟩
+    · rcases hcase with hobjectCase | habstractFallback
+      · rcases hobjectCase with
+          ⟨responseFields, childErrors, hobjectOutput, hchildResponse⟩
+        exact ⟨
+          fieldDefinition.outputType.namedType,
+          selectedObservableFieldSpineTailForRuntime
+            fieldDefinition.outputType.namedType fieldName arguments spine,
+          responseFields,
+          childErrors,
+          Or.inr (Or.inl ⟨hobjectOutput, rfl, rfl⟩),
+          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobjectOutput,
+          hfuel,
+          hchildResponse
+        ⟩
+      · rcases habstractFallback with
+          ⟨childRuntimeType, responseFields, childErrors, hcomposite,
+            hnonObject, hselectedNone, hruntime, hinclude,
+            hchildResponse⟩
+        exact ⟨
+          childRuntimeType,
+          [],
+          responseFields,
+          childErrors,
+          Or.inr (Or.inr ⟨hcomposite, hnonObject, hselectedNone, hruntime, rfl⟩),
+          hinclude,
+          hfuel,
+          hchildResponse
+        ⟩
 
 end GroundTypeNormalization
 

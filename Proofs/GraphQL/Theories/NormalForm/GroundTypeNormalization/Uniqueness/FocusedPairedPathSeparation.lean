@@ -26,7 +26,7 @@ def NormalSelectionSetPairedPathDataDiffAt
     (leftParentType rightParentType leftRuntimeType rightRuntimeType
       targetParent leftProbeField rightProbeField
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     (leftSpine rightSpine : List NormalSelectionSetObservableFieldStep)
     (left right : List Selection)
@@ -53,7 +53,7 @@ def NormalSelectionSetPairedPathDataDiff
     (variableValues : Execution.VariableValues)
     (leftFuel rightFuel : Nat)
     (leftParentType rightParentType targetParent leftProbeField rightProbeField : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (left right : List Selection)
     : Prop :=
   ∃ leftRuntimeType rightRuntimeType leftSpine rightSpine,
@@ -186,7 +186,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_left_abstract
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right leftChildSelectionSet : List Selection}
     {typeCondition : Name} {directives : List DirectiveApplication}
@@ -254,7 +254,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_right_abstract
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right rightChildSelectionSet : List Selection}
     {typeCondition : Name} {directives : List DirectiveApplication}
@@ -323,7 +323,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftChildRuntime rightChildRuntime
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
@@ -335,6 +335,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -403,7 +405,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
             }
             :: rightChildSpine)
           left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel hleftMem
     hrightMem hleftLookup hrightLookup hleftComposite hrightComposite
     hleftChildValid hrightChildValid hleftChildFree hrightChildFree
@@ -579,7 +582,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
       leftFuel leftParentType targetParent leftProbeField rightProbeField
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       FieldPairProbeTag.left leftCurrentSelectionSet leftSpine hleftFuel
-      hleftValid hleftFree hleftNormal hleftObject hleftSpineValid
+      hleftValid hleftCoercion hleftFree hleftNormal hleftObject hleftSpineValid
       hleftSupport (hleftContext.1 hleftObject)
   have hrightReady :
       SelectedPathSelectionSetFieldChildrenReady schema rootSelectionSet
@@ -596,7 +599,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
       rightFuel rightParentType targetParent leftProbeField rightProbeField
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       FieldPairProbeTag.right rightCurrentSelectionSet rightSpine hrightFuel
-      hrightValid hrightFree hrightNormal hrightObject hrightSpineValid
+      hrightValid hrightCoercion hrightFree hrightNormal hrightObject hrightSpineValid
       hrightSupport (hrightContext.1 hrightObject)
   refine
     selectedPathSelectionSetsResponseDataDiff_of_dataNot
@@ -644,7 +647,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_left_responseName
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right : List Selection}
     {responseName fieldName : Name} {arguments : List Argument}
@@ -654,6 +657,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_left_responseName
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -674,7 +679,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_left_responseName
           leftProbeField rightProbeField targetLeftArguments
           targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
           left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMissing
     leftCurrentSelectionSet rightCurrentSelectionSet hleftSupport
@@ -700,7 +706,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_left_responseName
         leftProbeField rightProbeField leftParentType rightParentType
         leftParentType rightParentType targetLeftArguments
         targetRightArguments leftRuntime rightRuntime hschema hleftValid
-        hrightValid hleftFree hrightFree hleftNormal hrightNormal
+        hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal
         hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
         hrightSpineValid hleftSupport hrightSupport
         (hleftContext.1 hleftObject) (hrightContext.1 hrightObject)
@@ -717,7 +724,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_pair
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
@@ -729,6 +736,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_pair
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -758,7 +767,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_pair
           leftProbeField rightProbeField targetLeftArguments
           targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
           left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
     hrightLookup hleftLeaf hrightLeaf leftCurrentSelectionSet
@@ -785,7 +795,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_pair
         leftProbeField rightProbeField leftParentType rightParentType
         leftParentType rightParentType targetLeftArguments
         targetRightArguments leftRuntime rightRuntime hschema hleftValid
-        hrightValid hleftFree hrightFree hleftNormal hrightNormal
+        hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal
         hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
         hrightSpineValid hleftSupport hrightSupport
         (hleftContext.1 hleftObject) (hrightContext.1 hrightObject)
@@ -802,7 +813,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_left_leaf
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
@@ -814,6 +825,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_left_leaf
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -843,7 +856,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_left_leaf
           leftProbeField rightProbeField targetLeftArguments
           targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
           left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
     hrightLookup hleftComposite hrightLeaf leftCurrentSelectionSet
@@ -870,7 +884,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_composite_left_leaf
         leftProbeField rightProbeField leftParentType rightParentType
         leftParentType rightParentType targetLeftArguments
         targetRightArguments leftRuntime rightRuntime hschema hleftValid
-        hrightValid hleftFree hrightFree hleftNormal hrightNormal
+        hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal
         hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
         hrightSpineValid hleftSupport hrightSupport
         (hleftContext.1 hleftObject) (hrightContext.1 hrightObject)
@@ -888,7 +903,7 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_composite_right
     (targetParent leftProbeField rightProbeField leftParentType
       rightParentType leftRuntimeType rightRuntimeType
       : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     (leftRuntime rightRuntime : Name)
     {left right : List Selection}
     {responseName leftFieldName rightFieldName : Name}
@@ -900,6 +915,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_composite_right
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
           rightParentType right
+      -> selectionSetArgumentsCoercible schema variableValues leftParentType left
+      -> selectionSetArgumentsCoercible schema variableValues rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
       -> selectionSetNormal schema leftParentType left
@@ -929,7 +946,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_composite_right
           leftProbeField rightProbeField targetLeftArguments
           targetRightArguments leftRuntime rightRuntime leftSpine rightSpine
           left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftObject hrightObject hleftFuel hrightFuel
     hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
     hrightLookup hleftLeaf hrightComposite leftCurrentSelectionSet
@@ -956,7 +974,8 @@ theorem normalSelectionSetPairedPathDataDiffAt_of_object_leaf_composite_right
         leftProbeField rightProbeField leftParentType rightParentType
         leftParentType rightParentType targetLeftArguments
         targetRightArguments leftRuntime rightRuntime hschema hleftValid
-        hrightValid hleftFree hrightFree hleftNormal hrightNormal
+        hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal
         hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
         hrightSpineValid hleftSupport hrightSupport
         (hleftContext.1 hleftObject) (hrightContext.1 hrightObject)
@@ -970,12 +989,16 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
     (variableValues : Execution.VariableValues)
     (leftFuel rightFuel : Nat)
     (targetParent leftProbeField rightProbeField : Name)
-    (targetLeftArguments targetRightArguments : List Argument)
+    (targetLeftArguments targetRightArguments : Execution.CoercedArguments)
     {leftParentType rightParentType : Name}
     {left right : List Selection}
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.selectionSetValid schema leftVariableDefinitions leftParentType left
       -> Validation.selectionSetValid schema rightVariableDefinitions
+          rightParentType right
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          leftParentType left
+      -> selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
           rightParentType right
       -> selectionSetDirectiveFree left
       -> selectionSetDirectiveFree right
@@ -990,7 +1013,8 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           variableValues leftFuel rightFuel leftParentType rightParentType
           targetParent leftProbeField rightProbeField
           targetLeftArguments targetRightArguments left right := by
-  intro hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+  intro hschema hleftValid hrightValid hleftCoercion hrightCoercion
+    hleftFree hrightFree hleftNormal
     hrightNormal hleftFuel hrightFuel hleftNonempty hrightNonempty hpath
   induction hpath generalizing leftVariableDefinitions
       rightVariableDefinitions leftFuel rightFuel with
@@ -1024,7 +1048,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetParent leftProbeField rightProbeField pathLeftParentType
           pathRightParentType pathLeftParentType pathRightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid
+          (hleftCoercion pathLeftParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hleftObject))
+          (hrightCoercion pathRightParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hrightObject))
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSpineValid hrightSpineValid hleftMem hrightMissing
   | @objectLeafPair pathLeftParentType pathRightParentType responseName
@@ -1060,7 +1091,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetParent leftProbeField rightProbeField pathLeftParentType
           pathRightParentType pathLeftParentType pathRightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid
+          (hleftCoercion pathLeftParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hleftObject))
+          (hrightCoercion pathRightParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hrightObject))
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
           hrightLookup hleftLeaf hrightLeaf
@@ -1097,7 +1135,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetParent leftProbeField rightProbeField pathLeftParentType
           pathRightParentType pathLeftParentType pathRightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid
+          (hleftCoercion pathLeftParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hleftObject))
+          (hrightCoercion pathRightParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hrightObject))
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
           hrightLookup hleftComposite hrightLeaf
@@ -1134,7 +1179,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetParent leftProbeField rightProbeField pathLeftParentType
           pathRightParentType pathLeftParentType pathRightParentType
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid
+          (hleftCoercion pathLeftParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hleftObject))
+          (hrightCoercion pathRightParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hrightObject))
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftSpineValid hrightSpineValid hleftMem hrightMem hleftLookup
           hrightLookup hleftLeaf hrightComposite
@@ -1196,7 +1248,18 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           ih (leftVariableDefinitions := leftVariableDefinitions)
             (rightVariableDefinitions := rightVariableDefinitions)
             (leftFuel := leftChildFuel) (rightFuel := rightChildFuel)
-            hleftChildValid hrightChildValid hleftChildFree
+            hleftChildValid hrightChildValid
+            (selectionSetArgumentsCoercible_field_children_of_directiveFree
+              (hleftCoercion pathLeftParentType
+                (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+                  hleftObject))
+              hleftFree hleftMem hleftLookup)
+            (selectionSetArgumentsCoercible_field_children_of_directiveFree
+              (hrightCoercion pathRightParentType
+                (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+                  hrightObject))
+              hrightFree hrightMem hrightLookup)
+            hleftChildFree
             hrightChildFree hleftChildNormal hrightChildNormal
             hleftChildFuel hrightChildFuel hleftChildNonempty
             hrightChildNonempty with
@@ -1240,7 +1303,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetParent leftProbeField rightProbeField pathLeftParentType
           pathRightParentType leftChildRuntime rightChildRuntime
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
-          hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+          hschema hleftValid hrightValid
+          (hleftCoercion pathLeftParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hleftObject))
+          (hrightCoercion pathRightParentType
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+              hrightObject))
+          hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftMem hrightMem hleftLookup hrightLookup hleftComposite
           hrightComposite hleftChildValid hrightChildValid hleftChildFree
@@ -1289,7 +1359,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           ih (leftVariableDefinitions := leftVariableDefinitions)
             (rightVariableDefinitions := rightVariableDefinitions)
             (leftFuel := leftFuel) (rightFuel := rightFuel)
-            hleftChildValid hrightValid hleftChildFree hrightFree
+            hleftChildValid hrightValid
+            (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+              htypeObjectBool
+              (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+                (hleftCoercion typeCondition hinclude) hleftFree hleftMem
+                (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+                  htypeObjectBool)))
+            hrightCoercion
+            hleftChildFree hrightFree
             hleftChildNormal hrightNormal hleftChildFuel hrightFuel
             hleftChildNonempty hrightNonempty with
         ⟨leftChildRuntime, rightChildRuntime, leftSpine, rightSpine,
@@ -1371,7 +1449,14 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           ih (leftVariableDefinitions := leftVariableDefinitions)
             (rightVariableDefinitions := rightVariableDefinitions)
             (leftFuel := leftFuel) (rightFuel := rightFuel)
-            hleftValid hrightChildValid hleftFree hrightChildFree
+            hleftValid hrightChildValid hleftCoercion
+            (selectionSetArgumentsCoercibleInPossibleTypes_of_object
+              htypeObjectBool
+              (selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+                (hrightCoercion typeCondition hinclude) hrightFree hrightMem
+                (typeIncludesObjectBool_self_of_objectTypeNameBool schema
+                  htypeObjectBool)))
+            hleftFree hrightChildFree
             hleftNormal hrightChildNormal hleftFuel hrightChildFuel
             hleftNonempty hrightChildNonempty with
         ⟨leftChildRuntime, rightChildRuntime, leftSpine, rightSpine,

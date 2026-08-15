@@ -8,12 +8,17 @@ import GraphQL.NamedFragment.Validation
 import GraphQL.NamedFragment.Execution
 import GraphQL.NamedFragment.Inline
 import GraphQL.NamedFragment.Translate
+import GraphQL.Theories.ExecutionReadiness
 import GraphQL.Algorithms.Common
 import GraphQL.Algorithms.ExecutionCancelingSiblings
 import GraphQL.Algorithms.ExecutionBreadth
 import GraphQL.Algorithms.ExecutionUngroupedUncached
 import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
+import GraphQL.Theories.AnnotatedExecution
+import GraphQL.Theories.SelectionConditions
+import GraphQL.Theories.ResponseDepth
+import GraphQL.Theories.QueryInclusion
 
 /-!
 Spec reference: GraphQL September 2025.

@@ -1353,12 +1353,18 @@ theorem Resolvers.respectValidArgumentEquivalence
   intro parentType fieldName firstArguments laterArguments hfirstNodup
     hlaterNodup hequivalent
   simp only [resolveFieldValueByName]
-  split
-  · rfl
-  · simp only [resolveFieldValue]
-    apply resolvers.resolve_argumentsEquivalent
-    exact coerceArgumentValues_equivalent_of_equivalent schema variableValues _
-      hfirstNodup hlaterNodup hequivalent
+  cases hfield : schema.lookupField parentType fieldName with
+  | none => rfl
+  | some fieldDefinition =>
+      simp only [coerceAndResolveFieldValue]
+      have hcoercion := coerceArgumentValues_equivalent_of_equivalent
+        schema variableValues fieldDefinition.arguments hfirstNodup hlaterNodup hequivalent
+      cases hfirst : coerceArgumentValues schema variableValues
+              fieldDefinition.arguments firstArguments <;>
+        cases hlater : coerceArgumentValues schema variableValues
+              fieldDefinition.arguments laterArguments <;>
+        simp [hfirst, hlater, ArgumentCoercionResult.equivalent] at hcoercion ⊢
+      exact resolvers.resolve_argumentsEquivalent _ _ _ _ _ hcoercion
 
 theorem ExecutableFieldsResolveStable.tail
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)

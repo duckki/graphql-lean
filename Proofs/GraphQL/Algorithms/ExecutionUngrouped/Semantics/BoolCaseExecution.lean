@@ -2225,13 +2225,13 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_normalizati
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (depth : Nat) (source : Execution.ResolverValue ObjectRef)
-    : NormalForm.operationBoolVarsComplete operation
+    : operationBoolVarsComplete operation
         (Execution.coerceVariableValues operation variableValues)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
-                (Execution.coerceVariableValues operation variableValues) runtimeCase
-                (NormalForm.operationBoolVars operation)
+                (Execution.coerceVariableValues operation variableValues)
+                runtimeCase (NormalForm.operationBoolVars operation)
             -> visitSubfields schema resolvers
                   (Execution.coerceVariableValues operation variableValues)
                   depth (operation.rootType schema)
@@ -2295,13 +2295,13 @@ theorem executeQueryWithFuel_completeNormalizeOperation_eq_of_filter_freshPlanNo
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (depth : Nat) (source : Execution.ResolverValue ObjectRef)
-    : NormalForm.operationBoolVarsComplete operation
+    : operationBoolVarsComplete operation
         (Execution.coerceVariableValues operation variableValues)
       -> (∀ runtimeCase,
             runtimeCase ∈ NormalForm.allBoolCases (NormalForm.operationBoolVars operation)
             -> NormalForm.CompleteNormalization.variableValuesAgreeWithCase
-                (Execution.coerceVariableValues operation variableValues) runtimeCase
-                (NormalForm.operationBoolVars operation)
+                (Execution.coerceVariableValues operation variableValues)
+                runtimeCase (NormalForm.operationBoolVars operation)
             -> SelectionSetFreshPlanNormalizes schema resolvers
                 (Execution.coerceVariableValues operation variableValues) depth
                 (operation.rootType schema) source

@@ -1,5 +1,5 @@
-import GraphQL.Execution
 import GraphQL.SchemaWellFormedness
+import GraphQL.Theories.ExecutionReadiness
 import GraphQL.Validation
 
 /-! GraphQL operation normal forms -/
@@ -7,6 +7,15 @@ import GraphQL.Validation
 namespace GraphQL
 
 namespace NormalForm
+
+export GraphQL (
+  BoolVar BoolCase boolCaseVariableValues
+  inputValueBooleanVariables inputValuesBooleanVariables
+  inputObjectFieldsBooleanVariables directiveBooleanVariables
+  directivesBooleanVariables selectionBooleanVariables
+  selectionSetBooleanVariables boolVariableMem dedupBoolVars
+  operationBoolVars boolVarsComplete operationBoolVarsComplete
+)
 
 -----------------------------------------------------------------------------------------
 -- Ground Type Normalization
@@ -552,13 +561,18 @@ def normalizeOperationValid (schema : Schema) (operation : Operation) : Prop :=
 -----------------------------------------------------------------------------------------
 
 -- Operation semantic equivalence (`≈`): a relaxed version of `operationsEquivalent`,
--- where fields can be reordered in the response values.
+-- where fields can be reordered in the response values. The relation is restricted to
+-- supplied variable environments under which both operations' field arguments coerce
+-- successfully. Ordinary execution errors remain observable through
+-- `Execution.Response.semanticEquivalent`, including equality of error counts.
 def operationsSemanticallyEquivalent (schema : Schema) (left right : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
     variableValues fuel (source : Execution.ResolverValue ObjectRef),
-    Execution.Response.semanticEquivalent
-      (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
-      (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)
+    operationArgumentsCoercible schema variableValues left
+    -> operationArgumentsCoercible schema variableValues right
+    -> Execution.Response.semanticEquivalent
+        (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
+        (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)
 
 mutual
   -- Selection equality at the resolver boundary. Corresponding fields expose
@@ -574,14 +588,17 @@ mutual
       {leftSelectionSet rightSelectionSet : List Selection}
       (fieldDefinition : FieldDefinition)
       : schema.lookupField parentType fieldName = some fieldDefinition
-        -> Argument.argumentsEquivalent
+        -> Execution.ArgumentCoercionResult.equivalent
             (Execution.coerceArgumentValues schema leftVariableValues
               fieldDefinition.arguments leftArguments)
             (Execution.coerceArgumentValues schema rightVariableValues
               fieldDefinition.arguments rightArguments)
-        -> SelectionSetEqualUpToReorderingWithCoercion
-            schema leftVariableValues rightVariableValues
-            fieldDefinition.outputType.namedType leftSelectionSet rightSelectionSet
+        -> ((Execution.coerceArgumentValues schema leftVariableValues
+                fieldDefinition.arguments leftArguments).isSuccess
+              = true
+            -> SelectionSetEqualUpToReorderingWithCoercion
+                schema leftVariableValues rightVariableValues
+                fieldDefinition.outputType.namedType leftSelectionSet rightSelectionSet)
         -> SelectionEqualUpToReorderingWithCoercion
             schema leftVariableValues rightVariableValues parentType
             (.field responseName fieldName leftArguments directives leftSelectionSet)
@@ -620,10 +637,12 @@ def operationsEqualUpToReorderingWithCoercion (schema : Schema) (left right : Op
     : Prop :=
   left.operationType = right.operationType
   ∧ ∀ variableValues,
-      SelectionSetEqualUpToReorderingWithCoercion schema
-        (Execution.coerceVariableValues left variableValues)
-        (Execution.coerceVariableValues right variableValues)
-        (left.rootType schema) left.selectionSet right.selectionSet
+      operationArgumentsCoercible schema variableValues left
+      -> operationArgumentsCoercible schema variableValues right
+      -> SelectionSetEqualUpToReorderingWithCoercion schema
+          (Execution.coerceVariableValues left variableValues)
+          (Execution.coerceVariableValues right variableValues)
+          (left.rootType schema) left.selectionSet right.selectionSet
 
 -- States: Two syntactically equal normal operations are semantically equivalent.
 -- The theorem witness is
@@ -639,7 +658,8 @@ def normalOperationsEqualUpToReorderingSemanticallyEquivalent
   -> operationDirectiveFree right
   -> operationNormal schema left
   -> operationNormal schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsEqualUpToReorderingWithCoercion schema left right
   -> operationsSemanticallyEquivalent schema left right
 
@@ -655,7 +675,8 @@ def normalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   -> Validation.operationDefinitionValid schema right
   -> operationDirectiveFree left
   -> operationDirectiveFree right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsEqualUpToReorderingWithCoercion schema
       (normalizeOperation schema left)
       (normalizeOperation schema right)
@@ -675,7 +696,8 @@ def normalOperationsSemanticallyEquivalentEqualUpToReordering
   -> operationDirectiveFree right
   -> operationNormal schema left
   -> operationNormal schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema left right
 
@@ -694,7 +716,8 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
   -> operationFieldsValidInPossibleTypes schema right
   -> operationTypeConditionFeasible schema left
   -> operationTypeConditionFeasible schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationsSemanticallyEquivalent schema left right
   -> operationsEqualUpToReorderingWithCoercion schema
       (normalizeOperation schema left) (normalizeOperation schema right)
@@ -704,67 +727,6 @@ def normalizeOperationUniqueUpToReordering (schema : Schema) (left right : Opera
 -----------------------------------------------------------------------------------------
 
 namespace CompleteNormalization
-
-abbrev BoolVar := Name
-abbrev BoolCase := List (BoolVar × Bool)
-
-def boolCaseVariableValues (boolCase : BoolCase) (base : Execution.VariableValues := [])
-    : Execution.VariableValues :=
-  boolCase.map (fun entry => (entry.1, .boolean entry.2)) ++ base
-
-mutual
-  def inputValueBooleanVariables : InputValue -> List BoolVar
-    | .variable name => [name]
-    | .list values => inputValuesBooleanVariables values
-    | .object fields => inputObjectFieldsBooleanVariables fields
-    | _ => []
-
-  def inputValuesBooleanVariables : List InputValue -> List BoolVar
-    | [] => []
-    | value :: rest =>
-        inputValueBooleanVariables value ++ inputValuesBooleanVariables rest
-
-  def inputObjectFieldsBooleanVariables : List (Name × InputValue) -> List BoolVar
-    | [] => []
-    | (_name, value) :: rest =>
-        inputValueBooleanVariables value ++ inputObjectFieldsBooleanVariables rest
-end
-
-def directiveBooleanVariables : DirectiveApplication -> List BoolVar
-  | .skip ifArgument => inputValueBooleanVariables ifArgument
-  | .include ifArgument => inputValueBooleanVariables ifArgument
-
-def directivesBooleanVariables : List DirectiveApplication -> List BoolVar
-  | [] => []
-  | directive :: rest =>
-      directiveBooleanVariables directive ++ directivesBooleanVariables rest
-
-mutual
-  def selectionBooleanVariables : Selection -> List BoolVar
-    | .field _responseName _fieldName _arguments directives selectionSet =>
-        directivesBooleanVariables directives ++ selectionSetBooleanVariables selectionSet
-    | .inlineFragment _typeCondition directives selectionSet =>
-        directivesBooleanVariables directives ++ selectionSetBooleanVariables selectionSet
-
-  def selectionSetBooleanVariables : List Selection -> List BoolVar
-    | [] => []
-    | selection :: rest =>
-        selectionBooleanVariables selection ++ selectionSetBooleanVariables rest
-end
-
-def boolVariableMem (varName : BoolVar) : List BoolVar -> Bool
-  | [] => false
-  | candidate :: rest =>
-      if candidate == varName then true else boolVariableMem varName rest
-
-def dedupBoolVars : List BoolVar -> List BoolVar
-  | [] => []
-  | varName :: rest =>
-      let dedupedRest := dedupBoolVars rest
-      if boolVariableMem varName dedupedRest then
-        dedupedRest
-      else
-        varName :: dedupedRest
 
 def allBoolCases : List BoolVar -> List BoolCase
   | [] => [[]]
@@ -914,21 +876,6 @@ def completeNormalizeRootSelectionSet
         | selection :: rest =>
             wrapWithBoolCase boolCase (selection :: rest)))
 
--- Named operation-global variable policy used by CompleteNormalization predicates.
-def operationBoolVars (operation : Operation) : List BoolVar :=
-  dedupBoolVars (selectionSetBooleanVariables operation.selectionSet)
-
--- A runtime variable environment is complete for a Boolean-variable support when
--- every variable in that support resolves to a Boolean value.
-def boolVarsComplete
-    (variables : List BoolVar)
-    (variableValues : Execution.VariableValues)
-    : Prop :=
-  ∀ varName,
-    varName ∈ variables
-    -> ∃ value,
-        Execution.inputValueBoolean? variableValues (.variable varName) = some value
-
 def completeNormalizeOperation (schema : Schema) (operation : Operation) : Operation :=
   let variables := operationBoolVars operation
   {
@@ -941,27 +888,18 @@ def completeNormalizeOperation (schema : Schema) (operation : Operation) : Opera
 end CompleteNormalization
 
 export CompleteNormalization (
-  BoolVar BoolCase inputValueBooleanVariables
-  inputValuesBooleanVariables inputObjectFieldsBooleanVariables
-  directiveBooleanVariables directivesBooleanVariables
-  selectionBooleanVariables selectionSetBooleanVariables boolVariableMem
-  dedupBoolVars allBoolCases BoolCase.lookup?
+  allBoolCases BoolCase.lookup?
   inputValueBoolIn? directiveAllowsIn
   directivesAllowIn directiveForBit
   wrapWithBoolCase
   filterSelectionSetBoolCase normalizeBoolCaseForType
   completeNormalizeRootSelectionSet
-  completeNormalizeOperation operationBoolVars boolVarsComplete
+  completeNormalizeOperation
 )
 
 -----------------------------------------------------------------------------------------
 -- Complete Normalization Semantics Preservation
 -----------------------------------------------------------------------------------------
-
-def operationBoolVarsComplete
-    (operation : Operation) (variableValues : Execution.VariableValues)
-    : Prop :=
-  boolVarsComplete (operationBoolVars operation) variableValues
 
 -- Public semantics-preservation statement for complete normalization. The theorem
 -- witness is
@@ -1217,6 +1155,22 @@ def completeNormalizeOperationValid (schema : Schema) (operation : Operation) : 
 def operationBoolVarsEquivalent (left right : Operation) : Prop :=
   ∀ varName, varName ∈ operationBoolVars left ↔ varName ∈ operationBoolVars right
 
+/--
+Every complete Boolean case has a shared supplied-variable environment that makes
+both operations' field arguments coercible. The surrounding theorem assumptions
+require the operations to have equivalent Boolean-variable support, so enumerating
+the left operation's cases covers both sides. The base values may supply non-Boolean
+variables needed by field arguments.
+-/
+def completeBoolCasesJointlyCoercible (schema : Schema) (left right : Operation) : Prop :=
+  ∀ boolCase,
+    completeNormalBoolCase (operationBoolVars left) boolCase
+    -> ∃ baseValues,
+        operationArgumentsCoercible schema
+          (boolCaseVariableValues boolCase baseValues) left
+        ∧ operationArgumentsCoercible schema
+            (boolCaseVariableValues boolCase baseValues) right
+
 def CompleteNormalSelectionEqualUpToReorderingWithCoercion
     (schema : Schema) (leftOperation rightOperation : Operation)
     (parentType : Name) (leftVariables rightVariables : List BoolVar)
@@ -1229,7 +1183,9 @@ def CompleteNormalSelectionEqualUpToReorderingWithCoercion
     ∧ completeNormalBooleanStem rightCase right rightBody
     ∧ completeNormalBoolCasesEquivalent leftCase rightCase
     ∧ ∀ variableValues,
-        CompleteNormalization.boolVarsComplete leftVariables variableValues
+        operationArgumentsCoercible schema variableValues leftOperation
+        -> operationArgumentsCoercible schema variableValues rightOperation
+        -> boolVarsComplete leftVariables variableValues
         -> CompleteNormalization.variableValuesAgreeWithCase
             (Execution.coerceVariableValues leftOperation variableValues)
             leftCase leftVariables
@@ -1255,19 +1211,23 @@ def CompleteNormalSelectionSetEqualUpToReorderingWithCoercion
             schema leftOperation rightOperation parentType
             leftVariables rightVariables pair.1 pair.2
 
--- Syntactic equality (`≡`) up to reordering for complete-normal operations. Matching
--- complete cases structurally determine equivalence of the Boolean-variable support.
+-- Syntactic equality (`≡`) up to reordering for complete-normal operations. Boolean
+-- support is explicit because children below failed argument coercion are unobservable
+-- in the guarded selection relation.
 def completeNormalOperationsEqualUpToReorderingWithCoercion
     (schema : Schema) (left right : Operation)
     : Prop :=
   left.operationType = right.operationType
+  ∧ operationBoolVarsEquivalent left right
   ∧ match operationBoolVars left with
     | [] =>
         ∀ variableValues,
-          SelectionSetEqualUpToReorderingWithCoercion schema
-            (Execution.coerceVariableValues left variableValues)
-            (Execution.coerceVariableValues right variableValues)
-            (left.rootType schema) left.selectionSet right.selectionSet
+          operationArgumentsCoercible schema variableValues left
+          -> operationArgumentsCoercible schema variableValues right
+          -> SelectionSetEqualUpToReorderingWithCoercion schema
+              (Execution.coerceVariableValues left variableValues)
+              (Execution.coerceVariableValues right variableValues)
+              (left.rootType schema) left.selectionSet right.selectionSet
     | _ :: _ =>
         CompleteNormalSelectionSetEqualUpToReorderingWithCoercion
           schema left right (left.rootType schema)
@@ -1286,14 +1246,17 @@ def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
   -> operationsSemanticallyEquivalent schema left right
 
 -- `operationsSemanticallyEquivalent` with an additional assumption that the input
--- variables include complete Boolean variable assignments.
--- The added assumption is necessary to utilize the semantic equivalence of operation
--- and its normalized form.
+-- variables include complete Boolean variable assignments. As in the unrestricted
+-- relation, both operations' field arguments must coerce successfully; response error
+-- counts from ordinary execution remain observable.
+-- The completeness assumption is necessary to utilize the semantic equivalence of an
+-- operation and its normalized form.
 def operationsSemanticallyEquivalentForCompleteBoolVars
     (schema : Schema) (variables : List BoolVar)
     (left right : Operation)
@@ -1301,6 +1264,8 @@ def operationsSemanticallyEquivalentForCompleteBoolVars
   ∀ {ObjectRef : Type} (resolvers : Execution.Resolvers ObjectRef)
     variableValues fuel (source : Execution.ResolverValue ObjectRef),
     boolVarsComplete variables variableValues
+    -> operationArgumentsCoercible schema variableValues left
+    -> operationArgumentsCoercible schema variableValues right
     -> Execution.Response.semanticEquivalent
         (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
         (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)
@@ -1315,7 +1280,8 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)
@@ -1335,7 +1301,10 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> Validation.operationDefinitionValid schema right
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
+  -> operationBoolVarsEquivalent left right
+  -> completeBoolCasesJointlyCoercible schema left right
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
 
@@ -1353,8 +1322,12 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsValidInPossibleTypes schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
   -> operationBoolVarsEquivalent left right
-  -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+  -> completeBoolCasesJointlyCoercible schema
+      (completeNormalizeOperation schema left)
+      (completeNormalizeOperation schema right)
   -> operationsSemanticallyEquivalent schema left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)

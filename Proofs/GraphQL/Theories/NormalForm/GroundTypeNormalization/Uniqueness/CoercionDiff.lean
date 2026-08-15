@@ -67,7 +67,7 @@ inductive NormalSelectionSetResolverDiff (schema : Schema)
             rightChildSelectionSet
           ∈ right
       -> schema.lookupField parentType fieldName = some fieldDefinition
-      -> ¬ Argument.argumentsEquivalent
+      -> ¬ Execution.ArgumentCoercionResult.equivalent
             (Execution.coerceArgumentValues schema variableValues
               fieldDefinition.arguments leftArguments)
             (Execution.coerceArgumentValues schema variableValues
@@ -88,11 +88,14 @@ inductive NormalSelectionSetResolverDiff (schema : Schema)
             rightChildSelectionSet
           ∈ right
       -> schema.lookupField parentType fieldName = some fieldDefinition
-      -> Argument.argumentsEquivalent
+      -> Execution.ArgumentCoercionResult.equivalent
           (Execution.coerceArgumentValues schema variableValues
             fieldDefinition.arguments leftArguments)
           (Execution.coerceArgumentValues schema variableValues
             fieldDefinition.arguments rightArguments)
+      -> (Execution.coerceArgumentValues schema variableValues
+            fieldDefinition.arguments leftArguments).isSuccess
+          = true
       -> NormalSelectionSetResolverDiff schema variableValues
           fieldDefinition.outputType.namedType leftChildSelectionSet
           rightChildSelectionSet
@@ -190,8 +193,8 @@ theorem selectionSetEqualUpToReordering_of_no_diff
             | some fieldDefinition =>
                 have hnamedType : fieldDefinition.outputType.namedType = returnType := by
                   simpa [Schema.fieldReturnType?, hlookup] using hreturnType
-                have harguments :
-                    Argument.argumentsEquivalent
+                have hcoercion :
+                    Execution.ArgumentCoercionResult.equivalent
                       (Execution.coerceArgumentValues schema variableValues
                         fieldDefinition.arguments arguments)
                       (Execution.coerceArgumentValues schema variableValues
@@ -210,17 +213,24 @@ theorem selectionSetEqualUpToReordering_of_no_diff
                     rw [hreturnType] at hrightReturnType
                     exact (Option.some.inj hrightReturnType).symm
                   simpa [hnamedType, hsameReturn] using hnormal
-                have hchildNoDiff :
-                    ¬ NormalSelectionSetResolverDiff schema variableValues
-                      fieldDefinition.outputType.namedType childSelectionSet
+                have hchildEq :
+                    (Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments arguments).isSuccess = true
+                    -> SelectionSetEqualUpToReorderingWithCoercion schema
+                        variableValues variableValues
+                        fieldDefinition.outputType.namedType childSelectionSet
                         rightChildSelectionSet := by
-                  intro hchildDiff
-                  exact hnoDiff
-                    (NormalSelectionSetResolverDiff.objectChild
-                      fieldDefinition hobject hleftMem hrightMem hlookup harguments
-                      hchildDiff)
-                have hchildEq :=
-                  selectionSetEqualUpToReordering_of_no_diff schema
+                  intro hsuccess
+                  have hchildNoDiff :
+                      ¬ NormalSelectionSetResolverDiff schema variableValues
+                        fieldDefinition.outputType.namedType childSelectionSet
+                          rightChildSelectionSet := by
+                    intro hchildDiff
+                    exact hnoDiff
+                      (NormalSelectionSetResolverDiff.objectChild
+                        fieldDefinition hobject hleftMem hrightMem hlookup hcoercion
+                        hsuccess hchildDiff)
+                  exact selectionSetEqualUpToReordering_of_no_diff schema
                     variableValues fieldDefinition.outputType.namedType
                     childSelectionSet rightChildSelectionSet
                     (selectionSetDirectiveFree_field_child_of_mem hleftFree hleftMem)
@@ -238,7 +248,7 @@ theorem selectionSetEqualUpToReordering_of_no_diff
                 exact ⟨fieldName, rightArguments, [], rightChildSelectionSet,
                   hrightMem,
                   SelectionEqualUpToReorderingWithCoercion.field parentType
-                    responseName fieldName [] fieldDefinition hlookup harguments
+                    responseName fieldName [] fieldDefinition hlookup hcoercion
                     hchildEq⟩
           · exact False.elim
               (hnoDiff

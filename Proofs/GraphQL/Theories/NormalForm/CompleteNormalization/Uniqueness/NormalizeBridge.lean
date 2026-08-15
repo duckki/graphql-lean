@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Semantics
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ReadinessPreservation
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.OperationBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity
@@ -83,7 +84,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hvariables hdefinitions hsem
+    hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hjoint hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
@@ -116,7 +117,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
       (hleftVariables varName).symm.trans
         ((hvariables varName).trans (hrightVariables varName))
   have hnormalizedDefinitions :
-      variableDefinitionsEquivalent
+      variableDefinitionsSyntacticallyEquivalent
         (completeNormalizeOperation schema left).variableDefinitions
         (completeNormalizeOperation schema right).variableDefinitions := by
     simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
@@ -126,7 +127,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
         (completeNormalizeOperation schema left)
         (completeNormalizeOperation schema right) := by
     intro ObjectRef resolvers variableValues fuel source
-      hnormalizedComplete
+      hnormalizedComplete hleftNormalizedReady hrightNormalizedReady
     have hleftComplete :
         boolVarsComplete (operationBoolVars left) variableValues := by
       intro varName hmem
@@ -135,6 +136,14 @@ theorem completeNormalizeOperation_uniqueUpToReordering
         boolVarsComplete (operationBoolVars right) variableValues := by
       intro varName hmem
       exact hleftComplete varName ((hvariables varName).2 hmem)
+    have hleftReady : operationArgumentsCoercible schema variableValues left :=
+      operationArgumentsCoercible_of_completeNormalizeOperation schema left
+        variableValues hschema hleftValid hleftFields hleftBoolFeasible
+        hleftComplete hleftNormalizedReady
+    have hrightReady : operationArgumentsCoercible schema variableValues right :=
+      operationArgumentsCoercible_of_completeNormalizeOperation schema right
+        variableValues hschema hrightValid hrightFields hrightBoolFeasible
+        hrightComplete hrightNormalizedReady
     have hleftExecution :=
       completeNormalizationSemanticsPreserved schema left hschema hleftValid
         resolvers variableValues fuel source
@@ -146,12 +155,12 @@ theorem completeNormalizeOperation_uniqueUpToReordering
         (operationBoolVarsComplete_coerceVariableValues
           right variableValues hrightComplete)
     rw [← hleftExecution, ← hrightExecution]
-    exact hsem resolvers variableValues fuel source
+    exact hsem resolvers variableValues fuel source hleftReady hrightReady
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedNormal hrightNormalizedNormal hnormalizedVariables
-      hnormalizedDefinitions hnormalizedSemantics
+      hnormalizedDefinitions hjoint hnormalizedSemantics
 
 end CompleteNormalization
 

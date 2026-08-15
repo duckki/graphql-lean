@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionBreadth.Semantics.Scope
 
 /-!
@@ -147,9 +148,9 @@ theorem queue_singleFieldResult_executeField_roundtrip
                 GraphQL.Execution.singleFieldResult]
           | some fieldDefinition =>
               cases hresolve
-                    : GraphQL.Execution.resolveFieldValue schema resolvers variableValues
-                        fieldDefinition field.parentType field.fieldName field.arguments
-                        source with
+                    : GraphQL.Execution.coerceAndResolveFieldValue schema resolvers
+                        variableValues fieldDefinition field.parentType field.fieldName
+                        field.arguments source with
               | none =>
                   simp [GraphQL.Execution.executeField, hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]
@@ -527,9 +528,9 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
                 item.toScheduleItem.segments
                 (item.toScheduleItem.sources.map
                   (fun source =>
-                    GraphQL.Execution.resolveFieldValue schema resolvers variableValues
-                      fieldDefinition item.key.parentType item.key.fieldName
-                      item.key.arguments source))).snd]
+                    GraphQL.Execution.coerceAndResolveFieldValue schema resolvers
+                      variableValues fieldDefinition item.key.parentType
+                      item.key.fieldName item.key.arguments source))).snd]
             {
               valueStack :=
                 (expectedPendingChildWorkCompletionStack schema resolvers variableValues
@@ -553,7 +554,7 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
                 fieldDefinition item.key.parentType item.key.fieldName
                 item.key.arguments source))).snd
           { valueStack :=
@@ -580,7 +581,7 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
                 fieldDefinition item.key.parentType item.key.fieldName
                 item.key.arguments source))).snd
           { valueStack :=
@@ -604,7 +605,7 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
         (buildFieldSlots schema fieldDefinition.outputType
           item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
-            GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+            GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
               fieldDefinition item.key.parentType item.key.fieldName
               item.key.arguments source))).snd
         { valueStack :=
@@ -2737,7 +2738,7 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
     scheduleExpectedPendingChildWork schema variableValues work rest
   let resolved :=
     item.toScheduleItem.sources.map (fun source =>
-      GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+      GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
         fieldDefinition item.key.parentType item.key.fieldName item.key.arguments
         source)
   let built :=
@@ -2773,7 +2774,7 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
           (buildFieldSlots schema fieldDefinition.outputType
             item.toScheduleItem.segments
             (item.toScheduleItem.sources.map (fun source =>
-              GraphQL.Execution.resolveFieldValue schema resolvers variableValues
+              GraphQL.Execution.coerceAndResolveFieldValue schema resolvers variableValues
                 fieldDefinition item.toScheduleItem.key.parentType
                 item.toScheduleItem.key.fieldName item.toScheduleItem.key.arguments
                 source))).fst

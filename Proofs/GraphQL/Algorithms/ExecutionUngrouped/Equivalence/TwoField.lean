@@ -767,7 +767,7 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant_steps
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (first later : ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -1113,7 +1113,7 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_invariant
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (first later : ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -1740,7 +1740,7 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (first later : ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema

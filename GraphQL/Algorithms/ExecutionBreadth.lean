@@ -1,6 +1,8 @@
 import GraphQL.Algorithms.Common
 import GraphQL.Execution
-import GraphQL.Theories.NormalForm
+import GraphQL.SchemaWellFormedness
+import GraphQL.Theories.ExecutionReadiness
+import GraphQL.Validation
 
 /-!
 Breadth-first GraphQL query execution algorithm. This module models the core scheduling
@@ -72,7 +74,7 @@ structure ResolverMap (ObjectRef : Type := PUnit) where
       -> List (Option (ResolverValue ObjectRef))
   resolve_argumentsEquivalent
     : ∀ parentType fieldName firstArguments laterArguments sources,
-        Argument.argumentsEquivalent firstArguments laterArguments
+        CoercedArgument.argumentsEquivalent firstArguments laterArguments
         -> resolve parentType fieldName firstArguments sources
             = resolve parentType fieldName laterArguments sources
 
@@ -473,28 +475,36 @@ def executeScheduleItem
           (List.replicate sources.length (.completed (.error 1)))]
       )
   | some fieldDefinition =>
-      let resolved :=
-        resolvers.resolve item.key.parentType item.key.fieldName
-          (coerceArgumentValues schema variableValues fieldDefinition.arguments
-            item.key.arguments)
-          sources
-      if !(resolved.length == sources.length) then
-        (
-          [],
-          [.field item.key fieldDefinition.outputType item.segmentLengths
-            (List.replicate sources.length
-              (.completed (handleFieldError fieldDefinition.outputType)))]
-        )
-      else
-        let (pendingChildWork, slots) :=
-          buildFieldSlots schema fieldDefinition.outputType item.segments resolved
-        let (queue, scopeFrames) :=
-          schedulePendingChildWork schema variableValues pendingChildWork []
-        (
-          queue,
-          .field item.key fieldDefinition.outputType item.segmentLengths slots
-          :: scopeFrames
-        )
+      match coerceArgumentValues schema variableValues fieldDefinition.arguments
+              item.key.arguments with
+      | .error =>
+          (
+            [],
+            [.field item.key fieldDefinition.outputType item.segmentLengths
+              (List.replicate sources.length
+                (.completed (handleFieldError fieldDefinition.outputType)))]
+          )
+      | .success coercedArguments =>
+          let resolved :=
+            resolvers.resolve item.key.parentType item.key.fieldName
+              coercedArguments sources
+          if !(resolved.length == sources.length) then
+            (
+              [],
+              [.field item.key fieldDefinition.outputType item.segmentLengths
+                (List.replicate sources.length
+                  (.completed (handleFieldError fieldDefinition.outputType)))]
+            )
+          else
+            let (pendingChildWork, slots) :=
+              buildFieldSlots schema fieldDefinition.outputType item.segments resolved
+            let (queue, scopeFrames) :=
+              schedulePendingChildWork schema variableValues pendingChildWork []
+            (
+              queue,
+              .field item.key fieldDefinition.outputType item.segmentLengths slots
+              :: scopeFrames
+            )
 
 -----------------------------------------------------------------------------------------
 -- Out-Of-Fuel Trace Generation
@@ -789,7 +799,7 @@ def executeQuery
     (source : ResolverValue ObjectRef)
     : Response :=
   executeQueryWithFuel schema resolvers variableValues operation
-    (executeQueryFuelBound operation) source
+    (executeQueryFuelBound schema operation) source
 
 -----------------------------------------------------------------------------------------
 -- Spec Resolver Adapter
@@ -919,7 +929,7 @@ def breadthExecutionPreservesSpecExecution (schema : Schema) (operation : Operat
   -> Validation.operationDefinitionValid schema operation
   -> ∀ {ObjectRef : Type} (resolvers : GraphQL.Execution.Resolvers ObjectRef)
         variableValues (source : ResolverValue ObjectRef),
-      NormalForm.operationBoolVarsComplete operation
+      operationBoolVarsComplete operation
         (GraphQL.Execution.coerceVariableValues operation variableValues)
       -> executeQueryWithFuel schema (ResolverMap.fromSpecResolvers resolvers)
             variableValues operation (preservationFuelBound schema operation) source

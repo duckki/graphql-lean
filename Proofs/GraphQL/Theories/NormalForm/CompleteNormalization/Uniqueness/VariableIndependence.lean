@@ -27,12 +27,19 @@ theorem resolveFieldValue_eq_of_argumentCoercionEquivalent
     (fieldDefinition : FieldDefinition)
     (parentType fieldName : Name) (arguments : List Argument)
     (source : Execution.ResolverValue ObjectRef)
-    : Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+    : Execution.coerceAndResolveFieldValue schema resolvers leftValues fieldDefinition
         parentType fieldName arguments source
-      = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+      = Execution.coerceAndResolveFieldValue schema resolvers rightValues fieldDefinition
           parentType fieldName arguments source := by
-  exact resolvers.resolve_argumentsEquivalent parentType fieldName
-    _ _ source (hequivalent fieldDefinition.arguments arguments)
+  have hcoercion := hequivalent fieldDefinition.arguments arguments
+  unfold Execution.coerceAndResolveFieldValue
+  cases hleft : Execution.coerceArgumentValues schema leftValues
+          fieldDefinition.arguments arguments <;>
+    cases hright : Execution.coerceArgumentValues schema rightValues
+          fieldDefinition.arguments arguments <;>
+    simp [hleft, hright, Execution.ArgumentCoercionResult.equivalent]
+      at hcoercion ⊢
+  exact resolvers.resolve_argumentsEquivalent parentType fieldName _ _ source hcoercion
 
 theorem executableFieldListDirectiveFree_append
     {left right : List Execution.ExecutableField}
@@ -262,10 +269,10 @@ theorem executionVariableValuesIndependentAtFuel_all
     (leftValues rightValues : Execution.VariableValues)
     (hresolve
       : ∀ fieldDefinition parentType fieldName arguments source,
-          Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+          Execution.coerceAndResolveFieldValue schema resolvers leftValues fieldDefinition
             parentType fieldName arguments source
-          = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
-              parentType fieldName arguments source)
+          = Execution.coerceAndResolveFieldValue schema resolvers rightValues
+              fieldDefinition parentType fieldName arguments source)
     : ∀ fuel,
         executionVariableValuesIndependentAtFuel schema resolvers leftValues
           rightValues fuel := by
@@ -403,15 +410,19 @@ theorem executionVariableValuesIndependentAtFuel_all
               cases fields with
               | nil => simp [Execution.executeField]
               | cons field restFields =>
-                  simp only [Execution.executeField]
                   cases hlookup :
                       schema.lookupField field.parentType field.fieldName
-                  · simp
+                  · simp [Execution.executeField, hlookup]
                   · rename_i fieldDefinition
-                    simp only
+                    rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                      schema resolvers leftValues fuel source responseName field
+                      restFields fieldDefinition hlookup]
+                    rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                      schema resolvers rightValues fuel source responseName field
+                      restFields fieldDefinition hlookup]
                     rw [hresolve fieldDefinition field.parentType field.fieldName
                       field.arguments source]
-                    cases hresolved : Execution.resolveFieldValue schema resolvers
+                    cases hresolved : Execution.coerceAndResolveFieldValue schema resolvers
                         rightValues fieldDefinition field.parentType field.fieldName
                         field.arguments source
                     · simp
@@ -431,10 +442,10 @@ theorem executeSelectionSet_eq_of_directiveFree_variableValues
     (source : Execution.ResolverValue ObjectRef)
     (selectionSet : List Selection)
     : (∀ fieldDefinition callParentType fieldName arguments callSource,
-        Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+        Execution.coerceAndResolveFieldValue schema resolvers leftValues fieldDefinition
           callParentType fieldName arguments callSource
-        = Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
-            callParentType fieldName arguments callSource)
+        = Execution.coerceAndResolveFieldValue schema resolvers rightValues
+            fieldDefinition callParentType fieldName arguments callSource)
       -> selectionSetDirectiveFree selectionSet
       -> Execution.executeSelectionSet schema resolvers leftValues fuel parentType
             source selectionSet
@@ -599,9 +610,9 @@ theorem executionVariableValuesEquivalentAtFuel_all
           rightValues fuel := by
   intro fuel
   have hresolve : ∀ fieldDefinition parentType fieldName arguments source,
-      Execution.resolveFieldValue schema resolvers leftValues fieldDefinition
+      Execution.coerceAndResolveFieldValue schema resolvers leftValues fieldDefinition
           parentType fieldName arguments source =
-        Execution.resolveFieldValue schema resolvers rightValues fieldDefinition
+        Execution.coerceAndResolveFieldValue schema resolvers rightValues fieldDefinition
           parentType fieldName arguments source :=
     fun fieldDefinition parentType fieldName arguments source =>
       resolveFieldValue_eq_of_argumentCoercionEquivalent schema resolvers
@@ -713,15 +724,19 @@ theorem executionVariableValuesEquivalentAtFuel_all
               cases fields with
               | nil => simp [Execution.executeField]
               | cons field restFields =>
-                  simp only [Execution.executeField]
                   cases hlookup :
                       schema.lookupField field.parentType field.fieldName
-                  · simp
+                  · simp [Execution.executeField, hlookup]
                   · rename_i fieldDefinition
-                    simp only
+                    rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                      schema resolvers leftValues fuel source responseName field
+                      restFields fieldDefinition hlookup]
+                    rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
+                      schema resolvers rightValues fuel source responseName field
+                      restFields fieldDefinition hlookup]
                     rw [hresolve fieldDefinition field.parentType field.fieldName
                       field.arguments source]
-                    cases hresolved : Execution.resolveFieldValue schema resolvers
+                    cases hresolved : Execution.coerceAndResolveFieldValue schema resolvers
                         rightValues fieldDefinition field.parentType field.fieldName
                         field.arguments source
                     · simp

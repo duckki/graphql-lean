@@ -24,19 +24,6 @@ deriving Repr
 
 namespace Argument
 
--- Spec 5.3.2 field argument comparison: arguments are a set by name; source order is not
--- semantically relevant.
-def equivalent (left right : Argument) : Prop :=
-  left.name = right.name ∧ left.value.equivalent right.value
-
--- Spec 5.3.2 field argument comparison lifted to argument lists as unordered sets by
--- argument name.
-def argumentsEquivalent (left right : List Argument) : Prop :=
-  (∀ argument,
-    argument ∈ left -> ∃ argument', argument' ∈ right ∧ argument.equivalent argument')
-  ∧ (∀ argument,
-      argument ∈ right -> ∃ argument', argument' ∈ left ∧ argument'.equivalent argument)
-
 -- First value supplied for an argument name. Validation rejects duplicate names, so
 -- executable operations have at most one matching entry.
 def lookupValue? : List Argument -> Name -> Option InputValue
@@ -53,23 +40,6 @@ structure VariableDefinition where
   typeRef : TypeRef
   defaultValue : Option ConstInputValue := none
 deriving Repr
-
--- Position-wise equivalence of the operation-variable names and defaults that affect
--- execution. Types are intentionally omitted because supplied values are assumed
--- already coerced and type-conformant at the modeled execution boundary.
-def variableDefinitionsEquivalent
-    : List VariableDefinition -> List VariableDefinition -> Prop
-  | [], [] => True
-  | left :: leftRest, right :: rightRest =>
-      left.name = right.name
-      ∧ match left.defaultValue, right.defaultValue with
-        | none, none =>
-            variableDefinitionsEquivalent leftRest rightRest
-        | some leftDefault, some rightDefault =>
-            InputValue.equivalent leftDefault.toInputValue rightDefault.toInputValue
-            ∧ variableDefinitionsEquivalent leftRest rightRest
-        | _, _ => False
-  | _, _ => False
 
 -- Spec 3.13.1 `@skip` and 3.13.2 `@include`: partial; only these two built-in executable
 -- directives are represented, not arbitrary/custom directives or directive locations.
@@ -191,8 +161,126 @@ def withoutFieldSelectionsWithResponseName (responseName : Name)
 
 -- Spec 6.3.2 `CollectSubfields` analogue: concatenates nested selection sets.
 def mergeSelectionSets (selections : List Selection) : List Selection :=
-  selections.foldl (fun merged selection => merged ++ selection.subselections) []
+  selections.flatMap Selection.subselections
 
 end SelectionSet
+
+-----------------------------------------------------------------------------------------
+-- Syntactic equivalence
+-----------------------------------------------------------------------------------------
+
+namespace VariableDefinition
+
+-- Variable-definition syntax is compared by name, declared type, and default value.
+-- Defaults use input-value syntactic equivalence, so input-object field order is
+-- immaterial.
+def equivalent (left right : VariableDefinition) : Prop :=
+  left.name = right.name
+  ∧ left.typeRef = right.typeRef
+  ∧ match left.defaultValue, right.defaultValue with
+    | none, none => True
+    | some leftDefault, some rightDefault =>
+        leftDefault.toInputValue.equivalent rightDefault.toInputValue
+    | _, _ => False
+
+instance syntacticallyEquivalentDecidable : DecidableRel equivalent :=
+  fun left right => by
+    cases left with
+    | mk leftName leftType leftDefault =>
+        cases right with
+        | mk rightName rightType rightDefault =>
+            cases leftDefault <;> cases rightDefault <;>
+              simp only [equivalent]
+            all_goals infer_instance
+
+instance syntacticEquivalence : SyntacticEquivalence VariableDefinition where
+  equivalent := equivalent
+
+instance syntacticEquivalenceNotationDecidable (left right : VariableDefinition)
+    : Decidable (SyntacticEquivalence.equivalent left right) := by
+  change Decidable (equivalent left right)
+  infer_instance
+
+end VariableDefinition
+
+-- Variable-definition lists are syntax sets keyed by variable name. Source order is
+-- immaterial; validation separately rejects duplicate names.
+def variableDefinitionsSyntacticallyEquivalent (left right : List VariableDefinition)
+    : Prop :=
+  (∀ definition,
+    definition ∈ left
+    -> ∃ definition',
+        definition' ∈ right ∧ VariableDefinition.equivalent definition definition')
+  ∧ (∀ definition,
+      definition ∈ right
+      -> ∃ definition',
+          definition' ∈ left ∧ VariableDefinition.equivalent definition' definition)
+
+instance variableDefinitionsSyntacticallyEquivalentDecidable
+    : DecidableRel variableDefinitionsSyntacticallyEquivalent :=
+  fun left right => by
+    unfold variableDefinitionsSyntacticallyEquivalent
+    infer_instance
+
+instance variableDefinitionsSyntacticEquivalence
+    : SyntacticEquivalence (List VariableDefinition) where
+  equivalent := variableDefinitionsSyntacticallyEquivalent
+
+instance variableDefinitionsSyntacticEquivalenceNotationDecidable
+    (left right : List VariableDefinition)
+    : Decidable (SyntacticEquivalence.equivalent left right) := by
+  change Decidable (variableDefinitionsSyntacticallyEquivalent left right)
+  infer_instance
+
+namespace Argument
+
+-- Spec 5.3.2 field argument comparison: arguments are a set by name; source order is not
+-- semantically relevant.
+def equivalent (left right : Argument) : Prop :=
+  left.name = right.name ∧ left.value.equivalent right.value
+
+instance syntacticallyEquivalentDecidable : DecidableRel equivalent :=
+  fun left right => by
+    unfold equivalent
+    infer_instance
+
+instance syntacticEquivalence : SyntacticEquivalence Argument where
+  equivalent := equivalent
+
+instance syntacticEquivalenceNotationDecidable (left right : Argument)
+    : Decidable (SyntacticEquivalence.equivalent left right) := by
+  change Decidable (equivalent left right)
+  infer_instance
+
+def syntacticallyEquivalentBool (left right : Argument) : Bool :=
+  decide (equivalent left right)
+
+-- Spec 5.3.2 field argument comparison lifted to argument lists as unordered sets by
+-- argument name.
+def argumentsEquivalent (left right : List Argument) : Prop :=
+  (∀ argument,
+    argument ∈ left -> ∃ argument', argument' ∈ right ∧ argument.equivalent argument')
+  ∧ (∀ argument,
+      argument ∈ right -> ∃ argument', argument' ∈ left ∧ argument'.equivalent argument)
+
+instance argumentsSyntacticallyEquivalentDecidable : DecidableRel argumentsEquivalent :=
+  fun left right => by
+    unfold argumentsEquivalent
+    infer_instance
+
+instance argumentsSyntacticEquivalence : SyntacticEquivalence (List Argument) where
+  equivalent := argumentsEquivalent
+
+instance argumentsSyntacticEquivalenceNotationDecidable (left right : List Argument)
+    : Decidable (SyntacticEquivalence.equivalent left right) := by
+  change Decidable (argumentsEquivalent left right)
+  infer_instance
+
+-- Computable counterpart of syntactic argument-list equivalence. Arguments are compared
+-- as unordered name/value pairs; duplicate argument names are rejected by validation.
+def argumentsSyntacticallyEquivalentBool (left right : List Argument) : Bool :=
+  decide (argumentsEquivalent left right)
+
+end Argument
 
 end GraphQL

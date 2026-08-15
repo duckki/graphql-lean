@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Absorption
 import Proofs.GraphQL.Execution.ResolverValue
 
@@ -1523,7 +1524,7 @@ theorem responseFieldSlice_eq_null_of_resolve_null
         none :=
         reusablePreviousValue?_none schema fieldDefinition.outputType
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               field.parentType field.fieldName field.arguments source = some .null := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
       simp [executeField, hlookup, hresolveRuntime, hreuse,
@@ -1562,7 +1563,7 @@ theorem responseFieldSlice_eq_null_or_scalar_of_resolve_scalar
           fieldDefinition.outputType.namedType := by
         simp [Schema.fieldReturnType?, hlookup]
       have hresolveRuntime :
-          resolveFieldValue schema resolvers variableValues fieldDefinition
+          coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
               field.parentType field.fieldName field.arguments source =
             some (.scalar value) := by
         simpa [resolveFieldValueByName, hlookup] using hresolve

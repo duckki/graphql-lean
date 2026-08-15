@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.ExecutionSuccess
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Readiness
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.SemanticSeparation
@@ -41,7 +42,7 @@ theorem executeField_ok_responseFields_singleton
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
               cases hresolve
-                    : Execution.resolveFieldValue schema resolvers variableValues
+                    : Execution.coerceAndResolveFieldValue schema resolvers variableValues
                         fieldDefinition field.parentType field.fieldName
                         field.arguments source with
               | none =>

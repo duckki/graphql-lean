@@ -187,7 +187,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_merged_complete
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -230,7 +230,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_mergedComplete
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -488,7 +488,7 @@ theorem executeQuery_eq_spec_of_exact_single_field_group
     (variableValues : VariableValues) (operation : Operation)
     (depth : Nat) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema

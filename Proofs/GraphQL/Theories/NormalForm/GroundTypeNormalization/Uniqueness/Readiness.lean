@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Probes
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness.Validity
+import Proofs.GraphQL.Theories.ExecutionReadiness
 
 /-!
 Readiness facts for deep-success uniqueness probes.
@@ -13,6 +14,161 @@ namespace GraphQL
 namespace NormalForm
 
 namespace GroundTypeNormalization
+
+theorem selectionSetArgumentsCoercible_field_success_of_directiveFree
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType responseName fieldName : Name} {arguments : List Argument}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    (hmem
+      : Selection.field responseName fieldName arguments directives childSelectionSet
+        ∈ selectionSet)
+    (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
+    : (Execution.coerceArgumentValues schema variableValues fieldDefinition.arguments
+        arguments).isSuccess
+      = true := by
+  have hdirectives : directives = [] :=
+    selectionSetDirectiveFree_field_directives_nil_of_mem hfree hmem
+  subst directives
+  exact selectionSetArgumentsCoercible_field_success hcoercible hmem
+    (by simp [Execution.selectionDirectivesAllowBool]) hlookup
+
+theorem selectionSetArgumentsCoercible_field_children_of_directiveFree
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType responseName fieldName : Name} {arguments : List Argument}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    (hmem
+      : Selection.field responseName fieldName arguments directives childSelectionSet
+        ∈ selectionSet)
+    (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
+    : selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+        fieldDefinition.outputType.namedType childSelectionSet := by
+  have hdirectives : directives = [] :=
+    selectionSetDirectiveFree_field_directives_nil_of_mem hfree hmem
+  subst directives
+  exact selectionSetArgumentsCoercible_field_children hcoercible hmem
+    (by simp [Execution.selectionDirectivesAllowBool]) hlookup
+
+theorem selectionSetArgumentsCoercible_field_child_of_directiveFree
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType responseName fieldName runtimeType : Name}
+    {arguments : List Argument} {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    {fieldDefinition : FieldDefinition}
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    (hmem
+      : Selection.field responseName fieldName arguments directives childSelectionSet
+        ∈ selectionSet)
+    (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
+    (hinclude
+      : schema.typeIncludesObjectBool fieldDefinition.outputType.namedType runtimeType
+        = true)
+    : selectionSetArgumentsCoercible schema variableValues runtimeType
+        childSelectionSet := by
+  exact selectionSetArgumentsCoercible_field_children_of_directiveFree
+    hcoercible hfree hmem hlookup runtimeType hinclude
+
+theorem selectionSetArgumentsCoercible_inlineFragment_child_of_directiveFree
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {typeCondition : Option Name}
+    {directives : List DirectiveApplication}
+    {childSelectionSet selectionSet : List Selection}
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    (hmem
+      : Selection.inlineFragment typeCondition directives childSelectionSet
+        ∈ selectionSet)
+    (htypeCondition
+      : match typeCondition with
+        | none => True
+        | some condition => schema.typeIncludesObjectBool condition parentType = true)
+    : selectionSetArgumentsCoercible schema variableValues parentType
+        childSelectionSet := by
+  have hdirectives : directives = [] :=
+    selectionSetDirectiveFree_inlineFragment_directives_nil_of_mem hfree hmem
+  subst directives
+  exact selectionSetArgumentsCoercible_inlineFragment_child hcoercible hmem
+    (by simp [Execution.selectionDirectivesAllowBool]) htypeCondition
+
+def selectionSetArgumentCoercionSucceeds
+    (schema : Schema) (variableValues : Execution.VariableValues)
+    (parentType : Name) (selectionSet : List Selection)
+    : Prop :=
+  ∀ responseName fieldName arguments directives childSelectionSet,
+    Selection.field responseName fieldName arguments directives childSelectionSet
+      ∈ selectionSet
+    -> ∀ fieldDefinition,
+        schema.lookupField parentType fieldName = some fieldDefinition
+        -> (Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments arguments).isSuccess
+            = true
+
+theorem selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {selectionSet : List Selection}
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    (hfree : selectionSetDirectiveFree selectionSet)
+    : selectionSetArgumentCoercionSucceeds schema variableValues parentType
+        selectionSet := by
+  intro responseName fieldName arguments directives childSelectionSet hmem
+    fieldDefinition hlookup
+  exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+    hcoercible hfree hmem hlookup
+
+theorem selectionSetArgumentsCoercibleInPossibleTypes_of_object
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {selectionSet : List Selection}
+    (hobject : objectTypeNameBool schema parentType = true)
+    (hcoercible
+      : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
+    : selectionSetArgumentsCoercibleInPossibleTypes schema variableValues parentType
+        selectionSet := by
+  intro runtimeType hinclude
+  have hruntime : runtimeType = parentType :=
+    typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema hobject hinclude
+  simpa [hruntime] using hcoercible
+
+theorem selectionSetArgumentsCoercible_of_inPossibleTypes_of_object
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {parentType : Name} {selectionSet : List Selection}
+    (hobject : objectTypeNameBool schema parentType = true)
+    (hcoercible
+      : selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
+          parentType selectionSet)
+    : selectionSetArgumentsCoercible schema variableValues parentType selectionSet :=
+  hcoercible parentType (typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject)
+
+theorem selectionSetArgumentCoercionSucceeds_of_valid
+    {schema : Schema} {variableValues : Execution.VariableValues}
+    {variableDefinitions : List VariableDefinition}
+    {parentType : Name} {selectionSet : List Selection}
+    : Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+      -> Execution.validArgumentsCoercionSucceeds schema variableValues
+          variableDefinitions
+      -> selectionSetArgumentCoercionSucceeds schema variableValues parentType
+          selectionSet := by
+  intro hvalid hcoercion responseName fieldName arguments directives
+    childSelectionSet hmem fieldDefinition hlookup
+  rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
+    ⟨validFieldDefinition, hvalidLookup, hargumentsValid, _hchildValid⟩
+  have hdefinition : validFieldDefinition = fieldDefinition := by
+    rw [hlookup] at hvalidLookup
+    exact Option.some.inj hvalidLookup.symm
+  subst validFieldDefinition
+  exact hcoercion fieldDefinition.arguments arguments hargumentsValid
 
 theorem typeRef_named_isCompositeBool_false_of_isLeafType
     {schema : Schema} {typeName : Name}
@@ -2555,6 +2711,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
           -> selectionSetDeepProbeFuel schema parentType selectionSet ≤ fuel
           -> Validation.selectionSetValid schema variableDefinitions parentType
               selectionSet
+          -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
@@ -2592,15 +2749,24 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
   induction n with
   | zero =>
       intro parentType variableDefinitions selectionSet fuel hsize _hfuel
-        _hvalid _hfree _hnormal _hobject _hpromote responseName fieldName
+        _hvalid _hcoercion _hfree _hnormal _hobject _hpromote responseName fieldName
         arguments directives childSelectionSet _hmem
       omega
   | succ n ih =>
       intro parentType variableDefinitions selectionSet fuel hsize hfuel
-        hvalid hfree hnormal hobject hpromote responseName fieldName
+        hvalid hcoercion hfree hnormal hobject hpromote responseName fieldName
         arguments directives childSelectionSet hmem
       rcases selectionSetValid_field_lookup_of_mem hvalid hmem with
-        ⟨fieldDefinition, hlookup, _harguments, _hfieldSelectionValid⟩
+        ⟨fieldDefinition, hlookup, harguments, _hfieldSelectionValid⟩
+      have hfieldDirectives : directives = [] :=
+        selectionSetDirectiveFree_field_directives_nil_of_mem hfree hmem
+      have hfieldAllowed :
+          Execution.selectionDirectivesAllowBool variableValues directives = true := by
+        subst directives
+        simp [Execution.selectionDirectivesAllowBool]
+      have hcoerce :=
+        selectionSetArgumentsCoercible_field_success hcoercion hmem
+          hfieldAllowed hlookup
       have hleafFuel :
           leafProbeFuel fieldDefinition.outputType ≤ fuel := by
         have hlocal :=
@@ -2630,6 +2796,14 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
               fieldDefinition.outputType.namedType childSelectionSet :=
           selectionSetValid_object_field_child_of_mem_lookup hvalid hmem
             hlookup hreturnObject
+        have hreturnObjectType :
+            schema.objectType fieldDefinition.outputType.namedType :=
+          objectType_of_objectTypeNameBool_eq_true schema hreturnObject
+        have hchildCoercion :
+            selectionSetArgumentsCoercible schema variableValues
+              fieldDefinition.outputType.namedType childSelectionSet :=
+          selectionSetArgumentsCoercible_field_child hcoercion hmem hfieldAllowed hlookup
+            (object_typeIncludesObjectBool_self schema hreturnObjectType)
         have hchildFree : selectionSetDirectiveFree childSelectionSet :=
           selectionSetDirectiveFree_field_child_of_mem hfree hmem
         have hchildNormal :
@@ -2702,14 +2876,14 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
           exact
             ih fieldDefinition.outputType.namedType variableDefinitions
               childSelectionSet childFuel hchildSize hchildFuel hchildValid
-              hchildFree hchildNormal hreturnObject hchildPromote
+              hchildCoercion hchildFree hchildNormal hreturnObject hchildPromote
               childResponseName childFieldName childArguments childDirectives
               grandChildSelectionSet hchildMem
         have hfieldReady :=
           deepFieldSelectionSetExecutionReadyWithRef_object_of_child_deepFieldReady
             schema rootSelectionSet objectRef variableValues childFuel
             parentType responseName fieldName arguments childSelectionSet
-            fieldDefinition hreturnObject hchildFree hchildNormal hchildReady
+            fieldDefinition hcoerce hreturnObject hchildFree hchildNormal hchildReady
         have hchildFuelEq :
             childFuel + 1 =
               fuel - leafProbeFuel fieldDefinition.outputType := by
@@ -2732,7 +2906,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
               rootSelectionSet objectRef variableValues
               (fuel - leafProbeFuel fieldDefinition.outputType) parentType
               responseName fieldName arguments childSelectionSet
-              fieldDefinition hreturnLeaf
+              fieldDefinition hcoerce hreturnLeaf
         · have hreturnComposite :
               (TypeRef.named
                   fieldDefinition.outputType.namedType).isCompositeBool
@@ -2820,6 +2994,28 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
             rcases selectionSetNormal_inlineFragment_child_of_mem
                 hchildNormal hinlineMem with
               ⟨htypeObject, hbodyNormal⟩
+            have hoverlap :
+                schema.typesOverlap fieldDefinition.outputType.namedType
+                  typeCondition :=
+              selectionSetValid_inlineFragment_some_typesOverlap_of_mem
+                hchildValid hinlineMem
+            have hbodyInclude :
+                schema.typeIncludesObjectBool
+                    fieldDefinition.outputType.namedType typeCondition
+                  = true :=
+              typeIncludesObjectBool_of_typesOverlap_object schema hoverlap
+                htypeObject
+            have hchildCoercion :
+                selectionSetArgumentsCoercible schema variableValues typeCondition
+                  childSelectionSet :=
+              selectionSetArgumentsCoercible_field_child hcoercion hmem hfieldAllowed
+                hlookup hbodyInclude
+            have hbodyCoercion :
+                selectionSetArgumentsCoercible schema variableValues typeCondition
+                  bodySelectionSet :=
+              selectionSetArgumentsCoercible_inlineFragment_child hchildCoercion
+                hinlineMem (by simp [Execution.selectionDirectivesAllowBool])
+                (object_typeIncludesObjectBool_self schema htypeObject)
             have hbodyObject :
                 objectTypeNameBool schema typeCondition = true :=
               objectTypeNameBool_eq_true_of_objectType_forNormality schema
@@ -2890,7 +3086,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
                   htargetNonObject hparentRuntime
             exact
               ih typeCondition variableDefinitions bodySelectionSet
-                childFuel hbodySize hbodyFuel hbodyValid hbodyFree
+                childFuel hbodySize hbodyFuel hbodyValid hbodyCoercion hbodyFree
                 hbodyNormal hbodyObject hbodyPromote bodyResponseName
                 bodyFieldName bodyArguments bodyDirectives
                 bodyChildSelectionSet hfieldMem
@@ -2907,7 +3103,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_g
               schema rootSelectionSet objectRef variableValues
               (childFuel + 1) parentType responseName fieldName runtimeType
               arguments childSelectionSet fieldDefinition responseFields
-              errors hreturnComposite hreturnNonObject hruntime hinclude
+              errors hcoerce hreturnComposite hreturnNonObject hruntime hinclude
               hexecute
           simpa [hchildFuelEq] using hfieldReady
 
@@ -2918,6 +3114,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
     : SchemaWellFormedness.schemaWellFormed schema
       -> ∀ parentType variableDefinitions (selectionSet : List Selection),
           Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
@@ -2953,7 +3150,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
                         - leafProbeFuel fieldDefinition.outputType)
                       parentType responseName fieldName arguments childSelectionSet
                       fieldDefinition := by
-  intro hschema parentType variableDefinitions selectionSet hvalid hfree
+  intro hschema parentType variableDefinitions selectionSet hvalid hcoercion hfree
     hnormal hobject hpromote responseName fieldName arguments directives
     childSelectionSet hmem
   exact
@@ -2961,7 +3158,7 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
       schema rootSelectionSet objectRef variableValues hschema
       (SelectionSet.size selectionSet + 1) parentType variableDefinitions
       selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
-      (by omega) (by omega) hvalid hfree hnormal hobject hpromote
+      (by omega) (by omega) hvalid hcoercion hfree hnormal hobject hpromote
       responseName fieldName arguments directives childSelectionSet hmem
 
 theorem
@@ -2972,6 +3169,7 @@ theorem
       -> ∀ parentType variableDefinitions (selectionSet : List Selection)
             fuel (source : Execution.ResolverValue ObjectRef),
           Validation.selectionSetValid schema variableDefinitions parentType selectionSet
+          -> selectionSetArgumentsCoercible schema variableValues parentType selectionSet
           -> selectionSetDirectiveFree selectionSet
           -> selectionSetNormal schema parentType selectionSet
           -> objectTypeNameBool schema parentType = true
@@ -3008,7 +3206,7 @@ theorem
                   }
                   : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet fuel source
-    hvalid hfree hnormal hobject hsource hpromote hfuel
+    hvalid hcoercion hfree hnormal hobject hsource hpromote hfuel
   have hready :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -3026,7 +3224,7 @@ theorem
       deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
         schema rootSelectionSet objectRef variableValues hschema
         (SelectionSet.size selectionSet + 1) parentType variableDefinitions
-        selectionSet fuel (by omega) hfuel hvalid hfree hnormal hobject
+        selectionSet fuel (by omega) hfuel hvalid hcoercion hfree hnormal hobject
         hpromote responseName fieldName arguments directives childSelectionSet
         hmem
   rcases

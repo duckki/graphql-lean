@@ -154,6 +154,7 @@ mutual
       (hnotObject : ∀ fields, value ≠ InputValue.object fields)
       (hnotNull : value ≠ InputValue.null)
       (hnotVariable : ∀ variableName, value ≠ InputValue.variable variableName)
+      (hconst : ∃ constValue : ConstInputValue, value = constValue.toInputValue)
       (hlookup : schema.lookupInputObject typeName = none)
       : ValueIsCorrectTypeAtLocation schema variableDefinitions
           value (TypeRef.named typeName) locationDefault

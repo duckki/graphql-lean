@@ -17,6 +17,28 @@ Spec reference: GraphQL September 2025.
 
 namespace GraphQL
 
+-- Type-directed notation for syntactic equivalence. Modules add instances for syntax
+-- relations they own; the underlying declarations retain descriptive, searchable names.
+class SyntacticEquivalence (α : Type u) where
+  equivalent : α -> α -> Prop
+
+namespace SyntacticEquivalence
+
+scoped infix:50 " ≡ " => SyntacticEquivalence.equivalent
+
+end SyntacticEquivalence
+
+-- Type-directed notation for semantic equivalence. Unlike `=`, instances may identify
+-- observably identical values with different structural representations.
+class SemanticEquivalence (α : Type u) where
+  equivalent : α -> α -> Prop
+
+namespace SemanticEquivalence
+
+scoped infix:50 " ≈ " => SemanticEquivalence.equivalent
+
+end SemanticEquivalence
+
 -- Spec 2.1.8 `Name`: partial; raw `String` does not enforce the GraphQL name grammar or
 -- reserved `__` rules.
 abbrev Name := String
@@ -107,8 +129,86 @@ mutual
     | _left, _right => False
 end
 
+mutual
+  def decideStructuralEquivalent (left right : InputValue)
+      : Decidable (structuralEquivalent left right) := by
+    cases left <;> cases right <;> simp only [structuralEquivalent]
+    all_goals
+      first
+      | exact decideStructuralValuesEquivalent _ _
+      | exact decideStructuralObjectFieldsEquivalent _ _
+      | infer_instance
+
+  def decideStructuralValuesEquivalent
+      : (left right : List InputValue)
+        -> Decidable (structuralValuesEquivalent left right)
+    | [], [] => isTrue trivial
+    | left :: lefts, right :: rights =>
+        match decideStructuralEquivalent left right,
+              decideStructuralValuesEquivalent lefts rights with
+        | isTrue hleft, isTrue hrest => isTrue ⟨hleft, hrest⟩
+        | isFalse hleft, _ => isFalse fun h => hleft h.1
+        | _, isFalse hrest => isFalse fun h => hrest h.2
+    | [], _right :: _rights => isFalse id
+    | _left :: _lefts, [] => isFalse id
+
+  def decideStructuralObjectFieldsEquivalent
+      : (left right : List (Name × InputValue))
+        -> Decidable (structuralObjectFieldsEquivalent left right)
+    | [], [] => isTrue trivial
+    | (leftName, leftValue) :: lefts, (rightName, rightValue) :: rights =>
+        match inferInstanceAs (Decidable (leftName = rightName)),
+              decideStructuralEquivalent leftValue rightValue,
+              decideStructuralObjectFieldsEquivalent lefts rights with
+        | isTrue hname, isTrue hvalue, isTrue hrest =>
+            isTrue ⟨hname, hvalue, hrest⟩
+        | isFalse hname, _, _ => isFalse fun h => hname h.1
+        | _, isFalse hvalue, _ => isFalse fun h => hvalue h.2.1
+        | _, _, isFalse hrest => isFalse fun h => hrest h.2.2
+    | [], _right :: _rights => isFalse id
+    | _left :: _lefts, [] => isFalse id
+end
+
+instance structuralEquivalentDecidable : DecidableRel structuralEquivalent :=
+  decideStructuralEquivalent
+
+instance structuralValuesEquivalentDecidable : DecidableRel structuralValuesEquivalent :=
+  decideStructuralValuesEquivalent
+
+instance structuralObjectFieldsEquivalentDecidable
+    : DecidableRel structuralObjectFieldsEquivalent :=
+  decideStructuralObjectFieldsEquivalent
+
+-- Computable views of the corresponding propositions. Their implementations are
+-- supplied by the reusable decision procedures above.
+def structuralEquivalentBool (left right : InputValue) : Bool :=
+  decide (structuralEquivalent left right)
+
+def structuralValuesEquivalentBool (left right : List InputValue) : Bool :=
+  decide (structuralValuesEquivalent left right)
+
+def structuralObjectFieldsEquivalentBool (left right : List (Name × InputValue)) : Bool :=
+  decide (structuralObjectFieldsEquivalent left right)
+
 def equivalent (left right : InputValue) : Prop :=
   structuralEquivalent left.canonical right.canonical
+
+instance syntacticallyEquivalentDecidable : DecidableRel equivalent :=
+  fun left right =>
+    inferInstanceAs (Decidable (structuralEquivalent left.canonical right.canonical))
+
+instance syntacticEquivalence : SyntacticEquivalence InputValue where
+  equivalent := equivalent
+
+instance syntacticEquivalenceNotationDecidable (left right : InputValue)
+    : Decidable (SyntacticEquivalence.equivalent left right) := by
+  change Decidable (equivalent left right)
+  infer_instance
+
+-- Computable syntactic input-value equivalence. List order matters; input object field
+-- order does not. Duplicate input object fields remain a validation concern.
+def syntacticallyEquivalentBool (left right : InputValue) : Bool :=
+  decide (equivalent left right)
 
 -- Spec 2.10 input object field equality for semantic argument comparison; object field
 -- order is ignored, with duplicate rejection delegated to validation.
@@ -173,6 +273,35 @@ mutual
     | [] => []
     | (name, value) :: rest =>
         (name, value.toInputValue) :: objectFieldsToInputFields rest
+end
+
+mutual
+  -- Runtime input values use the constant-value grammar because executable variable
+  -- references have already been resolved. This partial inverse rejects any residual
+  -- variable reference, including one nested in a list or input object.
+  def ofInputValue? : InputValue -> Option ConstInputValue
+    | .null => some .null
+    | .int value => some (.int value)
+    | .float value => some (.float value)
+    | .string value => some (.string value)
+    | .boolean value => some (.boolean value)
+    | .enum value => some (.enum value)
+    | .variable _name => none
+    | .list values => do
+        return .list (← inputValuesToConstInputValues? values)
+    | .object fields => do
+        return .object (← inputFieldsToConstInputFields? fields)
+
+  def inputValuesToConstInputValues? : List InputValue -> Option (List ConstInputValue)
+    | [] => some []
+    | value :: rest => do
+        return (← ofInputValue? value) :: (← inputValuesToConstInputValues? rest)
+
+  def inputFieldsToConstInputFields?
+      : List (Name × InputValue) -> Option (List (Name × ConstInputValue))
+    | [] => some []
+    | (name, value) :: rest => do
+        return (name, ← ofInputValue? value) :: (← inputFieldsToConstInputFields? rest)
 end
 
 end ConstInputValue
@@ -291,7 +420,8 @@ structure EnumType where
 deriving Repr, DecidableEq
 
 -- Spec 3.10 `InputObjectTypeDefinition`: partial; input fields are represented, but
--- descriptions, directives, OneOf status, extensions, and cycle validation are omitted.
+-- descriptions, directives, OneOf status, and extensions are omitted. Circular-reference
+-- validation is expressed by `SchemaWellFormedness`.
 structure InputObjectType where
   name : Name
   inputFields : List InputValueDefinition

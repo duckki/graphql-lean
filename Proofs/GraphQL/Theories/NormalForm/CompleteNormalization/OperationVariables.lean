@@ -15,7 +15,7 @@ variable {ObjectRef : Type}
 private theorem lookupVariableValue?_foldlDefaults_eq_some
     (variableDefinitions : List VariableDefinition)
     (variableValues : Execution.VariableValues)
-    {name : Name} {value : InputValue}
+    {name : Name} {value : Execution.CoercedInputValue}
     (hlookup : Execution.lookupVariableValue? variableValues name = some value)
     : Execution.lookupVariableValue?
         (variableDefinitions.foldl
@@ -26,7 +26,7 @@ private theorem lookupVariableValue?_foldlDefaults_eq_some
             | none =>
                 match variableDefinition.defaultValue with
                 | some defaultValue =>
-                    (variableDefinition.name, defaultValue.toInputValue) :: coercedValues
+                    (variableDefinition.name, defaultValue) :: coercedValues
                 | none => coercedValues)
           variableValues)
         name
@@ -53,7 +53,7 @@ private theorem lookupVariableValue?_foldlDefaults_eq_some
 theorem lookupVariableValue?_coerceVariableValues_eq_some
     (operation : Operation)
     (variableValues : Execution.VariableValues)
-    {name : Name} {value : InputValue}
+    {name : Name} {value : Execution.CoercedInputValue}
     (hlookup : Execution.lookupVariableValue? variableValues name = some value)
     : Execution.lookupVariableValue?
         (Execution.coerceVariableValues operation variableValues) name
@@ -76,7 +76,7 @@ private theorem lookupVariableValue?_foldlDefaults_default_eq_some
               | none =>
                   match definition.defaultValue with
                   | some defaultValue =>
-                      (definition.name, defaultValue.toInputValue) :: coercedValues
+                      (definition.name, defaultValue) :: coercedValues
                   | none => coercedValues)
             variableValues)
           variableDefinition.name
@@ -92,7 +92,7 @@ private theorem lookupVariableValue?_foldlDefaults_default_eq_some
       | none =>
           match definition.defaultValue with
           | some defaultValue =>
-              (definition.name, defaultValue.toInputValue) :: coercedValues
+              (definition.name, defaultValue) :: coercedValues
           | none => coercedValues)
     variableValues
   cases hlookup : Execution.lookupVariableValue? prefixValues variableDefinition.name with
@@ -102,8 +102,8 @@ private theorem lookupVariableValue?_foldlDefaults_default_eq_some
   | none =>
       have hadd :
           Execution.lookupVariableValue?
-              ((variableDefinition.name, defaultValue.toInputValue) :: prefixValues)
-              variableDefinition.name = some defaultValue.toInputValue := by
+              ((variableDefinition.name, defaultValue) :: prefixValues)
+              variableDefinition.name = some defaultValue := by
         simp [Execution.lookupVariableValue?]
       simpa [prefixValues, hlookup, hdefault] using
         (show ∃ value,
@@ -115,11 +115,11 @@ private theorem lookupVariableValue?_foldlDefaults_default_eq_some
                   | none =>
                       match definition.defaultValue with
                       | some candidateDefault =>
-                          (definition.name, candidateDefault.toInputValue) :: coercedValues
+                          (definition.name, candidateDefault) :: coercedValues
                       | none => coercedValues)
-                ((variableDefinition.name, defaultValue.toInputValue) :: prefixValues))
+                ((variableDefinition.name, defaultValue) :: prefixValues))
               variableDefinition.name = some value from
-          ⟨defaultValue.toInputValue,
+          ⟨defaultValue,
             lookupVariableValue?_foldlDefaults_eq_some suffix _ hadd⟩)
 
 private theorem foldlDefaults_eq_self_of_defaults_present
@@ -139,8 +139,7 @@ private theorem foldlDefaults_eq_self_of_defaults_present
                 | none =>
                     match variableDefinition.defaultValue with
                     | some defaultValue =>
-                        (variableDefinition.name, defaultValue.toInputValue)
-                        :: coercedValues
+                        (variableDefinition.name, defaultValue) :: coercedValues
                     | none => coercedValues)
               variableValues
             = variableValues

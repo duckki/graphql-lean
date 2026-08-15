@@ -33,7 +33,7 @@ def coerceVariableValues (operation : Operation) (variableValues : VariableValue
       | none =>
           match variableDefinition.defaultValue with
           | some defaultValue =>
-              (variableDefinition.name, defaultValue.toInputValue) :: coercedValues
+              (variableDefinition.name, defaultValue) :: coercedValues
           | none => coercedValues)
     variableValues
 
@@ -222,17 +222,22 @@ mutual
             match schema.lookupField field.parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
-                match GraphQL.Execution.resolveFieldValue schema resolvers variableValues
-                        fieldDefinition
-                        field.parentType field.fieldName field.arguments source with
-                | none =>
+                match GraphQL.Execution.coerceArgumentValues schema variableValues
+                        fieldDefinition.arguments field.arguments with
+                | .error =>
                     GraphQL.Execution.singleFieldResult responseName
                       (GraphQL.Execution.handleFieldError fieldDefinition.outputType)
-                | some resolved =>
-                    GraphQL.Execution.singleFieldResult responseName
-                      (completeValue schema resolvers variableValues
-                        fuel' fieldDefinition.outputType (field :: fields)
-                        resolved)
+                | .success coercedArguments =>
+                    match GraphQL.Execution.resolveFieldValue resolvers field.parentType
+                            field.fieldName coercedArguments source with
+                    | none =>
+                        GraphQL.Execution.singleFieldResult responseName
+                          (GraphQL.Execution.handleFieldError fieldDefinition.outputType)
+                    | some resolved =>
+                        GraphQL.Execution.singleFieldResult responseName
+                          (completeValue schema resolvers variableValues
+                            fuel' fieldDefinition.outputType (field :: fields)
+                            resolved)
 
   def completeValue
       (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -300,8 +305,12 @@ def executeRootSelectionSet
         (collectFields schema variableValues fragments [] parentType source
           selectionSet).groupedFields
 
-def executeQueryFuelBound (operation : Operation) : Nat :=
-  operation.size * 3 + 1
+-- Named-fragment operation size includes fragment definitions; the shared schema factor
+-- accounts for list/type completion between response-field boundaries.
+def executeQueryFuelBound (schema : Schema) (operation : Operation) : Nat :=
+  operation.size
+    * (GraphQL.Execution.typeDefinitionsExecutionCompletionFuel schema.types + 1)
+  + 1
 
 def rootSourceAppliesBool
     (schema : Schema) (operation : Operation)
@@ -335,7 +344,7 @@ def executeQuery
     (source : ResolverValue ObjectRef)
     : Response :=
   executeQueryWithFuel schema resolvers variableValues operation
-    (executeQueryFuelBound operation) source
+    (executeQueryFuelBound schema operation) source
 
 end Execution
 

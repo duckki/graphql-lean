@@ -1,6 +1,8 @@
 import GraphQL.Execution
 import GraphQL.Algorithms.ExecutionCancelingSiblings
-import GraphQL.Theories.NormalForm
+import GraphQL.SchemaWellFormedness
+import GraphQL.Theories.ExecutionReadiness
+import GraphQL.Validation
 
 /-!
 Alternative GraphQL query execution semantics.
@@ -348,13 +350,18 @@ mutual
                       (some previous)
                 | _ => .error 1
         | none =>
-            match resolveFieldValue schema resolvers variableValues fieldDefinition
-                    field.parentType field.fieldName field.arguments source with
-            | none =>
+            match coerceArgumentValues schema variableValues fieldDefinition.arguments
+                    field.arguments with
+            | .error =>
                 handleFieldError fieldDefinition.outputType
-            | some resolved =>
-                completeValue schema resolvers variableValues completionFuel
-                  fieldDefinition.outputType field.selectionSet resolved none
+            | .success coercedArguments =>
+                match resolveFieldValue resolvers field.parentType field.fieldName
+                        coercedArguments source with
+                | none =>
+                    handleFieldError fieldDefinition.outputType
+                | some resolved =>
+                    completeValue schema resolvers variableValues completionFuel
+                      fieldDefinition.outputType field.selectionSet resolved none
 
   -- Spec 6.4.3 `CompleteValue`: partial; mirrors the spec executor's null/list/non-null
   -- completion while threading an optional previous field-cache value for ungrouped
@@ -481,15 +488,15 @@ def executeQueryWithFuel {ObjectRef : Type}
   else
     { data := .null, errors := 1 }
 
--- Spec 6.2.1 `ExecuteQuery`: Default executable query entry point using the local
--- operation-derived fuel bound.
+-- Spec 6.2.1 `ExecuteQuery`: default executable query entry point using the shared
+-- schema-aware fuel bound.
 def executeQuery {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (operation : Operation)
     (source : ResolverValue ObjectRef)
     : Response :=
   executeQueryWithFuel schema resolvers variableValues operation
-    (executeQueryFuelBound operation) source
+    (GraphQL.Execution.executeQueryFuelBound schema operation) source
 
 -----------------------------------------------------------------------------------------
 -- Correctness statement: ungroupedExecutionPreservesSpecExecution
@@ -515,7 +522,7 @@ def ungroupedExecutionPreservesSpecExecution (schema : Schema) (operation : Oper
   -> Validation.operationDefinitionValid schema operation
   -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
         variableValues fuel (source : ResolverValue ObjectRef),
-      NormalForm.operationBoolVarsComplete operation
+      operationBoolVarsComplete operation
         (GraphQL.Execution.coerceVariableValues operation variableValues)
       -> responseDataAndErrorPresenceEquivalent
           (executeQueryWithFuel schema resolvers variableValues operation fuel source)
@@ -538,7 +545,7 @@ def ungroupedExecutionEquivalentToCancelingSiblingsExecution
   -> Validation.operationDefinitionValid schema operation
   -> ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
         variableValues fuel (source : ResolverValue ObjectRef),
-      NormalForm.operationBoolVarsComplete operation
+      operationBoolVarsComplete operation
         (GraphQL.Execution.coerceVariableValues operation variableValues)
       -> responseDataAndErrorPresenceEquivalent
           (executeQueryWithFuel schema resolvers variableValues operation fuel source)

@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.CachedRefinement.Erasure
 
 /-!
@@ -130,29 +131,33 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
   cases hlookup : schema.lookupField field.parentType field.fieldName with
   | none => trivial
   | some fieldDefinition =>
-      cases hresolve
-            : resolveFieldValue schema resolvers variableValues fieldDefinition
-                field.parentType field.fieldName field.arguments source with
-      | none =>
-          simp only [hresolve]
-          change
-            FieldCacheInternallyAligned
-              (resultValueOrNull
-                (handleFieldError fieldDefinition.outputType))
-          have hnull :
-              resultValueOrNull
-                  (handleFieldError (ObjectRef := ObjectRef)
-                    fieldDefinition.outputType)
-                = .null := by
-            cases fieldDefinition.outputType <;>
-              rfl
-          rw [hnull]
-          trivial
-      | some resolved =>
-          simpa [hlookup, hresolve] using
-            (completeValue_sourceAligned schema resolvers variableValues
-              completionFuel fieldDefinition.outputType field.selectionSet resolved
-              none (by intro previous h; cases h)).internallyAligned
+      have hhandled :
+          FieldCacheInternallyAligned
+            (resultValueOrNull
+              (handleFieldError (ObjectRef := ObjectRef)
+                fieldDefinition.outputType)) := by
+        have hnull :
+            resultValueOrNull
+                (handleFieldError (ObjectRef := ObjectRef)
+                  fieldDefinition.outputType)
+              = .null := by
+          cases fieldDefinition.outputType <;> rfl
+        rw [hnull]
+        trivial
+      cases hcoerce
+            : coerceArgumentValues schema variableValues
+                fieldDefinition.arguments field.arguments with
+      | error => simpa [hlookup, hcoerce] using hhandled
+      | success coercedArguments =>
+          cases hresolve
+                : resolveFieldValue resolvers field.parentType field.fieldName
+                    coercedArguments source with
+          | none => simpa [hlookup, hcoerce, hresolve] using hhandled
+          | some resolved =>
+              simpa [hlookup, hcoerce, hresolve] using
+                (completeValue_sourceAligned schema resolvers variableValues
+                  completionFuel fieldDefinition.outputType field.selectionSet resolved
+                  none (by intro previous h; cases h)).internallyAligned
 
 theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)

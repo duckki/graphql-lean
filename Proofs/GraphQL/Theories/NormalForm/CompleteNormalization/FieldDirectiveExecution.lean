@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ExecutionPrelude
 
 /-!
@@ -466,7 +467,7 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
               :: sourceFields
             )
             :: sourceTail
-      -> (match Execution.resolveFieldValue schema resolvers variableValues
+      -> (match Execution.coerceAndResolveFieldValue schema resolvers variableValues
                   fieldDefinition lookupParent fieldName arguments source with
           | some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)
@@ -542,7 +543,7 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
     hnormalizedCollect' hsourceCollect
     (by
       cases hresolved :
-          Execution.resolveFieldValue schema resolvers variableValues
+          Execution.coerceAndResolveFieldValue schema resolvers variableValues
             fieldDefinition lookupParent fieldName arguments source with
       | none =>
           simp [Execution.resolveFieldValueByName, hlookup, hresolved]
@@ -577,7 +578,7 @@ theorem
       -> responseName
           ∉ (Execution.collectFields schema variableValues lookupParent source rest).map
               Prod.fst
-      -> (match Execution.resolveFieldValue schema resolvers variableValues
+      -> (match Execution.coerceAndResolveFieldValue schema resolvers variableValues
                   fieldDefinition lookupParent fieldName arguments source with
           | some value =>
               Execution.completeValue schema resolvers variableValues (depth - 1)

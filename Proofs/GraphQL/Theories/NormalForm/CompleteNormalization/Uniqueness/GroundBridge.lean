@@ -32,13 +32,13 @@ theorem selectionSetEqualUpToReorderingWithCoercion_right_transport
     ?_ ?_ ?_ hequal
   · intro fieldParentType responseName fieldName leftArguments rightArguments
       directives leftSelectionSet rightSelectionSet fieldDefinition hlookup
-      harguments _hchildren hchildren
+      hcoercion _hchildren hchildren
     apply SelectionEqualUpToReorderingWithCoercion.field fieldParentType
       responseName fieldName directives fieldDefinition hlookup
     · have hcoerced :=
         Execution.coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
           schema hvalues fieldDefinition.arguments rightArguments
-      exact Execution.argumentsEquivalent_trans_forCoercion harguments hcoerced
+      exact Execution.ArgumentCoercionResult.equivalent_trans hcoercion hcoerced
     · exact hchildren
   · intro fragmentParentType typeCondition directives leftSelectionSet
       rightSelectionSet _hchildren hchildren
@@ -60,6 +60,10 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
       : Validation.selectionSetValid schema leftVariableDefinitions parentType left)
     (hrightValid
       : Validation.selectionSetValid schema rightVariableDefinitions parentType right)
+    (hleftCoercion
+      : selectionSetArgumentsCoercible schema leftVariableValues parentType left)
+    (hrightCoercion
+      : selectionSetArgumentsCoercible schema rightVariableValues parentType right)
     (hleftFree : selectionSetDirectiveFree left)
     (hrightFree : selectionSetDirectiveFree right)
     (hleftNormal : selectionSetNormal schema parentType left)
@@ -85,6 +89,20 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
         fuel parentType source right]
     rw [← hrightExecution]
     exact hsem resolvers fuel source hsource
+  have hrightCoercionSame :
+      selectionSetArgumentsCoercible schema leftVariableValues parentType right :=
+    selectionSetArgumentsCoercible_of_variableValuesCoercionEquivalent
+      hvalues parentType right hrightCoercion
+  have hleftCoercionAll :
+      selectionSetArgumentsCoercibleInPossibleTypes schema leftVariableValues
+        parentType left :=
+    GroundTypeNormalization.selectionSetArgumentsCoercibleInPossibleTypes_of_object
+      hobject hleftCoercion
+  have hrightCoercionAll :
+      selectionSetArgumentsCoercibleInPossibleTypes schema leftVariableValues
+        parentType right :=
+    GroundTypeNormalization.selectionSetArgumentsCoercibleInPossibleTypes_of_object
+      hobject hrightCoercionSame
   have hsame :
       SelectionSetEqualUpToReorderingWithCoercion schema leftVariableValues
         leftVariableValues parentType left right := by
@@ -98,7 +116,8 @@ theorem validNormalObjectSelectionSets_semanticallyEquivalent_equalUpToReorderin
           hleftFree hrightFree hleftNormal hrightNormal hequal
       rcases
           GroundTypeNormalization.selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_coercion_diff
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
+            hschema hleftValid hrightValid hleftCoercionAll hrightCoercionAll
+            hleftFree hrightFree hleftNormal
             hrightNormal (supportSelectionSets := []) (minFuel := 0)
             (by simp) hdiff with
         ⟨runtimeType, hinclude, ObjectRef, resolvers, fuel, ref, _hfuel,

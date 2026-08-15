@@ -60,8 +60,9 @@ lake lint
 - `docs/lean-organization.md`: module organization rules for keeping
   top-level Lean files definition-only and theorem files topic-specific.
 - `docs/overview.md`: module map and architecture overview.
-- `docs/normal-form.md`: public normal-form statements and proof-witness map.
-- `docs/normal-form-uniqueness.md`: ground and complete uniqueness proof plan.
+- `docs/theories/normal-form.md`: public normal-form statements and proof-witness map.
+- `docs/theories/normal-form-uniqueness.md`: ground and complete uniqueness proof plan.
+- `docs/theories/query-inclusion.md`: query-inclusion semantics, checker, and proof domain.
 - `docs/algorithms.md`: verified non-spec algorithms.
 - `docs/references.md`: GraphCoQL reference notes and proof-strategy context.
 - `GraphQL/Theories/NormalForm.lean`: public normal-form definitions and

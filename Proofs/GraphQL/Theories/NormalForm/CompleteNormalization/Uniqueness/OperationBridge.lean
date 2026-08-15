@@ -1,7 +1,6 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseBodies
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
-import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.SemanticVariables
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness
 
 /-!
@@ -17,13 +16,17 @@ namespace CompleteNormalization
 private theorem selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operations
     {schema : Schema} {variables : List BoolVar} {left right : Operation}
     : (left.rootType schema) = (right.rootType schema)
-      -> variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions
+      -> (left.variableDefinitions.map VariableDefinition.name).Nodup
+      -> (right.variableDefinitions.map VariableDefinition.name).Nodup
+      -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+          right.variableDefinitions
       -> operationsSemanticallyEquivalentForCompleteBoolVars schema variables left right
       -> selectionSetsSemanticallyEquivalentForCompleteBoolVars schema variables
+          left right
           (Execution.coerceVariableValues left)
           (Execution.coerceVariableValues right)
           (left.rootType schema) left.selectionSet right.selectionSet := by
-  intro hroot hdefinitions hsem
+  intro hroot hleftNodup hrightNodup hdefinitions hsem
   refine ⟨?_, ?_, ?_, ?_⟩
   · intro variableValues name value hvalue
     exact inputValueBoolean?_coerceVariableValues_eq_some
@@ -33,9 +36,10 @@ private theorem selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operat
       right variableValues hvalue
   · intro leftValues rightValues hvalues
     exact
-      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsEquivalent
-        hvalues hdefinitions
-  · intro ObjectRef resolvers variableValues fuel source hcomplete hsource
+      Execution.coerceVariableValues_coercionEquivalent_of_variableDefinitionsSyntacticallyEquivalent
+        hleftNodup hrightNodup hvalues hdefinitions
+  · intro ObjectRef resolvers variableValues fuel source hcomplete
+      hleftReady hrightReady hsource
     rcases hsource with ⟨runtimeType, _ref, hsourceEq, hinclude⟩
     have hleftRoot :
         Execution.rootSourceAppliesBool schema left source = true := by
@@ -52,7 +56,7 @@ private theorem selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operat
       Execution.executeSelectionSetAsResponse,
       Execution.selectionSetResultToResponse,
       Execution.executeSelectionSet, hroot] using
-        hsem resolvers variableValues fuel source hcomplete
+        hsem resolvers variableValues fuel source hcomplete hleftReady hrightReady
 
 private theorem completeNormalBoolCase_of_operationBoolVarsEquivalent
     {left right : Operation} {boolCase : BoolCase}
@@ -103,7 +107,9 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
     (hrightNormal : completeNormalOperation schema right)
     (hvariables : operationBoolVarsEquivalent left right)
     (hdefinitions
-      : variableDefinitionsEquivalent left.variableDefinitions right.variableDefinitions)
+      : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+          right.variableDefinitions)
+    (hjoint : completeBoolCasesJointlyCoercible schema left right)
     (hsem
       : operationsSemanticallyEquivalentForCompleteBoolVars schema
           (operationBoolVars left) left right)
@@ -115,7 +121,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
   refine ⟨by
     cases left.operationType
     cases right.operationType
-    rfl, ?_⟩
+    rfl, hvariables, ?_⟩
   cases hleftVars : operationBoolVars left with
   | nil =>
       have hrightVars : operationBoolVars right = [] :=
@@ -127,9 +133,9 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
       simp [completeNormalOperation, completeNormalSelectionSet, hrightVars]
         at hrightShape
       have hsemAll : operationsSemanticallyEquivalent schema left right := by
-        intro ObjectRef resolvers variableValues fuel source
+        intro ObjectRef resolvers variableValues fuel source hleftReady hrightReady
         exact hsem resolvers variableValues fuel source (by
-          simp [boolVarsComplete, hleftVars])
+          simp [boolVarsComplete, hleftVars]) hleftReady hrightReady
       have hground :=
         GroundTypeNormalization.normal_operations_semanticallyEquivalent_equalUpToReordering
           (schema := schema) (left := left) (right := right) hschema
@@ -166,13 +172,16 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
               hschema hleftValid
           have hselectionSem :
               selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-                (leftVar :: leftVariables)
+                (leftVar :: leftVariables) left right
                 (Execution.coerceVariableValues left)
                 (Execution.coerceVariableValues right)
                 (left.rootType schema) left.selectionSet right.selectionSet := by
             simpa only [hleftVars] using
               selectionSetsSemanticallyEquivalentForCompleteBoolVars_of_operations
-                hroot hdefinitions hsem
+                hroot
+                (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1
+                (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1
+                hdefinitions hsem
           have hcaseLeftToRight : ∀ boolCase,
               completeNormalBoolCase (leftVar :: leftVariables) boolCase ->
                 completeNormalBoolCase (rightVar :: rightVariables)
@@ -209,7 +218,8 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                       leftSelection rightSelection := by
             intro leftSelection hleftMem
             exact completeNormalSelection_has_match hschema
-              hleftSelectionValid hrightSelectionValid hleftComplete
+              hleftSelectionValid hrightSelectionValid rfl hroot.symm rfl rfl
+              hleftVars hjoint hleftComplete
               hrightComplete hcaseLeftToRight hobject hselectionSem hleftMem
           have hrightTotal : ∀ rightSelection,
               rightSelection ∈ right.selectionSet ->
@@ -221,7 +231,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                       rightSelection leftSelection := by
             have hselectionSemReverse :
                 selectionSetsSemanticallyEquivalentForCompleteBoolVars schema
-                  (rightVar :: rightVariables)
+                  (rightVar :: rightVariables) right left
                   (Execution.coerceVariableValues right)
                   (Execution.coerceVariableValues left)
                   (left.rootType schema) right.selectionSet left.selectionSet := by
@@ -231,7 +241,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                   (hselectionSem.2.2.1 leftValues rightValues
                     (Execution.variableValuesCoercionEquivalent_symm hvalues))
               intro ObjectRef resolvers variableValues fuel source
-                hrightCompleteValues hsource
+                hrightCompleteValues hrightReady hleftReady hsource
               have hleftCompleteValues :
                   boolVarsComplete (leftVar :: leftVariables)
                     variableValues := by
@@ -246,11 +256,22 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                   simpa [hrightVars] using hrightOperationMem
                 exact hrightCompleteValues varName hrightMem
               have hresponse := hselectionSem.2.2.2 resolvers variableValues fuel
-                source hleftCompleteValues hsource
+                source hleftCompleteValues hleftReady hrightReady hsource
               exact ⟨hresponse.1.symm, hresponse.2.symm⟩
+            have hjointReverse :
+                completeBoolCasesJointlyCoercible schema right left := by
+              intro boolCase hrightCase
+              have hleftCase :
+                  completeNormalBoolCase (operationBoolVars left) boolCase :=
+                completeNormalBoolCase_of_operationBoolVarsEquivalent
+                  hvariablesSymm hrightCase
+              rcases hjoint boolCase hleftCase with
+                ⟨baseValues, hleftReady, hrightReady⟩
+              exact ⟨baseValues, hrightReady, hleftReady⟩
             intro rightSelection hrightMem
             exact completeNormalSelection_has_match hschema
-              hrightSelectionValid hleftSelectionValid hrightComplete
+              hrightSelectionValid hleftSelectionValid hroot.symm rfl rfl rfl
+              hrightVars hjointReverse hrightComplete
               hleftComplete hcaseRightToLeft hobject
               hselectionSemReverse hrightMem
           let matchingRight (leftSelection : Selection) : Selection :=
@@ -335,16 +356,14 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
-  intro hschema hleftValid hrightValid hleftNormal hrightNormal hdefinitions hsem
-  have hvariables :=
-    operationBoolVarsEquivalent_of_completeNormal_semantics hschema
-      hleftValid hrightValid hleftNormal hrightNormal hsem
+  intro hschema hleftValid hrightValid hleftNormal hrightNormal hdefinitions
+    hvariables hjoint hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
-      hdefinitions
-      (fun resolvers variableValues fuel source _hcomplete =>
-        hsem resolvers variableValues fuel source)
+      hdefinitions hjoint
+      (fun resolvers variableValues fuel source _hcomplete hleftReady hrightReady =>
+        hsem resolvers variableValues fuel source hleftReady hrightReady)
 
 end CompleteNormalization
 

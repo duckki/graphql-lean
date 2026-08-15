@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.AbstractReturnSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Normality
 import Proofs.GraphQL.Theories.NormalForm.Shared.SemanticReadiness
@@ -71,7 +72,7 @@ theorem executeField_singleton_eq_group_of_completeValue
     : let fieldDefinition? := schema.lookupField field.parentType field.fieldName
       (match fieldDefinition? with
         | some fieldDefinition =>
-            match Execution.resolveFieldValue schema resolvers variableValues
+            match Execution.coerceAndResolveFieldValue schema resolvers variableValues
                     fieldDefinition field.parentType field.fieldName field.arguments
                     source with
             | some value =>
@@ -93,20 +94,27 @@ theorem executeField_singleton_eq_group_of_completeValue
   | none =>
       simp []
   | some fieldDefinition =>
-      cases hresolved
-            : Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
-                field.parentType field.fieldName field.arguments source with
-      | none =>
-          simp [hresolved]
-      | some value =>
-          have hcomplete' :
-              Execution.completeValue schema resolvers variableValues depth
-                  fieldDefinition.outputType
-                  [{ field with selectionSet := normalizedSelectionSet }] value =
-                Execution.completeValue schema resolvers variableValues depth
-                  fieldDefinition.outputType (field :: fields) value := by
-            simpa [fieldDefinition?, hlookup, hresolved] using hcomplete
-          simp [hresolved, Execution.singleFieldResult, hcomplete']
+      cases hcoerce
+            : Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments field.arguments with
+      | error =>
+          simp [hcoerce]
+      | success coercedArguments =>
+          cases hresolved
+                : Execution.resolveFieldValue resolvers field.parentType
+                    field.fieldName coercedArguments source with
+          | none =>
+              simp [hcoerce, hresolved]
+          | some value =>
+              have hcomplete' :
+                  Execution.completeValue schema resolvers variableValues depth
+                      fieldDefinition.outputType
+                      [{ field with selectionSet := normalizedSelectionSet }] value =
+                    Execution.completeValue schema resolvers variableValues depth
+                      fieldDefinition.outputType (field :: fields) value := by
+                simpa [fieldDefinition?, hlookup,
+                  Execution.coerceAndResolveFieldValue, hcoerce, hresolved] using hcomplete
+              simp [hcoerce, hresolved, Execution.singleFieldResult, hcomplete']
 
 theorem executeField_singleton_eq_group_of_child_object_lt
     (schema : Schema)
@@ -138,8 +146,9 @@ theorem executeField_singleton_eq_group_of_child_object_lt
       simp []
   | some fieldDefinition =>
       cases hresolved
-            : Execution.resolveFieldValue schema resolvers variableValues fieldDefinition
-                field.parentType field.fieldName field.arguments source with
+            : Execution.coerceAndResolveFieldValue schema resolvers variableValues
+                fieldDefinition field.parentType field.fieldName field.arguments
+                source with
       | none =>
           simp [hresolved]
       | some value =>
@@ -238,7 +247,7 @@ theorem executeSelectionSet_field_head_eq_of_completeValue
           = (responseName, sourceField :: sourceFields) :: sourceRest
       -> (match fieldDefinition? with
           | some fieldDefinition =>
-              match Execution.resolveFieldValue schema resolvers variableValues
+              match Execution.coerceAndResolveFieldValue schema resolvers variableValues
                       fieldDefinition sourceField.parentType sourceField.fieldName
                       sourceField.arguments source with
               | some value =>
@@ -368,7 +377,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_of_completeValue
             :: normalizedRest
       -> (match schema.lookupField parentType fieldName with
           | some fieldDefinition =>
-              match Execution.resolveFieldValue schema resolvers variableValues
+              match Execution.coerceAndResolveFieldValue schema resolvers variableValues
                       fieldDefinition parentType fieldName arguments source with
               | some value =>
                   Execution.completeValue schema resolvers variableValues (depth - 1)
@@ -556,7 +565,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case
       using hnormalizedFieldWithRest
   · rw [hlookup]
     cases hresolved
-          : Execution.resolveFieldValue schema resolvers variableValues
+          : Execution.coerceAndResolveFieldValue schema resolvers variableValues
               fieldDefinition parentType fieldName arguments source with
     | none =>
         simp [hresolved]

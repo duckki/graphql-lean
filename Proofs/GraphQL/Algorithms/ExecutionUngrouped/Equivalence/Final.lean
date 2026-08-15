@@ -1565,8 +1565,8 @@ theorem executeQuery_eq_spec
     {source : ResolverValue ObjectIdentity}
     (state
       : ExecutedGroupedOperationState schema resolvers
-          (GraphQL.Execution.coerceVariableValues operation variableValues) operation
-          (GraphQL.Execution.executeQueryFuelBound operation) source)
+          (GraphQL.Execution.coerceVariableValues operation variableValues)
+          operation (GraphQL.Execution.executeQueryFuelBound schema operation) source)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by
@@ -2199,7 +2199,7 @@ theorem executeQuery_eq_spec_of_executedGroups
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2230,7 +2230,7 @@ theorem executeQuery_eq_spec_of_collected_groups_state_of_invariant
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2281,7 +2281,7 @@ theorem executeQuery_eq_spec_of_collected_groups_appendInvariant
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2329,7 +2329,7 @@ theorem executeQuery_eq_spec_of_collected_groups_collectedAppendInvariant
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2378,7 +2378,7 @@ theorem executeQuery_eq_spec_of_collected_groups_collectedLocalAppendInvariant
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2427,7 +2427,7 @@ theorem executeQuery_eq_spec_of_collected_groups_recursiveAppendState
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema
@@ -2476,7 +2476,7 @@ theorem executeQuery_eq_spec_of_collected_groups_child_state
     {variableValues : VariableValues} {operation : Operation}
     {depth : Nat} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
-    (hdepth : GraphQL.Execution.executeQueryFuelBound operation = depth + 1)
+    (hdepth : GraphQL.Execution.executeQueryFuelBound schema operation = depth + 1)
     (hroot : rootSourceAppliesBool schema operation source = true)
     (hcollect
       : GraphQL.Execution.collectFields schema

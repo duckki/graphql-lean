@@ -351,42 +351,44 @@ theorem collectFields_projectionTargetResolverValue
 
 def fieldPairProjectionTarget
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
-    (parentType fieldName : Name) (arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (parentType fieldName : Name) (arguments : Execution.CoercedArguments)
     : Prop :=
   parentType = targetParent
-  ∧ ((fieldName = leftField ∧ Argument.argumentsEquivalent arguments leftArguments)
-      ∨ (fieldName = rightField ∧ Argument.argumentsEquivalent arguments rightArguments))
+  ∧ ((fieldName = leftField
+        ∧ Execution.CoercedArgument.argumentsEquivalent arguments leftArguments)
+      ∨ (fieldName = rightField
+          ∧ Execution.CoercedArgument.argumentsEquivalent arguments rightArguments))
 
 theorem fieldPairProjectionTarget_iff_of_argumentsEquivalent
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     (parentType fieldName : Name)
-    (firstArguments laterArguments : List Argument)
-    : Argument.argumentsEquivalent firstArguments laterArguments
+    (firstArguments laterArguments : Execution.CoercedArguments)
+    : Execution.CoercedArgument.argumentsEquivalent firstArguments laterArguments
       -> (fieldPairProjectionTarget targetParent leftField rightField
             leftArguments rightArguments parentType fieldName firstArguments
           ↔ fieldPairProjectionTarget targetParent leftField rightField
               leftArguments rightArguments parentType fieldName laterArguments) := by
   intro harguments
   have hleftIff :
-      Argument.argumentsEquivalent firstArguments leftArguments
-        ↔ Argument.argumentsEquivalent laterArguments leftArguments := by
+      Execution.CoercedArgument.argumentsEquivalent firstArguments leftArguments
+        ↔ Execution.CoercedArgument.argumentsEquivalent laterArguments leftArguments := by
     constructor
     · intro hfirst
-      exact argumentsEquivalent_trans
-        (FieldMerge.argumentsEquivalent_symm harguments) hfirst
+      exact Execution.CoercedArgument.argumentsEquivalent_trans
+        (Execution.CoercedArgument.argumentsEquivalent_symm harguments) hfirst
     · intro hlater
-      exact argumentsEquivalent_trans harguments hlater
+      exact Execution.CoercedArgument.argumentsEquivalent_trans harguments hlater
   have hrightIff :
-      Argument.argumentsEquivalent firstArguments rightArguments
-        ↔ Argument.argumentsEquivalent laterArguments rightArguments := by
+      Execution.CoercedArgument.argumentsEquivalent firstArguments rightArguments
+        ↔ Execution.CoercedArgument.argumentsEquivalent laterArguments rightArguments := by
     constructor
     · intro hfirst
-      exact argumentsEquivalent_trans
-        (FieldMerge.argumentsEquivalent_symm harguments) hfirst
+      exact Execution.CoercedArgument.argumentsEquivalent_trans
+        (Execution.CoercedArgument.argumentsEquivalent_symm harguments) hfirst
     · intro hlater
-      exact argumentsEquivalent_trans harguments hlater
+      exact Execution.CoercedArgument.argumentsEquivalent_trans harguments hlater
   constructor
   · intro htarget
     rcases htarget with ⟨hparent, hfield⟩
@@ -405,7 +407,7 @@ noncomputable def fieldPairOrDeepSuccessResolvers {ObjectRef : Type}
     (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
     : Execution.Resolvers (ProjectionResolverRef ObjectRef) where
   resolve parentType fieldName arguments source := by
     classical
@@ -489,9 +491,9 @@ theorem fieldPairOrDeepSuccessResolvers_left_root
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     (source : Execution.ResolverValue ObjectRef)
-    : Argument.argumentsEquivalent arguments leftArguments
+    : Execution.CoercedArgument.argumentsEquivalent arguments leftArguments
       -> (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
             targetParent leftField rightField leftArguments rightArguments).resolve
             targetParent leftField arguments (projectionRootResolverValue source)
@@ -511,9 +513,9 @@ theorem fieldPairOrDeepSuccessResolvers_right_root
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     (source : Execution.ResolverValue ObjectRef)
-    : Argument.argumentsEquivalent arguments rightArguments
+    : Execution.CoercedArgument.argumentsEquivalent arguments rightArguments
       -> (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
             targetParent leftField rightField leftArguments rightArguments).resolve
             targetParent rightField arguments (projectionRootResolverValue source)
@@ -533,7 +535,7 @@ theorem fieldPairOrDeepSuccessResolvers_other_root
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField parentType fieldName runtimeType : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     (ref : ObjectRef)
     : ¬ fieldPairProjectionTarget targetParent leftField rightField
           leftArguments rightArguments parentType fieldName arguments
@@ -555,7 +557,7 @@ theorem fieldPairOrDeepSuccessResolvers_target
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField parentType fieldName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     (source : Execution.ResolverValue ObjectRef)
     : (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments).resolve
@@ -586,7 +588,7 @@ theorem fieldPairOrDeepSuccessResolvers_target_object
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField parentType fieldName runtimeType : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     (ref : ObjectRef)
     : (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments).resolve
@@ -609,7 +611,7 @@ theorem fieldPairOrDeepSuccessResolvers_filler_object
     (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef)
     (targetParent leftField rightField parentType fieldName runtimeType : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments arguments : Execution.CoercedArguments)
     : (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
         targetParent leftField rightField leftArguments rightArguments).resolve
         parentType fieldName arguments
@@ -636,7 +638,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (runtimeType : Name)
           (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
@@ -670,7 +672,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (runtimeType responseName : Name)
           (fields : List Execution.ExecutableField),
           Execution.executeField schema
@@ -697,20 +699,24 @@ mutual
             simp [Execution.executeField, hlookup,
               deepSelectionSetSuccessResolversWithRef]
         | some fieldDefinition =>
+            cases hcoerce : Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments field.arguments with
+            | error =>
+                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  hcoerce]
+            | success coercedArguments =>
             have hcomplete :=
               completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
                 schema rootSelectionSet base variableValues targetParent
                 leftField rightField leftArguments rightArguments fuel
                 fieldDefinition.outputType (field :: fields)
                 field.parentType field.fieldName
-            simpa [Execution.executeField, Execution.resolveFieldValue, hlookup,
+            simpa [Execution.executeField, Execution.resolveFieldValue, hlookup, hcoerce,
               deepSelectionSetSuccessResolversWithRef,
               fieldPairOrDeepSuccessResolvers_filler_object schema
                 rootSelectionSet base targetParent leftField rightField
                 field.parentType field.fieldName runtimeType leftArguments
-                rightArguments
-                (Execution.coerceArgumentValues schema variableValues
-                  fieldDefinition.arguments field.arguments)] using
+                rightArguments coercedArguments] using
               congrArg (Execution.singleFieldResult responseName) hcomplete
 
   theorem completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
@@ -719,7 +725,7 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
           (fields : List Execution.ExecutableField)
           (parentType fieldName : Name),
@@ -834,14 +840,17 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWi
     (variableValues : Execution.VariableValues)
     (targetParent leftField rightField parentType fieldName runtimeType responseName
       : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (ref : ObjectRef) (childSelectionSet : List Selection)
-    : (∀ fieldDefinition,
+    : (∀ fieldDefinition coercedArguments,
         schema.lookupField parentType fieldName = some fieldDefinition
+        -> Execution.coerceArgumentValues schema variableValues
+              fieldDefinition.arguments arguments
+            = .success coercedArguments
         -> ¬ fieldPairProjectionTarget targetParent leftField rightField
               leftArguments rightArguments parentType fieldName
-              (Execution.coerceArgumentValues schema variableValues
-                fieldDefinition.arguments arguments))
+              coercedArguments)
       -> ∀ fuel,
           Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
@@ -879,28 +888,34 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWi
           simp [Execution.executeField, hlookup,
             deepSelectionSetSuccessResolversWithRef]
       | some fieldDefinition =>
-          have hcomplete :=
-            completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
-              schema rootSelectionSet base variableValues targetParent
-              leftField rightField leftArguments rightArguments fuel
-              fieldDefinition.outputType
-              [{
-                parentType := parentType,
-                responseName := responseName,
-                fieldName := fieldName,
-                arguments := arguments,
-                selectionSet := childSelectionSet
-              }]
-              parentType fieldName
-          simpa [Execution.executeField, Execution.resolveFieldValue, hlookup,
-            deepSelectionSetSuccessResolversWithRef,
-            fieldPairOrDeepSuccessResolvers_other_root schema
-              rootSelectionSet base targetParent leftField rightField
-              parentType fieldName runtimeType leftArguments rightArguments
-              (Execution.coerceArgumentValues schema variableValues
-                fieldDefinition.arguments arguments)
-              ref (htarget fieldDefinition hlookup)] using
-            congrArg (Execution.singleFieldResult responseName) hcomplete
+          cases hcoerce
+                : Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments arguments with
+          | error =>
+              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                hcoerce]
+          | success coercedArguments =>
+              have hcomplete :=
+                completeValue_fieldPairOrDeepSuccessResolvers_deepSuccessWithRef_value
+                  schema rootSelectionSet base variableValues targetParent
+                  leftField rightField leftArguments rightArguments fuel
+                  fieldDefinition.outputType
+                  [{
+                    parentType := parentType,
+                    responseName := responseName,
+                    fieldName := fieldName,
+                    arguments := arguments,
+                    selectionSet := childSelectionSet
+                  }]
+                  parentType fieldName
+              simpa [Execution.executeField, Execution.resolveFieldValue, hlookup, hcoerce,
+                deepSelectionSetSuccessResolversWithRef,
+                fieldPairOrDeepSuccessResolvers_other_root schema
+                  rootSelectionSet base targetParent leftField rightField
+                  parentType fieldName runtimeType leftArguments rightArguments
+                  coercedArguments ref
+                  (htarget fieldDefinition coercedArguments hlookup hcoerce)] using
+                congrArg (Execution.singleFieldResult responseName) hcomplete
 
 mutual
   theorem
@@ -908,7 +923,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
           (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
@@ -934,7 +949,7 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
           (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
@@ -953,30 +968,30 @@ mutual
         | none =>
             simp [Execution.executeField, hlookup]
         | some fieldDefinition =>
+            cases hcoerce : Execution.coerceArgumentValues schema variableValues
+                fieldDefinition.arguments field.arguments with
+            | error =>
+                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  hcoerce]
+            | success coercedArguments =>
             cases hresolve :
                 base.resolve field.parentType field.fieldName
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments field.arguments)
-                  source with
+                  coercedArguments source with
             | none =>
                 simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  hcoerce,
                   fieldPairOrDeepSuccessResolvers_target schema
                     rootSelectionSet base targetParent leftField rightField
                     field.parentType field.fieldName leftArguments
-                    rightArguments
-                    (Execution.coerceArgumentValues schema variableValues
-                      fieldDefinition.arguments field.arguments)
-                    source,
+                    rightArguments coercedArguments source,
                   hresolve]
             | some resolved =>
                 simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  hcoerce,
                   fieldPairOrDeepSuccessResolvers_target schema
                     rootSelectionSet base targetParent leftField rightField
                     field.parentType field.fieldName leftArguments
-                    rightArguments
-                    (Execution.coerceArgumentValues schema variableValues
-                      fieldDefinition.arguments field.arguments)
-                    source,
+                    rightArguments coercedArguments source,
                   hresolve,
                   completeValue_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
                     schema rootSelectionSet base variableValues targetParent
@@ -989,7 +1004,7 @@ mutual
       (base : Execution.Resolvers ObjectRef)
       (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (fieldType : TypeRef)
           (fields : List Execution.ExecutableField)
           (value : Execution.ResolverValue ObjectRef),
@@ -1095,7 +1110,7 @@ mutual
       {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
       (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
       (targetParent leftField rightField : Name)
-      (leftArguments rightArguments : List Argument)
+      (leftArguments rightArguments : Execution.CoercedArguments)
       : ∀ (fuel : Nat) (itemType : TypeRef)
           (fields : List Execution.ExecutableField)
           (values : List (Execution.ResolverValue ObjectRef)),
@@ -1123,7 +1138,7 @@ theorem executeSelectionSet_fieldPairOrDeepSuccessResolvers_projectionTargetReso
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument) (parentType : Name)
+    (leftArguments rightArguments : Execution.CoercedArguments) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) (selectionSet : List Selection)
     : Execution.executeSelectionSet schema
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
@@ -1147,7 +1162,7 @@ theorem
     {ObjectRef : Type} (schema : Schema) (rootSelectionSet : List Selection)
     (base : Execution.Resolvers ObjectRef) (variableValues : Execution.VariableValues)
     (fuel : Nat) (targetParent leftField rightField : Name)
-    (leftArguments rightArguments : List Argument) (parentType : Name)
+    (leftArguments rightArguments : Execution.CoercedArguments) (parentType : Name)
     (source : Execution.ResolverValue ObjectRef) (selectionSet : List Selection)
     : Execution.executeSelectionSetAsResponse schema
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
@@ -1167,15 +1182,16 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
     (base : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (source : Execution.ResolverValue ObjectRef)
     (childSelectionSet : List Selection)
     : (∀ fieldDefinition,
         schema.lookupField targetParent leftField = some fieldDefinition
-        -> Argument.argumentsEquivalent
+        -> Execution.ArgumentCoercionResult.equivalent
             (Execution.coerceArgumentValues schema variableValues
               fieldDefinition.arguments arguments)
-            leftArguments)
+            (.success leftArguments))
       -> ∀ fuel,
           Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
@@ -1207,40 +1223,47 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
       | none =>
           simp [Execution.executeField, hlookup]
       | some fieldDefinition =>
-          have hcoercedArguments := harguments fieldDefinition hlookup
-          cases hresolve
-                : base.resolve targetParent leftField
-                    (Execution.coerceArgumentValues schema variableValues
-                      fieldDefinition.arguments arguments) source with
-          | none =>
-              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
-                fieldPairOrDeepSuccessResolvers_left_root schema
-                  rootSelectionSet base targetParent leftField rightField
-                  leftArguments rightArguments
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments arguments)
-                  source hcoercedArguments,
-                hresolve]
-          | some resolved =>
-              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
-                fieldPairOrDeepSuccessResolvers_left_root schema
-                  rootSelectionSet base targetParent leftField rightField
-                  leftArguments rightArguments
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments arguments)
-                  source hcoercedArguments,
-                hresolve,
-                completeValue_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
-                  schema rootSelectionSet base variableValues targetParent
-                  leftField rightField leftArguments rightArguments fuel
-                  fieldDefinition.outputType
-                  [{
-                    parentType := targetParent
-                    responseName := responseName
-                    fieldName := leftField
-                    arguments := arguments
-                    selectionSet := childSelectionSet
-                  }] resolved]
+          have hcoercion := harguments fieldDefinition hlookup
+          cases hcoerce
+                : Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments arguments with
+          | error =>
+              simp [Execution.ArgumentCoercionResult.equivalent, hcoerce] at hcoercion
+          | success coercedArguments =>
+              have hcoercedArguments :
+                  Execution.CoercedArgument.argumentsEquivalent coercedArguments
+                    leftArguments := by
+                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce] using
+                  hcoercion
+              cases hresolve
+                    : base.resolve targetParent leftField coercedArguments source with
+              | none =>
+                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                    hcoerce,
+                    fieldPairOrDeepSuccessResolvers_left_root schema
+                      rootSelectionSet base targetParent leftField rightField
+                      leftArguments rightArguments coercedArguments
+                      source hcoercedArguments,
+                    hresolve]
+              | some resolved =>
+                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                    hcoerce,
+                    fieldPairOrDeepSuccessResolvers_left_root schema
+                      rootSelectionSet base targetParent leftField rightField
+                      leftArguments rightArguments coercedArguments
+                      source hcoercedArguments,
+                    hresolve,
+                    completeValue_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
+                      schema rootSelectionSet base variableValues targetParent
+                      leftField rightField leftArguments rightArguments fuel
+                      fieldDefinition.outputType
+                      [{
+                        parentType := targetParent
+                        responseName := responseName
+                        fieldName := leftField
+                        arguments := arguments
+                        selectionSet := childSelectionSet
+                      }] resolved]
 
 theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
     {ObjectRef : Type} (schema : Schema)
@@ -1248,15 +1271,16 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
     (base : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (targetParent leftField rightField responseName : Name)
-    (leftArguments rightArguments arguments : List Argument)
+    (leftArguments rightArguments : Execution.CoercedArguments)
+    (arguments : List Argument)
     (source : Execution.ResolverValue ObjectRef)
     (childSelectionSet : List Selection)
     : (∀ fieldDefinition,
         schema.lookupField targetParent rightField = some fieldDefinition
-        -> Argument.argumentsEquivalent
+        -> Execution.ArgumentCoercionResult.equivalent
             (Execution.coerceArgumentValues schema variableValues
               fieldDefinition.arguments arguments)
-            rightArguments)
+            (.success rightArguments))
       -> ∀ fuel,
           Execution.executeField schema
             (fieldPairOrDeepSuccessResolvers schema rootSelectionSet base
@@ -1288,40 +1312,47 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
       | none =>
           simp [Execution.executeField, hlookup]
       | some fieldDefinition =>
-          have hcoercedArguments := harguments fieldDefinition hlookup
-          cases hresolve
-                : base.resolve targetParent rightField
-                    (Execution.coerceArgumentValues schema variableValues
-                      fieldDefinition.arguments arguments) source with
-          | none =>
-              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
-                fieldPairOrDeepSuccessResolvers_right_root schema
-                  rootSelectionSet base targetParent leftField rightField
-                  leftArguments rightArguments
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments arguments)
-                  source hcoercedArguments,
-                hresolve]
-          | some resolved =>
-              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
-                fieldPairOrDeepSuccessResolvers_right_root schema
-                  rootSelectionSet base targetParent leftField rightField
-                  leftArguments rightArguments
-                  (Execution.coerceArgumentValues schema variableValues
-                    fieldDefinition.arguments arguments)
-                  source hcoercedArguments,
-                hresolve,
-                completeValue_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
-                  schema rootSelectionSet base variableValues targetParent
-                  leftField rightField leftArguments rightArguments fuel
-                  fieldDefinition.outputType
-                  [{
-                    parentType := targetParent
-                    responseName := responseName
-                    fieldName := rightField
-                    arguments := arguments
-                    selectionSet := childSelectionSet
-                  }] resolved]
+          have hcoercion := harguments fieldDefinition hlookup
+          cases hcoerce
+                : Execution.coerceArgumentValues schema variableValues
+                    fieldDefinition.arguments arguments with
+          | error =>
+              simp [Execution.ArgumentCoercionResult.equivalent, hcoerce] at hcoercion
+          | success coercedArguments =>
+              have hcoercedArguments :
+                  Execution.CoercedArgument.argumentsEquivalent coercedArguments
+                    rightArguments := by
+                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce] using
+                  hcoercion
+              cases hresolve
+                    : base.resolve targetParent rightField coercedArguments source with
+              | none =>
+                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                    hcoerce,
+                    fieldPairOrDeepSuccessResolvers_right_root schema
+                      rootSelectionSet base targetParent leftField rightField
+                      leftArguments rightArguments coercedArguments
+                      source hcoercedArguments,
+                    hresolve]
+              | some resolved =>
+                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                    hcoerce,
+                    fieldPairOrDeepSuccessResolvers_right_root schema
+                      rootSelectionSet base targetParent leftField rightField
+                      leftArguments rightArguments coercedArguments
+                      source hcoercedArguments,
+                    hresolve,
+                    completeValue_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
+                      schema rootSelectionSet base variableValues targetParent
+                      leftField rightField leftArguments rightArguments fuel
+                      fieldDefinition.outputType
+                      [{
+                        parentType := targetParent
+                        responseName := responseName
+                        fieldName := rightField
+                        arguments := arguments
+                        selectionSet := childSelectionSet
+                      }] resolved]
 
 end GroundTypeNormalization
 

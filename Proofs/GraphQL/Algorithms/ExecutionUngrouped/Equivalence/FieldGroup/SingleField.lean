@@ -1,3 +1,4 @@
+import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.FieldGroup.CompleteAppend
 
 /-!
@@ -29,7 +30,7 @@ theorem resultValueOrNull_executeField_depth_zero_none
       simp [executeField, hlookup, resultValueOrNull]
   | some fieldDefinition =>
       cases hresolve
-            : resolveFieldValue schema resolvers variableValues fieldDefinition
+            : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
                 field.parentType field.fieldName field.arguments source with
       | none =>
           rcases fieldDefinition with ⟨fdName, fdOutput, fdArgs⟩
@@ -590,7 +591,7 @@ theorem visitSubfields_executableFieldSelections_single_existing_eq_merge_comple
     (resolvedValue : ResolverValue ObjectIdentity) (previous : ResponseValue)
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolve
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName arguments source
         = some resolvedValue)
     : visitSubfields schema resolvers variableValues (completionDepth + 1 + 1)
@@ -667,11 +668,11 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_aligned_res
           fields (some resolvedValue))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName arguments source
         = some resolvedValue)
     (hresolveLater
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName laterArguments source
         = some resolvedValue)
     (hprefixChildren
@@ -927,7 +928,7 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName laterArguments source
         = some resolvedValue)
     (hprefixChildren
@@ -1183,7 +1184,7 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName laterArguments source
         = some resolvedValue)
     (hprefixChildren
@@ -1446,7 +1447,7 @@ theorem
               resolvedValue)))
     (hlookup : schema.lookupField parentType fieldName = some fieldDefinition)
     (hresolveLater
-      : resolveFieldValue schema resolvers variableValues fieldDefinition
+      : coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
           parentType fieldName laterArguments source
         = some resolvedValue)
     (hprefixChildren
