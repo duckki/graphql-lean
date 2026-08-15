@@ -38,6 +38,16 @@ theory.
 - [QueryInclusion](GraphQL/Theories/QueryInclusion.lean) provides a verified,
   condition-aware decision procedure for recursive response inclusion that preserves
   resolver-call provenance.
+- [TreeSummary](GraphQL/Theories/TreeSummary.lean) provides fast syntactic and
+  exact-case folds over feasible condition trees. Generic framework theorems lift
+  local algebra obligations to execution soundness, while the exact backend also
+  supports opt-in structural least-bound proofs.
+- [StaticCost](GraphQL/Theories/TreeSummary/StaticCost.lean) performs
+  IBM GraphQL Cost Directives static analysis over condition trees, with an
+  external model for the custom directive metadata omitted from the core schema
+  syntax. It reports separate type and field costs, and its execution-level proof
+  bounds query-response cost when the completed response respects the model's
+  list-size estimates.
 
 ## GraphQL Layout
 
@@ -66,7 +76,8 @@ definition surfaces below.
   execution, and breadth-first execution.
 - [GraphQL/Theories/](GraphQL/Theories/): public project theories, currently
   including normal forms, annotated execution, selection-condition extraction, and
-  query inclusion.
+  query inclusion, condition-tree extraction and interpretation, and compositional
+  tree summaries.
 
 Proof witnesses are under [Proofs/](Proofs/). Ordinary tests are under
 [Tests/GraphQL/](Tests/GraphQL/), and generated or fixture-driven conformance
@@ -91,4 +102,13 @@ lake build
   preservation theorems.
 - [docs/theories/normal-form-uniqueness.md](docs/theories/normal-form-uniqueness.md): canonicity
   and semantic-equivalence results for normal forms.
+- [docs/theories/condition-tree.md](docs/theories/condition-tree.md): condition-tree extraction,
+  execution, reduction, and proof witnesses.
+- [docs/theories/tree-summary.md](docs/theories/tree-summary.md): contextual summary folds,
+  annotated-response soundness, and the MaxResponseSize example.
+- [docs/theories/tree-summary-factorization.md](docs/theories/tree-summary-factorization.md):
+  implementation
+  and soundness argument for factorizing the fast syntactic backend's branch cases.
+- [docs/theories/static-cost.md](docs/theories/static-cost.md): static cost and list-size
+  model, cost rule, and tree-summary entry points.
 - [docs/development.md](docs/development.md): developer guide.

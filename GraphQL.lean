@@ -18,6 +18,12 @@ import GraphQL.Theories.NormalForm
 import GraphQL.Theories.AnnotatedExecution
 import GraphQL.Theories.SelectionConditions
 import GraphQL.Theories.ResponseMeasure
+import GraphQL.Theories.ConditionTree
+import GraphQL.Theories.ConditionTree.Execution
+import GraphQL.Theories.ConditionTree.Reduce
+import GraphQL.Theories.TreeSummary
+import GraphQL.Theories.TreeSummary.StaticCost
+import GraphQL.Theories.TreeSummary.MaxResponseSize
 import GraphQL.Theories.QueryInclusion
 import GraphQL.Theories.ResponsePath
 

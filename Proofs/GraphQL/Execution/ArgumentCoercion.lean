@@ -1820,7 +1820,6 @@ private theorem lookupValue_eq_some_mem
 
 private theorem lookupValue_equivalent
     {left right : List Argument}
-    (_hleft : (left.map Argument.name).Nodup)
     (hright : (right.map Argument.name).Nodup)
     (hequivalent : Argument.argumentsEquivalent left right)
     (name : Name)
@@ -2085,7 +2084,7 @@ private theorem coerceArgumentValues_equivalent_of_lookups
 theorem coerceArgumentValues_equivalent_of_equivalent
     (schema : Schema) (variableValues : VariableValues)
     (definitions : List InputValueDefinition) {left right : List Argument}
-    (hleft : (left.map Argument.name).Nodup)
+    (_hleft : (left.map Argument.name).Nodup)
     (hright : (right.map Argument.name).Nodup)
     (hequivalent : Argument.argumentsEquivalent left right)
     : ArgumentCoercionResult.equivalent
@@ -2093,7 +2092,22 @@ theorem coerceArgumentValues_equivalent_of_equivalent
         (coerceArgumentValues schema variableValues definitions right) := by
   apply coerceArgumentValues_equivalent_of_lookups schema
     (variableValuesCoercionEquivalent_refl variableValues)
-  exact lookupValue_equivalent hleft hright hequivalent
+  exact lookupValue_equivalent hright hequivalent
+
+-- A unique right-hand argument map is sufficient: every left occurrence related by
+-- `argumentsEquivalent` must agree with that unique value, even if the left syntax
+-- itself contains duplicate occurrences.
+theorem coerceArgumentValues_equivalent_of_equivalent_rightNodup
+    (schema : Schema) (variableValues : VariableValues)
+    (definitions : List InputValueDefinition) {left right : List Argument}
+    (hright : (right.map Argument.name).Nodup)
+    (hequivalent : Argument.argumentsEquivalent left right)
+    : ArgumentCoercionResult.equivalent
+        (coerceArgumentValues schema variableValues definitions left)
+        (coerceArgumentValues schema variableValues definitions right) := by
+  apply coerceArgumentValues_equivalent_of_lookups schema
+    (variableValuesCoercionEquivalent_refl variableValues)
+  exact lookupValue_equivalent hright hequivalent
 
 theorem coerceArgumentValues_equivalent_of_variableValuesCoercionEquivalent
     (schema : Schema) {left right : VariableValues}

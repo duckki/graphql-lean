@@ -2,6 +2,18 @@
 
 This file records external GraphQL formalization references for the Lean development.
 
+## IBM GraphQL Cost Directives
+
+- Specification: <https://ibm.github.io/graphql-specs/cost-spec.html>
+- Status used here: working draft for `@cost`, `@listSize`, Static Query Analysis,
+  and Query Response Analysis.
+
+`GraphQL.Theories.TreeSummary.StaticCost` follows this specification's separate type
+and field costs, default weights, signed input adjustments, abstract-type maximum, and
+list-size precedence. The Lean model uses integral weights and requires a configured
+finite fallback where the IBM specification would leave a list unbounded. See
+[`static-cost.md`](theories/static-cost.md) for the exact scoped boundary.
+
 ## GraphCoQL
 
 - Repository: <https://github.com/imfd/GraphCoQL>
