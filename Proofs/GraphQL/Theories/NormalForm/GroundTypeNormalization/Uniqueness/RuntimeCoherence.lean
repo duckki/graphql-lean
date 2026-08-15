@@ -492,9 +492,7 @@ theorem SelectionSetProbeRootCoherentDeep.field_child_runtimeActive_of_mem
       SelectionSetProbeRootCoherentDeep schema rootSelectionSet
         fieldDefinition.outputType.namedType childSelectionSet :=
     hcoherent.field_child_of_mem hmem hlookup
-  exact
-    ⟨runtimeType, hhead, hinclude, hruntimeObject, hactive,
-      hchildCoherent⟩
+  exact ⟨runtimeType, hhead, hinclude, hruntimeObject, hactive, hchildCoherent⟩
 
 theorem fieldHeadProbeRuntimeCoherent.to_compositeTargetRuntime
     {schema : Schema} {rootSelectionSet childSelectionSet : List Selection}

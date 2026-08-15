@@ -145,10 +145,12 @@ theorem executeSelectionSetAsResponse_object_of_field_ok
   rcases executeSelectionSet_ok_of_field_ok schema resolvers variableValues
       fuel parentType source selectionSet hfree hnormal hobject hfieldOk with
     ⟨responseFields, errors, hexecute⟩
-  exact
-    ⟨responseFields, errors,
-      ExecutionResponseKeys.executeSelectionSetAsResponse_eq_object_of_executeSelectionSet_ok
-        hexecute⟩
+  exact ⟨
+    responseFields,
+    errors,
+    ExecutionResponseKeys.executeSelectionSetAsResponse_eq_object_of_executeSelectionSet_ok
+      hexecute
+  ⟩
 
 theorem executeSelectionSet_ok_field_mem_of_field_ok
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -365,11 +367,13 @@ theorem executeSelectionSetAsResponse_object_field_mem_of_field_ok
         targetChildSelectionSet targetValue targetErrors selectionSet
         hfree hnormal hobject htargetMem htargetExecute hfieldOk with
     ⟨responseFields, errors, hexecute, htargetInFields⟩
-  exact
-    ⟨responseFields, errors,
-      ExecutionResponseKeys.executeSelectionSetAsResponse_eq_object_of_executeSelectionSet_ok
-        hexecute,
-      htargetInFields⟩
+  exact ⟨
+    responseFields,
+    errors,
+    ExecutionResponseKeys.executeSelectionSetAsResponse_eq_object_of_executeSelectionSet_ok
+      hexecute,
+    htargetInFields
+  ⟩
 
 end ExecutionSuccess
 

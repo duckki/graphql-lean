@@ -231,8 +231,8 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
       ⟨missingVar, hmissingLeft, hmissingValue⟩
     have hmissing : Execution.inputValueBoolean? variableValues
         (.variable missingVar) = none := by
-      cases hvalue : Execution.inputValueBoolean? variableValues
-        (.variable missingVar) with
+      cases hvalue
+            : Execution.inputValueBoolean? variableValues (.variable missingVar) with
       | none => rfl
       | some value => exact False.elim (hmissingValue value hvalue)
     have hmissingRight : missingVar ∈ rightVar :: rightVariables :=

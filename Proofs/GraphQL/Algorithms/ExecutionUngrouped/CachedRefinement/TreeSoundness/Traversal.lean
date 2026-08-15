@@ -113,9 +113,9 @@ mutual
           subst groupName
           cases fuel with
           | zero =>
-              cases hprevious :
-                objectField? responseName
-                  (.object (.object runtimeType ref) outputFields) with
+              cases hprevious
+                    : objectField? responseName
+                        (.object (.object runtimeType ref) outputFields) with
               | none =>
                   have hpreviousOut :
                       ExecutionUngroupedUncached.responseObjectField? responseName
@@ -225,13 +225,13 @@ mutual
                           selectionSetFieldsWithin_collectFields schema variableValues
                             childRuntime (.object childRuntime childRef)
                             (GraphQL.Execution.mergedFieldSelectionSet groupFields)
-                    exact
-                      (visitSubfields_output_eq_uncached_and_treeSound_object schema
-                        resolvers variableValues visitFuel childRuntime childRuntime
-                        childRef (GraphQL.Execution.mergedFieldSelectionSet groupFields)
-                        selectionSet childFields hschema hchildObject hchildSelf
-                        hchildReady (hchildMerge childRuntime) hchildWithin
-                        hchildTree).1
+                    exact (visitSubfields_output_eq_uncached_and_treeSound_object schema
+                            resolvers variableValues visitFuel childRuntime childRuntime
+                            childRef
+                            (GraphQL.Execution.mergedFieldSelectionSet groupFields)
+                            selectionSet childFields hschema hchildObject hchildSelf
+                            hchildReady (hchildMerge childRuntime) hchildWithin
+                            hchildTree).1
                   have hcompletionExact :
                       ∀ resolved completionPrevious?,
                         (∀ previous,

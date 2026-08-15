@@ -238,10 +238,12 @@ theorem PathLocalSelectionSetHeadReady.member_flatten_of_sound
         (selectionSet := selectionSet) (members := members)
         hmember hlocalRuntime with
     ⟨runtimeType, hruntime⟩
-  exact
-    ⟨runtimeType, hruntime,
-      hsound currentParent fieldName runtimeType arguments fieldDefinition
-        hlookup hcomposite hnonObject hruntime⟩
+  exact ⟨
+    runtimeType,
+    hruntime,
+    hsound currentParent fieldName runtimeType arguments fieldDefinition
+      hlookup hcomposite hnonObject hruntime
+  ⟩
 
 theorem PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
     {schema : Schema} {currentParent : Name}
@@ -267,10 +269,12 @@ theorem PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
         (selectionSet := memberRoot) (members := members)
         hmember hlocalRuntime with
     ⟨runtimeType, hruntime⟩
-  exact
-    ⟨runtimeType, hruntime,
-      hsound currentParent fieldName runtimeType arguments fieldDefinition
-        hlookup hcomposite hnonObject hruntime⟩
+  exact ⟨
+    runtimeType,
+    hruntime,
+    hsound currentParent fieldName runtimeType arguments fieldDefinition
+      hlookup hcomposite hnonObject hruntime
+  ⟩
 
 theorem abstractRuntimeForFieldHeadDeep?_append_context_some
     {schema : Schema}
@@ -327,10 +331,12 @@ theorem PathLocalSelectionSetHeadReady.append_context_of_sound
         (pref := pref) (selectionSet := selectionSet) (suff := suff)
         hlocalRuntime with
     ⟨runtimeType, hruntime⟩
-  exact
-    ⟨runtimeType, hruntime,
-      hsound currentParent fieldName runtimeType arguments fieldDefinition
-        hlookup hcomposite hnonObject hruntime⟩
+  exact ⟨
+    runtimeType,
+    hruntime,
+    hsound currentParent fieldName runtimeType arguments fieldDefinition
+      hlookup hcomposite hnonObject hruntime
+  ⟩
 
 theorem PathLocalSelectionSetCurrentContext.self {selectionSet : List Selection}
     : PathLocalSelectionSetCurrentContext selectionSet selectionSet := by
@@ -363,8 +369,7 @@ theorem PathLocalSelectionSetCurrentContext.trans {inner middle outer : List Sel
   rcases houter with ⟨outerPref, outerSuff, houterEq⟩
   subst middle
   subst outer
-  refine
-    ⟨outerPref ++ innerPref, innerSuff ++ outerSuff, ?_⟩
+  refine ⟨outerPref ++ innerPref, innerSuff ++ outerSuff, ?_⟩
   simp [List.append_assoc]
 
 theorem abstractRuntimeForFieldHeadDeep?_append_some_include_of_sound
@@ -745,9 +750,11 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
   intro hvalid hnormal hsupport hcontext hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
-  · exact
-      ⟨fieldDefinition.outputType.namedType, Or.inl ⟨hobject, rfl⟩,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+  · exact ⟨
+      fieldDefinition.outputType.namedType,
+      Or.inl ⟨hobject, rfl⟩,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   · have hnonObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType =
           false := by
@@ -764,9 +771,7 @@ theorem pathLocalCompositeFieldRuntime_of_valid_normal_support_context
         hready responseName fieldName arguments directives childSelectionSet
           fieldDefinition hmem hlookup hcomposite hnonObject with
       ⟨runtimeType, hruntime, hinclude⟩
-    exact
-      ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hruntime⟩,
-        hinclude⟩
+    exact ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hruntime⟩, hinclude⟩
 
 theorem PathLocalSupportValidNormal.allFields_of_object
     {schema : Schema} {parentType : Name}
@@ -1356,36 +1361,57 @@ theorem fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
                 have hfieldEq : fieldName = targetField := by
                   simpa using hfield
                 subst fieldName
-                exact
-                  ⟨responseName, arguments, directives, childSelectionSet,
-                    by simp, harguments, rfl⟩
+                exact ⟨
+                  responseName,
+                  arguments,
+                  directives,
+                  childSelectionSet,
+                  by simp,
+                  harguments,
+                  rfl
+                ⟩
               · rcases ih hrestAllFields htail with
                   ⟨tailResponseName, tailArguments, tailDirectives,
                     tailChildSelectionSet, htailMem, htailArguments,
                     htailMember⟩
-                exact
-                  ⟨tailResponseName, tailArguments, tailDirectives,
-                    tailChildSelectionSet, List.mem_cons_of_mem _ htailMem,
-                    htailArguments, htailMember⟩
+                exact ⟨
+                  tailResponseName,
+                  tailArguments,
+                  tailDirectives,
+                  tailChildSelectionSet,
+                  List.mem_cons_of_mem _ htailMem,
+                  htailArguments,
+                  htailMember
+                ⟩
             · simp [fieldChildMembersByHeadAtRuntime, hfield, harguments]
                 at hmember
               rcases ih hrestAllFields hmember with
                 ⟨tailResponseName, tailArguments, tailDirectives,
                   tailChildSelectionSet, htailMem, htailArguments,
                   htailMember⟩
-              exact
-                ⟨tailResponseName, tailArguments, tailDirectives,
-                  tailChildSelectionSet, List.mem_cons_of_mem _ htailMem,
-                  htailArguments, htailMember⟩
+              exact ⟨
+                tailResponseName,
+                tailArguments,
+                tailDirectives,
+                tailChildSelectionSet,
+                List.mem_cons_of_mem _ htailMem,
+                htailArguments,
+                htailMember
+              ⟩
           · simp [fieldChildMembersByHeadAtRuntime, hfield] at hmember
             rcases ih hrestAllFields hmember with
               ⟨tailResponseName, tailArguments, tailDirectives,
                 tailChildSelectionSet, htailMem, htailArguments,
                 htailMember⟩
-            exact
-              ⟨tailResponseName, tailArguments, tailDirectives,
-                tailChildSelectionSet, List.mem_cons_of_mem _ htailMem,
-                htailArguments, htailMember⟩
+            exact ⟨
+              tailResponseName,
+              tailArguments,
+              tailDirectives,
+              tailChildSelectionSet,
+              List.mem_cons_of_mem _ htailMem,
+              htailArguments,
+              htailMember
+            ⟩
       | inlineFragment typeCondition directives childSelectionSet =>
           have hheadField :
               Selection.isField
@@ -1478,9 +1504,7 @@ theorem PathLocalSupportValidNormal.field_child_valid_normal_of_mem_lookup
           targetFieldDefinition.outputType.namedType childSelectionSet :=
       selectionSetNormal_field_child_of_mem_lookup hnormal hfieldMemMember
         htargetLookup
-    exact
-      ⟨variableDefinitions, hcompositeKind.2.2, hchildFree,
-        hchildNormal⟩
+    exact ⟨variableDefinitions, hcompositeKind.2.2, hchildFree, hchildNormal⟩
 
 theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object_output
     {schema : Schema} {currentRuntimeType childRuntimeType targetField : Name}
@@ -1499,10 +1523,13 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object
   intro hsupport hcurrentObject hchildObject htargetLookup houtputEq
   subst childRuntimeType
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-  refine
-    ⟨fieldChildMembersByHeadAtRuntime schema currentRuntimeType
+  refine ⟨
+    fieldChildMembersByHeadAtRuntime schema currentRuntimeType
       targetFieldDefinition.outputType.namedType targetField
-      targetArguments currentSelectionSet, rfl, ?_⟩
+      targetArguments currentSelectionSet,
+    rfl,
+    ?_
+  ⟩
   intro memberSelectionSet hmember
   rcases
       fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
@@ -1775,9 +1802,11 @@ theorem
       schema.typeIncludesObjectBool runtimeType runtimeType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema
       hruntimeObject
-  refine
-    ⟨runtimePrunedSelectionSet schema runtimeType pref,
-      runtimePrunedSelectionSet schema runtimeType suff, ?_⟩
+  refine ⟨
+    runtimePrunedSelectionSet schema runtimeType pref,
+    runtimePrunedSelectionSet schema runtimeType suff,
+    ?_
+  ⟩
   simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
     hincludeSelf, hbodyPruned, List.append_assoc]
 
@@ -2451,23 +2480,24 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := by
-                    simp [Execution.executeSelectionSetAsResponse, hmiddle]
-              _ =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source bodySelectionSet := by
-                    simp [Execution.executeSelectionSetAsResponse, hflatten]
-              _ =
-                ({ data := Execution.ResponseValue.object bodyFields,
-                   errors := bodyErrors } : Execution.Response) := by
-                    simpa [resolvers, source] using hbodyResponse
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSetAsResponse schema resolvers
+                      variableValues (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+                simp [Execution.executeSelectionSetAsResponse, hmiddle]
+              _ = Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                    (fuel + 1) runtimeType source bodySelectionSet := by
+                simp [Execution.executeSelectionSetAsResponse, hflatten]
+              _ = ({
+                      data := Execution.ResponseValue.object bodyFields,
+                      errors := bodyErrors
+                    }
+                    : Execution.Response) := by
+                simpa [resolvers, source] using hbodyResponse
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType source
           selectionSet = [] :=
@@ -2687,23 +2717,24 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := by
-                    simp [Execution.executeSelectionSetAsResponse, hmiddle]
-              _ =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source bodySelectionSet := by
-                    simp [Execution.executeSelectionSetAsResponse, hflatten]
-              _ =
-                ({ data := Execution.ResponseValue.object bodyFields,
-                   errors := bodyErrors } : Execution.Response) := by
-                    simpa [resolvers, source] using hbodyResponse
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSetAsResponse schema resolvers
+                      variableValues (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+                simp [Execution.executeSelectionSetAsResponse, hmiddle]
+              _ = Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                    (fuel + 1) runtimeType source bodySelectionSet := by
+                simp [Execution.executeSelectionSetAsResponse, hflatten]
+              _ = ({
+                      data := Execution.ResponseValue.object bodyFields,
+                      errors := bodyErrors
+                    }
+                    : Execution.Response) := by
+                simpa [resolvers, source] using hbodyResponse
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType source
           selectionSet = [] :=
@@ -2862,23 +2893,24 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := by
-                    simp [Execution.executeSelectionSetAsResponse, hmiddle]
-              _ =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source bodySelectionSet := by
-                    simp [Execution.executeSelectionSetAsResponse, hflatten]
-              _ =
-                ({ data := Execution.ResponseValue.object bodyFields,
-                   errors := bodyErrors } : Execution.Response) := by
-                    simpa [resolvers, source] using hbodyExec
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSetAsResponse schema resolvers
+                      variableValues (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+                simp [Execution.executeSelectionSetAsResponse, hmiddle]
+              _ = Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                    (fuel + 1) runtimeType source bodySelectionSet := by
+                simp [Execution.executeSelectionSetAsResponse, hflatten]
+              _ = ({
+                      data := Execution.ResponseValue.object bodyFields,
+                      errors := bodyErrors
+                    }
+                    : Execution.Response) := by
+                simpa [resolvers, source] using hbodyExec
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType source
           selectionSet = [] :=
@@ -3020,12 +3052,15 @@ theorem
       NormalSelectionSetResponsePath.runtimePruned_of_normal hchildValid
         hchildNormal hpath with
     ⟨childRuntimeType, hactive, hinclude, hprunedPath⟩
-  exact
-    ⟨childRuntimeType, hactive, hinclude,
-      normalSelectionSetResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
-        (schema := schema) (currentRuntimeType := currentRuntimeType)
-        (childRuntimeType := childRuntimeType) (targetField := targetField)
-        hmem harguments hprunedPath⟩
+  exact ⟨
+    childRuntimeType,
+    hactive,
+    hinclude,
+    normalSelectionSetResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
+      (schema := schema) (currentRuntimeType := currentRuntimeType)
+      (childRuntimeType := childRuntimeType) (targetField := targetField)
+      hmem harguments hprunedPath
+  ⟩
 
 theorem
     normalSelectionSetObservableResponsePath_of_firstFieldChildByHeadAtRuntime?_field_mem
@@ -3114,12 +3149,15 @@ theorem
       NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
         hchildValid hchildNormal hpath with
     ⟨childRuntimeType, hactive, hinclude, hprunedPath⟩
-  exact
-    ⟨childRuntimeType, hactive, hinclude,
-      normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
-        (schema := schema) (currentRuntimeType := currentRuntimeType)
-        (childRuntimeType := childRuntimeType) (targetField := targetField)
-        hmem harguments hprunedPath⟩
+  exact ⟨
+    childRuntimeType,
+    hactive,
+    hinclude,
+    normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
+      (schema := schema) (currentRuntimeType := currentRuntimeType)
+      (childRuntimeType := childRuntimeType) (targetField := targetField) hmem harguments
+      hprunedPath
+  ⟩
 
 theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_field_child
     {schema : Schema}
@@ -3165,9 +3203,12 @@ theorem PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_f
           some mergedSelectionSet := by
       simpa [List.append_assoc] using hmerged
     simp [fieldPairPathLocalNextSelectionSet, hmergedAssoc]
-  exact
-    ⟨pref, suff, by
-      rw [hnext, hmergedContext, hpruned]⟩
+  exact ⟨
+    pref,
+    suff,
+    by
+      rw [hnext, hmergedContext, hpruned]
+  ⟩
 
 theorem
     PathLocalSelectionSetCurrentContext.fieldPairPathLocalNextSelectionSet_inlineFragment_body
@@ -3360,9 +3401,14 @@ theorem pathLocalCompositeFieldChildReady_of_valid_normal_support_context
         (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem
         (argumentsEquivalent_refl_forSyntaxDiff arguments) hchildNormal
         hchildObject
-  exact
-    ⟨childRuntime, hruntime, hinclude, hchildSupport, hobjectContext,
-      habstractContext⟩
+  exact ⟨
+    childRuntime,
+    hruntime,
+    hinclude,
+    hchildSupport,
+    hobjectContext,
+    habstractContext
+  ⟩
 
 theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
     {schema : Schema}
@@ -3519,9 +3565,15 @@ theorem pathLocalCompositeFieldResponsePathReady_of_valid_normal_support_context
         (currentSelectionSet := currentSelectionSet) hcontext hmem hbodyMem
         (argumentsEquivalent_refl_forSyntaxDiff arguments) hchildNormal
         hchildObject
-  exact
-    ⟨childRuntime, hactive, hinclude, hchildSupport, hnextPath,
-      hobjectContext, habstractContext⟩
+  exact ⟨
+    childRuntime,
+    hactive,
+    hinclude,
+    hchildSupport,
+    hnextPath,
+    hobjectContext,
+    habstractContext
+  ⟩
 
 end GroundTypeNormalization
 

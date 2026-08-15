@@ -804,9 +804,11 @@ namespace ResolverMap
 def fromSpecResolvers (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     : ResolverMap ObjectRef :=
   {
-    resolve := fun parentType fieldName arguments sources =>
-      sources.map (fun source =>
-        resolvers.resolve parentType fieldName arguments source)
+    resolve :=
+      fun parentType fieldName arguments sources =>
+        sources.map
+          (fun source =>
+            resolvers.resolve parentType fieldName arguments source)
     resolve_argumentsEquivalent := by
       intro parentType fieldName firstArguments laterArguments sources hargs
       induction sources with

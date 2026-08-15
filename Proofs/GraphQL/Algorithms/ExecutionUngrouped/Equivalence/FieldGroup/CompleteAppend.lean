@@ -867,23 +867,23 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             identity' hlt hcontains
                             (by simpa using hincludes'))
                         herrors
-                    cases hprevious :
-                        resultValueOrNull
-                          (GraphQL.Execution.completeValue schema resolvers
-                            variableValues (childDepth + 1) (.named typeName)
-                            prefixFields (.object runtimeType identity)) with
+                    cases hprevious
+                          : resultValueOrNull
+                              (GraphQL.Execution.completeValue schema resolvers
+                                variableValues (childDepth + 1) (.named typeName)
+                                prefixFields (.object runtimeType identity)) with
                     | null =>
                         exact False.elim (hprefixNonNull hprevious)
                     | scalar previousValue =>
-                        cases hcompleted :
-                            GraphQL.Execution.executeCollectedFields schema
-                              resolvers variableValues childDepth
-                              (.object runtimeType identity)
-                              (GraphQL.Execution.collectFields schema
-                                variableValues runtimeType
-                                (.object runtimeType identity)
-                                (GraphQL.Execution.mergedFieldSelectionSet
-                                  prefixFields)) with
+                        cases hcompleted
+                              : GraphQL.Execution.executeCollectedFields schema
+                                  resolvers variableValues childDepth
+                                  (.object runtimeType identity)
+                                  (GraphQL.Execution.collectFields schema
+                                    variableValues runtimeType
+                                    (.object runtimeType identity)
+                                    (GraphQL.Execution.mergedFieldSelectionSet
+                                      prefixFields)) with
                         | error prefixErrors =>
                             simp [GraphQL.Execution.completeValue, hincludes,
                               hcompleted, catchBubbleAsNull,
@@ -937,13 +937,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               .object previousFields := by
                             rw [hprefixEq]
                             exact hprevious
-                          cases hfirst :
-                              visitSubfields schema resolvers variableValues
-                                childDepth runtimeType
-                                (.object runtimeType identity)
-                                (GraphQL.Execution.mergedFieldSelectionSet
-                                  prefixFields)
-                                (.object []) with
+                          cases hfirst
+                                : visitSubfields schema resolvers variableValues
+                                    childDepth runtimeType
+                                    (.object runtimeType identity)
+                                    (GraphQL.Execution.mergedFieldSelectionSet
+                                      prefixFields)
+                                    (.object []) with
                           | mk firstOutput firstStatus =>
                               cases firstStatus with
                               | error firstErrors =>
@@ -984,15 +984,15 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                   at hincludes ⊢
                         simp [completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateObject?, hincludes, hparentComposite, hvisited, hstatus', resultValueOrNull, catchVisitBubbleAsNull, visitOk]
                     | list previousValues =>
-                        cases hcompleted :
-                            GraphQL.Execution.executeCollectedFields schema
-                              resolvers variableValues childDepth
-                              (.object runtimeType identity)
-                              (GraphQL.Execution.collectFields schema
-                                variableValues runtimeType
-                                (.object runtimeType identity)
-                                (GraphQL.Execution.mergedFieldSelectionSet
-                                  prefixFields)) with
+                        cases hcompleted
+                              : GraphQL.Execution.executeCollectedFields schema
+                                  resolvers variableValues childDepth
+                                  (.object runtimeType identity)
+                                  (GraphQL.Execution.collectFields schema
+                                    variableValues runtimeType
+                                    (.object runtimeType identity)
+                                    (GraphQL.Execution.mergedFieldSelectionSet
+                                      prefixFields)) with
                         | error prefixErrors =>
                             simp [GraphQL.Execution.completeValue, hincludes,
                               hcompleted, catchBubbleAsNull,
@@ -1016,10 +1016,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
         hchildren
       constructor
       · cases depth with
-          | zero =>
+        | zero =>
             cases resolved <;>
               simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, outOfFuel, resultValueOrNull, GraphQL.Execution.Result.combine]
-          | succ childDepth =>
+        | succ childDepth =>
             cases resolved with
             | null =>
                 simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse]
@@ -1117,9 +1117,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                       specCompleteValueList_eq_of_no_object schema resolvers
                         variableValues childDepth inner (prefixFields ++ [later])
                         prefixFields values hcontains
-                    cases hprefixList :
-                        GraphQL.Execution.completeValueList schema resolvers
-                          variableValues childDepth inner prefixFields values with
+                    cases hprefixList
+                          : GraphQL.Execution.completeValueList schema resolvers
+                              variableValues childDepth inner prefixFields values with
                     | error prefixErrors =>
                         have happended :
                             GraphQL.Execution.completeValueList schema
@@ -1158,9 +1158,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                       completeValueList_append_result_eq_spec_of_mem schema
                         resolvers variableValues childDepth inner prefixFields
                         later values hcontains hvalueAppend hvalueStatus
-                    cases hprefixList :
-                        GraphQL.Execution.completeValueList schema resolvers
-                          variableValues childDepth inner prefixFields values with
+                    cases hprefixList
+                          : GraphQL.Execution.completeValueList schema resolvers
+                              variableValues childDepth inner prefixFields values with
                     | error prefixErrors =>
                         have happended :
                             GraphQL.Execution.completeValueList schema resolvers
@@ -1185,10 +1185,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 later.selectionSet values prefixValues) =
                             visitOk := by
                           simpa [hprefixList] using hlistStatus
-                        cases hrightList :
-                            completeValueList schema resolvers variableValues
-                              childDepth inner later.selectionSet values
-                              prefixValues with
+                        cases hrightList
+                              : completeValueList schema resolvers variableValues
+                                  childDepth inner later.selectionSet values
+                                  prefixValues with
                         | error rightErrors =>
                             simp [hrightList, resultStatus, visitOk]
                               at hrightStatus
@@ -1279,9 +1279,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             values <;>
                         simp [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, reusablePreviousValue?, houterContains, hprefixList, resultValueOrNull, resultStatus, visitOk, catchBubbleAsNull]
                   | true =>
-                      cases hprefixList :
-                          GraphQL.Execution.completeValueList schema resolvers
-                            variableValues childDepth inner prefixFields values with
+                      cases hprefixList
+                            : GraphQL.Execution.completeValueList schema resolvers
+                                variableValues childDepth inner prefixFields values with
                       | error prefixErrors =>
                           simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefixList, resultValueOrNull, resultStatus, visitOk, catchBubbleAsNull]
                       | ok prefixResult =>
@@ -1297,10 +1297,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                   later.selectionSet values prefixValues) =
                               visitOk := by
                             simpa [hprefixList] using hlistStatus
-                          cases hrightList :
-                              completeValueList schema resolvers variableValues
-                                childDepth inner later.selectionSet values
-                                prefixValues with
+                          cases hrightList
+                                : completeValueList schema resolvers variableValues
+                                    childDepth inner later.selectionSet values
+                                    prefixValues with
                           | error rightErrors =>
                               simp [hrightList, resultStatus, visitOk]
                                 at hrightStatus
@@ -1381,10 +1381,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             false := by
                         simpa [TypeRef.isCompositeBool,
                           TypeRef.namedType] using hcontains
-                      cases hprefixList :
-                          GraphQL.Execution.completeValueList schema resolvers
-                            variableValues childDepth inner prefixFields
-                            values with
+                      cases hprefixList
+                            : GraphQL.Execution.completeValueList schema resolvers
+                                variableValues childDepth inner prefixFields
+                                values with
                       | error prefixErrors =>
                           simp [GraphQL.Execution.completeValue, hprefixList, resultValueOrNull, catchBubbleAsNull]
                             at hprefixNonNull
@@ -1393,9 +1393,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             ⟨prefixValues, prefixErrors⟩
                           simp [GraphQL.Execution.completeValue, completeResolvedValue, reusablePreviousValue?, houterContains, hprefixList, resultValueOrNull, catchBubbleAsNull]
                   | true =>
-                      cases hprefixList :
-                          GraphQL.Execution.completeValueList schema resolvers
-                            variableValues childDepth inner prefixFields values with
+                      cases hprefixList
+                            : GraphQL.Execution.completeValueList schema resolvers
+                                variableValues childDepth inner prefixFields values with
                       | error prefixErrors =>
                           simp [GraphQL.Execution.completeValue, hprefixList, resultValueOrNull, catchBubbleAsNull]
                             at hprefixNonNull
@@ -1413,10 +1413,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                   later.selectionSet values prefixValues) =
                               visitOk := by
                             simpa [hprefixList] using hlistStatus
-                          cases hrightList :
-                              completeValueList schema resolvers variableValues
-                                childDepth inner later.selectionSet values
-                                prefixValues with
+                          cases hrightList
+                                : completeValueList schema resolvers variableValues
+                                    childDepth inner later.selectionSet values
+                                    prefixValues with
                           | error rightErrors =>
                               simp [hrightList, resultStatus, visitOk]
                                 at hrightStatus
@@ -1459,17 +1459,18 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                   (by simpa using hincludes))
           rcases hinner with ⟨hcombine, hstatus, hnonnull⟩
           constructor
-          · cases hprefix :
-              GraphQL.Execution.completeValue schema resolvers variableValues
-                (depth + 1) inner prefixFields resolved with
+          · cases hprefix
+                  : GraphQL.Execution.completeValue schema resolvers variableValues
+                      (depth + 1) inner prefixFields resolved with
             | error prefixErrors =>
-                cases hright :
-                    completeResolvedValue schema resolvers variableValues
-                      (depth + 1) inner later.selectionSet resolved
-                      (some (resultValueOrNull
-                        (GraphQL.Execution.completeValue schema resolvers
-                          variableValues (depth + 1) inner prefixFields
-                          resolved))) with
+                cases hright
+                      : completeResolvedValue schema resolvers variableValues
+                          (depth + 1) inner later.selectionSet resolved
+                          (some
+                            (resultValueOrNull
+                              (GraphQL.Execution.completeValue schema resolvers
+                                variableValues (depth + 1) inner prefixFields
+                                resolved))) with
                 | error rightErrors =>
                     have hrightStatus :
                         resultStatus
@@ -1516,13 +1517,14 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         simp [hright, resultStatus, visitOk] at hrightStatus
             | ok prefixResult =>
                 rcases prefixResult with ⟨prefixValue, prefixErrors⟩
-                cases hright :
-                    completeResolvedValue schema resolvers variableValues
-                      (depth + 1) inner later.selectionSet resolved
-                      (some (resultValueOrNull
-                        (GraphQL.Execution.completeValue schema resolvers
-                          variableValues (depth + 1) inner prefixFields
-                          resolved))) with
+                cases hright
+                      : completeResolvedValue schema resolvers variableValues
+                          (depth + 1) inner later.selectionSet resolved
+                          (some
+                            (resultValueOrNull
+                              (GraphQL.Execution.completeValue schema resolvers
+                                variableValues (depth + 1) inner prefixFields
+                                resolved))) with
                 | error rightErrors =>
                     have hrightStatus :
                         resultStatus
@@ -1723,9 +1725,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             visitOk := hstatus
                         simp [hright, resultStatus, visitOk] at hrightStatus
           · constructor
-            · cases hprefix :
-                GraphQL.Execution.completeValue schema resolvers variableValues
-                  (depth + 1) inner prefixFields resolved with
+            · cases hprefix
+                    : GraphQL.Execution.completeValue schema resolvers variableValues
+                        (depth + 1) inner prefixFields resolved with
               | error prefixErrors =>
                   simp [GraphQL.Execution.completeValue, completeResolvedValue_previous_null, hprefix, resultValueOrNull, resultStatus, nonNullCompletion, visitOk]
               | ok prefixResult =>
@@ -1839,9 +1841,9 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             (some (.list prefixValues))
                             hrightStatus hrightNonNull
             · intro hprefixNonNull
-              cases hprefix :
-                  GraphQL.Execution.completeValue schema resolvers variableValues
-                    (depth + 1) inner prefixFields resolved with
+              cases hprefix
+                    : GraphQL.Execution.completeValue schema resolvers variableValues
+                        (depth + 1) inner prefixFields resolved with
               | error prefixErrors =>
                   simp [GraphQL.Execution.completeValue, hprefix, resultValueOrNull, nonNullCompletion]
                     at hprefixNonNull

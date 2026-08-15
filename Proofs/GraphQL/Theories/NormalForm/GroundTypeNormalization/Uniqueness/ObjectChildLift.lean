@@ -589,13 +589,14 @@ theorem
   rcases hdeep responseName fieldName arguments directives childSelectionSet
       hmem with
     ⟨responseValue, fieldErrors, hdeepOk⟩
-  exact
-    ⟨responseValue, fieldErrors,
-      executeField_fieldPairOrDeepSuccess_parentObjectProbe_other_root_ok_of_deepSuccessWithRef_ok
-        schema rootSelectionSet base variableValues parentFuel targetParent
-        targetField childRuntimeType ref outputType leftArguments
-        rightArguments arguments responseName fieldName childSelectionSet
-        responseValue fieldErrors hnotProjection hdeepOk⟩
+  exact ⟨
+    responseValue,
+    fieldErrors,
+    executeField_fieldPairOrDeepSuccess_parentObjectProbe_other_root_ok_of_deepSuccessWithRef_ok
+      schema rootSelectionSet base variableValues parentFuel targetParent targetField
+      childRuntimeType ref outputType leftArguments rightArguments arguments responseName
+      fieldName childSelectionSet responseValue fieldErrors hnotProjection hdeepOk
+  ⟩
 
 theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
     {schema : Schema}
@@ -688,12 +689,14 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
           Execution.ResolverValue.object sourceRuntime sourceRef
           ∧ schema.typeIncludesObjectBool targetParent sourceRuntime =
             true := by
-    exact
-      ⟨targetParent, ProjectionResolverRef.root (none : Option ObjectRef),
-        by
-          simp [parentSource, projectionRootResolverValue,
-            projectionResolverValue],
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    exact ⟨
+      targetParent,
+      ProjectionResolverRef.root (none : Option ObjectRef),
+      by
+        simp [parentSource, projectionRootResolverValue,
+          projectionResolverValue],
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   rcases htail base variableValues fuel runtimeType ref hfieldInclude with
     ⟨leftTailFields, leftTailErrors, rightTailFields, rightTailErrors,
       hleftTail, hrightTail⟩
@@ -908,11 +911,20 @@ theorem split_context_selectionSets_ok_of_field_ok
         variableValues fuel parentType source rightSuffix hrightSuffixFree
         hrightSuffixNormal hobject hrightSuffixFieldOk with
     ⟨rightSuffixFields, rightSuffixErrors, hrightSuffix⟩
-  exact
-    ⟨leftPrefixFields, leftPrefixErrors, rightPrefixFields,
-      rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
-      rightSuffixFields, rightSuffixErrors, hleftPrefix, hrightPrefix,
-      hleftSuffix, hrightSuffix⟩
+  exact ⟨
+    leftPrefixFields,
+    leftPrefixErrors,
+    rightPrefixFields,
+    rightPrefixErrors,
+    leftSuffixFields,
+    leftSuffixErrors,
+    rightSuffixFields,
+    rightSuffixErrors,
+    hleftPrefix,
+    hrightPrefix,
+    hleftSuffix,
+    hrightSuffix
+  ⟩
 
 theorem object_child_split_context_ok_of_fieldsExecuteOk
     {schema : Schema}
@@ -1391,12 +1403,14 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
           Execution.ResolverValue.object sourceRuntime sourceRef
           ∧ schema.typeIncludesObjectBool targetParent sourceRuntime =
             true := by
-    exact
-      ⟨targetParent, ProjectionResolverRef.root (none : Option ObjectRef),
-        by
-          simp [parentSource, projectionRootResolverValue,
-            projectionResolverValue],
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    exact ⟨
+      targetParent,
+      ProjectionResolverRef.root (none : Option ObjectRef),
+      by
+        simp [parentSource, projectionRootResolverValue,
+          projectionResolverValue],
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   rcases hcontext with
     ⟨leftPrefixFields, leftPrefixErrors, rightPrefixFields,
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
@@ -1644,12 +1658,14 @@ theorem
           Execution.ResolverValue.object sourceRuntime sourceRef
           ∧ schema.typeIncludesObjectBool targetParent sourceRuntime =
             true := by
-    exact
-      ⟨targetParent, ProjectionResolverRef.root (none : Option ObjectRef),
-        by
-          simp [parentSource, projectionRootResolverValue,
-            projectionResolverValue],
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    exact ⟨
+      targetParent,
+      ProjectionResolverRef.root (none : Option ObjectRef),
+      by
+        simp [parentSource, projectionRootResolverValue,
+          projectionResolverValue],
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   rcases hcontext with
     ⟨leftPrefixFields, leftPrefixErrors, rightPrefixFields,
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
@@ -2003,12 +2019,14 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
           Execution.ResolverValue.object sourceRuntime sourceRef
           ∧ schema.typeIncludesObjectBool targetParent sourceRuntime =
             true := by
-    exact
-      ⟨targetParent, ProjectionResolverRef.root (none : Option ObjectRef),
-        by
-          simp [parentSource, projectionRootResolverValue,
-            projectionResolverValue],
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    exact ⟨
+      targetParent,
+      ProjectionResolverRef.root (none : Option ObjectRef),
+      by
+        simp [parentSource, projectionRootResolverValue,
+          projectionResolverValue],
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   rcases hcontext base variableValues fuel runtimeType ref hfieldInclude with
     ⟨leftPrefixFields, leftPrefixErrors, rightPrefixFields,
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,

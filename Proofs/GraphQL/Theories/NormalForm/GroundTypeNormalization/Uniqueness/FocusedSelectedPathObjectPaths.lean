@@ -47,14 +47,17 @@ theorem
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
         hchildPath hchildValid hchildNormal with
     ⟨childRuntimeType, childSpine, hchildInclude, hchildObservable⟩
-  exact
-    ⟨childRuntimeType, childSpine, hchildInclude,
-      fun currentSelectionSet =>
-        PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
-          hobject hmem hlookup hcomposite
-          (hchildObservable
-            (fieldPairPathLocalNextSelectionSet schema parentType
-              childRuntimeType fieldName arguments currentSelectionSet))⟩
+  exact ⟨
+    childRuntimeType,
+    childSpine,
+    hchildInclude,
+    fun currentSelectionSet =>
+      PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
+        hobject hmem hlookup hcomposite
+        (hchildObservable
+          (fieldPairPathLocalNextSelectionSet schema parentType
+            childRuntimeType fieldName arguments currentSelectionSet))
+  ⟩
 
 theorem
     pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_objectChild_of_valid_normal_observableResponsePath
@@ -161,10 +164,19 @@ theorem field_components_eq_of_object_observablePath_responseName_mem
       field_components_eq_of_selectionSetNormal_responseName_mem
         hnormal hpathMem hmem with
     ⟨hfieldName, harguments, hdirectives, hchild⟩
-  exact
-    ⟨pathFieldName, pathArguments, pathDirectives,
-      pathChildSelectionSet, pathFieldDefinition, hpathMem, hpathLookup,
-      hfieldName, harguments, hdirectives, hchild⟩
+  exact ⟨
+    pathFieldName,
+    pathArguments,
+    pathDirectives,
+    pathChildSelectionSet,
+    pathFieldDefinition,
+    hpathMem,
+    hpathLookup,
+    hfieldName,
+    harguments,
+    hdirectives,
+    hchild
+  ⟩
 
 theorem field_path_cases_of_object_observablePath_responseName_mem
     {schema : Schema} {parentType responseName : Name}
@@ -238,10 +250,10 @@ theorem normalSelectionSetObservableResponsePath_of_valid_normal_object_field_me
   by_cases hleaf :
       (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool
         schema = false
-  · exact
-      ⟨[],
-        NormalSelectionSetObservableResponsePath.objectLeaf hobject hmem
-          hlookup hleaf⟩
+  · exact ⟨
+      [],
+      NormalSelectionSetObservableResponsePath.objectLeaf hobject hmem hlookup hleaf
+    ⟩
   · have hcomposite :
         (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool
           schema = true := by
@@ -253,10 +265,11 @@ theorem normalSelectionSetObservableResponsePath_of_valid_normal_object_field_me
         normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
           hvalid hnormal hmem hlookup hcomposite with
       ⟨childPath, hchildPath⟩
-    exact
-      ⟨childPath,
-        NormalSelectionSetObservableResponsePath.objectChild hobject hmem
-          hlookup hcomposite hchildPath⟩
+    exact ⟨
+      childPath,
+      NormalSelectionSetObservableResponsePath.objectChild hobject hmem
+        hlookup hcomposite hchildPath
+    ⟩
 
 theorem normalSelectionSetObservableResponsePath_exists_of_valid_normal_object_nonempty
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -550,18 +563,22 @@ theorem normalSelectionSetObjectOutputSameFieldSpinePath_exists_of_responsePath
   intro hpath
   induction hpath with
   | leaf hobject hleftMem hrightMem hlookup hleaf =>
-      exact
-        ⟨_, _,
-          NormalSelectionSetObjectOutputSameFieldSpinePath.leaf hobject
-            hleftMem hrightMem hlookup hleaf⟩
+      exact ⟨
+        _,
+        _,
+        NormalSelectionSetObjectOutputSameFieldSpinePath.leaf hobject
+          hleftMem hrightMem hlookup hleaf
+      ⟩
   | child hobject hleftMem hrightMem hlookup hcomposite hobjectOutput
       _hchild ih =>
       rcases ih with ⟨leftChildSpine, rightChildSpine, hchildSpine⟩
-      exact
-        ⟨_, _,
-          NormalSelectionSetObjectOutputSameFieldSpinePath.child hobject
-            hleftMem hrightMem hlookup hcomposite hobjectOutput
-            hchildSpine⟩
+      exact ⟨
+        _,
+        _,
+        NormalSelectionSetObjectOutputSameFieldSpinePath.child hobject
+          hleftMem hrightMem hlookup hcomposite hobjectOutput
+          hchildSpine
+      ⟩
 
 theorem field_mem_of_object_normalSelectionSetObjectOutputObservableResponsePath_cons
     {schema : Schema} {parentType responseName : Name}
@@ -655,12 +672,17 @@ theorem
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition
       intro _hvalid _hnormal
-      exact
-        ⟨[{ responseName := responseName, fieldName := fieldName,
-            arguments := arguments, childRuntime := none }],
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectLeaf
-              hobject hmem hlookup hleaf⟩
+      exact ⟨
+        [{
+          responseName := responseName,
+          fieldName := fieldName,
+          arguments := arguments,
+          childRuntime := none
+        }],
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectLeaf
+            hobject hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite hobjectOutput
       _hchild ih =>
       rename_i pathParentType responseName fieldName arguments directives
@@ -677,18 +699,22 @@ theorem
         selectionSetNormal_field_child_of_mem_lookup hnormal hmem hlookup
       rcases ih hchildValid hchildNormal with
         ⟨childSpine, hchildSpine⟩
-      exact
-        ⟨({ responseName := responseName, fieldName := fieldName,
+      exact ⟨
+        ({
+            responseName := responseName,
+            fieldName := fieldName,
             arguments := arguments,
-            childRuntime := some fieldDefinition.outputType.namedType } ::
-            childSpine),
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
-              hobject hmem hlookup hcomposite
-              (hchildSpine
-                (fieldPairPathLocalNextSelectionSet schema pathParentType
-                  fieldDefinition.outputType.namedType fieldName arguments
-                  currentSelectionSet))⟩
+            childRuntime := some fieldDefinition.outputType.namedType
+          }
+          :: childSpine),
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
+            hobject hmem hlookup hcomposite
+            (hchildSpine
+              (fieldPairPathLocalNextSelectionSet schema pathParentType
+                fieldDefinition.outputType.namedType fieldName arguments
+                currentSelectionSet))
+      ⟩
 
 theorem
     pathLocalSelectionSetObservableLeafAtRuntime_of_objectOutputObservableResponsePath_valid_normal
@@ -871,11 +897,12 @@ theorem
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_objectOutputObservableResponsePath_valid_normal
         hpath hvalid hnormal with
     ⟨fieldSpine, hspine⟩
-  exact
-    ⟨fieldSpine,
-      selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
-        (hspine selectionSet),
-      hspine⟩
+  exact ⟨
+    fieldSpine,
+    selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
+      (hspine selectionSet),
+    hspine
+  ⟩
 
 theorem field_leaf_of_object_normalSelectionSetObservableResponsePath_single
     {schema : Schema} {parentType responseName : Name}
@@ -2503,10 +2530,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftObservable
       hrightNoResponseName
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2630,10 +2663,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hrightObservable
       hleftNoResponseName
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 

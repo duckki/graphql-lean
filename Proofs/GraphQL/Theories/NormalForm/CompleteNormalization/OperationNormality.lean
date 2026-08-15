@@ -1016,10 +1016,9 @@ theorem completeNormalizeRootSelectionSet_normal_cons
           ⟨boolCase, hcase, hbranchEq⟩
         subst branch
         unfold completeNormalizeRootBranch at hselectionBranch
-        cases hbody :
-            normalizeSelectionSet schema parentType
-              (filterSelectionSetBoolCase boolCase
-                selectionSet) with
+        cases hbody
+              : normalizeSelectionSet schema parentType
+                  (filterSelectionSetBoolCase boolCase selectionSet) with
         | nil =>
             simp [hbody] at hselectionBranch
         | cons bodyHead bodyTail =>
@@ -1072,9 +1071,9 @@ theorem completeNormalizeRootSelectionSet_normal_cons
             leftGeneratedCase = leftCase := by
           have hleftInBranchForParse := hleftInBranch
           unfold completeNormalizeRootBranch at hleftInBranchForParse
-          cases hleftBody :
-              normalizeSelectionSet schema parentType
-                (filterSelectionSetBoolCase leftGeneratedCase selectionSet) with
+          cases hleftBody
+                : normalizeSelectionSet schema parentType
+                    (filterSelectionSetBoolCase leftGeneratedCase selectionSet) with
           | nil =>
               simp [hleftBody] at hleftInBranchForParse
           | cons generatedHead generatedTail =>
@@ -1091,9 +1090,9 @@ theorem completeNormalizeRootSelectionSet_normal_cons
             rightGeneratedCase = rightCase := by
           have hrightInBranchForParse := hrightInBranch
           unfold completeNormalizeRootBranch at hrightInBranchForParse
-          cases hrightBody :
-              normalizeSelectionSet schema parentType
-                (filterSelectionSetBoolCase rightGeneratedCase selectionSet) with
+          cases hrightBody
+                : normalizeSelectionSet schema parentType
+                    (filterSelectionSetBoolCase rightGeneratedCase selectionSet) with
           | nil =>
               simp [hrightBody] at hrightInBranchForParse
           | cons generatedHead generatedTail =>

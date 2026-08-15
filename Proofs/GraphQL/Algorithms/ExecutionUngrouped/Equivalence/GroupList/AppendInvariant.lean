@@ -77,7 +77,8 @@ theorem FieldGroupAppendInvariant.depth_zero
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues)
     : FieldGroupAppendInvariant schema resolvers variableValues 0 :=
-  { childEquivalent := by
+  {
+    childEquivalent := by
       intro _selectionSet childDepth _runtimeType _identity hlt
       exact False.elim (Nat.not_lt_zero childDepth hlt)
     absorbs := by
@@ -85,7 +86,8 @@ theorem FieldGroupAppendInvariant.depth_zero
       exact False.elim (Nat.not_lt_zero childDepth hlt)
     errorNeutral := by
       intro _prefixFields _later childDepth _runtimeType _identity hlt
-      exact False.elim (Nat.not_lt_zero childDepth hlt) }
+      exact False.elim (Nat.not_lt_zero childDepth hlt)
+  }
 
 theorem ExecutedFieldAppendPlanState.of_appendInvariant
     {ObjectIdentity : Type}
@@ -210,7 +212,8 @@ theorem CollectedFieldGroupAppendInvariant.depth_zero
     (variableValues : VariableValues)
     (groups : List (Name × List ExecutableField))
     : CollectedFieldGroupAppendInvariant schema resolvers variableValues 0 groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro _responseName _field _fields _prefixTail _hgroup _hprefix
         childDepth _runtimeType _identity hlt _hincludes
       exact False.elim (Nat.not_lt_zero childDepth hlt)
@@ -225,7 +228,8 @@ theorem CollectedFieldGroupAppendInvariant.depth_zero
     extendedChildren := by
       intro _responseName _field _fields _prefixTail _later _hgroup _hprefix
         _hlater childDepth _runtimeType _identity hlt
-      exact False.elim (Nat.not_lt_zero childDepth hlt) }
+      exact False.elim (Nat.not_lt_zero childDepth hlt)
+  }
 
 structure CollectedFieldGroupContainedAppendInvariant
     {ObjectIdentity : Type}
@@ -343,7 +347,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.depth_zero
     (groups : List (Name × List ExecutableField))
     : CollectedFieldGroupContainedAppendInvariant schema resolvers variableValues
         0 source groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro _responseName _field _fields _prefixTail _hgroup _hprefix
         childDepth _runtimeType _identity hlt _hcontains _hincludes
       exact False.elim (Nat.not_lt_zero childDepth hlt)
@@ -358,7 +363,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.depth_zero
     extendedChildren := by
       intro _responseName _field _fields _prefixTail _later _hgroup _hprefix
         _hlater childDepth _runtimeType _identity hlt _hcontains _hincludes
-      exact False.elim (Nat.not_lt_zero childDepth hlt) }
+      exact False.elim (Nat.not_lt_zero childDepth hlt)
+  }
 
 theorem CollectedFieldGroupContainedAppendInvariant.of_collectedAppendInvariant
     {ObjectIdentity : Type}
@@ -370,7 +376,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_collectedAppendInvariant
       : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
     : CollectedFieldGroupContainedAppendInvariant schema resolvers variableValues
         depth source groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
         runtimeType identity hlt _hcontains hincludes
       exact hinvariant.prefixChildren responseName field fields prefixTail
@@ -389,7 +396,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_collectedAppendInvariant
       intro responseName field fields prefixTail later hgroup hprefix hlater
         childDepth runtimeType identity hlt _hcontains hincludes
       exact hinvariant.extendedChildren responseName field fields prefixTail
-        later hgroup hprefix hlater childDepth runtimeType identity hlt }
+        later hgroup hprefix hlater childDepth runtimeType identity hlt
+  }
 
 theorem visitSubfields_absorbs_from_empty_object_prefix
     {ObjectIdentity : Type}
@@ -493,7 +501,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
                     (.object [])))
     : CollectedFieldGroupContainedAppendInvariant schema resolvers variableValues
         depth source groups :=
-  { prefixChildren := hchildren
+  {
+    prefixChildren := hchildren
     absorbs := by
       intro _responseName field _fields prefixTail later _hgroup _hprefix
         _hlater childDepth runtimeType identity _hlt _hcontains
@@ -514,7 +523,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
             · exact hprefix candidate hprefixMem
             · rcases List.mem_singleton.mp hlaterMem
               exact hlater)
-          childDepth runtimeType identity hlt hcontains hincludes }
+          childDepth runtimeType identity hlt hcontains hincludes
+  }
 
 theorem
     ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
@@ -584,20 +594,22 @@ theorem
         intro candidate hcandidate
         exact hremaining candidate (by simp [hcandidate])
       simp [ExecutableFieldsMergedCompleteContainedAppendSteps]
-      exact
-        ⟨hlaterResponse, hlaterParent, hfieldName, hresolveLater,
-          hinvariant.prefixChildren responseName field fields prefixTail hgroup
-            hprefix,
-          hinvariant.absorbs responseName field fields prefixTail later hgroup
-            hprefix hlaterFields,
-          hinvariant.errorNeutral responseName field fields prefixTail later
-            hgroup hprefix hlaterFields,
-          hinvariant.extendedChildren responseName field fields prefixTail
-            later hgroup hprefix hlaterFields,
-          ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
-            hinvariant hresponses hparents hcompatible hstable responseName
-            field fields (prefixTail ++ [later]) rest hgroup hprefixNext
-            hremainingRest⟩
+      exact ⟨
+        hlaterResponse,
+        hlaterParent,
+        hfieldName,
+        hresolveLater,
+        hinvariant.prefixChildren responseName field fields prefixTail hgroup hprefix,
+        hinvariant.absorbs responseName field fields prefixTail later hgroup
+          hprefix hlaterFields,
+        hinvariant.errorNeutral responseName field fields prefixTail later
+          hgroup hprefix hlaterFields,
+        hinvariant.extendedChildren responseName field fields prefixTail
+          later hgroup hprefix hlaterFields,
+        ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
+          hinvariant hresponses hparents hcompatible hstable responseName field fields
+          (prefixTail ++ [later]) rest hgroup hprefixNext hremainingRest
+      ⟩
 
 theorem ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant
     {ObjectIdentity : Type}
@@ -709,12 +721,14 @@ theorem CollectedFieldGroupLocalAppendInvariant.of_child_state
                     (.object [])))
     : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues depth
         groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro _responseName field _fields prefixTail _hgroup _hprefix childDepth
         runtimeType identity hlt _hincludes
       exact hchildren childDepth runtimeType identity
         (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail)) hlt
-    errorNeutral := herrors }
+    errorNeutral := herrors
+  }
 
 theorem CollectedFieldGroupContainedAppendInvariant.of_collectedLocalAppendInvariant
     {ObjectIdentity : Type}
@@ -727,7 +741,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_collectedLocalAppendInvar
           depth groups)
     : CollectedFieldGroupContainedAppendInvariant schema resolvers variableValues
         depth source groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
         runtimeType identity hlt _hcontains hincludes
       exact hinvariant.prefixChildren responseName field fields prefixTail
@@ -757,7 +772,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_collectedLocalAppendInvar
             · exact hprefix candidate hprefixMem
             · rcases List.mem_singleton.mp hlaterMem
               exact hlater)
-          childDepth runtimeType identity hlt hincludes }
+          childDepth runtimeType identity hlt hincludes
+  }
 
 theorem ExecutedFieldAppendPlanState.of_collectedAppendInvariant_from_prefix
     {ObjectIdentity : Type}

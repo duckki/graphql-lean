@@ -141,10 +141,8 @@ theorem variableValuesAgreeWithCase_boolCaseVariableValues
     ⟨⟨candidateVar, value⟩, hpair, hvarEq⟩
   change candidateVar = varName at hvarEq
   subst candidateVar
-  exact
-    (inputValueBoolean?_boolCaseVariableValues_of_mem base
-      hcomplete.2.1 hpair).trans
-      (BoolCase.lookup?_eq_of_pair_mem_nodup hcomplete.2.1 hpair).symm
+  exact (inputValueBoolean?_boolCaseVariableValues_of_mem base hcomplete.2.1 hpair).trans
+          (BoolCase.lookup?_eq_of_pair_mem_nodup hcomplete.2.1 hpair).symm
 
 theorem boolVarsComplete_boolCaseVariableValues
     {variables : List BoolVar} {boolCase : BoolCase}

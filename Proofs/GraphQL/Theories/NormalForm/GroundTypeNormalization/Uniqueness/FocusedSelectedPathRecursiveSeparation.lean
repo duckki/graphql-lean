@@ -1126,10 +1126,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftObservable
       hrightCompositeObject
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -1249,10 +1255,16 @@ theorem
       hrightFree hleftNormal hrightNormal hobject hobject hleftFuel
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftObservable
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -1925,9 +1937,13 @@ theorem
               rightCurrentSelectionSet)
             leftChildSpine rightChildSpine leftChildSelectionSet
             rightChildSelectionSet := by
-    exact
-      ⟨childSpine, childSpine, hchildSpineValid, hchildSpineValid,
-        by simpa [hchildFuelEq] using hchildExistsRaw⟩
+    exact ⟨
+      childSpine,
+      childSpine,
+      hchildSpineValid,
+      hchildSpineValid,
+      by simpa [hchildFuelEq] using hchildExistsRaw
+    ⟩
   exact
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitnessExists_valid_normal
       (schema := schema)
@@ -3179,10 +3195,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hrightObservable
       hleftCompositeObject
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 

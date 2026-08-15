@@ -1883,8 +1883,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
             exact hbody
           · have hblocked :
                 selectionDirectivesAllowBool variableValues directives = false := by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
+              cases h : selectionDirectivesAllowBool variableValues directives with
               | false => rfl
               | true => exact False.elim (hallowed h)
             simp [visitSubfields, visitSelection,
@@ -1903,9 +1902,9 @@ theorem visitSubfields_single_eq_flattened_collectFields
             · have hnotApply :
                   doesFragmentTypeApplyBool schema parentType source
                     typeCondition = false := by
-                cases h :
-                    doesFragmentTypeApplyBool schema parentType source
-                      typeCondition with
+                cases h
+                      : doesFragmentTypeApplyBool schema parentType source
+                          typeCondition with
                 | false => rfl
                 | true => exact False.elim (happly h)
               simp [visitSubfields, visitSelection,
@@ -1917,8 +1916,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
                 GraphQL.Execution.Result.combine]
           · have hblocked :
                 selectionDirectivesAllowBool variableValues directives = false := by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
+              cases h : selectionDirectivesAllowBool variableValues directives with
               | false => rfl
               | true => exact False.elim (hallowed h)
             simp [visitSubfields, visitSelection,
@@ -2566,8 +2564,7 @@ mutual
                   simp [visitSelection, hallowed, mergeResponseFieldResult,
                     mergeResponseFieldIntoObject, responseObjectField?]
               | object fields =>
-                  cases hprevious :
-                      lookupResponseField? fieldResponseName fields with
+                  cases hprevious : lookupResponseField? fieldResponseName fields with
                   | none =>
                       simpa [visitSelection, hallowed, mergeResponseFieldResult,
                         resultValueOrNull, outOfFuel,
@@ -2594,8 +2591,7 @@ mutual
                   simp [visitSelection, hallowed, mergeResponseFieldResult,
                     mergeResponseFieldIntoObject, responseObjectField?]
               | object fields =>
-                  cases hprevious :
-                      lookupResponseField? fieldResponseName fields with
+                  cases hprevious : lookupResponseField? fieldResponseName fields with
                   | none =>
                       simp [visitSelection, hallowed, mergeResponseFieldResult,
                         mergeResponseFieldIntoObject, responseObjectField?,
@@ -2677,12 +2673,10 @@ mutual
                                     fieldName arguments selectionSet)))
                               fields hne
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           unfold visitSelection
           simp [hblocked]
     | inlineFragment typeCondition directives selectionSet =>
@@ -2718,12 +2712,10 @@ mutual
                     responseName selectionSet output hbody
               · simp [visitSelection, hallowed, happly]
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           cases typeCondition <;>
             (unfold visitSelection; simp [hblocked])
 
@@ -2824,8 +2816,7 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases depth with
           | zero =>
-              cases hprevious :
-                  responseObjectField? responseName (.object fields) with
+              cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
                   refine ⟨mergeResponseField responseName .null fields, ?_⟩
                   simp [visitSelection, hallowed, hprevious,
@@ -2837,81 +2828,90 @@ mutual
                     mergeResponseFieldResult, mergeResponseFieldIntoObject,
                     resultValueOrNull]
           | succ depth' =>
-              cases hprevious :
-                  responseObjectField? responseName (.object fields) with
+              cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
-                  refine
-                    ⟨mergeResponseField responseName
+                  refine ⟨
+                    mergeResponseField responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
                           source
                           (responseObjectField? responseName (.object fields))
                           (executableField parentType responseName fieldName
                             arguments selectionSet)))
-                        fields, ?_⟩
+                      fields,
+                    ?_
+                  ⟩
                   simp [visitSelection, hallowed, hprevious,
                     mergeResponseFieldResult, mergeResponseFieldIntoObject]
               | some previous =>
                   cases previous with
                   | null =>
-                      refine
-                        ⟨mergeResponseField responseName
+                      refine ⟨
+                        mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
                               source
                               (responseObjectField? responseName (.object fields))
                               (executableField parentType responseName fieldName
                                 arguments selectionSet)))
-                            fields, ?_⟩
+                          fields,
+                        ?_
+                      ⟩
                       simp [visitSelection, hallowed, hprevious,
                         mergeResponseFieldResult, mergeResponseFieldIntoObject]
                   | scalar value =>
-                      refine
-                        ⟨mergeResponseField responseName
+                      refine ⟨
+                        mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
                               source
                               (responseObjectField? responseName (.object fields))
                               (executableField parentType responseName fieldName
                                 arguments selectionSet)))
-                            fields, ?_⟩
+                          fields,
+                        ?_
+                      ⟩
                       simp [visitSelection, hallowed, hprevious,
                         mergeResponseFieldResult, mergeResponseFieldIntoObject]
                   | object objectFields =>
-                      refine
-                        ⟨mergeResponseField responseName
+                      refine ⟨
+                        mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
                               source
                               (responseObjectField? responseName (.object fields))
                               (executableField parentType responseName fieldName
                                 arguments selectionSet)))
-                            fields, ?_⟩
+                          fields,
+                        ?_
+                      ⟩
                       simp [visitSelection, hallowed, hprevious,
                         mergeResponseFieldResult, mergeResponseFieldIntoObject]
                   | list values =>
-                      refine
-                        ⟨mergeResponseField responseName
+                      refine ⟨
+                        mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
                               source
                               (responseObjectField? responseName (.object fields))
                               (executableField parentType responseName fieldName
                                 arguments selectionSet)))
-                            fields, ?_⟩
+                          fields,
+                        ?_
+                      ⟩
                       simp [visitSelection, hallowed, hprevious,
                         mergeResponseFieldResult, mergeResponseFieldIntoObject]
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
+          exact ⟨
+            fields,
             by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
-          exact
-            ⟨fields, by
               unfold visitSelection
-              simp [hblocked]⟩
+              simp [hblocked]
+          ⟩
     | inlineFragment typeCondition directives selectionSet =>
         by_cases hallowed :
             selectionDirectivesAllowBool variableValues directives
@@ -2930,17 +2930,17 @@ mutual
                   visitSubfields_preserves_object_core schema resolvers
                     variableValues depth parentType source selectionSet fields
                 with ⟨outputFields, hvisit⟩
-                exact
-                  ⟨outputFields, by
-                    simp [visitSelection, hallowed, happly, hvisit]⟩
+                exact ⟨
+                  outputFields,
+                  by
+                    simp [visitSelection, hallowed, happly, hvisit]
+                ⟩
               · exact ⟨fields, by simp [visitSelection, hallowed, happly]⟩
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           cases typeCondition with
           | none =>
               exact ⟨fields, by unfold visitSelection; simp [hblocked]⟩
@@ -2970,11 +2970,13 @@ mutual
           visitSubfields_preserves_object_core schema resolvers variableValues
             depth parentType source rest headFields
         with ⟨tailFields, htail⟩
-        exact
-          ⟨tailFields, by
+        exact ⟨
+          tailFields,
+          by
             simp [visitSubfields]
             rw [hhead]
-            simpa using htail⟩
+            simpa using htail
+        ⟩
 end
 
 theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_flattened_spec

@@ -393,22 +393,25 @@ theorem completeNormalizationDirectiveVariablesUsed
     completeNormalizationBooleanConditionFeasible
 
 def completeNormalizationResolvers : Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      some <|
-        match parentType, fieldName with
-        | "Query", "hero" => .object "Human" ()
-        | "Query", "search" => .object "Human" ()
-        | "Human", "id" => .scalar "human-id"
-        | "Human", "name" => .scalar "human-name"
-        | "Human", "homePlanet" => .scalar "earth"
-        | "Human", "companion" => .object "Droid" ()
-        | "Droid", "id" => .scalar "droid-id"
-        | "Droid", "name" => .scalar "droid-name"
-        | "Droid", "primaryFunction" => .scalar "protocol"
-        | _, _ => .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        some
+        <| match parentType, fieldName with
+            | "Query", "hero" => .object "Human" ()
+            | "Query", "search" => .object "Human" ()
+            | "Human", "id" => .scalar "human-id"
+            | "Human", "name" => .scalar "human-name"
+            | "Human", "homePlanet" => .scalar "earth"
+            | "Human", "companion" => .object "Droid" ()
+            | "Droid", "id" => .scalar "droid-id"
+            | "Droid", "name" => .scalar "droid-name"
+            | "Droid", "primaryFunction" => .scalar "protocol"
+            | _, _ => .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def completeNormalizationVariableValues : Execution.VariableValues :=
   [("x", .boolean true), ("y", .boolean false)]

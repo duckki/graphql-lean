@@ -102,8 +102,7 @@ theorem selectionSetRuntimeDataDiffWitness_of_contextualRuntimeDataDiffWitness
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref,
       _hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hnot⟩
+  exact ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hnot⟩
 
 theorem selectionSetContextualRuntimeDataDiffWitness_of_withFuelGe
     {schema : Schema} {parentType runtimeType : Name}
@@ -117,9 +116,7 @@ theorem selectionSetContextualRuntimeDataDiffWitness_of_withFuelGe
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, _hfuel,
       hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hsupport,
-      hnot⟩
+  exact ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hsupport, hnot⟩
 
 theorem selectionSetRuntimeDataDiffWitness_of_contextualRuntimeDataDiffWitnessWithFuelGe
     {schema : Schema} {parentType runtimeType : Name}
@@ -168,12 +165,19 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_mono_support
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
       hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
-      (by
-        intro selectionSet htarget
-        exact hsupport selectionSet (hsubset selectionSet htarget)),
-      hnot⟩
+  exact ⟨
+    hinclude,
+    ObjectRef,
+    resolvers,
+    variableValues,
+    fuel,
+    ref,
+    hfuel,
+    (by
+      intro selectionSet htarget
+      exact hsupport selectionSet (hsubset selectionSet htarget)),
+    hnot
+  ⟩
 
 theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_minFuel_le
     {schema : Schema} {parentType runtimeType : Name}
@@ -188,9 +192,17 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_minFuel_le
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
       hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref,
-      Nat.le_trans hfuelLe hfuel, hsupport, hnot⟩
+  exact ⟨
+    hinclude,
+    ObjectRef,
+    resolvers,
+    variableValues,
+    fuel,
+    ref,
+    Nat.le_trans hfuelLe hfuel,
+    hsupport,
+    hnot
+  ⟩
 
 theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
     {schema : Schema} {parentType runtimeType : Name}
@@ -204,12 +216,19 @@ theorem selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
       hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
-      hsupport,
-      (by
-        intro hsemantic
-        exact hnot (responseValue_semanticEquivalent_symm hsemantic))⟩
+  exact ⟨
+    hinclude,
+    ObjectRef,
+    resolvers,
+    variableValues,
+    fuel,
+    ref,
+    hfuel,
+    hsupport,
+    (by
+      intro hsemantic
+      exact hnot (responseValue_semanticEquivalent_symm hsemantic))
+  ⟩
 
 end GroundTypeNormalization
 

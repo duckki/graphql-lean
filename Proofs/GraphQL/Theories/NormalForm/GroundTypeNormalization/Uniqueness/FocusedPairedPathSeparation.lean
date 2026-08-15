@@ -1005,9 +1005,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
             hrightValid hrightNormal hrightObject hrightNonempty with
         ⟨rightSpine, hrightSpineValid, _hrightObservable⟩
-      refine
-        ⟨pathLeftParentType, pathRightParentType, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        pathLeftParentType,
+        pathRightParentType,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact
@@ -1035,9 +1041,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
             hrightValid hrightNormal hrightObject hrightNonempty with
         ⟨rightSpine, hrightSpineValid, _hrightObservable⟩
-      refine
-        ⟨pathLeftParentType, pathRightParentType, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        pathLeftParentType,
+        pathRightParentType,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact
@@ -1066,9 +1078,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
             hrightValid hrightNormal hrightObject hrightNonempty with
         ⟨rightSpine, hrightSpineValid, _hrightObservable⟩
-      refine
-        ⟨pathLeftParentType, pathRightParentType, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        pathLeftParentType,
+        pathRightParentType,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact
@@ -1097,9 +1115,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
             hrightValid hrightNormal hrightObject hrightNonempty with
         ⟨rightSpine, hrightSpineValid, _hrightObservable⟩
-      refine
-        ⟨pathLeftParentType, pathRightParentType, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        pathLeftParentType,
+        pathRightParentType,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact
@@ -1197,9 +1221,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
             pathRightParentType rightSpine :=
         SelectedFieldSpineRuntimeValid.objectChild hrightObject
           hrightLookup hrightComposite hrightChildSpineValid
-      refine
-        ⟨pathLeftParentType, pathRightParentType, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        pathLeftParentType,
+        pathRightParentType,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       simpa [leftSpine, rightSpine, leftChildFuel, rightChildFuel] using
@@ -1277,9 +1307,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           (selectedFieldSpineRuntimeValid_runtime_object
             hleftChildSpineValid)
           hinclude hleftChildSpineValid
-      refine
-        ⟨typeCondition, rightChildRuntime, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        typeCondition,
+        rightChildRuntime,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact
@@ -1353,9 +1389,15 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           (selectedFieldSpineRuntimeValid_runtime_object
             hrightChildSpineValid)
           hinclude hrightChildSpineValid
-      refine
-        ⟨leftChildRuntime, typeCondition, leftSpine, rightSpine,
-          hleftSpineValid, hrightSpineValid, ?_⟩
+      refine ⟨
+        leftChildRuntime,
+        typeCondition,
+        leftSpine,
+        rightSpine,
+        hleftSpineValid,
+        hrightSpineValid,
+        ?_
+      ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
       exact

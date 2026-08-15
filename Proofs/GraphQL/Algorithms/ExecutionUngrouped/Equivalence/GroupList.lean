@@ -140,131 +140,130 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases depth with
           | zero =>
-              cases hprevious :
-                  responseObjectField? responseName (.object fields) with
+              cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
-                  refine
-                    ⟨mergeResponseField responseName .null fields, ?_,
-                      mergeResponseField_preserves_key_mem target responseName
-                        .null fields hmem⟩
+                  refine ⟨
+                    mergeResponseField responseName .null fields,
+                    ?_,
+                    mergeResponseField_preserves_key_mem target responseName
+                      .null fields hmem
+                  ⟩
                   simp [visitSelection, hallowed, hprevious,
                     mergeResponseFieldResult, mergeResponseFieldIntoObject,
                     resultValueOrNull, outOfFuel]
               | some previous =>
-                  refine
-                    ⟨mergeResponseField responseName previous fields, ?_,
-                      mergeResponseField_preserves_key_mem target responseName
-                        previous fields hmem⟩
+                  refine ⟨
+                    mergeResponseField responseName previous fields,
+                    ?_,
+                    mergeResponseField_preserves_key_mem target responseName
+                      previous fields hmem
+                  ⟩
                   simp [visitSelection, hallowed, hprevious,
                     mergeResponseFieldResult, mergeResponseFieldIntoObject,
                     resultValueOrNull]
-            | succ depth' =>
-                let previous? :=
-                  responseObjectField? responseName (.object fields)
-                let field :=
-                  executableField parentType responseName fieldName arguments
-                    selectionSet
-                let fieldResult :=
-                  executeFieldVisitResult schema resolvers variableValues depth'
-                    source previous? field
-                let incoming := resultValueOrNull fieldResult
-                cases hprevious :
-                    responseObjectField? responseName (.object fields) with
-                | none =>
-                    refine
-                      ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
-                    · rw [visitSelection_field_allowed_succ schema resolvers
+          | succ depth' =>
+              let previous? :=
+                responseObjectField? responseName (.object fields)
+              let field :=
+                executableField parentType responseName fieldName arguments
+                  selectionSet
+              let fieldResult :=
+                executeFieldVisitResult schema resolvers variableValues depth'
+                  source previous? field
+              let incoming := resultValueOrNull fieldResult
+              cases hprevious : responseObjectField? responseName (.object fields) with
+              | none =>
+                  refine ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
+                  · rw [visitSelection_field_allowed_succ schema resolvers
+                      variableValues depth' parentType source responseName
+                      fieldName arguments directives selectionSet
+                      (.object fields) hallowed]
+                    simp [mergeResponseFieldResult,
+                      mergeResponseFieldIntoObject, incoming, fieldResult,
+                      previous?, field, executeFieldVisitResult, hprevious]
+                  · exact mergeResponseField_preserves_key_mem target
+                      responseName incoming fields hmem
+              | some previous =>
+                  cases previous with
+                  | null =>
+                      have hlookupRaw :
+                          lookupResponseField? responseName fields =
+                            some .null := by
+                        simpa [responseObjectField?] using hprevious
+                      have hincoming :
+                          resultValueOrNull
+                            (executeField schema resolvers variableValues
+                              depth' source (some .null)
+                              (executableField parentType responseName
+                                fieldName arguments selectionSet)) =
+                            .null := by
+                        cases hlookup :
+                            schema.lookupField parentType fieldName <;>
+                          simp [executeField, executableField, hlookup,
+                            reusablePreviousValue?_null, resultValueOrNull]
+                      have hmerge :
+                          mergeResponseField responseName
+                              (resultValueOrNull
+                                (executeField schema resolvers variableValues
+                                  depth' source (some .null)
+                                  (executableField parentType responseName
+                                    fieldName arguments selectionSet)))
+                              fields =
+                            fields := by
+                        rw [hincoming]
+                        exact mergeResponseField_null_of_lookup_null
+                          responseName fields hlookupRaw
+                      refine ⟨fields, ?_, hmem⟩
+                      rw [visitSelection_field_allowed_succ schema resolvers
                         variableValues depth' parentType source responseName
                         fieldName arguments directives selectionSet
                         (.object fields) hallowed]
-                      simp [mergeResponseFieldResult,
-                        mergeResponseFieldIntoObject, incoming, fieldResult,
-                        previous?, field, executeFieldVisitResult, hprevious]
-                    · exact mergeResponseField_preserves_key_mem target
-                        responseName incoming fields hmem
-                | some previous =>
-                    cases previous with
-                    | null =>
-                        have hlookupRaw :
-                            lookupResponseField? responseName fields =
-                              some .null := by
-                          simpa [responseObjectField?] using hprevious
-                        have hincoming :
-                            resultValueOrNull
-                              (executeField schema resolvers variableValues
-                                depth' source (some .null)
-                                (executableField parentType responseName
-                                  fieldName arguments selectionSet)) =
-                              .null := by
-                          cases hlookup :
-                              schema.lookupField parentType fieldName <;>
-                            simp [executeField, executableField, hlookup,
-                              reusablePreviousValue?_null, resultValueOrNull]
-                        have hmerge :
-                            mergeResponseField responseName
-                                (resultValueOrNull
-                                  (executeField schema resolvers variableValues
-                                    depth' source (some .null)
-                                    (executableField parentType responseName
-                                      fieldName arguments selectionSet)))
-                                fields =
-                              fields := by
-                          rw [hincoming]
-                          exact mergeResponseField_null_of_lookup_null
-                            responseName fields hlookupRaw
-                        refine ⟨fields, ?_, hmem⟩
-                        rw [visitSelection_field_allowed_succ schema resolvers
+                      simp [hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject, hmerge]
+                  | scalar value =>
+                      refine ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
+                      · rw [visitSelection_field_allowed_succ schema resolvers
                           variableValues depth' parentType source responseName
                           fieldName arguments directives selectionSet
                           (.object fields) hallowed]
-                        simp [hprevious, mergeResponseFieldResult, mergeResponseFieldIntoObject, hmerge]
-                    | scalar value =>
-                        refine
-                          ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
-                        · rw [visitSelection_field_allowed_succ schema resolvers
-                            variableValues depth' parentType source responseName
-                            fieldName arguments directives selectionSet
-                            (.object fields) hallowed]
-                          simp [mergeResponseFieldResult,
-                            mergeResponseFieldIntoObject, incoming, fieldResult,
-                            previous?, field, executeFieldVisitResult, hprevious]
-                        · exact mergeResponseField_preserves_key_mem target
-                            responseName incoming fields hmem
-                    | object objectFields =>
-                        refine
-                          ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
-                        · rw [visitSelection_field_allowed_succ schema resolvers
-                            variableValues depth' parentType source responseName
-                            fieldName arguments directives selectionSet
-                            (.object fields) hallowed]
-                          simp [mergeResponseFieldResult,
-                            mergeResponseFieldIntoObject, incoming, fieldResult,
-                            previous?, field, executeFieldVisitResult, hprevious]
-                        · exact mergeResponseField_preserves_key_mem target
-                            responseName incoming fields hmem
-                    | list values =>
-                        refine
-                          ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
-                        · rw [visitSelection_field_allowed_succ schema resolvers
-                            variableValues depth' parentType source responseName
-                            fieldName arguments directives selectionSet
-                            (.object fields) hallowed]
-                          simp [mergeResponseFieldResult,
-                            mergeResponseFieldIntoObject, incoming, fieldResult,
-                            previous?, field, executeFieldVisitResult, hprevious]
-                        · exact mergeResponseField_preserves_key_mem target
-                            responseName incoming fields hmem
+                        simp [mergeResponseFieldResult,
+                          mergeResponseFieldIntoObject, incoming, fieldResult,
+                          previous?, field, executeFieldVisitResult, hprevious]
+                      · exact mergeResponseField_preserves_key_mem target
+                          responseName incoming fields hmem
+                  | object objectFields =>
+                      refine ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
+                      · rw [visitSelection_field_allowed_succ schema resolvers
+                          variableValues depth' parentType source responseName
+                          fieldName arguments directives selectionSet
+                          (.object fields) hallowed]
+                        simp [mergeResponseFieldResult,
+                          mergeResponseFieldIntoObject, incoming, fieldResult,
+                          previous?, field, executeFieldVisitResult, hprevious]
+                      · exact mergeResponseField_preserves_key_mem target
+                          responseName incoming fields hmem
+                  | list values =>
+                      refine ⟨mergeResponseField responseName incoming fields, ?_, ?_⟩
+                      · rw [visitSelection_field_allowed_succ schema resolvers
+                          variableValues depth' parentType source responseName
+                          fieldName arguments directives selectionSet
+                          (.object fields) hallowed]
+                        simp [mergeResponseFieldResult,
+                          mergeResponseFieldIntoObject, incoming, fieldResult,
+                          previous?, field, executeFieldVisitResult, hprevious]
+                      · exact mergeResponseField_preserves_key_mem target
+                          responseName incoming fields hmem
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
+          exact ⟨
+            fields,
             by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
-          exact
-            ⟨fields, by
               unfold visitSelection
-              simp [hblocked], hmem⟩
+              simp [hblocked],
+            hmem
+          ⟩
     | inlineFragment typeCondition directives selectionSet =>
         by_cases hallowed :
             selectionDirectivesAllowBool variableValues directives
@@ -275,9 +274,12 @@ mutual
                   variableValues depth parentType source target selectionSet
                   fields hmem
               with ⟨outputFields, hvisit, hkey⟩
-              exact
-                ⟨outputFields, by
-                  simp [visitSelection, hallowed, hvisit], hkey⟩
+              exact ⟨
+                outputFields,
+                by
+                  simp [visitSelection, hallowed, hvisit],
+                hkey
+              ⟩
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source
@@ -287,30 +289,40 @@ mutual
                     variableValues depth parentType source target selectionSet
                     fields hmem
                 with ⟨outputFields, hvisit, hkey⟩
-                exact
-                  ⟨outputFields, by
-                    simp [visitSelection, hallowed, happly, hvisit], hkey⟩
-              · exact
-                  ⟨fields, by
-                    simp [visitSelection, hallowed, happly], hmem⟩
+                exact ⟨
+                  outputFields,
+                  by
+                    simp [visitSelection, hallowed, happly, hvisit],
+                  hkey
+                ⟩
+              · exact ⟨
+                  fields,
+                  by
+                    simp [visitSelection, hallowed, happly],
+                  hmem
+                ⟩
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           cases typeCondition with
           | none =>
-              exact
-                ⟨fields, by
+              exact ⟨
+                fields,
+                by
                   unfold visitSelection
-                  simp [hblocked], hmem⟩
+                  simp [hblocked],
+                hmem
+              ⟩
           | some typeCondition =>
-              exact
-                ⟨fields, by
+              exact ⟨
+                fields,
+                by
                   unfold visitSelection
-                  simp [hblocked], hmem⟩
+                  simp [hblocked],
+                hmem
+              ⟩
 
   theorem visitSubfields_preserves_object_key_mem
       {ObjectIdentity : Type}
@@ -339,11 +351,14 @@ mutual
             variableValues depth parentType source target rest headFields
             hheadMem
         with ⟨tailFields, htail, htailMem⟩
-        exact
-          ⟨tailFields, by
+        exact ⟨
+          tailFields,
+          by
             simp [visitSubfields]
             rw [hhead]
-            simpa using htail, htailMem⟩
+            simpa using htail,
+          htailMem
+        ⟩
 end
 
 theorem executeField_object_append_fresh_eq
@@ -655,8 +670,7 @@ theorem visitSelection_field_prefix_fresh
               responseObjectField? responseName (.object suffix) :=
           responseObjectField?_object_append_of_not_mem responseName
             prefixFields suffix hfreshName
-        cases hprevious :
-            responseObjectField? responseName (.object suffix) with
+        cases hprevious : responseObjectField? responseName (.object suffix) with
         | none =>
             simp [visitSelection, hallowed, happend, hprevious,
               mergeResponseFieldResult, mergeResponseFieldIntoObject,
@@ -684,8 +698,7 @@ theorem visitSelection_field_prefix_fresh
               responseObjectField? responseName (.object suffix) :=
           responseObjectField?_object_append_of_not_mem responseName
             prefixFields suffix hfreshName
-        cases hprevious :
-            responseObjectField? responseName (.object suffix) with
+        cases hprevious : responseObjectField? responseName (.object suffix) with
         | none =>
             simp [visitSelection, hallowed, mergeResponseFieldResult,
               mergeResponseFieldIntoObject, hprevious] at hvisit
@@ -1694,9 +1707,8 @@ theorem visitSubfields_flattened_empty_key_mem_collectFields
           (GraphQL.Execution.collectFields schema variableValues parentType
             source selectionSet)))
       fields responseName hvisit hmem
-  simpa
-    [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
-    using hflatKey
+  simpa [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+        using hflatKey
 
 theorem collectedExecutableFields_responseName_mem
     (groups : List (Name × List ExecutableField))

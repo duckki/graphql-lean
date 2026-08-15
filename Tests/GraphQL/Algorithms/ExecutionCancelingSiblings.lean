@@ -67,16 +67,19 @@ def interleavedDuplicateBeforeBubbleQuery : Operation :=
   }
 
 def interleavedDuplicateBeforeBubbleResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Query", "stop" => none
-      | "Character", "name" => some (.scalar "Leia")
-      | "Character", "age" => none
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Query", "stop" => none
+        | "Character", "name" => some (.scalar "Leia")
+        | "Character", "age" => none
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 -- Field collection executes both `hero` occurrences before `stop`, while
 -- syntax-order ungrouped execution cancels the second occurrence after `stop`

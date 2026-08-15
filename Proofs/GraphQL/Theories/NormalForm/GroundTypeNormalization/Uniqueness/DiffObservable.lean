@@ -88,14 +88,15 @@ theorem selectionSetDeepPromotionAvailable_of_preservesRuntime
   intro hvalid hfree hnormal hpreserve abstractTargetParent
     abstractTargetField targetRuntimeType targetFieldDefinition htargetLookup
     htargetComposite htargetNonObject hlocalRuntime
-  exact
-    ⟨targetRuntimeType,
-      hpreserve abstractTargetParent abstractTargetField targetRuntimeType
-        targetFieldDefinition htargetLookup htargetComposite
-        htargetNonObject hlocalRuntime,
-      abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-        hnormal htargetLookup htargetComposite htargetNonObject
-        hlocalRuntime⟩
+  exact ⟨
+    targetRuntimeType,
+    hpreserve abstractTargetParent abstractTargetField targetRuntimeType
+      targetFieldDefinition htargetLookup htargetComposite
+      htargetNonObject hlocalRuntime,
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
+      hnormal htargetLookup htargetComposite htargetNonObject
+      hlocalRuntime
+  ⟩
 
 theorem selectionSetDeepHeadPromotionAvailable_of_preservesRuntime
     {schema : Schema} {rootSelectionSet : List Selection}
@@ -111,14 +112,15 @@ theorem selectionSetDeepHeadPromotionAvailable_of_preservesRuntime
   intro hvalid hfree hnormal hpreserve abstractTargetParent
     abstractTargetField targetArguments targetRuntimeType targetFieldDefinition
     htargetLookup htargetComposite htargetNonObject hlocalRuntime
-  exact
-    ⟨targetRuntimeType,
-      hpreserve abstractTargetParent abstractTargetField targetArguments
-        targetRuntimeType targetFieldDefinition htargetLookup
-        htargetComposite htargetNonObject hlocalRuntime,
-      abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal hvalid
-        hfree hnormal htargetLookup htargetComposite htargetNonObject
-        hlocalRuntime⟩
+  exact ⟨
+    targetRuntimeType,
+    hpreserve abstractTargetParent abstractTargetField targetArguments
+      targetRuntimeType targetFieldDefinition htargetLookup
+      htargetComposite htargetNonObject hlocalRuntime,
+    abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal hvalid
+      hfree hnormal htargetLookup htargetComposite htargetNonObject
+      hlocalRuntime
+  ⟩
 
 theorem abstractRuntimeForFieldHeadDeep?_framed_exact
     {schema : Schema}
@@ -177,12 +179,13 @@ theorem selectionSetDeepPromotionAvailable_single_framed
   intro abstractTargetParent abstractTargetField targetRuntimeType
     targetFieldDefinition htargetLookup htargetComposite htargetNonObject
     hlocalRuntime
-  exact
-    ⟨targetRuntimeType,
-      abstractRuntimeForFieldDeep?_framed_exact hlocalRuntime,
-      abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-        hnormal htargetLookup htargetComposite htargetNonObject
-        hlocalRuntime⟩
+  exact ⟨
+    targetRuntimeType,
+    abstractRuntimeForFieldDeep?_framed_exact hlocalRuntime,
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
+      hnormal htargetLookup htargetComposite htargetNonObject
+      hlocalRuntime
+  ⟩
 
 theorem selectionSetDeepPromotionPreservesRuntime_single_framed
     {schema : Schema}
@@ -737,10 +740,14 @@ theorem inlineFragment_child_valid_free_normal_assumptions
   have hinclude :
       schema.typeIncludesObjectBool parentType typeCondition = true :=
     typeIncludesObjectBool_of_typesOverlap_object schema hoverlap htypeObject
-  exact
-    ⟨hchildValid, hchildFree, htypeObject, hinclude,
-      selectionSetValid_inlineFragment_some_child_nonempty_of_mem hvalid hmem,
-      hchildNormal⟩
+  exact ⟨
+    hchildValid,
+    hchildFree,
+    htypeObject,
+    hinclude,
+    selectionSetValid_inlineFragment_some_child_nonempty_of_mem hvalid hmem,
+    hchildNormal
+  ⟩
 
 end GroundTypeNormalization
 

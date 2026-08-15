@@ -429,8 +429,7 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases depth with
           | zero =>
-              cases hprevious :
-                  responseObjectField? responseName (.object fields) with
+              cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
                   simpa [visitSelection, hallowed, hprevious,
                     mergeResponseFieldResult, mergeResponseFieldIntoObject,
@@ -455,12 +454,10 @@ mutual
                         arguments selectionSet)))
                   fields hnodup
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           unfold visitSelection
           simpa [hblocked] using hnodup
     | inlineFragment typeCondition directives selectionSet =>
@@ -480,12 +477,10 @@ mutual
                     depth parentType source selectionSet fields hnodup
               · simpa [visitSelection, hallowed, happly] using hnodup
         · have hblocked :
-              selectionDirectivesAllowBool variableValues directives = false :=
-            by
-              cases h :
-                  selectionDirectivesAllowBool variableValues directives with
-              | false => rfl
-              | true => exact False.elim (hallowed h)
+              selectionDirectivesAllowBool variableValues directives = false := by
+            cases h : selectionDirectivesAllowBool variableValues directives with
+            | false => rfl
+            | true => exact False.elim (hallowed h)
           cases typeCondition <;>
             simpa [visitSelection, hblocked] using hnodup
 
@@ -602,8 +597,7 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases depth with
           | zero =>
-              cases hprevious :
-                  responseObjectField? responseName (.object fields) with
+              cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
                   have hmergedReady :
                       ResponseMergeReady
@@ -659,8 +653,7 @@ mutual
                   hfieldsReady hfieldReady
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives with
+            cases h : selectionDirectivesAllowBool variableValues directives with
             | false => rfl
             | true => exact False.elim (hallowed h)
           rw [visitSelection_field_directives_blocked schema resolvers
@@ -685,8 +678,7 @@ mutual
               · simpa [visitSelection, hallowed, happly] using hfieldsReady
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives with
+            cases h : selectionDirectivesAllowBool variableValues directives with
             | false => rfl
             | true => exact False.elim (hallowed h)
           cases typeCondition <;>
@@ -1536,8 +1528,7 @@ mutual
                         hfieldReady)
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives with
+            cases h : selectionDirectivesAllowBool variableValues directives with
             | false => rfl
             | true => exact False.elim (hallowed h)
           rw [visitSelection_field_directives_blocked schema resolvers
@@ -1589,13 +1580,13 @@ mutual
                     hfieldsReady
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
-            cases h :
-                selectionDirectivesAllowBool variableValues directives with
+            cases h : selectionDirectivesAllowBool variableValues directives with
             | false => rfl
             | true => exact False.elim (hallowed h)
-          cases typeCondition <;>
-            simpa [visitSelection, hblocked] using
-              ResponseAbsorbs_refl_of_ready (.object fields) hfieldsReady
+          cases typeCondition
+          <;>
+              simpa [visitSelection, hblocked] using
+                ResponseAbsorbs_refl_of_ready (.object fields) hfieldsReady
 
   theorem visitSubfields_local_absorbs_from_ready
       {ObjectIdentity : Type}

@@ -107,9 +107,7 @@ theorem executeField_fieldPairProbe_tagged_object_field_ok_of_field_children
       childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hleafOrChild⟩
   rcases hleafOrChild with hleaf | hchild
-  · refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0,
-        ?_⟩
+  · refine ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0, ?_⟩
     exact
       executeField_fieldPairProbe_tagged_object_leaf schema rootSelectionSet
         variableValues fuel targetParent leftField rightField parentType
@@ -212,9 +210,7 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_object_of_field_chil
         childSelectionSet hmem with
       ⟨fieldDefinition, hlookup, hfuel, hleafOrChild⟩
     rcases hleafOrChild with hleaf | hchild
-    · refine
-        ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0,
-          ?_⟩
+    · refine ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0, ?_⟩
       exact
         executeField_fieldPairProbe_tagged_object_leaf schema rootSelectionSet
           variableValues fuel targetParent leftField rightField parentType
@@ -397,22 +393,26 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType (.object runtimeType (some tag))
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType (.object runtimeType (some tag))
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := by
-                    simp [Execution.executeSelectionSetAsResponse, hmiddle]
-              _ =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType (.object runtimeType (some tag))
-                  bodySelectionSet := by
-                    simp [Execution.executeSelectionSetAsResponse, hflatten]
-              _ = ({ data := Execution.ResponseValue.object bodyFields, errors := bodyErrors } : Execution.Response) :=
-                    hbodyResponse
+                    (fuel + 1) runtimeType (.object runtimeType (some tag))
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSetAsResponse schema resolvers
+                      variableValues (fuel + 1) runtimeType
+                      (.object runtimeType (some tag))
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+                simp [Execution.executeSelectionSetAsResponse, hmiddle]
+              _ = Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                    (fuel + 1) runtimeType (.object runtimeType (some tag))
+                    bodySelectionSet := by
+                simp [Execution.executeSelectionSetAsResponse, hflatten]
+              _ = ({
+                      data := Execution.ResponseValue.object bodyFields,
+                      errors := bodyErrors
+                    }
+                    : Execution.Response) :=
+                hbodyResponse
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType
           (.object runtimeType (some tag)) selectionSet = [] :=

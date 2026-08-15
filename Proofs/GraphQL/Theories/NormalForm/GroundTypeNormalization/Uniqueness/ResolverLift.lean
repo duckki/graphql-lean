@@ -61,22 +61,19 @@ def liftResolvers {ObjectRef : Type} (base : Execution.Resolvers ObjectRef)
     match lowerResolverValue? source with
     | none => none
     | some lowered =>
-        (base.resolve parentType fieldName arguments lowered).map
-          liftResolverValue
+        (base.resolve parentType fieldName arguments lowered).map liftResolverValue
   resolve_argumentsEquivalent := by
     intro parentType fieldName firstArguments laterArguments source harguments
-    change
-      (match lowerResolverValue? source with
-      | none => none
-      | some lowered =>
-          (base.resolve parentType fieldName firstArguments lowered).map
-            liftResolverValue)
-      =
-      (match lowerResolverValue? source with
-      | none => none
-      | some lowered =>
-          (base.resolve parentType fieldName laterArguments lowered).map
-            liftResolverValue)
+    change (match lowerResolverValue? source with
+            | none => none
+            | some lowered =>
+                (base.resolve parentType fieldName firstArguments lowered).map
+                  liftResolverValue)
+            = (match lowerResolverValue? source with
+                | none => none
+                | some lowered =>
+                    (base.resolve parentType fieldName laterArguments lowered).map
+                      liftResolverValue)
     cases hlower : lowerResolverValue? source with
     | none =>
         rfl

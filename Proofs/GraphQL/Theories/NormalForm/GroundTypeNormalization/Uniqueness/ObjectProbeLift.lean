@@ -25,9 +25,7 @@ def parentObjectProbeFieldResolvers {ObjectRef : Type}
     match source with
     | .object _ none =>
         if parentType == targetParent && fieldName == targetField then
-          some
-            (objectProbeResolverValueWithRuntime runtimeType (some ref)
-              outputType)
+          some (objectProbeResolverValueWithRuntime runtimeType (some ref) outputType)
         else
           none
     | _ =>

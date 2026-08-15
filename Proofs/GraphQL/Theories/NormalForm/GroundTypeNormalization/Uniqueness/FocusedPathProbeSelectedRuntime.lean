@@ -511,12 +511,13 @@ theorem
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition
       intro _hvalid _hnormal
-      exact
-        ⟨pathParentType,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableLeafAtSelectedRuntime.objectLeaf
-              hobject hmem hlookup hleaf⟩
+      exact ⟨
+        pathParentType,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableLeafAtSelectedRuntime.objectLeaf
+            hobject hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
@@ -542,16 +543,17 @@ theorem
       · rcases
             ih hchildValidAndComposite.2.2 hchildNormal with
           ⟨childRuntime, _hchildInclude, hchildObservable⟩
-        exact
-          ⟨pathParentType,
-            typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-            fun currentSelectionSet =>
-              PathLocalSelectionSetObservableLeafAtSelectedRuntime.objectChild
-                hobject hmem hlookup hcomposite
-                (hchildObservable
-                  (fieldPairPathLocalNextSelectionSet schema pathParentType
-                    childRuntime fieldName arguments
-                    currentSelectionSet))⟩
+        exact ⟨
+          pathParentType,
+          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+          fun currentSelectionSet =>
+            PathLocalSelectionSetObservableLeafAtSelectedRuntime.objectChild
+              hobject hmem hlookup hcomposite
+              (hchildObservable
+                (fieldPairPathLocalNextSelectionSet schema pathParentType
+                  childRuntime fieldName arguments
+                  currentSelectionSet))
+        ⟩
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
@@ -580,12 +582,14 @@ theorem
         pathLocalSelectionSetObservableLeafAtSelectedRuntime_runtime_eq_of_object
           htypeObjectBool (hchildObservable [])
       subst childRuntime
-      exact
-        ⟨typeCondition, hinclude,
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableLeafAtSelectedRuntime.abstractInlineFragment
-              hnonObject htypeObjectBool hinclude hmem
-              (hchildObservable currentSelectionSet)⟩
+      exact ⟨
+        typeCondition,
+        hinclude,
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableLeafAtSelectedRuntime.abstractInlineFragment
+            hnonObject htypeObjectBool hinclude hmem
+            (hchildObservable currentSelectionSet)
+      ⟩
 
 theorem
     pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
@@ -606,14 +610,19 @@ theorem
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition
       intro _hvalid _hnormal
-      exact
-        ⟨pathParentType,
-          [{ responseName := responseName, fieldName := fieldName,
-             arguments := arguments, childRuntime := none }],
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectLeaf
-              hobject hmem hlookup hleaf⟩
+      exact ⟨
+        pathParentType,
+        [{
+          responseName := responseName,
+          fieldName := fieldName,
+          arguments := arguments,
+          childRuntime := none
+        }],
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectLeaf
+            hobject hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
@@ -640,19 +649,24 @@ theorem
             ih hchildValidAndComposite.2.2 hchildNormal with
           ⟨childRuntime, childSpine, _hchildInclude,
             hchildObservable⟩
-        exact
-          ⟨pathParentType,
-            { responseName := responseName, fieldName := fieldName,
-              arguments := arguments, childRuntime := some childRuntime } ::
-              childSpine,
-            typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-            fun currentSelectionSet =>
-              PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
-                hobject hmem hlookup hcomposite
-                (hchildObservable
-                  (fieldPairPathLocalNextSelectionSet schema pathParentType
-                    childRuntime fieldName arguments
-                    currentSelectionSet))⟩
+        exact ⟨
+          pathParentType,
+          {
+            responseName := responseName,
+            fieldName := fieldName,
+            arguments := arguments,
+            childRuntime := some childRuntime
+          }
+          :: childSpine,
+          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+          fun currentSelectionSet =>
+            PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.objectChild
+              hobject hmem hlookup hcomposite
+              (hchildObservable
+                (fieldPairPathLocalNextSelectionSet schema pathParentType
+                  childRuntime fieldName arguments
+                  currentSelectionSet))
+        ⟩
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
@@ -681,12 +695,15 @@ theorem
         pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_runtime_eq_of_object
           htypeObjectBool (hchildObservable [])
       subst childRuntime
-      exact
-        ⟨typeCondition, childSpine, hinclude,
-          fun currentSelectionSet =>
-            PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.abstractInlineFragment
-              hnonObject htypeObjectBool hinclude hmem
-              (hchildObservable currentSelectionSet)⟩
+      exact ⟨
+        typeCondition,
+        childSpine,
+        hinclude,
+        fun currentSelectionSet =>
+          PathLocalSelectionSetObservableFieldSpineAtSelectedRuntime.abstractInlineFragment
+            hnonObject htypeObjectBool hinclude hmem
+            (hchildObservable currentSelectionSet)
+      ⟩
 
 inductive FieldPairSelectedPathProbeRef where
   | root
@@ -1254,11 +1271,11 @@ theorem selectedFieldSpineRuntimeValid_child_of_selectedNext
             typeIncludesObjectBool_eq_of_objectTypeNameBool_true schema
               houtputObject hinclude
           subst childRuntimeType
-          exact
-            ⟨Or.inl ⟨houtputObject, rfl⟩,
-              typeIncludesObjectBool_self_of_objectTypeNameBool schema
-                houtputObject,
-              hchildValid⟩
+          exact ⟨
+            Or.inl ⟨houtputObject, rfl⟩,
+            typeIncludesObjectBool_self_of_objectTypeNameBool schema houtputObject,
+            hchildValid
+          ⟩
         · have houtputNonObject :
               objectTypeNameBool schema
                 fieldDefinition.outputType.namedType = false := by
@@ -1266,9 +1283,7 @@ theorem selectedFieldSpineRuntimeValid_child_of_selectedNext
                 objectTypeNameBool schema
                   fieldDefinition.outputType.namedType <;>
               simp [h] at houtputObject ⊢
-          exact
-            ⟨Or.inr ⟨hcomposite, houtputNonObject⟩,
-              hinclude, hchildValid⟩
+          exact ⟨Or.inr ⟨hcomposite, houtputNonObject⟩, hinclude, hchildValid⟩
       · simp [selectedObservableFieldSpineNext?, hmatch] at hselected
   | abstractRuntime hnonObject _hruntimeObject _hinclude _hchildValid =>
       rw [hparentObject] at hnonObject
@@ -1771,15 +1786,16 @@ theorem
   rcases hdeep responseName fieldName arguments directives childSelectionSet
       hmem with
     ⟨responseValue, fieldErrors, hdeepOk⟩
-  exact
-    ⟨responseValue, fieldErrors,
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_deepSuccessWithRef_ok
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet leftInitialSpine rightInitialSpine
-        variableValues parentFuel targetParent leftField rightField
-        leftArguments rightArguments arguments leftRuntime rightRuntime
-        responseName fieldName childSelectionSet responseValue fieldErrors
-        hnotProjection hdeepOk⟩
+  exact ⟨
+    responseValue,
+    fieldErrors,
+    executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_deepSuccessWithRef_ok
+      schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+      leftInitialSpine rightInitialSpine variableValues parentFuel targetParent leftField
+      rightField leftArguments rightArguments arguments leftRuntime rightRuntime
+      responseName fieldName childSelectionSet responseValue fieldErrors hnotProjection
+      hdeepOk
+  ⟩
 
 theorem
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_ok_of_child_object_response_fuel_ge

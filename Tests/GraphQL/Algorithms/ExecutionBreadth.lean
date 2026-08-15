@@ -58,21 +58,24 @@ def duplicateWidgetListQuery : Operation :=
   }
 
 def widgetResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "widgets", _ =>
-          some (.list [.object "Widget" "a", .object "Widget" "b"])
-      | "Widget", "id", .object _ ref =>
-          some (.scalar ref)
-      | "Widget", "friend", .object _ "a" =>
-          some (.object "Widget" "b")
-      | "Widget", "friend", .object _ "b" =>
-          some (.object "Widget" "a")
-      | _, _, _ =>
-          some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "widgets", _ =>
+            some (.list [.object "Widget" "a", .object "Widget" "b"])
+        | "Widget", "id", .object _ ref =>
+            some (.scalar ref)
+        | "Widget", "friend", .object _ "a" =>
+            some (.object "Widget" "b")
+        | "Widget", "friend", .object _ "b" =>
+            some (.object "Widget" "a")
+        | _, _, _ =>
+            some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def widgetRoot : GraphQL.Execution.ResolverValue String :=
   .object "Query" "root"
@@ -123,18 +126,21 @@ def siblingWidgetQuery : Operation :=
   }
 
 def siblingWidgetResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "left" => some (.object "Widget" "left")
-      | "Query", "right" => some (.object "Widget" "right")
-      | "Widget", "id" =>
-          match _source with
-          | .object _ ref => some (.scalar ref)
-          | _ => some .null
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "left" => some (.object "Widget" "left")
+        | "Query", "right" => some (.object "Widget" "right")
+        | "Widget", "id" =>
+            match _source with
+            | .object _ ref => some (.scalar ref)
+            | _ => some .null
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def expectedSiblingWidgetResponse : GraphQL.Execution.ResponseValue :=
   .object
@@ -178,21 +184,24 @@ def listCousinQuery : Operation :=
   }
 
 def listCousinResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "parents", _ =>
-          some (.list [.object "Parent" "p1", .object "Parent" "p2"])
-      | "Parent", "child", .object _ "p1" =>
-          some (.object "Widget" "w1")
-      | "Parent", "child", .object _ "p2" =>
-          some (.object "Widget" "w2")
-      | "Widget", "id", .object _ ref =>
-          some (.scalar ref)
-      | _, _, _ =>
-          some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "parents", _ =>
+            some (.list [.object "Parent" "p1", .object "Parent" "p2"])
+        | "Parent", "child", .object _ "p1" =>
+            some (.object "Widget" "w1")
+        | "Parent", "child", .object _ "p2" =>
+            some (.object "Widget" "w2")
+        | "Widget", "id", .object _ ref =>
+            some (.scalar ref)
+        | _, _, _ =>
+            some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def distinctRuntimeSchema : Schema :=
   {
@@ -240,19 +249,22 @@ def distinctRuntimeQuery : Operation :=
   }
 
 def distinctRuntimeResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "nodes", _ =>
-          some (.list [.object "Alpha" "a", .object "Beta" "b"])
-      | "Alpha", "alpha", .object _ ref =>
-          some (.scalar s!"alpha-{ref}")
-      | "Beta", "beta", .object _ ref =>
-          some (.scalar s!"beta-{ref}")
-      | _, _, _ =>
-          some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "nodes", _ =>
+            some (.list [.object "Alpha" "a", .object "Beta" "b"])
+        | "Alpha", "alpha", .object _ ref =>
+            some (.scalar s!"alpha-{ref}")
+        | "Beta", "beta", .object _ ref =>
+            some (.scalar s!"beta-{ref}")
+        | _, _, _ =>
+            some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def expectedDistinctRuntimeResponse : GraphQL.Execution.ResponseValue :=
   .object
@@ -445,10 +457,12 @@ theorem breadthRootNonNullBubbleMatchesSpecSmoke
   native_decide
 
 def resultCountMismatchResolverMap : GraphQL.Algorithms.ExecutionBreadth.ResolverMap :=
-  { resolve := fun _parentType _fieldName _arguments _sources => []
+  {
+    resolve := fun _parentType _fieldName _arguments _sources => []
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem breadthResultCountMismatchIsFieldErrorSmoke
     : let source := GraphQL.Execution.ResolverValue.object "Query" ()

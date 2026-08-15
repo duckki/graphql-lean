@@ -725,11 +725,12 @@ theorem
           =
           Execution.ResolverValue.object runtimeType ref
           ∧ schema.typeIncludesObjectBool parentType runtimeType = true := by
-    refine
-      ⟨parentType,
-        ProjectionResolverRef.root FieldPairSelectedPathProbeRef.root,
-        ?_, typeIncludesObjectBool_self_of_objectTypeNameBool schema
-          hobject⟩
+    refine ⟨
+      parentType,
+      ProjectionResolverRef.root FieldPairSelectedPathProbeRef.root,
+      ?_,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
     simp [projectionRootResolverValue, projectionResolverValue]
   exact
     SemanticSeparation.not_selectionSetsDataEquivalent_of_response_field_value_mismatch
@@ -2463,9 +2464,7 @@ theorem
       childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hleafOrChild⟩
   rcases hleafOrChild with hleaf | hchild
-  · refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0,
-        ?_⟩
+  · refine ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0, ?_⟩
     exact
       executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
         schema rootSelectionSet leftInitialSelectionSet
@@ -2667,9 +2666,7 @@ theorem
       childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hcase⟩
   rcases hcase with hleaf | hcase
-  · refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0,
-        ?_⟩
+  · refine ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0, ?_⟩
     exact
       executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
         schema rootSelectionSet leftInitialSelectionSet
@@ -3075,23 +3072,24 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := by
-                    simp [Execution.executeSelectionSetAsResponse, hmiddle]
-              _ =
-                Execution.executeSelectionSetAsResponse schema resolvers variableValues
-                  (fuel + 1) runtimeType source bodySelectionSet := by
-                    simp [Execution.executeSelectionSetAsResponse, hflatten]
-              _ =
-                ({ data := Execution.ResponseValue.object bodyFields,
-                   errors := bodyErrors } : Execution.Response) := by
-                    simpa [resolvers, source] using hbodyExec
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSetAsResponse schema resolvers
+                      variableValues (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+                simp [Execution.executeSelectionSetAsResponse, hmiddle]
+              _ = Execution.executeSelectionSetAsResponse schema resolvers variableValues
+                    (fuel + 1) runtimeType source bodySelectionSet := by
+                simp [Execution.executeSelectionSetAsResponse, hflatten]
+              _ = ({
+                      data := Execution.ResponseValue.object bodyFields,
+                      errors := bodyErrors
+                    }
+                    : Execution.Response) := by
+                simpa [resolvers, source] using hbodyExec
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType source
           selectionSet = [] :=
@@ -3437,10 +3435,17 @@ theorem
               dsimp [childFuel]
               omega
             refine Or.inr (Or.inr (Or.inr ?_))
-            refine
-              ⟨childRuntimeType, responseFields, errors,
-                hreturnComposite, hreturnNonObject, ?_, hruntime,
-                hchildInclude, ?_⟩
+            refine ⟨
+              childRuntimeType,
+              responseFields,
+              errors,
+              hreturnComposite,
+              hreturnNonObject,
+              ?_,
+              hruntime,
+              hchildInclude,
+              ?_
+            ⟩
             · simp [selectedObservableFieldSpineNext?]
             · simpa [hchildFuelEq] using hchildResponse
       · have hparentNonObject :
@@ -3793,9 +3798,8 @@ theorem
                   fieldDefinition.outputType.namedType childSelectionSet :=
               selectionSetValid_field_child_of_mem_lookup hvalid hmem
                 hchildNonempty hlookup
-            cases hselected :
-                selectedObservableFieldSpineNext? fieldName arguments
-                  spine with
+            cases hselected
+                  : selectedObservableFieldSpineNext? fieldName arguments spine with
             | none =>
                 have hsound :
                     PathLocalCurrentRuntimeSound schema
@@ -3872,10 +3876,17 @@ theorem
                   dsimp [childFuel]
                   omega
                 refine Or.inr (Or.inr (Or.inr ?_))
-                refine
-                  ⟨childRuntimeType, responseFields, errors,
-                    hreturnComposite, hreturnNonObject, rfl,
-                    hruntime, hchildInclude, ?_⟩
+                refine ⟨
+                  childRuntimeType,
+                  responseFields,
+                  errors,
+                  hreturnComposite,
+                  hreturnNonObject,
+                  rfl,
+                  hruntime,
+                  hchildInclude,
+                  ?_
+                ⟩
                 simpa [hchildFuelEq] using hchildResponse
             | some selected =>
                 rcases selected with ⟨maybeRuntime, tail⟩
@@ -3947,9 +3958,16 @@ theorem
                       dsimp [childFuel]
                       omega
                     refine Or.inr (Or.inl ?_)
-                    refine
-                      ⟨selectedRuntime, tail, responseFields, errors,
-                        rfl, hruntimeCase, hchildInclude, ?_⟩
+                    refine ⟨
+                      selectedRuntime,
+                      tail,
+                      responseFields,
+                      errors,
+                      rfl,
+                      hruntimeCase,
+                      hchildInclude,
+                      ?_
+                    ⟩
                     simpa [hchildFuelEq] using hchildResponse
       · have hparentNonObject :
             objectTypeNameBool schema normalParentType = false := by

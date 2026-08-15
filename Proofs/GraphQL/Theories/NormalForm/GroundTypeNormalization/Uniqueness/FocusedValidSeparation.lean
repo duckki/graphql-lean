@@ -57,36 +57,32 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hobject hsupportValid hleftMem
-            hrightNoResponseName⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportValid hleftMem hrightNoResponseName
+      ⟩
   | objectRightResponseName hobject hrightMem hleftNoResponseName =>
       rename_i parentType left right responseName fieldName arguments
         directives childSelectionSet
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hobject hsupportValid hrightMem
-            hleftNoResponseName⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportValid hrightMem hleftNoResponseName
+      ⟩
   | objectFieldNameLeaf hobject hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf hfieldDiff =>
       rename_i parentType left right responseName leftFieldName rightFieldName
@@ -96,18 +92,17 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hobject hsupportValid hleftMem hrightMem
-            hleftLookup hrightLookup hleftLeaf hrightLeaf hfieldDiff⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportValid hleftMem hrightMem hleftLookup hrightLookup hleftLeaf hrightLeaf
+          hfieldDiff
+      ⟩
   | objectFieldNameCompositeLeft hobject hleftMem hrightMem hleftLookup
       hrightLookup hleftComposite _hobservable hfieldDiff =>
       rename_i parentType left right responseName leftFieldName rightFieldName
@@ -149,10 +144,10 @@ theorem
             (by
               intro hsame
               exact hfieldDiff hsame.symm)
-        exact
-          ⟨parentType,
-            selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm
-              hwitness⟩
+        exact ⟨
+          parentType,
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_symm hwitness
+        ⟩
       · have hrightComposite :
             (TypeRef.named rightFieldDefinition.outputType.namedType).isCompositeBool
               schema = true := by
@@ -168,19 +163,17 @@ theorem
                   parentType rightFieldName arguments := by
           intro arguments _hrightArgs hleftTarget
           exact hfieldDiff hleftTarget.2.1.symm
-        exact
-          ⟨parentType,
-            selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
-              (schema := schema)
-              (leftVariableDefinitions := leftVariableDefinitions)
-              (rightVariableDefinitions := rightVariableDefinitions)
-              (parentType := parentType) (left := left) (right := right)
-              (supportSelectionSets := supportSelectionSets)
-              (minFuel := minFuel)
-              hschema hleftValid hrightValid hleftFree hrightFree
-              hleftNormal hrightNormal hobject hsupportValid hleftMem
-              hrightMem hleftLookup hrightLookup hleftComposite
-              hrightComposite hrightNotLeft⟩
+        exact ⟨
+          parentType,
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
+            (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+            (rightVariableDefinitions := rightVariableDefinitions)
+            (parentType := parentType) (left := left) (right := right)
+            (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+            hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+            hsupportValid hleftMem hrightMem hleftLookup hrightLookup hleftComposite
+            hrightComposite hrightNotLeft
+        ⟩
   | objectFieldNameCompositeRight hobject hleftMem hrightMem hleftLookup
       hrightLookup hrightComposite _hobservable hfieldDiff =>
       rename_i parentType left right responseName leftFieldName rightFieldName
@@ -193,19 +186,17 @@ theorem
       by_cases hleftLeaf :
           (TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
             schema = false
-      · exact
-          ⟨parentType,
-            selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
-              (schema := schema)
-              (leftVariableDefinitions := leftVariableDefinitions)
-              (rightVariableDefinitions := rightVariableDefinitions)
-              (parentType := parentType) (left := left) (right := right)
-              (supportSelectionSets := supportSelectionSets)
-              (minFuel := minFuel)
-              hschema hleftValid hrightValid hleftFree hrightFree
-              hleftNormal hrightNormal hobject hsupportValid hleftMem
-              hrightMem hleftLookup hrightLookup hleftLeaf
-              hrightComposite hfieldDiff⟩
+      · exact ⟨
+          parentType,
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
+            (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+            (rightVariableDefinitions := rightVariableDefinitions)
+            (parentType := parentType) (left := left) (right := right)
+            (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+            hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+            hsupportValid hleftMem hrightMem hleftLookup hrightLookup hleftLeaf
+            hrightComposite hfieldDiff
+        ⟩
       · have hleftComposite :
             (TypeRef.named leftFieldDefinition.outputType.namedType).isCompositeBool
               schema = true := by
@@ -221,19 +212,17 @@ theorem
                   parentType rightFieldName arguments := by
           intro arguments _hrightArgs hleftTarget
           exact hfieldDiff hleftTarget.2.1.symm
-        exact
-          ⟨parentType,
-            selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
-              (schema := schema)
-              (leftVariableDefinitions := leftVariableDefinitions)
-              (rightVariableDefinitions := rightVariableDefinitions)
-              (parentType := parentType) (left := left) (right := right)
-              (supportSelectionSets := supportSelectionSets)
-              (minFuel := minFuel)
-              hschema hleftValid hrightValid hleftFree hrightFree
-              hleftNormal hrightNormal hobject hsupportValid hleftMem
-              hrightMem hleftLookup hrightLookup hleftComposite
-              hrightComposite hrightNotLeft⟩
+        exact ⟨
+          parentType,
+          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
+            (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+            (rightVariableDefinitions := rightVariableDefinitions)
+            (parentType := parentType) (left := left) (right := right)
+            (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+            hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+            hsupportValid hleftMem hrightMem hleftLookup hrightLookup hleftComposite
+            hrightComposite hrightNotLeft
+        ⟩
   | objectArgumentsLeaf hobject hleftMem hrightMem hlookup hleaf
       hargumentsDiff =>
       rename_i parentType left right responseName fieldName leftArguments
@@ -242,18 +231,16 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_arguments_diff_leaf_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree
-            hleftNormal hrightNormal hobject hsupportValid hleftMem
-            hrightMem hlookup hleaf hargumentsDiff⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_arguments_diff_leaf_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hschema
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportValid hleftMem hrightMem hlookup hleaf hargumentsDiff
+      ⟩
   | objectArgumentsCompositeLeft hobject hleftMem hrightMem hlookup
       hcomposite _hobservable hargumentsDiff =>
       rename_i parentType left right responseName fieldName leftArguments
@@ -272,30 +259,24 @@ theorem
         exact hargumentsDiff
           (argumentsEquivalent_trans
             (FieldMerge.argumentsEquivalent_symm hleftArgs) hrightArgs)
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (responseName := responseName)
-            (leftFieldName := fieldName)
-            (rightFieldName := fieldName)
-            (leftArguments := leftArguments)
-            (rightArguments := rightArguments)
-            (leftDirectives := leftDirectives)
-            (rightDirectives := rightDirectives)
-            (leftChildSelectionSet := leftChildSelectionSet)
-            (rightChildSelectionSet := rightChildSelectionSet)
-            (leftFieldDefinition := fieldDefinition)
-            (rightFieldDefinition := fieldDefinition)
-            (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree
-            hleftNormal hrightNormal hobject hsupportValid hleftMem
-            hrightMem hlookup hlookup hcomposite hcomposite
-            hrightNotLeft⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (responseName := responseName)
+          (leftFieldName := fieldName) (rightFieldName := fieldName)
+          (leftArguments := leftArguments) (rightArguments := rightArguments)
+          (leftDirectives := leftDirectives) (rightDirectives := rightDirectives)
+          (leftChildSelectionSet := leftChildSelectionSet)
+          (rightChildSelectionSet := rightChildSelectionSet)
+          (leftFieldDefinition := fieldDefinition)
+          (rightFieldDefinition := fieldDefinition) (minFuel := minFuel) hschema
+          hleftValid hrightValid hleftFree hrightFree hleftNormal hrightNormal hobject
+          hsupportValid hleftMem hrightMem hlookup hlookup hcomposite hcomposite
+          hrightNotLeft
+      ⟩
   | objectChild hobject hreturnType hleftMem hrightMem harguments
       hchildTrace ih =>
       rename_i parentType returnType left right responseName fieldName
@@ -333,12 +314,9 @@ theorem
       have hcomposite :
           schema.isCompositeType fieldDefinition.outputType.namedType := by
         rcases hnonempty with hleftNonempty | hrightNonempty
-        · exact
-            (fieldSelectionSetValid_child_of_nonempty hleftFieldValid
-              hleftNonempty).1
-        · exact
-            (fieldSelectionSetValid_child_of_nonempty hrightFieldValid
-              hrightNonempty).1
+        · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
+        · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid
+                  hrightNonempty).1
       rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
           hcomposite with
         ⟨_hleftChildNonempty, hleftChildValidRaw⟩
@@ -448,26 +426,23 @@ theorem
                   - leafProbeFuel fieldDefinition.outputType)
                 (minFuel - leafProbeFuel fieldDefinition.outputType - 1)) with
         ⟨childRuntimeType, hchildWitness⟩
-      exact
-        ⟨parentType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_child_contextualRuntimeDiff_split_focusedFiniteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (returnType := returnType)
-            (responseName := responseName) (fieldName := fieldName)
-            (runtimeType := childRuntimeType)
-            (leftArguments := leftArguments)
-            (rightArguments := rightArguments)
-            (leftChildSelectionSet := leftChildSelectionSet)
-            (rightChildSelectionSet := rightChildSelectionSet)
-            (leftPref := leftPref) (rightPref := rightPref)
-            (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
-            (supportSelectionSets := supportSelectionSets)
-            (fieldDefinition := fieldDefinition) (minFuel := minFuel)
-            hschema hleftValid hrightValid hlookup hnamedType hleftFree
-            hrightFree hleftNormal hrightNormal hobject hsupportValid
-            hchildWitness⟩
+      exact ⟨
+        parentType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_child_contextualRuntimeDiff_split_focusedFiniteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (returnType := returnType)
+          (responseName := responseName) (fieldName := fieldName)
+          (runtimeType := childRuntimeType) (leftArguments := leftArguments)
+          (rightArguments := rightArguments)
+          (leftChildSelectionSet := leftChildSelectionSet)
+          (rightChildSelectionSet := rightChildSelectionSet) (leftPref := leftPref)
+          (rightPref := rightPref) (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
+          (supportSelectionSets := supportSelectionSets)
+          (fieldDefinition := fieldDefinition) (minFuel := minFuel) hschema hleftValid
+          hrightValid hlookup hnamedType hleftFree hrightFree hleftNormal hrightNormal
+          hobject hsupportValid hchildWitness
+      ⟩
   | abstractLeftTypeCondition hnonObject hleftMem hrightNoTypeCondition
       _hobservable =>
       rename_i parentType left right typeCondition directives childSelectionSet
@@ -475,19 +450,17 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨typeCondition,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (typeCondition := typeCondition) (directives := directives)
-            (childSelectionSet := childSelectionSet) (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hnonObject hsupportValid hleftMem
-            hrightNoTypeCondition⟩
+      exact ⟨
+        typeCondition,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
+          (directives := directives) (childSelectionSet := childSelectionSet)
+          (minFuel := minFuel) hschema hleftValid hrightValid hleftFree hrightFree
+          hleftNormal hrightNormal hnonObject hsupportValid hleftMem hrightNoTypeCondition
+      ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition
       _hobservable =>
       rename_i parentType left right typeCondition directives childSelectionSet
@@ -495,19 +468,17 @@ theorem
       intro leftVariableDefinitions rightVariableDefinitions supportSelectionSets
         minFuel hleftValid hrightValid hleftFree hrightFree hleftNormal
         hrightNormal hsupportValid
-      exact
-        ⟨typeCondition,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_right_typeCondition_diff_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (left := left) (right := right)
-            (supportSelectionSets := supportSelectionSets)
-            (typeCondition := typeCondition) (directives := directives)
-            (childSelectionSet := childSelectionSet) (minFuel := minFuel)
-            hschema hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hnonObject hsupportValid hrightMem
-            hleftNoTypeCondition⟩
+      exact ⟨
+        typeCondition,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_right_typeCondition_diff_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (left := left) (right := right)
+          (supportSelectionSets := supportSelectionSets) (typeCondition := typeCondition)
+          (directives := directives) (childSelectionSet := childSelectionSet)
+          (minFuel := minFuel) hschema hleftValid hrightValid hleftFree hrightFree
+          hleftNormal hrightNormal hnonObject hsupportValid hrightMem hleftNoTypeCondition
+      ⟩
   | abstractChild hnonObject hleftMem hrightMem hchildTrace ih =>
       rename_i parentType typeCondition left right leftDirectives
         rightDirectives leftChildSelectionSet rightChildSelectionSet childPath
@@ -598,22 +569,20 @@ theorem
                 rightPref leftSuffix rightSuffix supportSelectionSets)
             (minFuel := minFuel) with
         ⟨childRuntimeType, hchildWitness⟩
-      exact
-        ⟨childRuntimeType,
-          selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_child_contextualRuntimeDiff_split_finiteSupport
-            (schema := schema)
-            (leftVariableDefinitions := leftVariableDefinitions)
-            (rightVariableDefinitions := rightVariableDefinitions)
-            (parentType := parentType) (typeCondition := typeCondition)
-            (runtimeType := childRuntimeType)
-            (leftChildSelectionSet := leftChildSelectionSet)
-            (rightChildSelectionSet := rightChildSelectionSet)
-            (leftPref := leftPref) (rightPref := rightPref)
-            (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
-            (supportSelectionSets := supportSelectionSets)
-            (minFuel := minFuel)
-            hleftValid hrightValid hleftFree hrightFree hleftNormal
-            hrightNormal hnonObject hsupportValid hchildWitness⟩
+      exact ⟨
+        childRuntimeType,
+        selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_child_contextualRuntimeDiff_split_finiteSupport
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions)
+          (parentType := parentType) (typeCondition := typeCondition)
+          (runtimeType := childRuntimeType)
+          (leftChildSelectionSet := leftChildSelectionSet)
+          (rightChildSelectionSet := rightChildSelectionSet) (leftPref := leftPref)
+          (rightPref := rightPref) (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
+          (supportSelectionSets := supportSelectionSets) (minFuel := minFuel) hleftValid
+          hrightValid hleftFree hrightFree hleftNormal hrightNormal hnonObject
+          hsupportValid hchildWitness
+      ⟩
 
 theorem
     not_selectionSetsDataEquivalent_of_valid_normal_object_child_observable_trace_split_focused
@@ -714,9 +683,7 @@ theorem
         rw [hlookup] at hcandidateLookup
         exact Option.some.inj hcandidateLookup.symm
       subst candidateFieldDefinition
-      exact
-        (fieldSelectionSetValid_child_of_nonempty hfieldValid
-          hleftNonempty).1
+      exact (fieldSelectionSetValid_child_of_nonempty hfieldValid hleftNonempty).1
     · rcases
         selectionSetValid_field_lookup_of_mem
           (by simpa [rightSelectionSet] using hrightValid)
@@ -728,9 +695,7 @@ theorem
         rw [hlookup] at hcandidateLookup
         exact Option.some.inj hcandidateLookup.symm
       subst candidateFieldDefinition
-      exact
-        (fieldSelectionSetValid_child_of_nonempty hfieldValid
-          hrightNonempty).1
+      exact (fieldSelectionSetValid_child_of_nonempty hfieldValid hrightNonempty).1
   have hsupportValid :
       ∀ supportSelectionSet,
         supportSelectionSet ∈

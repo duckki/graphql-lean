@@ -441,12 +441,13 @@ mutual
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source (selection :: rest)))
           · intro field hfield
-            exact
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
-                (GraphQL.Execution.collectSelection schema variableValues
-                  parentType source selection)
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source rest) field).mpr (Or.inl hfield)
+            exact (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
+                    (GraphQL.Execution.collectSelection schema variableValues
+                      parentType source selection)
+                    (GraphQL.Execution.collectFields schema variableValues parentType
+                      source rest)
+                    field).mpr
+                    (Or.inl hfield)
           · exact
               selectionFieldsWithin_collectSelection schema variableValues
                 parentType source selection
@@ -459,12 +460,13 @@ mutual
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source (selection :: rest)))
           · intro field hfield
-            exact
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
-                (GraphQL.Execution.collectSelection schema variableValues
-                  parentType source selection)
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source rest) field).mpr (Or.inr hfield)
+            exact (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
+                    (GraphQL.Execution.collectSelection schema variableValues
+                      parentType source selection)
+                    (GraphQL.Execution.collectFields schema variableValues parentType
+                      source rest)
+                    field).mpr
+                    (Or.inr hfield)
           · have hwithin :=
               selectionSetFieldsWithin_collectFields schema variableValues
                 parentType source rest

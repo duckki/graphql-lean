@@ -1185,11 +1185,10 @@ theorem collectFields_group_prefix_outputCompatible_of_concreteParent
     · rw [← hfirstArguments, ← hlaterArguments]
       exact hargumentsEquivalent
   have hfieldEq : field.fieldName = candidate.fieldName := by
-    exact
-      (hexecutableCompatible field candidate (by simp) hcandidate
-        (by
-          rw [hresponseNames field (by simp),
-            hresponseNames candidate hcandidate])).1
+    exact (hexecutableCompatible field candidate (by simp) hcandidate
+            (by
+              rw [hresponseNames field (by simp),
+                hresponseNames candidate hcandidate])).1
   rcases hmatch with
     ⟨_hscopedResponse, hscopedFieldName, _hscopedArguments,
       _hscopedSelection⟩

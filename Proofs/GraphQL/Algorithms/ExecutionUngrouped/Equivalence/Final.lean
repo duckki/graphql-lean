@@ -630,14 +630,16 @@ def depth_zero
     (variableValues : VariableValues)
     (groups : List (Name × List ExecutableField))
     : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues 0 groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro _responseName _field _fields _prefixTail _hgroup _hprefix
         childDepth _runtimeType _identity hlt _hincludes
       exact False.elim (Nat.not_lt_zero childDepth hlt)
     errorNeutral := by
       intro _responseName _field _fields _prefixTail _later _hgroup _hprefix
         _hlater childDepth _runtimeType _identity hlt
-      exact False.elim (Nat.not_lt_zero childDepth hlt) }
+      exact False.elim (Nat.not_lt_zero childDepth hlt)
+  }
 
 theorem localAppendInvariant
     {ObjectIdentity : Type}
@@ -649,14 +651,15 @@ theorem localAppendInvariant
           depth groups)
     : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
         depth groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
         runtimeType identity hlt hincludes
-      exact
-        (state.prefixChildren responseName field fields prefixTail hgroup
-          hprefix childDepth runtimeType identity hlt
-          hincludes).stateEquivalent
-    errorNeutral := state.errorNeutral }
+      exact (state.prefixChildren responseName field fields prefixTail hgroup
+              hprefix childDepth runtimeType identity hlt
+              hincludes).stateEquivalent
+    errorNeutral := state.errorNeutral
+  }
 
 end CollectedFieldGroupRecursiveAppendState
 
@@ -780,28 +783,30 @@ theorem alignedAppendSteps_from_prefix
         intro candidate hcandidate
         exact hremaining candidate (by simp [hcandidate])
       simp [ExecutableFieldsMergedAlignedAppendSteps]
-      exact
-        ⟨hlaterResponse, hlaterParent, hfieldName, hresolveLater,
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact
-              (state.prefixChildren responseName field fields prefixTail hgroup
-                hprefix childDepth runtimeType identity hlt hcontains
-                hincludes).executeRootSelectionSet_aligned),
-          (by
-            intro childDepth runtimeType identity hlt hcontains
-            exact state.absorbs responseName field fields prefixTail later hgroup
-              hprefix hlater childDepth runtimeType identity hlt hcontains),
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact
-              (state.prefixChildren responseName field fields
-                (prefixTail ++ [later]) hgroup hprefixNext childDepth
-                runtimeType identity hlt hcontains
-                hincludes).executeRootSelectionSet_aligned),
-          alignedAppendSteps_from_prefix state hresponses hparents hcompatible
-            hstable responseName field fields (prefixTail ++ [later]) rest
-            hgroup hprefixNext hremainingRest⟩
+      exact ⟨
+        hlaterResponse,
+        hlaterParent,
+        hfieldName,
+        hresolveLater,
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact (state.prefixChildren responseName field fields prefixTail hgroup
+                  hprefix childDepth runtimeType identity hlt hcontains
+                  hincludes).executeRootSelectionSet_aligned),
+        (by
+          intro childDepth runtimeType identity hlt hcontains
+          exact state.absorbs responseName field fields prefixTail later hgroup
+            hprefix hlater childDepth runtimeType identity hlt hcontains),
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact (state.prefixChildren responseName field fields
+                  (prefixTail ++ [later]) hgroup hprefixNext childDepth
+                  runtimeType identity hlt hcontains
+                  hincludes).executeRootSelectionSet_aligned),
+        alignedAppendSteps_from_prefix state hresponses hparents hcompatible
+          hstable responseName field fields (prefixTail ++ [later]) rest
+          hgroup hprefixNext hremainingRest
+      ⟩
 
 theorem alignedAppendSteps
     {ObjectIdentity : Type}
@@ -1162,7 +1167,8 @@ def of_positiveRecursiveChildren
                     (.object [])).fst)
     : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
         depth groups :=
-  { prefixChildren := by
+  {
+    prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
         runtimeType identity hlt hincludes
       cases childDepth with
@@ -1175,11 +1181,11 @@ def of_positiveRecursiveChildren
               (hzeroChildren responseName field fields prefixTail hgroup
                 hprefix runtimeType identity hlt hincludes)
       | succ childDepth =>
-          exact
-            (hchildren responseName field fields prefixTail hgroup hprefix
-              childDepth runtimeType identity hlt
-              hincludes).toExecutedGroupedSelectionSetState
-    errorNeutral := herrors }
+          exact (hchildren responseName field fields prefixTail hgroup hprefix
+                  childDepth runtimeType identity hlt
+                  hincludes).toExecutedGroupedSelectionSetState
+    errorNeutral := herrors
+  }
 
 end CollectedFieldGroupRecursiveAppendState
 

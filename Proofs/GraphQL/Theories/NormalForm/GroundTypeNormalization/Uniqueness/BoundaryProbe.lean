@@ -822,16 +822,13 @@ theorem firstFieldChildByHead?_field_mem_append_context
           · cases hhead
             have hfield : targetField == targetField := by
               simp
-            cases hrest :
-                firstFieldChildByHead? targetField targetArguments rest with
+            cases hrest : firstFieldChildByHead? targetField targetArguments rest with
             | none =>
                 refine ⟨childSelectionSet, [], [], ?_, by simp⟩
                 simp [firstFieldChildByHead?, harguments, hrest,
                   mergeFieldChildOptions]
             | some restMerged =>
-                refine
-                  ⟨childSelectionSet ++ restMerged, [], restMerged, ?_,
-                    by simp⟩
+                refine ⟨childSelectionSet ++ restMerged, [], restMerged, ?_, by simp⟩
                 simp [firstFieldChildByHead?, harguments, hrest,
                   mergeFieldChildOptions]
           · rcases ih htail with
@@ -839,9 +836,13 @@ theorem firstFieldChildByHead?_field_mem_append_context
             by_cases hfield : headFieldName == targetField
             · by_cases hheadArguments :
                   Argument.argumentsEquivalent headArguments targetArguments
-              · refine
-                  ⟨headChildSelectionSet ++ restMerged,
-                    headChildSelectionSet ++ pref, suff, ?_, ?_⟩
+              · refine ⟨
+                  headChildSelectionSet ++ restMerged,
+                  headChildSelectionSet ++ pref,
+                  suff,
+                  ?_,
+                  ?_
+                ⟩
                 · simp [firstFieldChildByHead?, hfield, hheadArguments,
                     hrestMerged, mergeFieldChildOptions]
                 · rw [hcontext]
@@ -856,17 +857,15 @@ theorem firstFieldChildByHead?_field_mem_append_context
           · cases hhead
           · rcases ih htail with
               ⟨restMerged, pref, suff, hrestMerged, hcontext⟩
-            cases hchild :
-                firstFieldChildByHead? targetField targetArguments
-                  headChildSelectionSet with
+            cases hchild
+                  : firstFieldChildByHead? targetField targetArguments
+                      headChildSelectionSet with
             | none =>
                 refine ⟨restMerged, pref, suff, ?_, hcontext⟩
                 simp [firstFieldChildByHead?, hchild, hrestMerged,
                   mergeFieldChildOptions]
             | some childMerged =>
-                refine
-                  ⟨childMerged ++ restMerged, childMerged ++ pref, suff,
-                    ?_, ?_⟩
+                refine ⟨childMerged ++ restMerged, childMerged ++ pref, suff, ?_, ?_⟩
                 · simp [firstFieldChildByHead?, hchild, hrestMerged,
                     mergeFieldChildOptions]
                 · rw [hcontext]
@@ -902,20 +901,28 @@ theorem firstFieldChildByHeadAtRuntime?_field_mem_append_context
           · cases hhead
             have hfield : targetField == targetField := by
               simp
-            cases hrest :
-                firstFieldChildByHeadAtRuntime? schema currentRuntimeType
-                  childRuntimeType targetField targetArguments rest with
+            cases hrest
+                  : firstFieldChildByHeadAtRuntime? schema currentRuntimeType
+                      childRuntimeType targetField targetArguments rest with
             | none =>
-                refine
-                  ⟨runtimePrunedSelectionSet schema childRuntimeType
-                    childSelectionSet, [], [], ?_, by simp⟩
+                refine ⟨
+                  runtimePrunedSelectionSet schema childRuntimeType childSelectionSet,
+                  [],
+                  [],
+                  ?_,
+                  by simp
+                ⟩
                 simp [firstFieldChildByHeadAtRuntime?, harguments, hrest,
                   mergeFieldChildOptions]
             | some restMerged =>
-                refine
-                  ⟨runtimePrunedSelectionSet schema childRuntimeType
-                      childSelectionSet ++ restMerged,
-                    [], restMerged, ?_, by simp⟩
+                refine ⟨
+                  runtimePrunedSelectionSet schema childRuntimeType childSelectionSet
+                  ++ restMerged,
+                  [],
+                  restMerged,
+                  ?_,
+                  by simp
+                ⟩
                 simp [firstFieldChildByHeadAtRuntime?, harguments, hrest,
                   mergeFieldChildOptions]
           · rcases ih htail with
@@ -923,12 +930,15 @@ theorem firstFieldChildByHeadAtRuntime?_field_mem_append_context
             by_cases hfield : headFieldName == targetField
             · by_cases hheadArguments :
                   Argument.argumentsEquivalent headArguments targetArguments
-              · refine
-                  ⟨runtimePrunedSelectionSet schema childRuntimeType
-                      headChildSelectionSet ++ restMerged,
-                    runtimePrunedSelectionSet schema childRuntimeType
-                      headChildSelectionSet ++ pref,
-                    suff, ?_, ?_⟩
+              · refine ⟨
+                  runtimePrunedSelectionSet schema childRuntimeType headChildSelectionSet
+                  ++ restMerged,
+                  runtimePrunedSelectionSet schema childRuntimeType headChildSelectionSet
+                  ++ pref,
+                  suff,
+                  ?_,
+                  ?_
+                ⟩
                 · simp [firstFieldChildByHeadAtRuntime?, hfield,
                     hheadArguments, hrestMerged, mergeFieldChildOptions]
                 · rw [hcontext]
@@ -945,18 +955,16 @@ theorem firstFieldChildByHeadAtRuntime?_field_mem_append_context
               ⟨restMerged, pref, suff, hrestMerged, hcontext⟩
             cases typeCondition with
             | none =>
-                cases hchild :
-                    firstFieldChildByHeadAtRuntime? schema currentRuntimeType
-                      childRuntimeType targetField targetArguments
-                      headChildSelectionSet with
+                cases hchild
+                      : firstFieldChildByHeadAtRuntime? schema currentRuntimeType
+                          childRuntimeType targetField targetArguments
+                          headChildSelectionSet with
                 | none =>
                     refine ⟨restMerged, pref, suff, ?_, hcontext⟩
                     simp [firstFieldChildByHeadAtRuntime?, hchild,
                       hrestMerged, mergeFieldChildOptions]
                 | some childMerged =>
-                    refine
-                      ⟨childMerged ++ restMerged, childMerged ++ pref, suff,
-                        ?_, ?_⟩
+                    refine ⟨childMerged ++ restMerged, childMerged ++ pref, suff, ?_, ?_⟩
                     · simp [firstFieldChildByHeadAtRuntime?, hchild,
                         hrestMerged, mergeFieldChildOptions]
                     · rw [hcontext]
@@ -965,18 +973,22 @@ theorem firstFieldChildByHeadAtRuntime?_field_mem_append_context
                 by_cases hincludes :
                     schema.typeIncludesObjectBool typeCondition
                       currentRuntimeType
-                · cases hchild :
-                      firstFieldChildByHeadAtRuntime? schema currentRuntimeType
-                        childRuntimeType targetField targetArguments
-                        headChildSelectionSet with
+                · cases hchild
+                        : firstFieldChildByHeadAtRuntime? schema currentRuntimeType
+                            childRuntimeType targetField targetArguments
+                            headChildSelectionSet with
                   | none =>
                       refine ⟨restMerged, pref, suff, ?_, hcontext⟩
                       simp [firstFieldChildByHeadAtRuntime?, hincludes,
                         hchild, hrestMerged, mergeFieldChildOptions]
                   | some childMerged =>
-                      refine
-                        ⟨childMerged ++ restMerged, childMerged ++ pref, suff,
-                          ?_, ?_⟩
+                      refine ⟨
+                        childMerged ++ restMerged,
+                        childMerged ++ pref,
+                        suff,
+                        ?_,
+                        ?_
+                      ⟩
                       · simp [firstFieldChildByHeadAtRuntime?, hincludes,
                           hchild, hrestMerged, mergeFieldChildOptions]
                       · rw [hcontext]
@@ -1982,9 +1994,7 @@ theorem
       childSelectionSet hmem with
     ⟨fieldDefinition, hlookup, hfuel, hleafOrChild⟩
   rcases hleafOrChild with hleaf | hchild
-  · refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0,
-        ?_⟩
+  · refine ⟨leafProbeResponseValue fieldDefinition.outputType tag.scalar, 0, ?_⟩
     exact
       executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf
         schema rootSelectionSet leftInitialSelectionSet

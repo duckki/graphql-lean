@@ -63,13 +63,12 @@ theorem collectedExecutableFields_mergeExecutableGroups_length
       simp [collectedExecutableFields, GraphQL.Execution.mergeExecutableGroups]
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
-      change
-        (collectedExecutableFields
-          (GraphQL.Execution.mergeExecutableGroups
-            (GraphQL.Execution.addExecutableGroup (responseName, fields) left)
-            rest)).length =
-          (collectedExecutableFields left).length +
-            (fields ++ collectedExecutableFields rest).length
+      change (collectedExecutableFields
+                (GraphQL.Execution.mergeExecutableGroups
+                  (GraphQL.Execution.addExecutableGroup (responseName, fields) left)
+                  rest)).length
+              = (collectedExecutableFields left).length
+                + (fields ++ collectedExecutableFields rest).length
       rw [ih]
       rw [collectedExecutableFields_addExecutableGroup_length]
       simp [List.length_append]
@@ -744,28 +743,27 @@ theorem collectedExecutableFields_mem_mergeExecutableGroups
         · exact Or.inr (by simp [collectedExecutableFields, hrest])
       · intro hmem
         rcases hmem with hleft | hright
-        · exact
-            (ih
-              (GraphQL.Execution.addExecutableGroup (responseName, fields)
-                left)).mpr
-              (Or.inl
-                ((collectedExecutableFields_mem_addExecutableGroup
-                  (responseName, fields) left field).mpr (Or.inr hleft)))
+        · exact (ih
+                  (GraphQL.Execution.addExecutableGroup (responseName, fields) left)).mpr
+                  (Or.inl
+                    ((collectedExecutableFields_mem_addExecutableGroup
+                        (responseName, fields) left field).mpr
+                      (Or.inr hleft)))
         · have hfieldsOrRest :
               field ∈ fields ∨ field ∈ collectedExecutableFields rest := by
             simpa [collectedExecutableFields, List.mem_append] using hright
           rcases hfieldsOrRest with hfield | hrest
-          · exact
-              (ih
-                (GraphQL.Execution.addExecutableGroup (responseName, fields)
-                  left)).mpr
-                (Or.inl
-                  ((collectedExecutableFields_mem_addExecutableGroup
-                    (responseName, fields) left field).mpr (Or.inl hfield)))
-          · exact
-              (ih
-                (GraphQL.Execution.addExecutableGroup (responseName, fields)
-                  left)).mpr (Or.inr hrest)
+          · exact (ih
+                    (GraphQL.Execution.addExecutableGroup (responseName, fields)
+                      left)).mpr
+                    (Or.inl
+                      ((collectedExecutableFields_mem_addExecutableGroup
+                          (responseName, fields) left field).mpr
+                        (Or.inl hfield)))
+          · exact (ih
+                    (GraphQL.Execution.addExecutableGroup (responseName, fields)
+                      left)).mpr
+                    (Or.inr hrest)
 
 theorem collectedExecutableFields_addExecutableGroup_subset_append
     (group : Name × List ExecutableField)
@@ -970,8 +968,7 @@ theorem executableFieldsRuntimeScopedBy_scopedSelectionSetValid_field
       Validation.fieldSelectionSetValid_selectionSetValid schema
         variableDefinitions fieldDefinition scopedField.selectionSet
         hfieldSelectionSet
-  refine
-    ⟨scopedField, hscopedMem, ?_, hruntime, ?_⟩
+  refine ⟨scopedField, hscopedMem, ?_, hruntime, ?_⟩
   · exact ⟨hresponse, hfieldName, harguments, hselectionSet⟩
   · simpa [hselectionSet] using hselectionSetValid
 
@@ -1137,15 +1134,18 @@ mutual
                 } := by
             simpa using hfield
           subst field
-          refine
-            ⟨{
+          refine ⟨
+            {
               parentType := validParent,
               responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               outputType := fieldDefinition.outputType,
               selectionSet := selectionSet
-            }, ?_, ?_⟩
+            },
+            ?_,
+            ?_
+          ⟩
           · simp [FieldMerge.collectFields, hlookup]
           · exact ⟨rfl, rfl, rfl, rfl⟩
         · have hfalse :
@@ -1201,9 +1201,11 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hfield
                 rcases hrecursive field hfield with
                   ⟨scopedField, hscoped, hmatch⟩
-                exact
-                  ⟨scopedField, by simpa [FieldMerge.collectFields] using hscoped,
-                    hmatch⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hscoped,
+                  hmatch
+                ⟩
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent source
                       typeCondition = false := by
@@ -1318,15 +1320,19 @@ mutual
                 } := by
             simpa using hfield
           subst field
-          refine
-            ⟨{
+          refine ⟨
+            {
               parentType := validParent,
               responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               outputType := fieldDefinition.outputType,
               selectionSet := selectionSet
-            }, ?_, ?_, ?_⟩
+            },
+            ?_,
+            ?_,
+            ?_
+          ⟩
           · simp [FieldMerge.collectFields, hlookup]
           · exact ⟨rfl, rfl, rfl, rfl⟩
           · simpa [ScopedFieldRuntimeApplies, ScopedParentRuntimeApplies]
@@ -1388,9 +1394,12 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hfield
                 rcases hrecursive field hfield with
                   ⟨scopedField, hscoped, hmatch, hruntime⟩
-                exact
-                  ⟨scopedField, by simpa [FieldMerge.collectFields] using hscoped,
-                    hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hscoped,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent
                       (.object runtimeType identity) typeCondition = false := by
@@ -1507,15 +1516,19 @@ mutual
                 } := by
             simpa using hfield
           subst field
-          refine
-            ⟨{
+          refine ⟨
+            {
               parentType := validParent,
               responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               outputType := fieldDefinition.outputType,
               selectionSet := selectionSet
-            }, ?_, ?_, ?_⟩
+            },
+            ?_,
+            ?_,
+            ?_
+          ⟩
           · simp [FieldMerge.collectFields, hlookup]
           · exact ⟨rfl, rfl, rfl, rfl⟩
           · simpa [ScopedFieldRuntimeApplies, ScopedParentRuntimeApplies]
@@ -1577,9 +1590,12 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hfield
                 rcases hrecursive field hfield with
                   ⟨scopedField, hscoped, hmatch, hruntime⟩
-                exact
-                  ⟨scopedField, by simpa [FieldMerge.collectFields] using hscoped,
-                    hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hscoped,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent
                       (.object runtimeType identity) typeCondition = false := by
@@ -1699,15 +1715,19 @@ mutual
                 } := by
             simpa using hfield
           subst field
-          refine
-            ⟨{
+          refine ⟨
+            {
               parentType := scopedParent,
               responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               outputType := fieldDefinition.outputType,
               selectionSet := selectionSet
-            }, ?_, ?_, ?_⟩
+            },
+            ?_,
+            ?_,
+            ?_
+          ⟩
           · simp [FieldMerge.collectFields, hlookup]
           · exact ⟨rfl, rfl, rfl, rfl⟩
           · simpa [ScopedFieldRuntimeApplies, ScopedParentRuntimeApplies]
@@ -1764,9 +1784,12 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hfield
                 rcases hrecursive field hfield with
                   ⟨scopedField, hscoped, hmatch, hruntime⟩
-                exact
-                  ⟨scopedField, by simpa [FieldMerge.collectFields] using hscoped,
-                    hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hscoped,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent
                       (.object runtimeType identity) typeCondition = false := by
@@ -1891,15 +1914,19 @@ mutual
                 } := by
             simpa using hfield
           subst field
-          refine
-            ⟨{
+          refine ⟨
+            {
               parentType := scopedParent,
               responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               outputType := fieldDefinition.outputType,
               selectionSet := selectionSet
-            }, ?_, ?_, ?_⟩
+            },
+            ?_,
+            ?_,
+            ?_
+          ⟩
           · simp [FieldMerge.collectFields, hlookup]
           · exact ⟨rfl, rfl, rfl, rfl⟩
           · simpa [ScopedFieldRuntimeApplies, ScopedParentRuntimeApplies]
@@ -1958,10 +1985,12 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hfield
                 rcases hrecursive field hfield with
                   ⟨scopedField, hscoped, hmatch, hruntime⟩
-                exact
-                  ⟨scopedField,
-                    by simpa [FieldMerge.collectFields] using hscoped,
-                    hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hscoped,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent
                       (.object runtimeType identity) typeCondition = false := by

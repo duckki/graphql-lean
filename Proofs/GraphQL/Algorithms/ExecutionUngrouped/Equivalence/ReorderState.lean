@@ -75,7 +75,8 @@ def of_middle_existing_last_swap_after_prefix
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (completionDepth + 1) parentType source
         (executableFieldSelections (pre ++ ((middle ++ [later]) ++ rest))) :=
-  { groups := normalized.groups
+  {
+    groups := normalized.groups
     collect_eq := by
       rw [hcollect]
       exact normalized.collect_eq
@@ -84,7 +85,8 @@ def of_middle_existing_last_swap_after_prefix
         schema resolvers variableValues completionDepth parentType source pre
         middle later rest fields hprefix hparents hlater hnotMiddle hleftTrace
         hrightTrace hcollect normalized.flatCollects
-    flatSpec := normalized.flatSpec }
+    flatSpec := normalized.flatSpec
+  }
 
 theorem executeRootSelectionSet_eq_spec_of_middle_existing_last_swap_after_prefix
     {ObjectIdentity : Type}
@@ -268,7 +270,8 @@ def of_middle_existing_last_swap_after_prefix
     : RecursiveGroupedSelectionSetState schema resolvers variableValues
         completionDepth parentType source
         (executableFieldSelections (pre ++ ((middle ++ [later]) ++ rest))) :=
-  { groups := normalized.groups
+  {
+    groups := normalized.groups
     collect_eq := by
       rw [hcollect]
       exact normalized.collect_eq
@@ -278,15 +281,18 @@ def of_middle_existing_last_swap_after_prefix
         middle later rest fields hprefix hparents hlater hnotMiddle hleftTrace
         hrightTrace hcollect normalized.flatCollects
     collected :=
-      { groupedResponseKeysUnique := by
+      {
+        groupedResponseKeysUnique := by
           rw [hcollect]
           exact normalized.collected.groupedResponseKeysUnique
         groupedFieldsResolveStable := by
           rw [hcollect]
-          exact normalized.collected.groupedFieldsResolveStable }
+          exact normalized.collected.groupedFieldsResolveStable
+      }
     lookups := normalized.lookups
     compatible := normalized.compatible
-    recursiveAppend := normalized.recursiveAppend }
+    recursiveAppend := normalized.recursiveAppend
+  }
 
 theorem executeRootSelectionSet_eq_spec_of_middle_existing_last_swap_after_prefix
     {ObjectIdentity : Type}

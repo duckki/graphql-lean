@@ -170,12 +170,8 @@ theorem selectionSetValid_field_children_of_diff {schema : Schema}
   have hcomposite :
       schema.isCompositeType fieldDefinition.outputType.namedType := by
     rcases hnonempty with hleftNonempty | hrightNonempty
-    · exact
-        (fieldSelectionSetValid_child_of_nonempty hleftFieldValid
-          hleftNonempty).1
-    · exact
-        (fieldSelectionSetValid_child_of_nonempty hrightFieldValid
-          hrightNonempty).1
+    · exact (fieldSelectionSetValid_child_of_nonempty hleftFieldValid hleftNonempty).1
+    · exact (fieldSelectionSetValid_child_of_nonempty hrightFieldValid hrightNonempty).1
   rcases fieldSelectionSetValid_child_of_composite hleftFieldValid
       hcomposite with
     ⟨_hleftNonempty, hleftChildValid⟩
@@ -333,9 +329,14 @@ theorem field_child_inlineFragment_child_valid_free_normal
   have htypeObjectBool : objectTypeNameBool schema typeCondition = true :=
     objectTypeNameBool_eq_true_of_objectType_forNormality schema
       htypeObject
-  exact
-    ⟨hinlineDirectives, hinlineValid, hinlineFree, htypeObjectBool,
-      hinclude, hinlineNormal⟩
+  exact ⟨
+    hinlineDirectives,
+    hinlineValid,
+    hinlineFree,
+    htypeObjectBool,
+    hinclude,
+    hinlineNormal
+  ⟩
 
 end GroundTypeNormalization
 

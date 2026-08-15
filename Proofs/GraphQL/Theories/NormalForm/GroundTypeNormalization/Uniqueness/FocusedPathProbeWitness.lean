@@ -234,8 +234,7 @@ theorem
             fieldDefinition.outputType.namedType childSelectionSet :=
         selectionSetValid_field_child_of_mem_lookup hvalid hmem
           hchildNonempty hlookup
-      cases hselected :
-          selectedObservableFieldSpineNext? fieldName arguments spine with
+      cases hselected : selectedObservableFieldSpineNext? fieldName arguments spine with
       | none =>
           have hready :
               PathLocalSelectionSetHeadReady schema normalParentType
@@ -306,10 +305,17 @@ theorem
             dsimp [childFuel]
             omega
           refine Or.inr (Or.inr (Or.inr ?_))
-          refine
-            ⟨childRuntimeType, responseFields, errors,
-              hreturnComposite, hreturnNonObject, rfl, hruntime,
-              hchildInclude, ?_⟩
+          refine ⟨
+            childRuntimeType,
+            responseFields,
+            errors,
+            hreturnComposite,
+            hreturnNonObject,
+            rfl,
+            hruntime,
+            hchildInclude,
+            ?_
+          ⟩
           simpa [hchildFuelEq] using hchildResponse
       | some selected =>
           rcases selected with ⟨maybeRuntime, tail⟩
@@ -384,9 +390,16 @@ theorem
                 dsimp [childFuel]
                 omega
               refine Or.inr (Or.inl ?_)
-              refine
-                ⟨selectedRuntime, tail, responseFields, errors, rfl,
-                hruntimeCase, hchildInclude, ?_⟩
+              refine ⟨
+                selectedRuntime,
+                tail,
+                responseFields,
+                errors,
+                rfl,
+                hruntimeCase,
+                hchildInclude,
+                ?_
+              ⟩
               simpa [hchildFuelEq] using hchildResponse
 
 theorem
@@ -551,9 +564,16 @@ theorem
           rw [hobject] at hnonObject
           simp at hnonObject) with
     ⟨rightFields, rightErrors, hrightResponse⟩
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hsemantic
   exact hnotData (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
@@ -728,9 +748,16 @@ theorem
           rw [hobject] at hnonObject
           simp at hnonObject) with
     ⟨rightFields, rightErrors, hrightResponse⟩
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hsemantic
   exact hnotData (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
@@ -931,9 +958,16 @@ theorem
       rightRuntime hfree hnormal hobject hmem hlookup hleftSelected
       hrightSelected hruntime hchildInclude hleafFuel hleftChildResponse
       hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hsemantic
   exact hdataNot (by
     simpa [hleftResponse, hrightResponse] using hsemantic)
@@ -1115,9 +1149,16 @@ theorem
       targetParent leftField rightField normalParentType runtimeType
       leftArguments rightArguments leftRuntime rightRuntime hnonObject
       hruntimeObject hfree hnormal hbodyDataNot
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2241,9 +2282,16 @@ theorem
       targetParent leftField rightField parentType parentType
       leftArguments rightArguments leftRuntime rightRuntime hfree hnormal
       hobject hmem hlookup hleafFuel hleaf hleftChildren hrightChildren
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2472,9 +2520,16 @@ theorem
       hobject hmem hlookup hruntime hsupport.sound hleafFuel
       hleftChildResponse hrightChildResponse hchildNot hleftFieldOk
       hrightFieldOk
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2630,9 +2685,16 @@ theorem
       targetParent leftField rightField normalParentType runtimeType
       leftArguments rightArguments leftRuntime rightRuntime hnonObject
       hruntimeObject hfree hnormal hbodyDataNot
-  refine
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      hleftResponse, hrightResponse, ?_⟩
+  refine ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 

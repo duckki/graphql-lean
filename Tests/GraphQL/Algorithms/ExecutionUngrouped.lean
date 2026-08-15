@@ -101,44 +101,55 @@ def cancelSiblingAfterRootBubbleQuery : Operation :=
   }
 
 def sampleResolversWithFriends : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      some <|
-        match parentType, fieldName with
-        | "Query", "hero" => .object "Character" ()
-        | "Character", "name" => .scalar "Leia"
-        | "Character", "friends" => .object "Character" ()
-        | _, _ => .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        some
+        <| match parentType, fieldName with
+            | "Query", "hero" => .object "Character" ()
+            | "Character", "name" => .scalar "Leia"
+            | "Character", "friends" => .object "Character" ()
+            | _, _ => .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def nullBubblingDuplicateResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Character", "name" => none
-      | "Character", "age" => none
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Character", "name" => none
+        | "Character", "age" => none
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def laterNullBubblingDuplicateResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Character", "name" => some (.scalar "Leia")
-      | "Character", "age" => none
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Character", "name" => some (.scalar "Leia")
+        | "Character", "age" => none
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def nullSiblingResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun _parentType _fieldName _arguments _source => none
+  {
+    resolve := fun _parentType _fieldName _arguments _source => none
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def sourceCachingSchema : Schema :=
   {
@@ -171,15 +182,18 @@ def sourceCachingQuery : Operation :=
   }
 
 def sourceCachingResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "hero", _ => some (.object "Character" "leia-source")
-      | "Character", "name", .object _typeName ref => some (.scalar ref)
-      | "Character", "age", .object _typeName ref => some (.scalar (ref ++ "-age"))
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "hero", _ => some (.object "Character" "leia-source")
+        | "Character", "name", .object _typeName ref => some (.scalar ref)
+        | "Character", "age", .object _typeName ref => some (.scalar (ref ++ "-age"))
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def sourceCachingSource : GraphQL.Execution.ResolverValue String :=
   GraphQL.Execution.ResolverValue.object "Query" "root"

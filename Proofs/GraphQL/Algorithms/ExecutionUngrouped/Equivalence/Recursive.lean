@@ -174,16 +174,16 @@ theorem toGlobalInvariants
     (invariants
       : RecursiveSelectionSetGlobalFreshPrefixInvariants schema resolvers variableValues)
     : RecursiveSelectionSetGlobalInvariants schema resolvers variableValues :=
-  { flat := by
+  {
+    flat := by
       intro depth parentType source selectionSet
-      exact
-        (invariants.freshFlat depth parentType source
-          selectionSet).empty
+      exact (invariants.freshFlat depth parentType source selectionSet).empty
     collected := invariants.collected
     compatible := invariants.compatible
     lookups := invariants.lookups
     zeroChildrenSingletons := invariants.zeroChildrenSingletons
-    errorNeutral := invariants.errorNeutral }
+    errorNeutral := invariants.errorNeutral
+  }
 
 end RecursiveSelectionSetGlobalFreshPrefixInvariants
 

@@ -359,15 +359,16 @@ theorem ExecutedFieldAppendStep_two_of_visit_absorbs
               })
     : ExecutedFieldAppendStep schema resolvers variableValues depth parentType
         source responseName first resolved [] later := by
-  refine
-    { responseName_eq := hlaterResponse
-      parent_eq := hlaterParent
-      fieldName_eq := hfieldName
-      resolved_eq := hresolveLater
-      prefixChildren := ?prefixChildren
-      absorbs := ?absorbs
-      errorNeutral := ?errorNeutral
-      extendedChildren := ?extendedChildren }
+  refine {
+    responseName_eq := hlaterResponse
+    parent_eq := hlaterParent
+    fieldName_eq := hfieldName
+    resolved_eq := hresolveLater
+    prefixChildren := ?prefixChildren
+    absorbs := ?absorbs
+    errorNeutral := ?errorNeutral
+    extendedChildren := ?extendedChildren
+  }
   · intro childDepth runtimeType identity hlt _hincludes
     simpa [GraphQL.Execution.mergedFieldSelectionSet] using
       hfirstChildren childDepth runtimeType identity hlt
@@ -572,15 +573,16 @@ theorem ExecutedFieldAppendStep.of_collected_group
       resolvers.resolve field.parentType field.fieldName field.arguments
         source :=
     (hgroupStable field later (by simp) hlater hsameResponse).symm
-  refine
-    { responseName_eq := hlaterResponse
-      parent_eq := hlaterParent
-      fieldName_eq := hfieldName
-      resolved_eq := hresolveLater
-      prefixChildren := hprefixChildren
-      absorbs := hobjects
-      errorNeutral := herrors
-      extendedChildren := hchildren }
+  refine {
+    responseName_eq := hlaterResponse
+    parent_eq := hlaterParent
+    fieldName_eq := hfieldName
+    resolved_eq := hresolveLater
+    prefixChildren := hprefixChildren
+    absorbs := hobjects
+    errorNeutral := herrors
+    extendedChildren := hchildren
+  }
 
 theorem ExecutedFieldAppendPlan.of_collected_group_state
     {ObjectIdentity : Type}

@@ -237,9 +237,13 @@ theorem selectionSetSemanticsReady_fieldHead_merged_of_child_object
         schema parentType responseName fieldName arguments subselections rest
         hobject hlookupValid hmerge selection hselection with
       ⟨matchedArguments, matchedDirectives, matchedSubselections, hselectionEq⟩
-    exact
-      ⟨fieldName, matchedArguments, matchedDirectives, matchedSubselections,
-        hselectionEq⟩
+    exact ⟨
+      fieldName,
+      matchedArguments,
+      matchedDirectives,
+      matchedSubselections,
+      hselectionEq
+    ⟩
   · intro matchedFieldName matchedArguments matchedDirectives
       matchedSubselections hmatched
     have hmatchedShape :=

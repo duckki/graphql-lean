@@ -102,15 +102,18 @@ def sampleHeroQuery : Operation :=
   }
 
 def sampleResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      some <|
-        match parentType, fieldName with
-        | "Query", "hero" => .object "Character" ()
-        | "Character", "name" => .scalar "Leia"
-        | _, _ => .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        some
+        <| match parentType, fieldName with
+            | "Query", "hero" => .object "Character" ()
+            | "Character", "name" => .scalar "Leia"
+            | _, _ => .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem executeHeroQuerySmoke
     : responseEqBool
@@ -122,14 +125,17 @@ theorem executeHeroQuerySmoke
   native_decide
 
 def sampleErrorResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Character", "name" => none
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Character", "name" => none
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem executeHeroQueryErrorCountSmoke
     : let response :=
@@ -186,24 +192,30 @@ def rootNonNullSchema : Schema :=
   }
 
 def nonNullNameErrorResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Character", "name" => none
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Character", "name" => none
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 def nonNullNameNullResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "hero" => some (.object "Character" ())
-      | "Character", "name" => some .null
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "hero" => some (.object "Character" ())
+        | "Character", "name" => some .null
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem executeNestedNonNullBubblesToNullableParentSmoke
     : let response :=
@@ -292,13 +304,16 @@ def skipVariableDefaultQuery : Operation :=
   }
 
 def rootNameResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "name" => some (.scalar "Query")
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "name" => some (.scalar "Query")
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem coerceVariableValuesUsesMissingDefault
     : GraphQL.Execution.lookupVariableValue?

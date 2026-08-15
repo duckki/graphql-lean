@@ -1805,8 +1805,7 @@ mutual
                       output := by
                 unfold visitSelection
                 simp [hallow, selectionDirectivesAllowBool_empty]
-                cases hprevious :
-                    responseObjectField? responseName output with
+                cases hprevious : responseObjectField? responseName output with
                 | none =>
                     cases depth <;>
                       simp_all [executeField, executableField, reusablePreviousValue?]
@@ -1855,9 +1854,9 @@ mutual
                   simp [NormalForm.filterSelectionSetBoolCase, hallowCase,
                     visitSubfields, hhead', htail]
               | cons child children =>
-                  cases hfiltered :
-                      NormalForm.filterSelectionSetBoolCase boolCase
-                        (child :: children) with
+                  cases hfiltered
+                        : NormalForm.filterSelectionSetBoolCase boolCase
+                            (child :: children) with
                   | nil =>
                       have hhead' :
                           visitSelection schema resolvers variableValues depth
@@ -1962,9 +1961,9 @@ mutual
                   htailVars
               cases typeCondition with
               | none =>
-                  cases hfiltered :
-                      NormalForm.filterSelectionSetBoolCase boolCase
-                        childSelectionSet with
+                  cases hfiltered
+                        : NormalForm.filterSelectionSetBoolCase boolCase
+                            childSelectionSet with
                   | nil =>
                       have hchildVisitOk :
                           visitSubfields schema resolvers variableValues depth
@@ -2013,9 +2012,9 @@ mutual
                         visitSubfields_filterSelectionSetBoolCase_eq schema
                           resolvers variableValues operation boolCase hagrees
                           depth parentType source rest output htailVars
-                    cases hfiltered :
-                        NormalForm.filterSelectionSetBoolCase boolCase
-                          childSelectionSet with
+                    cases hfiltered
+                          : NormalForm.filterSelectionSetBoolCase boolCase
+                              childSelectionSet with
                     | nil =>
                         simp [NormalForm.filterSelectionSetBoolCase,
                           hallowCase, hfiltered, visitSubfields,
@@ -2024,9 +2023,9 @@ mutual
                         simp [NormalForm.filterSelectionSetBoolCase,
                           hallowCase, hfiltered, visitSubfields,
                           visitSelection, hallow, happly, htail]
-                  · cases hfiltered :
-                        NormalForm.filterSelectionSetBoolCase boolCase
-                          childSelectionSet with
+                  · cases hfiltered
+                          : NormalForm.filterSelectionSetBoolCase boolCase
+                              childSelectionSet with
                     | nil =>
                         have hchildVisitOk :
                           visitSubfields schema resolvers variableValues depth

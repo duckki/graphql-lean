@@ -146,13 +146,17 @@ theorem NormalSelectionSetResponsePath.runtimeActive_of_normal
   intro hvalid hnormal hpath
   cases hpath with
   | objectHere hobject _hmem =>
-      exact
-        ⟨parentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+      exact ⟨
+        parentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+      ⟩
   | objectChild hobject _hmem _hlookup _hchildPath =>
-      exact
-        ⟨parentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+      exact ⟨
+        parentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+      ⟩
   | abstractInlineFragment hnonObject hmem hchildPath =>
       rcases selectionSetNormal_inlineFragment_child_of_mem hnormal hmem with
         ⟨htypeObject, hchildNormal⟩
@@ -161,13 +165,19 @@ theorem NormalSelectionSetResponsePath.runtimeActive_of_normal
       have hinclude : schema.typeIncludesObjectBool parentType _ = true :=
         typeIncludesObjectBool_of_typesOverlap_object schema hoverlap
           htypeObject
-      exact
-        ⟨_,
-          Or.inr
-            ⟨hnonObject, _, _, hmem,
-              normalSelectionSetResponsePath_selectionSet_nonempty hchildPath,
-              hchildNormal⟩,
-          hinclude⟩
+      exact ⟨
+        _,
+        Or.inr
+          ⟨
+            hnonObject,
+            _,
+            _,
+            hmem,
+            normalSelectionSetResponsePath_selectionSet_nonempty hchildPath,
+            hchildNormal
+          ⟩,
+        hinclude
+      ⟩
 
 theorem NormalSelectionSetResponsePath.runtimePruned_of_normal
     {schema : Schema} {selectionSet : List Selection}
@@ -197,12 +207,14 @@ theorem NormalSelectionSetResponsePath.runtimePruned_of_normal
             pathSelectionSet :=
         runtimePrunedSelectionSet_eq_self_of_allFields schema pathParentType
           hallFields
-      exact
-        ⟨pathParentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          by
-            rw [hpruned]
-            exact NormalSelectionSetResponsePath.objectHere hobject hmem⟩
+      exact ⟨
+        pathParentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        by
+          rw [hpruned]
+          exact NormalSelectionSetResponsePath.objectHere hobject hmem
+      ⟩
   | objectChild hobject hmem hlookup hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
@@ -216,14 +228,16 @@ theorem NormalSelectionSetResponsePath.runtimePruned_of_normal
             pathSelectionSet :=
         runtimePrunedSelectionSet_eq_self_of_allFields schema pathParentType
           hallFields
-      exact
-        ⟨pathParentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          by
-            rw [hpruned]
-            exact
-              NormalSelectionSetResponsePath.objectChild hobject hmem hlookup
-                hchildPath⟩
+      exact ⟨
+        pathParentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        by
+          rw [hpruned]
+          exact
+            NormalSelectionSetResponsePath.objectChild hobject hmem hlookup
+              hchildPath
+      ⟩
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
@@ -258,13 +272,20 @@ theorem NormalSelectionSetResponsePath.runtimePruned_of_normal
         typeIncludesObjectBool_self_of_objectTypeNameBool schema
           (objectTypeNameBool_eq_true_of_objectType_base schema htypeObject)
       rcases List.mem_iff_append.mp hmem with ⟨pref, suff, hselectionSet⟩
-      refine
-        ⟨_,
-          Or.inr
-            ⟨hnonObject, directives, childSelectionSet, ?_,
-              normalSelectionSetResponsePath_selectionSet_nonempty hchildPath,
-              hchildNormal⟩,
-          hinclude, ?_⟩
+      refine ⟨
+        _,
+        Or.inr
+          ⟨
+            hnonObject,
+            directives,
+            childSelectionSet,
+            ?_,
+            normalSelectionSetResponsePath_selectionSet_nonempty hchildPath,
+            hchildNormal
+          ⟩,
+        hinclude,
+        ?_
+      ⟩
       · exact hmem
       · rw [hselectionSet]
         simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
@@ -304,14 +325,16 @@ theorem NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
             pathSelectionSet :=
         runtimePrunedSelectionSet_eq_self_of_allFields schema pathParentType
           hallFields
-      exact
-        ⟨pathParentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          by
-            rw [hpruned]
-            exact
-              NormalSelectionSetObservableResponsePath.objectLeaf hobject
-                hmem hlookup hleaf⟩
+      exact ⟨
+        pathParentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        by
+          rw [hpruned]
+          exact
+            NormalSelectionSetObservableResponsePath.objectLeaf hobject
+              hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i pathParentType responseName fieldName arguments directives
         childSelectionSet pathSelectionSet fieldDefinition childPath
@@ -325,14 +348,16 @@ theorem NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
             pathSelectionSet :=
         runtimePrunedSelectionSet_eq_self_of_allFields schema pathParentType
           hallFields
-      exact
-        ⟨pathParentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-          by
-            rw [hpruned]
-            exact
-              NormalSelectionSetObservableResponsePath.objectChild hobject
-                hmem hlookup hcomposite hchildPath⟩
+      exact ⟨
+        pathParentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+        by
+          rw [hpruned]
+          exact
+            NormalSelectionSetObservableResponsePath.objectChild hobject
+              hmem hlookup hcomposite hchildPath
+      ⟩
   | abstractInlineFragment hnonObject hmem hchildPath ih =>
       rename_i pathParentType typeCondition directives childSelectionSet
         pathSelectionSet childPath
@@ -367,14 +392,21 @@ theorem NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
         typeIncludesObjectBool_self_of_objectTypeNameBool schema
           (objectTypeNameBool_eq_true_of_objectType_base schema htypeObject)
       rcases List.mem_iff_append.mp hmem with ⟨pref, suff, hselectionSet⟩
-      refine
-        ⟨_,
-          Or.inr
-            ⟨hnonObject, directives, childSelectionSet, ?_,
-              normalSelectionSetResponsePath_selectionSet_nonempty
-                hchildPath.to_responsePath,
-              hchildNormal⟩,
-          hinclude, ?_⟩
+      refine ⟨
+        _,
+        Or.inr
+          ⟨
+            hnonObject,
+            directives,
+            childSelectionSet,
+            ?_,
+            normalSelectionSetResponsePath_selectionSet_nonempty
+              hchildPath.to_responsePath,
+            hchildNormal
+          ⟩,
+        hinclude,
+        ?_
+      ⟩
       · exact hmem
       · rw [hselectionSet]
         simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
@@ -399,13 +431,17 @@ theorem SelectionSetProbePathCoherent.runtimeActive_of_normal
   intro hvalid hnormal hpath
   cases hpath with
   | objectHere hobject _hmem =>
-      exact
-        ⟨parentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+      exact ⟨
+        parentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+      ⟩
   | objectChild hobject _hmem _hlookup _hhead _hchildPath =>
-      exact
-        ⟨parentType, selectionSetRuntimeActive_object hobject,
-          typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+      exact ⟨
+        parentType,
+        selectionSetRuntimeActive_object hobject,
+        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+      ⟩
   | abstractInlineFragment hnonObject hmem hchildPath =>
       rcases selectionSetNormal_inlineFragment_child_of_mem hnormal hmem with
         ⟨htypeObject, hchildNormal⟩
@@ -414,12 +450,11 @@ theorem SelectionSetProbePathCoherent.runtimeActive_of_normal
       have hinclude : schema.typeIncludesObjectBool parentType _ = true :=
         typeIncludesObjectBool_of_typesOverlap_object schema hoverlap
           htypeObject
-      exact
-        ⟨_,
-          Or.inr
-            ⟨hnonObject, _, _, hmem, hchildPath.selectionSet_nonempty,
-              hchildNormal⟩,
-          hinclude⟩
+      exact ⟨
+        _,
+        Or.inr ⟨hnonObject, _, _, hmem, hchildPath.selectionSet_nonempty, hchildNormal⟩,
+        hinclude
+      ⟩
 
 theorem fieldHeadProbeRuntimeCoherent_of_child_pathCoherent
     {schema : Schema} {rootSelectionSet childSelectionSet : List Selection}
@@ -446,8 +481,7 @@ theorem fieldHeadProbeRuntimeCoherent_of_child_pathCoherent
   intro hchildValid hchildNormal hcomposite hchildPath hrootPreservesRuntime
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
-  · exact
-      ⟨fieldDefinition.outputType.namedType, Or.inl ⟨hobject, rfl⟩⟩
+  · exact ⟨fieldDefinition.outputType.namedType, Or.inl ⟨hobject, rfl⟩⟩
   · have hnonObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType =
           false := by
@@ -458,12 +492,16 @@ theorem fieldHeadProbeRuntimeCoherent_of_child_pathCoherent
     rcases
         hchildPath.runtimeActive_of_normal hchildValid hchildNormal with
       ⟨runtimeType, hactive, _hinclude⟩
-    exact
-      ⟨runtimeType,
-        Or.inr
-          ⟨hcomposite, hnonObject,
-            hrootPreservesRuntime runtimeType hactive hnonObject,
-            hactive⟩⟩
+    exact ⟨
+      runtimeType,
+      Or.inr
+        ⟨
+          hcomposite,
+          hnonObject,
+          hrootPreservesRuntime runtimeType hactive hnonObject,
+          hactive
+        ⟩
+    ⟩
 
 theorem SelectionSetProbePathCoherent.objectChild_of_runtimePreserving
     {schema : Schema} {rootSelectionSet selectionSet childSelectionSet : List Selection}

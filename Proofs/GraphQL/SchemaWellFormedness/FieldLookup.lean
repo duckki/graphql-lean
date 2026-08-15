@@ -27,9 +27,7 @@ theorem fieldDefinitionsWellFormed_lookupFieldDefinition_outputType
       -> Schema.lookupFieldDefinition fields fieldName = some fieldDefinition
       -> fieldDefinition.outputType.isOutputType schema := by
   intro hfields hlookup
-  exact
-    (fieldDefinitionsWellFormed_lookupFieldDefinition_wellFormed
-      hfields hlookup).1
+  exact (fieldDefinitionsWellFormed_lookupFieldDefinition_wellFormed hfields hlookup).1
 
 theorem objectTypeWellFormed_lookupFieldDefinition_wellFormed
     {schema : Schema} {objectType : ObjectType}

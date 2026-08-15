@@ -220,7 +220,8 @@ def of_collected_groups_containedAppendInvariant
       let tailInvariant
           : CollectedFieldGroupContainedAppendInvariant schema resolvers
               variableValues depth source rest :=
-        { prefixChildren := by
+        {
+          prefixChildren := by
             intro tailResponseName tailField tailFields prefixTail hgroup
               hprefix childDepth runtimeType identity hlt hcontains hincludes
             exact hinvariant.prefixChildren tailResponseName tailField
@@ -244,7 +245,8 @@ def of_collected_groups_containedAppendInvariant
               hincludes
             exact hinvariant.extendedChildren tailResponseName tailField
               tailFields prefixTail later (by simp [hgroup]) hprefix hlater
-              childDepth runtimeType identity hlt hcontains hincludes }
+              childDepth runtimeType identity hlt hcontains hincludes
+        }
       let tailLookups : CollectedGroupsFieldLookupValid schema parentType rest := by
         intro tailResponseName tailField tailFields hgroup
         exact hlookups tailResponseName tailField tailFields (by simp [hgroup])

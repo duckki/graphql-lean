@@ -443,12 +443,12 @@ theorem executeRootSelectionSet_append_one_visit_aligned_of_complete
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
     parentType source prefixSelectionSet laterSelectionSet (.object [])]
   simp [htail]
-  exact
-    (groupedFieldVisitResult_singleFieldResult_combine_visit_aligned responseName
-      prefixCompleted laterCompleted combinedCompleted
-      (visitSubfields schema resolvers variableValues depth parentType source
-        prefixSelectionSet (.object []))
-      hprefix haligned).to_rootSelectionResult responseName
+  exact (groupedFieldVisitResult_singleFieldResult_combine_visit_aligned responseName
+          prefixCompleted laterCompleted combinedCompleted
+          (visitSubfields schema resolvers variableValues depth parentType source
+            prefixSelectionSet (.object []))
+          hprefix haligned).to_rootSelectionResult
+          responseName
 
 theorem visitSubfields_append_one_visit_aligned_of_complete
     {ObjectIdentity : Type}
@@ -1104,38 +1104,37 @@ theorem completeValue_named_group_append_one_result_eq_spec
                         (childDepth + 1) (.named parentType)
                         (GraphQL.Execution.mergedFieldSelectionSet prefixFields)
                         (.object runtimeType identity) none)
-                    (completeResolvedValue schema resolvers variableValues
-                      (childDepth + 1) (.named parentType)
-                      later.selectionSet (.object runtimeType identity)
-                        (some (resultValueOrNull
-                          (completeValue schema resolvers variableValues
-                            (childDepth + 1) (.named parentType)
-                            (GraphQL.Execution.mergedFieldSelectionSet
-                              prefixFields)
-                            (.object runtimeType identity) none)))) =
-                  completeValue schema resolvers variableValues (childDepth + 1)
-                      (.named parentType)
-                      (GraphQL.Execution.mergedFieldSelectionSet prefixFields ++
-                        later.selectionSet)
-                      (.object runtimeType identity) none := by
-                    exact
-                      completeValue_object_append_result_of_absorbs_errorNeutral
-                        schema resolvers variableValues childDepth parentType
-                        runtimeType identity
-                        (GraphQL.Execution.mergedFieldSelectionSet
-                          prefixFields)
-                        later.selectionSet hincludes
-                        (hobjects childDepth runtimeType identity
-                          (Nat.lt_succ_self childDepth))
-                        (herrors childDepth runtimeType identity
-                          (Nat.lt_succ_self childDepth))
-                _ =
-                  completeValue schema resolvers variableValues
+                      (completeResolvedValue schema resolvers variableValues
+                        (childDepth + 1) (.named parentType)
+                        later.selectionSet (.object runtimeType identity)
+                        (some
+                          (resultValueOrNull
+                            (completeValue schema resolvers variableValues
+                              (childDepth + 1) (.named parentType)
+                              (GraphQL.Execution.mergedFieldSelectionSet prefixFields)
+                              (.object runtimeType identity) none))))
+                    = completeValue schema resolvers variableValues (childDepth + 1)
+                        (.named parentType)
+                        (GraphQL.Execution.mergedFieldSelectionSet prefixFields
+                          ++ later.selectionSet)
+                        (.object runtimeType identity) none := by
+                  exact
+                    completeValue_object_append_result_of_absorbs_errorNeutral
+                      schema resolvers variableValues childDepth parentType
+                      runtimeType identity
+                      (GraphQL.Execution.mergedFieldSelectionSet
+                        prefixFields)
+                      later.selectionSet hincludes
+                      (hobjects childDepth runtimeType identity
+                        (Nat.lt_succ_self childDepth))
+                      (herrors childDepth runtimeType identity
+                        (Nat.lt_succ_self childDepth))
+                _ = completeValue schema resolvers variableValues
                       (childDepth + 1) (.named parentType)
                       (GraphQL.Execution.mergedFieldSelectionSet
                         (prefixFields ++ [later]))
                       (.object runtimeType identity) none := by
-                    rw [hmergedAppend]
+                  rw [hmergedAppend]
             rw [← hprefix]
             rw [← hextended]
             exact hslice
@@ -1880,40 +1879,39 @@ theorem completeValue_named_group_append_one_result_eq_spec_of_contained
                         (childDepth + 1) (.named parentType)
                         (GraphQL.Execution.mergedFieldSelectionSet prefixFields)
                         (.object runtimeType identity) none)
-                    (completeResolvedValue schema resolvers variableValues
-                      (childDepth + 1) (.named parentType)
-                      later.selectionSet (.object runtimeType identity)
-                        (some (resultValueOrNull
-                          (completeValue schema resolvers variableValues
-                            (childDepth + 1) (.named parentType)
-                            (GraphQL.Execution.mergedFieldSelectionSet
-                              prefixFields)
-                            (.object runtimeType identity) none)))) =
-                  completeValue schema resolvers variableValues (childDepth + 1)
-                      (.named parentType)
-                      (GraphQL.Execution.mergedFieldSelectionSet prefixFields ++
-                        later.selectionSet)
-                      (.object runtimeType identity) none := by
-                    exact
-                      completeValue_object_append_result_of_absorbs_errorNeutral
-                        schema resolvers variableValues childDepth parentType
-                        runtimeType identity
-                        (GraphQL.Execution.mergedFieldSelectionSet
-                          prefixFields)
-                        later.selectionSet hincludes
-                        (hobjects childDepth runtimeType identity
-                          (Nat.lt_succ_self childDepth)
-                          ValueContainsObject.here)
-                        (herrors childDepth runtimeType identity
-                          (Nat.lt_succ_self childDepth)
-                          ValueContainsObject.here)
-                _ =
-                  completeValue schema resolvers variableValues
+                      (completeResolvedValue schema resolvers variableValues
+                        (childDepth + 1) (.named parentType)
+                        later.selectionSet (.object runtimeType identity)
+                        (some
+                          (resultValueOrNull
+                            (completeValue schema resolvers variableValues
+                              (childDepth + 1) (.named parentType)
+                              (GraphQL.Execution.mergedFieldSelectionSet prefixFields)
+                              (.object runtimeType identity) none))))
+                    = completeValue schema resolvers variableValues (childDepth + 1)
+                        (.named parentType)
+                        (GraphQL.Execution.mergedFieldSelectionSet prefixFields
+                          ++ later.selectionSet)
+                        (.object runtimeType identity) none := by
+                  exact
+                    completeValue_object_append_result_of_absorbs_errorNeutral
+                      schema resolvers variableValues childDepth parentType
+                      runtimeType identity
+                      (GraphQL.Execution.mergedFieldSelectionSet
+                        prefixFields)
+                      later.selectionSet hincludes
+                      (hobjects childDepth runtimeType identity
+                        (Nat.lt_succ_self childDepth)
+                        ValueContainsObject.here)
+                      (herrors childDepth runtimeType identity
+                        (Nat.lt_succ_self childDepth)
+                        ValueContainsObject.here)
+                _ = completeValue schema resolvers variableValues
                       (childDepth + 1) (.named parentType)
                       (GraphQL.Execution.mergedFieldSelectionSet
                         (prefixFields ++ [later]))
                       (.object runtimeType identity) none := by
-                    rw [hmergedAppend]
+                  rw [hmergedAppend]
             rw [← hprefix]
             rw [← hextended]
             exact hslice

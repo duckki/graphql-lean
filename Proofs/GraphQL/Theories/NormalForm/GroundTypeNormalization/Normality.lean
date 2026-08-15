@@ -364,8 +364,7 @@ theorem possibleTypeNormalizations_groundTyped
     unfold possibleTypeNormalizations at hmem
     rw [List.mem_filterMap] at hmem
     rcases hmem with ⟨objectType, hobjectType, hselection⟩
-    cases hnormalized :
-        normalizeSelectionSet schema objectType selectionSet with
+    cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
     | nil =>
         simp [hnormalized] at hselection
     | cons head tail =>
@@ -816,8 +815,7 @@ theorem possibleTypeNormalizations_nonRedundant
       rw [List.mem_filterMap] at hselection
       rcases hselection with
         ⟨objectType, hobjectType, hselectionEq⟩
-      cases hnormalized :
-          normalizeSelectionSet schema objectType selectionSet with
+      cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
           simp [hnormalized] at hselectionEq
       | cons head tail =>

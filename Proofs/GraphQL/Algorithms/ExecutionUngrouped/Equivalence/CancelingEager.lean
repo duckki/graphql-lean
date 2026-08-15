@@ -48,9 +48,7 @@ private theorem StrongResultAligned.errorPresence {α : Type}
     : ErrorPresenceEquivalent (resultErrorCount canceling) (resultErrorCount eager) := by
   cases canceling <;> cases eager <;>
     simp [StrongResultAligned, resultErrorCount] at h ⊢
-  · exact
-      ⟨fun heagerZero => False.elim (by omega),
-        fun _heagerPositive => h.1⟩
+  · exact ⟨fun heagerZero => False.elim (by omega), fun _heagerPositive => h.1⟩
   · exact h.2
 
 private theorem StrongResultAligned.nonNullCompletion
@@ -99,10 +97,7 @@ private theorem StrongResultAligned.catchBubbleAsNull {α : Type}
         (catchBubbleAsNull wrap eager) := by
   cases canceling <;> cases eager <;>
     simp [StrongResultAligned, ErrorPresenceEquivalent] at h ⊢
-  · exact
-      ⟨rfl,
-        ⟨fun heagerZero => False.elim (by omega),
-          fun _heagerPositive => h.1⟩⟩
+  · exact ⟨rfl, ⟨fun heagerZero => False.elim (by omega), fun _heagerPositive => h.1⟩⟩
   · rcases h with ⟨hvalue, herrors⟩
     exact ⟨by simp [hvalue], herrors⟩
 
@@ -120,18 +115,23 @@ private theorem StrongResultAligned.combine {α β γ : Type}
     : StrongResultAligned
         (GraphQL.Execution.Result.combine f cancelingLeft cancelingRight)
         (GraphQL.Execution.Result.combine f eagerLeft eagerRight) := by
-  cases cancelingLeft <;> cases eagerLeft <;>
-    cases cancelingRight <;> cases eagerRight <;>
-    simp only [StrongResultAligned,
-      GraphQL.Execution.Result.combine] at hleft hright ⊢
+  cases cancelingLeft
+  <;> cases eagerLeft
+  <;>
+    cases cancelingRight
+  <;> cases eagerRight
+  <;>
+      simp only [StrongResultAligned,
+        GraphQL.Execution.Result.combine] at hleft hright ⊢
   · exact ⟨by omega, by omega⟩
   · exact ⟨by omega, by omega⟩
   · exact ⟨by omega, by omega⟩
   · rcases hleft with ⟨hleftValue, hleftErrors⟩
     rcases hright with ⟨hrightValue, hrightErrors⟩
-    exact
-      ⟨by simp [hleftValue, hrightValue],
-        ErrorPresenceEquivalent.add hleftErrors hrightErrors⟩
+    exact ⟨
+      by simp [hleftValue, hrightValue],
+      ErrorPresenceEquivalent.add hleftErrors hrightErrors
+    ⟩
 
 private def visitResult (visited : ResponseValue × Result PUnit) : Result ResponseValue :=
   match visited.snd with
@@ -149,13 +149,12 @@ private theorem VisitResultAligned.catchVisitBubbleAsNull
         (catchVisitBubbleAsNull eager.fst eager.snd) := by
   rcases canceling with ⟨cancelingValue, cancelingStatus⟩
   rcases eager with ⟨eagerValue, eagerStatus⟩
-  cases cancelingStatus <;> cases eagerStatus <;>
-    simp [VisitResultAligned, visitResult, StrongResultAligned,
-      ErrorPresenceEquivalent] at h ⊢
-  · exact
-      ⟨rfl,
-        ⟨fun heagerZero => False.elim (by omega),
-          fun _heagerPositive => h.1⟩⟩
+  cases cancelingStatus
+  <;> cases eagerStatus
+  <;>
+      simp [VisitResultAligned, visitResult, StrongResultAligned,
+        ErrorPresenceEquivalent] at h ⊢
+  · exact ⟨rfl, ⟨fun heagerZero => False.elim (by omega), fun _heagerPositive => h.1⟩⟩
   · rcases h with ⟨hvalue, herrors⟩
     exact ⟨hvalue, herrors⟩
 
@@ -184,9 +183,7 @@ private theorem StrongResultAligned.to_responseValueAligned
     : ResponseValueResultAlignedEquivalent canceling eager := by
   cases canceling <;> cases eager <;>
     simp [StrongResultAligned, ResponseValueResultAlignedEquivalent] at h ⊢
-  · exact
-      ⟨fun heagerZero => False.elim (by omega),
-        fun _heagerPositive => h.1⟩
+  · exact ⟨fun heagerZero => False.elim (by omega), fun _heagerPositive => h.1⟩
   · exact h
 
 private theorem StrongResultAligned.to_rootAligned
@@ -195,9 +192,7 @@ private theorem StrongResultAligned.to_rootAligned
     : RootSelectionResultAlignedEquivalent canceling eager := by
   cases canceling <;> cases eager <;>
     simp [StrongResultAligned, RootSelectionResultAlignedEquivalent] at h ⊢
-  · exact
-      ⟨fun heagerZero => False.elim (by omega),
-        fun _heagerPositive => h.1⟩
+  · exact ⟨fun heagerZero => False.elim (by omega), fun _heagerPositive => h.1⟩
   · exact h
 
 mutual
@@ -458,9 +453,10 @@ mutual
                           hcancelingHead, heagerHead, hcancelingTail, heagerTail,
                           VisitResultAligned, visitResult, StrongResultAligned,
                           combineVisitStatus, GraphQL.Execution.Result.combine]
-                        exact
-                          ⟨htailValue,
-                            ErrorPresenceEquivalent.add hheadErrors htailErrors⟩
+                        exact ⟨
+                          htailValue,
+                          ErrorPresenceEquivalent.add hheadErrors htailErrors
+                        ⟩
   termination_by selectionSet _output => selectionSetVisitSize selectionSet
   decreasing_by
     all_goals
@@ -606,11 +602,12 @@ private theorem fuelImplementations_canceling_eager_aligned
             · rw [hresolve]
               simp only
               exact hcomplete _ field.selectionSet _ previous
-      refine
-        { completeValue := hcomplete
-          completeValueList := hlist
-          executeField := hfield
-          visitSubfields := ?_ }
+      refine {
+        completeValue := hcomplete
+        completeValueList := hlist
+        executeField := hfield
+        visitSubfields := ?_
+      }
       intro parentType source selectionSet output
       apply
         visitSubfields_canceling_eager_aligned schema resolvers variableValues 0
@@ -801,11 +798,12 @@ private theorem fuelImplementations_canceling_eager_aligned
             · rw [hresolve]
               simp only
               exact hcomplete _ field.selectionSet _ previous
-      refine
-        { completeValue := hcomplete
-          completeValueList := hlist
-          executeField := hfield
-          visitSubfields := ?_ }
+      refine {
+        completeValue := hcomplete
+        completeValueList := hlist
+        executeField := hfield
+        visitSubfields := ?_
+      }
       intro parentType source selectionSet output
       apply
         visitSubfields_canceling_eager_aligned schema resolvers variableValues

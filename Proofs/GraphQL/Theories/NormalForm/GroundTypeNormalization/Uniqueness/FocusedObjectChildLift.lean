@@ -194,24 +194,36 @@ theorem focusedSelectionSetTargetChildSelectionSets_mem
             · rcases ih htail with
                 ⟨tailResponseName, tailArguments, tailDirectives,
                   htailMem, htailArguments⟩
-              exact
-                ⟨tailResponseName, tailArguments, tailDirectives,
-                  List.mem_cons_of_mem _ htailMem, htailArguments⟩
+              exact ⟨
+                tailResponseName,
+                tailArguments,
+                tailDirectives,
+                List.mem_cons_of_mem _ htailMem,
+                htailArguments
+              ⟩
           · simp [focusedSelectionSetTargetChildSelectionSets, htarget] at hmem
             rcases ih hmem with
               ⟨tailResponseName, tailArguments, tailDirectives, htailMem,
                 htailArguments⟩
-            exact
-              ⟨tailResponseName, tailArguments, tailDirectives,
-                List.mem_cons_of_mem _ htailMem, htailArguments⟩
+            exact ⟨
+              tailResponseName,
+              tailArguments,
+              tailDirectives,
+              List.mem_cons_of_mem _ htailMem,
+              htailArguments
+            ⟩
       | inlineFragment typeCondition directives inlineSelectionSet =>
           simp [focusedSelectionSetTargetChildSelectionSets] at hmem
           rcases ih hmem with
             ⟨tailResponseName, tailArguments, tailDirectives, htailMem,
               htailArguments⟩
-          exact
-            ⟨tailResponseName, tailArguments, tailDirectives,
-              List.mem_cons_of_mem _ htailMem, htailArguments⟩
+          exact ⟨
+            tailResponseName,
+            tailArguments,
+            tailDirectives,
+            List.mem_cons_of_mem _ htailMem,
+            htailArguments
+          ⟩
 
 theorem focusedSelectionSetTargetChildSelectionSets_child_valid_free_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1775,12 +1787,17 @@ theorem
         simpa [parentResolvers, parentFuel, parentSource] using
           ⟨hleftPrefFieldsOk, hrightPrefFieldsOk, hleftSuffixFieldsOk,
             hrightSuffixFieldsOk⟩)
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hparentObject,
-      ProjectionResolverRef (Option ObjectRef), parentResolvers,
-      variableValues, parentFuel,
-      ProjectionResolverRef.root (none : Option ObjectRef),
-      hminFuel, ?_, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hparentObject,
+    ProjectionResolverRef (Option ObjectRef),
+    parentResolvers,
+    variableValues,
+    parentFuel,
+    ProjectionResolverRef.root (none : Option ObjectRef),
+    hminFuel,
+    ?_,
+    ?_
+  ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,

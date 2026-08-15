@@ -102,12 +102,13 @@ theorem operationsEqualUpToReordering_of_selectionSet
       -> SelectionSetEqualUpToReordering left.selectionSet right.selectionSet
       -> operationsEqualUpToReordering left right := by
   intro hleft hright hselectionSet
-  exact
-    ⟨by
+  exact ⟨
+    by
       cases left.operationType
       cases right.operationType
       rfl,
-      hselectionSet⟩
+    hselectionSet
+  ⟩
 
 theorem normal_operations_semanticallyEquivalent_equalUpToReordering_of_selectionSet
     {schema : Schema} {left right : Operation}

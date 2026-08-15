@@ -142,12 +142,9 @@ theorem directivesAllowInCase_eq_execution
             intro varName hmem
             exact hvars varName
               (by simp [directivesBooleanVariables, hmem]))
-      change
-        (directiveAllowsIn boolCase directive
-          && directivesAllowIn boolCase rest)
-        =
-        (Execution.directiveAllowsSelectionBool variableValues directive
-          && Execution.selectionDirectivesAllowBool variableValues rest)
+      change (directiveAllowsIn boolCase directive && directivesAllowIn boolCase rest)
+              = (Execution.directiveAllowsSelectionBool variableValues directive
+                  && Execution.selectionDirectivesAllowBool variableValues rest)
       rw [hdirective, hrest]
 
 theorem allBoolCases_complete_for_variableValues

@@ -759,14 +759,18 @@ theorem mergeResponseFields_cons_left_exists
       by_cases h : responseName == incomingName
       · obtain ⟨response', fields', hrest⟩ :=
           ih (mergeResponse response incomingResponse) fields
-        exact
-          ⟨response', fields',
-            by simpa [mergeResponseFields, mergeResponseField, h] using hrest⟩
+        exact ⟨
+          response',
+          fields',
+          by simpa [mergeResponseFields, mergeResponseField, h] using hrest
+        ⟩
       · obtain ⟨response', fields', hrest⟩ :=
           ih response (mergeResponseField incomingName incomingResponse fields)
-        exact
-          ⟨response', fields',
-            by simpa [mergeResponseFields, mergeResponseField, h] using hrest⟩
+        exact ⟨
+          response',
+          fields',
+          by simpa [mergeResponseFields, mergeResponseField, h] using hrest
+        ⟩
 
 mutual
   inductive ResponseAbsorptionShape : ResponseValue -> ResponseValue -> Prop where

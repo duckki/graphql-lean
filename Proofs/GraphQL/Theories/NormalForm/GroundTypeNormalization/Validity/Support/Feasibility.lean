@@ -124,8 +124,7 @@ theorem possibleTypeNormalizations_ne_nil_of_branch_forValidity
   | cons head rest ih =>
       rcases List.mem_cons.mp hmem with hhead | hrest
       · subst head
-        cases hnormalized :
-            normalizeSelectionSet schema objectType selectionSet with
+        cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
         | nil =>
             exact False.elim (hnonempty hnormalized)
         | cons selection selections =>
@@ -133,8 +132,7 @@ theorem possibleTypeNormalizations_ne_nil_of_branch_forValidity
       · have hrestNonempty :
             possibleTypeNormalizations schema rest selectionSet ≠ [] :=
           ih hrest
-        cases hnormalized :
-            normalizeSelectionSet schema head selectionSet with
+        cases hnormalized : normalizeSelectionSet schema head selectionSet with
         | nil =>
             simpa [possibleTypeNormalizations, hnormalized] using
               hrestNonempty

@@ -48,11 +48,12 @@ theorem AppendAllowedFieldState.of_child_states
     : AppendAllowedFieldState schema resolvers variableValues (depth + 1)
         parentType source left responseName fieldName arguments directives
         selectionSet depth := by
-  refine
-    { depth_eq := rfl
-      allowed := hallowed
-      rightEquivalent := ?_
-      namesDisjoint := hdisjoint }
+  refine {
+    depth_eq := rfl
+    allowed := hallowed
+    rightEquivalent := ?_
+    namesDisjoint := hdisjoint
+  }
   exact
     stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
       variableValues (depth + 1) parentType source
@@ -102,11 +103,12 @@ theorem AppendAllowedFieldState.of_guarded_child_states
     : AppendAllowedFieldState schema resolvers variableValues (depth + 1)
         parentType source left responseName fieldName arguments directives
         selectionSet depth := by
-  refine
-    { depth_eq := rfl
-      allowed := hallowed
-      rightEquivalent := ?_
-      namesDisjoint := hdisjoint }
+  refine {
+    depth_eq := rfl
+    allowed := hallowed
+    rightEquivalent := ?_
+    namesDisjoint := hdisjoint
+  }
   exact
     stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
       variableValues (depth + 1) parentType source
@@ -157,11 +159,12 @@ theorem AppendAllowedFieldState.of_contained_child_states
     : AppendAllowedFieldState schema resolvers variableValues (depth + 1)
         parentType source left responseName fieldName arguments directives
         selectionSet depth := by
-  refine
-    { depth_eq := rfl
-      allowed := hallowed
-      rightEquivalent := ?_
-      namesDisjoint := hdisjoint }
+  refine {
+    depth_eq := rfl
+    allowed := hallowed
+    rightEquivalent := ?_
+    namesDisjoint := hdisjoint
+  }
   exact
     stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
       variableValues (depth + 1) parentType source

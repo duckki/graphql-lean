@@ -693,10 +693,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftLeaf hrightLeaf
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2441,10 +2447,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftObjectOutput hrightLeaf
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -3609,10 +3621,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftComposite hrightLeaf
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 

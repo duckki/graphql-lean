@@ -1810,11 +1810,10 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_field_blocked
           depth parentType source
           (left
             ++ [.field responseName fieldName arguments directives selectionSet]) := by
-      exact
-        (specExecuteRootSelectionSet_append_single_field_blocked_eq_left
-          schema resolvers variableValues depth parentType source left
-          responseName fieldName arguments directives selectionSet
-          hblocked).symm
+      exact (specExecuteRootSelectionSet_append_single_field_blocked_eq_left
+              schema resolvers variableValues depth parentType source left
+              responseName fieldName arguments directives selectionSet
+              hblocked).symm
 
 theorem stateEquivalent_of_append_single_field_blocked
     {ObjectIdentity : Type}
@@ -1970,10 +1969,9 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_selection_noop
           hleft
     _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source (left ++ [selection]) := by
-      exact
-        (specExecuteRootSelectionSet_append_single_selection_noop_eq_left
-          schema resolvers variableValues depth parentType source left
-          selection hcollect).symm
+      exact (specExecuteRootSelectionSet_append_single_selection_noop_eq_left
+              schema resolvers variableValues depth parentType source left
+              selection hcollect).symm
 
 theorem stateEquivalent_of_append_single_selection_noop
     {ObjectIdentity : Type}
@@ -2270,10 +2268,9 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_inline_none_allowed
     _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source
           (left ++ [.inlineFragment none directives selectionSet]) := by
-      exact
-        (specExecuteRootSelectionSet_append_single_inline_none_allowed_eq_body_append
-          schema resolvers variableValues depth parentType source left
-          selectionSet directives hallowed).symm
+      exact (specExecuteRootSelectionSet_append_single_inline_none_allowed_eq_body_append
+              schema resolvers variableValues depth parentType source left
+              selectionSet directives hallowed).symm
 
 theorem stateEquivalent_of_append_single_inline_none_allowed
     {ObjectIdentity : Type}
@@ -2427,10 +2424,9 @@ theorem executeRootSelectionSet_eq_spec_of_append_single_inline_some_apply
     _ = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source
           (left ++ [.inlineFragment (some typeCondition) directives selectionSet]) := by
-      exact
-        (specExecuteRootSelectionSet_append_single_inline_some_apply_eq_body_append
-          schema resolvers variableValues depth parentType source left
-          selectionSet typeCondition directives hallowed happly).symm
+      exact (specExecuteRootSelectionSet_append_single_inline_some_apply_eq_body_append
+              schema resolvers variableValues depth parentType source left
+              selectionSet typeCondition directives hallowed happly).symm
 
 theorem stateEquivalent_of_append_single_inline_some_apply
     {ObjectIdentity : Type}

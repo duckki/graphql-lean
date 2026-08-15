@@ -40,11 +40,13 @@ def directives_scalar_include_falseSource : GraphQL.Execution.ResolverValue Stri
   .object "Query" "root"
 
 def directives_scalar_include_falseResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "a", .object _ "root" => some (.scalar "a")
-      | "Query", "b", .object _ "root" => some (.scalar "b")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "a", .object _ "root" => some (.scalar "a")
+        | "Query", "b", .object _ "root" => some (.scalar "b")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -102,11 +104,13 @@ def directives_inline_fragment_skip_falseSource
   .object "Query" "root"
 
 def directives_inline_fragment_skip_falseResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "a", .object _ "root" => some (.scalar "a")
-      | "Query", "b", .object _ "root" => some (.scalar "b")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "a", .object _ "root" => some (.scalar "a")
+        | "Query", "b", .object _ "root" => some (.scalar "b")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -166,11 +170,13 @@ def directives_anonymous_inline_fragment_include_variableSource
 
 def directives_anonymous_inline_fragment_include_variableResolvers
     : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "a", .object _ "root" => some (.scalar "a")
-      | "Query", "b", .object _ "root" => some (.scalar "b")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "a", .object _ "root" => some (.scalar "a")
+        | "Query", "b", .object _ "root" => some (.scalar "b")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -232,11 +238,13 @@ def directives_variable_default_trueSource : GraphQL.Execution.ResolverValue Str
   .object "Query" "root"
 
 def directives_variable_default_trueResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "a", .object _ "root" => some (.scalar "a")
-      | "Query", "b", .object _ "root" => some (.scalar "b")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "a", .object _ "root" => some (.scalar "a")
+        | "Query", "b", .object _ "root" => some (.scalar "b")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -295,11 +303,13 @@ def directives_skip_variable_default_trueSource
   .object "Query" "root"
 
 def directives_skip_variable_default_trueResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "a", .object _ "root" => some (.scalar "a")
-      | "Query", "b", .object _ "root" => some (.scalar "b")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "a", .object _ "root" => some (.scalar "a")
+        | "Query", "b", .object _ "root" => some (.scalar "b")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -495,11 +505,13 @@ def non_null_nested_null_bubbles_to_nullable_parentSource
 
 def non_null_nested_null_bubbles_to_nullable_parentResolvers
     : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
-      | "Character", "name", .object _ "hero" => some (.null)
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
+        | "Character", "name", .object _ "hero" => some (.null)
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -568,11 +580,13 @@ def non_null_root_bubbles_to_data_nullSource : GraphQL.Execution.ResolverValue S
   .object "Query" "root"
 
 def non_null_root_bubbles_to_data_nullResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
-      | "Character", "name", .object _ "hero" => some (.null)
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
+        | "Character", "name", .object _ "hero" => some (.null)
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -625,12 +639,13 @@ def list_nullable_items_contains_nullSource : GraphQL.Execution.ResolverValue St
   .object "Query" "root"
 
 def list_nullable_items_contains_nullResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "listField", .object _ "root" => some (.list ([ .scalar "1"
-    , .null
-    , .scalar "2" ]))
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "listField", .object _ "root" =>
+            some (.list ([.scalar "1", .null, .scalar "2"]))
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -685,12 +700,13 @@ def list_non_null_items_contains_nullSource : GraphQL.Execution.ResolverValue St
   .object "Query" "root"
 
 def list_non_null_items_contains_nullResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "listField", .object _ "root" => some (.list ([ .scalar "1"
-    , .null
-    , .scalar "2" ]))
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "listField", .object _ "root" =>
+            some (.list ([.scalar "1", .null, .scalar "2"]))
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -745,12 +761,13 @@ def list_non_null_list_contains_nullSource : GraphQL.Execution.ResolverValue Str
   .object "Query" "root"
 
 def list_non_null_list_contains_nullResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "listField", .object _ "root" => some (.list ([ .scalar "1"
-    , .null
-    , .scalar "2" ]))
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "listField", .object _ "root" =>
+            some (.list ([.scalar "1", .null, .scalar "2"]))
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl
@@ -837,15 +854,17 @@ def abstract_interface_inline_fragmentsSource : GraphQL.Execution.ResolverValue 
   .object "Query" "root"
 
 def abstract_interface_inline_fragmentsResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "pets", .object _ "root" => some (.list ([ .object "Dog" "dog"
-    , .object "Cat" "cat" ]))
-      | "Dog", "name", .object _ "dog" => some (.scalar "Odie")
-      | "Dog", "woofs", .object _ "dog" => some (.scalar "true")
-      | "Cat", "name", .object _ "cat" => some (.scalar "Garfield")
-      | "Cat", "meows", .object _ "cat" => some (.scalar "false")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "pets", .object _ "root" =>
+            some (.list ([.object "Dog" "dog", .object "Cat" "cat"]))
+        | "Dog", "name", .object _ "dog" => some (.scalar "Odie")
+        | "Dog", "woofs", .object _ "dog" => some (.scalar "true")
+        | "Cat", "name", .object _ "cat" => some (.scalar "Garfield")
+        | "Cat", "meows", .object _ "cat" => some (.scalar "false")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl

@@ -1141,10 +1141,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftLeaf hrightComposite
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -1785,10 +1791,16 @@ theorem
       hrightFuel hleftSpineValid hrightSpineValid hleftSupport
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftLeaf hrightObjectOutput
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -2999,12 +3011,11 @@ theorem
         (Execution.ResponseValue.object leftChildFields)
         (Execution.ResponseValue.object rightChildFields) := by
     intro hsemantic
-    exact
-      (hchildDataNot leftChildRuntime leftChildSpine
-        rightChildRuntime rightChildSpine hleftChildSource
-        hrightChildSource hleftInclude hrightInclude)
-        (by simpa [hleftChildResponse, hrightChildResponse] using
-          hsemantic)
+    exact (hchildDataNot leftChildRuntime leftChildSpine
+            rightChildRuntime rightChildSpine hleftChildSource
+            hrightChildSource hleftInclude hrightInclude)
+            (by simpa [hleftChildResponse, hrightChildResponse] using
+              hsemantic)
   simpa [resolvers, leftSource, rightSource] using
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_child_field_pair_of_field_ok_fuels
       schema rootSelectionSet leftInitialSelectionSet
@@ -3291,10 +3302,16 @@ theorem
       hleftChildSource hrightChildSource hinclude hinclude hleafFuel
       hleafFuel hleftChildResponse hrightChildResponse hchildNot
       hleftFieldOk hrightFieldOk
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -4312,10 +4329,16 @@ theorem
       hrightSupport hleftContext hrightContext hleftMem hrightMem
       hleftLookup hrightLookup hleftObjectOutput hrightObjectOutput
       hchildDataNot
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 
@@ -4633,10 +4656,16 @@ theorem
       hleftSpineValid hrightSpineValid hleftSupport hrightSupport
       hleftContext hrightContext hleftMem hrightMem hlookup
       hobjectOutput hchildWitness
-  refine
-    ⟨typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-      leftFields, leftErrors, rightFields, rightErrors, hleftResponse,
-      hrightResponse, ?_⟩
+  refine ⟨
+    typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    ?_
+  ⟩
   intro hobjects
   exact hdataNot (by simpa [hleftResponse, hrightResponse] using hobjects)
 

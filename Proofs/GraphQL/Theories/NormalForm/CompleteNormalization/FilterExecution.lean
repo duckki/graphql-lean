@@ -363,14 +363,13 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                 · exact filterExecutableFieldBoolCase_parentType boolCase field
                 · exact filterExecutableFieldBoolCase_fieldName boolCase field
                 · exact filterExecutableFieldBoolCase_arguments boolCase field
-                · cases hlookup :
-                      schema.lookupField field.parentType field.fieldName with
+                · cases hlookup : schema.lookupField field.parentType field.fieldName with
                   | none =>
                       simp []
                   | some fieldDefinition =>
-                      cases hresolved :
-                          resolvers.resolve field.parentType field.fieldName
-                            field.arguments source with
+                      cases hresolved
+                            : resolvers.resolve field.parentType field.fieldName
+                                field.arguments source with
                       | none =>
                           simp []
                       | some value =>

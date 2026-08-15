@@ -235,14 +235,17 @@ def repeatedPairSpreadOperation : GraphQL.NamedFragment.Operation :=
   }
 
 def pairResolvers : GraphQL.Execution.Resolvers :=
-  { resolve := fun parentType fieldName _arguments _source =>
-      match parentType, fieldName with
-      | "Query", "name" => some (.scalar "Query")
-      | "Query", "age" => some (.scalar "42")
-      | _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        match parentType, fieldName with
+        | "Query", "name" => some (.scalar "Query")
+        | "Query", "age" => some (.scalar "42")
+        | _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
-      rfl }
+      rfl
+  }
 
 theorem repeatedSpreadExecutionMatchesStaticInlining
     : let source := GraphQL.Execution.ResolverValue.object "Query" ()

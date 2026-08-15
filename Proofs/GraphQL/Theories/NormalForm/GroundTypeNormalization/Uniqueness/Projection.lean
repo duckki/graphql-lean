@@ -452,8 +452,7 @@ noncomputable def fieldPairOrDeepSuccessResolvers {ObjectRef : Type}
         leftField rightField leftArguments rightArguments parentType
         fieldName firstArguments laterArguments harguments
     have hdelegateTarget : firstDelegateTarget = laterDelegateTarget := by
-      cases hlower :
-          lowerProjectionResolverValue? projectionTargetRef? source with
+      cases hlower : lowerProjectionResolverValue? projectionTargetRef? source with
       | none =>
           simp [firstDelegateTarget, laterDelegateTarget, hlower,
             success.resolve_argumentsEquivalent parentType fieldName
@@ -469,8 +468,7 @@ noncomputable def fieldPairOrDeepSuccessResolvers {ObjectRef : Type}
           fieldPairProjectionTarget targetParent leftField rightField
             leftArguments rightArguments parentType fieldName laterArguments :=
         htargetIff.mp hfirst
-      cases hroot :
-          lowerProjectionResolverValue? projectionRootRef? source with
+      cases hroot : lowerProjectionResolverValue? projectionRootRef? source with
       | none =>
           simp [success, firstDelegateTarget, laterDelegateTarget, hfirst,
             hlater, hdelegateTarget]
@@ -568,9 +566,9 @@ theorem fieldPairOrDeepSuccessResolvers_target
   by_cases htarget :
       fieldPairProjectionTarget targetParent leftField rightField
         leftArguments rightArguments parentType fieldName arguments
-  · cases hroot :
-        lowerProjectionResolverValue? projectionRootRef?
-          (projectionTargetResolverValue source) with
+  · cases hroot
+          : lowerProjectionResolverValue? projectionRootRef?
+              (projectionTargetResolverValue source) with
     | none =>
         simp [fieldPairOrDeepSuccessResolvers, htarget, hroot,
           lowerProjectionResolverValue?_projectionTargetResolverValue]

@@ -54,11 +54,13 @@ def named_fragment_basic_spreadSource : GraphQL.Execution.ResolverValue String :
   .object "Query" "root"
 
 def named_fragment_basic_spreadResolvers : GraphQL.Execution.Resolvers String :=
-  { resolve := fun parentType fieldName _arguments source =>
-      match parentType, fieldName, source with
-      | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
-      | "Character", "name", .object _ "hero" => some (.scalar "Leia")
-      | _, _, _ => some .null
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "hero", .object _ "root" => some (.object "Character" "hero")
+        | "Character", "name", .object _ "hero" => some (.scalar "Leia")
+        | _, _, _ => some .null
     resolve_argumentsEquivalent := by
       intros
       rfl

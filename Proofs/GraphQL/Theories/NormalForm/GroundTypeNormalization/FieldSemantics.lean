@@ -552,8 +552,7 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case
   · simpa [matching, mergedSubselections, returnType, normalizedRest]
       using hnormalizedFieldWithRest
   · rw [hlookup]
-    cases hresolved :
-        resolvers.resolve parentType fieldName arguments source with
+    cases hresolved : resolvers.resolve parentType fieldName arguments source with
     | none =>
         simp
     | some value =>

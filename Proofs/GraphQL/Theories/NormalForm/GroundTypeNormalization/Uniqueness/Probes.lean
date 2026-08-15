@@ -171,8 +171,7 @@ def schemaSuccessResolversWithRef {ObjectRef : Type}
     | none => none
     | some fieldDefinition =>
         some
-          (schemaSuccessResolverValueWithRef schema objectRef
-            fieldDefinition.outputType)
+          (schemaSuccessResolverValueWithRef schema objectRef fieldDefinition.outputType)
   resolve_argumentsEquivalent := by
     intro _parentType _fieldName _firstArguments _laterArguments _source
       _harguments
@@ -2057,9 +2056,12 @@ theorem deepFieldSelectionSetExecutionReadyWithRef_object_of_child_deepFieldRead
           = Execution.ResolverValue.object runtimeType ref
           ∧ schema.typeIncludesObjectBool
             fieldDefinition.outputType.namedType runtimeType = true := by
-    exact
-      ⟨fieldDefinition.outputType.namedType, objectRef, rfl,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    exact ⟨
+      fieldDefinition.outputType.namedType,
+      objectRef,
+      rfl,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   rcases
       executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
         schema rootSelectionSet objectRef variableValues fuel
@@ -2125,10 +2127,13 @@ theorem deepFieldSelectionSetExecutionReadyWithRef_composite_execute
   intro hready hcomposite
   rcases hready with hobject | hleafOrAbstract
   · rcases hobject with ⟨hobject, responseFields, errors, hexecute⟩
-    exact
-      ⟨fieldDefinition.outputType.namedType, responseFields, errors,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
-        hexecute⟩
+    exact ⟨
+      fieldDefinition.outputType.namedType,
+      responseFields,
+      errors,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject,
+      hexecute
+    ⟩
   · rcases hleafOrAbstract with hleaf | habstract
     · rw [hcomposite] at hleaf
       cases hleaf

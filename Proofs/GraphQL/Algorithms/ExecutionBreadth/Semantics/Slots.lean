@@ -1813,17 +1813,23 @@ theorem slots_splitResolvedBySegments_map_sources
             tailSources.map resolve := by
         rw [hflatten]
         simp [headResolved]
-      change
-        (segment.segment,
-            List.take segment.segment.sources.length
-              ((((segment :: rest).map
-                    (fun segment => segment.segment.sources)).flatten).map resolve)) ::
-          splitResolvedBySegments (List.map ExpectedQueueSegment.segment rest)
-            (List.drop segment.segment.sources.length
-              ((((segment :: rest).map
-                    (fun segment => segment.segment.sources)).flatten).map resolve)) =
-        (segment.segment, List.map resolve segment.segment.sources) ::
-          List.map (fun segment => (segment.segment, List.map resolve segment.segment.sources)) rest
+      change (
+                  segment.segment,
+                  List.take segment.segment.sources.length
+                    ((((segment :: rest).map
+                        (fun segment => segment.segment.sources)).flatten).map
+                      resolve)
+                )
+                :: splitResolvedBySegments (List.map ExpectedQueueSegment.segment rest)
+                    (List.drop segment.segment.sources.length
+                      ((((segment :: rest).map
+                          (fun segment => segment.segment.sources)).flatten).map
+                        resolve))
+              = (segment.segment, List.map resolve segment.segment.sources)
+                :: List.map
+                    (fun segment =>
+                      (segment.segment, List.map resolve segment.segment.sources))
+                    rest
       rw [htake, hdrop]
       simpa [headResolved, tailSources, List.map_flatten] using ih
 

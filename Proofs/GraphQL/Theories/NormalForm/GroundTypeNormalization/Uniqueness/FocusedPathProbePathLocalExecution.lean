@@ -1248,11 +1248,12 @@ theorem normalSelectionSetObservableLeaf_pair_of_valid_normal_arguments_composit
               fieldDefinition.outputType.namedType rightChildSelectionSet := by
   intro hleftValid hrightValid hleftNormal hrightNormal hleftMem hrightMem
     hlookup hcomposite
-  exact
-    ⟨normalSelectionSetObservableLeaf_of_valid_normal_composite_field_mem
-        hleftValid hleftNormal hleftMem hlookup hcomposite,
-      normalSelectionSetObservableLeaf_of_valid_normal_composite_field_mem
-        hrightValid hrightNormal hrightMem hlookup hcomposite⟩
+  exact ⟨
+    normalSelectionSetObservableLeaf_of_valid_normal_composite_field_mem
+      hleftValid hleftNormal hleftMem hlookup hcomposite,
+    normalSelectionSetObservableLeaf_of_valid_normal_composite_field_mem
+      hrightValid hrightNormal hrightMem hlookup hcomposite
+  ⟩
 
 theorem not_fieldProbeTarget_of_fieldName_ne
     {targetParent leftField rightField : Name}
@@ -1476,14 +1477,15 @@ theorem
   rcases hdeep responseName fieldName arguments directives childSelectionSet
       hmem with
     ⟨responseValue, fieldErrors, hdeepOk⟩
-  exact
-    ⟨responseValue, fieldErrors,
-      executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deepSuccessWithRef_ok
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet variableValues parentFuel targetParent
-        leftField rightField leftArguments rightArguments arguments
-        leftRuntime rightRuntime responseName fieldName childSelectionSet
-        responseValue fieldErrors hnotProjection hdeepOk⟩
+  exact ⟨
+    responseValue,
+    fieldErrors,
+    executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deepSuccessWithRef_ok
+      schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+      variableValues parentFuel targetParent leftField rightField leftArguments
+      rightArguments arguments leftRuntime rightRuntime responseName fieldName
+      childSelectionSet responseValue fieldErrors hnotProjection hdeepOk
+  ⟩
 
 theorem
     not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_ok
@@ -1771,9 +1773,12 @@ theorem
       ∃ runtimeType ref,
         source = Execution.ResolverValue.object runtimeType ref
           ∧ schema.typeIncludesObjectBool parentType runtimeType = true := by
-    refine
-      ⟨parentType, ProjectionResolverRef.root FieldPairPathLocalProbeRef.root,
-        ?_, typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    refine ⟨
+      parentType,
+      ProjectionResolverRef.root FieldPairPathLocalProbeRef.root,
+      ?_,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
     simp [source, projectionRootResolverValue, projectionResolverValue]
   exact
     SemanticSeparation.not_selectionSetsDataEquivalent_of_responseName_value_diff_of_field_ok
@@ -2060,9 +2065,12 @@ theorem
       ∃ runtimeType ref,
         source = Execution.ResolverValue.object runtimeType ref
           ∧ schema.typeIncludesObjectBool parentType runtimeType = true := by
-    refine
-      ⟨parentType, ProjectionResolverRef.root FieldPairPathLocalProbeRef.root,
-        ?_, typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+    refine ⟨
+      parentType,
+      ProjectionResolverRef.root FieldPairPathLocalProbeRef.root,
+      ?_,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
     simp [source, projectionRootResolverValue, projectionResolverValue]
   exact
     SemanticSeparation.not_selectionSetsDataEquivalent_of_responseName_value_diff_of_field_ok

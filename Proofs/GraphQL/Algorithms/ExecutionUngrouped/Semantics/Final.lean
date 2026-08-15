@@ -295,12 +295,11 @@ theorem executeRootSelectionSet_eq_spec_of_allFieldsNormal
   intro hall hfree hnormal hlookup hchildren
   cases depth with
   | zero =>
-      exact
-        (ExecutedGroupedSelectionSetState.depth_zero schema resolvers
-          variableValues parentType source selectionSet
-          (collectedSelectionSetGroupsSingleton_of_allFields_directiveFree_normal
-            schema variableValues parentType source selectionSet hall hfree
-            hnormal)).executeRootSelectionSet_eq_spec
+      exact (ExecutedGroupedSelectionSetState.depth_zero schema resolvers
+              variableValues parentType source selectionSet
+              (collectedSelectionSetGroupsSingleton_of_allFields_directiveFree_normal
+                schema variableValues parentType source selectionSet hall hfree
+                hnormal)).executeRootSelectionSet_eq_spec
   | succ completionDepth =>
       apply executeRootSelectionSet_eq_spec_of_collected_groups_collectedLocalAppendInvariant
         (hcollect := rfl)
@@ -601,20 +600,18 @@ theorem executeRootSelectionSet_eq_spec_of_generatedNormalizedFieldChild
   intro hschema hinclude hgenerated
   cases depth with
   | zero =>
-      exact
-        (ExecutedGroupedSelectionSetState.depth_zero schema resolvers
-          variableValues childRuntime
-          (Execution.ResolverValue.object childRuntime ref)
-          childSelectionSet
-          (collectedSelectionSetGroupsSingleton_of_generatedNormalizedFieldChild
-            schema variableValues childType childRuntime ref childSelectionSet
-            hschema hinclude hgenerated)).executeRootSelectionSet_eq_spec
+      exact (ExecutedGroupedSelectionSetState.depth_zero schema resolvers
+              variableValues childRuntime
+              (Execution.ResolverValue.object childRuntime ref)
+              childSelectionSet
+              (collectedSelectionSetGroupsSingleton_of_generatedNormalizedFieldChild
+                schema variableValues childType childRuntime ref childSelectionSet
+                hschema hinclude hgenerated)).executeRootSelectionSet_eq_spec
   | succ completionDepth =>
-      exact
-        (recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
-          schema resolvers variableValues completionDepth childType childRuntime
-          ref childSelectionSet hschema hinclude
-          hgenerated).executeRootSelectionSet_eq_spec
+      exact (recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
+              schema resolvers variableValues completionDepth childType childRuntime
+              ref childSelectionSet hschema hinclude
+              hgenerated).executeRootSelectionSet_eq_spec
 
 theorem executeRootSelectionSet_eq_spec_of_normalizeSelectionSet
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -956,14 +953,13 @@ theorem executeQueryWithFuel_normalizeOperation_eq_spec
       executionSelectionSetLookupValid_normalizeSelectionSet schema
         (operation.rootType schema) operation.selectionSet
   · intro responseName fieldName arguments directives childSelectionSet hmem
-    exact
-      (by
-        simpa [NormalForm.normalizeOperation, Operation.rootType,
-          OperationType.rootType] using
-          normalizeSelectionSet_field_child_generated schema
-            (operation.rootType schema) operation.selectionSet responseName fieldName
-            arguments directives childSelectionSet hfree
-            (by simpa [NormalForm.normalizeOperation] using hmem))
+    exact (by
+            simpa [NormalForm.normalizeOperation, Operation.rootType,
+              OperationType.rootType] using
+              normalizeSelectionSet_field_child_generated schema
+                (operation.rootType schema) operation.selectionSet responseName fieldName
+                arguments directives childSelectionSet hfree
+                (by simpa [NormalForm.normalizeOperation] using hmem))
 
 theorem executeQueryWithFuel_eq_spec_of_executeRootSelectionSet_eq
     (schema : Schema) (operation : Operation)
@@ -1001,16 +997,17 @@ theorem executeQueryWithFuel_eq_spec_depth_zero
   intro hsingletons
   by_cases hsource :
       Execution.rootSourceAppliesBool schema operation source = true
-  · exact
-      ({ root := hsource
-         selectionSet :=
-          ExecutedGroupedSelectionSetState.depth_zero schema resolvers
-            (Execution.coerceVariableValues operation variableValues)
-            (operation.rootType schema) source operation.selectionSet
-            hsingletons } :
-        ExecutedGroupedOperationState schema resolvers
-          (Execution.coerceVariableValues operation variableValues) operation 0
-          source).executeQueryWithFuel_eq_spec
+  · exact ({
+              root := hsource
+              selectionSet :=
+                ExecutedGroupedSelectionSetState.depth_zero schema resolvers
+                  (Execution.coerceVariableValues operation variableValues)
+                  (operation.rootType schema) source operation.selectionSet
+                  hsingletons
+            }
+            : ExecutedGroupedOperationState schema resolvers
+                (Execution.coerceVariableValues operation variableValues) operation 0
+                source).executeQueryWithFuel_eq_spec
   · unfold executeQueryWithFuel Execution.executeQueryWithFuel
     simp [hsource]
 
@@ -1024,15 +1021,16 @@ theorem executeQueryWithFuel_eq_spec_depth_zero_general
           0 source := by
   by_cases hsource :
       Execution.rootSourceAppliesBool schema operation source = true
-  · exact
-      ({ root := hsource
-         selectionSet :=
-          ExecutedGroupedSelectionSetState.depth_zero_general schema resolvers
-            (Execution.coerceVariableValues operation variableValues)
-            (operation.rootType schema) source operation.selectionSet } :
-        ExecutedGroupedOperationState schema resolvers
-          (Execution.coerceVariableValues operation variableValues) operation 0
-          source).executeQueryWithFuel_eq_spec
+  · exact ({
+              root := hsource
+              selectionSet :=
+                ExecutedGroupedSelectionSetState.depth_zero_general schema resolvers
+                  (Execution.coerceVariableValues operation variableValues)
+                  (operation.rootType schema) source operation.selectionSet
+            }
+            : ExecutedGroupedOperationState schema resolvers
+                (Execution.coerceVariableValues operation variableValues) operation 0
+                source).executeQueryWithFuel_eq_spec
   · unfold executeQueryWithFuel Execution.executeQueryWithFuel
     simp [hsource]
 
@@ -1915,17 +1913,15 @@ theorem completeNormalizationPreservesUngroupedExecution_iff_semanticsPreserved
                   operation depth source) := by
   constructor
   · intro hpreserved ObjectRef resolvers variableValues depth source hcomplete
-    exact
-      (completeNormalizationPreservesUngroupedExecution_iff_source_eq_spec
-        schema operation resolvers variableValues depth source hschema hvalid
-        hcomplete).mp
-        (hpreserved resolvers variableValues depth source hcomplete)
+    exact (completeNormalizationPreservesUngroupedExecution_iff_source_eq_spec
+            schema operation resolvers variableValues depth source hschema hvalid
+            hcomplete).mp
+            (hpreserved resolvers variableValues depth source hcomplete)
   · intro hsemantics ObjectRef resolvers variableValues depth source hcomplete
-    exact
-      (completeNormalizationPreservesUngroupedExecution_iff_source_eq_spec
-        schema operation resolvers variableValues depth source hschema hvalid
-        hcomplete).mpr
-        (hsemantics resolvers variableValues depth source hcomplete)
+    exact (completeNormalizationPreservesUngroupedExecution_iff_source_eq_spec
+            schema operation resolvers variableValues depth source hschema hvalid
+            hcomplete).mpr
+            (hsemantics resolvers variableValues depth source hcomplete)
 
 theorem completeNormalizationPreservesUngroupedExecution_of_source_semanticsPreserved
     (schema : Schema) (operation : Operation)
@@ -2160,17 +2156,13 @@ theorem ungroupedExecutionEquivalentToCancelingSiblingsExecution_proof
           fuel source).errors with hspecErrorsZero | hspecErrorsPositive
     · exact hungroupedZero hspecErrorsZero
     · exfalso
-      exact
-        (Nat.ne_of_gt (hcancelingPositive hspecErrorsPositive))
-          hcancelingErrorsZero
+      exact (Nat.ne_of_gt (hcancelingPositive hspecErrorsPositive)) hcancelingErrorsZero
   · intro hcancelingErrorsPositive
     rcases Nat.eq_zero_or_pos
         (Execution.executeQueryWithFuel schema resolvers variableValues operation
           fuel source).errors with hspecErrorsZero | hspecErrorsPositive
     · exfalso
-      exact
-        (Nat.ne_of_gt hcancelingErrorsPositive)
-          (hcancelingZero hspecErrorsZero)
+      exact (Nat.ne_of_gt hcancelingErrorsPositive) (hcancelingZero hspecErrorsZero)
     · exact hungroupedPositive hspecErrorsPositive
 
 end ExecutionUngroupedUncached

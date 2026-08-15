@@ -487,19 +487,21 @@ theorem exists_fieldExecutable
           normalizedSelectionSet := by
   by_cases hallows :
       selectionDirectivesAllowBool variableValues directives = true
-  · exact
-      ⟨[.field responseName fieldName arguments [] selectionSet],
-        fieldAllowedDropDirectives responseName fieldName arguments
-          directives selectionSet hallows⟩
+  · exact ⟨
+      [.field responseName fieldName arguments [] selectionSet],
+      fieldAllowedDropDirectives responseName fieldName arguments
+        directives selectionSet hallows
+    ⟩
   · have hskip :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases h :
           selectionDirectivesAllowBool variableValues directives
       · rfl
       · contradiction
-    exact
-      ⟨[], .fieldSkipped responseName fieldName arguments directives
-        selectionSet hskip⟩
+    exact ⟨
+      [],
+      .fieldSkipped responseName fieldName arguments directives selectionSet hskip
+    ⟩
 
 theorem exists_allFields_responseNamesNodup
     {ObjectIdentity : Type}
@@ -687,10 +689,10 @@ theorem exists_inlineFragmentSome
   · by_cases happly :
         doesFragmentTypeApplyBool schema parentType source typeCondition = true
     · rcases child hallows happly with ⟨normalizedChild, hchild⟩
-      exact
-        ⟨normalizedChild,
-          .inlineFragmentSomeFlatten typeCondition directives hallows happly
-            hchild⟩
+      exact ⟨
+        normalizedChild,
+        .inlineFragmentSomeFlatten typeCondition directives hallows happly hchild
+      ⟩
     · have hnotApply :
           doesFragmentTypeApplyBool schema parentType source typeCondition =
             false := by
@@ -698,18 +700,18 @@ theorem exists_inlineFragmentSome
             doesFragmentTypeApplyBool schema parentType source typeCondition
         · rfl
         · contradiction
-      exact
-        ⟨[],
-          .inlineFragmentSomeDoesNotApply typeCondition directives selectionSet
-            hallows hnotApply⟩
+      exact ⟨
+        [],
+        .inlineFragmentSomeDoesNotApply typeCondition directives selectionSet
+          hallows hnotApply
+      ⟩
   · have hskip :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases h :
           selectionDirectivesAllowBool variableValues directives
       · rfl
       · contradiction
-    exact
-      ⟨[], .inlineFragmentSomeSkipped typeCondition directives selectionSet hskip⟩
+    exact ⟨[], .inlineFragmentSomeSkipped typeCondition directives selectionSet hskip⟩
 
 theorem transNormalizes
     {ObjectIdentity : Type}

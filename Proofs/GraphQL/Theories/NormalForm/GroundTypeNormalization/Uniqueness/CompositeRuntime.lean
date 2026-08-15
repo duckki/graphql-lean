@@ -57,10 +57,11 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
   intro hvalid hnormal hmembers hmember hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
-  · exact
-      ⟨fieldDefinition.outputType.namedType,
-        Or.inl ⟨hobject, rfl⟩,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+  · exact ⟨
+      fieldDefinition.outputType.namedType,
+      Or.inl ⟨hobject, rfl⟩,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   · have hnonObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType =
           false := by
@@ -81,9 +82,7 @@ theorem fieldHeadCompositeRuntime_framed_members_of_valid_normal_mem
           (targetFieldDefinition := fieldDefinition)
           hmembers hmember hlookup hcomposite hnonObject hlocalRuntime with
       ⟨runtimeType, hframedRuntime, hinclude⟩
-    exact
-      ⟨runtimeType,
-        Or.inr ⟨hcomposite, hnonObject, hframedRuntime⟩, hinclude⟩
+    exact ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hframedRuntime⟩, hinclude⟩
 
 theorem fieldHeadCompositeRuntime_of_valid_normal_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -117,10 +116,11 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
   intro hvalid hnormal hmem hlookup hcomposite hheadPromote
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
-  · exact
-      ⟨fieldDefinition.outputType.namedType,
-        Or.inl ⟨hobject, rfl⟩,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+  · exact ⟨
+      fieldDefinition.outputType.namedType,
+      Or.inl ⟨hobject, rfl⟩,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   · have hnonObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType =
           false := by
@@ -135,9 +135,7 @@ theorem fieldHeadCompositeRuntime_of_valid_normal_mem
         hheadPromote parentType fieldName arguments localRuntimeType
           fieldDefinition hlookup hcomposite hnonObject hlocalRuntime with
       ⟨runtimeType, hrootRuntime, hinclude⟩
-    exact
-      ⟨runtimeType,
-        Or.inr ⟨hcomposite, hnonObject, hrootRuntime⟩, hinclude⟩
+    exact ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hrootRuntime⟩, hinclude⟩
 
 theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -167,10 +165,11 @@ theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
   intro hvalid hnormal hmem hlookup hcomposite
   by_cases hobject :
       objectTypeNameBool schema fieldDefinition.outputType.namedType = true
-  · exact
-      ⟨fieldDefinition.outputType.namedType,
-        Or.inl ⟨hobject, rfl⟩,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject⟩
+  · exact ⟨
+      fieldDefinition.outputType.namedType,
+      Or.inl ⟨hobject, rfl⟩,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
+    ⟩
   · have hnonObject :
         objectTypeNameBool schema fieldDefinition.outputType.namedType =
           false := by
@@ -181,9 +180,7 @@ theorem fieldCompositeSelectedChildRuntime_of_valid_normal_mem
         firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_mem_lookup
           hvalid hnormal hmem hlookup hcomposite hnonObject with
       ⟨runtimeType, hruntime, hinclude⟩
-    exact
-      ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hruntime⟩,
-        hinclude⟩
+    exact ⟨runtimeType, Or.inr ⟨hcomposite, hnonObject, hruntime⟩, hinclude⟩
 
 end GroundTypeNormalization
 

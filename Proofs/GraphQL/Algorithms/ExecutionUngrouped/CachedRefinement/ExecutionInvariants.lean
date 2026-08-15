@@ -129,9 +129,8 @@ theorem lookupField?_some_cacheReady {ObjectRef : Type}
             fieldResponse hready (by simp)
       · have hrestReady : FieldCacheMergeReady (.object source rest) := by
           apply FieldCacheMergeReady.object
-          · exact
-              (FieldCacheMergeReady.object_keysNodup source
-                ((fieldResponseName, fieldResponse) :: rest) hready).tail
+          · exact (FieldCacheMergeReady.object_keysNodup source
+                    ((fieldResponseName, fieldResponse) :: rest) hready).tail
           · intro restName restResponse hmem
             exact
               FieldCacheMergeReady.object_field source
@@ -306,13 +305,12 @@ mutual
                   lookupField?_some_cacheReady objectSource responseName fields
                     previous houtput (by simpa [objectField?] using hlookup)
               simp only [visitSelection, hallows, if_true]
-              apply
-                (mergeResponseFieldResult_cacheReady_and_shape objectSource
-                  responseName _ fields houtput ?_).1
+              apply (mergeResponseFieldResult_cacheReady_and_shape objectSource
+                      responseName _ fields houtput ?_).1
               cases fuel with
               | zero =>
-                  cases hlookup :
-                      objectField? responseName (.object objectSource fields) with
+                  cases hlookup
+                        : objectField? responseName (.object objectSource fields) with
                   | none =>
                       simpa [hlookup] using
                         (resultValueOrNull_outOfFuel_cacheReady
@@ -871,9 +869,8 @@ mutual
                   (.list sourceValues? values) houtput
           | object objectSource fields =>
               simp only [visitSelection, hallows, if_true]
-              apply
-                (mergeResponseFieldResult_cacheReady_and_shape objectSource
-                  responseName _ fields houtput ?_).2
+              apply (mergeResponseFieldResult_cacheReady_and_shape objectSource
+                      responseName _ fields houtput ?_).2
               exact
                 visitFieldResult_cacheReady schema resolvers variableValues fuel
                   parentType source responseName fieldName arguments selectionSet

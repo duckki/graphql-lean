@@ -565,9 +565,9 @@ theorem executeRootSelectionSet_depth_zero_aligned
         (GraphQL.Execution.collectFields schema variableValues parentType source
           selectionSet)
         hnonempty
-    cases hgroups :
-        GraphQL.Execution.collectFields schema variableValues parentType source
-          selectionSet with
+    cases hgroups
+          : GraphQL.Execution.collectFields schema variableValues parentType source
+              selectionSet with
     | nil =>
         exact False.elim (hcollect hgroups)
     | cons group rest =>

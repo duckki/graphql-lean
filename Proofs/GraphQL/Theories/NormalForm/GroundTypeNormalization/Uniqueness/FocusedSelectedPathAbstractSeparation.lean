@@ -191,9 +191,7 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_dataNot
           rightCurrentSelectionSet leftSpine rightSpine left right := by
   intro hleftInclude hrightInclude hleftSpineValid hrightSpineValid
     hdataNot
-  exact
-    ⟨hleftInclude, hrightInclude, hleftSpineValid, hrightSpineValid,
-      hdataNot⟩
+  exact ⟨hleftInclude, hrightInclude, hleftSpineValid, hrightSpineValid, hdataNot⟩
 
 theorem selectedPathSelectionSetsResponseDataDiffRightPruned_of_dataNot
     {schema : Schema}
@@ -478,10 +476,16 @@ theorem
       targetLeftArguments targetRightArguments leftRuntime rightRuntime
       FieldPairProbeTag.right hnonObject hruntimeObject hrightFree
       hrightNormal hrightMem
-  exact
-    ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
-      by simpa [hleftEq] using hleftBodyResponse,
-      by simpa [hrightEq] using hrightBodyResponse, hnot⟩
+  exact ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    rightFields,
+    rightErrors,
+    by simpa [hleftEq] using hleftBodyResponse,
+    by simpa [hrightEq] using hrightBodyResponse,
+    hnot
+  ⟩
 
 theorem
     executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
@@ -670,12 +674,16 @@ theorem
             leftCurrentSelectionSet leftSpine)))
       hruntimeObject hleftBodyFree hleftBodyNormal hleftBodyNonempty
       hleftBodyResponse
-  exact
-    ⟨hinclude,
-      leftFields, leftErrors, hleftResponse, hrightResponse,
-      by
-        intro hsemantic
-        exact hbodyNot (by simpa [hleftBodyResponse] using hsemantic)⟩
+  exact ⟨
+    hinclude,
+    leftFields,
+    leftErrors,
+    hleftResponse,
+    hrightResponse,
+    by
+      intro hsemantic
+      exact hbodyNot (by simpa [hleftBodyResponse] using hsemantic)
+  ⟩
 
 theorem
     selectedPathTaggedSelectionSetsLeftPrunedResponseDiffWitness_of_right_abstract_body_nonempty_left_missing
@@ -797,12 +805,16 @@ theorem
             rightCurrentSelectionSet rightSpine)))
       hruntimeObject hrightBodyFree hrightBodyNormal hrightBodyNonempty
       hrightBodyResponse
-  exact
-    ⟨hinclude,
-      rightFields, rightErrors, hleftResponse, hrightResponse,
-      by
-        intro hsemantic
-        exact hbodyNot (by simpa [hrightBodyResponse] using hsemantic)⟩
+  exact ⟨
+    hinclude,
+    rightFields,
+    rightErrors,
+    hleftResponse,
+    hrightResponse,
+    by
+      intro hsemantic
+      exact hbodyNot (by simpa [hrightBodyResponse] using hsemantic)
+  ⟩
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_abstract_inlineFragment_body_pair
@@ -1082,9 +1094,13 @@ theorem
         hnormal hfuel with
     ⟨selectedRuntimeType, selectedFieldSpine, hselectedInclude,
       hselectedSpineValid, hdataBuilder⟩
-  refine
-    ⟨selectedRuntimeType, selectedFieldSpine, hselectedInclude,
-      hselectedSpineValid, ?_⟩
+  refine ⟨
+    selectedRuntimeType,
+    selectedFieldSpine,
+    hselectedInclude,
+    hselectedSpineValid,
+    ?_
+  ⟩
   intro hleftSupport hrightSupport hleftContextReady hrightContextReady
   exact
     selectedPathSelectionSetsResponseDataDiff_of_dataNot
@@ -2036,31 +2052,44 @@ theorem compositeChildResponse_of_selectedPathFieldChildrenReady
   · rcases hselected with
       ⟨childRuntimeType, tail, responseFields, childErrors, hselected,
         hruntimeCase, hinclude, hchildResponse⟩
-    exact
-      ⟨childRuntimeType, tail, responseFields, childErrors,
-        Or.inl ⟨hselected, hruntimeCase⟩, hinclude, hfuel,
-          hchildResponse⟩
+    exact ⟨
+      childRuntimeType,
+      tail,
+      responseFields,
+      childErrors,
+      Or.inl ⟨hselected, hruntimeCase⟩,
+      hinclude,
+      hfuel,
+      hchildResponse
+    ⟩
   rcases hcase with hobjectCase | habstractFallback
   · rcases hobjectCase with
       ⟨responseFields, childErrors, hobjectOutput, hchildResponse⟩
-    exact
-      ⟨fieldDefinition.outputType.namedType,
-        selectedObservableFieldSpineTailForRuntime
-          fieldDefinition.outputType.namedType fieldName arguments spine,
-        responseFields, childErrors,
-        Or.inr (Or.inl ⟨hobjectOutput, rfl, rfl⟩),
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema
-          hobjectOutput,
-        hfuel, hchildResponse⟩
+    exact ⟨
+      fieldDefinition.outputType.namedType,
+      selectedObservableFieldSpineTailForRuntime
+        fieldDefinition.outputType.namedType fieldName arguments spine,
+      responseFields,
+      childErrors,
+      Or.inr (Or.inl ⟨hobjectOutput, rfl, rfl⟩),
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hobjectOutput,
+      hfuel,
+      hchildResponse
+    ⟩
   · rcases habstractFallback with
       ⟨childRuntimeType, responseFields, childErrors, hcomposite,
         hnonObject, hselectedNone, hruntime, hinclude,
         hchildResponse⟩
-    exact
-      ⟨childRuntimeType, [], responseFields, childErrors,
-        Or.inr (Or.inr
-          ⟨hcomposite, hnonObject, hselectedNone, hruntime, rfl⟩),
-        hinclude, hfuel, hchildResponse⟩
+    exact ⟨
+      childRuntimeType,
+      [],
+      responseFields,
+      childErrors,
+      Or.inr (Or.inr ⟨hcomposite, hnonObject, hselectedNone, hruntime, rfl⟩),
+      hinclude,
+      hfuel,
+      hchildResponse
+    ⟩
 
 end GroundTypeNormalization
 

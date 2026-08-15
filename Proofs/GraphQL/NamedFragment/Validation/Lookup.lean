@@ -462,13 +462,12 @@ theorem lookupFragmentAndRestLt?_remaining_lift
                   subst target
                   refine ⟨⟨rest, by simp⟩, ?_, ?_⟩
                   · simp [lookupFragmentAndRestLt?, htargetHead]
-                  · refine
-                      ⟨⟨remainingRest.val, remainingRest.property⟩, ?_, ?_⟩
+                  · refine ⟨⟨remainingRest.val, remainingRest.property⟩, ?_, ?_⟩
                     · simpa using congrArg Subtype.val htargetRemainingEq
                     · simpa using hremoveRest
                 · simp [lookupFragmentAndRestLt?, htargetHead] at htarget
-                  cases htargetRest :
-                      lookupFragmentAndRestLt? targetName remainingRest.val with
+                  cases htargetRest
+                        : lookupFragmentAndRestLt? targetName remainingRest.val with
                   | none =>
                       simp [htargetRest] at htarget
                   | some targetPair =>

@@ -335,9 +335,7 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_rightPruned
   rcases hwitness with
     ⟨hinclude, leftFields, leftErrors, hleftResponse, hrightResponse,
       hnot⟩
-  exact
-    ⟨hinclude, leftFields, leftErrors, [], 0, hleftResponse,
-      hrightResponse, hnot⟩
+  exact ⟨hinclude, leftFields, leftErrors, [], 0, hleftResponse, hrightResponse, hnot⟩
 
 theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_leftPruned
     {schema : Schema}
@@ -368,9 +366,7 @@ theorem selectedPathTaggedSelectionSetsResponseDiffWitness_of_leftPruned
   rcases hwitness with
     ⟨hinclude, rightFields, rightErrors, hleftResponse, hrightResponse,
       hnot⟩
-  exact
-    ⟨hinclude, [], 0, rightFields, rightErrors, hleftResponse,
-      hrightResponse, hnot⟩
+  exact ⟨hinclude, [], 0, rightFields, rightErrors, hleftResponse, hrightResponse, hnot⟩
 
 theorem
     not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_childWitness_of_field_ok
@@ -2229,11 +2225,14 @@ theorem
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
         hobservablePath hvalid hnormal with
     ⟨runtimeType, fieldSpine, hinclude, hobservableSpine⟩
-  exact
-    ⟨runtimeType, fieldSpine, hinclude,
-      selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
-        (hobservableSpine []),
-      hobservableSpine⟩
+  exact ⟨
+    runtimeType,
+    fieldSpine,
+    hinclude,
+    selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
+      (hobservableSpine []),
+    hobservableSpine
+  ⟩
 
 theorem selectedFieldSpineRuntimeValid_exists_of_valid_normal_object_nonempty
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -2278,11 +2277,14 @@ theorem selectedFieldSpineRuntimeValid_exists_of_observableResponsePath_valid_no
       pathLocalSelectionSetObservableFieldSpineAtSelectedRuntime_of_observableResponsePath_valid_normal
         hpath hvalid hnormal with
     ⟨runtimeType, fieldSpine, hinclude, hobservableSpine⟩
-  exact
-    ⟨runtimeType, fieldSpine, hinclude,
-      selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
-        (hobservableSpine []),
-      hobservableSpine⟩
+  exact ⟨
+    runtimeType,
+    fieldSpine,
+    hinclude,
+    selectedFieldSpineRuntimeValid_of_observableFieldSpineAtSelectedRuntime
+      (hobservableSpine []),
+    hobservableSpine
+  ⟩
 
 theorem
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_valid_normal_runtimeSpine

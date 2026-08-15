@@ -3693,9 +3693,7 @@ theorem filterSelectionSetBoolCase_singleton_nil_or_singleton
             exact Or.inr ⟨.field responseName fieldName arguments [] [],
               by simp [filterSelectionSetBoolCase, hallow]⟩
         | cons child children =>
-            cases hchild :
-                filterSelectionSetBoolCase boolCase
-                  (child :: children) with
+            cases hchild : filterSelectionSetBoolCase boolCase (child :: children) with
             | nil =>
                 exact Or.inr
                   ⟨.field responseName fieldName arguments [] [], by
@@ -3715,8 +3713,7 @@ theorem filterSelectionSetBoolCase_singleton_nil_or_singleton
       cases typeCondition with
       | none =>
           by_cases hallow : directivesAllowIn boolCase directives = true
-          · cases hchild :
-              filterSelectionSetBoolCase boolCase selectionSet with
+          · cases hchild : filterSelectionSetBoolCase boolCase selectionSet with
             | nil =>
                 exact Or.inl (by
                   simp [filterSelectionSetBoolCase, hallow, hchild])
@@ -3733,8 +3730,7 @@ theorem filterSelectionSetBoolCase_singleton_nil_or_singleton
             exact Or.inl (by simp [filterSelectionSetBoolCase, hfalse])
       | some typeCondition =>
           by_cases hallow : directivesAllowIn boolCase directives = true
-          · cases hchild :
-              filterSelectionSetBoolCase boolCase selectionSet with
+          · cases hchild : filterSelectionSetBoolCase boolCase selectionSet with
             | nil =>
                 exact Or.inl (by
                   simp [filterSelectionSetBoolCase, hallow, hchild])
@@ -5331,8 +5327,7 @@ theorem normalizeSelectionSet_normalizedValid_of_filteredCurrentSource
             typeConditionStackFeasible schema typeConditions :=
           GroundTypeNormalization.typeConditionStackFeasible_of_objectSatisfies_forValidity
             hstack
-        exact
-          (hheadNonempty hstackFeasible).1 fieldDefinition hlookup hcomposite
+        exact (hheadNonempty hstackFeasible).1 fieldDefinition hlookup hcomposite
       have hmergedNonemptyOfComposite :
           schema.isCompositeType fieldDefinition.outputType.namedType ->
             mergedSubselections ≠ [] := by

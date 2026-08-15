@@ -72,9 +72,10 @@ private theorem StrongResultAligned.combine {α β γ : Type}
   · exact ⟨by omega, by omega⟩
   · rcases hleft with ⟨hleftValue, hleftErrors⟩
     rcases hright with ⟨hrightValue, hrightErrors⟩
-    exact
-      ⟨by simp [hleftValue, hrightValue],
-        ErrorPresenceEquivalent.add hleftErrors hrightErrors⟩
+    exact ⟨
+      by simp [hleftValue, hrightValue],
+      ErrorPresenceEquivalent.add hleftErrors hrightErrors
+    ⟩
 
 private theorem StrongResultAligned.nonNullCompletion
     {canceling spec : Result ResponseValue}
@@ -122,10 +123,7 @@ private theorem StrongResultAligned.catchBubbleAsNull {α : Type}
         (catchBubbleAsNull wrap spec) := by
   cases canceling <;> cases spec <;>
     simp [StrongResultAligned, ErrorPresenceEquivalent] at h ⊢
-  · exact
-      ⟨rfl,
-        ⟨fun hspecZero => False.elim (by omega),
-          fun _hspecPositive => h.1⟩⟩
+  · exact ⟨rfl, ⟨fun hspecZero => False.elim (by omega), fun _hspecPositive => h.1⟩⟩
   · rcases h with ⟨hvalue, herrors⟩
     exact ⟨by simp [hvalue], herrors⟩
 
@@ -243,9 +241,10 @@ private theorem fuelImplementationsAligned
             · exact ⟨by omega, by omega⟩
             · rcases hhead with ⟨hheadValue, hheadErrors⟩
               rcases htail with ⟨htailValue, htailErrors⟩
-              exact
-                ⟨by simp [hheadValue, htailValue],
-                  ErrorPresenceEquivalent.add hheadErrors htailErrors⟩
+              exact ⟨
+                by simp [hheadValue, htailValue],
+                ErrorPresenceEquivalent.add hheadErrors htailErrors
+              ⟩
       have hlist :
           ∀ itemType fields values,
             StrongResultAligned
@@ -264,13 +263,12 @@ private theorem fuelImplementationsAligned
               GraphQL.Execution.completeValueList] using
                 StrongResultAligned.combine List.cons
                   (hcomplete itemType fields value) ih
-      exact
-        {
-          completeValue := hcomplete
-          completeValueList := hlist
-          executeField := hfield
-          executeCollectedFields := hcollected
-        }
+      exact {
+        completeValue := hcomplete
+        completeValueList := hlist
+        executeField := hfield
+        executeCollectedFields := hcollected
+      }
   | succ fuel ih =>
       have hcomplete :
           ∀ fieldType fields value,
@@ -422,9 +420,10 @@ private theorem fuelImplementationsAligned
             · exact ⟨by omega, by omega⟩
             · rcases hhead with ⟨hheadValue, hheadErrors⟩
               rcases htail with ⟨htailValue, htailErrors⟩
-              exact
-                ⟨by simp [hheadValue, htailValue],
-                  ErrorPresenceEquivalent.add hheadErrors htailErrors⟩
+              exact ⟨
+                by simp [hheadValue, htailValue],
+                ErrorPresenceEquivalent.add hheadErrors htailErrors
+              ⟩
       have hlist :
           ∀ itemType fields values,
             StrongResultAligned
@@ -443,13 +442,12 @@ private theorem fuelImplementationsAligned
               GraphQL.Execution.completeValueList] using
                 StrongResultAligned.combine List.cons
                   (hcomplete itemType fields value) ih
-      exact
-        {
-          completeValue := hcomplete
-          completeValueList := hlist
-          executeField := hfield
-          executeCollectedFields := hcollected
-        }
+      exact {
+        completeValue := hcomplete
+        completeValueList := hlist
+        executeField := hfield
+        executeCollectedFields := hcollected
+      }
 
 private theorem responseEquivalent_of_rootAligned
     {canceling spec : Result (List (Name × ResponseValue))}
@@ -457,12 +455,12 @@ private theorem responseEquivalent_of_rootAligned
     : responseDataAndErrorPresenceEquivalent
         (selectionSetResultToResponse canceling)
         (selectionSetResultToResponse spec) := by
-  cases canceling <;> cases spec <;>
-    simp [StrongResultAligned, responseDataAndErrorPresenceEquivalent,
-      selectionSetResultToResponse, ErrorPresenceEquivalent] at h ⊢
-  · exact
-      ⟨fun hspecZero => False.elim (by omega),
-        fun _hspecPositive => h.1⟩
+  cases canceling
+  <;> cases spec
+  <;>
+      simp [StrongResultAligned, responseDataAndErrorPresenceEquivalent,
+        selectionSetResultToResponse, ErrorPresenceEquivalent] at h ⊢
+  · exact ⟨fun hspecZero => False.elim (by omega), fun _hspecPositive => h.1⟩
   · exact h
 
 private theorem executeRootSelectionSet_canceling_spec_aligned

@@ -124,30 +124,32 @@ theorem normalSelectionSetObservableResponsePath_of_observableLeaf
   intro hpath
   induction hpath with
   | objectLeaf hobject hmem hlookup hleaf =>
-      exact
-        ⟨[_],
-          NormalSelectionSetObservableResponsePath.objectLeaf hobject hmem
-            hlookup hleaf⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetObservableResponsePath.objectLeaf hobject hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite _hchild ih =>
       rcases ih with ⟨childPath, hchildPath⟩
-      exact
-        ⟨_ :: childPath,
-          NormalSelectionSetObservableResponsePath.objectChild hobject hmem
-            hlookup
-            (by
-              rcases hcomposite with ⟨typeDefinition, htypeLookup,
-                htypeComposite⟩
-              unfold TypeRef.isCompositeBool TypeRef.namedType
-              rw [htypeLookup]
-              cases typeDefinition <;>
-                simp [TypeDefinition.isCompositeType] at htypeComposite ⊢)
-            hchildPath⟩
+      exact ⟨
+        _ :: childPath,
+        NormalSelectionSetObservableResponsePath.objectChild hobject hmem
+          hlookup
+          (by
+            rcases hcomposite with ⟨typeDefinition, htypeLookup,
+              htypeComposite⟩
+            unfold TypeRef.isCompositeBool TypeRef.namedType
+            rw [htypeLookup]
+            cases typeDefinition <;>
+              simp [TypeDefinition.isCompositeType] at htypeComposite ⊢)
+          hchildPath
+      ⟩
   | abstractInlineFragment hnonObject hmem _hchild ih =>
       rcases ih with ⟨childPath, hchildPath⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetObservableResponsePath.abstractInlineFragment
-            hnonObject hmem hchildPath⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetObservableResponsePath.abstractInlineFragment
+          hnonObject hmem hchildPath
+      ⟩
 
 structure NormalSelectionSetObservableFieldStep where
   responseName : Name
@@ -290,10 +292,10 @@ theorem normalSelectionSetObservableFieldSpine_of_observableResponsePath
   intro hpath
   induction hpath with
   | objectLeaf hobject hmem hlookup hleaf =>
-      exact
-        ⟨_,
-          NormalSelectionSetObservableFieldSpine.objectLeaf hobject hmem
-            hlookup hleaf⟩
+      exact ⟨
+        _,
+        NormalSelectionSetObservableFieldSpine.objectLeaf hobject hmem hlookup hleaf
+      ⟩
   | objectChild hobject hmem hlookup hcomposite hchildPath ih =>
       rename_i parentType responseName fieldName arguments directives
         childSelectionSet selectionSet fieldDefinition childPath
@@ -301,10 +303,11 @@ theorem normalSelectionSetObservableFieldSpine_of_observableResponsePath
           objectTypeNameBool schema fieldDefinition.outputType.namedType =
             true
       · rcases ih with ⟨childSpine, hchildSpine⟩
-        exact
-          ⟨_,
-            NormalSelectionSetObservableFieldSpine.objectChildObject
-              hobject hmem hlookup hreturnObject hchildSpine⟩
+        exact ⟨
+          _,
+          NormalSelectionSetObservableFieldSpine.objectChildObject
+            hobject hmem hlookup hreturnObject hchildSpine
+        ⟩
       · have hreturnNonObject :
             objectTypeNameBool schema fieldDefinition.outputType.namedType =
               false := by
@@ -324,17 +327,19 @@ theorem normalSelectionSetObservableFieldSpine_of_observableResponsePath
         | abstractInlineFragment _hchildNonObject hfragmentMem
             hgrandChildPath =>
             rcases ih with ⟨childSpine, hchildSpine⟩
-            exact
-              ⟨_,
-                NormalSelectionSetObservableFieldSpine.objectChildAbstract
-                  hobject hmem hlookup hcomposite hreturnNonObject
-                  hfragmentMem hchildSpine⟩
+            exact ⟨
+              _,
+              NormalSelectionSetObservableFieldSpine.objectChildAbstract
+                hobject hmem hlookup hcomposite hreturnNonObject
+                hfragmentMem hchildSpine
+            ⟩
   | abstractInlineFragment hnonObject hmem _hchildPath ih =>
       rcases ih with ⟨childSpine, hchildSpine⟩
-      exact
-        ⟨childSpine,
-          NormalSelectionSetObservableFieldSpine.abstractInlineFragment
-            hnonObject hmem hchildSpine⟩
+      exact ⟨
+        childSpine,
+        NormalSelectionSetObservableFieldSpine.abstractInlineFragment
+          hnonObject hmem hchildSpine
+      ⟩
 
 inductive NormalSelectionSetDiffTrace (schema : Schema)
     : Name -> List Selection -> List Selection -> List Name -> Prop where
@@ -824,11 +829,12 @@ theorem normalSelectionSetResponsePath_pair_of_valid_normal_arguments_composite_
                 responsePath) := by
   intro hleftValid hrightValid hleftNormal hrightNormal hleftMem hrightMem
     hlookup hcomposite
-  exact
-    ⟨normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-        hleftValid hleftNormal hleftMem hlookup hcomposite,
-      normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
-        hrightValid hrightNormal hrightMem hlookup hcomposite⟩
+  exact ⟨
+    normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
+      hleftValid hleftNormal hleftMem hlookup hcomposite,
+    normalSelectionSetResponsePath_of_valid_normal_composite_field_mem
+      hrightValid hrightNormal hrightMem hlookup hcomposite
+  ⟩
 
 theorem NormalSelectionSetResponsePath.append_context
     {schema : Schema} {parentType : Name}
@@ -1177,31 +1183,34 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
   | objectLeftResponseName hobject hleftMem hrightNoResponseName =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffTrace.objectLeftResponseName hobject hleftMem
-            hrightNoResponseName⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffTrace.objectLeftResponseName hobject hleftMem
+          hrightNoResponseName
+      ⟩
   | objectRightResponseName hobject hrightMem hleftNoResponseName =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffTrace.objectRightResponseName hobject
-            hrightMem hleftNoResponseName⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffTrace.objectRightResponseName hobject
+          hrightMem hleftNoResponseName
+      ⟩
   | objectFieldName hobject hleftMem hrightMem hfieldDiff =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem
-            hrightMem hfieldDiff⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem hrightMem hfieldDiff
+      ⟩
   | objectArguments hobject hleftMem hrightMem hargumentsDiff =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
-            hrightMem hargumentsDiff⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
+          hrightMem hargumentsDiff
+      ⟩
   | objectChild hobject hreturnType hleftMem hrightMem harguments hchildDiff ih =>
       rename_i diffParentType returnType diffLeft diffRight responseName
         fieldName leftArguments rightArguments leftDirectives rightDirectives
@@ -1233,10 +1242,11 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           ih hleftChildNormal hrightChildNormal hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
-      exact
-        ⟨_ :: childPath,
-          NormalSelectionSetDiffTrace.objectChild hobject hreturnType
-            hleftMem hrightMem harguments hchildTrace⟩
+      exact ⟨
+        _ :: childPath,
+        NormalSelectionSetDiffTrace.objectChild hobject hreturnType
+          hleftMem hrightMem harguments hchildTrace
+      ⟩
   | abstractLeftTypeCondition hnonObject hleftMem hrightNoTypeCondition =>
       intro leftVariableDefinitions _rightVariableDefinitions hleftValid
         _hrightValid
@@ -1255,10 +1265,11 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
             (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
               hleftValid hleftMem) with
         ⟨childPath, hchildPath⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffTrace.abstractLeftTypeCondition hnonObject
-            hleftMem hrightNoTypeCondition hchildPath⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffTrace.abstractLeftTypeCondition hnonObject
+          hleftMem hrightNoTypeCondition hchildPath
+      ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition =>
       intro _leftVariableDefinitions rightVariableDefinitions _hleftValid
         hrightValid
@@ -1277,10 +1288,11 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
             (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
               hrightValid hrightMem) with
         ⟨childPath, hchildPath⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffTrace.abstractRightTypeCondition hnonObject
-            hrightMem hleftNoTypeCondition hchildPath⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffTrace.abstractRightTypeCondition hnonObject
+          hrightMem hleftNoTypeCondition hchildPath
+      ⟩
   | abstractChild hnonObject hleftMem hrightMem hchildDiff ih =>
       intro leftVariableDefinitions rightVariableDefinitions hleftValid
         hrightValid
@@ -1304,10 +1316,11 @@ theorem normalSelectionSetDiffTrace_of_valid_normal_diff
           ih hleftChildNormal hrightChildNormal hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffTrace.abstractChild hnonObject hleftMem
-            hrightMem hchildTrace⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffTrace.abstractChild hnonObject hleftMem
+          hrightMem hchildTrace
+      ⟩
 
 theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
     {schema : Schema}
@@ -1327,17 +1340,19 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
   | objectLeftResponseName hobject hleftMem hrightNoResponseName =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffObservableTrace.objectLeftResponseName
-            hobject hleftMem hrightNoResponseName⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffObservableTrace.objectLeftResponseName
+          hobject hleftMem hrightNoResponseName
+      ⟩
   | objectRightResponseName hobject hrightMem hleftNoResponseName =>
       intro _leftVariableDefinitions _rightVariableDefinitions _hleftValid
         _hrightValid
-      exact
-        ⟨[_],
-          NormalSelectionSetDiffObservableTrace.objectRightResponseName
-            hobject hrightMem hleftNoResponseName⟩
+      exact ⟨
+        [_],
+        NormalSelectionSetDiffObservableTrace.objectRightResponseName
+          hobject hrightMem hleftNoResponseName
+      ⟩
   | objectFieldName hobject hleftMem hrightMem hfieldDiff =>
       intro leftVariableDefinitions rightVariableDefinitions hleftValid
         hrightValid
@@ -1355,11 +1370,12 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
             (TypeRef.named
               rightFieldDefinition.outputType.namedType).isCompositeBool
               schema = false
-        · exact
-            ⟨[_],
-              NormalSelectionSetDiffObservableTrace.objectFieldNameLeaf
-                hobject hleftMem hrightMem hleftLookup hrightLookup
-                hleftLeaf hrightLeaf hfieldDiff⟩
+        · exact ⟨
+            [_],
+            NormalSelectionSetDiffObservableTrace.objectFieldNameLeaf
+              hobject hleftMem hrightMem hleftLookup hrightLookup
+              hleftLeaf hrightLeaf hfieldDiff
+          ⟩
         · have hrightComposite :
               (TypeRef.named
                 rightFieldDefinition.outputType.namedType).isCompositeBool
@@ -1374,11 +1390,12 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
                 hrightValid hrightNormal hrightMem hrightLookup
                 hrightComposite with
             ⟨childPath, hchildPath⟩
-          exact
-            ⟨_ :: childPath,
-              NormalSelectionSetDiffObservableTrace.objectFieldNameCompositeRight
-                hobject hleftMem hrightMem hleftLookup hrightLookup
-                hrightComposite hchildPath hfieldDiff⟩
+          exact ⟨
+            _ :: childPath,
+            NormalSelectionSetDiffObservableTrace.objectFieldNameCompositeRight
+              hobject hleftMem hrightMem hleftLookup hrightLookup
+              hrightComposite hchildPath hfieldDiff
+          ⟩
       · have hleftComposite :
             (TypeRef.named
               leftFieldDefinition.outputType.namedType).isCompositeBool
@@ -1393,11 +1410,12 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
               hleftValid hleftNormal hleftMem hleftLookup
               hleftComposite with
           ⟨childPath, hchildPath⟩
-        exact
-          ⟨_ :: childPath,
-            NormalSelectionSetDiffObservableTrace.objectFieldNameCompositeLeft
-              hobject hleftMem hrightMem hleftLookup hrightLookup
-              hleftComposite hchildPath hfieldDiff⟩
+        exact ⟨
+          _ :: childPath,
+          NormalSelectionSetDiffObservableTrace.objectFieldNameCompositeLeft
+            hobject hleftMem hrightMem hleftLookup hrightLookup
+            hleftComposite hchildPath hfieldDiff
+        ⟩
   | objectArguments hobject hleftMem hrightMem hargumentsDiff =>
       intro leftVariableDefinitions _rightVariableDefinitions hleftValid
         _hrightValid
@@ -1406,10 +1424,11 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
       by_cases hleaf :
           (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool
             schema = false
-      · exact
-          ⟨[_],
-            NormalSelectionSetDiffObservableTrace.objectArgumentsLeaf
-              hobject hleftMem hrightMem hlookup hleaf hargumentsDiff⟩
+      · exact ⟨
+          [_],
+          NormalSelectionSetDiffObservableTrace.objectArgumentsLeaf
+            hobject hleftMem hrightMem hlookup hleaf hargumentsDiff
+        ⟩
       · have hcomposite :
             (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool
               schema = true := by
@@ -1422,11 +1441,12 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
             normalSelectionSetObservableResponsePath_of_valid_normal_composite_field_mem
               hleftValid hleftNormal hleftMem hlookup hcomposite with
           ⟨childPath, hchildPath⟩
-        exact
-          ⟨_ :: childPath,
-            NormalSelectionSetDiffObservableTrace.objectArgumentsCompositeLeft
-              hobject hleftMem hrightMem hlookup hcomposite hchildPath
-              hargumentsDiff⟩
+        exact ⟨
+          _ :: childPath,
+          NormalSelectionSetDiffObservableTrace.objectArgumentsCompositeLeft
+            hobject hleftMem hrightMem hlookup hcomposite hchildPath
+            hargumentsDiff
+        ⟩
   | objectChild hobject hreturnType hleftMem hrightMem harguments hchildDiff ih =>
       rename_i diffParentType returnType diffLeft diffRight responseName
         fieldName leftArguments rightArguments leftDirectives rightDirectives
@@ -1458,10 +1478,11 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           ih hleftChildNormal hrightChildNormal hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
-      exact
-        ⟨responseName :: childPath,
-          NormalSelectionSetDiffObservableTrace.objectChild hobject
-            hreturnType hleftMem hrightMem harguments hchildTrace⟩
+      exact ⟨
+        responseName :: childPath,
+        NormalSelectionSetDiffObservableTrace.objectChild hobject
+          hreturnType hleftMem hrightMem harguments hchildTrace
+      ⟩
   | abstractLeftTypeCondition hnonObject hleftMem hrightNoTypeCondition =>
       intro leftVariableDefinitions _rightVariableDefinitions hleftValid
         _hrightValid
@@ -1481,10 +1502,11 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
               (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
                 hleftValid hleftMem)) with
         ⟨childPath, hchildPath⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffObservableTrace.abstractLeftTypeCondition
-            hnonObject hleftMem hrightNoTypeCondition hchildPath⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffObservableTrace.abstractLeftTypeCondition
+          hnonObject hleftMem hrightNoTypeCondition hchildPath
+      ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition =>
       intro _leftVariableDefinitions rightVariableDefinitions _hleftValid
         hrightValid
@@ -1504,10 +1526,11 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
               (selectionSetValid_inlineFragment_some_child_nonempty_of_mem
                 hrightValid hrightMem)) with
         ⟨childPath, hchildPath⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffObservableTrace.abstractRightTypeCondition
-            hnonObject hrightMem hleftNoTypeCondition hchildPath⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffObservableTrace.abstractRightTypeCondition
+          hnonObject hrightMem hleftNoTypeCondition hchildPath
+      ⟩
   | abstractChild hnonObject hleftMem hrightMem hchildDiff ih =>
       intro leftVariableDefinitions rightVariableDefinitions hleftValid
         hrightValid
@@ -1531,10 +1554,11 @@ theorem normalSelectionSetDiffObservableTrace_of_valid_normal_diff
           ih hleftChildNormal hrightChildNormal hleftChildValid
             hrightChildValid with
         ⟨childPath, hchildTrace⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffObservableTrace.abstractChild hnonObject
-            hleftMem hrightMem hchildTrace⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffObservableTrace.abstractChild hnonObject
+          hleftMem hrightMem hchildTrace
+      ⟩
 
 theorem normalSelectionSetDiffTrace_exists_of_observableTrace
     {schema : Schema} {parentType : Name} {left right : List Selection}
@@ -1546,70 +1570,78 @@ theorem normalSelectionSetDiffTrace_exists_of_observableTrace
   intro htrace
   induction htrace with
   | objectLeftResponseName hobject hleftMem hrightNoResponseName =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectLeftResponseName hobject
-            hleftMem hrightNoResponseName⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectLeftResponseName hobject
+          hleftMem hrightNoResponseName
+      ⟩
   | objectRightResponseName hobject hrightMem hleftNoResponseName =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectRightResponseName hobject
-            hrightMem hleftNoResponseName⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectRightResponseName hobject
+          hrightMem hleftNoResponseName
+      ⟩
   | objectFieldNameLeaf hobject hleftMem hrightMem _hleftLookup
       _hrightLookup _hleftLeaf _hrightLeaf hfieldDiff =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem
-            hrightMem hfieldDiff⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem hrightMem hfieldDiff
+      ⟩
   | objectFieldNameCompositeLeft hobject hleftMem hrightMem _hleftLookup
       _hrightLookup _hleftComposite _hchildPath hfieldDiff =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem
-            hrightMem hfieldDiff⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem hrightMem hfieldDiff
+      ⟩
   | objectFieldNameCompositeRight hobject hleftMem hrightMem _hleftLookup
       _hrightLookup _hrightComposite _hchildPath hfieldDiff =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem
-            hrightMem hfieldDiff⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectFieldName hobject hleftMem hrightMem hfieldDiff
+      ⟩
   | objectArgumentsLeaf hobject hleftMem hrightMem _hlookup _hleaf
       hargumentsDiff =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
-            hrightMem hargumentsDiff⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
+          hrightMem hargumentsDiff
+      ⟩
   | objectArgumentsCompositeLeft hobject hleftMem hrightMem _hlookup
       _hcomposite _hchildPath hargumentsDiff =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
-            hrightMem hargumentsDiff⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectArguments hobject hleftMem
+          hrightMem hargumentsDiff
+      ⟩
   | objectChild hobject hreturnType hleftMem hrightMem harguments
       _hchildTrace ih =>
       rcases ih with ⟨childPath, hchildTrace⟩
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.objectChild hobject hreturnType
-            hleftMem hrightMem harguments hchildTrace⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.objectChild hobject hreturnType
+          hleftMem hrightMem harguments hchildTrace
+      ⟩
   | abstractLeftTypeCondition hnonObject hleftMem hrightNoTypeCondition
       hchildPath =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.abstractLeftTypeCondition hnonObject
-            hleftMem hrightNoTypeCondition hchildPath.to_responsePath⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.abstractLeftTypeCondition hnonObject
+          hleftMem hrightNoTypeCondition hchildPath.to_responsePath
+      ⟩
   | abstractRightTypeCondition hnonObject hrightMem hleftNoTypeCondition
       hchildPath =>
-      exact
-        ⟨_,
-          NormalSelectionSetDiffTrace.abstractRightTypeCondition hnonObject
-            hrightMem hleftNoTypeCondition hchildPath.to_responsePath⟩
+      exact ⟨
+        _,
+        NormalSelectionSetDiffTrace.abstractRightTypeCondition hnonObject
+          hrightMem hleftNoTypeCondition hchildPath.to_responsePath
+      ⟩
   | abstractChild hnonObject hleftMem hrightMem _hchildTrace ih =>
       rcases ih with ⟨childPath, hchildTrace⟩
-      exact
-        ⟨childPath,
-          NormalSelectionSetDiffTrace.abstractChild hnonObject hleftMem
-            hrightMem hchildTrace⟩
+      exact ⟨
+        childPath,
+        NormalSelectionSetDiffTrace.abstractChild hnonObject hleftMem
+          hrightMem hchildTrace
+      ⟩
 
 theorem normalSelectionSetDiff_of_observableTrace
     {schema : Schema} {parentType : Name} {left right : List Selection}

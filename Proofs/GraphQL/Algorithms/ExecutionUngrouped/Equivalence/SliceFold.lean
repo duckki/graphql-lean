@@ -296,8 +296,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_eq_of_lookup_eq
   · subst target
     cases selectionDepth with
     | zero =>
-        cases hright :
-            responseObjectField? field.responseName (.object rightFields) with
+        cases hright : responseObjectField? field.responseName (.object rightFields) with
         | none =>
             have hleft :
                 responseObjectField? field.responseName (.object leftFields) =
@@ -314,8 +313,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_eq_of_lookup_eq
             simp [visitFieldSliceResult, mergeResponseFieldResult, hleft,
               hright, responseObjectField?_mergeResponseFieldIntoObject_same]
     | succ completionDepth =>
-        cases hright :
-            responseObjectField? field.responseName (.object rightFields) with
+        cases hright : responseObjectField? field.responseName (.object rightFields) with
         | none =>
             have hleft :
                 responseObjectField? field.responseName (.object leftFields) =
@@ -333,8 +331,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_eq_of_lookup_eq
                 hright, responseObjectField?_mergeResponseFieldIntoObject_same]
   · cases selectionDepth with
     | zero =>
-        cases hright :
-            responseObjectField? field.responseName (.object rightFields) with
+        cases hright : responseObjectField? field.responseName (.object rightFields) with
         | none =>
             have hleft :
                 responseObjectField? field.responseName (.object leftFields) =
@@ -360,8 +357,7 @@ theorem responseObjectField?_visitFieldSliceResult_object_fst_eq_of_lookup_eq
                 field.responseName _ rightFields hsame,
               htarget]
     | succ completionDepth =>
-        cases hright :
-            responseObjectField? field.responseName (.object rightFields) with
+        cases hright : responseObjectField? field.responseName (.object rightFields) with
         | none =>
             have hleft :
                 responseObjectField? field.responseName (.object leftFields) =

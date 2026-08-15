@@ -35,16 +35,12 @@ theorem inlineFragmentTypeConditionsNodup_tail
   unfold NormalForm.inlineFragmentTypeConditionsNodup at hnodup ⊢
   cases selection with
   | field responseName fieldName arguments directives subselections =>
-      change
-        (selectionSet.filterMap
-          NormalForm.inlineFragmentTypeCondition?).Nodup
+      change (selectionSet.filterMap NormalForm.inlineFragmentTypeCondition?).Nodup
       exact hnodup
   | inlineFragment typeCondition directives subselections =>
       cases typeCondition with
       | none =>
-          change
-            (selectionSet.filterMap
-              NormalForm.inlineFragmentTypeCondition?).Nodup
+          change (selectionSet.filterMap NormalForm.inlineFragmentTypeCondition?).Nodup
           exact hnodup
       | some typeCondition =>
           change List.Pairwise (fun x1 x2 => ¬ x1 = x2)

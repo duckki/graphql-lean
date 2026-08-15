@@ -194,10 +194,12 @@ theorem trans
           completionDepth parentType source middle normalized)
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source raw normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       rw [left.collect_eq, right.collect_eq]
     rawFreshFlat := left.rawFreshFlat
-    normalizedPlan := right.normalizedPlan }
+    normalizedPlan := right.normalizedPlan
+  }
 
 theorem appendDisjoint
     {ObjectIdentity : Type}
@@ -230,18 +232,19 @@ theorem appendDisjoint
     exact hdisjoint responseName
       (by rwa [left.collect_eq])
       (by rwa [right.collect_eq])
-  exact
-    { collect_eq := by
+  exact {
+    collect_eq := by
         rw [GraphQL.NormalForm.collectFields_append]
         rw [GraphQL.NormalForm.collectFields_append]
         rw [left.collect_eq, right.collect_eq]
-      rawFreshFlat :=
-        VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
-          resolvers variableValues (completionDepth + 1) parentType source
-          rawLeft rawRight hdisjoint left.rawFreshFlat right.rawFreshFlat
-      normalizedPlan :=
-        FreshPrefixSelectionPlan.appendDisjoint normalizedLeft normalizedRight
-          left.normalizedPlan right.normalizedPlan hnormalizedDisjoint }
+    rawFreshFlat :=
+      VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
+        resolvers variableValues (completionDepth + 1) parentType source
+        rawLeft rawRight hdisjoint left.rawFreshFlat right.rawFreshFlat
+    normalizedPlan :=
+      FreshPrefixSelectionPlan.appendDisjoint normalizedLeft normalizedRight
+        left.normalizedPlan right.normalizedPlan hnormalizedDisjoint
+  }
 
 theorem consDisjoint
     {ObjectIdentity : Type}
@@ -335,7 +338,8 @@ theorem fieldAllowedDropDirectives
         completionDepth parentType source
         [.field responseName fieldName arguments directives selectionSet]
         [.field responseName fieldName arguments [] selectionSet] :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         GraphQL.Execution.mergeExecutableGroups, hallows,
         selectionDirectivesAllowBool_empty]
@@ -346,7 +350,8 @@ theorem fieldAllowedDropDirectives
     normalizedPlan :=
       (SelectionSetFreshPlanNormalizes.field schema resolvers variableValues
         completionDepth parentType source responseName fieldName arguments []
-        selectionSet).normalizedPlan }
+        selectionSet).normalizedPlan
+  }
 
 theorem fieldSkipped
     {ObjectIdentity : Type}
@@ -359,7 +364,8 @@ theorem fieldSkipped
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         [.field responseName fieldName arguments directives selectionSet] [] :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         GraphQL.Execution.mergeExecutableGroups, hskip]
     rawFreshFlat :=
@@ -370,7 +376,8 @@ theorem fieldSkipped
       FreshPrefixSelectionPlan.nil (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth)
-        (parentType := parentType) (source := source) }
+        (parentType := parentType) (source := source)
+  }
 
 theorem executablePrefixFieldConsAllowed {ObjectIdentity : Type} {schema : Schema}
     {resolvers : Resolvers ObjectIdentity} {variableValues : VariableValues}
@@ -393,7 +400,8 @@ theorem executablePrefixFieldConsAllowed {ObjectIdentity : Type} {schema : Schem
           ++ Selection.field responseName fieldName arguments directives selectionSet
               :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simpa [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         hallows, executableFieldSelections, executableFieldSelection,
         executableField, selectionDirectivesAllowBool_empty,
@@ -404,7 +412,8 @@ theorem executablePrefixFieldConsAllowed {ObjectIdentity : Type} {schema : Schem
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields responseName fieldName arguments directives selectionSet
         rest hallows tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem executablePrefixFieldConsSkipped {ObjectIdentity : Type} {schema : Schema}
     {resolvers : Resolvers ObjectIdentity} {variableValues : VariableValues}
@@ -424,7 +433,8 @@ theorem executablePrefixFieldConsSkipped {ObjectIdentity : Type} {schema : Schem
           ++ Selection.field responseName fieldName arguments directives selectionSet
               :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -445,7 +455,8 @@ theorem executablePrefixFieldConsSkipped {ObjectIdentity : Type} {schema : Schem
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields responseName fieldName arguments directives selectionSet
         rest hskip tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentNone
     {ObjectIdentity : Type}
@@ -462,10 +473,11 @@ theorem inlineFragmentNone
         completionDepth parentType source
         [.inlineFragment none directives rawChild]
         [.inlineFragment none directives normalizedChild] := by
-  refine
-    { collect_eq := ?_
-      rawFreshFlat := ?_
-      normalizedPlan := ?_ }
+  refine {
+    collect_eq := ?_
+    rawFreshFlat := ?_
+    normalizedPlan := ?_
+  }
   · by_cases hallows :
         selectionDirectivesAllowBool variableValues directives = true
     · simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
@@ -503,7 +515,8 @@ theorem inlineFragmentNoneFlatten
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         [.inlineFragment none directives rawChild] normalizedChild :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         hallows, child.collect_eq,
         GraphQL.Execution.mergeExecutableGroups]
@@ -511,7 +524,8 @@ theorem inlineFragmentNoneFlatten
       VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_single schema
         resolvers variableValues (completionDepth + 1) parentType source
         directives rawChild (fun _hallows => child.rawFreshFlat)
-    normalizedPlan := child.normalizedPlan }
+    normalizedPlan := child.normalizedPlan
+  }
 
 theorem inlineFragmentNoneConsFlatten
     {ObjectIdentity : Type}
@@ -528,7 +542,8 @@ theorem inlineFragmentNoneConsFlatten
         completionDepth parentType source
         (Selection.inlineFragment none directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simpa [GraphQL.Execution.collectFields,
         GraphQL.Execution.collectSelection, hallows] using
         (by
@@ -538,7 +553,8 @@ theorem inlineFragmentNoneConsFlatten
       VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_allowed
         schema resolvers variableValues (completionDepth + 1) parentType source
         directives rawChild rest hallows tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentNoneConsSkipped
     {ObjectIdentity : Type}
@@ -555,7 +571,8 @@ theorem inlineFragmentNoneConsSkipped
         completionDepth parentType source
         (Selection.inlineFragment none directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -575,7 +592,8 @@ theorem inlineFragmentNoneConsSkipped
       VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_skipped
         schema resolvers variableValues (completionDepth + 1) parentType source
         directives rawChild rest hskip tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentNoneCons
     {ObjectIdentity : Type}
@@ -603,9 +621,7 @@ theorem inlineFragmentNoneCons
   by_cases hallows :
       selectionDirectivesAllowBool variableValues directives = true
   · rcases normalizeAllowed hallows with ⟨normalized, hnormalized⟩
-    exact
-      ⟨normalized,
-        inlineFragmentNoneConsFlatten directives hallows hnormalized⟩
+    exact ⟨normalized, inlineFragmentNoneConsFlatten directives hallows hnormalized⟩
   · have hskip :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases h :
@@ -613,10 +629,10 @@ theorem inlineFragmentNoneCons
       · rfl
       · contradiction
     rcases normalizeSkipped hskip with ⟨normalized, hnormalized⟩
-    exact
-      ⟨normalized,
-        inlineFragmentNoneConsSkipped directives rawChild hskip
-          hnormalized⟩
+    exact ⟨
+      normalized,
+      inlineFragmentNoneConsSkipped directives rawChild hskip hnormalized
+    ⟩
 
 theorem normalizeSelectionSet_inlineFragmentNoneCons
     {ObjectIdentity : Type}
@@ -649,7 +665,8 @@ theorem inlineFragmentNoneSkipped
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         [.inlineFragment none directives selectionSet] [] :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         GraphQL.Execution.mergeExecutableGroups, hskip]
     rawFreshFlat :=
@@ -664,7 +681,8 @@ theorem inlineFragmentNoneSkipped
       FreshPrefixSelectionPlan.nil (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth)
-        (parentType := parentType) (source := source) }
+        (parentType := parentType) (source := source)
+  }
 
 theorem inlineFragmentSome
     {ObjectIdentity : Type}
@@ -682,10 +700,11 @@ theorem inlineFragmentSome
         completionDepth parentType source
         [.inlineFragment (some typeCondition) directives rawChild]
         [.inlineFragment (some typeCondition) directives normalizedChild] := by
-  refine
-    { collect_eq := ?_
-      rawFreshFlat := ?_
-      normalizedPlan := ?_ }
+  refine {
+    collect_eq := ?_
+    rawFreshFlat := ?_
+    normalizedPlan := ?_
+  }
   · by_cases hallows :
         selectionDirectivesAllowBool variableValues directives = true
     · by_cases happly :
@@ -730,7 +749,8 @@ theorem inlineFragmentSomeFlatten
         completionDepth parentType source
         [.inlineFragment (some typeCondition) directives rawChild]
         normalizedChild :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         hallows, happly, child.collect_eq,
         GraphQL.Execution.mergeExecutableGroups]
@@ -739,7 +759,8 @@ theorem inlineFragmentSomeFlatten
         resolvers variableValues (completionDepth + 1) parentType source
         typeCondition directives rawChild
         (fun _hallows _happly => child.rawFreshFlat)
-    normalizedPlan := child.normalizedPlan }
+    normalizedPlan := child.normalizedPlan
+  }
 
 theorem inlineFragmentSomeConsFlatten
     {ObjectIdentity : Type}
@@ -757,7 +778,8 @@ theorem inlineFragmentSomeConsFlatten
         completionDepth parentType source
         (Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simpa [GraphQL.Execution.collectFields,
         GraphQL.Execution.collectSelection, hallows, happly] using
         (by
@@ -767,7 +789,8 @@ theorem inlineFragmentSomeConsFlatten
       VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_allowed_apply
         schema resolvers variableValues (completionDepth + 1) parentType source
         typeCondition directives rawChild rest hallows happly tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentSomeConsSkipped
     {ObjectIdentity : Type}
@@ -784,7 +807,8 @@ theorem inlineFragmentSomeConsSkipped
         completionDepth parentType source
         (Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -804,7 +828,8 @@ theorem inlineFragmentSomeConsSkipped
       VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_skipped
         schema resolvers variableValues (completionDepth + 1) parentType source
         typeCondition directives rawChild rest hskip tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentSomeConsDoesNotApply
     {ObjectIdentity : Type}
@@ -822,7 +847,8 @@ theorem inlineFragmentSomeConsDoesNotApply
         completionDepth parentType source
         (Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -843,7 +869,8 @@ theorem inlineFragmentSomeConsDoesNotApply
         schema resolvers variableValues (completionDepth + 1) parentType source
         typeCondition directives rawChild rest hallows hnotApply
         tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentSomeCons
     {ObjectIdentity : Type}
@@ -881,10 +908,10 @@ theorem inlineFragmentSomeCons
         doesFragmentTypeApplyBool schema parentType source typeCondition = true
     · rcases normalizeApplies hallows happly with
         ⟨normalized, hnormalized⟩
-      exact
-        ⟨normalized,
-          inlineFragmentSomeConsFlatten typeCondition directives hallows
-            happly hnormalized⟩
+      exact ⟨
+        normalized,
+        inlineFragmentSomeConsFlatten typeCondition directives hallows happly hnormalized
+      ⟩
     · have hnotApply :
           doesFragmentTypeApplyBool schema parentType source typeCondition =
             false := by
@@ -894,10 +921,11 @@ theorem inlineFragmentSomeCons
         · contradiction
       rcases normalizeDoesNotApply hallows hnotApply with
         ⟨normalized, hnormalized⟩
-      exact
-        ⟨normalized,
-          inlineFragmentSomeConsDoesNotApply typeCondition directives
-            rawChild hallows hnotApply hnormalized⟩
+      exact ⟨
+        normalized,
+        inlineFragmentSomeConsDoesNotApply typeCondition directives
+          rawChild hallows hnotApply hnormalized
+      ⟩
   · have hskip :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases h :
@@ -905,10 +933,10 @@ theorem inlineFragmentSomeCons
       · rfl
       · contradiction
     rcases normalizeSkipped hskip with ⟨normalized, hnormalized⟩
-    exact
-      ⟨normalized,
-        inlineFragmentSomeConsSkipped typeCondition directives rawChild hskip
-          hnormalized⟩
+    exact ⟨
+      normalized,
+      inlineFragmentSomeConsSkipped typeCondition directives rawChild hskip hnormalized
+    ⟩
 
 theorem normalizeSelectionSet_inlineFragmentSomeCons
     {ObjectIdentity : Type}
@@ -983,7 +1011,8 @@ theorem executablePrefixInlineFragmentNoneConsFlatten
         (executableFieldSelections prefixFields
           ++ Selection.inlineFragment none directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simpa [GraphQL.Execution.collectFields,
         GraphQL.Execution.collectSelection, hallows,
         GraphQL.NormalForm.collectFields_append, List.append_assoc] using
@@ -992,7 +1021,8 @@ theorem executablePrefixInlineFragmentNoneConsFlatten
       VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_allowed
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields directives rawChild rest hallows tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem executablePrefixInlineFragmentNoneConsSkipped
     {ObjectIdentity : Type}
@@ -1012,7 +1042,8 @@ theorem executablePrefixInlineFragmentNoneConsSkipped
         (executableFieldSelections prefixFields
           ++ Selection.inlineFragment none directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1033,7 +1064,8 @@ theorem executablePrefixInlineFragmentNoneConsSkipped
       VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields directives rawChild rest hskip tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem executablePrefixInlineFragmentSomeConsFlatten
     {ObjectIdentity : Type}
@@ -1055,7 +1087,8 @@ theorem executablePrefixInlineFragmentSomeConsFlatten
         (executableFieldSelections prefixFields
           ++ Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simpa [GraphQL.Execution.collectFields,
         GraphQL.Execution.collectSelection, hallows, happly,
         GraphQL.NormalForm.collectFields_append, List.append_assoc] using
@@ -1065,7 +1098,8 @@ theorem executablePrefixInlineFragmentSomeConsFlatten
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields typeCondition directives rawChild rest hallows happly
         tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem executablePrefixInlineFragmentSomeConsSkipped
     {ObjectIdentity : Type}
@@ -1085,7 +1119,8 @@ theorem executablePrefixInlineFragmentSomeConsSkipped
         (executableFieldSelections prefixFields
           ++ Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1107,7 +1142,8 @@ theorem executablePrefixInlineFragmentSomeConsSkipped
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields typeCondition directives rawChild rest hskip
         tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem executablePrefixInlineFragmentSomeConsDoesNotApply
     {ObjectIdentity : Type}
@@ -1128,7 +1164,8 @@ theorem executablePrefixInlineFragmentSomeConsDoesNotApply
         (executableFieldSelections prefixFields
           ++ Selection.inlineFragment (some typeCondition) directives rawChild :: rest)
         normalized :=
-  { collect_eq := by
+  {
+    collect_eq := by
       have hmergeNil :
           GraphQL.Execution.mergeExecutableGroups []
               (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1150,7 +1187,8 @@ theorem executablePrefixInlineFragmentSomeConsDoesNotApply
         schema resolvers variableValues (completionDepth + 1) parentType source
         prefixFields typeCondition directives rawChild rest hallows hnotApply
         tail.rawFreshFlat
-    normalizedPlan := tail.normalizedPlan }
+    normalizedPlan := tail.normalizedPlan
+  }
 
 theorem inlineFragmentSomeSkipped
     {ObjectIdentity : Type}
@@ -1163,7 +1201,8 @@ theorem inlineFragmentSomeSkipped
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         [.inlineFragment (some typeCondition) directives selectionSet] [] :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         GraphQL.Execution.mergeExecutableGroups, hskip]
     rawFreshFlat :=
@@ -1178,7 +1217,8 @@ theorem inlineFragmentSomeSkipped
       FreshPrefixSelectionPlan.nil (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth)
-        (parentType := parentType) (source := source) }
+        (parentType := parentType) (source := source)
+  }
 
 theorem inlineFragmentSomeDoesNotApply
     {ObjectIdentity : Type}
@@ -1192,7 +1232,8 @@ theorem inlineFragmentSomeDoesNotApply
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         [.inlineFragment (some typeCondition) directives selectionSet] [] :=
-  { collect_eq := by
+  {
+    collect_eq := by
       simp [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
         GraphQL.Execution.mergeExecutableGroups, hallows, hnotApply]
     rawFreshFlat :=
@@ -1207,7 +1248,8 @@ theorem inlineFragmentSomeDoesNotApply
       FreshPrefixSelectionPlan.nil (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth)
-        (parentType := parentType) (source := source) }
+        (parentType := parentType) (source := source)
+  }
 
 theorem executableFieldConsFresh
     {ObjectIdentity : Type}
@@ -1352,10 +1394,11 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
         schema variableValues parentType source middle responseName).mp
         hright
     exact hnotMiddle (by simpa [hsameResponse, hleft] using hmiddleMem)
-  refine
-    { collect_eq := ?_
-      rawFreshFlat := ?_
-      normalizedPlan := ?_ }
+  refine {
+    collect_eq := ?_
+    rawFreshFlat := ?_
+    normalizedPlan := ?_
+  }
   · exact
       collectFields_executableFieldSelections_single_prefix_duplicate_fresh_middle
         schema variableValues parentType source first later middle
@@ -1471,10 +1514,11 @@ theorem executableFieldPrefixDuplicateFreshMiddle
     rw [hmiddleCollect] at hright
     simp at hleft
     exact hnotMiddle (by simpa [hleft] using hright)
-  refine
-    { collect_eq := ?_
-      rawFreshFlat := ?_
-      normalizedPlan := ?_ }
+  refine {
+    collect_eq := ?_
+    rawFreshFlat := ?_
+    normalizedPlan := ?_
+  }
   · simpa [collectedMiddle] using
       collectFields_group_duplicate_field_middle_append_eq_collected_middle
         schema variableValues parentType source responseName prefixFields later
@@ -1542,34 +1586,35 @@ theorem duplicateFieldPrefixBlockNormalizeTrans_of_middleNormalizes
             ++ executableFieldSelections [later])
           ++ suffix)
         normalizedTail :=
-  { collect_eq := by
+  {
+    collect_eq := by
       calc
         GraphQL.Execution.collectFields schema variableValues parentType source
-            ((executableFieldSelections prefixFields ++ middle ++
-                executableFieldSelections [later]) ++ suffix)
-          =
-        GraphQL.Execution.collectFields schema variableValues parentType source
-            ((executableFieldSelections (prefixFields ++ [later]) ++
-                executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle))) ++
-              suffix) :=
-            collectFields_group_duplicate_field_middle_append_eq_collected_middle
-              schema variableValues parentType source responseName prefixFields
-              later middle suffix hprefixNonempty hprefixResponse
-              hlaterResponse hnotMiddle
-        _ =
-        GraphQL.Execution.collectFields schema variableValues parentType source
-            normalizedTail :=
-            htail.collect_eq
+              ((executableFieldSelections prefixFields
+                  ++ middle
+                  ++ executableFieldSelections [later])
+                ++ suffix)
+            = GraphQL.Execution.collectFields schema variableValues parentType source
+                ((executableFieldSelections (prefixFields ++ [later])
+                    ++ executableFieldSelections
+                        (collectedExecutableFields
+                          (GraphQL.Execution.collectFields schema variableValues
+                            parentType source middle)))
+                  ++ suffix) :=
+          collectFields_group_duplicate_field_middle_append_eq_collected_middle
+            schema variableValues parentType source responseName prefixFields
+            later middle suffix hprefixNonempty hprefixResponse
+            hlaterResponse hnotMiddle
+        _ = GraphQL.Execution.collectFields schema variableValues parentType source
+              normalizedTail :=
+          htail.collect_eq
     rawFreshFlat :=
       VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
-        schema resolvers variableValues completionDepth parentType source
-        responseName prefixFields later middle suffix hprefixNonempty
-        hprefixResponse hlaterResponse hlaterLookup hnotMiddle
-        hmiddle.rawFreshFlat htail.rawFreshFlat
-    normalizedPlan := htail.normalizedPlan }
+        schema resolvers variableValues completionDepth parentType source responseName
+        prefixFields later middle suffix hprefixNonempty hprefixResponse hlaterResponse
+        hlaterLookup hnotMiddle hmiddle.rawFreshFlat htail.rawFreshFlat
+    normalizedPlan := htail.normalizedPlan
+  }
 
 theorem duplicateFieldBlockNormalize
     {ObjectIdentity : Type}
@@ -1706,32 +1751,34 @@ theorem duplicateFieldBlockNormalizeTrans_of_middleNormalizes {ObjectIdentity : 
             ++ executableFieldSelections [later])
           ++ suffix)
         normalizedTail :=
-  { collect_eq := by
+  {
+    collect_eq := by
       calc
         GraphQL.Execution.collectFields schema variableValues parentType source
-            ((executableFieldSelections [first] ++ middle ++
-                executableFieldSelections [later]) ++ suffix)
-          =
-        GraphQL.Execution.collectFields schema variableValues parentType source
-            ((executableFieldSelections [first, later] ++
-                executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle))) ++
-              suffix) :=
-            collectFields_duplicate_field_middle_append_eq_collected_middle
-              schema variableValues parentType source first later middle suffix
-              hsameResponse hnotMiddle
-        _ =
-        GraphQL.Execution.collectFields schema variableValues parentType source
-            normalizedTail :=
-            htail.collect_eq
+              ((executableFieldSelections [first]
+                  ++ middle
+                  ++ executableFieldSelections [later])
+                ++ suffix)
+            = GraphQL.Execution.collectFields schema variableValues parentType source
+                ((executableFieldSelections [first, later]
+                    ++ executableFieldSelections
+                        (collectedExecutableFields
+                          (GraphQL.Execution.collectFields schema variableValues
+                            parentType source middle)))
+                  ++ suffix) :=
+          collectFields_duplicate_field_middle_append_eq_collected_middle
+            schema variableValues parentType source first later middle suffix
+            hsameResponse hnotMiddle
+        _ = GraphQL.Execution.collectFields schema variableValues parentType source
+              normalizedTail :=
+          htail.collect_eq
     rawFreshFlat :=
       VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
         schema resolvers variableValues completionDepth parentType source first
         later middle suffix hsameResponse hlaterLookup hnotMiddle
         hmiddle.rawFreshFlat htail.rawFreshFlat
-    normalizedPlan := htail.normalizedPlan }
+    normalizedPlan := htail.normalizedPlan
+  }
 
 theorem executableFieldDuplicateBlockNormalizeTrans
     {ObjectIdentity : Type}
@@ -2007,12 +2054,13 @@ theorem executableFieldPrefixNormalizesOfCases_middleNormalizes
         (collectFields_executableFieldSelections_key_mem_global
           schema variableValues parentType source rest candidate).mp hright
       exact hmem (by simpa [hleft] using hrightName)
-    exact
-      ⟨executableFieldSelections prefixFields ++ normalizedRest,
-        by
-          simpa [executableFieldSelections, List.map_append] using
-            SelectionSetFreshPlanNormalizes.appendDisjoint hprefix hrest
-              hdisjoint⟩
+    exact ⟨
+      executableFieldSelections prefixFields ++ normalizedRest,
+      by
+        simpa [executableFieldSelections, List.map_append] using
+          SelectionSetFreshPlanNormalizes.appendDisjoint hprefix hrest
+            hdisjoint
+    ⟩
 
 theorem executableFieldPrefixNormalizes_of_smaller
     {ObjectIdentity : Type}
@@ -2302,12 +2350,13 @@ theorem executableFieldPrefixNormalizes_of_smaller
                 schema variableValues parentType source rest candidate).mp
                 hright
             exact hmem (by simpa [hleft] using hrightName)
-          exact
-            ⟨executableFieldSelections prefixFields ++ normalizedRest,
-              by
-                simpa [executableFieldSelections, List.map_append] using
-                  SelectionSetFreshPlanNormalizes.appendDisjoint hprefix
-                    hrestStep hdisjoint⟩
+          exact ⟨
+            executableFieldSelections prefixFields ++ normalizedRest,
+            by
+              simpa [executableFieldSelections, List.map_append] using
+                SelectionSetFreshPlanNormalizes.appendDisjoint hprefix
+                  hrestStep hdisjoint
+          ⟩
   exact aux rest.length prefixFields rest rfl hprefixNonempty
     hprefixResponse rfl hwholeParents hwholeLookups
 
@@ -2345,10 +2394,11 @@ theorem executableFieldsNormalizes
         intro fields hlen hparents hlookups
         cases fields with
         | nil =>
-            exact
-              ⟨[],
-                SelectionSetFreshPlanNormalizes.nil schema resolvers
-                  variableValues completionDepth parentType source⟩
+            exact ⟨
+              [],
+              SelectionSetFreshPlanNormalizes.nil schema resolvers
+                variableValues completionDepth parentType source
+            ⟩
         | cons first rest =>
             have hwholeParents :
                 ExecutableFieldsParent parentType ([first] ++ rest) := by
@@ -2382,10 +2432,11 @@ theorem executableFieldsNormalizes
                           simpa [List.length_append] using hlt)
                         smaller rfl hsmallerParents hsmallerLookups) with
             ⟨normalized, hnormalized⟩
-            exact
-              ⟨normalized,
-                by
-                  simpa [executableFieldSelections] using hnormalized⟩
+            exact ⟨
+              normalized,
+              by
+                simpa [executableFieldSelections] using hnormalized
+            ⟩
   exact aux fields.length fields rfl hparents hlookups
 
 private theorem selectionSet_size_append (left right : List Selection)
@@ -2707,10 +2758,11 @@ theorem exists_allFields_directiveFree
         (completionDepth := completionDepth) (parentType := parentType)
         (source := source) fields hparents hlookups with
     ⟨normalizedSelectionSet, hnormalization⟩
-  exact
-    ⟨normalizedSelectionSet,
-      by
-        simpa [hselectionEq] using hnormalization⟩
+  exact ⟨
+    normalizedSelectionSet,
+    by
+      simpa [hselectionEq] using hnormalization
+  ⟩
 
 theorem executableFieldHeadDuplicateNormalizesOfMem
     {ObjectIdentity : Type}
@@ -2895,10 +2947,10 @@ theorem executableFieldHeadNormalizesOfCases
   · exact executableFieldHeadDuplicateNormalizesOfMem first rest hmem
       hrestLookups hmiddle hduplicate
   · rcases hfresh hmem with ⟨normalizedRest, hrest⟩
-    exact
-      ⟨executableFieldSelections [first] ++ normalizedRest,
-        executableFieldConsFreshNormalizes first rest normalizedRest hmem
-          hrest⟩
+    exact ⟨
+      executableFieldSelections [first] ++ normalizedRest,
+      executableFieldConsFreshNormalizes first rest normalizedRest hmem hrest
+    ⟩
 
 theorem executableFieldHeadNormalizesOfCases_middleNormalizes
     {ObjectIdentity : Type}
@@ -2951,10 +3003,10 @@ theorem executableFieldHeadNormalizesOfCases_middleNormalizes
   · exact executableFieldHeadDuplicateNormalizesOfMem_middleNormalizes first
       rest hmem hrestLookups hmiddle hduplicate
   · rcases hfresh hmem with ⟨normalizedRest, hrest⟩
-    exact
-      ⟨executableFieldSelections [first] ++ normalizedRest,
-        executableFieldConsFreshNormalizes first rest normalizedRest hmem
-          hrest⟩
+    exact ⟨
+      executableFieldSelections [first] ++ normalizedRest,
+      executableFieldConsFreshNormalizes first rest normalizedRest hmem hrest
+    ⟩
 
 theorem duplicateFieldBlockNormalizeHeadDisjointMiddle
     {ObjectIdentity : Type}

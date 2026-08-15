@@ -86,14 +86,14 @@ theorem executeField_result_internallyAligned {ObjectRef : Type}
             simp [reusablePreviousValue?, hfalse, resultValueOrNull,
               FieldCacheInternallyAligned]
       | object previousSource fields =>
-          exact
-            (completeValue_sourceAligned schema resolvers variableValues
-              completionFuel fieldDefinition.outputType field.selectionSet
-              previousSource (some (.object previousSource fields))
-              (by
-                intro cached h
-                cases h
-                exact FieldCacheSourceAligned.object previousSource fields)).internallyAligned
+          exact (completeValue_sourceAligned schema resolvers variableValues
+                  completionFuel fieldDefinition.outputType field.selectionSet
+                  previousSource (some (.object previousSource fields))
+                  (by
+                    intro cached h
+                    cases h
+                    exact FieldCacheSourceAligned.object previousSource fields)
+                ).internallyAligned
       | list sourceValues? values =>
           cases sourceValues? with
           | none =>
@@ -109,16 +109,15 @@ theorem executeField_result_internallyAligned {ObjectRef : Type}
                 simp [reusablePreviousValue?, hfalse, resultValueOrNull,
                   FieldCacheInternallyAligned]
           | some sourceValues =>
-              exact
-                (completeValue_sourceAligned schema resolvers variableValues
-                  completionFuel fieldDefinition.outputType field.selectionSet
-                  (.list sourceValues) (some (.list (some sourceValues) values))
-                  (by
-                    intro cached h
-                    cases h
-                    exact
-                      FieldCacheSourceAligned.cachedList sourceValues values
-                        hprevious)).internallyAligned
+              exact (completeValue_sourceAligned schema resolvers variableValues
+                      completionFuel fieldDefinition.outputType field.selectionSet
+                      (.list sourceValues) (some (.list (some sourceValues) values))
+                      (by
+                        intro cached h
+                        cases h
+                        exact
+                          FieldCacheSourceAligned.cachedList sourceValues values
+                            hprevious)).internallyAligned
 
 theorem executeField_none_result_internallyAligned {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -150,10 +149,9 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
           rw [hnull]
           trivial
       | some resolved =>
-          exact
-            (completeValue_sourceAligned schema resolvers variableValues
-              completionFuel fieldDefinition.outputType field.selectionSet resolved
-              none (by intro previous h; cases h)).internallyAligned
+          exact (completeValue_sourceAligned schema resolvers variableValues
+                  completionFuel fieldDefinition.outputType field.selectionSet resolved
+                  none (by intro previous h; cases h)).internallyAligned
 
 theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -233,10 +231,9 @@ theorem executeField_result_absorbs_previous {ObjectRef : Type}
             (executeField schema resolvers variableValues completionFuel source
               (some previous) field)) := by
   intro hpreviousReady hpreviousAligned
-  exact
-    (executeField_cacheAbsorptionShape schema resolvers variableValues
-      completionFuel source previous field hpreviousReady
-      hpreviousAligned).to_absorbs
+  exact (executeField_cacheAbsorptionShape schema resolvers variableValues
+          completionFuel source previous field hpreviousReady
+          hpreviousAligned).to_absorbs
 
 theorem ObjectFieldCachesInternallyAligned.mergeResponseFieldIntoObject
     {ObjectRef : Type} (output incoming : FieldCacheValue ObjectRef)

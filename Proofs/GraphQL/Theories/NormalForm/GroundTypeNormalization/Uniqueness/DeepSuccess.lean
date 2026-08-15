@@ -76,10 +76,12 @@ theorem
             Execution.ResolverValue.object runtimeType' ref'
           ∧ schema.typeIncludesObjectBool runtimeType runtimeType' =
             true := by
-    exact
-      ⟨runtimeType, objectRef, rfl,
-        typeIncludesObjectBool_self_of_objectTypeNameBool schema
-          hruntimeObject⟩
+    exact ⟨
+      runtimeType,
+      objectRef,
+      rfl,
+      typeIncludesObjectBool_self_of_objectTypeNameBool schema hruntimeObject
+    ⟩
   rcases
       executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
         schema rootSelectionSet objectRef variableValues fuel runtimeType
@@ -367,9 +369,12 @@ theorem
                           subst candidateDefinition
                           exact hcandidateReady) with
                     ⟨responseField, responseFields, errors, hexecute⟩
-                  exact
-                    ⟨responseField :: responseFields, errors, by
-                      simpa using hexecute⟩
+                  exact ⟨
+                    responseField :: responseFields,
+                    errors,
+                    by
+                      simpa using hexecute
+                  ⟩
         · have hcollect :
               Execution.collectFields schema variableValues sourceRuntimeType
                 (.object sourceRuntimeType objectRef) selectionSet = [] :=

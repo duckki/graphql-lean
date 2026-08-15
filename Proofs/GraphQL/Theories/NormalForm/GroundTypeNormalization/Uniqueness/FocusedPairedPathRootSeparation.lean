@@ -1030,11 +1030,17 @@ theorem
         hrightChildResponse hchildNot
         (by simpa [currentSelectionSet] using hleftFieldOk)
         (by simpa [currentSelectionSet] using hrightFieldOk)
-  refine
-    ⟨hinclude, ProjectionResolverRef FieldPairSelectedPathProbeRef,
-      resolvers, [], parentFuel + 1,
-      ProjectionResolverRef.root FieldPairSelectedPathProbeRef.root,
-      hminFuel, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    ProjectionResolverRef FieldPairSelectedPathProbeRef,
+    resolvers,
+    [],
+    parentFuel + 1,
+    ProjectionResolverRef.root FieldPairSelectedPathProbeRef.root,
+    hminFuel,
+    ?_,
+    ?_
+  ⟩
   · intro supportSelectionSet hsupportMember
     rcases hsupportValid supportSelectionSet hsupportMember with
       ⟨_variableDefinitions, _hvalid, hfree, hnormal⟩

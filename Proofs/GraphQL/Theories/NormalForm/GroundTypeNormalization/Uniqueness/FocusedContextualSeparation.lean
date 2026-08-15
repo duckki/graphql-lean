@@ -100,9 +100,11 @@ theorem
         leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
           parentType hmemFlatten hlookup
       omega
-    refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType
-          FieldPairProbeTag.left.scalar, 0, ?_⟩
+    refine ⟨
+      leafProbeResponseValue fieldDefinition.outputType FieldPairProbeTag.left.scalar,
+      0,
+      ?_
+    ⟩
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType leftField
       rightField responseName leftArguments rightArguments arguments
@@ -129,9 +131,11 @@ theorem
           leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
             parentType hmemFlatten hlookup
         omega
-      refine
-        ⟨leafProbeResponseValue fieldDefinition.outputType
-            FieldPairProbeTag.right.scalar, 0, ?_⟩
+      refine ⟨
+        leafProbeResponseValue fieldDefinition.outputType FieldPairProbeTag.right.scalar,
+        0,
+        ?_
+      ⟩
       rw [executeField_fieldPairOrDeepSuccessResolvers_right_root
         schema rootSelectionSet base variableValues parentType leftField
         rightField responseName leftArguments rightArguments arguments
@@ -334,9 +338,11 @@ theorem
         leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
           parentType hmemFlatten hlookup
       omega
-    refine
-      ⟨leafProbeResponseValue fieldDefinition.outputType
-          FieldPairProbeTag.left.scalar, 0, ?_⟩
+    refine ⟨
+      leafProbeResponseValue fieldDefinition.outputType FieldPairProbeTag.left.scalar,
+      0,
+      ?_
+    ⟩
     rw [executeField_fieldPairOrDeepSuccessResolvers_left_root
       schema rootSelectionSet base variableValues parentType leftField
       rightField responseName leftArguments rightArguments arguments
@@ -769,11 +775,17 @@ theorem
       (leafProbeResponseValue_not_semanticEquivalent_of_ne
         fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
-  refine
-    ⟨hinclude, ProjectionResolverRef (Option FieldPairProbeTag), resolvers,
-      variableValues, baseFuel + 1,
-      ProjectionResolverRef.root (none : Option FieldPairProbeTag),
-      hminFuel, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    ProjectionResolverRef (Option FieldPairProbeTag),
+    resolvers,
+    variableValues,
+    baseFuel + 1,
+    ProjectionResolverRef.root (none : Option FieldPairProbeTag),
+    hminFuel,
+    ?_,
+    ?_
+  ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨supportVariableDefinitions, _hsupportValid, hsupportFree,
@@ -1090,11 +1102,17 @@ theorem
         leftFieldDefinition.outputType rightFieldDefinition.outputType
         (by simp [FieldPairProbeTag.scalar]))
       hleftFieldOk hrightFieldOk
-  refine
-    ⟨hinclude, ProjectionResolverRef (Option FieldPairProbeTag), resolvers,
-      variableValues, baseFuel + 1,
-      ProjectionResolverRef.root (none : Option FieldPairProbeTag),
-      hminFuel, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    ProjectionResolverRef (Option FieldPairProbeTag),
+    resolvers,
+    variableValues,
+    baseFuel + 1,
+    ProjectionResolverRef.root (none : Option FieldPairProbeTag),
+    hminFuel,
+    ?_,
+    ?_
+  ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,
@@ -1538,11 +1556,17 @@ theorem
         rightChildFields rightChildErrors hleftLeaf hrightComposite
         hrightWrapped)
       hleftFieldOk hrightFieldOk
-  refine
-    ⟨hinclude, ProjectionResolverRef (Option FieldPairProbeTag), resolvers,
-      variableValues, baseFuel + 1,
-      ProjectionResolverRef.root (none : Option FieldPairProbeTag),
-      hminFuel, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    ProjectionResolverRef (Option FieldPairProbeTag),
+    resolvers,
+    variableValues,
+    baseFuel + 1,
+    ProjectionResolverRef.root (none : Option FieldPairProbeTag),
+    hminFuel,
+    ?_,
+    ?_
+  ⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,
@@ -1746,9 +1770,17 @@ theorem
     intro hrightKey
     rw [hrightResponseKeys] at hrightKey
     exact hrightCollectNo hrightKey
-  refine
-    ⟨hinclude, PUnit, resolvers, variableValues, baseFuel + 1, PUnit.unit,
-      ?_, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    PUnit,
+    resolvers,
+    variableValues,
+    baseFuel + 1,
+    PUnit.unit,
+    ?_,
+    ?_,
+    ?_
+  ⟩
   · dsimp [baseFuel]
     omega
   · intro supportSelectionSet hsupport
@@ -1778,9 +1810,9 @@ theorem
         (Execution.ResponseValue.object leftFields).semanticEquivalent
           (Execution.ResponseValue.object rightFields) := by
       simpa [resolvers, source, hleftExec, hrightExec] using hsemantic
-    exact
-      (SemanticSeparation.responseValue_object_left_key_mismatch_not_semanticallyEquivalent
-        hleftKey hrightNoKey) hobjects
+    exact (SemanticSeparation.responseValue_object_left_key_mismatch_not_semanticallyEquivalent
+            hleftKey hrightNoKey)
+            hobjects
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_right_responseName_diff_finiteSupport
@@ -1833,12 +1865,19 @@ theorem
   rcases hwitness with
     ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
       hsupport, hnot⟩
-  exact
-    ⟨hinclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel,
-      hsupport,
-      (by
-        intro hsemantic
-        exact hnot (responseValue_semanticEquivalent_symm hsemantic))⟩
+  exact ⟨
+    hinclude,
+    ObjectRef,
+    resolvers,
+    variableValues,
+    fuel,
+    ref,
+    hfuel,
+    hsupport,
+    (by
+      intro hsemantic
+      exact hnot (responseValue_semanticEquivalent_symm hsemantic))
+  ⟩
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_abstract_left_typeCondition_diff_finiteSupport
@@ -2074,9 +2113,17 @@ theorem
       Execution.selectionSetResultToResponse, Execution.executeSelectionSet,
       Execution.executeRootSelectionSet, hrightCollect,
       Execution.executeCollectedFields]
-  refine
-    ⟨hinclude, PUnit, resolvers, variableValues, baseFuel + 1,
-      PUnit.unit, ?_, ?_, ?_⟩
+  refine ⟨
+    hinclude,
+    PUnit,
+    resolvers,
+    variableValues,
+    baseFuel + 1,
+    PUnit.unit,
+    ?_,
+    ?_,
+    ?_
+  ⟩
   · dsimp [baseFuel]
     omega
   · intro supportSelectionSet hsupport
@@ -2285,13 +2332,11 @@ theorem selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal
   intro hvalid hfree hnormal hmem
   rcases selectionSetTargetInlineFragmentSelectionSets_mem hmem with
     ⟨directives, hinlineMem⟩
-  exact
-    ⟨selectionSetValid_inlineFragment_some_child_of_mem hvalid
-        hinlineMem,
-      selectionSetDirectiveFree_inlineFragment_child_of_mem hfree
-        hinlineMem,
-      (selectionSetNormal_inlineFragment_child_of_mem hnormal
-        hinlineMem).2⟩
+  exact ⟨
+    selectionSetValid_inlineFragment_some_child_of_mem hvalid hinlineMem,
+    selectionSetDirectiveFree_inlineFragment_child_of_mem hfree hinlineMem,
+    (selectionSetNormal_inlineFragment_child_of_mem hnormal hinlineMem).2
+  ⟩
 
 theorem selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -2316,13 +2361,11 @@ theorem selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of
     ⟨directives, hinlineMem⟩
   have hwholeMem :=
     hsubset directives childSelectionSet hinlineMem
-  exact
-    ⟨selectionSetValid_inlineFragment_some_child_of_mem hvalid
-        hwholeMem,
-      selectionSetDirectiveFree_inlineFragment_child_of_mem hfree
-        hwholeMem,
-      (selectionSetNormal_inlineFragment_child_of_mem hnormal
-        hwholeMem).2⟩
+  exact ⟨
+    selectionSetValid_inlineFragment_some_child_of_mem hvalid hwholeMem,
+    selectionSetDirectiveFree_inlineFragment_child_of_mem hfree hwholeMem,
+    (selectionSetNormal_inlineFragment_child_of_mem hnormal hwholeMem).2
+  ⟩
 
 theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
     {schema : Schema}
@@ -2366,70 +2409,78 @@ theorem splitTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
     hrightNormal hmem
   simp [splitTargetInlineFragmentSelectionSets] at hmem
   rcases hmem with hleftPref | hrightPref | hleftSuffix | hrightSuffix
-  · exact
-      ⟨leftVariableDefinitions,
-        selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
-          (schema := schema) (parentType := parentType)
-          (typeCondition := typeCondition)
-          (whole :=
-            leftPref ++ Selection.inlineFragment (some typeCondition) []
-              leftChildSelectionSet :: leftSuffix)
-          (selectionSet := leftPref)
-          (childSelectionSet := childSelectionSet)
-          (by
-            intro directives childSelectionSet hchildMem
-            exact List.mem_append_left _ hchildMem)
-          hleftValid hleftFree hleftNormal hleftPref⟩
-  · exact
-      ⟨rightVariableDefinitions,
-        selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
-          (schema := schema) (parentType := parentType)
-          (typeCondition := typeCondition)
-          (whole :=
-            rightPref ++ Selection.inlineFragment (some typeCondition) []
-              rightChildSelectionSet :: rightSuffix)
-          (selectionSet := rightPref)
-          (childSelectionSet := childSelectionSet)
-          (by
-            intro directives childSelectionSet hchildMem
-            exact List.mem_append_left _ hchildMem)
-          hrightValid hrightFree hrightNormal hrightPref⟩
-  · exact
-      ⟨leftVariableDefinitions,
-        selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
-          (schema := schema) (parentType := parentType)
-          (typeCondition := typeCondition)
-          (whole :=
-            leftPref ++ Selection.inlineFragment (some typeCondition) []
-              leftChildSelectionSet :: leftSuffix)
-          (selectionSet := leftSuffix)
-          (childSelectionSet := childSelectionSet)
-          (by
-            intro directives childSelectionSet hchildMem
-            exact
-              List.mem_append_right leftPref
-                (List.mem_cons_of_mem
-                  (Selection.inlineFragment (some typeCondition) []
-                    leftChildSelectionSet) hchildMem))
-          hleftValid hleftFree hleftNormal hleftSuffix⟩
-  · exact
-      ⟨rightVariableDefinitions,
-        selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
-          (schema := schema) (parentType := parentType)
-          (typeCondition := typeCondition)
-          (whole :=
-            rightPref ++ Selection.inlineFragment (some typeCondition) []
-              rightChildSelectionSet :: rightSuffix)
-          (selectionSet := rightSuffix)
-          (childSelectionSet := childSelectionSet)
-          (by
-            intro directives childSelectionSet hchildMem
-            exact
-              List.mem_append_right rightPref
-                (List.mem_cons_of_mem
-                  (Selection.inlineFragment (some typeCondition) []
-                    rightChildSelectionSet) hchildMem))
-          hrightValid hrightFree hrightNormal hrightSuffix⟩
+  · exact ⟨
+      leftVariableDefinitions,
+      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        (schema := schema) (parentType := parentType)
+        (typeCondition := typeCondition)
+        (whole :=
+          leftPref
+          ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
+              :: leftSuffix)
+        (selectionSet := leftPref)
+        (childSelectionSet := childSelectionSet)
+        (by
+          intro directives childSelectionSet hchildMem
+          exact List.mem_append_left _ hchildMem)
+        hleftValid hleftFree hleftNormal hleftPref
+    ⟩
+  · exact ⟨
+      rightVariableDefinitions,
+      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        (schema := schema) (parentType := parentType)
+        (typeCondition := typeCondition)
+        (whole :=
+          rightPref
+          ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
+              :: rightSuffix)
+        (selectionSet := rightPref)
+        (childSelectionSet := childSelectionSet)
+        (by
+          intro directives childSelectionSet hchildMem
+          exact List.mem_append_left _ hchildMem)
+        hrightValid hrightFree hrightNormal hrightPref
+    ⟩
+  · exact ⟨
+      leftVariableDefinitions,
+      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        (schema := schema) (parentType := parentType)
+        (typeCondition := typeCondition)
+        (whole :=
+          leftPref
+          ++ Selection.inlineFragment (some typeCondition) [] leftChildSelectionSet
+              :: leftSuffix)
+        (selectionSet := leftSuffix)
+        (childSelectionSet := childSelectionSet)
+        (by
+          intro directives childSelectionSet hchildMem
+          exact
+            List.mem_append_right leftPref
+              (List.mem_cons_of_mem
+                (Selection.inlineFragment (some typeCondition) []
+                  leftChildSelectionSet) hchildMem))
+        hleftValid hleftFree hleftNormal hleftSuffix
+    ⟩
+  · exact ⟨
+      rightVariableDefinitions,
+      selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal_of_subset
+        (schema := schema) (parentType := parentType)
+        (typeCondition := typeCondition)
+        (whole :=
+          rightPref
+          ++ Selection.inlineFragment (some typeCondition) [] rightChildSelectionSet
+              :: rightSuffix)
+        (selectionSet := rightSuffix)
+        (childSelectionSet := childSelectionSet)
+        (by
+          intro directives childSelectionSet hchildMem
+          exact
+            List.mem_append_right rightPref
+              (List.mem_cons_of_mem
+                (Selection.inlineFragment (some typeCondition) []
+                  rightChildSelectionSet) hchildMem))
+        hrightValid hrightFree hrightNormal hrightSuffix
+    ⟩
 
 theorem
     selectionSetTargetInlineFragmentSelectionSets_subset_supportTargetInlineFragmentSelectionSets_of_mem
@@ -2480,10 +2531,11 @@ theorem supportTargetInlineFragmentSelectionSets_child_exists_valid_free_normal
       rcases hmem with hhead | htail
       · rcases hsupportValid supportSelectionSet (by simp) with
           ⟨variableDefinitions, hvalid, hfree, hnormal⟩
-        exact
-          ⟨variableDefinitions,
-            selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal
-              hvalid hfree hnormal hhead⟩
+        exact ⟨
+          variableDefinitions,
+          selectionSetTargetInlineFragmentSelectionSets_child_valid_free_normal
+            hvalid hfree hnormal hhead
+        ⟩
       · exact
           ih (by
             intro tailSupportSelectionSet htailSupport
@@ -2663,9 +2715,7 @@ theorem
         typeCondition (.object typeCondition ref) rightChildSelectionSet := by
     simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
       hrightMiddle, hrightFlatten]
-  refine
-    ⟨hparentInclude, ObjectRef, resolvers, variableValues, fuel, ref,
-      hfuel, ?_, ?_⟩
+  refine ⟨hparentInclude, ObjectRef, resolvers, variableValues, fuel, ref, hfuel, ?_, ?_⟩
   · intro supportSelectionSet hsupport
     rcases hsupportValid supportSelectionSet hsupport with
       ⟨_supportVariableDefinitions, _hsupportValid, hsupportFree,

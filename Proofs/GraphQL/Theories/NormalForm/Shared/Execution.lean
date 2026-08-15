@@ -968,9 +968,8 @@ theorem completeValue_selectionSet_eq_singleton
         fieldType selectionSet value
       = Execution.completeValue schema resolvers variableValues depth
           fieldType [{ field with selectionSet := selectionSet }] value := by
-  exact
-    (completeValue_singleton_selectionSet_eq schema resolvers
-      variableValues depth fieldType field selectionSet value).symm
+  exact (completeValue_singleton_selectionSet_eq schema resolvers
+          variableValues depth fieldType field selectionSet value).symm
 
 end NormalForm
 

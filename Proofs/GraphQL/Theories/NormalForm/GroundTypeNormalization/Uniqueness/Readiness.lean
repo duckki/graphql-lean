@@ -218,8 +218,7 @@ theorem selectionSetValid_object_field_child_of_mem_lookup
       schema.isCompositeType fieldDefinition.outputType.namedType :=
     objectType_isCompositeType
       (objectType_of_objectTypeNameBool_eq_true schema hobject)
-  exact
-    (fieldSelectionSetValid_child_of_composite hfieldValid hcomposite).2
+  exact (fieldSelectionSetValid_child_of_composite hfieldValid hcomposite).2
 
 theorem selectionSetNormal_field_child_of_mem_lookup
     {schema : Schema} {parentType responseName fieldName : Name}
@@ -330,10 +329,11 @@ theorem firstInlineFragmentTypeCondition?_some_of_valid_normal_abstract_field_me
                     fieldDefinition.outputType.namedType typeCondition = true :=
                 typeIncludesObjectBool_of_typesOverlap_object schema hoverlap
                   htypeObject
-              exact
-                ⟨typeCondition,
-                  by simp [firstInlineFragmentTypeCondition?],
-                  hreturnIncludes⟩
+              exact ⟨
+                typeCondition,
+                by simp [firstInlineFragmentTypeCondition?],
+                hreturnIncludes
+              ⟩
 
 theorem abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -369,11 +369,12 @@ theorem abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
             · rcases ih (Validation.selectionSetValid_tail hvalid)
                 (selectionSetNormal_tail hnormal) htail with
                 ⟨runtimeType, hruntime, hinclude⟩
-              exact
-                ⟨runtimeType,
-                  by
-                    simp [abstractRuntimeForFieldDeep?, hmatch, hruntime],
-                  hinclude⟩
+              exact ⟨
+                runtimeType,
+                by
+                  simp [abstractRuntimeForFieldDeep?, hmatch, hruntime],
+                hinclude
+              ⟩
           · have hheadFieldName : headFieldName = fieldName := by
               simpa using hmatch
             have hheadLookup :
@@ -391,23 +392,25 @@ theorem abstractRuntimeForFieldDeep?_some_of_valid_normal_abstract_mem_lookup
                   hvalid hnormal hheadMem hheadLookup hcomposite
                   hnonObject with
               ⟨runtimeType, hruntime, hinclude⟩
-            exact
-              ⟨runtimeType,
-                by
-                  simp [abstractRuntimeForFieldDeep?, hmatch, hruntime],
-                hinclude⟩
+            exact ⟨
+              runtimeType,
+              by
+                simp [abstractRuntimeForFieldDeep?, hmatch, hruntime],
+              hinclude
+            ⟩
       | inlineFragment typeCondition headDirectives headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · cases hhead
           · rcases ih (Validation.selectionSetValid_tail hvalid)
               (selectionSetNormal_tail hnormal) htail with
               ⟨runtimeType, hruntime, hinclude⟩
-            exact
-              ⟨runtimeType,
-                by
-                  cases typeCondition <;>
-                    simp [abstractRuntimeForFieldDeep?, hruntime],
-                hinclude⟩
+            exact ⟨
+              runtimeType,
+              by
+                cases typeCondition <;>
+                  simp [abstractRuntimeForFieldDeep?, hruntime],
+              hinclude
+            ⟩
 
 theorem abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_lookup
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -441,8 +444,7 @@ theorem abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_looku
               parentType = parentType
                 ∧ headFieldName = fieldName
                 ∧ Argument.argumentsEquivalent headArguments arguments
-          · cases hfirst :
-                firstInlineFragmentTypeCondition? headChildSelectionSet with
+          · cases hfirst : firstInlineFragmentTypeCondition? headChildSelectionSet with
             | some runtimeType =>
                 have hheadLookup :
                     schema.lookupField parentType headFieldName =
@@ -465,12 +467,13 @@ theorem abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_looku
                     candidateRuntimeType = runtimeType := by
                   rw [hfirst] at hcandidateRuntime
                   exact (Option.some.inj hcandidateRuntime).symm
-                exact
-                  ⟨runtimeType,
-                    by
-                      simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hfirst],
-                    by simpa [hcandidateEq] using hcandidateInclude⟩
+                exact ⟨
+                  runtimeType,
+                  by
+                    simp [abstractRuntimeForFieldHeadDeep?, hmatch,
+                      hfirst],
+                  by simpa [hcandidateEq] using hcandidateInclude
+                ⟩
             | none =>
                 have hheadLookup :
                     schema.lookupField parentType headFieldName =
@@ -504,24 +507,26 @@ theorem abstractRuntimeForFieldHeadDeep?_some_of_valid_normal_abstract_mem_looku
                     ∧ Argument.argumentsEquivalent headArguments arguments) := by
                 intro h
                 exact hmatch ⟨rfl, h.1, h.2⟩
-              exact
-                ⟨runtimeType,
-                  by
-                    simp [abstractRuntimeForFieldHeadDeep?, hmatchReduced,
-                      hruntime],
-                  hinclude⟩
+              exact ⟨
+                runtimeType,
+                by
+                  simp [abstractRuntimeForFieldHeadDeep?, hmatchReduced,
+                    hruntime],
+                hinclude
+              ⟩
       | inlineFragment typeCondition headDirectives headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · cases hhead
           · rcases ih (Validation.selectionSetValid_tail hvalid)
               (selectionSetNormal_tail hnormal) htail with
               ⟨runtimeType, hruntime, hinclude⟩
-            exact
-              ⟨runtimeType,
-                by
-                  cases typeCondition <;>
-                    simp [abstractRuntimeForFieldHeadDeep?, hruntime],
-                hinclude⟩
+            exact ⟨
+              runtimeType,
+              by
+                cases typeCondition <;>
+                  simp [abstractRuntimeForFieldHeadDeep?, hruntime],
+              hinclude
+            ⟩
 
 theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
     (schema : Schema)
@@ -569,12 +574,11 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
               cases hmatch :
                   (currentParent == targetParent
                     && fieldName == targetField)
-              · cases hrest :
-                    abstractRuntimeForFieldDeep? schema targetParent
-                      targetField currentParent rest with
+              · cases hrest
+                      : abstractRuntimeForFieldDeep? schema targetParent
+                          targetField currentParent rest with
                 | none =>
-                    cases hlookup :
-                        schema.lookupField currentParent fieldName with
+                    cases hlookup : schema.lookupField currentParent fieldName with
                     | none =>
                         simp [abstractRuntimeForFieldDeep?, hmatch, hrest,
                           hlookup] at hruntime
@@ -654,8 +658,7 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                         (Validation.selectionSetValid_tail hvalid)
                         (selectionSetDirectiveFree_tail hfree)
                         (selectionSetNormal_tail hnormal) hrest
-              · cases hfirst :
-                    firstInlineFragmentTypeCondition? childSelectionSet with
+              · cases hfirst : firstInlineFragmentTypeCondition? childSelectionSet with
                 | some headRuntime =>
                     have hparts :
                         currentParent = targetParent
@@ -681,12 +684,11 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                     subst runtimeType
                     exact hcandidateInclude
                 | none =>
-                    cases hrest :
-                        abstractRuntimeForFieldDeep? schema targetParent
-                          targetField currentParent rest with
+                    cases hrest
+                          : abstractRuntimeForFieldDeep? schema targetParent
+                              targetField currentParent rest with
                     | none =>
-                        cases hlookup :
-                            schema.lookupField currentParent fieldName with
+                        cases hlookup : schema.lookupField currentParent fieldName with
                         | none =>
                             simp [abstractRuntimeForFieldDeep?, hmatch,
                               hfirst, hrest, hlookup] at hruntime
@@ -946,8 +948,7 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                   currentParent = targetParent
                     ∧ fieldName = targetField
                     ∧ Argument.argumentsEquivalent arguments targetArguments
-              · cases hfirst :
-                    firstInlineFragmentTypeCondition? childSelectionSet with
+              · cases hfirst : firstInlineFragmentTypeCondition? childSelectionSet with
                 | some headRuntime =>
                     have hheadLookup :
                         schema.lookupField currentParent fieldName =
@@ -973,9 +974,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                         schema.lookupField currentParent fieldName =
                           some targetFieldDefinition := by
                       simpa [hmatch.1, hmatch.2.1] using htargetLookup
-                    cases hrest :
-                        abstractRuntimeForFieldHeadDeep? schema targetParent
-                          targetField targetArguments currentParent rest with
+                    cases hrest
+                          : abstractRuntimeForFieldHeadDeep? schema targetParent
+                              targetField targetArguments currentParent rest with
                     | some restRuntime =>
                         have hrestTarget :
                             abstractRuntimeForFieldHeadDeep? schema
@@ -1073,9 +1074,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                                 (childHead :: childTail) runtimeType
                                 hchildSize hchildValid hchildFree
                                 hchildNormal hchildRuntime
-              · cases hrest :
-                    abstractRuntimeForFieldHeadDeep? schema targetParent
-                      targetField targetArguments currentParent rest with
+              · cases hrest
+                      : abstractRuntimeForFieldHeadDeep? schema targetParent
+                          targetField targetArguments currentParent rest with
                 | some restRuntime =>
                     have hrestRuntime :
                         restRuntime = runtimeType := by
@@ -1091,8 +1092,7 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                         (selectionSetDirectiveFree_tail hfree)
                         (selectionSetNormal_tail hnormal) hrest
                 | none =>
-                    cases hlookup :
-                        schema.lookupField currentParent fieldName with
+                    cases hlookup : schema.lookupField currentParent fieldName with
                     | none =>
                         simp [abstractRuntimeForFieldHeadDeep?, hmatch,
                           hrest, hlookup] at hruntime
@@ -1325,47 +1325,54 @@ theorem abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_no
             headChildSelectionSet =>
             rcases List.mem_cons.mp hmem with hhead | htail
             · cases hhead
-              cases hcurrent :
-                  (if parentType == targetParent && fieldName == targetField
-                    then firstInlineFragmentTypeCondition? childSelectionSet
-                    else none) with
+              cases hcurrent
+                    : (if parentType == targetParent && fieldName == targetField then
+                          firstInlineFragmentTypeCondition? childSelectionSet
+                        else
+                          none) with
               | some currentRuntimeType =>
                   have hcurrent' :
                       (if parentType = targetParent ∧ fieldName = targetField
                         then firstInlineFragmentTypeCondition? childSelectionSet
                         else none) = some currentRuntimeType := by
                     simpa using hcurrent
-                  exact
-                    ⟨currentRuntimeType, by
-                      simp [abstractRuntimeForFieldDeep?, hcurrent']⟩
+                  exact ⟨
+                    currentRuntimeType,
+                    by
+                      simp [abstractRuntimeForFieldDeep?, hcurrent']
+                  ⟩
               | none =>
                   have hcurrent' :
                       (if parentType = targetParent ∧ fieldName = targetField
                         then firstInlineFragmentTypeCondition? childSelectionSet
                         else none) = none := by
                     simpa using hcurrent
-                  cases hrest :
-                      abstractRuntimeForFieldDeep? schema targetParent
-                        targetField parentType rest with
+                  cases hrest
+                        : abstractRuntimeForFieldDeep? schema targetParent
+                            targetField parentType rest with
                   | some restRuntimeType =>
-                      exact
-                        ⟨restRuntimeType, by
+                      exact ⟨
+                        restRuntimeType,
+                        by
                           simp [abstractRuntimeForFieldDeep?, hcurrent',
-                            hrest]⟩
+                            hrest]
+                      ⟩
                   | none =>
-                      exact
-                        ⟨targetRuntimeType, by
+                      exact ⟨
+                        targetRuntimeType,
+                        by
                           simp [abstractRuntimeForFieldDeep?, hcurrent',
-                            hrest, hlookup, hchildRuntime]⟩
+                            hrest, hlookup, hchildRuntime]
+                      ⟩
             · rcases ih (Validation.selectionSetValid_tail hvalid)
                 (selectionSetDirectiveFree_tail hfree)
                 (selectionSetNormal_tail hnormal) htail with
                 ⟨tailRuntimeType, htailRuntime⟩
-              cases hcurrent :
-                  (if parentType == targetParent && headFieldName == targetField
-                    then
-                      firstInlineFragmentTypeCondition? headChildSelectionSet
-                    else none) with
+              cases hcurrent
+                    : (if parentType == targetParent && headFieldName == targetField then
+                          firstInlineFragmentTypeCondition? headChildSelectionSet
+                        else
+                          none) with
               | some currentRuntimeType =>
                   have hcurrent' :
                       (if parentType = targetParent
@@ -1373,9 +1380,11 @@ theorem abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_no
                         firstInlineFragmentTypeCondition? headChildSelectionSet
                       else none) = some currentRuntimeType := by
                     simpa using hcurrent
-                  exact
-                    ⟨currentRuntimeType, by
-                      simp [abstractRuntimeForFieldDeep?, hcurrent']⟩
+                  exact ⟨
+                    currentRuntimeType,
+                    by
+                      simp [abstractRuntimeForFieldDeep?, hcurrent']
+                  ⟩
               | none =>
                   have hcurrent' :
                       (if parentType = targetParent
@@ -1383,10 +1392,12 @@ theorem abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_no
                         firstInlineFragmentTypeCondition? headChildSelectionSet
                       else none) = none := by
                     simpa using hcurrent
-                  exact
-                    ⟨tailRuntimeType, by
+                  exact ⟨
+                    tailRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldDeep?, hcurrent',
-                        htailRuntime]⟩
+                        htailRuntime]
+                  ⟩
         | inlineFragment typeCondition headDirectives headChildSelectionSet =>
             rcases List.mem_cons.mp hmem with hhead | htail
             · cases hhead
@@ -1394,15 +1405,19 @@ theorem abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_no
                 (selectionSetDirectiveFree_tail hfree)
                 (selectionSetNormal_tail hnormal) htail with
                 ⟨tailRuntimeType, htailRuntime⟩
-              exact
-                ⟨tailRuntimeType, by
+              exact ⟨
+                tailRuntimeType,
+                by
                   cases typeCondition <;>
-                    simp [abstractRuntimeForFieldDeep?, htailRuntime]⟩
+                    simp [abstractRuntimeForFieldDeep?, htailRuntime]
+              ⟩
   rcases hsome with ⟨runtimeType, hruntime⟩
-  exact
-    ⟨runtimeType, hruntime,
-      abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-        hnormal htargetLookup htargetComposite htargetNonObject hruntime⟩
+  exact ⟨
+    runtimeType,
+    hruntime,
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
+      hnormal htargetLookup htargetComposite htargetNonObject hruntime
+  ⟩
 
 theorem abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1449,11 +1464,11 @@ theorem abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_
                 (selectionSetDirectiveFree_tail hfree)
                 (selectionSetNormal_tail hnormal) htail with
                 ⟨tailRuntimeType, htailRuntime⟩
-              cases hcurrent :
-                  (if parentType == targetParent && fieldName == targetField
-                    then
-                      firstInlineFragmentTypeCondition? fieldChildSelectionSet
-                    else none) with
+              cases hcurrent
+                    : (if parentType == targetParent && fieldName == targetField then
+                          firstInlineFragmentTypeCondition? fieldChildSelectionSet
+                        else
+                          none) with
               | some currentRuntimeType =>
                   have hcurrent' :
                       (if parentType = targetParent ∧ fieldName = targetField
@@ -1462,9 +1477,11 @@ theorem abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_
                             fieldChildSelectionSet
                         else none) = some currentRuntimeType := by
                     simpa using hcurrent
-                  exact
-                    ⟨currentRuntimeType, by
-                      simp [abstractRuntimeForFieldDeep?, hcurrent']⟩
+                  exact ⟨
+                    currentRuntimeType,
+                    by
+                      simp [abstractRuntimeForFieldDeep?, hcurrent']
+                  ⟩
               | none =>
                   have hcurrent' :
                       (if parentType = targetParent ∧ fieldName = targetField
@@ -1473,39 +1490,49 @@ theorem abstractRuntimeForFieldDeep?_inlineFragment_child_promote_some_of_valid_
                             fieldChildSelectionSet
                         else none) = none := by
                     simpa using hcurrent
-                  exact
-                    ⟨tailRuntimeType, by
+                  exact ⟨
+                    tailRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldDeep?, hcurrent',
-                        htailRuntime]⟩
+                        htailRuntime]
+                  ⟩
         | inlineFragment headTypeCondition headDirectives
             headChildSelectionSet =>
             rcases List.mem_cons.mp hmem with hhead | htail
             · cases hhead
-              cases hrest :
-                  abstractRuntimeForFieldDeep? schema targetParent
-                    targetField parentType rest with
+              cases hrest
+                    : abstractRuntimeForFieldDeep? schema targetParent
+                        targetField parentType rest with
               | some restRuntimeType =>
-                  exact
-                    ⟨restRuntimeType, by
-                      simp [abstractRuntimeForFieldDeep?, hrest]⟩
+                  exact ⟨
+                    restRuntimeType,
+                    by
+                      simp [abstractRuntimeForFieldDeep?, hrest]
+                  ⟩
               | none =>
-                  exact
-                    ⟨targetRuntimeType, by
+                  exact ⟨
+                    targetRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldDeep?, hrest,
-                        hchildRuntime]⟩
+                        hchildRuntime]
+                  ⟩
             · rcases ih (Validation.selectionSetValid_tail hvalid)
                 (selectionSetDirectiveFree_tail hfree)
                 (selectionSetNormal_tail hnormal) htail with
                 ⟨tailRuntimeType, htailRuntime⟩
-              exact
-                ⟨tailRuntimeType, by
+              exact ⟨
+                tailRuntimeType,
+                by
                   cases headTypeCondition <;>
-                    simp [abstractRuntimeForFieldDeep?, htailRuntime]⟩
+                    simp [abstractRuntimeForFieldDeep?, htailRuntime]
+              ⟩
   rcases hsome with ⟨runtimeType, hruntime⟩
-  exact
-    ⟨runtimeType, hruntime,
-      abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
-        hnormal htargetLookup htargetComposite htargetNonObject hruntime⟩
+  exact ⟨
+    runtimeType,
+    hruntime,
+    abstractRuntimeForFieldDeep?_some_include_of_valid_normal hvalid hfree
+      hnormal htargetLookup htargetComposite htargetNonObject hruntime
+  ⟩
 
 theorem abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1543,45 +1570,54 @@ theorem abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_vali
                   ∧ fieldName = targetField
                   ∧ Argument.argumentsEquivalent arguments
                     targetArguments
-            · cases hcurrent :
-                  firstInlineFragmentTypeCondition? childSelectionSet with
+            · cases hcurrent : firstInlineFragmentTypeCondition? childSelectionSet with
               | some currentRuntimeType =>
-                  exact
-                    ⟨currentRuntimeType, by
+                  exact ⟨
+                    currentRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hcurrent]⟩
+                        hcurrent]
+                  ⟩
               | none =>
                   have hlookupTarget :
                       schema.lookupField targetParent targetField =
                         some fieldDefinition := by
                     simpa [← hmatch.1, ← hmatch.2.1] using hlookup
-                  cases hrest :
-                      abstractRuntimeForFieldHeadDeep? schema targetParent
-                        targetField targetArguments targetParent rest with
+                  cases hrest
+                        : abstractRuntimeForFieldHeadDeep? schema targetParent
+                            targetField targetArguments targetParent rest with
                   | some restRuntimeType =>
-                      exact
-                        ⟨restRuntimeType, by
+                      exact ⟨
+                        restRuntimeType,
+                        by
                           simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                            hcurrent, hrest]⟩
+                            hcurrent, hrest]
+                      ⟩
                   | none =>
-                      exact
-                        ⟨targetRuntimeType, by
+                      exact ⟨
+                        targetRuntimeType,
+                        by
                           simp [abstractRuntimeForFieldHeadDeep?, hmatch,
                             hcurrent, hrest, hlookupTarget,
-                            hchildRuntime]⟩
-            · cases hrest :
-                  abstractRuntimeForFieldHeadDeep? schema targetParent
-                    targetField targetArguments parentType rest with
+                            hchildRuntime]
+                      ⟩
+            · cases hrest
+                    : abstractRuntimeForFieldHeadDeep? schema targetParent
+                        targetField targetArguments parentType rest with
               | some restRuntimeType =>
-                  exact
-                    ⟨restRuntimeType, by
+                  exact ⟨
+                    restRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hrest]⟩
+                        hrest]
+                  ⟩
               | none =>
-                  exact
-                    ⟨targetRuntimeType, by
+                  exact ⟨
+                    targetRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hrest, hlookup, hchildRuntime]⟩
+                        hrest, hlookup, hchildRuntime]
+                  ⟩
           · rcases ih (Validation.selectionSetValid_tail hvalid)
               (selectionSetDirectiveFree_tail hfree)
               (selectionSetNormal_tail hnormal) htail with
@@ -1591,27 +1627,33 @@ theorem abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_vali
                   ∧ headFieldName = targetField
                   ∧ Argument.argumentsEquivalent headArguments
                     targetArguments
-            · cases hcurrent :
-                  firstInlineFragmentTypeCondition? headChildSelectionSet with
+            · cases hcurrent
+                    : firstInlineFragmentTypeCondition? headChildSelectionSet with
               | some currentRuntimeType =>
-                  exact
-                    ⟨currentRuntimeType, by
+                  exact ⟨
+                    currentRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hcurrent]⟩
+                        hcurrent]
+                  ⟩
               | none =>
                   have htailRuntimeTarget :
                       abstractRuntimeForFieldHeadDeep? schema targetParent
                         targetField targetArguments targetParent rest =
                         some tailRuntimeType := by
                     simpa [← hmatch.1] using htailRuntime
-                  exact
-                    ⟨tailRuntimeType, by
+                  exact ⟨
+                    tailRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hcurrent, htailRuntimeTarget]⟩
-            · exact
-                ⟨tailRuntimeType, by
+                        hcurrent, htailRuntimeTarget]
+                  ⟩
+            · exact ⟨
+                tailRuntimeType,
+                by
                   simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                    htailRuntime]⟩
+                    htailRuntime]
+              ⟩
       | inlineFragment typeCondition headDirectives headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · cases hhead
@@ -1619,10 +1661,12 @@ theorem abstractRuntimeForFieldHeadDeep?_object_field_child_promote_some_of_vali
               (selectionSetDirectiveFree_tail hfree)
               (selectionSetNormal_tail hnormal) htail with
               ⟨tailRuntimeType, htailRuntime⟩
-            exact
-              ⟨tailRuntimeType, by
+            exact ⟨
+              tailRuntimeType,
+              by
                 cases typeCondition <;>
-                  simp [abstractRuntimeForFieldHeadDeep?, htailRuntime]⟩
+                  simp [abstractRuntimeForFieldHeadDeep?, htailRuntime]
+            ⟩
 
 theorem abstractRuntimeForFieldHeadDeep?_inlineFragment_child_promote_some_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1660,51 +1704,63 @@ theorem abstractRuntimeForFieldHeadDeep?_inlineFragment_child_promote_some_of_va
                   ∧ fieldName = targetField
                   ∧ Argument.argumentsEquivalent arguments
                     targetArguments
-            · cases hcurrent :
-                  firstInlineFragmentTypeCondition? fieldChildSelectionSet with
+            · cases hcurrent
+                    : firstInlineFragmentTypeCondition? fieldChildSelectionSet with
               | some currentRuntimeType =>
-                  exact
-                    ⟨currentRuntimeType, by
+                  exact ⟨
+                    currentRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hcurrent]⟩
+                        hcurrent]
+                  ⟩
               | none =>
                   have htailRuntimeTarget :
                       abstractRuntimeForFieldHeadDeep? schema targetParent
                         targetField targetArguments targetParent rest =
                         some tailRuntimeType := by
                     simpa [← hmatch.1] using htailRuntime
-                  exact
-                    ⟨tailRuntimeType, by
+                  exact ⟨
+                    tailRuntimeType,
+                    by
                       simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hcurrent, htailRuntimeTarget]⟩
-            · exact
-                ⟨tailRuntimeType, by
+                        hcurrent, htailRuntimeTarget]
+                  ⟩
+            · exact ⟨
+                tailRuntimeType,
+                by
                   simp [abstractRuntimeForFieldHeadDeep?, hmatch,
-                    htailRuntime]⟩
+                    htailRuntime]
+              ⟩
       | inlineFragment headTypeCondition headDirectives
           headChildSelectionSet =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · cases hhead
-            cases hrest :
-                abstractRuntimeForFieldHeadDeep? schema targetParent
-                  targetField targetArguments parentType rest with
+            cases hrest
+                  : abstractRuntimeForFieldHeadDeep? schema targetParent
+                      targetField targetArguments parentType rest with
             | some restRuntimeType =>
-                exact
-                  ⟨restRuntimeType, by
-                    simp [abstractRuntimeForFieldHeadDeep?, hrest]⟩
+                exact ⟨
+                  restRuntimeType,
+                  by
+                    simp [abstractRuntimeForFieldHeadDeep?, hrest]
+                ⟩
             | none =>
-                exact
-                  ⟨targetRuntimeType, by
+                exact ⟨
+                  targetRuntimeType,
+                  by
                     simp [abstractRuntimeForFieldHeadDeep?, hrest,
-                      hchildRuntime]⟩
+                      hchildRuntime]
+                ⟩
           · rcases ih (Validation.selectionSetValid_tail hvalid)
               (selectionSetDirectiveFree_tail hfree)
               (selectionSetNormal_tail hnormal) htail with
               ⟨tailRuntimeType, htailRuntime⟩
-            exact
-              ⟨tailRuntimeType, by
+            exact ⟨
+              tailRuntimeType,
+              by
                 cases headTypeCondition <;>
-                  simp [abstractRuntimeForFieldHeadDeep?, htailRuntime]⟩
+                  simp [abstractRuntimeForFieldHeadDeep?, htailRuntime]
+            ⟩
 
 theorem selectionSetDirectiveFree_append_left {left right : List Selection}
     : selectionSetDirectiveFree (left ++ right) -> selectionSetDirectiveFree left := by
@@ -1714,9 +1770,10 @@ theorem selectionSetDirectiveFree_append_left {left right : List Selection}
       exact selectionSetDirectiveFree_nil
   | cons selection rest ih =>
       intro hfree
-      exact
-        ⟨selectionSetDirectiveFree_head hfree,
-          ih (selectionSetDirectiveFree_tail hfree)⟩
+      exact ⟨
+        selectionSetDirectiveFree_head hfree,
+        ih (selectionSetDirectiveFree_tail hfree)
+      ⟩
 
 theorem selectionSetDirectiveFree_append_right {left right : List Selection}
     : selectionSetDirectiveFree (left ++ right) -> selectionSetDirectiveFree right := by
@@ -1808,43 +1865,47 @@ theorem selectionSetNonRedundant_append_left {left right : List Selection}
     : selectionSetNonRedundant (left ++ right) -> selectionSetNonRedundant left := by
   intro hnonRedundant
   unfold selectionSetNonRedundant at hnonRedundant ⊢
-  exact
-    ⟨responseNamesNodup_append_left hnonRedundant.1,
-      inlineFragmentTypeConditionsNodup_append_left hnonRedundant.2.1,
-      by
-        intro selection hselection
-        exact hnonRedundant.2.2 selection
-          (List.mem_append_left right hselection)⟩
+  exact ⟨
+    responseNamesNodup_append_left hnonRedundant.1,
+    inlineFragmentTypeConditionsNodup_append_left hnonRedundant.2.1,
+    by
+      intro selection hselection
+      exact hnonRedundant.2.2 selection
+        (List.mem_append_left right hselection)
+  ⟩
 
 theorem selectionSetNonRedundant_append_right {left right : List Selection}
     : selectionSetNonRedundant (left ++ right) -> selectionSetNonRedundant right := by
   intro hnonRedundant
   unfold selectionSetNonRedundant at hnonRedundant ⊢
-  exact
-    ⟨responseNamesNodup_append_right hnonRedundant.1,
-      inlineFragmentTypeConditionsNodup_append_right hnonRedundant.2.1,
-      by
-        intro selection hselection
-        exact hnonRedundant.2.2 selection
-          (List.mem_append_right left hselection)⟩
+  exact ⟨
+    responseNamesNodup_append_right hnonRedundant.1,
+    inlineFragmentTypeConditionsNodup_append_right hnonRedundant.2.1,
+    by
+      intro selection hselection
+      exact hnonRedundant.2.2 selection
+        (List.mem_append_right left hselection)
+  ⟩
 
 theorem selectionSetNormal_append_left
     {schema : Schema} {parentType : Name} {left right : List Selection}
     : selectionSetNormal schema parentType (left ++ right)
       -> selectionSetNormal schema parentType left := by
   intro hnormal
-  exact
-    ⟨selectionSetGroundTyped_append_left hnormal.1,
-      selectionSetNonRedundant_append_left hnormal.2⟩
+  exact ⟨
+    selectionSetGroundTyped_append_left hnormal.1,
+    selectionSetNonRedundant_append_left hnormal.2
+  ⟩
 
 theorem selectionSetNormal_append_right
     {schema : Schema} {parentType : Name} {left right : List Selection}
     : selectionSetNormal schema parentType (left ++ right)
       -> selectionSetNormal schema parentType right := by
   intro hnormal
-  exact
-    ⟨selectionSetGroundTyped_append_right hnormal.1,
-      selectionSetNonRedundant_append_right hnormal.2⟩
+  exact ⟨
+    selectionSetGroundTyped_append_right hnormal.1,
+    selectionSetNonRedundant_append_right hnormal.2
+  ⟩
 
 theorem selectionSetNormal_inlineFragment_some_of_nonObject_mem
     {schema : Schema} {parentType : Name}
@@ -2108,9 +2169,7 @@ theorem executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_p
           ⟨Selection.inlineFragment (some runtimeType) []
               nestedSelectionSet, hselectionMem, by
             simp [inlineFragmentTypeCondition?]⟩)
-    exact
-      ⟨typeCondition, nestedSelectionSet, rfl,
-        htypeConditionObjectBool, hne⟩
+    exact ⟨typeCondition, nestedSelectionSet, rfl, htypeConditionObjectBool, hne⟩
   have hprefCollect :
       Execution.collectFields schema variableValues runtimeType
         (.object runtimeType ref) pref = [] :=
@@ -2251,9 +2310,7 @@ theorem
           ⟨Selection.inlineFragment (some runtimeType) []
               nestedSelectionSet, hselectionMem, by
             simp [inlineFragmentTypeCondition?]⟩)
-    exact
-      ⟨typeCondition, nestedSelectionSet, rfl,
-        htypeConditionObjectBool, hne⟩
+    exact ⟨typeCondition, nestedSelectionSet, rfl, htypeConditionObjectBool, hne⟩
   have hprefCollect :
       Execution.collectFields schema variableValues normalParentType
         (.object runtimeType ref) pref = [] :=
@@ -2385,10 +2442,12 @@ theorem
                       Execution.ResolverValue.object runtimeType' ref'
                     ∧ schema.typeIncludesObjectBool runtimeType
                       runtimeType' = true := by
-              exact
-                ⟨runtimeType, objectRef, rfl,
-                  typeIncludesObjectBool_self_of_objectTypeNameBool schema
-                    hruntimeObject⟩
+              exact ⟨
+                runtimeType,
+                objectRef,
+                rfl,
+                typeIncludesObjectBool_self_of_objectTypeNameBool schema hruntimeObject
+              ⟩
             rcases
                 executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
                   schema rootSelectionSet objectRef variableValues fuel
@@ -2454,26 +2513,26 @@ theorem
             refine ⟨bodyFields, bodyErrors, ?_⟩
             calc
               Execution.executeSelectionSet schema
-                  (deepSelectionSetSuccessResolversWithRef schema
-                    rootSelectionSet objectRef)
-                  variableValues (fuel + 1) runtimeType
-                  (.object runtimeType objectRef)
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                  =
-                Execution.executeSelectionSet schema
-                  (deepSelectionSetSuccessResolversWithRef schema
-                    rootSelectionSet objectRef)
-                  variableValues (fuel + 1) runtimeType
-                  (.object runtimeType objectRef)
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] := hmiddle
-              _ =
-                Execution.executeSelectionSet schema
-                  (deepSelectionSetSuccessResolversWithRef schema
-                    rootSelectionSet objectRef)
-                  variableValues (fuel + 1) runtimeType
-                  (.object runtimeType objectRef) bodySelectionSet := hflatten
+                    (deepSelectionSetSuccessResolversWithRef schema
+                      rootSelectionSet objectRef)
+                    variableValues (fuel + 1) runtimeType
+                    (.object runtimeType objectRef)
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSet schema
+                      (deepSelectionSetSuccessResolversWithRef schema
+                        rootSelectionSet objectRef)
+                      variableValues (fuel + 1) runtimeType
+                      (.object runtimeType objectRef)
+                      [Selection.inlineFragment (some runtimeType) [] bodySelectionSet] :=
+                hmiddle
+              _ = Execution.executeSelectionSet schema
+                    (deepSelectionSetSuccessResolversWithRef schema
+                      rootSelectionSet objectRef)
+                    variableValues (fuel + 1) runtimeType
+                    (.object runtimeType objectRef) bodySelectionSet :=
+                hflatten
               _ = .ok (bodyFields, bodyErrors) := hbodyExecute
   · have hcollect :
         Execution.collectFields schema variableValues runtimeType
@@ -2975,10 +3034,13 @@ theorem
         schema rootSelectionSet objectRef variableValues fuel parentType
         source selectionSet hfree hnormal hobject hsource hready with
     ⟨responseFields, errors, hexecute, _hkeys⟩
-  exact
-    ⟨responseFields, errors, by
+  exact ⟨
+    responseFields,
+    errors,
+    by
       simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
-        hexecute]⟩
+        hexecute]
+  ⟩
 
 end GroundTypeNormalization
 

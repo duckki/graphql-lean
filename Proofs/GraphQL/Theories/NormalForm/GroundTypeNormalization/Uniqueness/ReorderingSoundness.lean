@@ -223,9 +223,8 @@ private theorem sortObjectFieldsByName_eq_of_perm_nodup
     · exact String.le_antisymm hfirstSecond hsecondFirst
   · exact sortObjectFieldsByName_pairwise left
   · exact sortObjectFieldsByName_pairwise right
-  · exact
-      (sortObjectFieldsByName_perm left).trans
-        (hperm.trans (sortObjectFieldsByName_perm right).symm)
+  · exact (sortObjectFieldsByName_perm left).trans
+            (hperm.trans (sortObjectFieldsByName_perm right).symm)
 
 theorem semanticEquivalent_object_of_canonical_fields_perm_nodup
     {left right : List (Name × ResponseValue)}
@@ -383,9 +382,10 @@ theorem selectionSetResultEquivalent_trans
           | error rightErrors =>
               simp [SelectionSetResultEquivalent] at hright
           | ok rightResult =>
-              exact
-                ⟨responseValue_semanticEquivalent_trans hleft.1 hright.1,
-                  hleft.2.trans hright.2⟩
+              exact ⟨
+                responseValue_semanticEquivalent_trans hleft.1 hright.1,
+                hleft.2.trans hright.2
+              ⟩
 
 private def fieldGroupOfSelection (executionParentType : Name)
     : Selection -> Name × List ExecutableField
@@ -469,9 +469,7 @@ theorem selectionSetEqualUpToReordering_left_mem
     ⟨pair, hpairMem, hpairLeft⟩
   have hrightPair : pair.2 ∈ pairs.map Prod.snd :=
     List.mem_map.mpr ⟨pair, hpairMem, rfl⟩
-  exact
-    ⟨pair.2, hright.mem_iff.mp hrightPair,
-      hpairLeft ▸ hrelations pair hpairMem⟩
+  exact ⟨pair.2, hright.mem_iff.mp hrightPair, hpairLeft ▸ hrelations pair hpairMem⟩
 
 theorem selectionSetEqualUpToReordering_right_mem
     {left right : List Selection} {rightSelection : Selection}
@@ -488,9 +486,7 @@ theorem selectionSetEqualUpToReordering_right_mem
     ⟨pair, hpairMem, hpairRight⟩
   have hleftPair : pair.1 ∈ pairs.map Prod.fst :=
     List.mem_map.mpr ⟨pair, hpairMem, rfl⟩
-  exact
-    ⟨pair.1, hleft.mem_iff.mp hleftPair,
-      hpairRight ▸ hrelations pair hpairMem⟩
+  exact ⟨pair.1, hleft.mem_iff.mp hleftPair, hpairRight ▸ hrelations pair hpairMem⟩
 
 theorem inlineFragmentTypeCondition_mem_iff_of_equalUpToReordering
     {left right : List Selection} {typeCondition : Name}
@@ -827,10 +823,11 @@ theorem selectionSetResultEquivalent_singleFieldResult
       | ok rightResult =>
           rcases leftResult with ⟨leftValue, leftErrors⟩
           rcases rightResult with ⟨rightValue, rightErrors⟩
-          exact
-            ⟨responseValue_semanticEquivalent_object_cons hequivalent.1
-                (responseValue_semanticEquivalent_refl (.object [])),
-              hequivalent.2⟩
+          exact ⟨
+            responseValue_semanticEquivalent_object_cons hequivalent.1
+              (responseValue_semanticEquivalent_refl (.object [])),
+            hequivalent.2
+          ⟩
 
 theorem executeField_singleton_equivalent_zero
     {ObjectRef : Type}
@@ -1111,10 +1108,11 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
       List.mem_map.mpr ⟨pair, hpair, rfl⟩
     have hrightPairMem : pair.2 ∈ pairs.map Prod.snd :=
       List.mem_map.mpr ⟨pair, hpair, rfl⟩
-    exact
-      ⟨hleftPerm.mem_iff.mp hleftPairMem,
-        hrightPerm.mem_iff.mp hrightPairMem,
-        hrelations pair hpair⟩
+    exact ⟨
+      hleftPerm.mem_iff.mp hleftPairMem,
+      hrightPerm.mem_iff.mp hrightPairMem,
+      hrelations pair hpair
+    ⟩
   have hleftReorder :
       SelectionSetResultEquivalent
         (executeCollectedFields schema resolvers variableValues fuel

@@ -160,9 +160,10 @@ theorem ErrorPresenceEquivalent.trans {left middle right : Nat}
       -> ErrorPresenceEquivalent middle right
       -> ErrorPresenceEquivalent left right := by
   intro hleft hmiddle
-  exact
-    ⟨fun hrightZero => hleft.1 (hmiddle.1 hrightZero),
-      fun hrightPositive => hleft.2 (hmiddle.2 hrightPositive)⟩
+  exact ⟨
+    fun hrightZero => hleft.1 (hmiddle.1 hrightZero),
+    fun hrightPositive => hleft.2 (hmiddle.2 hrightPositive)
+  ⟩
 
 theorem ErrorPresenceEquivalent.symm {left right : Nat}
     : ErrorPresenceEquivalent left right -> ErrorPresenceEquivalent right left := by
@@ -266,10 +267,11 @@ theorem ResultDataAndErrorPresenceEquivalent.trans
   intro hleft hmiddle
   rcases hleft with ⟨hleftData, hleftZero, hleftPositive⟩
   rcases hmiddle with ⟨hmiddleData, hmiddleZero, hmiddlePositive⟩
-  exact
-    ⟨hleftData.trans hmiddleData,
-      fun hrightZero => hleftZero (hmiddleZero hrightZero),
-      fun hrightPositive => hleftPositive (hmiddlePositive hrightPositive)⟩
+  exact ⟨
+    hleftData.trans hmiddleData,
+    fun hrightZero => hleftZero (hmiddleZero hrightZero),
+    fun hrightPositive => hleftPositive (hmiddlePositive hrightPositive)
+  ⟩
 
 theorem ResultDataAndErrorPresenceEquivalent.errorPresence
     {α : Type} [Inhabited α] {ungrouped spec : Result α}
@@ -309,9 +311,10 @@ theorem ResponseValueResultAlignedEquivalent.trans
   · exact ErrorPresenceEquivalent.trans hleft hmiddle
   · rcases hleft with ⟨hleftValue, hleftErrors⟩
     rcases hmiddle with ⟨hmiddleValue, hmiddleErrors⟩
-    exact
-      ⟨hleftValue.trans hmiddleValue,
-        ErrorPresenceEquivalent.trans hleftErrors hmiddleErrors⟩
+    exact ⟨
+      hleftValue.trans hmiddleValue,
+      ErrorPresenceEquivalent.trans hleftErrors hmiddleErrors
+    ⟩
 
 theorem ResponseValueResultAlignedEquivalent.symm {left right : Result ResponseValue}
     : ResponseValueResultAlignedEquivalent left right
@@ -700,9 +703,10 @@ theorem RootSelectionResultAlignedEquivalent.trans
   · exact ErrorPresenceEquivalent.trans hleft hmiddle
   · rcases hleft with ⟨hleftFields, hleftErrors⟩
     rcases hmiddle with ⟨hmiddleFields, hmiddleErrors⟩
-    exact
-      ⟨hleftFields.trans hmiddleFields,
-        ErrorPresenceEquivalent.trans hleftErrors hmiddleErrors⟩
+    exact ⟨
+      hleftFields.trans hmiddleFields,
+      ErrorPresenceEquivalent.trans hleftErrors hmiddleErrors
+    ⟩
 
 theorem RootSelectionResultAlignedEquivalent.combine_append
     {ungroupedLeft specLeft ungroupedRight specRight
@@ -733,9 +737,7 @@ theorem RootSelectionResultDataAndErrorPresenceEquivalent.trans
       -> RootSelectionResultDataAndErrorPresenceEquivalent middle right
       -> RootSelectionResultDataAndErrorPresenceEquivalent left right := by
   intro hleft hmiddle
-  exact
-    ⟨hleft.1.trans hmiddle.1,
-      ErrorPresenceEquivalent.trans hleft.2 hmiddle.2⟩
+  exact ⟨hleft.1.trans hmiddle.1, ErrorPresenceEquivalent.trans hleft.2 hmiddle.2⟩
 
 theorem responseDataAndErrorPresenceEquivalent_of_rootSelectionResult
     {ungrouped spec : Result (List (Name × ResponseValue))}
@@ -774,10 +776,11 @@ theorem responseDataAndErrorPresenceEquivalent_trans
   intro hleft hmiddle
   rcases hleft with ⟨hleftData, hleftZero, hleftPositive⟩
   rcases hmiddle with ⟨hmiddleData, hmiddleZero, hmiddlePositive⟩
-  exact
-    ⟨hleftData.trans hmiddleData,
-      fun hrightZero => hleftZero (hmiddleZero hrightZero),
-      fun hrightPositive => hleftPositive (hmiddlePositive hrightPositive)⟩
+  exact ⟨
+    hleftData.trans hmiddleData,
+    fun hrightZero => hleftZero (hmiddleZero hrightZero),
+    fun hrightPositive => hleftPositive (hmiddlePositive hrightPositive)
+  ⟩
 
 def ResponseAbsorbs (base output : ResponseValue) : Prop :=
   mergeResponse base output = output
@@ -1094,28 +1097,27 @@ theorem ValidOperationPrefixSelectionState.of_valid_noAlias
     (hselectionSet : operation.selectionSet = prefixSelections ++ selection :: suffix)
     : ValidOperationPrefixSelectionState schema operation prefixSelections
         selection suffix := by
-  exact
-    { selectionValid :=
-        by
-          have hselSet : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
-            rw [← hselectionSet]
-            exact Validation.operationDefinitionValid_selectionSetValid hvalid
-          have hright : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (selection :: suffix) :=
-            Validation.selectionSetValid_append_right hselSet
-          exact (by
-            simp [Validation.selectionSetValid] at hright
-            exact hright.1)
-      fieldsInSetCanMerge :=
-        by
-          have hmergeAll : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
-            rw [← hselectionSet]
-            exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
-          have hright : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (selection :: suffix) :=
-            GraphQL.NormalForm.fieldsInSetCanMerge_append_right schema (operation.rootType schema) prefixSelections (selection :: suffix) hmergeAll
-          exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema (operation.rootType schema) [selection] suffix hright
-      noAlias :=
-        OperationNoAliasCollision.prefix_selection schema operation
-          prefixSelections suffix selection hnoAlias hselectionSet }
+  exact {
+    selectionValid := by
+      have hselSet : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
+        rw [← hselectionSet]
+        exact Validation.operationDefinitionValid_selectionSetValid hvalid
+      have hright : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (selection :: suffix) :=
+        Validation.selectionSetValid_append_right hselSet
+      exact (by
+        simp [Validation.selectionSetValid] at hright
+        exact hright.1)
+    fieldsInSetCanMerge := by
+      have hmergeAll : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
+        rw [← hselectionSet]
+        exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
+      have hright : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (selection :: suffix) :=
+        GraphQL.NormalForm.fieldsInSetCanMerge_append_right schema (operation.rootType schema) prefixSelections (selection :: suffix) hmergeAll
+      exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema (operation.rootType schema) [selection] suffix hright
+    noAlias :=
+      OperationNoAliasCollision.prefix_selection schema operation
+        prefixSelections suffix selection hnoAlias hselectionSet
+  }
 
 theorem ValidOperationPrefixSelectionState.field_lookup
     {schema : Schema} {operation : Operation}
@@ -1252,8 +1254,7 @@ theorem ExecutableFieldsScopedBy.identity
   intro hscoped field hfield
   rcases hscoped field hfield with
     ⟨scopedField, hscopedMem, hmatch⟩
-  exact
-    ⟨scopedField, hscopedMem, ScopedFieldMatchesExecutable.identity hmatch⟩
+  exact ⟨scopedField, hscopedMem, ScopedFieldMatchesExecutable.identity hmatch⟩
 
 theorem ExecutableFieldsRuntimeScopedBy.identityScopedBy
     (schema : Schema) (runtimeType : Name)

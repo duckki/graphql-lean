@@ -329,13 +329,14 @@ theorem selectionSetNonRedundant_tail
       -> selectionSetNonRedundant selectionSet := by
   intro hnonRedundant
   unfold selectionSetNonRedundant at hnonRedundant ⊢
-  exact
-    ⟨responseNamesNodup_tail hnonRedundant.1,
-      inlineFragmentTypeConditionsNodup_tail hnonRedundant.2.1,
-      by
-        intro candidate hcandidate
-        exact hnonRedundant.2.2 candidate
-          (List.mem_cons_of_mem selection hcandidate)⟩
+  exact ⟨
+    responseNamesNodup_tail hnonRedundant.1,
+    inlineFragmentTypeConditionsNodup_tail hnonRedundant.2.1,
+    by
+      intro candidate hcandidate
+      exact hnonRedundant.2.2 candidate
+        (List.mem_cons_of_mem selection hcandidate)
+  ⟩
 
 theorem selectionSetNormal_tail
     {schema : Schema} {parentType : Name}
@@ -343,9 +344,7 @@ theorem selectionSetNormal_tail
     : selectionSetNormal schema parentType (selection :: selectionSet)
       -> selectionSetNormal schema parentType selectionSet := by
   intro hnormal
-  exact
-    ⟨selectionSetGroundTyped_tail hnormal.1,
-      selectionSetNonRedundant_tail hnormal.2⟩
+  exact ⟨selectionSetGroundTyped_tail hnormal.1, selectionSetNonRedundant_tail hnormal.2⟩
 
 theorem selectionSet_field_mem_of_allFields_responseName_mem
     {selectionSet : List Selection} {responseName : Name}
@@ -601,10 +600,12 @@ theorem selectionSetNormal_field_child_of_mem_with_returnType
             childSelectionSet) :=
       hnonRedundant.2.2 _ hmem
     simpa [selectionNonRedundant] using hselectionNonRedundant
-  exact
-    ⟨returnType, hreturn,
-      (⟨hchildGround, hchildNonRedundant⟩ :
-        selectionSetNormal schema returnType childSelectionSet)⟩
+  exact ⟨
+    returnType,
+    hreturn,
+    (⟨hchildGround, hchildNonRedundant⟩
+      : selectionSetNormal schema returnType childSelectionSet)
+  ⟩
 
 theorem selectionSetNormal_inlineFragment_child_of_mem
     {schema : Schema} {parentType typeCondition : Name}
@@ -635,10 +636,11 @@ theorem selectionSetNormal_inlineFragment_child_of_mem
             childSelectionSet) :=
       hnonRedundant.2.2 _ hmem
     simpa [selectionNonRedundant] using hselectionNonRedundant
-  exact
-    ⟨htypeConditionObject,
-      (⟨hchildGround, hchildNonRedundant⟩ :
-        selectionSetNormal schema typeCondition childSelectionSet)⟩
+  exact ⟨
+    htypeConditionObject,
+    (⟨hchildGround, hchildNonRedundant⟩
+      : selectionSetNormal schema typeCondition childSelectionSet)
+  ⟩
 
 theorem mem_erase_of_ne_of_mem {α : Type} [BEq α] [LawfulBEq α] {a b : α} {items : List α}
     : a ≠ b -> a ∈ items -> a ∈ items.erase b := by
@@ -737,9 +739,7 @@ theorem listPermOfNodupSubsetSubset {α : Type} [BEq α] [LawfulBEq α] {left ri
         · exact hitemTail
       have htailPerm : tail.Perm (right.erase head) :=
         ih htailNodup hrightEraseNodup htailSubset hrightEraseSubset
-      exact
-        (List.Perm.cons head htailPerm).trans
-          (List.perm_cons_erase hheadRight).symm
+      exact (List.Perm.cons head htailPerm).trans (List.perm_cons_erase hheadRight).symm
 
 theorem responseNamesNodup_remove_middle_field
     {pref suffix : List Selection}
