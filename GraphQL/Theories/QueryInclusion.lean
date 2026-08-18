@@ -79,7 +79,9 @@ instance sameFieldProvenanceDecidable : DecidableRel sameFieldProvenance :=
 -- `left.includes right` recursively preserves every response field of `right` in
 -- `left`. Object fields are matched by response name and concrete resolver-call
 -- provenance. List elements are matched recursively at their response positions.
--- Leaves have no nested response fields, so they add no inclusion obligation.
+-- Leaves must agree exactly. For executed response pairs the parent-level provenance
+-- match already forces equal leaf values, so the explicit leaf equations keep the
+-- relation self-contained without changing `includes`.
 def annotatedResponseValueIncludes
     : AnnotatedResponseValue -> AnnotatedResponseValue -> Prop
   | .object _ leftFields, .object _ rightFields =>
@@ -98,8 +100,8 @@ def annotatedResponseValueIncludes
             ∧ annotatedResponseValueIncludes leftValue rightValue
   | _, .object _ _ => False
   | _, .list _ => False
-  | _, .null => True
-  | _, .scalar _ => True
+  | left, .null => left = .null
+  | left, .scalar value => left = .scalar value
 termination_by _left right => right.structuralSize
 decreasing_by
   all_goals

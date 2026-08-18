@@ -332,8 +332,18 @@ theorem annotatedResponseValueIncludes_trans
         annotatedResponseValueIncludes left middle
         -> annotatedResponseValueIncludes middle right
         -> annotatedResponseValueIncludes left right
-  | _left, _middle, .null => by simp [annotatedResponseValueIncludes]
-  | _left, _middle, .scalar _value => by simp [annotatedResponseValueIncludes]
+  | left, middle, .null => by
+      intro leftMiddle middleRight
+      have hmiddle : middle = .null := by
+        cases middle <;> simpa [annotatedResponseValueIncludes] using middleRight
+      subst hmiddle
+      cases left <;> simp_all [annotatedResponseValueIncludes]
+  | left, middle, .scalar value => by
+      intro leftMiddle middleRight
+      have hmiddle : middle = .scalar value := by
+        cases middle <;> simpa [annotatedResponseValueIncludes] using middleRight
+      subst hmiddle
+      cases left <;> simp_all [annotatedResponseValueIncludes]
   | .object _leftType leftFields, .object _middleType middleFields,
     .object _rightType rightFields => by
       simp only [annotatedResponseValueIncludes]
