@@ -220,14 +220,14 @@ theorem selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement
     (hleft
       : ∀ variableName,
           variableName ∈ SelectionConditions.selectionSetBooleanVariables leftSelectionSet
-          -> inputValueBoolean? first (.variable variableName)
-              = inputValueBoolean? second (.variable variableName))
+          -> (inputValueBoolean? first (.variable variableName) == some true)
+              = (inputValueBoolean? second (.variable variableName) == some true))
     (hright
       : ∀ variableName,
           variableName
             ∈ SelectionConditions.selectionSetBooleanVariables rightSelectionSet
-          -> inputValueBoolean? first (.variable variableName)
-              = inputValueBoolean? second (.variable variableName))
+          -> (inputValueBoolean? first (.variable variableName) == some true)
+              = (inputValueBoolean? second (.variable variableName) == some true))
     : selectionSetIncludesBoolWithFuel schema fuel parentType first
         leftSelectionSet rightSelectionSet
       = selectionSetIncludesBoolWithFuel schema fuel parentType second
@@ -314,6 +314,44 @@ theorem selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement
                     rw [hnested']
                   · simp [hlookup, hcomposite]
 
+-- Every runtime environment checks like its representative complete Boolean
+-- assignment, so acceptance under every complete assignment extends to arbitrary
+-- environments: an unresolvable condition variable behaves like `false` on both sides.
+theorem selectionSetIncludesBoolWithFuel_of_complete_checks
+    (schema : Schema) (fuel : Nat) (parentType : Name)
+    (leftSelectionSet rightSelectionSet : List Selection)
+    (hchecks
+      : ∀ variableValues,
+          boolVarsComplete
+            (comparisonConditionVariables leftSelectionSet rightSelectionSet)
+            variableValues
+          -> selectionSetIncludesBoolWithFuel schema fuel parentType variableValues
+                leftSelectionSet rightSelectionSet
+              = true)
+    (variableValues : VariableValues)
+    : selectionSetIncludesBoolWithFuel schema fuel parentType variableValues
+        leftSelectionSet rightSelectionSet
+      = true := by
+  let variables := comparisonConditionVariables leftSelectionSet rightSelectionSet
+  have hrepresentativeCheck :=
+    hchecks (representativeBooleanValues variables variableValues)
+      (representativeBooleanValues_complete variables variableValues)
+  have hagreement := selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement schema
+    fuel parentType (representativeBooleanValues variables variableValues)
+    variableValues leftSelectionSet rightSelectionSet
+    (by
+      intro variableName hvariable
+      exact inputValueBoolean?_representativeBooleanValues_effectiveEq variables
+        variableValues variableName
+        (by simp [variables, comparisonConditionVariables, hvariable]))
+    (by
+      intro variableName hvariable
+      exact inputValueBoolean?_representativeBooleanValues_effectiveEq variables
+        variableValues variableName
+        (by simp [variables, comparisonConditionVariables, hvariable]))
+  rw [← hagreement]
+  exact hrepresentativeCheck
+
 theorem includesBoolReference_to_selectionSetChecks
     {schema : Schema} {left right : Operation}
     (hcheck : includesBoolReference schema left right = true)
@@ -322,13 +360,10 @@ theorem includesBoolReference_to_selectionSetChecks
           left.variableDefinitions right.variableDefinitions
         = true
       ∧ ∀ variableValues,
-          boolVarsComplete
-            (comparisonConditionVariables left.selectionSet right.selectionSet)
-            variableValues
-          -> selectionSetIncludesBoolWithFuel schema (right.size + 1)
-                (right.rootType schema) variableValues
-                left.selectionSet right.selectionSet
-              = true := by
+          selectionSetIncludesBoolWithFuel schema (right.size + 1)
+            (right.rootType schema) variableValues
+            left.selectionSet right.selectionSet
+          = true := by
   unfold includesBoolReference at hcheck
   split at hcheck
   · rename_i hguard
@@ -339,11 +374,12 @@ theorem includesBoolReference_to_selectionSetChecks
       simpa only [Bool.and_eq_true] using hguard
     rcases hparts with ⟨hroot, hdefinitions⟩
     refine ⟨beq_iff_eq.mp hroot, hdefinitions, ?_⟩
-    intro variableValues hcomplete
+    apply selectionSetIncludesBoolWithFuel_of_complete_checks
+    intro assignment hassignmentComplete
     let variables := comparisonConditionVariables left.selectionSet right.selectionSet
-    let representative := representativeBooleanValues variables variableValues
+    let representative := representativeBooleanValues variables assignment
     have hrepresentative : representative ∈ booleanVariableAssignments variables :=
-      representativeBooleanValues_mem variables variableValues
+      representativeBooleanValues_mem variables assignment
     have hrepresentativeCheck :
         selectionSetIncludesBoolWithFuel schema (right.size + 1)
           (right.rootType schema) representative
@@ -351,24 +387,18 @@ theorem includesBoolReference_to_selectionSetChecks
       exact List.all_eq_true.mp hcheck representative (by
         simpa only [variables] using hrepresentative)
     have hagreement := selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement schema
-      (right.size + 1) (right.rootType schema) representative variableValues
+      (right.size + 1) (right.rootType schema) representative assignment
       left.selectionSet right.selectionSet
       (by
         intro variableName hvariable
-        exact inputValueBoolean?_representativeBooleanValues variables variableValues
-          (by
-            intro candidate hcandidate
-            exact hcomplete candidate (by simpa [variables] using hcandidate))
-          variableName (by
-            simp [variables, comparisonConditionVariables, hvariable]))
+        exact inputValueBoolean?_representativeBooleanValues_effectiveEq variables
+          assignment variableName
+          (by simp [variables, comparisonConditionVariables, hvariable]))
       (by
         intro variableName hvariable
-        exact inputValueBoolean?_representativeBooleanValues variables variableValues
-          (by
-            intro candidate hcandidate
-            exact hcomplete candidate (by simpa [variables] using hcandidate))
-          variableName (by
-            simp [variables, comparisonConditionVariables, hvariable]))
+        exact inputValueBoolean?_representativeBooleanValues_effectiveEq variables
+          assignment variableName
+          (by simp [variables, comparisonConditionVariables, hvariable]))
     rw [← hagreement]
     exact hrepresentativeCheck
   · simp at hcheck

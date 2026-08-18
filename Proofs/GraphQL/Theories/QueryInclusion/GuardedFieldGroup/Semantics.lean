@@ -1325,7 +1325,7 @@ theorem includesBool_complete_of_reference
       hschema hrightValid)
     hrightInhabited
     (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
-    hcases
+    (fun conditionValues _hcomplete => hcases conditionValues)
 
 end QueryInclusion
 end GraphQL

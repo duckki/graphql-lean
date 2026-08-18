@@ -108,27 +108,23 @@ decreasing_by
 
 -- Query `left` includes query `right` when shared variable definitions have the same
 -- types and equivalent defaults and every pair of error-free concrete executions
--- recursively preserves right response fields. One-sided definitions are unrestricted; each
--- operation's condition variables must be complete after its own defaults are
--- materialized. Resolver failures and null bubbling can erase otherwise present response
--- structure, so executions with errors are deliberately outside this relation.
+-- recursively preserves right response fields. One-sided definitions are unrestricted.
+-- Every variable environment is constrained, including environments whose condition
+-- variables do not all resolve to Booleans: an unresolvable `@skip`/`@include`
+-- condition behaves like `false` during field collection, so those executions are
+-- ordinary error-free executions. Resolver failures and null bubbling can erase
+-- otherwise present response structure, so executions with errors are deliberately
+-- outside this relation.
 def includes (schema : Schema) (left right : Operation) : Prop :=
   sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
     right.variableDefinitions
   ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (source : ResolverValue ObjectRef),
-      let leftValues := coerceVariableValues left variableValues
-      let rightValues := coerceVariableValues right variableValues
       let leftResponse :=
         executeQueryAnnotated schema resolvers variableValues left source
       let rightResponse :=
         executeQueryAnnotated schema resolvers variableValues right source
-      boolVarsComplete
-        (SelectionConditions.selectionSetBooleanVariables left.selectionSet) leftValues
-      -> boolVarsComplete
-          (SelectionConditions.selectionSetBooleanVariables right.selectionSet)
-          rightValues
-      -> leftResponse.errors = 0
+      leftResponse.errors = 0
       -> rightResponse.errors = 0
       -> responseValueIncludes leftResponse.data rightResponse.data
 
@@ -764,8 +760,8 @@ def selectionSetIncludesBool (schema : Schema) (responseFuel : Nat)
 -- operations are explored under the same assignments, and field arguments are
 -- compared symbolically. The function is total on raw syntax; callers should establish
 -- schema well-formedness, operation validity, and composite-return inhabitance before
--- using it as a semantic decision procedure, then establish the run-specific premises
--- of `includes` before applying an accepted result.
+-- using it as a semantic decision procedure. An accepted result then applies to every
+-- pair of error-free executions, with no per-run premises.
 def includesBool (schema : Schema) (left right : Operation) : Bool :=
   if left.rootType schema == right.rootType schema
       && sharedVariableDefinitionsSyntacticallyCompatibleBool left.variableDefinitions

@@ -660,15 +660,15 @@ theorem selectionSetIncludesBoolWithFuel_groups
   have hrightGroups := collectRuntimeFieldGroups_eq_of_boolean_agreement schema
     conditionValues rightValues parentType runtimeType rightSelectionSet (by
       intro variableName hvariable
-      exact hrightBoolean variableName
+      rw [hrightBoolean variableName
         (selectionSetConditionVariables_mem_normalForm rightSelectionSet variableName
-          hvariable))
+          hvariable)])
   have hleftGroups := collectRuntimeFieldGroups_eq_of_boolean_agreement schema
     conditionValues leftValues parentType runtimeType leftSelectionSet (by
       intro variableName hvariable
-      exact hleftBoolean variableName
+      rw [hleftBoolean variableName
         (selectionSetConditionVariables_mem_normalForm leftSelectionSet variableName
-          hvariable))
+          hvariable)])
   simp only [selectionSetIncludesBoolWithFuel, selectionSetIncludesAtRuntimeBoolWithFuel,
     executableGroupsIncludeBool, executableGroupIncludedBool, List.all_eq_true] at hcheck
   have hgroups := hcheck runtimeType hruntime
@@ -1546,9 +1546,9 @@ private theorem recursiveChildExecutionSound_proved
         conditionValues rightValues parentType runtimeType rightSelectionSet
         (by
           intro variableName hvariable
-          exact hrightBoolean variableName
+          rw [hrightBoolean variableName
             (selectionSetConditionVariables_mem_normalForm rightSelectionSet
-              variableName hvariable))
+              variableName hvariable)])
       have hrightGroups : collectRuntimeFieldGroups schema rightValues parentType
           runtimeType rightSelectionSet = [] := by
         rw [← hrightGroupsEq]
