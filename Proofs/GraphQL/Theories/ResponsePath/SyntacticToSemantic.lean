@@ -1,8 +1,8 @@
 import Proofs.GraphQL.Theories.ResponsePath.ReferenceChecker
-import Proofs.GraphQL.Theories.ResponsePath.Soundness
+import Proofs.GraphQL.Theories.ResponsePath.SemanticToSyntactic
 import Proofs.GraphQL.Theories.QueryInclusion.Completeness
 
-/-! Completeness of path-based syntactic query inclusion. -/
+/-! The syntactic-to-semantic correspondence direction of path-based query inclusion. -/
 
 namespace GraphQL
 namespace ResponsePath
@@ -10,11 +10,11 @@ namespace ResponsePath
 open Execution
 open QueryInclusion
 
--- Completeness: under the premises of `QueryInclusion.IncludesBoolComplete`, semantic
--- query inclusion implies path-based inclusion. Witnesses
--- `ResponsePath.IncludesComplete`.
-theorem includes_complete {schema : Schema} {left right : Operation}
-    : IncludesComplete schema left right := by
+-- Under the premises of `QueryInclusion.IncludesBoolComplete`, semantic query inclusion
+-- implies path-based syntactic inclusion. Witnesses
+-- `ResponsePath.IncludesSyntacticToSemantic`.
+theorem includesSyntacticToSemantic {schema : Schema} {left right : Operation}
+    : IncludesSyntacticToSemantic schema left right := by
   intro hschema hleftValid hrightValid hleftInhabited hrightInhabited hcoercible
     hincludes
   have hcheck : includesBool schema left right = true :=

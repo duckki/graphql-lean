@@ -115,22 +115,24 @@ def includes (schema : Schema) (left right : Operation) : Prop :=
 -- Agreement with semantic query inclusion
 -----------------------------------------------------------------------------------------
 
--- Public soundness statement for the path-based relation: for valid operations under a
--- well-formed schema, path-based inclusion implies semantic query inclusion. Its theorem
--- witness is `ResponsePath.includes_sound` in the corresponding proof module.
-def IncludesSound (schema : Schema) (left right : Operation) : Prop :=
+-- Correspondence, first direction: semantic query inclusion reduces to the path-based
+-- syntactic relation. For valid operations under a well-formed schema, syntactic
+-- inclusion implies semantic inclusion. Its theorem witness is
+-- `ResponsePath.includesSemanticToSyntactic` in the corresponding proof module.
+def IncludesSemanticToSyntactic (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
   -> includes schema left right
   -> QueryInclusion.includes schema left right
 
--- Public completeness statement: semantic query inclusion implies path-based inclusion.
--- The premises mirror `QueryInclusion.IncludesBoolComplete`: argument-coercible branch
--- extensions and composite-return inhabitance rule out vacuous semantic inclusion by
--- supplying an error-free execution witness for every selected path. Its theorem witness
--- is `ResponsePath.includes_complete` in the corresponding proof module.
-def IncludesComplete (schema : Schema) (left right : Operation) : Prop :=
+-- Correspondence, second direction: the path-based syntactic relation reduces to
+-- semantic query inclusion. The premises mirror `QueryInclusion.IncludesBoolComplete`:
+-- argument-coercible branch extensions and composite-return inhabitance rule out vacuous
+-- semantic inclusion by supplying an error-free execution witness for every selected
+-- path. Its theorem witness is `ResponsePath.includesSyntacticToSemantic` in the
+-- corresponding proof module.
+def IncludesSyntacticToSemantic (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right

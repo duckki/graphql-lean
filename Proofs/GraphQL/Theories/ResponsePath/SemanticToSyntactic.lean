@@ -1,7 +1,7 @@
 import Proofs.GraphQL.Theories.ResponsePath.ReferenceChecker
 import Proofs.GraphQL.Theories.QueryInclusion.Soundness
 
-/-! Soundness of path-based syntactic query inclusion. -/
+/-! The semantic-to-syntactic correspondence direction of path-based query inclusion. -/
 
 namespace GraphQL
 namespace ResponsePath
@@ -100,10 +100,10 @@ theorem rootType_eq (schema : Schema) (left right : Operation)
   cases hright : right.operationType
   simp [Operation.rootType, hleft, hright, OperationType.rootType]
 
--- Soundness: for valid operations under a well-formed schema, path-based inclusion
--- implies semantic query inclusion. Witnesses `ResponsePath.IncludesSound`.
-theorem includes_sound {schema : Schema} {left right : Operation}
-    : IncludesSound schema left right := by
+-- For valid operations under a well-formed schema, path-based syntactic inclusion
+-- implies semantic query inclusion. Witnesses `ResponsePath.IncludesSemanticToSyntactic`.
+theorem includesSemanticToSyntactic {schema : Schema} {left right : Operation}
+    : IncludesSemanticToSyntactic schema left right := by
   intro hschema hleftValid hrightValid hpath
   have hroot : left.rootType schema = right.rootType schema :=
     rootType_eq schema left right
