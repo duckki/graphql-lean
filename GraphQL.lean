@@ -19,6 +19,7 @@ import GraphQL.Theories.AnnotatedExecution
 import GraphQL.Theories.SelectionConditions
 import GraphQL.Theories.ResponseDepth
 import GraphQL.Theories.QueryInclusion
+import GraphQL.Theories.ResponsePath
 
 /-!
 Spec reference: GraphQL September 2025.

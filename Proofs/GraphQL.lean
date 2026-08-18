@@ -8,6 +8,7 @@ import Proofs.GraphQL.Theories.SelectionConditions.BooleanVariables
 import Proofs.GraphQL.Execution.FieldGroups
 import Proofs.GraphQL.Theories.SelectionConditions.Runtime
 import Proofs.GraphQL.Theories.QueryInclusion
+import Proofs.GraphQL.Theories.ResponsePath
 import Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings
 import Proofs.GraphQL.Algorithms.ExecutionBreadth
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped

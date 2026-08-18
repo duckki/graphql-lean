@@ -156,14 +156,28 @@ theorem executeQueryAnnotated_zero_error_decompose
         · simp [hroot, hresult, runtimeObjectType?]
   · simp at herrors
 
-theorem includesBool_sound {schema : Schema} {left right : Operation}
-    : IncludesBoolSound schema left right := by
-  intro hschema _hleftValid _hrightValid hcheck
-  rcases includesBool_to_selectionSetChecks hschema _hleftValid _hrightValid
-      hcheck with
-    ⟨hroot, hdefinitions, hselectionChecks⟩
-  have hdefinitions' :=
-    (sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mp hdefinitions
+-- The semantic continuation shared by the checker-facing and path-facing soundness
+-- proofs: root-type agreement, shared-definition compatibility, and reference-checker
+-- acceptance under every complete Boolean environment together imply semantic query
+-- inclusion.
+theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (_hleftValid : Validation.operationDefinitionValid schema left)
+    (_hrightValid : Validation.operationDefinitionValid schema right)
+    (hroot : left.rootType schema = right.rootType schema)
+    (hdefinitions'
+      : sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
+          right.variableDefinitions)
+    (hselectionChecks
+      : ∀ conditionValues,
+          boolVarsComplete
+            (comparisonConditionVariables left.selectionSet right.selectionSet)
+            conditionValues
+          -> selectionSetIncludesBoolWithFuel schema (right.size + 1)
+                (right.rootType schema) conditionValues
+                left.selectionSet right.selectionSet
+              = true)
+    : includes schema left right := by
   refine ⟨hdefinitions', ?_⟩
   intro ObjectRef resolvers suppliedValues source
   dsimp only
@@ -392,6 +406,15 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
   · exact hrightNodup
   · exact hleftCommon
   · exact hrightCommon
+
+theorem includesBool_sound {schema : Schema} {left right : Operation}
+    : IncludesBoolSound schema left right := by
+  intro hschema hleftValid hrightValid hcheck
+  rcases includesBool_to_selectionSetChecks hschema hleftValid hrightValid hcheck with
+    ⟨hroot, hdefinitions, hselectionChecks⟩
+  exact includes_of_selectionSetChecks hschema hleftValid hrightValid hroot
+    ((sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mp hdefinitions)
+    hselectionChecks
 
 end QueryInclusion
 end GraphQL
