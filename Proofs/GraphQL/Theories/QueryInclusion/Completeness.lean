@@ -41,7 +41,7 @@ theorem includes_spine_responses
         ∧ executeQueryAnnotated schema (spineResolvers schema) suppliedValues
             right (.object (left.rootType schema) plan)
           = { data := .object (left.rootType schema) rightFields, errors := 0 }
-        ∧ responseValueIncludes (.object (left.rootType schema) leftFields)
+        ∧ annotatedResponseValueIncludes (.object (left.rootType schema) leftFields)
             (.object (left.rootType schema) rightFields) := by
   have hroot := valid_operations_rootType_eq hleftValid hrightValid
   rcases executeQueryAnnotated_spine_supported schema plan hplan suppliedValues left
@@ -61,19 +61,19 @@ def wrapCompositeResponse : TypeRef -> AnnotatedResponseValue -> AnnotatedRespon
   | .list inner, value => .list [wrapCompositeResponse inner value]
   | .nonNull inner, value => wrapCompositeResponse inner value
 
-theorem responseValueIncludes_wrapComposite
+theorem annotatedResponseValueIncludes_wrapComposite
     (fieldType : TypeRef) (left right : AnnotatedResponseValue)
     (hincludes
-      : responseValueIncludes
+      : annotatedResponseValueIncludes
           (wrapCompositeResponse fieldType left)
           (wrapCompositeResponse fieldType right))
-    : responseValueIncludes left right := by
+    : annotatedResponseValueIncludes left right := by
   induction fieldType with
   | named typeName => exact hincludes
   | nonNull inner ih =>
       exact ih hincludes
   | list inner ih =>
-      simp only [wrapCompositeResponse, responseValueIncludes] at hincludes
+      simp only [wrapCompositeResponse, annotatedResponseValueIncludes] at hincludes
       rcases hincludes 0 (wrapCompositeResponse inner right) (by simp) with
         ⟨leftValue, hleft, hvalue⟩
       simp at hleft
@@ -267,7 +267,7 @@ def SpineSelectionIncludes
               (collectFields schema rightValues parentType (.object runtimeType plan)
                 rightSelectionSet)
             = .ok (rightFields, 0)
-        -> responseValueIncludes (.object runtimeType leftFields)
+        -> annotatedResponseValueIncludes (.object runtimeType leftFields)
             (.object runtimeType rightFields)
 
 theorem includes_root_spineSelectionIncludes
@@ -473,7 +473,7 @@ private theorem spineSelectionIncludes_group_match
     ⟨rightCompletionFuel, rightField, rightRest, definition, rightResolved,
       rightValue, _hrightFuel, hrightFields, hrightLookup, _hrightResolve,
       _hrightComplete, hrightMember⟩
-  simp only [responseValueIncludes] at hresponseIncludes
+  simp only [annotatedResponseValueIncludes] at hresponseIncludes
   rcases hresponseIncludes rightName
       (resolvedFieldProvenance schema rightValues definition rightField)
       rightValue hrightMember with
@@ -619,7 +619,7 @@ private theorem spineSelectionIncludes_child
     | success coercedArguments =>
         simpa [resolveFieldValue, spineResolvers, hlookup, hcoercion] using hrightResolve
   subst rightResolved
-  simp only [responseValueIncludes] at hparentResponseIncludes
+  simp only [annotatedResponseValueIncludes] at hparentResponseIncludes
   rcases hparentResponseIncludes responseName
       (resolvedFieldProvenance schema rightValues definition rightField) rightValue
       hrightMember with
@@ -687,7 +687,7 @@ private theorem spineSelectionIncludes_child
   rw [hleftResponse] at horiginMember
   simp only [List.mem_singleton] at horiginMember
   injection horiginMember with horiginResponseNameEq horiginCallEq horiginValueEq
-  have hwrappedIncludes : responseValueIncludes leftValue rightValue := by
+  have hwrappedIncludes : annotatedResponseValueIncludes leftValue rightValue := by
     rw [← horiginValueEq]
     exact hmatchedValue
   have hpossible : schema.getPossibleTypes definition.outputType.namedType ≠ [] := by
@@ -703,7 +703,7 @@ private theorem spineSelectionIncludes_child
       rightValue hcomposite hpossible hrightComplete with
     ⟨actualRightFuel, actualRightFields, hactualRight, hrightValue⟩
   rw [hleftValue, hrightValue] at hwrappedIncludes
-  have hactualIncludes := responseValueIncludes_wrapComposite definition.outputType
+  have hactualIncludes := annotatedResponseValueIncludes_wrapComposite definition.outputType
     (.object (parentPlan 0 definition.outputType.namedType) actualLeftFields)
     (.object (parentPlan 0 definition.outputType.namedType) actualRightFields)
     hwrappedIncludes

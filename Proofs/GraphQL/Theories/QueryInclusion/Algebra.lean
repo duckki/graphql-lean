@@ -305,21 +305,21 @@ theorem inputValue_canonical_eq_of_equivalent {left right : InputValue}
     : left.canonical = right.canonical :=
   inputValue_eq_of_structuralEquivalent left.canonical right.canonical hequivalent
 
-theorem responseValueIncludes_refl
-    : ∀ value : AnnotatedResponseValue, responseValueIncludes value value
-  | .null => by simp [responseValueIncludes]
-  | .scalar _value => by simp [responseValueIncludes]
+theorem annotatedResponseValueIncludes_refl
+    : ∀ value : AnnotatedResponseValue, annotatedResponseValueIncludes value value
+  | .null => by simp [annotatedResponseValueIncludes]
+  | .scalar _value => by simp [annotatedResponseValueIncludes]
   | .object _runtimeType fields => by
-      simp only [responseValueIncludes]
+      simp only [annotatedResponseValueIncludes]
       intro responseName call child hmember
       exact ⟨responseName, call, child, hmember, rfl,
         (sameFieldProvenance_iff call call).mpr
           ⟨rfl, rfl, argumentsEquivalent_refl _⟩,
-        responseValueIncludes_refl child⟩
+        annotatedResponseValueIncludes_refl child⟩
   | .list values => by
-      simp only [responseValueIncludes]
+      simp only [annotatedResponseValueIncludes]
       intro index value hmember
-      exact ⟨value, hmember, responseValueIncludes_refl value⟩
+      exact ⟨value, hmember, annotatedResponseValueIncludes_refl value⟩
 termination_by value => value.structuralSize
 decreasing_by
   all_goals
@@ -327,16 +327,16 @@ decreasing_by
     | exact AnnotatedResponseValue.structuralSize_lt_of_object_field_mem hmember
     | exact AnnotatedResponseValue.structuralSize_lt_of_list_get? hmember
 
-theorem responseValueIncludes_trans
+theorem annotatedResponseValueIncludes_trans
     : ∀ left middle right : AnnotatedResponseValue,
-        responseValueIncludes left middle
-        -> responseValueIncludes middle right
-        -> responseValueIncludes left right
-  | _left, _middle, .null => by simp [responseValueIncludes]
-  | _left, _middle, .scalar _value => by simp [responseValueIncludes]
+        annotatedResponseValueIncludes left middle
+        -> annotatedResponseValueIncludes middle right
+        -> annotatedResponseValueIncludes left right
+  | _left, _middle, .null => by simp [annotatedResponseValueIncludes]
+  | _left, _middle, .scalar _value => by simp [annotatedResponseValueIncludes]
   | .object _leftType leftFields, .object _middleType middleFields,
     .object _rightType rightFields => by
-      simp only [responseValueIncludes]
+      simp only [annotatedResponseValueIncludes]
       intro leftMiddle middleRight responseName rightCall rightValue rightMember
       rcases middleRight responseName rightCall rightValue rightMember with
         ⟨middleName, middleCall, middleValue, middleMember, middleNameEq,
@@ -353,35 +353,35 @@ theorem responseValueIncludes_trans
         (sameFieldProvenance_iff _ _).mpr
           ⟨leftParent.trans middleParent, leftField.trans middleField,
             argumentsEquivalent_trans leftArguments middleArguments⟩,
-        responseValueIncludes_trans leftValue middleValue rightValue
+        annotatedResponseValueIncludes_trans leftValue middleValue rightValue
           leftValueIncludes middleValueIncludes⟩
   | .list leftValues, .list middleValues, .list rightValues => by
-      simp only [responseValueIncludes]
+      simp only [annotatedResponseValueIncludes]
       intro leftMiddle middleRight index rightValue rightMember
       rcases middleRight index rightValue rightMember with
         ⟨middleValue, middleMember, middleValueIncludes⟩
       rcases leftMiddle index middleValue middleMember with
         ⟨leftValue, leftMember, leftValueIncludes⟩
       exact ⟨leftValue, leftMember,
-        responseValueIncludes_trans leftValue middleValue rightValue
+        annotatedResponseValueIncludes_trans leftValue middleValue rightValue
           leftValueIncludes middleValueIncludes⟩
-  | _left, .null, .object _type _fields => by simp [responseValueIncludes]
-  | _left, .scalar _value, .object _type _fields => by simp [responseValueIncludes]
-  | _left, .list _values, .object _type _fields => by simp [responseValueIncludes]
+  | _left, .null, .object _type _fields => by simp [annotatedResponseValueIncludes]
+  | _left, .scalar _value, .object _type _fields => by simp [annotatedResponseValueIncludes]
+  | _left, .list _values, .object _type _fields => by simp [annotatedResponseValueIncludes]
   | .null, .object _type _fields, .object _rightType _rightFields => by
-      simp [responseValueIncludes]
+      simp [annotatedResponseValueIncludes]
   | .scalar _value, .object _type _fields, .object _rightType _rightFields => by
-      simp [responseValueIncludes]
+      simp [annotatedResponseValueIncludes]
   | .list _values, .object _type _fields, .object _rightType _rightFields => by
-      simp [responseValueIncludes]
-  | _left, .null, .list _values => by simp [responseValueIncludes]
-  | _left, .scalar _value, .list _values => by simp [responseValueIncludes]
-  | _left, .object _type _fields, .list _values => by simp [responseValueIncludes]
-  | .null, .list _middleValues, .list _rightValues => by simp [responseValueIncludes]
+      simp [annotatedResponseValueIncludes]
+  | _left, .null, .list _values => by simp [annotatedResponseValueIncludes]
+  | _left, .scalar _value, .list _values => by simp [annotatedResponseValueIncludes]
+  | _left, .object _type _fields, .list _values => by simp [annotatedResponseValueIncludes]
+  | .null, .list _middleValues, .list _rightValues => by simp [annotatedResponseValueIncludes]
   | .scalar _value, .list _middleValues, .list _rightValues => by
-      simp [responseValueIncludes]
+      simp [annotatedResponseValueIncludes]
   | .object _type _fields, .list _middleValues, .list _rightValues => by
-      simp [responseValueIncludes]
+      simp [annotatedResponseValueIncludes]
 termination_by _left _middle right => right.structuralSize
 decreasing_by
   all_goals
@@ -397,7 +397,7 @@ theorem includes_refl (schema : Schema) (operation : Operation)
   intro ObjectRef resolvers variableValues source
   dsimp
   intro _errors _errors
-  exact responseValueIncludes_refl _
+  exact annotatedResponseValueIncludes_refl _
 
 theorem includes_refl_of_valid (schema : Schema) (operation : Operation)
     (hvalid : Validation.operationDefinitionValid schema operation)
@@ -427,7 +427,7 @@ theorem includes_trans_of_middle_error_free (schema : Schema)
   intro ObjectRef resolvers variableValues source
   dsimp only at leftMiddle middleRight ⊢
   intro leftErrors rightErrors
-  exact responseValueIncludes_trans _ _ _
+  exact annotatedResponseValueIncludes_trans _ _ _
     (leftMiddle ObjectRef resolvers variableValues source leftErrors
       (middleErrorFree ObjectRef resolvers variableValues source))
     (middleRight ObjectRef resolvers variableValues source

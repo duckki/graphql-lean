@@ -21,8 +21,10 @@ def hero : AnnotatedResponseField :=
 theorem sameFieldProvenanceDecidableSmoke : sameFieldProvenance heroCall heroCall := by
   native_decide
 
-example : responseValueIncludes (.object "Query" [hero]) (.object "Query" [hero]) := by
-  simp only [responseValueIncludes]
+example
+    : annotatedResponseValueIncludes (.object "Query" [hero])
+        (.object "Query" [hero]) := by
+  simp only [annotatedResponseValueIncludes]
   intro rightName rightCall rightValue hmember
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hmember
   injection hmember with hname hcall hvalue
@@ -32,7 +34,7 @@ example : responseValueIncludes (.object "Query" [hero]) (.object "Query" [hero]
   refine ⟨"mainHero", heroCall, .scalar "R2-D2", by simp [hero], rfl, ?_, ?_⟩
   · exact (sameFieldProvenance_iff _ _).mpr
       ⟨rfl, rfl, by simp [heroCall, Argument.argumentsEquivalent]⟩
-  · simp only [responseValueIncludes]
+  · simp only [annotatedResponseValueIncludes]
 
 def villainCall : ResolvedFieldProvenance :=
   {
@@ -46,10 +48,10 @@ def wrongProvenance : AnnotatedResponseField :=
   .resolved "mainHero" villainCall (.scalar "Vader")
 
 example
-    : ¬ responseValueIncludes (.object "Query" [wrongProvenance])
+    : ¬ annotatedResponseValueIncludes (.object "Query" [wrongProvenance])
           (.object "Query" [hero]) := by
   intro h
-  simp only [responseValueIncludes] at h
+  simp only [annotatedResponseValueIncludes] at h
   rcases h "mainHero" heroCall (.scalar "R2-D2") (by simp [hero]) with
     ⟨candidateName, candidateCall, candidateValue, hmember, hname, hcall, _⟩
   simp only [List.mem_cons, List.not_mem_nil, or_false] at hmember
@@ -738,6 +740,157 @@ theorem selectionSetIncludes_rejectsMissingFeasibleRightSmoke
     : selectionSetIncludesBoolWithFuel emptyCompositeSchema 2 "Query" []
         infeasibleEmptySelection feasibleValueSelection
       = false := by
+  native_decide
+
+-----------------------------------------------------------------------------------------
+-- Spec-level response-unobservable boundary
+-----------------------------------------------------------------------------------------
+
+-- Pairwise fragment overlaps are nonempty (`O ∩ T1 = {A}`, `T1 ∩ T2 = {B}`), but no
+-- object type is in all three of `O`, `T1`, `T2`. A doubly nested fragment therefore
+-- collects nothing at every runtime type reachable from an `O`-typed field.
+def responseUnobservableSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .object
+          {
+            name := "Query"
+            fields :=
+              [
+                { name := "p1", outputType := .nonNull (.named "O") },
+                { name := "p2", outputType := .nonNull (.named "O") }
+              ]
+          },
+        .interface { name := "O", fields := [] },
+        .interface { name := "T1", fields := [] },
+        .interface
+          { name := "T2", fields := [{ name := "x", outputType := .named "String" }] },
+        .object { name := "A", fields := [], interfaces := ["O", "T1"] },
+        .object
+          {
+            name := "B"
+            fields := [{ name := "x", outputType := .named "String" }]
+            interfaces := ["T1", "T2"]
+          },
+        .object
+          {
+            name := "C"
+            fields := [{ name := "x", outputType := .named "String" }]
+            interfaces := ["T2", "O"]
+          }
+      ]
+  }
+
+def responseUnobservableBody : List Selection :=
+  [.inlineFragment (some "T1") []
+    [.inlineFragment (some "T2") [] [.field "x" "x" [] [] []]]]
+
+def responseUnobservableLeft : Operation :=
+  { name := some "L", selectionSet := [.field "p" "p1" [] [] responseUnobservableBody] }
+
+def responseUnobservableRight : Operation :=
+  { name := some "R", selectionSet := [.field "p" "p2" [] [] responseUnobservableBody] }
+
+-- A resolver family may answer `p1` and `p2` with different concrete objects; under the
+-- non-null wrapper, only objects in `O`'s possible types complete without an error.
+def responseUnobservableResolvers : GraphQL.Execution.Resolvers :=
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        some
+        <| match parentType, fieldName with
+            | "Query", "p1" => .object "A" ()
+            | "Query", "p2" => .object "C" ()
+            | _, "x" => .scalar "never-collected"
+            | _, _ => .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl
+  }
+
+def responseUnobservableNullProbe : GraphQL.Execution.Resolvers :=
+  {
+    resolve :=
+      fun parentType fieldName _arguments _source =>
+        some
+        <| match parentType, fieldName with
+            | "Query", "p1" => .null
+            | "Query", "p2" => .object "C" ()
+            | _, _ => .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl
+  }
+
+-- The checker rejects on resolver-call provenance (`p1` versus `p2`).
+theorem responseUnobservable_checkerRejectsSmoke
+    : includesBool responseUnobservableSchema responseUnobservableLeft
+        responseUnobservableRight
+      = false := by
+  native_decide
+
+mutual
+  def unobservableResponseEqBool
+      : GraphQL.Execution.ResponseValue -> GraphQL.Execution.ResponseValue -> Bool
+    | .null, .null => true
+    | .scalar left, .scalar right => left == right
+    | .object left, .object right => unobservableResponseFieldsEqBool left right
+    | .list left, .list right => unobservableResponseValuesEqBool left right
+    | _, _ => false
+
+  def unobservableResponseFieldsEqBool
+      : List (Name × GraphQL.Execution.ResponseValue)
+        -> List (Name × GraphQL.Execution.ResponseValue) -> Bool
+    | [], [] => true
+    | (leftName, leftValue) :: lefts, (rightName, rightValue) :: rights =>
+        leftName == rightName
+        && unobservableResponseEqBool leftValue rightValue
+        && unobservableResponseFieldsEqBool lefts rights
+    | _, _ => false
+
+  def unobservableResponseValuesEqBool
+      : List GraphQL.Execution.ResponseValue -> List GraphQL.Execution.ResponseValue
+        -> Bool
+    | [], [] => true
+    | left :: lefts, right :: rights =>
+        unobservableResponseEqBool left right
+        && unobservableResponseValuesEqBool lefts rights
+    | _, _ => false
+end
+
+-- Yet the spec responses cannot tell the operations apart: both produce `{p: {}}` even
+-- when the two fields resolve to different concrete objects, so `includesUnannotated` holds for
+-- this pair while the checker rejects. This is why `IncludesToIncludesUnannotated` has
+-- no converse statement: plain responses cannot observe the differing resolver calls.
+theorem responseUnobservable_equalResponsesSmoke
+    : unobservableResponseEqBool
+          (GraphQL.Execution.executeQuery responseUnobservableSchema
+            responseUnobservableResolvers [] responseUnobservableLeft
+            (.object "Query" ())).data
+          (GraphQL.Execution.executeQuery responseUnobservableSchema
+            responseUnobservableResolvers [] responseUnobservableRight
+            (.object "Query" ())).data
+        = true
+      ∧ (GraphQL.Execution.executeQuery responseUnobservableSchema
+          responseUnobservableResolvers [] responseUnobservableLeft
+          (.object "Query" ())).errors
+        = 0
+      ∧ (GraphQL.Execution.executeQuery responseUnobservableSchema
+          responseUnobservableResolvers [] responseUnobservableRight
+          (.object "Query" ())).errors
+        = 0 := by
+  native_decide
+
+-- Null-signaling cannot separate the two fields either: under the non-null wrapper a
+-- null resolver result is an execution error, so no error-free distinguishing pair
+-- exists.
+theorem responseUnobservable_nullProbeErrorsSmoke
+    : (GraphQL.Execution.executeQuery responseUnobservableSchema
+        responseUnobservableNullProbe [] responseUnobservableLeft
+        (.object "Query" ())).errors
+      = 1 := by
   native_decide
 
 end GraphQL.Tests.QueryInclusion

@@ -2,7 +2,7 @@ import GraphQL.Theories.AnnotatedExecution
 import GraphQL.Algorithms.Common
 import GraphQL.Theories.ExecutionReadiness
 import GraphQL.Theories.SelectionConditions
-import GraphQL.Theories.ResponseDepth
+import GraphQL.Theories.ResponseMeasure
 import GraphQL.SchemaWellFormedness
 
 /-! GraphQL query inclusion over concrete annotated execution. -/
@@ -80,7 +80,8 @@ instance sameFieldProvenanceDecidable : DecidableRel sameFieldProvenance :=
 -- `left`. Object fields are matched by response name and concrete resolver-call
 -- provenance. List elements are matched recursively at their response positions.
 -- Leaves have no nested response fields, so they add no inclusion obligation.
-def responseValueIncludes : AnnotatedResponseValue -> AnnotatedResponseValue -> Prop
+def annotatedResponseValueIncludes
+    : AnnotatedResponseValue -> AnnotatedResponseValue -> Prop
   | .object _ leftFields, .object _ rightFields =>
       ∀ rightName rightCall rightValue,
         (hmember : .resolved rightName rightCall rightValue ∈ rightFields)
@@ -88,13 +89,13 @@ def responseValueIncludes : AnnotatedResponseValue -> AnnotatedResponseValue -> 
             .resolved leftName leftCall leftValue ∈ leftFields
             ∧ leftName = rightName
             ∧ sameFieldProvenance leftCall rightCall
-            ∧ responseValueIncludes leftValue rightValue
+            ∧ annotatedResponseValueIncludes leftValue rightValue
   | .list leftValues, .list rightValues =>
       ∀ (index : Nat) rightValue,
         (hmember : rightValues[index]? = some rightValue)
         -> ∃ leftValue,
             leftValues[index]? = some leftValue
-            ∧ responseValueIncludes leftValue rightValue
+            ∧ annotatedResponseValueIncludes leftValue rightValue
   | _, .object _ _ => False
   | _, .list _ => False
   | _, .null => True
@@ -126,7 +127,7 @@ def includes (schema : Schema) (left right : Operation) : Prop :=
         executeQueryAnnotated schema resolvers variableValues right source
       leftResponse.errors = 0
       -> rightResponse.errors = 0
-      -> responseValueIncludes leftResponse.data rightResponse.data
+      -> annotatedResponseValueIncludes leftResponse.data rightResponse.data
 
 -----------------------------------------------------------------------------------------
 -- Common implementation utilities
@@ -839,7 +840,7 @@ def comparisonBranchesArgumentCoercible (schema : Schema) (left right : Operatio
 
 -- Public completeness direction for valid operations. Shared-definition compatibility
 -- is part of `includes` itself and therefore does not need a separate premise here.
--- Argument-coercible branch extensions and composite-return inhabitance rule out vacuous
+-- Argument-coercible and composite-return inhabitance assumptions rule out vacuous
 -- semantic inclusion by supplying an error-free witness for every checked branch.
 -- Its theorem witness is `QueryInclusion.includesBool_complete` in the corresponding
 -- proof module.
@@ -852,6 +853,78 @@ def IncludesBoolComplete (schema : Schema) (left right : Operation) : Prop :=
   -> comparisonBranchesArgumentCoercible schema left right
   -> includes schema left right
   -> includesBool schema left right = true
+
+-----------------------------------------------------------------------------------------
+-- `includesUnannotated`: Unannotated query inclusion
+-- * This is a demonstration of why annotated execution is necessary to specify
+--   `includesBool`.
+-- * `includes` implies `includesUnannotated`, but not the other way around.
+-----------------------------------------------------------------------------------------
+
+-- Unannotated counterpart of `annotatedResponseValueIncludes` over plain response
+-- values. Plain responses carry no resolver-call provenance, so agreement is stated on
+-- the values themselves: leaves must be equal, object fields are matched by response
+-- name, and list elements are matched at their response positions.
+def responseValueIncludes : ResponseValue -> ResponseValue -> Prop
+  | .object leftFields, .object rightFields =>
+      ∀ rightName rightValue,
+        (hmember : (rightName, rightValue) ∈ rightFields)
+        -> ∃ leftValue,
+            (rightName, leftValue) ∈ leftFields
+            ∧ responseValueIncludes leftValue rightValue
+  | .list leftValues, .list rightValues =>
+      ∀ (index : Nat) rightValue,
+        (hmember : rightValues[index]? = some rightValue)
+        -> ∃ leftValue,
+            leftValues[index]? = some leftValue
+            ∧ responseValueIncludes leftValue rightValue
+  | _, .object _ => False
+  | _, .list _ => False
+  | left, .null => left = .null
+  | left, .scalar value => left = .scalar value
+termination_by _left right => right.structuralSize
+decreasing_by
+  all_goals
+    first
+    | exact ResponseValue.structuralSize_lt_of_object_field_mem hmember
+    | exact ResponseValue.structuralSize_lt_of_list_get? hmember
+
+-- Unannotated query inclusion: the statement of `includes` with executions taken from
+-- the spec executor `executeQuery` and inclusion checked on plain response values.
+-- Resolver provenance is not observable in plain responses, so leaf-value agreement
+-- takes its place.
+def includesUnannotated (schema : Schema) (left right : Operation) : Prop :=
+  sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
+    right.variableDefinitions
+  ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+      (variableValues : VariableValues) (source : ResolverValue ObjectRef),
+      let leftResponse := executeQuery schema resolvers variableValues left source
+      let rightResponse := executeQuery schema resolvers variableValues right source
+      leftResponse.errors = 0
+      -> rightResponse.errors = 0
+      -> responseValueIncludes leftResponse.data rightResponse.data
+
+-- Public agreement statement: for valid operations, semantic query inclusion implies
+-- unannotated query inclusion. Only well-formedness and validity are required: the
+-- implication is pointwise, transferring the annotated relation onto the projected plain
+-- responses of the same execution pair, so no execution witnesses need to be constructed.
+-- Its theorem witness is `QueryInclusion.includesToIncludesUnannotated` in the
+-- corresponding proof module.
+def IncludesToIncludesUnannotated (schema : Schema) (left right : Operation) : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema left
+  -> Validation.operationDefinitionValid schema right
+  -> includes schema left right
+  -> includesUnannotated schema left right
+
+-- Note: `includesUnannotated` cannot imply `includes`: the annotated relation observes
+-- the resolver call behind every response field, while plain responses expose calls only
+-- through values. A non-null composite field whose subselections collect no fields at
+-- any runtime type produces the empty object under every error-free execution, so two
+-- such fields with different names are indistinguishable in every plain response even
+-- though `includes` fails for the pair and `includesBool` rejects it. The
+-- response-unobservable guard in `Tests.GraphQL.Theories.QueryInclusion` witnesses this
+-- boundary.
 
 end QueryInclusion
 end GraphQL

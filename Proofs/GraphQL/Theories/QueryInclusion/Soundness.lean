@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.QueryInclusion.GuardedFieldGroup
+import Proofs.GraphQL.Theories.AnnotatedExecution
 
 /-! Soundness of the executable query-inclusion checker. -/
 
@@ -415,6 +416,178 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
   exact includes_of_selectionSetChecks hschema hleftValid hrightValid hroot
     ((sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mp hdefinitions)
     hselectionChecks
+
+-- Semantic query inclusion transfers pointwise onto the projected plain responses of
+-- the same execution pair, so only operation validity is needed: no execution witnesses
+-- are constructed. Witnesses `QueryInclusion.IncludesToIncludesUnannotated`.
+theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
+    : IncludesToIncludesUnannotated schema left right := by
+  intro _hschema _hleftValid _hrightValid hincludes
+  have hroot : left.rootType schema = right.rootType schema := by
+    rw [Validation.operationDefinitionValid_rootType_eq _hleftValid,
+      Validation.operationDefinitionValid_rootType_eq _hrightValid]
+  refine ⟨hincludes.1, ?_⟩
+  intro ObjectRef resolvers suppliedValues source
+  dsimp only
+  intro hleftErrors hrightErrors
+  have hleftEqual := executeQueryAnnotated_equal schema left ObjectRef resolvers
+    suppliedValues source
+  have hrightEqual := executeQueryAnnotated_equal schema right ObjectRef resolvers
+    suppliedValues source
+  have hleftAnnotatedErrors :
+      (executeQueryAnnotated schema resolvers suppliedValues left source).errors = 0 := by
+    have herrors := congrArg Response.errors hleftEqual
+    simp only [AnnotatedResponse.toResponse] at herrors
+    rw [herrors]
+    exact hleftErrors
+  have hrightAnnotatedErrors :
+      (executeQueryAnnotated schema resolvers suppliedValues right source).errors
+        = 0 := by
+    have herrors := congrArg Response.errors hrightEqual
+    simp only [AnnotatedResponse.toResponse] at herrors
+    rw [herrors]
+    exact hrightErrors
+  have hguide := hincludes.2 ObjectRef resolvers suppliedValues source
+    hleftAnnotatedErrors hrightAnnotatedErrors
+  rcases executeQueryAnnotated_zero_error_decompose schema resolvers suppliedValues left
+      source hleftAnnotatedErrors with
+    ⟨runtimeType, ref, leftFields, hsource, hleftRuntime, hleftData, hleftResult⟩
+  subst source
+  rcases executeQueryAnnotated_zero_error_decompose schema resolvers suppliedValues right
+      (.object runtimeType ref) hrightAnnotatedErrors with
+    ⟨rightRuntimeType, rightRef, rightFields, hsource, hrightRuntime, hrightData,
+      hrightResult⟩
+  injection hsource with hruntimeType href
+  subst rightRuntimeType
+  subst rightRef
+  rw [hleftData, hrightData] at hguide
+  have hleftVariableDefinitionsValid :=
+    Validation.operationDefinitionValid_variableDefinitionsValid _hleftValid
+  have hrightVariableDefinitionsValid :=
+    Validation.operationDefinitionValid_variableDefinitionsValid _hrightValid
+  have hleftSelectionValid :=
+    Validation.operationDefinitionValid_selectionSetValid _hleftValid
+  have hrightSelectionValid :=
+    Validation.operationDefinitionValid_selectionSetValid _hrightValid
+  have hleftDefinitionOfSelectionVariable : ∀ variableName,
+      variableName ∈ Validation.selectionSetVariables left.selectionSet
+      -> ∃ definition,
+          definition ∈ left.variableDefinitions
+          ∧ definition.name = variableName := by
+    intro variableName hvariable
+    rcases Validation.selectionSetValid_variable_defined left.selectionSet
+        hleftSelectionValid hvariable with
+      ⟨definition, hlookup⟩
+    unfold Validation.getVariableDefinition? at hlookup
+    have hname : (definition.name == variableName) = true :=
+      List.find?_some
+        (p := fun candidate : VariableDefinition => candidate.name == variableName)
+        hlookup
+    exact ⟨definition, List.mem_of_find?_eq_some hlookup,
+      beq_iff_eq.mp hname⟩
+  have hrightDefinitionOfSelectionVariable : ∀ variableName,
+      variableName ∈ Validation.selectionSetVariables right.selectionSet
+      -> ∃ definition,
+          definition ∈ right.variableDefinitions
+          ∧ definition.name = variableName := by
+    intro variableName hvariable
+    rcases Validation.selectionSetValid_variable_defined right.selectionSet
+        hrightSelectionValid hvariable with
+      ⟨definition, hlookup⟩
+    unfold Validation.getVariableDefinition? at hlookup
+    have hname : (definition.name == variableName) = true :=
+      List.find?_some
+        (p := fun candidate : VariableDefinition => candidate.name == variableName)
+        hlookup
+    exact ⟨definition, List.mem_of_find?_eq_some hlookup,
+      beq_iff_eq.mp hname⟩
+  have hcommonLookups : ∀ variableName,
+      variableName ∈ Validation.selectionSetVariables left.selectionSet
+      -> variableName ∈ Validation.selectionSetVariables right.selectionSet
+      -> Option.Rel
+          (fun leftValue rightValue =>
+            InputValue.equivalent leftValue.toInputValue rightValue.toInputValue)
+          (lookupVariableValue? (coerceVariableValues left suppliedValues) variableName)
+          (lookupVariableValue? (coerceVariableValues right suppliedValues)
+            variableName) := by
+    intro variableName hleftVariable hrightVariable
+    rcases hleftDefinitionOfSelectionVariable variableName hleftVariable with
+      ⟨leftDefinition, hleftDefinition, hleftName⟩
+    rcases hrightDefinitionOfSelectionVariable variableName hrightVariable with
+      ⟨rightDefinition, hrightDefinition, hrightName⟩
+    simpa [hleftName, hrightName] using
+      coerceVariableValues_shared_lookup_equivalent hincludes.1
+      hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
+      hleftDefinition hrightDefinition (hleftName.trans hrightName.symm)
+      suppliedValues
+  let leftFuel := executeQueryFuelBound schema left
+  let rightFuel := executeQueryFuelBound schema right
+  let commonFuel := max leftFuel rightFuel
+  have hleftCommon :
+      executeQueryAnnotatedCollectedFields schema resolvers
+        (coerceVariableValues left suppliedValues) commonFuel
+        (.object runtimeType ref)
+        (collectFields schema (coerceVariableValues left suppliedValues)
+          (right.rootType schema) (.object runtimeType ref) left.selectionSet)
+        = .ok (leftFields, 0) := by
+    rw [← hroot]
+    change executeQueryAnnotatedCollectedFields schema resolvers
+        (coerceVariableValues left suppliedValues) commonFuel
+        (.object runtimeType ref)
+        (collectFields schema (coerceVariableValues left suppliedValues)
+          (left.rootType schema) (.object runtimeType ref) left.selectionSet)
+        = .ok (leftFields, 0)
+    rw [show commonFuel = leftFuel + (commonFuel - leftFuel) by
+      exact (Nat.add_sub_of_le (Nat.le_max_left _ _)).symm]
+    exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
+      (coerceVariableValues left suppliedValues) leftFuel (.object runtimeType ref)
+      (collectFields schema (coerceVariableValues left suppliedValues)
+        (left.rootType schema) (.object runtimeType ref) left.selectionSet)
+      leftFields hleftResult (commonFuel - leftFuel)
+  have hrightCommon :
+      executeQueryAnnotatedCollectedFields schema resolvers
+        (coerceVariableValues right suppliedValues) commonFuel
+        (.object runtimeType ref)
+        (collectFields schema (coerceVariableValues right suppliedValues)
+          (right.rootType schema) (.object runtimeType ref) right.selectionSet)
+        = .ok (rightFields, 0) := by
+    rw [show commonFuel = rightFuel + (commonFuel - rightFuel) by
+      exact (Nat.add_sub_of_le (Nat.le_max_right _ _)).symm]
+    exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
+      (coerceVariableValues right suppliedValues) rightFuel (.object runtimeType ref)
+      (collectFields schema (coerceVariableValues right suppliedValues)
+        (right.rootType schema) (.object runtimeType ref) right.selectionSet)
+      rightFields hrightResult (commonFuel - rightFuel)
+  have hleftNodup : selectionSetArgumentsNodup left.selectionSet :=
+    Execution.selectionSetArgumentsNodup_of_selectionSetValid
+      (Validation.operationDefinitionValid_selectionSetValid _hleftValid)
+  have hrightNodup : selectionSetArgumentsNodup right.selectionSet :=
+    Execution.selectionSetArgumentsNodup_of_selectionSetValid
+      (Validation.operationDefinitionValid_selectionSetValid _hrightValid)
+  have hleftDataEq :
+      (executeQuery schema resolvers suppliedValues left
+          (.object runtimeType ref)).data
+        = (AnnotatedResponseValue.object runtimeType leftFields).toResponseValue := by
+    rw [← hleftEqual]
+    show (executeQueryAnnotated schema resolvers suppliedValues left
+        (.object runtimeType ref)).data.toResponseValue
+      = (AnnotatedResponseValue.object runtimeType leftFields).toResponseValue
+    rw [hleftData]
+  have hrightDataEq :
+      (executeQuery schema resolvers suppliedValues right
+          (.object runtimeType ref)).data
+        = (AnnotatedResponseValue.object runtimeType rightFields).toResponseValue := by
+    rw [← hrightEqual]
+    show (executeQueryAnnotated schema resolvers suppliedValues right
+        (.object runtimeType ref)).data.toResponseValue
+      = (AnnotatedResponseValue.object runtimeType rightFields).toResponseValue
+    rw [hrightData]
+  rw [hleftDataEq, hrightDataEq]
+  exact annotatedIncludes_unannotated_execution schema resolvers
+    (coerceVariableValues left suppliedValues)
+    (coerceVariableValues right suppliedValues) (right.rootType schema) runtimeType ref
+    left.selectionSet right.selectionSet commonFuel leftFields rightFields hleftNodup
+    hrightNodup hcommonLookups hleftCommon hrightCommon hguide
 
 end QueryInclusion
 end GraphQL

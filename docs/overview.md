@@ -35,7 +35,7 @@ flowchart TD
   NormalForm["GraphQL.Theories.NormalForm"]
   AnnotatedExecution["GraphQL.Theories.AnnotatedExecution"]
   SelectionConditions["GraphQL.Theories.SelectionConditions"]
-  ResponseDepth["GraphQL.Theories.ResponseDepth"]
+  ResponseMeasure["GraphQL.Theories.ResponseMeasure"]
   QueryInclusion["GraphQL.Theories.QueryInclusion"]
   NormalFormGround["Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization"]
   CompleteNormalization["Proofs.GraphQL.Theories.NormalForm.CompleteNormalization"]
@@ -66,11 +66,11 @@ flowchart TD
   Execution --> ExecutionReadiness
   Execution --> AnnotatedExecution
   Execution --> SelectionConditions
-  Operation --> ResponseDepth
+  Operation --> ResponseMeasure
   ExecutionReadiness --> NormalForm
   ExecutionReadiness --> QueryInclusion
   SelectionConditions --> QueryInclusion
-  ResponseDepth --> QueryInclusion
+  ResponseMeasure --> QueryInclusion
   AnnotatedExecution --> QueryInclusion
   Operation --> NamedFragment
   SchemaWF --> NormalForm
@@ -112,7 +112,7 @@ flowchart TD
   NormalForm --> GraphQLRoot
   AnnotatedExecution --> GraphQLRoot
   SelectionConditions --> GraphQLRoot
-  ResponseDepth --> GraphQLRoot
+  ResponseMeasure --> GraphQLRoot
   QueryInclusion --> GraphQLRoot
   Execution --> GraphQLRoot
   GraphQLRoot --> TestsGraphQL
@@ -172,8 +172,9 @@ It should remain definition-only.
 - `GraphQL.Theories.SelectionConditions`: tree-free extraction of response-field
   occurrences annotated with their cumulative type and Boolean conditions. Query
   inclusion consumes this shared condition algebra.
-- `GraphQL.Theories.ResponseDepth`: a structural response-field depth metric shared by
-  recursive execution theories; inline fragments do not consume response depth.
+- `GraphQL.Theories.ResponseMeasure`: structural response measures shared by recursive
+  execution theories: the selection response-field depth metric (inline fragments do not
+  consume response depth) and the plain response-value size with its termination facts.
 - `GraphQL.Theories.QueryInclusion`: recursive response-field inclusion with resolver
   provenance, a simple reference checker, and the optimized guarded field-group checker.
   Its proof modules establish soundness and completeness for valid operations under the

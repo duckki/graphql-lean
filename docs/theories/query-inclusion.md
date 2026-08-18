@@ -64,7 +64,7 @@ Boolean assignment.
 The zero-error restriction prevents resolver failures and null bubbling from erasing
 otherwise required response structure. Composite-return inhabitance is needed only for
 completeness: it supplies error-free witness executions and rules out vacuous semantic
-inclusion when a selected composite return has no possible runtime object.
+inclusion when a selected composite return has no possible runtime types.
 
 ## Response-Local Search
 
