@@ -361,9 +361,7 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
-      hdefinitions hjoint
-      (fun resolvers variableValues fuel source _hcomplete hleftReady hrightReady =>
-        hsem resolvers variableValues fuel source hleftReady hrightReady)
+      hdefinitions hjoint hsem
 
 end CompleteNormalization
 

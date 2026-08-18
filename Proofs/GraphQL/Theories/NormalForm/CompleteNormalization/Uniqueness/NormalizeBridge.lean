@@ -155,7 +155,8 @@ theorem completeNormalizeOperation_uniqueUpToReordering
         (operationBoolVarsComplete_coerceVariableValues
           right variableValues hrightComplete)
     rw [← hleftExecution, ← hrightExecution]
-    exact hsem resolvers variableValues fuel source hleftReady hrightReady
+    exact hsem resolvers variableValues fuel source hleftComplete hleftReady
+      hrightReady
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
