@@ -17,8 +17,9 @@ import GraphQL.Algorithms.ExecutionUngrouped
 import GraphQL.Theories.NormalForm
 import GraphQL.Theories.AnnotatedExecution
 import GraphQL.Theories.SelectionConditions
-import GraphQL.Theories.ResponseDepth
+import GraphQL.Theories.ResponseMeasure
 import GraphQL.Theories.QueryInclusion
+import GraphQL.Theories.ResponsePath
 
 /-!
 Spec reference: GraphQL September 2025.

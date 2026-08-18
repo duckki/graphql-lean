@@ -1,5 +1,5 @@
 import GraphQL.Execution
-import GraphQL.Theories.ResponseDepth
+import GraphQL.Theories.ResponseMeasure
 
 /-! Sufficiency of the public schema-aware execution fuel bound. -/
 
