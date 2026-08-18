@@ -47,12 +47,102 @@ reordering soundness:
 ```
 
 The public API states them separately because their smallest assumption sets differ.
-In particular, complete-normalization soundness for source operations is restricted
-to variable environments containing complete Boolean assignments. This is exactly
-the domain on which complete normalization preserves source-operation execution.
+In particular, every complete-normalization statement uses semantic equivalence
+restricted to variable environments containing complete Boolean assignments
+(`operationsSemanticallyEquivalentForCompleteBoolVars`): the soundness direction as
+its conclusion, and the uniqueness direction as its premise. Both directions
+therefore meet at one relation, and together they say that equality up to
+reordering characterizes exactly semantic equivalence on complete Boolean
+environments. Unrestricted equivalence implies the uniqueness premise, so callers
+holding the full relation weaken it in one step.
+
+### Why Reordering Soundness Requires Complete Boolean Environments
+
+A minterm over the operation's Boolean condition variables is a total assignment
+that pins every support variable exactly once to `true` or `false`, represented as
+a `BoolCase` and characterized by `completeNormalBoolCase`. Complete normalization
+produces one branch per minterm; the branch's directive stem encodes the assignment
+with one single-directive inline fragment per variable — `@include(if: $v)` for
+`v = true` and `@skip(if: $v)` for `v = false` — so a variable environment satisfies
+the minterm exactly when every pinned variable resolves to its pinned value.
+
+Consider one source operation and its complete normal form over the support `$v`:
+
+```graphql
+query ($v: Boolean = true) {
+  id
+  f(a: $v) @skip(if: $v)
+}
+```
+
+```graphql
+query ($v: Boolean = true) {
+  ... @include(if: $v) {   # minterm v = true: f is skipped
+    id
+  }
+  ... @skip(if: $v) {      # minterm v = false
+    id
+    f(a: $v)
+  }
+}
+```
+
+A second source operation that writes `f(a: false)` instead of `f(a: $v)`
+normalizes to the same shape with `f(a: false)` in its `v = false` branch. The two
+normal forms are equal up to reordering with coercion: `=c` pairs branches with
+equivalent minterms and compares their bodies only in environments satisfying the
+paired minterm, and every environment satisfying `v = false` coerces `$v` to the
+literal `false`, making `f(a: $v)` and `f(a: false)` argument-equivalent.
+
+Now execute both normal forms in an environment where `$v` does not resolve to a
+Boolean. For a valid operation this happens when the request supplies an explicit
+`null`: the non-null default makes the nullable `$v` valid at the `if: Boolean!`
+locations (spec 5.8.5), and a supplied `null` is retained rather than defaulted.
+Field collection evaluates each condition with the spec's literal "is true" test
+(spec 6.3.2), so an unresolvable condition behaves like `false`: the
+`... @include(if: $v)` stem is dropped and the `... @skip(if: $v)` stem is kept.
+Both operations therefore answer from their `v = false` branch, exactly as if `$v`
+were `false`. Argument coercion, however, still observes `$v` as `null` rather than
+as `false`: the first operation calls `f` with `a` bound to `null` while the second
+calls it with `a: false`. A resolver that distinguishes the two argument values
+produces different responses, so these `=c`-equal operations are not semantically
+equivalent in that environment.
+
+graphql-js deviates from the spec text in this corner: it coerces directive
+arguments at evaluation time and fails both requests with a located error instead
+of executing the `v = false` branch (see the execution-model notes in
+`docs/spec-conformance.md`). The modeled executor follows the spec text, and the
+theorems quantify over the modeled semantics.
+
+Equality up to reordering therefore cannot constrain environments outside the
+paired minterms — the restriction is a property of the relation, not a proof
+limitation — and `=c -> ~=` holds only on complete Boolean environments. Complete
+normalization also preserves source-operation execution on exactly that domain
+(`completeNormalizationSemanticsPreserved`), which restricts the source-level
+statements for the same reason.
+
+The precise characterization is that normal-form equality abstracts execution at
+complete Boolean environments and nothing more. Under the stated validity,
+normality, support-equivalence, and joint-coercibility assumptions the two
+directions combine to: `N(left) =c N(right)` exactly when `left` and `right` are
+semantically equivalent on complete Boolean environments — both public directions
+are stated at the restricted relation, the soundness conclusion and the uniqueness
+premise. An operation's normal form
+therefore does not predict behavior at a validly `null` condition variable: two
+operations in the same `=c` class can differ there, as above, and the restricted
+soundness conclusion is that limitation made explicit. The trade-off is inherent
+to coercion-aware argument comparison, which is what identifies `f(a: $v)` under
+the `v = false` minterm with `f(a: false)`; a syntactic argument comparison would
+determine `null`-environment behavior but would separate operations that agree on
+every complete environment. Because field collection treats an unresolved
+condition like `false` while argument coercion does not, no single equality
+relation can capture both fragments.
+
+For directive-free ground normalization the restriction is vacuous: there are no
+Boolean condition variables, and the ground statements remain unrestricted.
 
 For operations that are already complete-normal, equality up to reordering implies
-unrestricted semantic equivalence when
+semantic equivalence on complete Boolean environments when
 `variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions`
 holds. That extra condition is necessary because public execution applies
 operation-specific defaults, while the operation equality relation does not compare
@@ -306,17 +396,21 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> completeNormalOperation schema left
   -> completeNormalOperation schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
-  -> operationsSemanticallyEquivalent schema left right
+  -> operationBoolVarsEquivalent left right
+  -> completeBoolCasesJointlyCoercible schema left right
+  -> operationsSemanticallyEquivalentForCompleteBoolVars schema
+      (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
 ```
 
-For valid operations that are already complete-normal, unrestricted semantic
-equivalence determines Boolean support. If a variable occurred on only one side, a
-runtime environment can leave that variable non-Boolean while assigning the other
-side's support. The first operation then collects no complete branch, while the
-other still has a nonempty executable branch. The proof theorem
-`operationBoolVarsEquivalent_of_completeNormal_semantics` supplies the derived
-support equivalence used by the uniqueness witness.
+Boolean-support equivalence is an explicit premise rather than a consequence of the
+semantic premise. Under the spec-literal directive semantics an unresolvable
+condition variable behaves like `false` during field collection, so an environment
+that leaves a one-sided support variable unresolved no longer distinguishes the two
+operations: the operation using that variable executes its `false` branch instead of
+collecting nothing. Semantic equivalence alone therefore cannot detect one-sided
+support variables whose `true` and `false` branch bodies happen to coincide, and the
+premise supplies the support alignment directly.
 
 The normalization uniqueness theorem, and the main result of this document, is:
 
@@ -332,7 +426,11 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationBoolTypeConditionFeasible schema right
   -> operationBoolVarsEquivalent left right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
-  -> operationsSemanticallyEquivalent schema left right
+  -> completeBoolCasesJointlyCoercible schema
+      (completeNormalizeOperation schema left)
+      (completeNormalizeOperation schema right)
+  -> operationsSemanticallyEquivalentForCompleteBoolVars schema
+      (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)
       (completeNormalizeOperation schema right)

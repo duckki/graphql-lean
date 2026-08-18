@@ -43,7 +43,11 @@ composite field.
 
 The resulting shape is described by `completeNormalOperation`: the operation is
 a complete Boolean DNF at the root, and every branch body is directive-free
-ground-type normal form.
+ground-type normal form. Each root branch is guarded by one minterm of the
+operation's Boolean condition variables — a total assignment pinning every support
+variable exactly once (`completeNormalBoolCase`), encoded as a stem of
+single-directive inline fragments with `@include(if: $v)` for `v = true` and
+`@skip(if: $v)` for `v = false`.
 
 ## Proved Properties
 
@@ -265,8 +269,10 @@ it intentionally does not compare variable types.
   It concludes `completeNormalOperationsEqualUpToReorderingWithCoercion` and
   additionally ignores complete Boolean branch order and minterm stem order;
   field arguments are compared in environments satisfying each paired minterm.
-  Boolean-support equivalence is derived from validity, complete normality, and
-  unrestricted execution equivalence.
+  Boolean-support equivalence is an explicit premise: an unresolvable condition
+  variable behaves like `false` during field collection, so execution equivalence
+  alone cannot detect a one-sided support variable whose branch bodies coincide.
+  Its semantic premise is likewise restricted to complete Boolean environments.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
   is witnessed by
   `completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent` in
@@ -281,7 +287,9 @@ it intentionally does not compare variable types.
   in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization`.
   It uses the same possible-type and Boolean/type-condition feasibility assumptions as
   complete-normalization validity, and compares operations with equivalent Boolean
-  variable support.
+  variable support. Its semantic premise is restricted to complete Boolean
+  environments, matching the soundness conclusion, so the two directions together
+  characterize exactly that fragment of the semantics.
 
 The ground and complete proofs are summarized in
 `docs/theories/normal-form-uniqueness.md`.

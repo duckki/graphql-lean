@@ -1304,6 +1304,11 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
 -- The theorem witness is
 -- `CompleteNormalization.complete_normal_operations_semanticallyEquivalent_equalUpToReordering`
 -- in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
+-- The premise is restricted to complete Boolean environments so that, together with
+-- reordering soundness, equality up to reordering characterizes exactly semantic
+-- equivalence on complete Boolean environments: operations that differ only at
+-- unresolvable condition variables still share one normal form. Unrestricted
+-- equivalence implies the premise, so this statement is the stronger one.
 def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1316,13 +1321,16 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right
   -> completeBoolCasesJointlyCoercible schema left right
-  -> operationsSemanticallyEquivalent schema left right
+  -> operationsSemanticallyEquivalentForCompleteBoolVars schema
+      (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
 
 -- States: φ ≈ ψ → N(φ) ≡ N(ψ)
 -- The theorem witness is
 -- `CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering` in
 -- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
+-- As above, the restricted premise makes normalization canonical for exactly the
+-- complete-Boolean-environment fragment of the semantics.
 def completeNormalizeOperationUniqueUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1339,7 +1347,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> completeBoolCasesJointlyCoercible schema
       (completeNormalizeOperation schema left)
       (completeNormalizeOperation schema right)
-  -> operationsSemanticallyEquivalent schema left right
+  -> operationsSemanticallyEquivalentForCompleteBoolVars schema
+      (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema
       (completeNormalizeOperation schema left)
       (completeNormalizeOperation schema right)
