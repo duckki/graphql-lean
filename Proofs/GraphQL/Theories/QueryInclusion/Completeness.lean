@@ -631,7 +631,7 @@ private theorem spineSelectionIncludes_child
           : coerceArgumentValues schema rightValues definition.arguments
               rightField.arguments with
     | error =>
-        simp [resolveFieldValue, hcoercion] at hrightResolve
+        simp [hcoercion] at hrightResolve
     | success coercedArguments =>
         simpa [resolveFieldValue, spineResolvers, hlookup, hcoercion] using hrightResolve
   subst rightResolved
@@ -696,7 +696,7 @@ private theorem spineSelectionIncludes_child
           : coerceArgumentValues schema leftValues definition.arguments
               leftField.arguments with
     | error =>
-        simp [resolveFieldValue, hcoercion] at hleftResolve
+        simp [hcoercion] at hleftResolve
     | success coercedArguments =>
         simpa [resolveFieldValue, spineResolvers, hleftLookup', hcoercion] using hleftResolve
   subst leftResolved

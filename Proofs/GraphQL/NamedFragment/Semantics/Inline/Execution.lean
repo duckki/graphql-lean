@@ -69,7 +69,7 @@ mutual
                 variableValues fieldDefinition.arguments field.arguments with
             | error =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue, executableFieldToSpec,
+                  executableFieldToSpec,
                   hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :
@@ -275,7 +275,6 @@ mutual
                 variableValues fieldDefinition.arguments field.arguments with
             | error =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
-                  GraphQL.Execution.resolveFieldValue,
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :

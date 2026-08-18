@@ -600,7 +600,7 @@ mutual
                     cases hcoerce : coerceArgumentValues schema variableValues
                         fieldDefinition.arguments field.arguments with
                     | error =>
-                        simp [executeField, resolveFieldValue, hlookup, hcoerce]
+                        simp [executeField, hlookup, hcoerce]
                     | success coercedArguments =>
                         cases hresolve : resolvers.resolve field.parentType
                             field.fieldName coercedArguments source with

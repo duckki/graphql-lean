@@ -702,7 +702,7 @@ mutual
             cases hcoerce : Execution.coerceArgumentValues schema variableValues
                 fieldDefinition.arguments field.arguments with
             | error =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [hlookup,
                   hcoerce]
             | success coercedArguments =>
             have hcomplete :=
@@ -892,7 +892,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWi
                 : Execution.coerceArgumentValues schema variableValues
                     fieldDefinition.arguments arguments with
           | error =>
-              simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+              simp [hlookup,
                 hcoerce]
           | success coercedArguments =>
               have hcomplete :=
@@ -971,14 +971,14 @@ mutual
             cases hcoerce : Execution.coerceArgumentValues schema variableValues
                 fieldDefinition.arguments field.arguments with
             | error =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [hlookup,
                   hcoerce]
             | success coercedArguments =>
             cases hresolve :
                 base.resolve field.parentType field.fieldName
                   coercedArguments source with
             | none =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [Execution.resolveFieldValue, hlookup,
                   hcoerce,
                   fieldPairOrDeepSuccessResolvers_target schema
                     rootSelectionSet base targetParent leftField rightField
@@ -986,7 +986,7 @@ mutual
                     rightArguments coercedArguments source,
                   hresolve]
             | some resolved =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [Execution.resolveFieldValue, hlookup,
                   hcoerce,
                   fieldPairOrDeepSuccessResolvers_target schema
                     rootSelectionSet base targetParent leftField rightField
@@ -1238,7 +1238,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
               cases hresolve
                     : base.resolve targetParent leftField coercedArguments source with
               | none =>
-                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  simp [Execution.resolveFieldValue, hlookup,
                     hcoerce,
                     fieldPairOrDeepSuccessResolvers_left_root schema
                       rootSelectionSet base targetParent leftField rightField
@@ -1246,7 +1246,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
                       source hcoercedArguments,
                     hresolve]
               | some resolved =>
-                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  simp [Execution.resolveFieldValue, hlookup,
                     hcoerce,
                     fieldPairOrDeepSuccessResolvers_left_root schema
                       rootSelectionSet base targetParent leftField rightField
@@ -1327,7 +1327,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
               cases hresolve
                     : base.resolve targetParent rightField coercedArguments source with
               | none =>
-                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  simp [Execution.resolveFieldValue, hlookup,
                     hcoerce,
                     fieldPairOrDeepSuccessResolvers_right_root schema
                       rootSelectionSet base targetParent leftField rightField
@@ -1335,7 +1335,7 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
                       source hcoercedArguments,
                     hresolve]
               | some resolved =>
-                  simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                  simp [Execution.resolveFieldValue, hlookup,
                     hcoerce,
                     fieldPairOrDeepSuccessResolvers_right_root schema
                       rootSelectionSet base targetParent leftField rightField

@@ -211,7 +211,7 @@ theorem executeField_key_mem
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted] at hmem
                   | ok result =>
                       rcases result with ⟨response, errors⟩
@@ -229,7 +229,7 @@ theorem executeField_key_mem
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted] at hmem
                   | ok result =>
                       rcases result with ⟨response, errors⟩
@@ -352,14 +352,14 @@ theorem executeField_pairKeysNodup
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted]
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted]
               | some resolved =>
                   cases hcompleted
@@ -370,14 +370,14 @@ theorem executeField_pairKeysNodup
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted]
                   | ok result =>
                       rcases result with ⟨response, errors⟩
                       simp [GraphQL.Execution.executeFieldData,
                         hfieldExecution,
                         GraphQL.Execution.singleFieldResult,
-                        GraphQL.Execution.Result.getD, hlookup, hresolve,
+                        GraphQL.Execution.Result.getD, hresolve,
                         hcompleted]
 
 theorem specExecuteRootSelectionSet_key_mem

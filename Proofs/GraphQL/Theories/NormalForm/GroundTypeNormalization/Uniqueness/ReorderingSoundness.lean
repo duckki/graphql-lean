@@ -937,7 +937,7 @@ theorem executeField_singleton_equivalent_succ
             : coerceArgumentValues schema variableValues
                 fieldDefinition.arguments rightArguments with
       | error =>
-          simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
+          simp only [executeField, hlookup, hleftCoercion,
             hrightCoercion]
           exact selectionSetResultEquivalent_of_eq rfl
       | success rightCoercedArguments =>

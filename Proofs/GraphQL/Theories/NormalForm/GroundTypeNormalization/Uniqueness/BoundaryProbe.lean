@@ -4562,7 +4562,7 @@ mutual
                 Execution.coerceArgumentValues schema variableValues
                   fieldDefinition.arguments field.arguments with
             | error =>
-                simp [Execution.executeField, Execution.resolveFieldValue,
+                simp [
                   hlookup, hcoercionResult]
             | success coercedArguments =>
                 have hcoercedArguments :
@@ -4574,7 +4574,7 @@ mutual
                     field.arguments fieldDefinition coercedArguments hlookup
                     hcoercionResult
                 rw [hcoercedArguments] at hruntimeResolve hprobeResolve
-                simp [Execution.executeField, Execution.resolveFieldValue,
+                simp [Execution.resolveFieldValue,
                   hlookup, hcoercionResult, hruntimeResolve, hprobeResolve,
                   completeValue_fieldPairRuntimeProbe_resolverValue_eq_fieldPairProbe
                     schema childRootSelectionSet targetParent leftField
@@ -4815,7 +4815,7 @@ mutual
                 Execution.coerceArgumentValues schema variableValues
                   fieldDefinition.arguments field.arguments with
             | error =>
-                simp [Execution.executeField, Execution.resolveFieldValue,
+                simp [
                   hlookup, hcoercionResult]
             | success coercedArguments =>
                 have hcoercedArguments :
@@ -4827,7 +4827,7 @@ mutual
                     field.arguments fieldDefinition coercedArguments hlookup
                     hcoercionResult
                 rw [hcoercedArguments] at hsideResolve hprobeResolve
-                simp [Execution.executeField, Execution.resolveFieldValue,
+                simp [Execution.resolveFieldValue,
                   hlookup, hcoercionResult, hsideResolve, hprobeResolve,
                   completeValue_fieldPairSideRuntimeProbe_resolverValue_eq_fieldPairProbe
                     schema leftChildRootSelectionSet rightChildRootSelectionSet
