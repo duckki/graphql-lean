@@ -396,7 +396,7 @@ theorem includes_refl (schema : Schema) (operation : Operation)
     operation.variableDefinitions hdefinitions, ?_⟩
   intro ObjectRef resolvers variableValues source
   dsimp
-  intro _leftComplete _rightComplete _errors _errors
+  intro _errors _errors
   exact responseValueIncludes_refl _
 
 theorem includes_refl_of_valid (schema : Schema) (operation : Operation)
@@ -406,18 +406,13 @@ theorem includes_refl_of_valid (schema : Schema) (operation : Operation)
 
 -- Shared-definition compatibility is pair-local and is not transitive when the middle
 -- operation omits a name shared by the endpoints. The endpoint premise isolates that
--- boundary; completeness of the middle operation's conditions supplies both composed
--- executions with their additional run-specific premise.
+-- boundary; error-freeness of the middle operation supplies both composed executions
+-- with their remaining run-specific premise.
 theorem includes_trans_of_middle_error_free (schema : Schema)
     (left middle right : Operation)
     (endpointSharedVariableDefinitions
       : sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
           right.variableDefinitions)
-    (middleConditionValuesComplete
-      : ∀ variableValues,
-          boolVarsComplete
-            (SelectionConditions.selectionSetBooleanVariables middle.selectionSet)
-            (coerceVariableValues middle variableValues))
     (middleErrorFree
       : ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
           (variableValues : VariableValues) (source : ResolverValue ObjectRef),
@@ -431,12 +426,11 @@ theorem includes_trans_of_middle_error_free (schema : Schema)
   refine ⟨endpointSharedVariableDefinitions, ?_⟩
   intro ObjectRef resolvers variableValues source
   dsimp only at leftMiddle middleRight ⊢
-  intro hleftComplete hrightComplete leftErrors rightErrors
-  have hmiddleComplete := middleConditionValuesComplete variableValues
+  intro leftErrors rightErrors
   exact responseValueIncludes_trans _ _ _
-    (leftMiddle ObjectRef resolvers variableValues source hleftComplete hmiddleComplete
-      leftErrors (middleErrorFree ObjectRef resolvers variableValues source))
-    (middleRight ObjectRef resolvers variableValues source hmiddleComplete hrightComplete
+    (leftMiddle ObjectRef resolvers variableValues source leftErrors
+      (middleErrorFree ObjectRef resolvers variableValues source))
+    (middleRight ObjectRef resolvers variableValues source
       (middleErrorFree ObjectRef resolvers variableValues source) rightErrors)
 
 end QueryInclusion

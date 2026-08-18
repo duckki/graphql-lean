@@ -167,7 +167,7 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
   refine ⟨hdefinitions', ?_⟩
   intro ObjectRef resolvers suppliedValues source
   dsimp only
-  intro hleftComplete hrightComplete hleftErrors hrightErrors
+  intro hleftErrors hrightErrors
   rcases executeQueryAnnotated_zero_error_decompose schema resolvers suppliedValues left
       source hleftErrors with
     ⟨runtimeType, ref, leftFields, hsource, hleftRuntime, hleftData, hleftResult⟩
@@ -241,18 +241,6 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
   let conditionValues :=
     coerceVariableValues right suppliedValues
       ++ coerceVariableValues left suppliedValues
-  have hconditionRight : ∀ variableName value,
-      inputValueBoolean? (coerceVariableValues right suppliedValues)
-          (.variable variableName) = some value
-      -> inputValueBoolean? conditionValues (.variable variableName) = some value := by
-    intro variableName value hvalue
-    dsimp only [conditionValues]
-    simp only [inputValueBoolean?, lookupVariableValue?_append]
-    cases hlookup
-          : lookupVariableValue? (coerceVariableValues right suppliedValues)
-              variableName with
-    | none => simp [inputValueBoolean?, hlookup] at hvalue
-    | some resolved => simpa [inputValueBoolean?, hlookup] using hvalue
   have hconditionLeft : ∀ variableName,
       variableName ∈ Validation.selectionSetVariables left.selectionSet
       -> inputValueBoolean? conditionValues (.variable variableName)
@@ -292,26 +280,13 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
       rw [hleftLookup]
       cases lookupVariableValue? suppliedValues variableName <;>
         cases leftDefinition.defaultValue <;> rfl
-  have hcomplete : boolVarsComplete
-      (comparisonConditionVariables left.selectionSet right.selectionSet)
-      conditionValues := by
-    intro variableName hvariable
-    simp only [comparisonConditionVariables, List.mem_eraseDups,
-      List.mem_append] at hvariable
-    cases hvariable with
-    | inl hleft =>
-        rcases hleftComplete variableName hleft with ⟨value, hvalue⟩
-        exact ⟨value, (hconditionLeft variableName
-          (modeledConditionVariable_mem_selectionVariables left.selectionSet
-            variableName hleft)).trans hvalue⟩
-    | inr hright =>
-        rcases hrightComplete variableName hright with ⟨value, hvalue⟩
-        exact ⟨value, hconditionRight variableName value hvalue⟩
   have hactualCheck :
       selectionSetIncludesBoolWithFuel schema (right.size + 1)
         (right.rootType schema) conditionValues
         left.selectionSet right.selectionSet = true :=
-    hselectionChecks conditionValues hcomplete
+    selectionSetIncludesBoolWithFuel_of_complete_checks schema (right.size + 1)
+      (right.rootType schema) left.selectionSet right.selectionSet
+      hselectionChecks conditionValues
   let leftFuel := executeQueryFuelBound schema left
   let rightFuel := executeQueryFuelBound schema right
   let commonFuel := max leftFuel rightFuel
@@ -368,10 +343,50 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
       (selectionBooleanVariable_mem_selectionVariables left.selectionSet variableName
         hvariable)
   · intro variableName hvariable
-    have hmodeled := validSelectionSetBooleanVariable_isModeled hrightSelectionValid
-      hvariable
-    rcases hrightComplete variableName hmodeled with ⟨value, hvalue⟩
-    exact (hconditionRight variableName value hvalue).trans hvalue.symm
+    have hrightVariable :
+        variableName ∈ Validation.selectionSetVariables right.selectionSet :=
+      selectionBooleanVariable_mem_selectionVariables right.selectionSet variableName
+        hvariable
+    rcases hrightDefinitionOfSelectionVariable variableName hrightVariable with
+      ⟨rightDefinition, hrightDefinition, hrightName⟩
+    dsimp only [conditionValues]
+    simp only [inputValueBoolean?, lookupVariableValue?_append]
+    cases hrightLookup
+          : lookupVariableValue? (coerceVariableValues right suppliedValues)
+              variableName with
+    | some resolved => rfl
+    | none =>
+        have hleftLookup :
+            lookupVariableValue? (coerceVariableValues left suppliedValues) variableName
+              = none := by
+          have hrightAt := lookupVariableValue?_coerceVariableValues_at_definition
+            hrightVariableDefinitionsValid.1 hrightDefinition suppliedValues
+          rw [hrightName, hrightLookup] at hrightAt
+          cases hsupplied : lookupVariableValue? suppliedValues variableName with
+          | some suppliedValue =>
+              rw [hsupplied] at hrightAt
+              simp at hrightAt
+          | none =>
+              by_cases hleftDeclared :
+                  variableName ∈ left.variableDefinitions.map VariableDefinition.name
+              · rcases List.mem_map.mp hleftDeclared with
+                  ⟨leftDefinition, hleftDefinition, hleftName⟩
+                have hrel := coerceVariableValues_shared_lookup_equivalent hdefinitions'
+                  hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
+                  hleftDefinition hrightDefinition
+                  (hleftName.trans hrightName.symm) suppliedValues
+                rw [hleftName, hrightName, hrightLookup] at hrel
+                cases hcandidate
+                      : lookupVariableValue?
+                          (coerceVariableValues left suppliedValues) variableName with
+                | none => rfl
+                | some leftValue =>
+                    rw [hcandidate] at hrel
+                    cases hrel
+              · rw [lookupVariableValue?_coerceVariableValues_of_name_not_defined left
+                  suppliedValues variableName hleftDeclared]
+                exact hsupplied
+        rw [hleftLookup]
   · exact hcommonLookups
   · exact hleftNodup
   · exact hrightNodup

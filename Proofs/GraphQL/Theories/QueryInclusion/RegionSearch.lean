@@ -1445,19 +1445,6 @@ theorem inputValueBoolean?_representativeBooleanValues_eq_some
         simpa only [representativeBooleanValues, inputValueBoolean?,
           lookupVariableValue?, if_neg heq] using ih hrest
 
-theorem representativeBooleanValues_complete
-    (variables : List Name) (variableValues : VariableValues)
-    : boolVarsComplete variables
-        (representativeBooleanValues variables variableValues) := by
-  intro variableName hvariable
-  rcases booleanVariableAssignments_lookup variables
-      (representativeBooleanValues variables variableValues)
-      (representativeBooleanValues_mem variables variableValues)
-      variableName hvariable with ⟨value, hlookup⟩
-  exact ⟨value, by
-    simp [inputValueBoolean?, hlookup, InputValue.staticBoolean?,
-      ConstInputValue.toInputValue]⟩
-
 theorem representativeBooleanValues_agree
     {available : List Name} {knownValues : VariableValues}
     (hknown : KnownBooleanVariablesWithin knownValues available)

@@ -34,14 +34,6 @@ theorem includes_spine_responses
     (suppliedValues : VariableValues)
     (hleftCoercion : operationArgumentsCoercible schema suppliedValues left)
     (hrightCoercion : operationArgumentsCoercible schema suppliedValues right)
-    (hleftComplete
-      : boolVarsComplete
-          (SelectionConditions.selectionSetBooleanVariables left.selectionSet)
-          (coerceVariableValues left suppliedValues))
-    (hrightComplete
-      : boolVarsComplete
-          (SelectionConditions.selectionSetBooleanVariables right.selectionSet)
-          (coerceVariableValues right suppliedValues))
     : ∃ leftFields rightFields,
         executeQueryAnnotated schema (spineResolvers schema) suppliedValues
             left (.object (left.rootType schema) plan)
@@ -62,7 +54,7 @@ theorem includes_spine_responses
     suppliedValues (.object (left.rootType schema) plan)
   dsimp only at hsemantic
   rw [hleft, hright] at hsemantic
-  exact hsemantic hleftComplete hrightComplete rfl rfl
+  exact hsemantic rfl rfl
 
 def wrapCompositeResponse : TypeRef -> AnnotatedResponseValue -> AnnotatedResponseValue
   | .named _typeName, value => value
@@ -289,14 +281,6 @@ theorem includes_root_spineSelectionIncludes
     (suppliedValues : VariableValues)
     (hleftCoercion : operationArgumentsCoercible schema suppliedValues left)
     (hrightCoercion : operationArgumentsCoercible schema suppliedValues right)
-    (hleftComplete
-      : boolVarsComplete
-          (SelectionConditions.selectionSetBooleanVariables left.selectionSet)
-          (coerceVariableValues left suppliedValues))
-    (hrightComplete
-      : boolVarsComplete
-          (SelectionConditions.selectionSetBooleanVariables right.selectionSet)
-          (coerceVariableValues right suppliedValues))
     : SpineSelectionIncludes schema
         (coerceVariableValues left suppliedValues)
         (coerceVariableValues right suppliedValues)
@@ -305,8 +289,8 @@ theorem includes_root_spineSelectionIncludes
   intro plan hplan leftFuel rightFuel leftFields rightFields hleft hright
   have hroot := valid_operations_rootType_eq hleftValid hrightValid
   rcases includes_spine_responses hschema hleftValid hrightValid hleftInhabited
-      hrightInhabited hincludes plan hplan suppliedValues hleftCoercion hrightCoercion
-      hleftComplete hrightComplete with
+      hrightInhabited hincludes plan hplan suppliedValues hleftCoercion
+      hrightCoercion with
     ⟨operationLeftFields, operationRightFields, hleftOperation, hrightOperation,
       hoperationIncludes⟩
   have hleftErrors :
@@ -803,7 +787,7 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         rw [← collectRuntimeFieldGroups_eq_of_boolean_agreement schema leftValues
           rightValues runtimeType runtimeType rightSelectionSet (by
             intro variableName hvariable
-            exact hboolean variableName hvariable)]
+            rw [hboolean variableName hvariable])]
         exact hrightGroup
       have hrightGroupDefault :
           (rightName, rightFields) ∈
@@ -1016,33 +1000,6 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
       simp [comparisonConditionVariables, hvariable]
     exact (hconditionAgreement left variableName hcomparison).symm.trans
       (hconditionAgreement right variableName hcomparison)
-  have hprobeComplete : boolVarsComplete
-      (comparisonConditionVariables left.selectionSet right.selectionSet)
-      (coerceVariableValues left probeValues) := by
-    intro variableName hvariable
-    rcases booleanVariableAssignments_lookup variables conditionValues hconditionValues
-        variableName (by simpa [variables] using hvariable) with ⟨value, hlookup⟩
-    have hconditionBoolean : inputValueBoolean? conditionValues
-        (.variable variableName) = some value := by
-      simp [inputValueBoolean?, hlookup, ConstInputValue.toInputValue,
-        InputValue.staticBoolean?]
-    exact ⟨value,
-      (hconditionAgreement left variableName hvariable).symm.trans hconditionBoolean⟩
-  have hleftComplete : boolVarsComplete
-      (SelectionConditions.selectionSetBooleanVariables left.selectionSet)
-      (coerceVariableValues left probeValues) := by
-    exact boolVarsComplete_mono hprobeComplete (by
-      intro variableName hvariable
-      simp [comparisonConditionVariables, hvariable])
-  have hrightComplete : boolVarsComplete
-      (SelectionConditions.selectionSetBooleanVariables right.selectionSet)
-      (coerceVariableValues right probeValues) := by
-    intro variableName hvariable
-    have hcomparison : variableName ∈ comparisonConditionVariables
-        left.selectionSet right.selectionSet := by
-      simp [comparisonConditionVariables, hvariable]
-    rcases hprobeComplete variableName hcomparison with ⟨value, hvalue⟩
-    exact ⟨value, (hbooleanAgreement variableName hvariable).symm.trans hvalue⟩
   have hleftObject : schema.objectType (left.rootType schema) :=
     NormalForm.CompleteNormalization.operation_root_object_of_valid hschema hleftValid
   have hleftReady : NormalForm.selectionSetSemanticsReady schema
@@ -1068,7 +1025,7 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
     exact hrightInhabited
   have hspine := includes_root_spineSelectionIncludes hschema hleftValid hrightValid
     hleftInhabited hrightInhabited hincludes probeValues hleftArgumentReady
-    hrightArgumentReady hleftComplete hrightComplete
+    hrightArgumentReady
   have hdepth : selectionSetResponseDepth right.selectionSet < right.size + 1 := by
     have := selectionSetResponseDepth_le_size right.selectionSet
     simp only [Operation.size]
@@ -1089,12 +1046,12 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
     (coerceVariableValues left probeValues) left.selectionSet right.selectionSet
     (by
       intro variableName hvariable
-      exact hconditionAgreement left variableName
-        (by simp [comparisonConditionVariables, hvariable]))
+      rw [hconditionAgreement left variableName
+        (by simp [comparisonConditionVariables, hvariable])])
     (by
       intro variableName hvariable
-      exact hconditionAgreement left variableName
-        (by simp [comparisonConditionVariables, hvariable]))
+      rw [hconditionAgreement left variableName
+        (by simp [comparisonConditionVariables, hvariable])])
   rw [← hroot, hagreement]
   exact hcoercedCheck
 

@@ -27,33 +27,78 @@ theorem representativeBooleanValues_mem
           cases value <;>
             simp [representativeBooleanValues, booleanVariableAssignments, hvalue, ih]
 
-theorem inputValueBoolean?_representativeBooleanValues
+-- The representative assignment binds every listed variable to a Boolean, so it is a
+-- complete Boolean environment regardless of the source environment.
+theorem representativeBooleanValues_complete
     (variables : List Name) (variableValues : VariableValues)
-    (hcomplete : boolVarsComplete variables variableValues)
+    : boolVarsComplete variables
+        (representativeBooleanValues variables variableValues) := by
+  induction variables with
+  | nil =>
+      intro variableName hvariable
+      simp at hvariable
+  | cons head rest ih =>
+      intro variableName hvariable
+      by_cases hname : head = variableName
+      · subst head
+        refine ⟨
+          (inputValueBoolean? variableValues (.variable variableName)).getD false,
+          ?_
+        ⟩
+        simp [representativeBooleanValues, inputValueBoolean?, lookupVariableValue?,
+          InputValue.staticBoolean?, ConstInputValue.toInputValue]
+      · have hrest : variableName ∈ rest := by
+          rcases List.mem_cons.mp hvariable with heq | hrest
+          · exact False.elim (hname heq.symm)
+          · exact hrest
+        rcases ih variableName hrest with ⟨value, hvalue⟩
+        refine ⟨value, ?_⟩
+        simpa only [representativeBooleanValues, inputValueBoolean?,
+          lookupVariableValue?, if_neg hname] using hvalue
+
+-- The representative agrees with the source environment on the effective truth of every
+-- listed condition variable: an unresolvable variable behaves like `false` on both
+-- sides. No completeness assumption is needed.
+theorem inputValueBoolean?_representativeBooleanValues_effectiveEq
+    (variables : List Name) (variableValues : VariableValues)
     (variableName : Name) (hvariable : variableName ∈ variables)
-    : inputValueBoolean? (representativeBooleanValues variables variableValues)
-        (.variable variableName)
-      = inputValueBoolean? variableValues (.variable variableName) := by
+    : (inputValueBoolean? (representativeBooleanValues variables variableValues)
+          (.variable variableName)
+        == some true)
+      = (inputValueBoolean? variableValues (.variable variableName) == some true) := by
   induction variables with
   | nil => simp at hvariable
   | cons head rest ih =>
       by_cases hname : head = variableName
       · subst head
-        rcases hcomplete variableName (by simp) with ⟨value, hvalue⟩
-        simp only [representativeBooleanValues]
-        rw [hvalue]
-        simp [inputValueBoolean?, lookupVariableValue?, InputValue.staticBoolean?,
-          ConstInputValue.toInputValue]
+        have hlookup
+            : inputValueBoolean?
+                (representativeBooleanValues (variableName :: rest) variableValues)
+                (.variable variableName)
+              = some
+                  ((inputValueBoolean? variableValues
+                      (.variable variableName)).getD
+                    false) := by
+          simp [representativeBooleanValues, inputValueBoolean?, lookupVariableValue?,
+            InputValue.staticBoolean?, ConstInputValue.toInputValue]
+        rw [hlookup]
+        cases hvalue : inputValueBoolean? variableValues (.variable variableName) with
+        | none => rfl
+        | some value => cases value <;> rfl
       · have hrest : variableName ∈ rest := by
           rcases List.mem_cons.mp hvariable with heq | hrest
           · exact False.elim (hname heq.symm)
           · exact hrest
-        have hrestComplete : boolVarsComplete rest variableValues := by
-          intro candidate hcandidate
-          exact hcomplete candidate (by simp [hcandidate])
-        have hagree := ih hrestComplete hrest
-        simpa only [representativeBooleanValues, inputValueBoolean?,
-          lookupVariableValue?, if_neg hname] using hagree
+        have hskip
+            : inputValueBoolean?
+                (representativeBooleanValues (head :: rest) variableValues)
+                (.variable variableName)
+              = inputValueBoolean? (representativeBooleanValues rest variableValues)
+                  (.variable variableName) := by
+          simp [representativeBooleanValues, inputValueBoolean?, lookupVariableValue?,
+            if_neg hname]
+        rw [hskip]
+        exact ih hrest
 
 theorem booleanVariableAssignments_lookup
     (variables : List Name) (variableValues : VariableValues)
@@ -112,14 +157,34 @@ theorem booleanVariableAssignments_lookup_nonNull
         · simp [lookupVariableValue?, hname] at hlookup
           exact ih tail htail hlookup
 
+-- Directive conditions test exactly whether their variable resolves to `true`, so
+-- condition evaluation factors through that effective Boolean.
+theorem directiveAllowsSelectionBool_skip_variable
+    (variableValues : VariableValues) (variableName : Name)
+    : directiveAllowsSelectionBool variableValues (.skip (.variable variableName))
+      = !(inputValueBoolean? variableValues (.variable variableName) == some true) := by
+  simp only [directiveAllowsSelectionBool]
+  cases inputValueBoolean? variableValues (.variable variableName) with
+  | none => rfl
+  | some value => cases value <;> rfl
+
+theorem directiveAllowsSelectionBool_include_variable
+    (variableValues : VariableValues) (variableName : Name)
+    : directiveAllowsSelectionBool variableValues (.include (.variable variableName))
+      = (inputValueBoolean? variableValues (.variable variableName) == some true) := by
+  simp only [directiveAllowsSelectionBool]
+  cases inputValueBoolean? variableValues (.variable variableName) with
+  | none => rfl
+  | some value => cases value <;> rfl
+
 theorem selectionDirectivesAllowBool_eq_of_agree
     (left right : VariableValues) (directives : List DirectiveApplication)
     (hagrees
       : ∀ variableName,
           variableName
             ∈ directives.filterMap SelectionConditions.directiveBooleanVariable?
-          -> inputValueBoolean? left (.variable variableName)
-              = inputValueBoolean? right (.variable variableName))
+          -> (inputValueBoolean? left (.variable variableName) == some true)
+              = (inputValueBoolean? right (.variable variableName) == some true))
     : selectionDirectivesAllowBool left directives
       = selectionDirectivesAllowBool right directives := by
   induction directives with
@@ -133,9 +198,16 @@ theorem selectionDirectivesAllowBool_eq_of_agree
       have hdirective : directiveAllowsSelectionBool left directive
           = directiveAllowsSelectionBool right directive := by
         cases directive <;> rename_i argument <;> cases argument <;> try rfl
-        all_goals
-          simp only [directiveAllowsSelectionBool]
-          rw [hagrees _ (by simp [SelectionConditions.directiveBooleanVariable?])]
+        case skip.variable variableName =>
+          rw [directiveAllowsSelectionBool_skip_variable,
+            directiveAllowsSelectionBool_skip_variable,
+            hagrees variableName
+              (by simp [SelectionConditions.directiveBooleanVariable?])]
+        case include.variable variableName =>
+          rw [directiveAllowsSelectionBool_include_variable,
+            directiveAllowsSelectionBool_include_variable,
+            hagrees variableName
+              (by simp [SelectionConditions.directiveBooleanVariable?])]
       change (directiveAllowsSelectionBool left directive
           && selectionDirectivesAllowBool left rest)
         = (directiveAllowsSelectionBool right directive
@@ -150,8 +222,8 @@ mutual
       (hagrees
         : ∀ variableName,
             variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet
-            -> inputValueBoolean? left (.variable variableName)
-                = inputValueBoolean? right (.variable variableName))
+            -> (inputValueBoolean? left (.variable variableName) == some true)
+                = (inputValueBoolean? right (.variable variableName) == some true))
       : collectFields schema left parentType source selectionSet
         = collectFields schema right parentType source selectionSet := by
     cases selectionSet with
@@ -177,8 +249,8 @@ mutual
       (hagrees
         : ∀ variableName,
             variableName ∈ SelectionConditions.selectionBooleanVariables selection
-            -> inputValueBoolean? left (.variable variableName)
-                = inputValueBoolean? right (.variable variableName))
+            -> (inputValueBoolean? left (.variable variableName) == some true)
+                = (inputValueBoolean? right (.variable variableName) == some true))
       : collectSelection schema left parentType source selection
         = collectSelection schema right parentType source selection := by
     cases selection with
@@ -227,8 +299,8 @@ theorem collectRuntimeFieldGroups_eq_of_boolean_agreement
     (hagrees
       : ∀ variableName,
           variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet
-          -> inputValueBoolean? left (.variable variableName)
-              = inputValueBoolean? right (.variable variableName))
+          -> (inputValueBoolean? left (.variable variableName) == some true)
+              = (inputValueBoolean? right (.variable variableName) == some true))
     : collectRuntimeFieldGroups schema left parentType runtimeType selectionSet
       = collectRuntimeFieldGroups schema right parentType runtimeType selectionSet := by
   exact collectFields_eq_of_boolean_agreement schema left right parentType

@@ -32,8 +32,10 @@ The `includes` relation has additional deliberate fine print:
   definitions sharing a name must have structurally equal declared types and
   syntactically equivalent defaults, which `includesBool` checks before selection
   analysis;
-- each operation's Boolean condition variables must be complete after that operation
-  materializes its own defaults;
+- every variable environment is constrained, including environments whose Boolean
+  condition variables do not all resolve: an unresolvable `@skip`/`@include` condition
+  behaves like `false` during field collection, so those executions are ordinary
+  error-free executions;
 - only pairs of annotated executions with zero execution errors contribute response-shape
   obligations.
 
@@ -41,8 +43,8 @@ The shared-definition check deliberately avoids omitted/default-aware condition 
 When a shared value is omitted, equivalent defaults give both operations the same value;
 equal declared types ensure that a common supplied probe is accepted at both variable
 boundaries. One-sided defaults may materialize independently. A production caller should
-separately coerce the same request variables for both operations, verify condition
-completeness, and fall back when either operation produces a request or execution error.
+separately coerce the same request variables for both operations and fall back when
+either operation produces a request or execution error.
 The check projects each definition list to names declared by the other operation, then
 compares those projections syntactically up to reordering. This formulation relies on the
 operation-validity premises that reject duplicate variable names; behavior on invalid
