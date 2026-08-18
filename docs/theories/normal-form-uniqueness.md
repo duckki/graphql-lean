@@ -233,8 +233,15 @@ support. The proof theorem
 `operationBoolVarsEquivalent_of_completeNormalOperationsEqualUpToReorderingWithCoercion`
 recovers that fact from the structural relation.
 
-For operations that are already complete-normal, reordering soundness is
-unrestricted under their binary variable-definition equivalence:
+For operations that are already complete-normal, reordering soundness holds on
+complete Boolean environments under their variable-definition
+equivalence. The restriction is necessary: a condition variable that does not
+resolve to a Boolean behaves like `false` during field collection while
+argument coercion still observes it as undefined, so guarded-body comparisons,
+which pin condition variables to their case values, do not constrain such
+environments (`{ f(a: $v) }` and `{ f(a: false) }` under the `$v = false` case
+coerce equivalently at every complete environment but produce different
+resolver calls when `$v` is undefined):
 
 ```lean
 def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
@@ -246,7 +253,8 @@ def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
   -> completeNormalOperation schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
-  -> operationsSemanticallyEquivalent schema left right
+  -> operationsSemanticallyEquivalentForCompleteBoolVars
+      schema (operationBoolVars left) left right
 ```
 
 The theorem witness is
