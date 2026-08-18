@@ -1171,7 +1171,6 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
                     fieldDefinition.arguments field.arguments with
           | error =>
               simp [GraphQL.Execution.executeField,
-                GraphQL.Execution.resolveFieldValue,
                 hlookup, hcoerce,
                 scheduleKeyForFields, ScheduleKey.executableField]
           | success coercedArguments =>

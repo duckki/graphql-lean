@@ -49,11 +49,11 @@ theorem executeField_ok_responseFields_singleton
                   cases hhandled
                         : Execution.handleFieldError fieldDefinition.outputType with
                   | error handledErrors =>
-                      simp [Execution.executeField, hlookup, hresolve,
+                      simp [hlookup, hresolve,
                         Execution.singleFieldResult, hhandled] at hok
                   | ok handled =>
                       rcases handled with ⟨responseValue, handledErrors⟩
-                      simp [Execution.executeField, hlookup, hresolve,
+                      simp [hlookup, hresolve,
                         Execution.singleFieldResult, hhandled] at hok
                       exact ⟨responseValue, hok.1.symm⟩
               | some resolved =>
@@ -62,11 +62,11 @@ theorem executeField_ok_responseFields_singleton
                             fuel fieldDefinition.outputType (field :: rest)
                             resolved with
                   | error completeErrors =>
-                      simp [Execution.executeField, hlookup, hresolve,
+                      simp [hlookup, hresolve,
                         Execution.singleFieldResult, hcomplete] at hok
                   | ok completed =>
                       rcases completed with ⟨responseValue, completeErrors⟩
-                      simp [Execution.executeField, hlookup, hresolve,
+                      simp [hlookup, hresolve,
                         Execution.singleFieldResult, hcomplete] at hok
                       exact ⟨responseValue, hok.1.symm⟩
 

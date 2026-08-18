@@ -1413,7 +1413,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
-          simp [executeField, GraphQL.Execution.executeField, executableField,
+          simp [executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
@@ -1494,7 +1494,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
-          simp [executeField, GraphQL.Execution.executeField, executableField,
+          simp [executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
@@ -1577,7 +1577,7 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
         simpa [resolveFieldValueByName, hlookup] using hresolve
       cases resolved with
       | none =>
-          simp [executeField, GraphQL.Execution.executeField, executableField,
+          simp [executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
             GraphQL.Execution.singleFieldResult]
       | some resolvedValue =>
@@ -1657,7 +1657,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
           cases fieldDefinition with
           | mk definitionName outputType definitionArguments =>
               cases outputType <;>
-                simp [executeField, GraphQL.Execution.executeField,
+                simp [executeField, 
                   executableField, reusablePreviousValue?_none, hlookup,
                   hresolveRuntime, handleFieldError,
                   GraphQL.Execution.singleFieldResult,

@@ -2,6 +2,7 @@ name: Lean Action CI
 
 on:
   push:
+    branches: [main]
   pull_request:
   workflow_dispatch:
 
@@ -11,6 +12,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@v5
+        with:
+          # Full history so the merge-base with the PR target branch is available.
+          fetch-depth: 0
       - uses: leanprover/lean-action@v1
-      - name: Check formatting
+      - name: Check formatting (files changed from target branch)
+        if: github.event_name == 'pull_request'
+        run: ./scripts/fmt-changed.sh --check "origin/${{ github.base_ref }}"
+      - name: Check formatting (all files)
+        if: github.event_name != 'pull_request'
         run: lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Benchmarks Lint

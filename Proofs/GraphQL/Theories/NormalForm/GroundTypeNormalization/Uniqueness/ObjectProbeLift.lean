@@ -129,7 +129,7 @@ mutual
             cases hcoerce : Execution.coerceArgumentValues schema variableValues
                 fieldDefinition.arguments field.arguments with
             | error =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [hlookup,
                   hcoerce]
             | success coercedArguments =>
             have hresolveEq :=
@@ -143,11 +143,11 @@ mutual
                 base.resolve field.parentType field.fieldName
                   coercedArguments source with
             | none =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [Execution.resolveFieldValue, hlookup,
                   hcoerce, hresolveEq,
                   hliftResolve, hresolve]
             | some resolved =>
-                simp [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                simp [Execution.resolveFieldValue, hlookup,
                   hcoerce, hresolveEq,
                   hliftResolve, hresolve,
                   completeValue_parentObjectProbeFieldResolvers_liftResolverValue

@@ -152,10 +152,10 @@ theorem queue_singleFieldResult_executeField_roundtrip
                         variableValues fieldDefinition field.parentType field.fieldName
                         field.arguments source with
               | none =>
-                  simp [GraphQL.Execution.executeField, hlookup, hresolve,
+                  simp [hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]
               | some resolved =>
-                  simp [GraphQL.Execution.executeField, hlookup, hresolve,
+                  simp [hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]
 
 theorem queue_scheduleKeyEqBool_false_of_responseName_ne {left right : ScheduleKey}

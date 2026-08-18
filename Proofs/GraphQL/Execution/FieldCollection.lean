@@ -142,7 +142,7 @@ theorem executeField_same_head_eq_of_completeValue
             : coerceArgumentValues schema variableValues
                 fieldDefinition.arguments arguments with
       | error =>
-          simp [resolveFieldValue, hcoerce]
+          simp [hcoerce]
       | success coercedArguments =>
           cases hresolved
                 : resolvers.resolve parentType fieldName coercedArguments source with

@@ -146,7 +146,7 @@ theorem scope_executeScheduleItem_fromSpecResolvers_lookup_some
         : coerceArgumentValues schema variableValues
             fieldDefinition.arguments item.key.arguments with
   | error =>
-      simp [executeScheduleItem, GraphQL.Execution.resolveFieldValue, hlookup,
+      simp [executeScheduleItem, hlookup,
         hcoerce, ScheduleItem.sources, -List.map_flatten,
         slots_buildFieldSlots_map_none, schedulePendingChildWork]
   | success coercedArguments =>

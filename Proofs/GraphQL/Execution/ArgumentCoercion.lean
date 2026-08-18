@@ -2450,7 +2450,7 @@ private theorem listPermOfNodupSubsetSubset_forVariableDefinitions
       | cons head tail =>
           have hfalse : False := by
             have hmember := hrightSubset head (by simp)
-            simpa using hmember
+            simp at hmember
           exact hfalse.elim
   | cons head tail ih =>
       intro hrightNodup hleftSubset hrightSubset

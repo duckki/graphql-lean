@@ -1424,7 +1424,7 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
       exact deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
         rootSelectionSet objectRef parentType fieldName
         coercedArguments source fieldDefinition hlookup
-  simp [Execution.executeField, hlookup, hresolve]
+  simp [hlookup, hresolve]
 
 theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
     {ObjectRef : Type} (schema : Schema)
@@ -2315,7 +2315,7 @@ theorem executeField_leafProbe_singleton_of_resolve_fuel_ge
         selectionSet := selectionSet
       }]
       value fuel hfuel hleaf
-  simp [Execution.executeField, hlookup, hresolve, hcomplete,
+  simp [hlookup, hresolve, hcomplete,
     Execution.singleFieldResult]
 
 theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
@@ -2423,7 +2423,7 @@ theorem executeField_named_object_of_resolve
               (Execution.ResolverValue.object runtimeType ref)
               childSelectionSet) with
   | error errors =>
-      simp [Execution.executeField, hlookup, hresolve,
+      simp [hlookup, hresolve,
         Execution.completeValue, hinclude,
         Execution.catchBubbleAsNull, Execution.singleFieldResult,
         Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
@@ -2431,7 +2431,7 @@ theorem executeField_named_object_of_resolve
         Execution.collectSubfields, Execution.mergeExecutableGroups, hchild]
   | ok result =>
       rcases result with ⟨fields, errors⟩
-      simp [Execution.executeField, hlookup, hresolve,
+      simp [hlookup, hresolve,
         Execution.completeValue, hinclude,
         Execution.catchBubbleAsNull, Execution.singleFieldResult,
         Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,

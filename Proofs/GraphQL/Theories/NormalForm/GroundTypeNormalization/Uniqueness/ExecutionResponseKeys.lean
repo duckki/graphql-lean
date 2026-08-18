@@ -79,11 +79,11 @@ theorem executeField_ok_keys
                   cases hhandled
                         : Execution.handleFieldError fieldDefinition.outputType with
                   | error fieldErrors =>
-                      simp [Execution.executeField, hlookup, hcoerce,
+                      simp [hlookup, hcoerce,
                         Execution.singleFieldResult, hhandled] at hok
                   | ok handled =>
                       rcases handled with ⟨responseValue, fieldErrors⟩
-                      simp [Execution.executeField, hlookup, hcoerce,
+                      simp [hlookup, hcoerce,
                         Execution.singleFieldResult, hhandled] at hok
                       exact hok.1 ▸ rfl
               | success coercedArguments =>
@@ -94,11 +94,11 @@ theorem executeField_ok_keys
                       cases hhandled
                             : Execution.handleFieldError fieldDefinition.outputType with
                       | error fieldErrors =>
-                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                          simp [hlookup, hcoerce, hresolve,
                             Execution.singleFieldResult, hhandled] at hok
                       | ok handled =>
                           rcases handled with ⟨responseValue, fieldErrors⟩
-                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                          simp [hlookup, hcoerce, hresolve,
                             Execution.singleFieldResult, hhandled] at hok
                           exact hok.1 ▸ rfl
                   | some resolved =>
@@ -107,11 +107,11 @@ theorem executeField_ok_keys
                                 fuel' fieldDefinition.outputType (field :: rest)
                                 resolved with
                       | error completeErrors =>
-                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                          simp [hlookup, hcoerce, hresolve,
                             Execution.singleFieldResult, hcomplete] at hok
                       | ok completed =>
                           rcases completed with ⟨responseValue, childErrors⟩
-                          simp [Execution.executeField, hlookup, hcoerce, hresolve,
+                          simp [hlookup, hcoerce, hresolve,
                             Execution.singleFieldResult, hcomplete] at hok
                           exact hok.1 ▸ rfl
 

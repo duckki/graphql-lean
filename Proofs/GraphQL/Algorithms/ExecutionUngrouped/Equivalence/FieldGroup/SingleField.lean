@@ -90,7 +90,7 @@ theorem
           simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
           | none =>
-              simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
+              simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
           | some resolvedValue =>
               have hcomplete :
                   completeValue schema resolvers variableValues depth
@@ -126,7 +126,7 @@ theorem
                         arguments := arguments
                         selectionSet := selectionSet }] by
                 rfl]
-              simp [visitSubfields, visitSelection, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult, hcomplete]
+              simp [visitSubfields, visitSelection, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, hlookup, hresolve, reusablePreviousValue?, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult, hcomplete]
 
 theorem
     visitSubfields_executableFieldSelections_single_eq_groupedFieldVisitResult_of_contained_child_states
@@ -180,7 +180,7 @@ theorem
           simp [resolveFieldValueByName, hlookup] at hresolve
           cases resolved with
           | none =>
-              simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
+              simp [visitSubfields, visitSelection, executableFieldSelections, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, hlookup, hresolve, reusablePreviousValue?, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult]
           | some resolvedValue =>
               have hcomplete :
                     completeValue schema resolvers variableValues depth
@@ -218,7 +218,7 @@ theorem
                         arguments := arguments
                         selectionSet := selectionSet }] by
                 rfl]
-              simp [visitSubfields, visitSelection, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, GraphQL.Execution.executeField, hlookup, hresolve, reusablePreviousValue?, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult, hcomplete]
+              simp [visitSubfields, visitSelection, executableFieldSelection, executableField, selectionDirectivesAllowBool_empty, responseObjectField?, lookupResponseField?, executeField, hlookup, hresolve, reusablePreviousValue?, mergeResponseFieldResult_empty_eq_groupedFieldVisitResult_singleFieldResult, hcomplete]
 
 theorem visitSubfields_executableFieldSelections_single_aligned_of_contained_child_states
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
@@ -277,7 +277,7 @@ theorem visitSubfields_executableFieldSelections_single_aligned_of_contained_chi
                       executableFieldSelections, executableFieldSelection,
                       executableField, selectionDirectivesAllowBool_empty,
                       responseObjectField?, lookupResponseField?, executeField,
-                      GraphQL.Execution.executeField, hlookup, hresolve,
+                      hlookup, hresolve,
                       reusablePreviousValue?, handleFieldError,
                       groupedFieldVisitResult,
                       GraphQL.Execution.singleFieldResult,
