@@ -35,15 +35,15 @@ theorem literalsForDirectives_variable_mem
               · cases directive with
                 | skip ifArgument =>
                     cases ifArgument with
-                    | null => simp [literalsForDirective] at hhead
-                    | int value => simp [literalsForDirective] at hhead
-                    | float value => simp [literalsForDirective] at hhead
-                    | string value => simp [literalsForDirective] at hhead
+                    | null => simp_all [literalsForDirective]
+                    | int value => simp_all [literalsForDirective]
+                    | float value => simp_all [literalsForDirective]
+                    | string value => simp_all [literalsForDirective]
                     | boolean value =>
                         cases value <;> simp_all [literalsForDirective]
-                    | enum value => simp [literalsForDirective] at hhead
-                    | list values => simp [literalsForDirective] at hhead
-                    | object fields => simp [literalsForDirective] at hhead
+                    | enum value => simp_all [literalsForDirective]
+                    | list values => simp_all [literalsForDirective]
+                    | object fields => simp_all [literalsForDirective]
                     | «variable» variableName =>
                         simp [literalsForDirective] at hhead
                         subst head

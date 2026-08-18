@@ -74,7 +74,17 @@ practical:
 - `coerceVariableValues` models the default-value portion of spec 6.1.2 before
   query execution and therefore before `@skip` / `@include` evaluation.
 - `collectFields` / `collectSubfields` model spec 6.3.2 field collection with
-  ordered list-backed response-name groups.
+  ordered list-backed response-name groups. `@skip` / `@include` conditions are
+  evaluated dynamically during collection with the spec's literal "is true"
+  test and never raise errors: a condition that does not resolve to a Boolean
+  (an undefined variable, an explicit `null`, or a non-Boolean binding) behaves
+  like `false` for both directives, so `@skip` keeps the selection and
+  `@include` drops it. Spec validation (5.8.5) makes the undefined-variable
+  case unreachable for valid documents; the explicit-`null` case is reachable
+  through a nullable variable with a non-null default. Note that graphql-js
+  deviates from the spec algorithm here: it coerces directive arguments at the
+  evaluation point and raises a located error for `null` conditions. The model
+  follows the spec text.
 - `executeRootSelectionSet`, `executeCollectedFields`, `executeField`,
   `completeValue`, and `completeValueList` model the spec 6.3/6.4 execution
   ladder at an explicit recursion-fuel bound.

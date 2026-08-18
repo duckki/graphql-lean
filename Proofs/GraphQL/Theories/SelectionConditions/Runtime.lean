@@ -43,6 +43,7 @@ theorem literalsForDirective_some_allows
     subst literals
     simp [booleanConditionAllows, BooleanLiteral.allows,
       BooleanLiteral.toDirective]
+  all_goals { subst literals; rfl }
 
 theorem literalsForDirective_none_not_allows
     (variableValues : VariableValues) (directive : DirectiveApplication)

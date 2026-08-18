@@ -91,8 +91,11 @@ def allows (variableValues : VariableValues) (literal : BooleanLiteral) : Bool :
 
 end BooleanLiteral
 
--- A constant true directive contributes no literal. `none` represents a constant false
--- or unsupported argument and makes the governed selection infeasible.
+-- A directive that always allows its selection contributes no literal; `none`
+-- represents a directive that never allows it and makes the governed selection
+-- infeasible. An argument that does not resolve to a Boolean behaves like `false`
+-- at runtime, so an unsupported `@skip` argument is a no-op while an unsupported
+-- `@include` argument is infeasible.
 def literalsForDirective : DirectiveApplication -> Option (List BooleanLiteral)
   | .include (.variable variableName) => some [.positive variableName]
   | .skip (.variable variableName) => some [.negative variableName]
@@ -101,7 +104,7 @@ def literalsForDirective : DirectiveApplication -> Option (List BooleanLiteral)
   | .skip (.boolean true) => none
   | .skip (.boolean false) => some []
   | .include _unsupportedArgument => none
-  | .skip _unsupportedArgument => none
+  | .skip _unsupportedArgument => some []
 
 def insertBooleanLiteral (literal : BooleanLiteral)
     : List BooleanLiteral -> Option (List BooleanLiteral)

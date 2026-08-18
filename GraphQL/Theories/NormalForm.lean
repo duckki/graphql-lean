@@ -755,11 +755,14 @@ def inputValueBoolIn? (boolCase : BoolCase) : InputValue -> Option Bool
   | .variable varName => BoolCase.lookup? boolCase varName
   | value => value.staticBoolean?
 
+-- Mirrors `Execution.directiveAllowsSelectionBool` with case-supplied variable values:
+-- a condition that does not resolve to a Boolean behaves like `false` for both
+-- directives, so `@skip` keeps the selection and `@include` drops it.
 def directiveAllowsIn (boolCase : BoolCase) : DirectiveApplication -> Bool
   | .skip ifArgument =>
       match inputValueBoolIn? boolCase ifArgument with
       | some value => !value
-      | none => false
+      | none => true
   | .include ifArgument =>
       match inputValueBoolIn? boolCase ifArgument with
       | some value => value
@@ -1234,23 +1237,6 @@ def completeNormalOperationsEqualUpToReorderingWithCoercion
           (operationBoolVars left) (operationBoolVars right)
           left.selectionSet right.selectionSet
 
--- States: φ ≡ ψ → φ ≈ ψ (when φ and ψ are normal)
--- The theorem witness is
--- `CompleteNormalization.complete_normal_operations_equalUpToReordering_semanticallyEquivalent`
--- in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
-def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
-    (schema : Schema) (left right : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema left
-  -> Validation.operationDefinitionValid schema right
-  -> completeNormalOperation schema left
-  -> completeNormalOperation schema right
-  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
-      right.variableDefinitions
-  -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
-  -> operationsSemanticallyEquivalent schema left right
-
 -- `operationsSemanticallyEquivalent` with an additional assumption that the input
 -- variables include complete Boolean variable assignments. As in the unrestricted
 -- relation, both operations' field arguments must coerce successfully; response error
@@ -1269,6 +1255,31 @@ def operationsSemanticallyEquivalentForCompleteBoolVars
     -> Execution.Response.semanticEquivalent
         (Execution.executeQueryWithFuel schema resolvers variableValues left fuel source)
         (Execution.executeQueryWithFuel schema resolvers variableValues right fuel source)
+
+-- States: φ ≡ ψ → φ ≈ ψ (when φ and ψ are normal)
+-- The theorem witness is
+-- `CompleteNormalization.complete_normal_operations_equalUpToReordering_semanticallyEquivalent`
+-- in `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
+-- The conclusion is restricted to complete Boolean environments. A condition variable
+-- that does not resolve to a Boolean behaves like `false` during field collection while
+-- argument coercion still observes it as undefined, so reordering equality, whose
+-- guarded-body comparisons pin condition variables to their case values, does not
+-- constrain such environments: `{ f(a: $v) }` and `{ f(a: false) }` guarded by the
+-- `$v = false` case coerce equivalently at every complete environment but produce
+-- different resolver calls when `$v` is undefined.
+def completeNormalOperationsEqualUpToReorderingSemanticallyEquivalent
+    (schema : Schema) (left right : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema left
+  -> Validation.operationDefinitionValid schema right
+  -> completeNormalOperation schema left
+  -> completeNormalOperation schema right
+  -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
+      right.variableDefinitions
+  -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
+  -> operationsSemanticallyEquivalentForCompleteBoolVars
+      schema (operationBoolVars left) left right
 
 -- States: N(φ) ≡ N(ψ) → φ ≈ ψ
 -- The theorem witness is

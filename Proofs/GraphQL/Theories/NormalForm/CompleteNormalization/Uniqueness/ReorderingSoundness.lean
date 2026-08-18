@@ -335,6 +335,7 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
       : operationArgumentsCoercible schema variableValues leftOperation)
     (hrightOperationReady
       : operationArgumentsCoercible schema variableValues rightOperation)
+    (hcomplete : boolVarsComplete (leftVar :: leftVariables) variableValues)
     (hobject : objectTypeNameBool schema parentType = true)
     (hequal
       : CompleteNormalSelectionSetEqualUpToReorderingWithCoercion schema
@@ -355,8 +356,6 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
         hdefinitions
     rwa [hleftValues] at hcoerced
   intro ObjectRef resolvers fuel source hsource
-  by_cases hcomplete : boolVarsComplete (leftVar :: leftVariables)
-      variableValues
   · rcases allBoolCases_complete_for_variableValues variableValues
         (leftVar :: leftVariables) hcomplete with
       ⟨runtimeCase, hruntimeMem, hagreesLeft⟩
@@ -537,41 +536,6 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
       unfold Execution.executeSelectionSetAsResponse
       rw [hexecute]
       exact ⟨rfl, rfl⟩
-  · have hmissingExists : ∃ missingVar,
-        missingVar ∈ leftVar :: leftVariables
-          ∧ ∀ value, Execution.inputValueBoolean? variableValues
-            (.variable missingVar) ≠ some value := by
-      exact Classical.byContradiction (fun hnone => by
-        apply hcomplete
-        intro varName hmem
-        exact Classical.byContradiction (fun hnoValue =>
-          hnone ⟨varName, hmem, fun value hvalue =>
-            hnoValue ⟨value, hvalue⟩⟩))
-    rcases hmissingExists with
-      ⟨missingVar, hmissingLeft, hmissingValue⟩
-    have hmissing : Execution.inputValueBoolean? variableValues
-        (.variable missingVar) = none := by
-      cases hvalue
-            : Execution.inputValueBoolean? variableValues (.variable missingVar) with
-      | none => rfl
-      | some value => exact False.elim (hmissingValue value hvalue)
-    have hmissingRight : missingVar ∈ rightVar :: rightVariables :=
-      (hvariables missingVar).1 hmissingLeft
-    have hleftCollect :=
-      collectFields_completeNormalSelectionSet_eq_nil_of_missing_variable
-        schema variableValues parentType source hleftNormal hmissingLeft hmissing
-    have hrightCollect :=
-      collectFields_completeNormalSelectionSet_eq_nil_of_missing_variable
-        schema variableValues parentType source hrightNormal hmissingRight hmissing
-    have hcollect :
-        Execution.collectFields schema variableValues parentType source left =
-          Execution.collectFields schema variableValues parentType source right :=
-      hleftCollect.trans hrightCollect.symm
-    have hexecute := executeSelectionSet_eq_of_collectFields_eq schema resolvers
-      variableValues fuel parentType source left right hcollect
-    unfold Execution.executeSelectionSetAsResponse
-    rw [hexecute]
-    exact ⟨rfl, rfl⟩
 
 private theorem
     complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
@@ -588,14 +552,15 @@ private theorem
       : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
           right.variableDefinitions)
     (hequal : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right)
-    : operationsSemanticallyEquivalent schema left right := by
+    : operationsSemanticallyEquivalentForCompleteBoolVars schema
+        (operationBoolVars left) left right := by
   rcases hequal with ⟨_hroot, hvariables, hselectionEqual⟩
   have hrootType : (left.rootType schema) = (right.rootType schema) := by
     cases left.operationType
     cases right.operationType
     rfl
-  intro ObjectRef resolvers variableValues fuel source hleftOperationReady
-    hrightOperationReady
+  intro ObjectRef resolvers variableValues fuel source hboolComplete
+    hleftOperationReady hrightOperationReady
   have hcoercedValues :
       Execution.variableValuesCoercionEquivalent
         (Execution.coerceVariableValues left variableValues)
@@ -727,6 +692,12 @@ private theorem
                   hrightDefinitionsNodup hdefinitions
                   (coerceVariableValues_idempotent left variableValues)
                   hleftEffectiveReady hrightEffectiveReady
+                  (by
+                    have hcoerced :=
+                      operationBoolVarsComplete_coerceVariableValues left
+                        variableValues hboolComplete
+                    intro varName hmem
+                    exact hcoerced varName (by simpa [hleftVars] using hmem))
                   hrootObject hselectionEqualComplete resolvers fuel source hsource
       have hrightExecution :
           Execution.executeSelectionSetAsResponse schema resolvers
@@ -786,9 +757,11 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
         (completeNormalizeOperation schema left).variableDefinitions
         (completeNormalizeOperation schema right).variableDefinitions := by
     simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
-  have hnormalizedSemantics : operationsSemanticallyEquivalent schema
-      (completeNormalizeOperation schema left)
-      (completeNormalizeOperation schema right) :=
+  have hnormalizedSemantics :
+      operationsSemanticallyEquivalentForCompleteBoolVars schema
+        (operationBoolVars (completeNormalizeOperation schema left))
+        (completeNormalizeOperation schema left)
+        (completeNormalizeOperation schema right) :=
     complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
       (by
         simpa [completeNormalizeOperation, Operation.rootType,
@@ -831,9 +804,49 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
         (completeNormalizeOperation schema right) :=
     operationArgumentsCoercible_completeNormalizeOperation schema right
       variableValues hschema hrightValid hrightComplete hrightReady
+  have hrootObjectLeft : objectTypeNameBool schema (left.rootType schema) = true :=
+    GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
+      hschema hleftValid
+  -- Normalization only introduces case-wrapper directives over the source operation's
+  -- Boolean support, so the normalized support is a subset of the original one.
+  have hnormalizedLeftSubset : ∀ varName,
+      varName ∈ operationBoolVars (completeNormalizeOperation schema left)
+      -> varName ∈ operationBoolVars left := by
+    intro varName hmem
+    unfold operationBoolVars at hmem
+    rw [completeNormalizeOperation_selectionSet] at hmem
+    rw [mem_dedupBoolVars_iff] at hmem
+    cases hleftVars : operationBoolVars left with
+    | nil =>
+        rw [hleftVars] at hmem
+        have hnormal :=
+          completeNormalizeRootSelectionSet_normal_nil schema hschema
+            (left.rootType schema) left.selectionSet
+            (completeNormalizeRootSelectionSet schema [] (left.rootType schema)
+              left.selectionSet) hrootObjectLeft rfl
+        rw [selectionSetDirectiveFree_booleanVariables_nil _ hnormal.2.2] at hmem
+        simp at hmem
+    | cons headVar restVariables =>
+        have hvariablesNodup : (headVar :: restVariables).Nodup := by
+          simpa [hleftVars] using operationBoolVars_nodup left
+        have hnormal :=
+          completeNormalizeRootSelectionSet_normal_cons schema hschema headVar
+            restVariables hvariablesNodup (left.rootType schema) left.selectionSet
+            (completeNormalizeRootSelectionSet schema (headVar :: restVariables)
+              (left.rootType schema) left.selectionSet) hrootObjectLeft rfl
+        rw [hleftVars] at hmem
+        rcases hnormal with ⟨_hvariablesNodup, _hselectionSetNodup, hbranches, _hunique⟩
+        exact selectionSetBooleanVariables_mem_of_completeNormalBranches
+          hbranches hmem
+  have hnormalizedComplete :
+      boolVarsComplete
+        (operationBoolVars (completeNormalizeOperation schema left))
+        variableValues := by
+    intro varName hmem
+    exact hleftComplete varName (hnormalizedLeftSubset varName hmem)
   rw [hleftPreserved, hrightPreserved]
   exact hnormalizedSemantics resolvers variableValues fuel source
-    hleftNormalizedReady hrightNormalizedReady
+    hnormalizedComplete hleftNormalizedReady hrightNormalizedReady
 
 end CompleteNormalization
 

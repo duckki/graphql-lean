@@ -495,13 +495,17 @@ def inputValueBoolean? (variableValues : VariableValues) : InputValue -> Option 
   | value => value.staticBoolean?
 
 -- Spec 6.3.2 `CollectFields` inline `@skip`/`@include` checks: local per-directive
--- helper, not a named spec algorithm.
+-- helper, not a named spec algorithm. The spec skips or includes a selection exactly
+-- when the `if` condition "is true"; a condition that does not resolve to a Boolean
+-- (an undefined variable, an explicit `null`, or a non-Boolean binding) fails that
+-- test without an error, so it behaves like `false` for both directives: `@skip` keeps
+-- the selection and `@include` drops it.
 def directiveAllowsSelectionBool (variableValues : VariableValues)
     : DirectiveApplication -> Bool
   | .skip ifArgument =>
       match inputValueBoolean? variableValues ifArgument with
       | some value => !value
-      | none => false
+      | none => true
   | .include ifArgument =>
       match inputValueBoolean? variableValues ifArgument with
       | some value => value
