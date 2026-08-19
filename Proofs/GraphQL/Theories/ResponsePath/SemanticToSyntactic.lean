@@ -42,7 +42,7 @@ theorem booleanAssignmentOf_inputValueBoolean? (conditionValues : VariableValues
             · exact hrest
           have hexpand : booleanAssignmentOf conditionValues (candidate :: rest)
               = booleanAssignmentOf conditionValues rest := by
-            simp [booleanAssignmentOf, List.filterMap_cons, hcandidate]
+            simp [booleanAssignmentOf, hcandidate]
           rw [hexpand]
           exact booleanAssignmentOf_inputValueBoolean? conditionValues rest variableName
             value hrest hvalue
@@ -50,7 +50,7 @@ theorem booleanAssignmentOf_inputValueBoolean? (conditionValues : VariableValues
           have hexpand : booleanAssignmentOf conditionValues (candidate :: rest)
               = (candidate, candidateValue) :: booleanAssignmentOf conditionValues rest
               := by
-            simp [booleanAssignmentOf, List.filterMap_cons, hcandidate]
+            simp [booleanAssignmentOf, hcandidate]
           rw [hexpand]
           by_cases heq : candidate = variableName
           · subst heq
@@ -96,9 +96,9 @@ theorem booleanAssignmentOf_agrees
 -- Query-only operations share the schema query root.
 theorem rootType_eq (schema : Schema) (left right : Operation)
     : left.rootType schema = right.rootType schema := by
-  cases hleft : left.operationType
-  cases hright : right.operationType
-  simp [Operation.rootType, hleft, hright, OperationType.rootType]
+  cases left.operationType
+  cases right.operationType
+  rfl
 
 -- For valid operations under a well-formed schema, path-based syntactic inclusion
 -- implies semantic query inclusion. Witnesses `ResponsePath.IncludesSemanticToSyntactic`.

@@ -335,13 +335,13 @@ theorem annotatedResponseValueIncludes_trans
   | left, middle, .null => by
       intro leftMiddle middleRight
       have hmiddle : middle = .null := by
-        cases middle <;> simpa [annotatedResponseValueIncludes] using middleRight
+        cases middle <;> simp_all [annotatedResponseValueIncludes]
       subst hmiddle
       cases left <;> simp_all [annotatedResponseValueIncludes]
   | left, middle, .scalar value => by
       intro leftMiddle middleRight
       have hmiddle : middle = .scalar value := by
-        cases middle <;> simpa [annotatedResponseValueIncludes] using middleRight
+        cases middle <;> simp_all [annotatedResponseValueIncludes]
       subst hmiddle
       cases left <;> simp_all [annotatedResponseValueIncludes]
   | .object _leftType leftFields, .object _middleType middleFields,
