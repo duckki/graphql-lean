@@ -7,6 +7,12 @@ import Proofs.GraphQL.Theories.AnnotatedExecution
 import Proofs.GraphQL.Theories.SelectionConditions.BooleanVariables
 import Proofs.GraphQL.Execution.FieldGroups
 import Proofs.GraphQL.Theories.SelectionConditions.Runtime
+import Proofs.GraphQL.Theories.ConditionTree
+import Proofs.GraphQL.Theories.TreeSummary.AnnotationErasure
+import Proofs.GraphQL.Theories.TreeSummary.ExactCases
+import Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality
+import Proofs.GraphQL.Theories.TreeSummary.StaticCost
+import Proofs.GraphQL.Theories.TreeSummary.MaxResponseSize
 import Proofs.GraphQL.Theories.QueryInclusion
 import Proofs.GraphQL.Theories.ResponsePath
 import Proofs.GraphQL.Algorithms.ExecutionCancelingSiblings

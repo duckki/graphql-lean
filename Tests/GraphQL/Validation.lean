@@ -91,6 +91,40 @@ theorem duplicateArgumentOperationSelectionSetRejected
     testObjectFieldDefinition, testEpisodeArgumentDefinition,
     testStringFieldDefinition]
 
+def nestedDuplicateArgumentSchema : Schema :=
+  {
+    queryType := "Root"
+    types :=
+      .object
+        {
+          name := "Root"
+          fields := [testObjectFieldDefinition "query" "Query"]
+          interfaces := []
+        }
+      :: sampleSchema.types
+  }
+
+def nestedDuplicateArgumentQuery : Operation :=
+  {
+    name := some "NestedDuplicateArgument"
+    selectionSet :=
+      [.field "query" "query" [] [] sampleDuplicateArgumentQuery.selectionSet]
+  }
+
+theorem nestedDuplicateArgumentOperationRejected
+    : ¬ GraphQL.Validation.operationDefinitionValid
+          nestedDuplicateArgumentSchema nestedDuplicateArgumentQuery := by
+  simp [GraphQL.Validation.operationDefinitionValid,
+    GraphQL.Validation.selectionSetValid,
+    GraphQL.Validation.selectionValid,
+    GraphQL.Validation.fieldSelectionSetValid,
+    GraphQL.Validation.argumentsValid,
+    GraphQL.Validation.argumentValid,
+    nestedDuplicateArgumentSchema, nestedDuplicateArgumentQuery,
+    sampleDuplicateArgumentQuery, sampleSchema,
+    testObjectFieldDefinition, testEpisodeArgumentDefinition,
+    testStringFieldDefinition]
+
 def interfaceDefaultedLimitArgument : InputValueDefinition :=
   {
     name := "limit"

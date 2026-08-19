@@ -36,10 +36,23 @@ flowchart TD
   AnnotatedExecution["GraphQL.Theories.AnnotatedExecution"]
   SelectionConditions["GraphQL.Theories.SelectionConditions"]
   ResponseMeasure["GraphQL.Theories.ResponseMeasure"]
+  ConditionTree["GraphQL.Theories.ConditionTree"]
+  ConditionTreeTermination["GraphQL.Theories.ConditionTree.Termination"]
+  ConditionTreeExecution["GraphQL.Theories.ConditionTree.Execution"]
+  ConditionTreeReduce["GraphQL.Theories.ConditionTree.Reduce"]
   QueryInclusion["GraphQL.Theories.QueryInclusion"]
+  TreeSummary["GraphQL.Theories.TreeSummary"]
+  TreeSummaryCore["GraphQL.Theories.TreeSummary.Core"]
+  TreeSummaryResponseFold["GraphQL.Theories.TreeSummary.ResponseFold"]
+  TreeSummarySyntactic["GraphQL.Theories.TreeSummary.Syntactic"]
+  TreeSummaryExact["GraphQL.Theories.TreeSummary.ExactCases"]
+  TreeSummaryOptimality["GraphQL.Theories.TreeSummary.ExactCasesOptimality"]
+  StaticCost["GraphQL.Theories.TreeSummary.StaticCost"]
+  MaxResponseSize["GraphQL.Theories.TreeSummary.MaxResponseSize"]
   NormalFormGround["Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization"]
   CompleteNormalization["Proofs.GraphQL.Theories.NormalForm.CompleteNormalization"]
   ProofAnnotatedExecution["Proofs.GraphQL.Theories.AnnotatedExecution"]
+  ProofConditionTree["Proofs.GraphQL.Theories.ConditionTree/*"]
   ProofQueryInclusion["Proofs.GraphQL.Theories.QueryInclusion/*"]
   Execution["GraphQL.Execution"]
   NamedFragment["GraphQL.NamedFragment/*"]
@@ -69,12 +82,36 @@ flowchart TD
   Operation --> ResponseMeasure
   ExecutionReadiness --> NormalForm
   ExecutionReadiness --> QueryInclusion
+  SelectionConditions --> ConditionTree
   SelectionConditions --> QueryInclusion
   ResponseMeasure --> QueryInclusion
   AnnotatedExecution --> QueryInclusion
   Operation --> NamedFragment
   SchemaWF --> NormalForm
   Validation --> NormalForm
+  ConditionTree --> ConditionTreeTermination
+  ConditionTreeTermination --> ConditionTreeExecution
+  ConditionTreeTermination --> ConditionTreeReduce
+  ConditionTreeTermination --> TreeSummaryCore
+  TreeSummaryCore --> TreeSummaryResponseFold
+  AnnotatedExecution --> TreeSummaryResponseFold
+  TreeSummaryResponseFold --> TreeSummarySyntactic
+  TreeSummaryResponseFold --> TreeSummaryExact
+  ConditionTreeExecution --> TreeSummarySyntactic
+  ConditionTreeExecution --> TreeSummaryExact
+  TreeSummaryExact --> TreeSummaryOptimality
+  TreeSummaryCore --> TreeSummary
+  AnnotatedExecution --> TreeSummary
+  TreeSummarySyntactic --> TreeSummary
+  TreeSummaryExact --> TreeSummary
+  TreeSummaryOptimality --> TreeSummary
+  TreeSummarySyntactic --> MaxResponseSize
+  TreeSummaryOptimality --> MaxResponseSize
+  TreeSummaryResponseFold --> StaticCost
+  TreeSummarySyntactic --> StaticCost
+  TreeSummaryOptimality --> StaticCost
+  Execution --> ConditionTreeExecution
+  Execution --> ConditionTreeReduce
   NormalForm --> NormalFormGround
   NormalForm --> CompleteNormalization
   Execution --> Canceling
@@ -90,7 +127,9 @@ flowchart TD
   NormalFormGround --> ProofRoot
   CompleteNormalization --> ProofRoot
   AnnotatedExecution --> ProofAnnotatedExecution
+  ConditionTree --> ProofConditionTree
   QueryInclusion --> ProofQueryInclusion
+  ProofConditionTree --> ProofRoot
   ProofQueryInclusion --> ProofRoot
   ProofAnnotatedExecution --> ProofRoot
   Canceling --> ProofCanceling
@@ -113,7 +152,13 @@ flowchart TD
   AnnotatedExecution --> GraphQLRoot
   SelectionConditions --> GraphQLRoot
   ResponseMeasure --> GraphQLRoot
+  ConditionTree --> GraphQLRoot
   QueryInclusion --> GraphQLRoot
+  ConditionTreeExecution --> GraphQLRoot
+  ConditionTreeReduce --> GraphQLRoot
+  TreeSummary --> GraphQLRoot
+  StaticCost --> GraphQLRoot
+  MaxResponseSize --> GraphQLRoot
   Execution --> GraphQLRoot
   GraphQLRoot --> TestsGraphQL
   ProofRoot --> TestsGraphQL
@@ -170,15 +215,53 @@ It should remain definition-only.
   every response field. Erasing those annotations is proved to recover ordinary
   execution exactly.
 - `GraphQL.Theories.SelectionConditions`: tree-free extraction of response-field
-  occurrences annotated with their cumulative type and Boolean conditions. Query
-  inclusion consumes this shared condition algebra.
+  occurrences annotated with their cumulative type and Boolean conditions. Both query
+  inclusion and condition trees consume this shared condition algebra.
 - `GraphQL.Theories.ResponseMeasure`: structural response measures shared by recursive
   execution theories: the selection response-field depth metric (inline fragments do not
   consume response depth) and the plain response-value size with its termination facts.
+- `GraphQL.Theories.ConditionTree/*`: condition-tree construction, runtime field
+  collection, total condition-tree execution, and reduction.
+  The proof modules establish extraction, pruning, reduction, and execution correctness.
 - `GraphQL.Theories.QueryInclusion`: recursive response-field inclusion with resolver
   provenance, a simple reference checker, and the optimized guarded field-group checker.
   Its proof modules establish soundness and completeness for valid operations under the
   documented error-free, coercibility, and composite-return inhabitance conditions.
+- `GraphQL.Theories.ConditionTree.Termination`: internal shared response-depth
+  support for the tree-of-trees recursion used by execution and reduction.
+- `GraphQL.Theories.ConditionTree.Execution`: selection-set execution that
+  extracts each condition-tree boundary internally, traverses it in preorder,
+  and globally groups parent/descendant fields by response name without
+  duplicate visits. Nested object completion re-enters the same fuel-free
+  selection-set API with the merged child selections. The module also owns
+  extraction-coverage and operation-level execution-soundness predicates.
+- `GraphQL.Theories.ConditionTree.Reduce`: selection-set reduction through the
+  same tree/group/child-tree recursion shape as execution, plus the
+  selection-set and operation-level semantic-preservation predicates.
+- `GraphQL.Theories.TreeSummary`: the public aggregator for the condition-tree summary
+  framework.
+- `GraphQL.Theories.TreeSummary.Core`: the contextual, bottom-up fold interface over
+  condition trees. Algebras provide a synthesized summary type plus field,
+  simultaneous-composition, and alternative-join operations. Condition pruning is
+  framework traversal policy, independent of the algebra.
+- `GraphQL.Theories.TreeSummary.ResponseFold`: abstract and concrete algebra folds
+  over the annotated responses produced by `GraphQL.Theories.AnnotatedExecution`, plus
+  their shared compatibility contract.
+- `GraphQL.Theories.TreeSummary.Syntactic`: direct node-local materializable
+  type-condition products and factorized Boolean-case traversal together with its direct
+  soundness contract.
+- `GraphQL.Theories.TreeSummary.ExactCases`: composed feasible-case traversal with one
+  globally shared Boolean context per selection hierarchy, node-local lazy truth-value
+  decisions for explicit contexts, and node-local type-region resolution, together with
+  its direct operation soundness contract.
+- `GraphQL.Theories.TreeSummary.ExactCasesOptimality`: independent structural-case
+  semantics and optional best-bound contracts for the exact backend.
+- `GraphQL.Theories.TreeSummary.StaticCost`: IBM GraphQL Cost Directives
+  static and query-response analyses, with separate type and field costs and a
+  sound upper bound for the supplied variable assignment and every remaining
+  unresolved directive condition.
+- `GraphQL.Theories.TreeSummary.MaxResponseSize`: a list-aware
+  example algebra whose `Nat` summary bounds the number of response fields.
 - `GraphQL.Execution`: fuel-bounded query execution over operation selections,
   parameterized by abstract resolver functions. It materializes missing operation
   variable defaults, collects executable fields by response name, looks up each field
@@ -215,7 +298,7 @@ It should remain definition-only.
   including `Algorithms/ExecutionCancelingSiblings`,
   `Algorithms/ExecutionUngrouped`, `Algorithms/ExecutionBreadth`,
   `Theories/NormalForm`, `Theories/AnnotatedExecution`,
-  and `Theories/QueryInclusion`.
+  `Theories/ConditionTree`, `Theories/TreeSummary`, and `Theories/QueryInclusion`.
 - `Tests.Conformance`: generated and fixture-driven conformance test
   aggregator. Its modules live under `Tests/Conformance/`.
 - `Lint`: local project tooling. `Lint.ImportClosure` checks that tracked Lean
@@ -235,17 +318,26 @@ The current flow is:
    definitions and public resolver-parametric correctness predicates.
 5. `GraphQL.Theories.AnnotatedExecution` preserves execution data while recording
    resolver provenance for response analyses.
-6. `GraphQL.Theories.QueryInclusion` decides recursive, provenance-preserving inclusion
+6. `GraphQL.Theories.SelectionConditions` extracts the shared flat condition algebra.
+7. `GraphQL.Theories.ConditionTree` extracts unique minimal condition trees;
+    its `Execution` and `Reduce` modules interpret and reduce them through the
+    same tree-of-trees recursion shape.
+8. `GraphQL.Theories.TreeSummary` folds those trees with algebra-defined summary
+   combinators. Its generic soundness theorems relate each backend's summary to a
+   concrete algebra folded over the annotated execution response. The exact backend
+   additionally supports structural least-bound proofs. MaxResponseSize derives a
+   bound on ordinary query execution, while StaticCost uses the annotated response to
+   retain the concrete resolver-call arguments needed for actual cost.
+9. `GraphQL.Theories.QueryInclusion` decides recursive, provenance-preserving inclusion
    over the response fields of valid operations.
-7. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
-   executor that cancels remaining sibling response positions after a bubble.
-8. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching
-   alternative execution algorithm over the same operation syntax.
-9. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative
-   with vectorized resolver calls.
-10. `GraphQL.NamedFragment/*` provides fragment-aware public syntax,
-   validation, execution, inlining, and translation definitions.
-
+10. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
+    executor that cancels remaining sibling response positions after a bubble.
+11. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching alternative
+    execution algorithm over the same operation syntax.
+12. `GraphQL.Algorithms.ExecutionBreadth` provides a breadth-first alternative with
+    vectorized resolver calls.
+13. `GraphQL.NamedFragment/*` provides fragment-aware public syntax, validation,
+    execution, inlining, and translation definitions.
 
 Normal forms consume `GraphQL.Operation` directly. The directive-free
 `normalizeOperation` proof path assumes source operations have no modeled
@@ -272,6 +364,10 @@ The ground and complete uniqueness arguments are detailed in
 `docs/theories/normal-form-uniqueness.md`.
 Query-inclusion semantics, checker design, and correctness premises are detailed in
 `docs/theories/query-inclusion.md`.
+The standalone condition-tree representation is documented in
+`docs/theories/condition-tree.md`.
+The tree-summary framework and max-response-size example are documented in
+`docs/theories/tree-summary.md`.
 Project algorithms are summarized in `docs/algorithms.md`.
 
 Lean module organization rules are documented in
