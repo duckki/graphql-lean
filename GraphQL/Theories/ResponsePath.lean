@@ -115,24 +115,24 @@ def includes (schema : Schema) (left right : Operation) : Prop :=
 -- Agreement with semantic query inclusion
 -----------------------------------------------------------------------------------------
 
--- Correspondence, first direction: semantic query inclusion reduces to the path-based
--- syntactic relation. For valid operations under a well-formed schema, syntactic
--- inclusion implies semantic inclusion. Its theorem witness is
--- `ResponsePath.includesSemanticToSyntactic` in the corresponding proof module.
-def IncludesSemanticToSyntactic (schema : Schema) (left right : Operation) : Prop :=
+-- Correspondence, first direction: syntactic inclusion entails semantic query
+-- inclusion. For valid operations under a well-formed schema, path-based inclusion
+-- implies query inclusion. Its theorem witness is
+-- `ResponsePath.includesSyntacticToSemantic` in the corresponding proof module.
+def IncludesSyntacticToSemantic (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
   -> includes schema left right
   -> QueryInclusion.includes schema left right
 
--- Correspondence, second direction: the path-based syntactic relation reduces to
--- semantic query inclusion. The premises mirror `QueryInclusion.IncludesBoolComplete`:
+-- Correspondence, second direction: semantic query inclusion entails the path-based
+-- syntactic relation. The premises mirror `QueryInclusion.IncludesBoolComplete`:
 -- argument-coercible branch extensions and composite-return inhabitance rule out vacuous
 -- semantic inclusion by supplying an error-free execution witness for every selected
--- path. Its theorem witness is `ResponsePath.includesSyntacticToSemantic` in the
+-- path. Its theorem witness is `ResponsePath.includesSemanticToSyntactic` in the
 -- corresponding proof module.
-def IncludesSyntacticToSemantic (schema : Schema) (left right : Operation) : Prop :=
+def IncludesSemanticToSyntactic (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
