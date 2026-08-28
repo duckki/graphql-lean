@@ -54,6 +54,16 @@ Check formatting without rewriting files:
 lake exe fmt --check --recursive *.lean GraphQL Proofs Tests Benchmarks Lint
 ```
 
+To format only Lean files changed from `origin/main`, use:
+
+```sh
+scripts/fmt-changed.sh
+```
+
+The command refuses staged, unstaged, or untracked Lean files by default. Include them
+explicitly with `--allow-dirty`; add `--check` to check rather than rewrite, or use
+`--base REF` to choose another comparison ref.
+
 ## Lean Roots
 
 The main top-level Lean roots are:
