@@ -6,7 +6,7 @@ backends with different precision and cost.
 | Backend | Recursion domain | Condition treatment | Cost and precision |
 | --- | --- | --- | --- |
 | `TreeSummary.Syntactic` | `ConditionTree.Tree` | Evaluates node-local materializable type-condition products and factors Boolean alternatives by variable, then recurses into selected condition-tree subtrees | Faster, sound, but may lose correlations and global response-name grouping |
-| `TreeSummary.ExactCases` | `ExactCases.CaseForest` | Keeps one correlated Boolean context for the whole selection hierarchy, then recurses over feasible type-region compositions of simultaneously active condition-tree subtrees | More expensive; supports structural least-bound proofs |
+| `TreeSummary.ExactCases` | `ExactCases.CaseCursor` | Walks one condition-tree branch at a time, interleaving local type-region partitions and lazy Boolean splits while preserving one correlated Boolean context across the selection hierarchy | More expensive; globally groups each completed boundary and supports least-bound proofs |
 
 An individual analysis supplies the same `Algebra` for either backend. The caller chooses
 the traversal strategy.
@@ -32,15 +32,15 @@ flow down, while algebra summaries flow up.
 its monotonicity, and upper-bound laws for `join`. It does not change the executable
 algebra.
 
-`Algebra.Relation` packages constructor-local obligations between two algebras. Generic
-theorems lift those obligations through list folds, exact-case recursion, lazy Boolean
-decision composition, and decision collapse. A client proves the four local constructor
-cases once rather than repeating a backend traversal proof.
+The proof-only `Algebra.Relation` in `Proofs.GraphQL.Theories.TreeSummary.Algebra`
+packages constructor-local obligations between two algebras. Generic proof theorems lift
+those obligations through list folds, exact-case recursion, lazy Boolean decisions, and
+decision collapse. It is not part of the public definition surface.
 
 The shared definitions and structural measures live in `TreeSummary.Core`, while
 `GraphQL.Theories.TreeSummary` is the public aggregator. The annotated executor lives in
 `GraphQL.Theories.AnnotatedExecution`; the abstract and concrete response folds and the
-shared `CompatibilityCore` live in `TreeSummary.ResponseFold`. Each traversal
+shared `SoundnessCore` live in `TreeSummary.Soundness`. Each traversal
 backend extends that contract with its own field transfer and owns its condition
 processing.
 
@@ -52,17 +52,18 @@ and `@skip` selections are removed. Known-active, missing, and unavailable condi
 remain explicit, and every recursively summarized field selection set repeats the same
 boundary-local pruning.
 
-ExactCases keeps the request values used for pruning separate from the evolving values
-used by its lazy Boolean decisions. A speculative assignment chosen while enumerating an
-unknown-variable case therefore cannot prune later syntax as if it had been known in the
-request. Syntactic carries the fixed summary environment through its recursive child
+ExactCases derives extraction-pruning values from the Boolean environment. A symbolic
+environment contributes no pruning values, even after `assign` records a speculative
+case choice; a complete environment contributes its coerced request values. A lazy split
+therefore cannot prune later syntax as if its choice had been supplied by the request.
+Syntactic likewise carries its request pruning values through recursive child
 extractions.
 
 There are two different correctness questions:
 
-1. Fixed-request soundness asks whether execution for this request is related to the
+1. Fixed-request soundness asks whether execution for this request is approximated by the
    pruned summary. The generic framework proves this directly from extraction coverage
-   and each analysis's existing compatibility obligations. It needs no new idempotence or
+   and each analysis's existing soundness obligations. It needs no new idempotence or
    absorption law: a removed subtree is proved inactive in that concrete request.
 2. Result preservation asks whether the pruned summary equals the old
    variable-independent summary for every generic `Algebra`. That is intentionally not
@@ -117,7 +118,7 @@ The entry points are:
 
 This backend intentionally does not compose every simultaneously active condition-tree
 subtree before calling `field`. Consequently, fields with one response name can remain
-in several local groups even though execution collects them together. Its direct compatibility
+in several local groups even though execution collects them together. Its direct soundness
 contract exposes those groups together to the proof obligation, preserving soundness
 without claiming exact-backend precision.
 
@@ -131,33 +132,31 @@ Its motivation, algebraic laws, and direct soundness proof are described in
 
 ## Exact-case backend
 
-`TreeSummary.ExactCases` uses `ExactCases.CaseForest`. Its `activeTrees` are condition-tree
-subtrees simultaneously active in one partially resolved runtime case.
+`TreeSummary.ExactCases` uses an incremental branch-local `CaseCursor` scheduler. The
+cursor retains the activated named fields and a preorder
+list of pending condition-tree branches. Activated fields are stored as reversed chunks,
+so selecting a deeply nested branch does not repeatedly copy the accumulated prefix;
+source order is materialized only when a completed case is grouped.
 
-Every entry point uses the same compact Boolean context. A `BooleanEnvironment` records
-each support variable as `missing`, `known`, or `unresolved`. The traversal collects the
-recursive support once and streams missing-versus-present completion directly, without
-materializing an exponential list of environments. `BooleanEnvironment.Completion` is
-the proof-facing relation that characterizes those streamed choices.
+Every entry point uses the same compact Boolean context. `BooleanEnvironment` is either
+symbolic or complete. `statusForVariable` returns `Option Bool`: `none` means unresolved,
+and `some value` means known. In a complete request, missing, null, or non-Boolean values
+resolve to `some false`, matching modeled directive evaluation rather than creating a
+third case.
 
-The environment also carries immutable `fixedVariableValues`. Supplied-variable resolved
-entry points initialize them from coerced request values; `assign` changes only the
-case-evaluation values. This separates request knowledge from speculative case choices.
-
-An unresolved truth value becomes a `BooleanDecision.split` only when the current
-exact-case frontier first needs it. Decisions from sibling and child summaries are
+An unresolved truth value becomes an `Internal.BooleanDecision.split` only when the
+current cursor reaches its literal. Decisions from sibling and child summaries are
 combined pointwise in one canonical variable order, so repeated uses stay correlated
-instead of forming false Cartesian products. `BooleanDecision.collapse` joins the
-remaining alternatives after traversal. The context, including every completed
-missing-versus-present choice, is inherited unchanged by sibling trees and nested field
-selection sets.
+instead of forming false Cartesian products. Type alternatives use factored decision
+joins. Type partitions and Boolean splits can therefore interleave in the order exposed
+by the condition tree, and each split remains local to that tree node and its children.
 
-Within one resolved path, each frontier enumerates only its unique nonempty
-possible-type regions. Known and missing Boolean branches are filtered deterministically;
-an unresolved value is split at that frontier by the lazy form. Selected branch bodies
-are inserted into a case forest, and recursion continues until no condition
-remains unresolved. Only then are fields from all active trees at that selection-set
-boundary globally collected by response name and passed to the algebra.
+When the cursor reaches a type branch, it partitions only its current possible-type
+region and continues separately in each feasible subregion. When no branches remain,
+all fields activated at that selection-set boundary are materialized in source order,
+globally collected by response name, and passed to the algebra. Completed leaves are
+compacted eagerly only after the boundary's recursive `field` applications, preserving
+factoring without requiring `field` monotonicity.
 
 The entry points are:
 
@@ -167,14 +166,15 @@ The entry points are:
 - `ExactCases.summarizeOperationWithVariables`.
 
 The condition-tree and selection-set functions take an explicit `BooleanEnvironment`.
-The ordinary operation entry point supplies an empty environment, meaning every support
-variable is initially unknown; the variable-aware operation entry point constructs a
-total environment after applying operation defaults.
+The ordinary operation entry point supplies `BooleanEnvironment.unresolved`; the
+variable-aware operation entry point constructs a complete environment after applying
+operation defaults. The internal decision builder derives its pruning context
+canonically from that environment.
 
 ## Soundness boundaries
 
 `ConcreteAlgebra` folds a completed `AnnotatedResponse`. Each backend has a local
-compatibility contract relating its concrete and abstract transfer steps.
+soundness contract relating its concrete and abstract transfer steps.
 `foldChildSummaryForValue` replays only response shape: null and scalar values have no
 child fields, an object contributes one child summary, and a list combines its element
 shapes. The framework defines no numeric response-size or cost multiplicity; individual
@@ -184,60 +184,52 @@ The exact-case backend has generic execution soundness. The framework handles ru
 conditions, global response-name grouping, nested selections, null bubbling, lists, and
 forgetting supplied Boolean values. Its public statements live under `ExactCases`:
 
-- `OperationSoundWithFuel`;
-- `OperationSound`;
-- `AnalysisSound`.
+- `AnalysisSound`;
+- `AnalysisWithVariablesSound`.
 
-Their witnesses are `ExactCases.operationSoundWithFuel`,
-`ExactCases.operationSound`, and `ExactCases.analysisSound`. Forgetting concrete
-operation-variable values is proved by evaluating one path of the lazy Boolean decision
-tree and placing that path below its collapsed join. It therefore uses only
-`Algebra.Lawful`.
+These are per-operation contracts; their witnesses are `ExactCases.analysisSound` and
+`ExactCases.analysisWithVariablesSound`.
+Forgetting concrete operation-variable values is proved by evaluating one path of the
+lazy Boolean decision tree and placing that path below its collapsed join. It uses
+`Algebra.Lawful` together with the ExactCases-specific
+`ExactCases.JoinFactoringLaws` needed by factored type alternatives.
+`ExactCases.Soundness` carries both: its inherited `abstractLawful` field is the sole
+core witness, while its dependent `joinFactoringLaws` field contains only the
+additional laws indexed by that witness.
 
 The ExactCases backend also supports variable-indexed algebras without forgetting the
-coerced request variables. `OperationWithVariablesSoundWithFuel`,
-`OperationWithVariablesSound`, and `AnalysisWithVariablesSound` target
-`summarizeOperationWithVariables`; their witnesses are
-`ExactCases.operationWithVariablesSoundWithFuel`,
-`ExactCases.operationWithVariablesSound`, and
-`ExactCases.analysisWithVariablesSound`.
-Because coercion fixes every relevant Boolean as known or missing, this entry point
-calls `CaseForest.summarize` directly instead of scanning completion states or constructing
-and collapsing a `BooleanDecision`.
+coerced request variables. `AnalysisWithVariablesSound` targets
+`summarizeOperationWithVariables`; its witness is
+`ExactCases.analysisWithVariablesSound`. The proof module retains the fuel-parameterized
+`operationWithVariablesSoundWithFuel` theorem used by concrete analysis proofs, but its
+statement is not part of the public definition module.
+Because coercion gives a complete environment, this entry point resolves each Boolean
+literal when reached and constructs no Boolean split. Missing, null, and non-Boolean
+values select false. Type-region alternatives remain incremental and branch-local.
 
-Summarizing an operation through the explicit-context selection-set entry point has
-matching contracts for fixed and variable-indexed algebras: `OperationContextSound` and
-`OperationContextWithVariablesSound`, witnessed by
-`ExactCases.operationContextSound` and
-`ExactCases.operationContextWithVariablesSound`. Both contracts require the supplied
-context to carry the coerced request values and to resolve the operation's Boolean
-support. `BooleanEnvironment.ofCompleteValues` constructs that canonical total context;
-`BooleanEnvironment.ofCompleteValues_resolvedFor` proves its resolution property.
-
-The Syntactic backend has the same variable-indexed surface:
-`OperationWithVariablesSoundWithFuel`, `OperationWithVariablesSound`, and
+The Syntactic backend has the same public variable-indexed surface:
 `AnalysisWithVariablesSound`, witnessed by
-`Syntactic.operationWithVariablesSoundWithFuel`,
-`Syntactic.operationWithVariablesSound`, and
-`Syntactic.analysisWithVariablesSound`. Known values are threaded through nested field
-summaries, not merely the root condition family.
+`Syntactic.analysisWithVariablesSound`. Its proof module retains
+`operationWithVariablesSoundWithFuel` for concrete analysis proofs. Known values are
+threaded through nested field summaries, not merely the root condition family.
 
-`ExactCases.Compatible` is indexed by the coerced variable environment used by both
+`ExactCases.Soundness` is indexed by the coerced variable environment used by both
 resolver-call annotations and its abstract algebra. This lets argument-sensitive
 analyses state the local field law directly. The variable-indexed theorem needs no
-monotonicity proof; a family of compatible records supplies one record for each request
-environment.
+monotonicity proof; a family of soundness witnesses supplies one record for each
+request environment.
 
-The syntactic backend instead uses `Syntactic.Compatible`. Its `field_related` obligation
+The syntactic backend instead uses `Syntactic.Soundness`. Its `field_sound` obligation
 receives all local syntactic groups that represent one executed response field, together
 with their recursively summarized children. An analysis proves that one concrete field
-step is related to this local abstract result. The framework handles the condition cases,
-coverage, recursion, and regrouping argument.
+step is approximated by this local abstract result. The framework handles the condition
+cases, coverage, recursion, and regrouping argument.
 
-`Syntactic.operationSoundWithFuel`, `Syntactic.operationSound`, and
-`Syntactic.analysisSound` are direct witnesses for the corresponding public syntactic
-statements. They do not compare against the exact estimate, require no operation-specific
-dominance premise, and use only `Algebra.Lawful`.
+`Syntactic.analysisSound` is the direct witness for the public per-operation syntactic
+statement. The proof module retains
+`operationSoundWithFuel` for concrete analysis proofs. These theorems do not compare
+against the exact estimate, require no operation-specific dominance premise, and use
+only `Algebra.Lawful`.
 
 `executeQueryAnnotated_equal` separately proves that erasing field annotations gives
 exactly `Execution.executeQuery`. The additional resolver-call metadata is constructed
@@ -246,26 +238,23 @@ boundary; the erasure theorem does not specify that metadata independently.
 
 ## Optional optimality
 
-Optimality is available only for `ExactCases` and is independent of ordinary
-soundness. `ExactCases.CaseSemantics` describes concrete simultaneous composition and
-the possible concrete result of one collected field group. A separate finite enumerator
-first fixes the Boolean environment. Independent inductive relations then define the
-recursively feasible tree cases by choosing exact type regions, child output types, and
-field outcomes. Feasibility is therefore not defined by running the analyzer with a
-special algebra.
+Optimality is available only for `ExactCases` and is separate from ordinary execution
+soundness. `ExactCases.OutcomeSemantics` describes concrete simultaneous composition and
+the possible concrete result of one collected field group. Feasible outcomes are defined
+independently by the mutually inductive `CaseCursor.ContextOutcome`,
+`ContextFieldGroupsOutcome`, and `ContextChildTypesOutcome` relations. A derivation
+chooses one branch-local type region, follows one total Boolean assignment shared across
+sibling groups and recursive children, and selects one modeled field outcome.
 
-At operation scope, Boolean completion is deliberately separate from tree semantics.
-`BooleanEnvironment.Completion` relates the initial context to one globally consistent
-completed context, while `operationContextOutcomes` says that the root selection set has
-an outcome under one such context and one total truth assignment. The operation
-statement therefore adds no second recursive summary semantics.
+The proof module establishes that these independent derivations characterize the
+executable cursor exactly. Only after that characterization does it use a private
+predicate-valued algebra as a proof device to transport local best-bound obligations to
+the analysis algebra.
 
-The proof module defines a proof-only collecting algebra whose joins are set union.
-`conditionTreeContextOutcomes_iff_collecting` proves that this fold retains exactly the
-inductively derivable lazy-context cases; the selection-set and operation results are
-direct specializations. An analysis that opts in provides
-`ExactCases.BestTransferLaws`: localized best-bound obligations for `empty`, `combine`,
-`field`, and `join`.
+An analysis that opts in provides `ExactCases.BestTransferLaws`: localized best-bound
+obligations for `empty`, `combine`, `field`, and `join`. This package is part of the
+public optimality contract. The proof-only algebra relation transports those obligations
+through the shared cursor traversal.
 
 The generic `BestBound` and `OutcomeSet` definitions live under
 `TreeSummary.Optimality` in the exact-case optimality module. A `BestBound` says that
@@ -278,31 +267,30 @@ the computed estimate:
 The first item is structural-case soundness. The last item is needed for simultaneous
 composition to preserve least bounds.
 
-`BestBound` accepts the summary comparison relation directly. Public analysis
-statements therefore describe only the attainable outcomes, their relation to an
-estimate, and leastness; they do not expose a transfer-law proof package.
-`BestTransferLaws` remains the framework's proof method for deriving those statements
-from localized obligations.
+`BestBound` accepts the summary comparison relation directly. Public analysis statements
+take `BestTransferLaws` and use its `le` and `approximates` projections, so the local proof
+requirements and the resulting least-bound claim are visible in one contract.
 
 Optimality is an opt-in layer: import
 `GraphQL.Theories.TreeSummary.ExactCasesOptimality` for its public contracts and
 `Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality` for their witnesses.
+The per-operation contracts are `ExactCases.AnalysisOptimal` and
+`ExactCases.AnalysisWithVariablesOptimal`, witnessed by `ExactCases.analysisOptimal`
+and `ExactCases.analysisWithVariablesOptimal`.
 
-`ExactCases.summarizeOperation_best` proves the central recursive theorem. An operation
-derivation includes every nested choice made in child selection sets, rather than
-describing only one isolated condition tree. Boolean choices are fixed once at the
-selection-hierarchy entry and inherited by all children; each recursive condition tree
-still chooses its local runtime-type cases and field outcomes.
+`ExactCases.summarizeOperation_best` proves the central theorem. Its characterization
+lemma connects the independent outcomes to the incremental decisions, including nested
+child selection sets, correlated Boolean choices, local type regions, and field
+outcomes.
 
 Thus the framework does not claim that every analysis algebra is intrinsically
 precise. It says that, once its four local transfer steps are best, exact-case traversal
 does not introduce additional over-approximation: its result is the least bound of all
 and only the recursively feasible cases represented by the traversal.
 
-This recursive optimality layer is deliberately separate from executable GraphQL
-semantics. In particular, completeness—realizing every structural case through
-`executeQueryAnnotated`—depends on resolver behavior and is not part of the generic
-optimality statement.
+This structural optimality layer is deliberately separate from executable GraphQL
+semantics. Realizing every collected outcome through `executeQueryAnnotated` depends on
+resolver behavior and is not part of the generic optimality statement.
 
 There is intentionally no general syntactic optimality statement: losing correlations
 and splitting response-name groups can make its result strictly less precise.
@@ -323,23 +311,19 @@ Each backend exposes an unknown-variable estimate and a supplied-variable refine
 - `MaxResponseSize.ExactCases.estimateOperationWithVariables`.
 
 The exact-case response-size statements are
-`MaxResponseSize.ExactCases.SoundWithFuel` and `MaxResponseSize.ExactCases.Sound`. Their
-witnesses are `MaxResponseSize.ExactCases.soundWithFuel` and
-`MaxResponseSize.ExactCases.sound`. The variable-aware statements are
-`SoundWithVariablesWithFuel` and `SoundWithVariables`, with correspondingly named
-lowercase witnesses.
+`MaxResponseSize.ExactCases.AnalysisSound` and
+`AnalysisWithVariablesSound`. Their witnesses are
+`MaxResponseSize.ExactCases.analysisSound` and
+`analysisWithVariablesSound`. The fast Syntactic namespace exposes the same public
+statement/witness pairs. Explicit-fuel contracts and their witnesses remain proof-local
+implementation lemmas.
 
-The fast response-size statements are `MaxResponseSize.Syntactic.SoundWithFuel` and
-`MaxResponseSize.Syntactic.Sound`. Their direct witnesses are
-`MaxResponseSize.Syntactic.soundWithFuel` and `MaxResponseSize.Syntactic.sound`; the
-Syntactic namespace also supplies the same variable-aware statement/witness pair.
-
-`MaxResponseSize.ExactCases.caseSemantics` collects every multiplicity admitted by the
-uniform list-size model. The public `SummaryOptimal` and
-`SummaryOptimalWithVariables` propositions say that the corresponding estimate is the
-least bound of those outcomes. Their witnesses are `summaryOptimal` and
-`summaryOptimalWithVariables`. The private proof packages show that zero, addition, the
-affine field rule, and `Nat.max` satisfy the framework's localized least-bound
+`MaxResponseSize.ExactCases.outcomeSemantics` collects every multiplicity admitted by the
+uniform list-size model. The public `AnalysisOptimal` and
+`AnalysisWithVariablesOptimal` propositions say that the corresponding estimate is the
+least bound of those outcomes. Their witnesses are `analysisOptimal` and
+`analysisWithVariablesOptimal`. The private proof packages show that zero, addition,
+the affine field rule, and `Nat.max` satisfy the framework's localized least-bound
 obligations. The proof is algebraically valid for every `Nat`; interpreting the
 multiplicity model as realizable list cardinalities assumes a positive list-size bound.
 
@@ -375,8 +359,8 @@ no such restriction.
 
 `actualCost` folds the annotated response, using its concrete resolver-call
 definitions and completed values. The public
-`StaticCost.ExactCases.SoundWithVariables` and
-`StaticCost.Syntactic.SoundWithVariables` propositions
+`StaticCost.ExactCases.AnalysisWithVariablesSound` and
+`StaticCost.Syntactic.AnalysisWithVariablesSound` propositions
 quantify over all resolver environments, root values, and variable-condition
 assignments and bound both actual cost components whenever the annotated response
 respects the model's list-size estimates, assuming a well-formed schema and valid
@@ -385,10 +369,10 @@ ExactCases statement supports signed type weights without that premise. Erasing 
 annotations produces the corresponding `Execution.executeQuery` response. The concrete
 algebra has no join or condition operation.
 
-`StaticCost.ExactCases.caseSemantics` uses the modeled local field-cost transfer as its
-collecting semantics. The public `SummaryOptimalWithVariables` proposition says that
+`StaticCost.ExactCases.outcomeSemantics` uses the modeled local field-cost transfer as its
+outcome semantics. The public `AnalysisWithVariablesOptimal` proposition says that
 the synthesized summary is the pointwise least bound of those outcomes; its witness is
-`StaticCost.ExactCases.summaryOptimalWithVariables`. Its private transfer-law proof
+`StaticCost.ExactCases.analysisWithVariablesOptimal`. Its private transfer-law proof
 treats type cost and field cost independently, so a componentwise maximum need not be
 realized by one case.
 
@@ -397,17 +381,19 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
 ## Module map
 
 - `GraphQL/Theories/TreeSummary.lean`: public framework aggregator.
-- `GraphQL/Theories/TreeSummary/Core.lean`: shared algebra, collected groups, and
-  structural termination measures.
+- `GraphQL/Theories/TreeSummary/Core.lean`: shared algebra, collected groups,
+  possible-type-region partitions and their exactness contract, and structural
+  termination measures.
 - `GraphQL/Theories/TreeSummary/Syntactic.lean`: fast structural traversal.
-- `GraphQL/Theories/TreeSummary/ExactCases.lean`: feasible type regions,
-  `ExactCases.CaseForest`, exact-case traversal, and its soundness contract.
+- `GraphQL/Theories/TreeSummary/ExactCases.lean`: ExactCases environments, cursor,
+  measures, entry points, laws, and soundness contracts; Boolean-decision construction
+  is qualified under `ExactCases.Internal`.
 - `GraphQL/Theories/AnnotatedExecution.lean`: annotated response syntax and execution,
   with an erasure statement connecting it to ordinary execution.
-- `GraphQL/Theories/TreeSummary/ResponseFold.lean`: abstract and concrete
-  algebras, response folding, and the compatibility core shared by both backends.
-- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: independent structural-case
-  semantics and localized best-transfer contract.
+- `GraphQL/Theories/TreeSummary/Soundness.lean`: abstract child-shape and concrete
+  response folds, `ConcreteAlgebra`, and the soundness core shared by both backends.
+- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: independent inductive
+  outcome semantics and public least-bound contracts.
 - `GraphQL/Theories/TreeSummary/StaticCost.lean`: external cost/list-size model and IBM
   static/query-response cost analyses.
 - `GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: both response-size entry points.
@@ -417,14 +403,16 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   variable-aware known-false pruning and extraction entry points.
 - `Proofs/GraphQL/Theories/ConditionTree/KnownFalsePruning.lean`: fixed-request extraction and
   runtime-group preservation witnesses.
-- `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: exact regions, the proof-only
-  deterministic runtime-case interpreter, runtime alignment, variable refinement, and
-  execution soundness.
-- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: collecting
+- `Proofs/GraphQL/Theories/TreeSummary/PossibleTypeRegions.lean`: exactness of the
+  possible-type-region partition shared by both traversal backends.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: the proof-only deterministic
+  runtime-case interpreter, runtime alignment, variable refinement, and execution
+  soundness.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: cursor
   characterization and recursive exact-case best-bound induction.
 - `Proofs/GraphQL/Theories/TreeSummary/Algebra.lean`: reusable lawful-algebra lemmas.
 - `Proofs/GraphQL/Theories/ConditionTree/Invariants.lean`: feasibility and uniqueness
-  witnesses for extracted condition groups.
+  facts for extracted conditions.
 - `Proofs/GraphQL/Theories/TreeSummary/Syntactic/RuntimePath.lean`: proof-only runtime
   paths and visited-path invariants.
 - `Proofs/GraphQL/Theories/TreeSummary/Syntactic/RuntimeGroups.lean`: runtime-group
@@ -434,11 +422,11 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
 - `Proofs/GraphQL/Theories/TreeSummary/Syntactic/Coverage.lean`: proof aggregator for
   concrete field coverage, runtime-selected summaries, and factorized-case coverage;
   the proofs are split across its `Coverage/` submodules.
-- `Proofs/GraphQL/Theories/TreeSummary/Syntactic/Soundness.lean`: compatibility lifting
+- `Proofs/GraphQL/Theories/TreeSummary/Syntactic/Soundness.lean`: soundness lifting
   and direct syntactic execution soundness.
 - `Proofs/GraphQL/Theories/TreeSummary/AnnotationErasure.lean`: annotation erasure and proof
   facade.
 - `Proofs/GraphQL/Theories/TreeSummary/StaticCost.lean`: local cost-algebra
-  compatibility, optimality, and soundness witnesses.
+  soundness, optimality, and analysis witnesses.
 - `Proofs/GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: response-size
-  compatibility, optimality, and soundness witnesses.
+  soundness, optimality, and analysis witnesses.

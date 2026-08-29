@@ -9,6 +9,7 @@ namespace StaticCost
 
 open GraphQL.TreeSummary.StaticCost
 open GraphQL.TreeSummary.StaticCost.ExactCases
+open GraphQL.TreeSummary.StaticCost.Internal
 open GraphQL.TreeSummary
 open GraphQL.AnnotatedExecution
 
@@ -453,7 +454,7 @@ theorem nullableZeroSizedListIsAdmissibleSmoke
       = some { name := "bestsellers", outputType := .list (.named "Book") } := by
     rfl
   simp [responseFieldAdmissible, hlookup, zeroListCostModel, staticCostModel,
-    expectedListSize?, ListSize.expectedSize?, staticInstanceCount,
+    expectedListSize?, expectedSize?, staticInstanceCount,
     actualInstanceCount, ResponseObservation.empty]
 
 theorem numericSlicingArgumentSmoke
@@ -907,18 +908,18 @@ theorem executedResponseCostBoundedSmoke
           (operation [field "bestsellers" [] bookSelections]) := by
   native_decide
 
-theorem syntacticSoundnessWitnessSmoke
-    : GraphQL.TreeSummary.StaticCost.Syntactic.SoundWithVariables
+theorem syntacticAnalysisSoundnessWitnessSmoke
+    : GraphQL.TreeSummary.StaticCost.Syntactic.AnalysisWithVariablesSound
         staticCostSchema staticCostModel
         (operation [field "bestsellers" [] bookSelections]) :=
-  GraphQL.TreeSummary.StaticCost.Syntactic.soundWithVariables
+  GraphQL.TreeSummary.StaticCost.Syntactic.analysisWithVariablesSound
     staticCostSchema staticCostModel
     (operation [field "bestsellers" [] bookSelections])
 
-theorem summaryOptimalWithVariablesApiSmoke (schema : Schema) (model : CostModel)
+theorem analysisWithVariablesOptimalApiSmoke (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
-    : ExactCases.SummaryOptimalWithVariables schema model variableValues operation :=
-  ExactCases.summaryOptimalWithVariables schema model variableValues operation
+    : ExactCases.AnalysisWithVariablesOptimal schema model variableValues operation :=
+  ExactCases.analysisWithVariablesOptimal schema model variableValues operation
 
 end StaticCost
 end TreeSummary

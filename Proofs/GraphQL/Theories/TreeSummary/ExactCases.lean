@@ -1,4 +1,3 @@
-import Proofs.GraphQL.Theories.TreeSummary.ExactCases.Cases
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.Relation
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.RuntimeCases
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.ResolvedContext

@@ -28,15 +28,19 @@ theorem executeQueryAnnotatedToResponseApiSmoke
       = Execution.executeQuery schema resolvers variableValues operation source :=
   executeQueryAnnotated_equal schema operation ObjectRef resolvers variableValues source
 
-theorem exactAnalysisSoundApiSmoke (abstract : Algebra) (schema : Schema)
+theorem exactAnalysisSoundApiSmoke
+    {concrete : ConcreteAlgebra} {abstract : Algebra} {schema : Schema}
+    (soundnessFor : ∀ values, ExactCases.Soundness concrete abstract schema values)
     (operation : Operation)
-    : ExactCases.AnalysisSound abstract schema operation :=
-  ExactCases.analysisSound abstract schema operation
+    : ExactCases.AnalysisSound soundnessFor operation :=
+  ExactCases.analysisSound soundnessFor operation
 
-theorem syntacticAnalysisSoundApiSmoke (abstract : Algebra) (schema : Schema)
+theorem syntacticAnalysisSoundApiSmoke
+    {concrete : ConcreteAlgebra} {abstract : Algebra} {schema : Schema}
+    (soundnessFor : ∀ values, Syntactic.Soundness concrete abstract schema values)
     (operation : Operation)
-    : Syntactic.AnalysisSound abstract schema operation :=
-  Syntactic.analysisSound abstract schema operation
+    : Syntactic.AnalysisSound soundnessFor operation :=
+  Syntactic.analysisSound soundnessFor operation
 
 end Soundness
 end TreeSummary

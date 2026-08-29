@@ -37,7 +37,7 @@ def fieldListMultiplier (schema : Schema) (listSize : Nat) (group : CollectedFie
 -- Compositional upper bound on the number of response fields. Every collected response
 -- name contributes one plus its completed child summary, simultaneous contributions
 -- add, and alternative possible child types are joined with `Nat.max`.
-abbrev algebra (schema : Schema) (listSize : Nat) : Algebra :=
+def algebra (schema : Schema) (listSize : Nat) : Algebra :=
   {
     Summary := Nat
     empty := 0
@@ -47,6 +47,10 @@ abbrev algebra (schema : Schema) (listSize : Nat) : Algebra :=
     combine := Nat.add
     join := Nat.max
   }
+
+-----------------------------------------------------------------------------------------
+-- Public analysis entry points
+-----------------------------------------------------------------------------------------
 
 namespace ExactCases
 
@@ -133,26 +137,16 @@ def ResolversRespectListSize (listSize : Nat) (resolvers : Resolvers ObjectRef) 
     resolvers.resolve parentType fieldName arguments source = some resolved
     -> resolverValueListsBounded listSize resolved
 
--- Public response-size bound for explicit execution fuel. Its theorem witness is
--- `MaxResponseSize.ExactCases.soundWithFuel` in
--- `Proofs.GraphQL.Theories.TreeSummary.MaxResponseSize`.
+-----------------------------------------------------------------------------------------
+-- Soundness statements
+-----------------------------------------------------------------------------------------
+
 namespace ExactCases
 
-def SoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      ResolversRespectListSize listSize resolvers
-      -> actualSize
-            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
-          ≤ estimateOperation schema listSize operation
-
 -- Public response-size bound for the default executor. Its theorem witness is
--- `MaxResponseSize.ExactCases.sound` in
+-- `MaxResponseSize.ExactCases.analysisSound` in
 -- `Proofs.GraphQL.Theories.TreeSummary.MaxResponseSize`.
-def Sound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
+def AnalysisSound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
   -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
@@ -161,24 +155,10 @@ def Sound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
       -> actualSize (executeQuery schema resolvers variableValues operation source)
           ≤ estimateOperation schema listSize operation
 
--- Variable-aware exact-case response-size bound at explicit execution fuel. Its theorem
--- witness is `MaxResponseSize.ExactCases.soundWithVariablesWithFuel` in
--- `Proofs.GraphQL.Theories.TreeSummary.MaxResponseSize`.
-def SoundWithVariablesWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      ResolversRespectListSize listSize resolvers
-      -> actualSize
-            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
-          ≤ estimateOperationWithVariables schema listSize variableValues operation
-
--- Default-executor form of `SoundWithVariablesWithFuel`. Its theorem witness is
--- `MaxResponseSize.ExactCases.soundWithVariables` in the response-size proof module.
-def SoundWithVariables (schema : Schema) (listSize : Nat) (operation : Operation)
+-- Variable-aware response-size bound for the default executor. Its theorem witness is
+-- `MaxResponseSize.ExactCases.analysisWithVariablesSound` in the response-size proof
+-- module.
+def AnalysisWithVariablesSound (schema : Schema) (listSize : Nat) (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
@@ -192,22 +172,9 @@ end ExactCases
 
 namespace Syntactic
 
--- Fuel-parameterized response-size bound for the fast syntactic estimator. Its direct
--- theorem witness is `MaxResponseSize.Syntactic.soundWithFuel` in the proof module.
-def SoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      ResolversRespectListSize listSize resolvers
-      -> actualSize
-            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
-          ≤ estimateOperation schema listSize operation
-
 -- Public response-size bound for the fast syntactic estimator. Its direct theorem
--- witness is `MaxResponseSize.Syntactic.sound` in the proof module.
-def Sound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
+-- witness is `MaxResponseSize.Syntactic.analysisSound` in the proof module.
+def AnalysisSound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
   -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
@@ -216,24 +183,10 @@ def Sound (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
       -> actualSize (executeQuery schema resolvers variableValues operation source)
           ≤ estimateOperation schema listSize operation
 
--- Variable-aware response-size bound for the fast estimator at explicit execution fuel.
--- Its theorem witness is `MaxResponseSize.Syntactic.soundWithVariablesWithFuel` in
--- `Proofs.GraphQL.Theories.TreeSummary.MaxResponseSize`.
-def SoundWithVariablesWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      ResolversRespectListSize listSize resolvers
-      -> actualSize
-            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
-          ≤ estimateOperationWithVariables schema listSize variableValues operation
-
--- Default-executor form of `SoundWithVariablesWithFuel`. Its theorem witness is
--- `MaxResponseSize.Syntactic.soundWithVariables` in the response-size proof module.
-def SoundWithVariables (schema : Schema) (listSize : Nat) (operation : Operation)
+-- Variable-aware response-size bound for the fast estimator and default executor. Its
+-- theorem witness is `MaxResponseSize.Syntactic.analysisWithVariablesSound` in the
+-- response-size proof module.
+def AnalysisWithVariablesSound (schema : Schema) (listSize : Nat) (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
@@ -251,11 +204,11 @@ end Syntactic
 
 namespace ExactCases
 
--- Local collecting semantics used by the exact-case optimality theorem. A field may
+-- Local outcome semantics used by the exact-case optimality theorem. A field may
 -- realize any child multiplicity through the model's maximum; the maximum itself is
 -- included.
-abbrev caseSemantics (schema : Schema) (listSize : Nat)
-    : TreeSummary.ExactCases.CaseSemantics :=
+def outcomeSemantics (schema : Schema) (listSize : Nat)
+    : TreeSummary.ExactCases.OutcomeSemantics :=
   {
     Summary := Nat
     empty := 0
@@ -269,22 +222,22 @@ abbrev caseSemantics (schema : Schema) (listSize : Nat)
 
 -- The unknown-variable exact-case estimate is the least upper bound of its recursively
 -- feasible modeled response sizes. Its witness is
--- `MaxResponseSize.ExactCases.summaryOptimal` in the response-size proof module.
-def SummaryOptimal (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
+-- `MaxResponseSize.ExactCases.analysisOptimal` in the response-size proof module.
+def AnalysisOptimal (schema : Schema) (listSize : Nat) (operation : Operation) : Prop :=
   Optimality.BestBound Nat.le Nat.le
-    (TreeSummary.ExactCases.operationOutcomes (caseSemantics schema listSize)
+    (TreeSummary.ExactCases.operationOutcomes (outcomeSemantics schema listSize)
       schema operation)
     (estimateOperation schema listSize operation)
 
--- Variable-aware form of `SummaryOptimal`. Its witness is
--- `MaxResponseSize.ExactCases.summaryOptimalWithVariables` in the response-size proof
+-- Variable-aware form of `AnalysisOptimal`. Its witness is
+-- `MaxResponseSize.ExactCases.analysisWithVariablesOptimal` in the response-size proof
 -- module.
-def SummaryOptimalWithVariables (schema : Schema) (listSize : Nat)
+def AnalysisWithVariablesOptimal (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : Prop :=
   Optimality.BestBound Nat.le Nat.le
     (TreeSummary.ExactCases.operationOutcomesWithVariables
-      (caseSemantics schema listSize) schema variableValues operation)
+      (outcomeSemantics schema listSize) schema variableValues operation)
     (estimateOperationWithVariables schema listSize variableValues operation)
 
 end ExactCases

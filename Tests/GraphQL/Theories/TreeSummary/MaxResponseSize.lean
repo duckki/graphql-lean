@@ -63,7 +63,7 @@ theorem responseWithinListSizeSmoke
     concreteAlgebra, responseFieldObservation, listMultiplier,
     responseValueChildMultiplicity, ResponseObservation.empty,
     ResponseObservation.combine, TreeSummary.foldAnnotatedResponse,
-    foldAnnotatedResponseValueChildren, foldAnnotatedResponseFields,
+    foldAnnotatedResponseValue, foldAnnotatedResponseFields,
     fieldLookup]
 
 def complementaryBooleanBranchesOperation : Operation :=
@@ -124,15 +124,17 @@ theorem syntacticVariablesPruneCompatibleBooleanBranches
       = 0 := by
   native_decide
 
-theorem syntacticSoundApiSmoke (schema : Schema) (listSize : Nat) (operation : Operation)
-    : GraphQL.TreeSummary.MaxResponseSize.Syntactic.Sound schema listSize operation :=
-  Syntactic.sound schema listSize operation
-
-theorem syntacticSoundWithVariablesApiSmoke
+theorem syntacticAnalysisSoundApiSmoke
     (schema : Schema) (listSize : Nat) (operation : Operation)
-    : GraphQL.TreeSummary.MaxResponseSize.Syntactic.SoundWithVariables schema listSize
+    : GraphQL.TreeSummary.MaxResponseSize.Syntactic.AnalysisSound schema listSize
         operation :=
-  Syntactic.soundWithVariables schema listSize operation
+  Syntactic.analysisSound schema listSize operation
+
+theorem syntacticAnalysisWithVariablesSoundApiSmoke
+    (schema : Schema) (listSize : Nat) (operation : Operation)
+    : GraphQL.TreeSummary.MaxResponseSize.Syntactic.AnalysisWithVariablesSound schema
+        listSize operation :=
+  Syntactic.analysisWithVariablesSound schema listSize operation
 
 def selectedOutputSchema : Schema :=
   {
@@ -203,14 +205,14 @@ theorem nestedSelectionsShareMissingBooleanValue
       = 3 := by
   native_decide
 
-theorem summaryOptimalApiSmoke (schema : Schema) (listSize : Nat) (operation : Operation)
-    : ExactCases.SummaryOptimal schema listSize operation :=
-  ExactCases.summaryOptimal schema listSize operation
+theorem analysisOptimalApiSmoke (schema : Schema) (listSize : Nat) (operation : Operation)
+    : ExactCases.AnalysisOptimal schema listSize operation :=
+  ExactCases.analysisOptimal schema listSize operation
 
-theorem summaryOptimalWithVariablesApiSmoke (schema : Schema) (listSize : Nat)
+theorem analysisWithVariablesOptimalApiSmoke (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues) (operation : Operation)
-    : ExactCases.SummaryOptimalWithVariables schema listSize variableValues operation :=
-  ExactCases.summaryOptimalWithVariables schema listSize variableValues operation
+    : ExactCases.AnalysisWithVariablesOptimal schema listSize variableValues operation :=
+  ExactCases.analysisWithVariablesOptimal schema listSize variableValues operation
 
 end MaxResponseSize
 end TreeSummary

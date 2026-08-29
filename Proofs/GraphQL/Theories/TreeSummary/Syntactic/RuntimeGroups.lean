@@ -42,7 +42,7 @@ mutual
       (inheritedBooleanCondition : List BooleanLiteral)
       (tree : Tree) (traversal : Traversal)
       : List CollectedFieldGroup :=
-    collectFieldGroups inheritedBooleanCondition tree.condition tree.fields
+    fieldGroupsWithContext inheritedBooleanCondition tree.condition tree.fields
     ++ traversedBranchCollectedGroups parentType inheritedBooleanCondition
         tree.branches traversal
   termination_by sizeOf tree

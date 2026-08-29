@@ -66,25 +66,27 @@ theorem collectedResponseNameCountsOnceSmoke
   native_decide
 
 theorem sameResponseNameInCompatibleConditionsIsGloballyGroupedSmoke
-    : ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema "Animal" []
-        [
-          .field "label" "name" [] [] [],
-          .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
-        ]
-        ExactCases.BooleanEnvironment.unknown
+    : (show Nat from
+        ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema "Animal" []
+          [
+            .field "label" "name" [] [] [],
+            .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
+          ]
+          ExactCases.BooleanEnvironment.unresolved)
       = (1 : Nat) := by
   native_decide
 
 -- The structural backend visits both syntactic response-name groups independently.
 -- For response-size counting this produces the expected less precise result.
 theorem syntacticSameResponseNameKeepsSeparateContributionsSmoke
-    : Syntactic.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema "Animal" []
-        [
-          .field "label" "name" [] [] [],
-          .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
-        ]
+    : (show Nat from
+        Syntactic.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema "Animal" []
+          [
+            .field "label" "name" [] [] [],
+            .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
+          ])
       = (2 : Nat) := by
   native_decide
 
@@ -98,28 +100,37 @@ def repeatedConditionalResponseNameTree : ConditionTree.Tree :=
 -- One feasible exact case globally merges matching response names before analysis.
 theorem repeatedConditionalResponseNameCaseIsGloballyGrouped
     : let conditionTree := repeatedConditionalResponseNameTree
-      let caseForest :=
-        (ExactCases.CaseForest.ofConditionTree conditionTree).resolveBranches
-          conditionTree.condition.possibleTypes
-          [("x", .boolean true), ("y", .boolean true)]
-      (caseForest.fieldGroups [.positive "x", .positive "y"]
+      let initial := ExactCases.CaseCursor.ofConditionTree conditionTree
+      let afterX :=
+        match initial.pendingBranches with
+        | branch :: rest =>
+            initial.resolveBooleanBranch branch.body rest (.positive "x") true
+        | [] => initial
+      let afterY :=
+        match afterX.pendingBranches with
+        | branch :: rest =>
+            afterX.resolveBooleanBranch branch.body rest (.positive "y") true
+        | [] => afterX
+      (afterY.fieldGroups [.positive "x", .positive "y"]
         conditionTree.condition.possibleTypes).map
         (fun group => (group.responseName, group.fields.length))
       = [("label", 2)] := by
   native_decide
 
 theorem exactCasesCountRepeatedConditionalResponseNameOnce
-    : ExactCases.summarizeConditionTree
-        (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
-        repeatedConditionalResponseNameTree
-        ExactCases.BooleanEnvironment.unknown
+    : (show Nat from
+        ExactCases.summarizeConditionTree
+          (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
+          repeatedConditionalResponseNameTree
+          ExactCases.BooleanEnvironment.unresolved)
       = (1 : Nat) := by
   native_decide
 
 theorem syntacticSummaryCountsRepeatedConditionalResponseNameTwice
-    : Syntactic.summarizeConditionTree
-        (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
-        repeatedConditionalResponseNameTree []
+    : (show Nat from
+        Syntactic.summarizeConditionTree
+          (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
+          repeatedConditionalResponseNameTree [])
       = (2 : Nat) := by
   native_decide
 
@@ -131,20 +142,26 @@ def nestedConditionalResponseNameTree : ConditionTree.Tree :=
         [.field "label" "id" [] [.include (.variable "y")] []]
     ]
 
--- Selecting `x` creates a case forest containing the retained root and the
--- selected condition-tree subtree. Its nested `y` condition remains a local frontier,
--- so the analysis re-enters that forest before globally grouping the two
--- `label` fields.
-theorem nestedConditionCompositionRecursesOnCaseForest
+-- Selecting `x` appends its child branches to this cursor. Its nested `y` condition
+-- remains the next local frontier, so grouping happens only after that branch is
+-- incrementally selected as well.
+theorem nestedConditionCompositionRecursesOnCaseCursor
     : let conditionTree := nestedConditionalResponseNameTree
       let scope := conditionTree.condition.possibleTypes
-      let initial := ExactCases.CaseForest.ofConditionTree conditionTree
-      let afterX := initial.resolveBranches scope [("x", .boolean true)]
+      let initial := ExactCases.CaseCursor.ofConditionTree conditionTree
+      let afterX :=
+        match initial.pendingBranches with
+        | branch :: rest =>
+            initial.resolveBooleanBranch branch.body rest (.positive "x") true
+        | [] => initial
       let afterY :=
-        afterX.resolveBranches scope [("y", .boolean true), ("x", .boolean true)]
+        match afterX.pendingBranches with
+        | branch :: rest =>
+            afterX.resolveBooleanBranch branch.body rest (.positive "y") true
+        | [] => afterX
       (
-        afterX.hasUnresolvedBranches,
-        afterY.hasUnresolvedBranches,
+        !afterX.pendingBranches.isEmpty,
+        !afterY.pendingBranches.isEmpty,
         (afterY.fieldGroups [.positive "x", .positive "y"] scope).map
           (fun group => (group.responseName, group.fields.length))
       )
@@ -152,10 +169,11 @@ theorem nestedConditionCompositionRecursesOnCaseForest
   native_decide
 
 theorem nestedConditionCompositionCountsResponseNameOnce
-    : ExactCases.summarizeConditionTree
-        (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
-        nestedConditionalResponseNameTree
-        ExactCases.BooleanEnvironment.unknown
+    : (show Nat from
+        ExactCases.summarizeConditionTree
+          (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
+          nestedConditionalResponseNameTree
+          ExactCases.BooleanEnvironment.unresolved)
       = (1 : Nat) := by
   native_decide
 
@@ -168,6 +186,13 @@ abbrev collectedCaseSizesAlgebra : Algebra :=
     join := List.append
   }
 
+private def booleanDecisionNodeCount : ExactCases.Internal.BooleanDecision α -> Nat
+  | .leaf _summary => 1
+  | .split _variableName onFalse onTrue =>
+      1 + booleanDecisionNodeCount onFalse + booleanDecisionNodeCount onTrue
+  | .join left right =>
+      1 + booleanDecisionNodeCount left + booleanDecisionNodeCount right
+
 def complementaryConditionalFieldsTree : ConditionTree.Tree :=
   ConditionTree.ofSelectionSet conditionSchema "Animal"
     [
@@ -175,13 +200,11 @@ def complementaryConditionalFieldsTree : ConditionTree.Tree :=
       .field "skipped" "id" [] [.skip (.variable "x")] []
     ]
 
--- Missing nullable Booleans behave as false. Missing, supplied false, and supplied true
--- therefore each select exactly one polarity, producing three cases of size one.
-theorem unresolvedBooleanIsASeparateCase
+-- Variable-independent summaries model only false and true; missing follows false.
+theorem unresolvedBooleanHasTwoCases
     : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra conditionSchema
-        "Animal" [] complementaryConditionalFieldsTree
-        ExactCases.BooleanEnvironment.unknown
-      = [1, 1, 1] := by
+        [] complementaryConditionalFieldsTree ExactCases.BooleanEnvironment.unresolved
+      = [1, 1] := by
   native_decide
 
 -- Immediate branches with opposite literals of one variable are simultaneous only
@@ -195,51 +218,65 @@ theorem syntacticComplementaryBooleanBranchesJoinSmoke
 
 theorem lazyBooleanDecisionSplitsOnlyWhenReached
     : let variables := ["x"]
-      let environment : ExactCases.BooleanEnvironment :=
-        {
-          statuses := [("x", .unresolved)]
-          variableValues := []
-          fixedVariableValues := []
-        }
+      let environment := ExactCases.BooleanEnvironment.unresolved
       let decision :=
-        ExactCases.summarizeConditionTreeDecision collectedCaseSizesAlgebra
-          conditionSchema "Animal" [] complementaryConditionalFieldsTree variables
+        ExactCases.Internal.summarizeConditionTreeDecision collectedCaseSizesAlgebra
+          conditionSchema [] complementaryConditionalFieldsTree variables
           environment
-      (decision.nodeCount, decision.collapse collectedCaseSizesAlgebra)
+      (booleanDecisionNodeCount decision, decision.collapse collectedCaseSizesAlgebra)
       = (3, [1, 1]) := by
   native_decide
 
+theorem exactCasesCompactJoinsFinishedLeaves
+    : (ExactCases.Internal.BooleanDecision.join (.leaf [1]) (.leaf [2])).compact
+        List.append
+      = .leaf [1, 2] := by
+  rfl
+
+theorem exactCasesCompactRetainsLocalDecisionStructure
+    : (ExactCases.Internal.BooleanDecision.join
+        (.split "x" (.leaf [1]) (.leaf [2]))
+        (.leaf [3])).compact
+        List.append
+      = .join (.split "x" (.leaf [1]) (.leaf [2])) (.leaf [3]) := by
+  rfl
+
 theorem explicitMissingBooleanContextSelectsNegativePolarity
     : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
-        conditionSchema "Animal" [] complementaryConditionalFieldsTree
-        {
-          statuses := [("x", .missing)]
-          variableValues := []
-          fixedVariableValues := []
-        }
+        conditionSchema [] complementaryConditionalFieldsTree
+        (ExactCases.BooleanEnvironment.ofCompleteValues [])
       = [1] := by
+  native_decide
+
+theorem completeBooleanStatusUsesOption
+    : (
+        (ExactCases.BooleanEnvironment.ofCompleteValues []).statusForVariable "x",
+        (ExactCases.BooleanEnvironment.ofCompleteValues [("x", .int 1)]).statusForVariable
+          "x",
+        (ExactCases.BooleanEnvironment.ofCompleteValues
+          [("x", .boolean true)]).statusForVariable
+          "x"
+      )
+      = (some false, some false, some true) := by
   native_decide
 
 theorem explicitKnownBooleanContextSelectsOnePolarity
     : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
-        conditionSchema "Animal" [] complementaryConditionalFieldsTree
-        {
-          statuses := [("x", .known false)]
-          variableValues := [("x", .boolean false)]
-          fixedVariableValues := [("x", .boolean false)]
-        }
+        conditionSchema [] complementaryConditionalFieldsTree
+        (ExactCases.BooleanEnvironment.ofCompleteValues [("x", .boolean false)])
       = [1] := by
   native_decide
 
 theorem summarizeSelectionSetUsesInheritedBooleanConditionSmoke
-    : ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema "Animal"
-        [.positive "x"]
-        [
-          .field "excluded" "name" [] [.skip (.variable "x")] [],
-          .field "included" "id" [] [] []
-        ]
-        ExactCases.BooleanEnvironment.unknown
+    : (show Nat from
+        ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema "Animal"
+          [.positive "x"]
+          [
+            .field "excluded" "name" [] [.skip (.variable "x")] [],
+            .field "included" "id" [] [] []
+          ]
+          ExactCases.BooleanEnvironment.unresolved)
       = (1 : Nat) := by
   native_decide
 
@@ -460,57 +497,64 @@ def variableSkipOperation (defaultValue : Option ConstInputValue) : Operation :=
   }
 
 theorem suppliedTrueTakesBooleanBranchSmoke
-    : ExactCases.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema
-        [("showName", .boolean true)] (variableIncludeOperation none)
+    : (show Nat from
+        ExactCases.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema
+          [("showName", .boolean true)] (variableIncludeOperation none))
       = 2 := by
   native_decide
 
 theorem suppliedFalseSkipsBooleanBranchSmoke
-    : ExactCases.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema
-        [("showName", .boolean false)] (variableIncludeOperation none)
+    : (show Nat from
+        ExactCases.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema
+          [("showName", .boolean false)] (variableIncludeOperation none))
       = 1 := by
   native_decide
 
 theorem operationVariableDefaultTakesBooleanBranchSmoke
-    : ExactCases.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema []
-        (variableIncludeOperation (some (.boolean true)))
+    : (show Nat from
+        ExactCases.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema []
+          (variableIncludeOperation (some (.boolean true))))
       = 2 := by
   native_decide
 
 theorem suppliedValueOverridesOperationVariableDefaultSmoke
-    : ExactCases.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema
-        [("showName", .boolean false)]
-        (variableIncludeOperation (some (.boolean true)))
+    : (show Nat from
+        ExactCases.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema
+          [("showName", .boolean false)]
+          (variableIncludeOperation (some (.boolean true))))
       = 1 := by
   native_decide
 
 theorem negativeLiteralUsesOperationVariableDefaultSmoke
-    : ExactCases.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema []
-        (variableSkipOperation (some (.boolean true)))
+    : (show Nat from
+        ExactCases.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema []
+          (variableSkipOperation (some (.boolean true))))
       = 1 := by
   native_decide
 
 theorem syntacticSuppliedFalseSkipsBooleanBranchSmoke
-    : Syntactic.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema [("showName", .boolean false)] (variableIncludeOperation none)
+    : (show Nat from
+        Syntactic.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema [("showName", .boolean false)] (variableIncludeOperation none))
       = 1 := by
   native_decide
 
 theorem syntacticOperationDefaultTakesBooleanBranchSmoke
-    : Syntactic.summarizeOperationWithVariables
-        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-        conditionSchema [] (variableIncludeOperation (some (.boolean true)))
+    : (show Nat from
+        Syntactic.summarizeOperationWithVariables
+          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+          conditionSchema [] (variableIncludeOperation (some (.boolean true))))
       = 2 := by
   native_decide
 
@@ -531,13 +575,11 @@ def conditionallyVisitedNameSelection : List Selection :=
 theorem knownFalsePruningSkipsFieldHandlersSmoke
     : ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.ofCompleteValues ["showName"]
-            [("showName", .boolean false)])
+          (ExactCases.BooleanEnvironment.ofCompleteValues [("showName", .boolean false)])
         = []
       ∧ ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.ofCompleteValues ["showName"]
-            [("showName", .boolean true)])
+          (ExactCases.BooleanEnvironment.ofCompleteValues [("showName", .boolean true)])
         = ["name"]
       ∧ Syntactic.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection [("showName", .boolean false)]

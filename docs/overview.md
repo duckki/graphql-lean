@@ -38,12 +38,13 @@ flowchart TD
   ResponseMeasure["GraphQL.Theories.ResponseMeasure"]
   ConditionTree["GraphQL.Theories.ConditionTree"]
   ConditionTreeTermination["GraphQL.Theories.ConditionTree.Termination"]
+  ConditionTreeFieldCollection["GraphQL.Theories.ConditionTree.FieldCollection"]
   ConditionTreeExecution["GraphQL.Theories.ConditionTree.Execution"]
   ConditionTreeReduce["GraphQL.Theories.ConditionTree.Reduce"]
   QueryInclusion["GraphQL.Theories.QueryInclusion"]
   TreeSummary["GraphQL.Theories.TreeSummary"]
   TreeSummaryCore["GraphQL.Theories.TreeSummary.Core"]
-  TreeSummaryResponseFold["GraphQL.Theories.TreeSummary.ResponseFold"]
+  TreeSummarySoundness["GraphQL.Theories.TreeSummary.Soundness"]
   TreeSummarySyntactic["GraphQL.Theories.TreeSummary.Syntactic"]
   TreeSummaryExact["GraphQL.Theories.TreeSummary.ExactCases"]
   TreeSummaryOptimality["GraphQL.Theories.TreeSummary.ExactCasesOptimality"]
@@ -90,15 +91,16 @@ flowchart TD
   SchemaWF --> NormalForm
   Validation --> NormalForm
   ConditionTree --> ConditionTreeTermination
+  Execution --> ConditionTreeFieldCollection
+  ConditionTreeFieldCollection --> ConditionTreeExecution
   ConditionTreeTermination --> ConditionTreeExecution
   ConditionTreeTermination --> ConditionTreeReduce
   ConditionTreeTermination --> TreeSummaryCore
-  TreeSummaryCore --> TreeSummaryResponseFold
-  AnnotatedExecution --> TreeSummaryResponseFold
-  TreeSummaryResponseFold --> TreeSummarySyntactic
-  TreeSummaryResponseFold --> TreeSummaryExact
-  ConditionTreeExecution --> TreeSummarySyntactic
-  ConditionTreeExecution --> TreeSummaryExact
+  TreeSummaryCore --> TreeSummarySoundness
+  AnnotatedExecution --> TreeSummarySoundness
+  TreeSummarySoundness --> TreeSummarySyntactic
+  TreeSummarySoundness --> TreeSummaryExact
+  ConditionTreeFieldCollection --> TreeSummarySyntactic
   TreeSummaryExact --> TreeSummaryOptimality
   TreeSummaryCore --> TreeSummary
   AnnotatedExecution --> TreeSummary
@@ -107,10 +109,9 @@ flowchart TD
   TreeSummaryOptimality --> TreeSummary
   TreeSummarySyntactic --> MaxResponseSize
   TreeSummaryOptimality --> MaxResponseSize
-  TreeSummaryResponseFold --> StaticCost
+  TreeSummarySoundness --> StaticCost
   TreeSummarySyntactic --> StaticCost
   TreeSummaryOptimality --> StaticCost
-  Execution --> ConditionTreeExecution
   Execution --> ConditionTreeReduce
   NormalForm --> NormalFormGround
   NormalForm --> CompleteNormalization
@@ -223,6 +224,9 @@ It should remain definition-only.
 - `GraphQL.Theories.ConditionTree/*`: condition-tree construction, runtime field
   collection, total condition-tree execution, and reduction.
   The proof modules establish extraction, pruning, reduction, and execution correctness.
+- `GraphQL.Theories.ConditionTree.FieldCollection`: occurrence-preserving runtime field
+  collection and response-name grouping shared by condition-tree execution and the
+  syntactic tree-summary contracts.
 - `GraphQL.Theories.QueryInclusion`: recursive response-field inclusion with resolver
   provenance, a simple reference checker, and the optimized guarded field-group checker.
   Its proof modules establish soundness and completeness for valid operations under the
@@ -244,9 +248,9 @@ It should remain definition-only.
   condition trees. Algebras provide a synthesized summary type plus field,
   simultaneous-composition, and alternative-join operations. Condition pruning is
   framework traversal policy, independent of the algebra.
-- `GraphQL.Theories.TreeSummary.ResponseFold`: abstract and concrete algebra folds
-  over the annotated responses produced by `GraphQL.Theories.AnnotatedExecution`, plus
-  their shared compatibility contract.
+- `GraphQL.Theories.TreeSummary.Soundness`: abstract child-shape and concrete response
+  folds over the annotated responses produced by
+  `GraphQL.Theories.AnnotatedExecution`, plus their shared soundness contract.
 - `GraphQL.Theories.TreeSummary.Syntactic`: direct node-local materializable
   type-condition products and factorized Boolean-case traversal together with its direct
   soundness contract.

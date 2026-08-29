@@ -1,7 +1,7 @@
 import GraphQL.Theories.AnnotatedExecution
 import GraphQL.Theories.TreeSummary.Core
 
-/-! Tree-summary folds over annotated execution responses. -/
+/-! Concrete and abstract response interpretations used by tree-summary soundness. -/
 
 namespace GraphQL
 namespace TreeSummary
@@ -59,31 +59,14 @@ structure ConcreteAlgebra.Lawful (algebra : ConcreteAlgebra.{u}) : Prop where
   empty_combine : ∀ value, algebra.combine algebra.empty value = value
   combine_empty : ∀ value, algebra.combine value algebra.empty = value
 
--- Backend-independent obligations relating one concrete response fold to one abstract
--- summary algebra. Exact and syntactic traversal contracts extend this core with only
--- the field-transfer obligation specific to their grouping strategy.
-structure CompatibilityCore (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
-    : Type (max u v) where
-  related : concrete.Summary -> abstract.Summary -> Prop
-  concreteLawful : concrete.Lawful
-  abstractLawful : abstract.Lawful
-  empty_related : related concrete.empty abstract.empty
-  combine_related
-    : ∀ concreteLeft abstractLeft concreteRight abstractRight,
-        related concreteLeft abstractLeft
-        -> related concreteRight abstractRight
-        -> related (concrete.combine concreteLeft concreteRight)
-            (abstract.combine abstractLeft abstractRight)
-  related_mono
-    : ∀ concreteValue abstractLower abstractUpper,
-        related concreteValue abstractLower
-        -> abstractLawful.le abstractLower abstractUpper
-        -> related concreteValue abstractUpper
+-----------------------------------------------------------------------------------------
+-- Concrete algebra folding of annotated responses
+-----------------------------------------------------------------------------------------
 
 -- Folds an annotated response. Lists combine the summaries of their returned items, and
 -- object fields combine the summaries of response-name groups executed together.
 mutual
-  def foldAnnotatedResponseValueChildren (algebra : ConcreteAlgebra)
+  def foldAnnotatedResponseValue (algebra : ConcreteAlgebra)
       : AnnotatedResponseValue -> algebra.Summary
     | .null => algebra.empty
     | .scalar _value => algebra.empty
@@ -95,7 +78,7 @@ mutual
     | [] => algebra.empty
     | value :: rest =>
         algebra.combine
-          (foldAnnotatedResponseValueChildren algebra value)
+          (foldAnnotatedResponseValue algebra value)
           (foldAnnotatedResponseValues algebra rest)
 
   def foldAnnotatedResponseFields (algebra : ConcreteAlgebra)
@@ -103,13 +86,38 @@ mutual
     | [] => algebra.empty
     | .resolved _responseName call value :: rest =>
         algebra.combine
-          (algebra.field call value (foldAnnotatedResponseValueChildren algebra value))
+          (algebra.field call value (foldAnnotatedResponseValue algebra value))
           (foldAnnotatedResponseFields algebra rest)
 end
 
 def foldAnnotatedResponse (algebra : ConcreteAlgebra) (annotated : AnnotatedResponse)
     : algebra.Summary :=
-  foldAnnotatedResponseValueChildren algebra annotated.data
+  foldAnnotatedResponseValue algebra annotated.data
+
+-----------------------------------------------------------------------------------------
+-- Core soundness contract
+-----------------------------------------------------------------------------------------
+
+-- Backend-independent obligations relating one concrete response fold to one abstract
+-- summary algebra. Exact and syntactic traversal contracts extend this core with only
+-- the field-transfer obligation specific to their grouping strategy.
+structure SoundnessCore (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
+    : Type (max u v) where
+  approximates : concrete.Summary -> abstract.Summary -> Prop
+  concreteLawful : concrete.Lawful
+  abstractLawful : abstract.Lawful
+  empty_sound : approximates concrete.empty abstract.empty
+  combine_sound
+    : ∀ concreteLeft abstractLeft concreteRight abstractRight,
+        approximates concreteLeft abstractLeft
+        -> approximates concreteRight abstractRight
+        -> approximates (concrete.combine concreteLeft concreteRight)
+            (abstract.combine abstractLeft abstractRight)
+  approximates_upward
+    : ∀ concreteValue abstractLower abstractUpper,
+        approximates concreteValue abstractLower
+        -> abstractLawful.le abstractLower abstractUpper
+        -> approximates concreteValue abstractUpper
 
 end TreeSummary
 end GraphQL

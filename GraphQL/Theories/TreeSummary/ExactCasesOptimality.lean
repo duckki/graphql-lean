@@ -1,6 +1,6 @@
 import GraphQL.Theories.TreeSummary.ExactCases
 
-/-! Generic best bounds and optional optimality contracts for the exact-case backend. -/
+/-! Generic best bounds and optimality contracts for the exact-case backend. -/
 
 namespace GraphQL
 namespace TreeSummary
@@ -11,7 +11,8 @@ open GraphQL.Execution
 universe u v
 
 -----------------------------------------------------------------------------------------
--- Optimality contracts for exact-case traversal
+-- BestBound: The abstract summary representing the least upper bound of possible
+--            concrete summaries
 -----------------------------------------------------------------------------------------
 
 namespace Optimality
@@ -22,19 +23,23 @@ namespace Optimality
 -- preserve best bounds.
 structure BestBound {ConcreteSummary : Type u} {AbstractSummary : Type v}
     (le : AbstractSummary -> AbstractSummary -> Prop)
-    (related : ConcreteSummary -> AbstractSummary -> Prop)
+    (approximates : ConcreteSummary -> AbstractSummary -> Prop)
     (attainable : ConcreteSummary -> Prop) (estimate : AbstractSummary)
     : Prop where
   feasible : ∃ concrete, attainable concrete
-  sound : ∀ concrete, attainable concrete -> related concrete estimate
+  sound : ∀ concrete, attainable concrete -> approximates concrete estimate
   least
     : ∀ candidate,
-        (∀ concrete, attainable concrete -> related concrete candidate)
+        (∀ concrete, attainable concrete -> approximates concrete candidate)
         -> le estimate candidate
 
 end Optimality
 
 open Optimality
+
+-----------------------------------------------------------------------------------------
+-- OutcomeSet: a set of analysis outcomes
+-----------------------------------------------------------------------------------------
 
 -- Predicate-valued collecting domain retaining every concrete alternative.
 abbrev OutcomeSet (Summary : Type u) := Summary -> Prop
@@ -61,287 +66,287 @@ def bind {ResultSummary : Type v} (source : OutcomeSet Summary)
 
 end OutcomeSet
 
+-----------------------------------------------------------------------------------------
+-- Exact-case optimality contract for analyses
+-----------------------------------------------------------------------------------------
+
 namespace ExactCases
 
--- Analysis-independent semantics of recursively feasible exact cases. `combine`
+-- Analysis-generic semantics of recursively feasible exact cases. `combine`
 -- supplies simultaneous composition; `fieldOutcomes` supplies every concrete result of
--- one collected response-name group. The semantics contains no abstract summary,
--- execution model, or best-bound proof.
-structure CaseSemantics where
+-- one collected response-name group.
+structure OutcomeSemantics where
   Summary : Type u
   empty : Summary
   combine : Summary -> Summary -> Summary
   fieldOutcomes : CollectedFieldGroup -> Summary -> OutcomeSet Summary
 
--- Comparison, concrete-to-abstract relation, and local laws needed to transport best
--- bounds through the exact traversal. The recursive case semantics itself remains
--- independent of these laws.
-structure BestTransferLaws (semantics : CaseSemantics.{u}) (abstract : Algebra.{v})
+-- Local laws transporting best bounds through the exact traversal.
+structure BestTransferLaws (semantics : OutcomeSemantics.{u}) (abstract : Algebra.{v})
     : Type (max u v) where
-  related : semantics.Summary -> abstract.Summary -> Prop
+  approximates : semantics.Summary -> abstract.Summary -> Prop
   le : abstract.Summary -> abstract.Summary -> Prop
-  empty_best : BestBound le related (OutcomeSet.singleton semantics.empty) abstract.empty
+  empty_best
+    : BestBound le approximates (OutcomeSet.singleton semantics.empty) abstract.empty
   combine_best
     : ∀ left right abstractLeft abstractRight,
-        BestBound le related left abstractLeft
-        -> BestBound le related right abstractRight
-        -> BestBound le related
+        BestBound le approximates left abstractLeft
+        -> BestBound le approximates right abstractRight
+        -> BestBound le approximates
             (OutcomeSet.combine semantics.combine left right)
             (abstract.combine abstractLeft abstractRight)
   field_best
     : ∀ group children abstractChildren,
-        BestBound le related children abstractChildren
-        -> BestBound le related
+        BestBound le approximates children abstractChildren
+        -> BestBound le approximates
             (OutcomeSet.bind children (semantics.fieldOutcomes group))
             (abstract.field group abstractChildren)
   join_best
     : ∀ left right abstractLeft abstractRight,
-        BestBound le related left abstractLeft
-        -> BestBound le related right abstractRight
-        -> BestBound le related (OutcomeSet.union left right)
+        BestBound le approximates left abstractLeft
+        -> BestBound le approximates right abstractRight
+        -> BestBound le approximates (OutcomeSet.union left right)
             (abstract.join abstractLeft abstractRight)
 
 end ExactCases
 
 -----------------------------------------------------------------------------------------
--- Exact-case summary optimality statement
+-- Concrete outcome specification
 -----------------------------------------------------------------------------------------
 
 namespace ExactCases
 
--- A total truth assignment used only to select paths through unresolved Boolean
--- decisions. Missing-versus-present status remains in `BooleanEnvironment` and is fixed
--- independently before a case derivation begins.
+-- A total truth assignment shared by every response-name group and recursive child in
+-- one feasible case. Complete environments ignore it; symbolic environments consult it
+-- only when traversal first reaches an unresolved variable.
 abbrev BooleanAssignment := Name -> Bool
 
-mutual
-  -- One feasible outcome of the lazy exact-case traversal under a fixed global truth
-  -- assignment. The relation mirrors condition semantics, not an `Algebra`: it chooses
-  -- one Boolean path, one feasible type region, and concrete field outcomes.
-  inductive CaseForest.ContextOutcome (semantics : CaseSemantics.{u}) (schema : Schema)
-      : BooleanVariableNames -> BooleanVariableNames -> BooleanAssignment
-        -> BooleanEnvironment -> Name -> List BooleanLiteral -> CaseForest
-        -> PossibleTypeRegion -> semantics.Summary -> Prop
-    | split
-      (variableOrder remainingVariables assignment environment parentType
-        inheritedBooleanCondition tree possibleTypes variableName outcome)
-      (hbranches : tree.hasUnresolvedBranches = true)
-      (hnext
-        : environment.nextUnresolved remainingVariables tree.booleanVariables
-          = some variableName)
-      (houtcome
-        : CaseForest.ContextOutcome semantics schema variableOrder
-            (remainingVariables.erase variableName) assignment
-            (environment.assign variableName (assignment variableName)) parentType
-            inheritedBooleanCondition tree possibleTypes outcome)
-      : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-          assignment environment parentType inheritedBooleanCondition tree possibleTypes
-          outcome
-    | noTypeRegion
-      (variableOrder remainingVariables assignment environment parentType
-        inheritedBooleanCondition tree possibleTypes)
-      (hbranches : tree.hasUnresolvedBranches = true)
-      (hnext : environment.nextUnresolved remainingVariables tree.booleanVariables = none)
-      (hregions : tree.typeRegions possibleTypes = [])
-      : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-          assignment environment parentType inheritedBooleanCondition tree possibleTypes
-          semantics.empty
-    | resolve
-      (variableOrder remainingVariables assignment environment parentType
-        inheritedBooleanCondition tree possibleTypes region outcome)
-      (hbranches : tree.hasUnresolvedBranches = true)
-      (hnext : environment.nextUnresolved remainingVariables tree.booleanVariables = none)
-      (hregion : region ∈ tree.typeRegions possibleTypes)
-      (houtcome
-        : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-            assignment environment parentType
-            (extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
-              environment.variableValues)
-            (tree.resolveBranches region environment.variableValues) region outcome)
-      : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-          assignment environment parentType inheritedBooleanCondition tree possibleTypes
-          outcome
-    | fields
-      (variableOrder remainingVariables assignment environment parentType
-        inheritedBooleanCondition tree possibleTypes outcome)
-      (hbranches : tree.hasUnresolvedBranches = false)
-      (houtcome
-        : CaseForest.ContextFieldGroupsOutcome semantics schema variableOrder
-            remainingVariables assignment environment
-            (tree.fieldGroups inheritedBooleanCondition possibleTypes) outcome)
-      : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-          assignment environment parentType inheritedBooleanCondition tree possibleTypes
-          outcome
+namespace BooleanAssignment
 
-  -- Simultaneous response-name groups share one assignment and environment. This is the
-  -- relational counterpart of pointwise decision composition and rules out inconsistent
-  -- sibling choices for repeated variables.
-  inductive CaseForest.ContextFieldGroupsOutcome (semantics : CaseSemantics.{u})
+-- A total assignment respects every Boolean value already fixed by the initial
+-- environment. Values for unresolved variables remain unconstrained.
+def Extends (assignment : BooleanAssignment) (environment : BooleanEnvironment) : Prop :=
+  ∀ variableName value,
+    environment.statusForVariable variableName = some value
+    -> assignment variableName = value
+
+end BooleanAssignment
+
+mutual
+  -- One independently feasible outcome of the incremental cursor. The relation chooses
+  -- one local type region and follows one globally consistent Boolean assignment; it
+  -- does not invoke the executable summary fold or mention an analysis algebra.
+  inductive CaseCursor.ContextOutcome (semantics : OutcomeSemantics.{u}) (schema : Schema)
+      : BooleanAssignment -> BooleanEnvironment -> List BooleanLiteral
+        -> List BooleanLiteral -> CaseCursor -> PossibleTypeRegion
+        -> semantics.Summary -> Prop
+    | noTypeRegion
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes branch rest typeName)
+      (hbranches : cursor.pendingBranches = branch :: rest)
+      (hcondition : branch.condition = .typeCondition typeName)
+      (hregions
+        : possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes] = [])
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes semantics.empty
+    | selectTypeRegion
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes branch rest typeName region outcome)
+      (hbranches : cursor.pendingBranches = branch :: rest)
+      (hcondition : branch.condition = .typeCondition typeName)
+      (hregion
+        : region
+          ∈ possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes])
+      (hselected : possibleTypesSubset region branch.body.condition.possibleTypes = true)
+      (houtcome
+        : CaseCursor.ContextOutcome semantics schema assignment environment
+            inheritedBooleanCondition caseCondition
+            (cursor.selectBranch branch.body rest) region outcome)
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes outcome
+    | skipTypeRegion
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes branch rest typeName region outcome)
+      (hbranches : cursor.pendingBranches = branch :: rest)
+      (hcondition : branch.condition = .typeCondition typeName)
+      (hregion
+        : region
+          ∈ possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes])
+      (hskipped : possibleTypesSubset region branch.body.condition.possibleTypes = false)
+      (houtcome
+        : CaseCursor.ContextOutcome semantics schema assignment environment
+            inheritedBooleanCondition caseCondition (cursor.skipBranch rest) region
+            outcome)
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes outcome
+    | knownBoolean
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes branch rest literal value outcome)
+      (hbranches : cursor.pendingBranches = branch :: rest)
+      (hcondition : branch.condition = .booleanLiteral literal)
+      (hstatus : environment.statusForVariable literal.variableName = some value)
+      (houtcome
+        : CaseCursor.ContextOutcome semantics schema assignment environment
+            inheritedBooleanCondition
+            ((if value then
+                BooleanLiteral.positive literal.variableName
+              else
+                BooleanLiteral.negative literal.variableName)
+              :: caseCondition)
+            (cursor.resolveBooleanBranch branch.body rest literal value) possibleTypes
+            outcome)
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes outcome
+    | splitBoolean
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes branch rest literal outcome)
+      (hbranches : cursor.pendingBranches = branch :: rest)
+      (hcondition : branch.condition = .booleanLiteral literal)
+      (hstatus : environment.statusForVariable literal.variableName = none)
+      (houtcome
+        : CaseCursor.ContextOutcome semantics schema assignment
+            (environment.assign literal.variableName (assignment literal.variableName))
+            inheritedBooleanCondition
+            ((if assignment literal.variableName then
+                BooleanLiteral.positive literal.variableName
+              else
+                BooleanLiteral.negative literal.variableName)
+              :: caseCondition)
+            (cursor.resolveBooleanBranch branch.body rest literal
+              (assignment literal.variableName))
+            possibleTypes outcome)
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes outcome
+    | fields
+      (assignment environment inheritedBooleanCondition caseCondition cursor
+        possibleTypes outcome)
+      (hbranches : cursor.pendingBranches = [])
+      (houtcome
+        : CaseCursor.ContextFieldGroupsOutcome semantics schema assignment environment
+            (cursor.fieldGroups
+              (Internal.extendBooleanCondition inheritedBooleanCondition caseCondition)
+              possibleTypes)
+            outcome)
+      : CaseCursor.ContextOutcome semantics schema assignment environment
+          inheritedBooleanCondition caseCondition cursor possibleTypes outcome
+
+  -- All response-name groups at one boundary use the same assignment and environment,
+  -- ruling out inconsistent choices for repeated variables in sibling groups.
+  inductive CaseCursor.ContextFieldGroupsOutcome (semantics : OutcomeSemantics.{u})
       (schema : Schema)
-      : BooleanVariableNames -> BooleanVariableNames -> BooleanAssignment
-        -> BooleanEnvironment -> List CollectedFieldGroup -> semantics.Summary -> Prop
-    | nil (variableOrder remainingVariables assignment environment)
-      : CaseForest.ContextFieldGroupsOutcome semantics schema variableOrder
-          remainingVariables assignment environment [] semantics.empty
+      : BooleanAssignment -> BooleanEnvironment -> List CollectedFieldGroup
+        -> semantics.Summary -> Prop
+    | nil (assignment environment)
+      : CaseCursor.ContextFieldGroupsOutcome semantics schema assignment environment []
+          semantics.empty
     | cons
-      (variableOrder remainingVariables assignment environment group rest children
-        fieldOutcome restOutcome)
+      (assignment environment group rest children fieldOutcome restOutcome)
       (hchildren
-        : CaseForest.ContextChildTypesOutcome semantics schema variableOrder
-            remainingVariables assignment environment group
-            (childParentTypes schema group) children)
+        : CaseCursor.ContextChildTypesOutcome semantics schema assignment environment
+            group (childParentTypes schema group) children)
       (hfield : semantics.fieldOutcomes group children fieldOutcome)
       (hrest
-        : CaseForest.ContextFieldGroupsOutcome semantics schema variableOrder
-            remainingVariables assignment environment rest restOutcome)
-      : CaseForest.ContextFieldGroupsOutcome semantics schema variableOrder
-          remainingVariables assignment environment (group :: rest)
-          (semantics.combine fieldOutcome restOutcome)
+        : CaseCursor.ContextFieldGroupsOutcome semantics schema assignment environment
+            rest restOutcome)
+      : CaseCursor.ContextFieldGroupsOutcome semantics schema assignment environment
+          (group :: rest) (semantics.combine fieldOutcome restOutcome)
 
-  -- One feasible child output type is chosen while retaining the same global Boolean
-  -- assignment for the recursive child selection set.
-  inductive CaseForest.ContextChildTypesOutcome (semantics : CaseSemantics.{u})
+  -- A recursively selected field group chooses one feasible child output type while
+  -- retaining the assignment shared by the enclosing response boundary.
+  inductive CaseCursor.ContextChildTypesOutcome (semantics : OutcomeSemantics.{u})
       (schema : Schema)
-      : BooleanVariableNames -> BooleanVariableNames -> BooleanAssignment
-        -> BooleanEnvironment -> CollectedFieldGroup -> TypeNames
+      : BooleanAssignment -> BooleanEnvironment -> CollectedFieldGroup -> TypeNames
         -> semantics.Summary -> Prop
-    | none (variableOrder remainingVariables assignment environment group)
-      : CaseForest.ContextChildTypesOutcome semantics schema variableOrder
-          remainingVariables assignment environment group [] semantics.empty
+    | none (assignment environment group)
+      : CaseCursor.ContextChildTypesOutcome semantics schema assignment environment group
+          [] semantics.empty
     | some
-      (variableOrder remainingVariables assignment environment group parentTypes
-        childParentType outcome)
+      (assignment environment group parentTypes childParentType outcome)
       (hparentType : childParentType ∈ parentTypes)
       (houtcome
-        : CaseForest.ContextOutcome semantics schema variableOrder remainingVariables
-            assignment environment childParentType group.childInheritedBooleanCondition
-            (.ofConditionTree
-              (group.childTreeWithKnownFalsePruning schema childParentType
-                environment.fixedVariableValues))
-            (group.childTreeWithKnownFalsePruning schema childParentType
-              environment.fixedVariableValues).condition.possibleTypes outcome)
-      : CaseForest.ContextChildTypesOutcome semantics schema variableOrder
-          remainingVariables assignment environment group parentTypes outcome
+        : let childTree :=
+            group.childTreeWithKnownFalsePruning schema childParentType
+              environment.pruningValues
+          CaseCursor.ContextOutcome semantics schema assignment environment
+            group.childInheritedBooleanCondition [] (.ofConditionTree childTree)
+            childTree.condition.possibleTypes outcome)
+      : CaseCursor.ContextChildTypesOutcome semantics schema assignment environment group
+          parentTypes outcome
 end
 
-namespace BooleanEnvironment
-
--- Independent semantics for fixing missing-versus-present status globally. A supplied
--- Boolean becomes known, a supplied non-Boolean value is missing, and an absent value
--- admits both missing and present-but-unresolved completions.
-def Completion : BooleanVariableNames -> BooleanEnvironment -> BooleanEnvironment -> Prop
-  | [], initial, completed => completed = initial
-  | variableName :: rest, initial, completed =>
-      match initial.status? variableName with
-      | some _status => Completion rest initial completed
-      | none =>
-          match inputValueBoolean? initial.variableValues (.variable variableName) with
-          | some value =>
-              Completion rest (initial.withStatus variableName (.known value)) completed
-          | none =>
-              match lookupVariableValue? initial.variableValues variableName with
-              | some _nonBooleanValue =>
-                  Completion rest (initial.withStatus variableName .missing) completed
-              | none =>
-                  Completion rest (initial.withStatus variableName .missing) completed
-                  ∨ Completion rest (initial.withStatus variableName .unresolved)
-                      completed
-termination_by variables => variables
-
-end BooleanEnvironment
-
 -- Feasible outcomes of an extracted condition tree under an explicit initial context.
--- Missing-versus-present completion is global; truth values remain symbolic until the
--- relational traversal reaches their first relevant condition frontier.
-def conditionTreeContextOutcomes (semantics : CaseSemantics.{u})
-    (schema : Schema) (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
+-- This definition is independent of the executable fold and abstract analysis.
+def conditionTreeOutcomes (semantics : OutcomeSemantics.{u})
+    (schema : Schema) (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
     (initial : BooleanEnvironment)
     : OutcomeSet semantics.Summary :=
-  let variables := (conditionTreeBooleanVariables tree).eraseDups
   fun outcome =>
-    ∃ completed,
-      BooleanEnvironment.Completion variables initial completed
-      ∧ ∃ assignment,
-          CaseForest.ContextOutcome semantics schema variables variables assignment
-            completed parentType inheritedBooleanCondition (.ofConditionTree tree)
-            tree.condition.possibleTypes outcome
+    ∃ assignment,
+      assignment.Extends initial
+      ∧ CaseCursor.ContextOutcome semantics schema assignment initial
+          inheritedBooleanCondition [] (.ofConditionTree tree)
+          tree.condition.possibleTypes outcome
 
 -- Feasible outcomes of a selection hierarchy under an explicit initial context.
-def selectionSetContextOutcomes (semantics : CaseSemantics.{u})
+def selectionSetOutcomes (semantics : OutcomeSemantics.{u})
     (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
     (selectionSet : List Selection) (initial : BooleanEnvironment)
     : OutcomeSet semantics.Summary :=
-  conditionTreeContextOutcomes semantics schema parentType inheritedBooleanCondition
+  conditionTreeOutcomes semantics schema inheritedBooleanCondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
-      inheritedBooleanCondition initial.fixedVariableValues selectionSet)
+      inheritedBooleanCondition initial.pruningValues selectionSet)
     initial
 
--- Feasible outcomes of a lazy operation summary under an explicit Boolean context.
-def operationContextOutcomes (semantics : CaseSemantics.{u})
-    (schema : Schema) (operation : Operation) (initial : BooleanEnvironment)
-    : OutcomeSet semantics.Summary :=
-  selectionSetContextOutcomes semantics schema (operation.rootType schema) []
-    operation.selectionSet initial
-
--- The lazy operation summary is the least bound of its independently feasible cases.
--- Its generic witness is `ExactCases.operationContextOptimal` in
--- `Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality`.
-def OperationContextOptimal (semantics : CaseSemantics.{u}) (abstract : Algebra.{v})
-    (le : abstract.Summary -> abstract.Summary -> Prop)
-    (related : semantics.Summary -> abstract.Summary -> Prop)
-    (schema : Schema) (operation : Operation) (initial : BooleanEnvironment)
-    : Prop :=
-  BestBound le related
-    (operationContextOutcomes semantics schema operation initial)
-    (summarizeSelectionSet abstract schema (operation.rootType schema) []
-      operation.selectionSet initial)
-
--- Feasible outcomes of an operation with every Boolean variable initially unknown.
-def operationOutcomes (semantics : CaseSemantics.{u})
+-- Feasible outcomes of an operation with every Boolean variable initially unresolved.
+def operationOutcomes (semantics : OutcomeSemantics.{u})
     (schema : Schema) (operation : Operation)
     : OutcomeSet semantics.Summary :=
-  operationContextOutcomes semantics schema operation BooleanEnvironment.unknown
+  selectionSetOutcomes semantics schema (operation.rootType schema) []
+    operation.selectionSet BooleanEnvironment.unresolved
 
 -- Feasible outcomes after applying operation defaults and supplied values.
-def operationOutcomesWithVariables (semantics : CaseSemantics.{u})
+def operationOutcomesWithVariables (semantics : OutcomeSemantics.{u})
     (schema : Schema) (variableValues : VariableValues) (operation : Operation)
     : OutcomeSet semantics.Summary :=
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-  operationContextOutcomes semantics schema operation
-    (BooleanEnvironment.ofCompleteValues (operationBooleanVariables operation)
-      coercedVariableValues)
+  selectionSetOutcomes semantics schema (operation.rootType schema) []
+    operation.selectionSet
+    (BooleanEnvironment.ofCompleteValues coercedVariableValues)
 
--- The default exact-case operation summary is the least bound of its feasible cases.
--- Its generic witness is `ExactCases.operationOptimal`.
-def OperationOptimal (semantics : CaseSemantics.{u}) (abstract : Algebra.{v})
-    (le : abstract.Summary -> abstract.Summary -> Prop)
-    (related : semantics.Summary -> abstract.Summary -> Prop)
+end ExactCases
+
+-----------------------------------------------------------------------------------------
+-- Exact-case summary optimality statements
+-----------------------------------------------------------------------------------------
+
+namespace ExactCases
+
+-- Per-operation optimality of the default exact-case analysis. Its generic witness is
+-- `ExactCases.analysisOptimal`.
+def AnalysisOptimal
+    {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
+    (laws : BestTransferLaws semantics abstract)
     (schema : Schema) (operation : Operation)
     : Prop :=
-  BestBound le related (operationOutcomes semantics schema operation)
+  BestBound laws.le laws.approximates (operationOutcomes semantics schema operation)
     (summarizeOperation abstract schema operation)
 
--- The variable-aware exact-case operation summary is the least bound of its feasible
--- cases. Its generic witness is `ExactCases.operationWithVariablesOptimal`.
-def OperationWithVariablesOptimal
-    (semantics : CaseSemantics.{u})
+-- Per-operation optimality of a variable-aware exact-case analysis. Its generic witness
+-- is `ExactCases.analysisWithVariablesOptimal`.
+def AnalysisWithVariablesOptimal
+    {semantics : OutcomeSemantics.{u}}
     (abstractFor : VariableValues -> Algebra.{v})
     (schema : Schema) (variableValues : VariableValues) (operation : Operation)
-    (le
-      : (abstractFor (Execution.coerceVariableValues operation variableValues)).Summary
-        -> (abstractFor (Execution.coerceVariableValues operation variableValues)).Summary
-        -> Prop)
-    (related
-      : semantics.Summary
-        -> (abstractFor (Execution.coerceVariableValues operation variableValues)).Summary
-        -> Prop)
+    (laws
+      : BestTransferLaws semantics
+          (abstractFor (Execution.coerceVariableValues operation variableValues)))
     : Prop :=
-  BestBound le related
+  BestBound laws.le laws.approximates
     (operationOutcomesWithVariables semantics schema variableValues operation)
     (summarizeOperationWithVariables abstractFor schema variableValues operation)
 
 end ExactCases
+
 end TreeSummary
 end GraphQL

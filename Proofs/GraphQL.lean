@@ -9,6 +9,7 @@ import Proofs.GraphQL.Execution.FieldGroups
 import Proofs.GraphQL.Theories.SelectionConditions.Runtime
 import Proofs.GraphQL.Theories.ConditionTree
 import Proofs.GraphQL.Theories.TreeSummary.AnnotationErasure
+import Proofs.GraphQL.Theories.TreeSummary.PossibleTypeRegions
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases
 import Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality
 import Proofs.GraphQL.Theories.TreeSummary.StaticCost

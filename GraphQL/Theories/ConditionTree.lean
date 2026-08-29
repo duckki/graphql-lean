@@ -634,33 +634,5 @@ def ExtractionCorrect (schema : Schema) (parentType : Name)
       (ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet)
       inheritedBooleanCondition
 
--- Every condition extracted at this selection-set boundary is feasible under the
--- Boolean condition inherited from its parent field. Its theorem witness is
--- `extraction_conditionGroups_feasible` in the condition-tree invariant proof module.
-def ExtractionConditionGroupsFeasible (schema : Schema) (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection)
-    : Prop :=
-  schema.getPossibleTypes parentType ≠ []
-  -> (canonicalBooleanCondition inheritedBooleanCondition).isSome = true
-  -> ∀ condition,
-      condition
-        ∈ (ofSelectionSetInScope schema parentType inheritedBooleanCondition
-            selectionSet).nodeConditions
-      -> condition.FeasibleUnder inheritedBooleanCondition
-
--- Every extracted cumulative condition is globally unique. This is stronger than
--- sibling non-overlap: two sibling subtrees cannot share a condition when the preorder
--- list of every condition is duplicate-free. Its theorem witness is
--- `extraction_conditionGroups_separated` in the condition-tree invariant proof module.
-def ExtractionConditionGroupsSeparated (schema : Schema) (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection)
-    : Prop :=
-  schema.getPossibleTypes parentType ≠ []
-  -> (canonicalBooleanCondition inheritedBooleanCondition).isSome = true
-  -> ((ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet)
-      |>.nodeConditions).Nodup
-
 end ConditionTree
 end GraphQL

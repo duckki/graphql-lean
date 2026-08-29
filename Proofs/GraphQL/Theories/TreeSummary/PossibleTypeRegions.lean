@@ -1,10 +1,9 @@
-import GraphQL.Theories.TreeSummary.ExactCases
+import GraphQL.Theories.TreeSummary.Core
 
 /-! Exactness of symbolic runtime-type regions. -/
 
 namespace GraphQL
 namespace TreeSummary
-namespace ExactCases
 
 private def RegionsExact (scope : PossibleTypes)
     (conditions : List PossibleTypes) (regions : List PossibleTypeRegion)
@@ -298,13 +297,5 @@ theorem possibleTypeRegions_exact (scope : PossibleTypes)
   exact possibleTypeRegions_fold_exact scope [] conditions
     (if scope.isEmpty then [] else [scope]) hinitial
 
--- Every exact-case-tree step receives the exact type partition induced by the current
--- branches of all simultaneously active syntactic trees. This is the case-level witness
--- used by the execution-equivalence proof.
-theorem CaseForest.typeRegions_exact (tree : CaseForest) (scope : PossibleTypes)
-    : PossibleTypeRegionsExact scope tree.typeBranchPossibleTypes := by
-  exact possibleTypeRegions_exact scope tree.typeBranchPossibleTypes
-
-end ExactCases
 end TreeSummary
 end GraphQL

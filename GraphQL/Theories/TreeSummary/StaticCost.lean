@@ -1,4 +1,4 @@
-import GraphQL.Theories.TreeSummary.ResponseFold
+import GraphQL.Theories.TreeSummary.Soundness
 import GraphQL.Theories.TreeSummary.ExactCasesOptimality
 import GraphQL.Theories.TreeSummary.Syntactic
 import GraphQL.SchemaWellFormedness
@@ -155,9 +155,6 @@ def typeRefIsListOutput : TypeRef -> Bool
 def fieldCoordinate (parentType fieldName : Name) : FieldCoordinate :=
   { parentType, fieldName }
 
-def CostModel.costWeight (model : CostModel) (coordinate : CostCoordinate) : Int :=
-  (model.cost coordinate).getD 0
-
 def defaultTypeCost (typeDefinition : TypeDefinition) : Nat :=
   match typeDefinition with
   | .object _objectType => 1
@@ -207,6 +204,8 @@ def defaultFieldWeight (schema : Schema) (outputType : TypeRef) : Nat :=
 -- `Execution.coerceArgumentValues`. A coercion error invokes no resolver and therefore
 -- contributes no argument values; the containing field transfer still accounts for the
 -- response field itself.
+namespace Internal
+
 def argumentCoercionResultArguments : Execution.ArgumentCoercionResult -> List Argument
   | .success arguments => arguments.map Execution.CoercedArgument.toArgument
   | .error => []
@@ -227,19 +226,15 @@ def inferListSize? (value : InputValue) : Option Nat :=
   | .int size => some size.toNat
   | _ => none
 
-def maximum? (values : List Nat) : Option Nat :=
-  values.max?
-
 def slicingArgumentSize? (arguments : List Argument) (argumentName : Name)
     : Option Nat := do
-  maximum? ((argumentValues arguments argumentName).filterMap inferListSize?)
+  ((argumentValues arguments argumentName).filterMap inferListSize?).max?
 
 -- Slicing values take precedence over `assumedSize`; when several are available their
 -- maximum preserves the static upper bound. `requireOneSlicingArgument` is validation
 -- metadata and does not make this total estimator partial.
-def ListSize.expectedSize? (listSize : ListSize) (arguments : List Argument)
-    : Option Nat :=
-  maximum? (listSize.slicingArguments.filterMap (slicingArgumentSize? arguments))
+def expectedSize? (listSize : ListSize) (arguments : List Argument) : Option Nat :=
+  (listSize.slicingArguments.filterMap (slicingArgumentSize? arguments)).max?
   |>.orElse (fun _unit => listSize.assumedSize)
 
 private def inputCoordinateWeight (schema : Schema) (model : CostModel)
@@ -325,9 +320,6 @@ def inputValueCost (schema : Schema) (model : CostModel)
     : Int :=
   resolvedInputValueCost schema model true coordinate definition value
 
-def maximumInt? (values : List Int) : Option Int :=
-  values.max?
-
 def argumentsCost (schema : Schema) (model : CostModel)
     (field : FieldCoordinate)
     (definitions : List InputValueDefinition) (arguments : List Argument)
@@ -336,14 +328,15 @@ def argumentsCost (schema : Schema) (model : CostModel)
     (fun cost definition =>
       let values := argumentValues arguments definition.name
       let argumentCost :=
-        maximumInt?
-          (values.map
-            fun value =>
-              inputValueCost schema model
-                (.argumentDefinition field definition.name) definition value)
+        (values.map
+          fun value =>
+            inputValueCost schema model
+              (.argumentDefinition field definition.name) definition value).max?
         |>.getD 0
       cost + argumentCost)
     0
+
+end Internal
 
 -----------------------------------------------------------------------------------------
 -- Tree-summary algebra for cost analysis
@@ -361,15 +354,17 @@ abbrev Summary := List SizedField -> Bound
 def SummaryBound (lower upper : Summary) : Prop :=
   ∀ sizedFields, lower sizedFields ≤ upper sizedFields
 
+namespace Internal
+
 def sizesForField (fieldName : Name) (sizedFields : List SizedField) : List Nat :=
   sizedFields.filterMap
     fun sizedField =>
       if sizedField.fieldName == fieldName then some sizedField.size else none
 
 def inheritedSize? (fieldName : Name) (sizedFields : List SizedField) : Option Nat :=
-  maximum? (sizesForField fieldName sizedFields)
+  (sizesForField fieldName sizedFields).max?
 
-def ListSize.resolvedSizedFields (listSize : ListSize) (expectedSize : Option Nat)
+def resolvedSizedFields (listSize : ListSize) (expectedSize : Option Nat)
     : List SizedField :=
   match expectedSize with
   | none => []
@@ -384,13 +379,13 @@ def selectionFieldUse? : Selection -> Option (Name × List Argument)
 def expectedListSize? (model : CostModel) (coordinate : FieldCoordinate)
     (arguments : List Argument)
     : Option Nat :=
-  (model.listSize coordinate).bind fun annotation => annotation.expectedSize? arguments
+  (model.listSize coordinate).bind fun annotation => expectedSize? annotation arguments
 
 def childSizedFields (model : CostModel) (coordinate : FieldCoordinate)
     (expectedSize : Option Nat)
     : List SizedField :=
   match model.listSize coordinate with
-  | some annotation => annotation.resolvedSizedFields expectedSize
+  | some annotation => resolvedSizedFields annotation expectedSize
   | none => []
 
 def staticInstanceCount (model : CostModel) (coordinate : FieldCoordinate)
@@ -495,10 +490,12 @@ def groupCost (schema : Schema) (model : CostModel)
               inheritedSizedFields fieldName arguments))
     .zero
 
+end Internal
+
 -- The synthesized summary is a function of inherited, already-resolved `sizedFields`
 -- metadata. This lets a bottom-up fold apply a parent field's list-size annotation to a
 -- selected direct-child list.
-abbrev algebra (schema : Schema) (model : CostModel)
+def algebra (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
     : Algebra :=
   {
@@ -506,7 +503,7 @@ abbrev algebra (schema : Schema) (model : CostModel)
     empty := fun _sizedFields => .zero
     field :=
       fun group childSummary sizedFields =>
-        groupCost schema model variableValues group childSummary sizedFields
+        Internal.groupCost schema model variableValues group childSummary sizedFields
     combine :=
       fun left right sizedFields => Bound.add (left sizedFields) (right sizedFields)
     join :=
@@ -556,12 +553,14 @@ def estimateOperationWithVariables (schema : Schema) (model : CostModel)
 end Syntactic
 
 -----------------------------------------------------------------------------------------
--- Concrete response semantics and soundness obligations
+-- Concrete cost specification: actual cost computed from AnnotatedResponse
 -----------------------------------------------------------------------------------------
 
 -- Analysis-specific multiplicity of returned, non-null cost-bearing values after list
 -- wrappers are traversed. Null is still observed by the enclosing field rule, which
 -- pays its resolver-call cost, but contributes no returned type or child cost.
+namespace Internal
+
 mutual
   def actualInstanceCount : AnnotatedResponseValue -> Nat
     | .null => 0
@@ -597,20 +596,13 @@ def ResponseObservation.combine (left right : ResponseObservation)
         left.admissible sizedFields ∧ right.admissible sizedFields
   }
 
--- IBM type cost counts returned values. Execution only produces scalar leaves for
--- scalar or enum output types; using the output-type cost directly also keeps this
--- concrete fold total on arbitrary annotated values.
-def responseLeafTypeCost (schema : Schema) (model : CostModel) (outputType : TypeRef)
-    : Int :=
-  outputTypeCost schema model outputType
-
 -- Exact type cost contributed by the completed value. Child field costs are synthesized
 -- separately by the concrete response algebra.
 mutual
   def responseValueTypeCost (schema : Schema) (model : CostModel) (outputType : TypeRef)
       : AnnotatedResponseValue -> Int
     | .null => 0
-    | .scalar _value => responseLeafTypeCost schema model outputType
+    | .scalar _value => outputTypeCost schema model outputType
     | .object _runtimeType _fields => outputTypeCost schema model outputType
     | .list values =>
         responseValuesTypeCost schema model outputType values
@@ -648,7 +640,7 @@ def responseFieldCost (schema : Schema) (model : CostModel)
           { typeCost := 0, fieldCost := callWeight.toNat }
       | .scalar _scalar =>
           {
-            typeCost := responseLeafTypeCost schema model schemaDefinition.outputType
+            typeCost := outputTypeCost schema model schemaDefinition.outputType
             fieldCost := callWeight.toNat
           }
       | .object _runtimeType _fields =>
@@ -688,18 +680,18 @@ def responseFieldObservation (schema : Schema) (model : CostModel)
         responseFieldAdmissible schema model definition value children sizedFields
   }
 
+end Internal
+
 -- Concrete static-cost semantics.
-abbrev concreteAlgebra (schema : Schema) (model : CostModel) : ConcreteAlgebra :=
+def concreteAlgebra (schema : Schema) (model : CostModel) : ConcreteAlgebra :=
   {
-    Summary := ResponseObservation
+    Summary := Internal.ResponseObservation
     empty := .empty
-    combine := ResponseObservation.combine
-    field := responseFieldObservation schema model
+    combine := Internal.ResponseObservation.combine
+    field := Internal.responseFieldObservation schema model
   }
 
------------------------------------------------------------------------------------------
--- Soundness statements
------------------------------------------------------------------------------------------
+namespace Internal
 
 def evaluateAnnotatedResponse (schema : Schema) (model : CostModel)
     (response : AnnotatedResponse)
@@ -713,13 +705,19 @@ def responseRootCost (schema : Schema) (model : CostModel) (response : Annotated
       { typeCost := namedTypeCost schema model schema.queryType, fieldCost := 0 }
   | _ => .zero
 
+end Internal
+
 -- IBM query-response costs calculated from the annotated response. Field and argument
 -- costs are paid once per resolver; returned values determine type counts, including
 -- the query root.
 def actualCost (schema : Schema) (model : CostModel) (response : AnnotatedResponse)
     : Cost :=
-  Cost.add (responseRootCost schema model response)
-    ((evaluateAnnotatedResponse schema model response).cost [])
+  Cost.add (Internal.responseRootCost schema model response)
+    ((Internal.evaluateAnnotatedResponse schema model response).cost [])
+
+-----------------------------------------------------------------------------------------
+-- Soundness statements
+-----------------------------------------------------------------------------------------
 
 -- The concrete response satisfies every list-size estimate encountered while matching
 -- the operation to the response. This assumption is necessary: an estimated list size
@@ -727,33 +725,15 @@ def actualCost (schema : Schema) (model : CostModel) (response : AnnotatedRespon
 def ResponseWithinEstimatedSizes (schema : Schema) (model : CostModel)
     (response : AnnotatedResponse)
     : Prop :=
-  (evaluateAnnotatedResponse schema model response).admissible []
+  (Internal.evaluateAnnotatedResponse schema model response).admissible []
 
 namespace ExactCases
 
--- Execution soundness for the variable-aware exact-case estimator at explicit fuel. Its
--- theorem witness is `StaticCost.ExactCases.soundWithVariablesWithFuel` in
--- `Proofs.GraphQL.Theories.TreeSummary.StaticCost`.
-def SoundWithVariablesWithFuel (schema : Schema) (model : CostModel)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Execution.Resolvers ObjectRef)
-        (variableValues : Execution.VariableValues) (fuel : Nat)
-        (source : Execution.ResolverValue ObjectRef),
-      ResponseWithinEstimatedSizes schema model
-        (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-          source)
-      -> actualCost schema model
-            (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-              source)
-          ≤ estimateOperationWithVariables schema model variableValues operation
-
 -- Default-executor soundness target, quantified over all resolvers, variable conditions,
 -- and root source values. Its theorem witness is
--- `StaticCost.ExactCases.soundWithVariables` in the static-cost proof module.
-def SoundWithVariables (schema : Schema) (model : CostModel) (operation : Operation)
+-- `StaticCost.ExactCases.analysisWithVariablesSound` in the static-cost proof module.
+def AnalysisWithVariablesSound (schema : Schema) (model : CostModel)
+    (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
@@ -770,31 +750,11 @@ end ExactCases
 
 namespace Syntactic
 
--- Execution soundness for the variable-aware syntactic estimator at explicit fuel,
--- assuming nonnegative type costs so factored field transfers remain subadditive. Its
--- theorem witness is `StaticCost.Syntactic.soundWithVariablesWithFuel` in the proof
--- module.
-def SoundWithVariablesWithFuel (schema : Schema) (model : CostModel)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> TypeCostsNonnegative schema model
-  -> ∀ (ObjectRef : Type) (resolvers : Execution.Resolvers ObjectRef)
-        (variableValues : Execution.VariableValues) (fuel : Nat)
-        (source : Execution.ResolverValue ObjectRef),
-      ResponseWithinEstimatedSizes schema model
-        (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-          source)
-      -> actualCost schema model
-            (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-              source)
-          ≤ estimateOperationWithVariables schema model variableValues operation
-
 -- Default-executor soundness for the variable-aware syntactic estimator under the same
 -- nonnegative-type-cost premise. Its theorem witness is
--- `StaticCost.Syntactic.soundWithVariables` in the static-cost proof module.
-def SoundWithVariables (schema : Schema) (model : CostModel) (operation : Operation)
+-- `StaticCost.Syntactic.analysisWithVariablesSound` in the static-cost proof module.
+def AnalysisWithVariablesSound (schema : Schema) (model : CostModel)
+    (operation : Operation)
     : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema operation
@@ -819,9 +779,9 @@ namespace ExactCases
 -- Local static-cost semantics used by the exact-case optimality theorem. Each field
 -- outcome applies one deterministic modeled field transfer; condition alternatives
 -- remain separate outcomes.
-abbrev caseSemantics (schema : Schema) (model : CostModel)
+def outcomeSemantics (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.CaseSemantics :=
+    : TreeSummary.ExactCases.OutcomeSemantics :=
   {
     Summary := Summary
     empty := fun _sizedFields => .zero
@@ -831,19 +791,19 @@ abbrev caseSemantics (schema : Schema) (model : CostModel)
       fun group childSummary =>
         OutcomeSet.singleton
           (fun sizedFields =>
-            groupCost schema model variableValues group childSummary sizedFields)
+            Internal.groupCost schema model variableValues group childSummary sizedFields)
   }
 
 -- The variable-aware exact-case summary is the pointwise least bound of its recursively
 -- feasible modeled outcomes. Its witness is
--- `StaticCost.ExactCases.summaryOptimalWithVariables` in the static-cost proof module.
-def SummaryOptimalWithVariables (schema : Schema) (model : CostModel)
+-- `StaticCost.ExactCases.analysisWithVariablesOptimal` in the static-cost proof module.
+def AnalysisWithVariablesOptimal (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : Prop :=
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
   Optimality.BestBound SummaryBound SummaryBound
     (TreeSummary.ExactCases.operationOutcomesWithVariables
-      (caseSemantics schema model coercedVariableValues)
+      (outcomeSemantics schema model coercedVariableValues)
       schema variableValues operation)
     (TreeSummary.ExactCases.summarizeOperationWithVariables
       (algebra schema model) schema variableValues operation)

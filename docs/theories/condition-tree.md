@@ -34,8 +34,10 @@ The Boolean component is a canonical conjunction:
 - the empty list represents true; and
 - contradictory polarities make a path infeasible.
 
-Constant no-op directives contribute no literal. Constant-false or unsupported
-conditional arguments make the governed path infeasible.
+Constant directives are resolved during extraction: `@include(if: true)` and
+`@skip(if: false)` are no-ops, while `@include(if: false)` and `@skip(if: true)`
+make the governed path infeasible. An unsupported `@include` argument is also
+infeasible; an unsupported `@skip` argument is treated as a no-op.
 
 Boolean literals are global across a response-field boundary. Scoped extraction
 accepts the parent field's inherited Boolean condition. A matching literal is

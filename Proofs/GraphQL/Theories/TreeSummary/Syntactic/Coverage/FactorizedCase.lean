@@ -409,12 +409,12 @@ mutual
     congr 1
     · induction tree.fields with
       | nil =>
-          simp [collectFieldGroups, summarizeCollectedGroups,
+          simp [fieldGroupsWithContext, summarizeCollectedGroups,
             summarizeFieldGroups, combineMap]
       | cons group rest ih =>
-          simp only [collectFieldGroups, List.map_cons, summarizeCollectedGroups,
+          simp only [fieldGroupsWithContext, List.map_cons, summarizeCollectedGroups,
             summarizedGroup, summarizedChildren, summarizeFieldGroups, combineMap]
-          simpa [collectFieldGroups, summarizeFieldGroups, combineMap] using congrArg
+          simpa [fieldGroupsWithContext, summarizeFieldGroups, combineMap] using congrArg
             (algebra.combine
               (algebra.field
                 {

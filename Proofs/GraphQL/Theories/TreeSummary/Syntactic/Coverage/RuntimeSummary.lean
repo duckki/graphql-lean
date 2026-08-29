@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Theories.TreeSummary.ExactCases.Cases
+import Proofs.GraphQL.Theories.TreeSummary.PossibleTypeRegions
 import Proofs.GraphQL.Theories.TreeSummary.Syntactic.Factorization
 import Proofs.GraphQL.Theories.TreeSummary.Syntactic.Coverage.Execution
 
@@ -24,7 +24,8 @@ mutual
       (inheritedBooleanCondition : List BooleanLiteral) (runtimeType : Name)
       (tree : Tree) (traversal : Traversal)
       : algebra.Summary :=
-    let groups := collectFieldGroups inheritedBooleanCondition tree.condition tree.fields
+    let groups :=
+      fieldGroupsWithContext inheritedBooleanCondition tree.condition tree.fields
     algebra.combine
       (summarizeFieldGroups algebra schema groups traversal.summaryVariableValues)
       (summarizeBranchesAtRuntimeType algebra schema parentType
@@ -140,8 +141,7 @@ theorem summarizeSelectedTypeBranches_le_runtimeCases
   | some summary =>
       simp only [Option.getD_some]
       have hexact :=
-        ExactCases.possibleTypeRegions_exact typeScope
-          (typeBranchPossibleTypes branches)
+        possibleTypeRegions_exact typeScope (typeBranchPossibleTypes branches)
       rcases hexact.2.1 runtimeType hruntimeType with
         ⟨region, ⟨hregion, hruntimeRegion⟩, _hunique⟩
       cases region with

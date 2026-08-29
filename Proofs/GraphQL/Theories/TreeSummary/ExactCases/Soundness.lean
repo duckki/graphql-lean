@@ -5,7 +5,7 @@ import Proofs.GraphQL.Theories.TreeSummary.ExactCases.RuntimeCases
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.ResolvedContext
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.VariableValues
 import Proofs.GraphQL.Theories.TreeSummary.Algebra
-import Proofs.GraphQL.Theories.TreeSummary.ResponseFold
+import Proofs.GraphQL.Theories.TreeSummary.Soundness
 import GraphQL.Theories.TreeSummary.ExactCases
 
 /-! Soundness of the exact-case-tree summary fold. -/
@@ -19,6 +19,7 @@ open GraphQL.ConditionTree.RuntimeExtraction
 open GraphQL.AnnotatedExecution
 open GraphQL.Execution
 open GraphQL.Execution.FieldGroups
+open Internal
 
 universe u v
 
@@ -27,7 +28,7 @@ def summarizedGroup (algebra : Algebra) (schema : Schema)
     (fixedVariableValues : VariableValues := variableValues)
     : algebra.Summary :=
   algebra.field group
-    (CaseForest.summarizeChildTypes algebra schema group
+    (CaseCursor.summarizeChildTypes algebra schema group
       (childParentTypes schema group) variableValues fixedVariableValues)
 
 def summarizeCollectedGroups (algebra : Algebra) (schema : Schema)
@@ -45,7 +46,7 @@ def summarizedChildren (algebra : Algebra) (schema : Schema)
     (variableValues : VariableValues) (group : CollectedFieldGroup)
     (fixedVariableValues : VariableValues := variableValues)
     : algebra.Summary :=
-  CaseForest.summarizeChildTypes algebra schema group
+  CaseCursor.summarizeChildTypes algebra schema group
     (childParentTypes schema group) variableValues fixedVariableValues
 
 def summarizeCollectedChildren (algebra : Algebra) (schema : Schema)
@@ -218,7 +219,7 @@ def StaticGroupsValid (variableValues : VariableValues) (runtimeType : Name)
 
 theorem runtimeCaseGroups_valid
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
+    (tree : CaseCursor) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hruntime : runtimeType ∈ possibleTypes)
@@ -391,15 +392,15 @@ theorem summarizeCollectedGroups_eq
     (fixedVariableValues : VariableValues)
     (groups : List CollectedFieldGroup)
     : summarizeCollectedGroups algebra schema variableValues groups fixedVariableValues
-      = CaseForest.summarizeFieldGroups algebra schema groups variableValues
+      = CaseCursor.summarizeFieldGroups algebra schema groups variableValues
           fixedVariableValues := by
   induction groups with
   | nil => simp [summarizeCollectedGroups,
-      CaseForest.summarizeFieldGroups, combineMap]
+      CaseCursor.summarizeFieldGroups, combineMap]
   | cons group rest ih =>
       simp only [summarizeCollectedGroups,
-        CaseForest.summarizeFieldGroups, combineMap, summarizedGroup]
-      simpa [summarizedGroup, CaseForest.summarizeFieldGroups, combineMap] using
+        CaseCursor.summarizeFieldGroups, combineMap, summarizedGroup]
+      simpa [summarizedGroup, CaseCursor.summarizeFieldGroups, combineMap] using
         congrArg
           (algebra.combine
             (summarizedGroup algebra schema variableValues group fixedVariableValues))
@@ -568,10 +569,10 @@ theorem summarizeChildParentType_le
         ( let childTree :=
             group.childTreeWithKnownFalsePruning schema childParentType
               fixedVariableValues
-          CaseForest.summarize algebra schema childParentType
-            group.childInheritedBooleanCondition (.ofConditionTree childTree)
+          CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
+            (.ofConditionTree childTree)
             childTree.condition.possibleTypes variableValues fixedVariableValues)
-        (CaseForest.summarizeChildTypes algebra schema group parentTypes
+        (CaseCursor.summarizeChildTypes algebra schema group parentTypes
           variableValues fixedVariableValues) := by
   cases htypes : parentTypes with
   | nil => simp [htypes] at hchild
@@ -581,30 +582,29 @@ theorem summarizeChildParentType_le
       | nil =>
           simp only [List.mem_singleton] at hchild
           subst childParentType
-          rw [CaseForest.summarizeChildTypes, joinMap]
+          rw [CaseCursor.summarizeChildTypes, joinMap]
           exact lawful.le_refl _
       | cons next tail =>
-          rw [CaseForest.summarizeChildTypes, joinMap]
+          rw [CaseCursor.summarizeChildTypes, joinMap]
           simp only [List.mem_cons] at hchild
           rcases hchild with rfl | hrest
           · exact lawful.le_join_left _ _
           · apply lawful.le_trans _
-              (CaseForest.summarizeChildTypes algebra schema group (next :: tail)
+              (CaseCursor.summarizeChildTypes algebra schema group (next :: tail)
                 variableValues fixedVariableValues)
             · exact summarizeChildParentType_le algebra lawful schema group
                 (next :: tail) childParentType
                 (by simpa only [List.mem_cons] using hrest) variableValues
                 fixedVariableValues
-            · simpa [CaseForest.summarizeChildTypes, joinMap] using
+            · simpa [CaseCursor.summarizeChildTypes, joinMap] using
                 (lawful.le_join_right
-                  (CaseForest.summarize algebra schema first
-                    group.childInheritedBooleanCondition
+                  (CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
                     (.ofConditionTree
                       (group.childTreeWithKnownFalsePruning schema first fixedVariableValues))
                     (group.childTreeWithKnownFalsePruning schema first
                       fixedVariableValues).condition.possibleTypes
                     variableValues fixedVariableValues)
-                  (CaseForest.summarizeChildTypes algebra schema group (next :: tail)
+                  (CaseCursor.summarizeChildTypes algebra schema group (next :: tail)
                     variableValues fixedVariableValues))
 termination_by sizeOf parentTypes
 decreasing_by
@@ -613,7 +613,8 @@ decreasing_by
   omega
 
 theorem candidateChildGroupsFor_le_summarizeCollectedChildren
-    (algebra : Algebra.{v}) (lawful : algebra.Lawful)
+    (algebra : Algebra.{v}) {lawful : algebra.Lawful}
+    (joinFactoringLaws : ExactCases.JoinFactoringLaws algebra lawful)
     (schema : Schema) (variableValues : VariableValues)
     (fixedVariableValues : VariableValues)
     (childParentType childRuntimeType : Name)
@@ -644,10 +645,11 @@ theorem candidateChildGroupsFor_le_summarizeCollectedChildren
             childTree.condition.possibleTypes childRuntimeType variableValues
             fixedVariableValues]
         apply lawful.le_trans _
-          (CaseForest.summarize algebra schema childParentType
-            group.childInheritedBooleanCondition (.ofConditionTree childTree)
+          (CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
+            (.ofConditionTree childTree)
             childTree.condition.possibleTypes variableValues fixedVariableValues)
-        · apply RuntimeCase.summarize_le algebra lawful schema childParentType
+        · apply RuntimeCase.summarize_le algebra joinFactoringLaws schema
+            childParentType
             group.childInheritedBooleanCondition (.ofConditionTree childTree)
             childTree.condition.possibleTypes childRuntimeType variableValues
             fixedVariableValues
@@ -799,11 +801,11 @@ theorem lookupField_childParentType_mem
       fieldName definition hallows hfieldName hlookup,
     rfl⟩
 
-theorem Compatible.singleFieldResult_related
+theorem Soundness.singleFieldResult_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (variableValues fixedVariableValues : VariableValues)
     (responseName : Name)
-    (compatible : Compatible concrete abstract schema variableValues)
+    (soundness : Soundness concrete abstract schema variableValues)
     (field : ExecutableField) (schemaDefinition : FieldDefinition)
     (completed : Result AnnotatedResponseValue)
     (group : CollectedFieldGroup)
@@ -813,22 +815,22 @@ theorem Compatible.singleFieldResult_related
       : schema.lookupField field.parentType field.fieldName = some schemaDefinition)
     (houtput : schemaDefinition.outputType ∈ group.fieldOutputTypes schema)
     (hcompleted
-      : compatible.related
+      : soundness.approximates
           (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract
             (summarizedChildren abstract schema variableValues group fixedVariableValues)
             completed))
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponseFieldsResult concrete
           (singleAnnotatedResponseFieldResult schema variableValues schemaDefinition
             responseName field completed))
         (summarizedGroup abstract schema variableValues group fixedVariableValues) := by
   cases completed with
-  | error errors => exact compatible.toCompatibilityCore.empty_related_any _
+  | error errors => exact soundness.toSoundnessCore.empty_sound_any _
   | ok completed =>
       rcases completed with ⟨value, errors⟩
-      have hfield := compatible.field_related group field schemaDefinition
-        value (foldAnnotatedResponseValueChildren concrete value)
+      have hfield := soundness.field_sound group field schemaDefinition
+        value (foldAnnotatedResponseValue concrete value)
         (summarizedChildren abstract schema variableValues group fixedVariableValues)
         hparent hrepresents
         hlookup houtput hcompleted
@@ -836,7 +838,7 @@ theorem Compatible.singleFieldResult_related
         resolvedFieldProvenance,
         foldAnnotatedResponseFieldsResult, foldAnnotatedResponseFields,
         summarizedGroup, summarizedChildren,
-        compatible.concreteLawful.combine_empty] using hfield
+        soundness.concreteLawful.combine_empty] using hfield
 
 -- The executor follows one exact terminal runtime case. Each recursive object value
 -- extracts its own child case; list completion only repeats the same child summary.
@@ -845,7 +847,7 @@ private theorem annotatedResponseExecution_related_all
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues fixedVariableValues : VariableValues)
     (hpruning : BooleanValuesMatchForPruning variableValues fixedVariableValues)
-    (compatible : Compatible concrete abstract schema variableValues)
+    (soundness : Soundness concrete abstract schema variableValues)
     : (∀ fuel source executionGroups,
         ∀ runtimeType (ref : ObjectRef) staticGroups,
           source = .object runtimeType ref
@@ -854,7 +856,7 @@ private theorem annotatedResponseExecution_related_all
                 (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType))
               executionGroups
           -> StaticGroupsValid variableValues runtimeType staticGroups
-          -> compatible.related
+          -> soundness.approximates
               (foldAnnotatedResponseFieldsResult concrete
                 (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
                   source executionGroups))
@@ -867,7 +869,7 @@ private theorem annotatedResponseExecution_related_all
             -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
                 fields
             -> StaticGroupsValid variableValues runtimeType [group]
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseFieldsResult concrete
                   (executeQueryAnnotatedField schema resolvers variableValues fuel source
                     responseName fields))
@@ -881,7 +883,7 @@ private theorem annotatedResponseExecution_related_all
             -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
                 fields
             -> StaticGroupsValid variableValues runtimeType [group]
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseValueResult concrete
                   (completeAnnotatedResponseValue schema resolvers variableValues fuel
                     fieldType fields value))
@@ -898,7 +900,7 @@ private theorem annotatedResponseExecution_related_all
             -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
                 fields
             -> StaticGroupsValid variableValues runtimeType [group]
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseValuesResult concrete
                   (completeAnnotatedResponseValueList schema resolvers variableValues fuel
                     itemType fields values))
@@ -912,7 +914,7 @@ private theorem annotatedResponseExecution_related_all
     intro fuel source runtimeType ref staticGroups _hsource _hequivalent _hvalid
     simpa [executeQueryAnnotatedCollectedFields,
       foldAnnotatedResponseFieldsResult, foldAnnotatedResponseFields] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizeCollectedGroups abstract schema variableValues staticGroups
           fixedVariableValues)
   case case2 =>
@@ -930,9 +932,9 @@ private theorem annotatedResponseExecution_related_all
     have htail := tail_ih runtimeType ref staticTail rfl htailEquivalent (by
       intro candidate hcandidate
       exact hvalid' candidate (by simp [hcandidate]))
-    have hcombine := compatible.toCompatibilityCore.combineFieldsResult_related _ _ _ _ hhead htail
+    have hcombine := soundness.toSoundnessCore.combineFieldsResult_sound _ _ _ _ hhead htail
     rw [executeQueryAnnotatedCollectedFields]
-    rw [summarizeCollectedGroups_perm abstract compatible.abstractLawful schema
+    rw [summarizeCollectedGroups_perm abstract soundness.abstractLawful schema
       variableValues fixedVariableValues hperm]
     exact hcombine
   case case3 =>
@@ -954,14 +956,14 @@ private theorem annotatedResponseExecution_related_all
     intro source responseName field rest runtimeType ref group _hsource _hname _hfields
       _hvalid
     simpa [executeQueryAnnotatedField, foldAnnotatedResponseFieldsResult] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizedGroup abstract schema variableValues group fixedVariableValues)
   case case5 =>
     intro source responseName field rest fuel hlookup runtimeType ref group _hsource
       _hname _hfields _hvalid
     simpa [executeQueryAnnotatedField, hlookup,
       foldAnnotatedResponseFieldsResult] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizedGroup abstract schema variableValues group fixedVariableValues)
   case case6 =>
     intro source responseName field rest fuel definition hlookup hcoerce runtimeType ref
@@ -986,17 +988,17 @@ private theorem annotatedResponseExecution_related_all
       match definition.outputType with
       | .nonNull _inner => .error 1
       | _ => .ok (.null, 1)
-    have hcompleted : compatible.related
+    have hcompleted : soundness.approximates
         (foldAnnotatedResponseValueResult concrete completed)
         (foldChildSummaryForValueResult abstract
           (summarizedChildren abstract schema variableValues group
             fixedVariableValues) completed) := by
       cases htype : definition.outputType <;>
         simp [completed, htype, foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren, foldChildSummaryForValueResult,
+          foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
-        exact compatible.toCompatibilityCore.empty_related_any _
-    have hsingle := compatible.singleFieldResult_related variableValues
+        exact soundness.toSoundnessCore.empty_sound_any _
+    have hsingle := soundness.singleFieldResult_sound variableValues
       fixedVariableValues responseName field definition completed group hparentPossible
       hrepresents hlookup houtput hcompleted
     simp only [executeQueryAnnotatedField, hlookup]
@@ -1025,17 +1027,17 @@ private theorem annotatedResponseExecution_related_all
       match definition.outputType with
       | .nonNull _inner => .error 1
       | _ => .ok (.null, 1)
-    have hcompleted : compatible.related
+    have hcompleted : soundness.approximates
         (foldAnnotatedResponseValueResult concrete completed)
         (foldChildSummaryForValueResult abstract
           (summarizedChildren abstract schema variableValues group
             fixedVariableValues) completed) := by
       cases htype : definition.outputType <;>
         simp [completed, htype, foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren, foldChildSummaryForValueResult,
+          foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
-        exact compatible.toCompatibilityCore.empty_related_any _
-    have hsingle := compatible.singleFieldResult_related variableValues
+        exact soundness.toSoundnessCore.empty_sound_any _
+    have hsingle := soundness.singleFieldResult_sound variableValues
       fixedVariableValues responseName field definition completed group hparentPossible
       hrepresents hlookup houtput hcompleted
     simp only [executeQueryAnnotatedField, hlookup, hcoerce]
@@ -1063,7 +1065,7 @@ private theorem annotatedResponseExecution_related_all
       runtimeType group field.fieldName definition hcondition hfieldName hlookupRuntime
     have hcompleted := complete_ih runtimeType ref field.fieldName definition
       group rfl hlookupRuntime houtput hfields hvalid
-    have hsingle := compatible.singleFieldResult_related variableValues
+    have hsingle := soundness.singleFieldResult_sound variableValues
       fixedVariableValues responseName field definition
       (completeAnnotatedResponseValue schema resolvers variableValues fuel
         definition.outputType (field :: rest) resolved)
@@ -1074,14 +1076,14 @@ private theorem annotatedResponseExecution_related_all
       _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case10 =>
     intro fuel inner fields value hfuel complete_ih runtimeType ref fieldName
       definition group hnamed hlookup houtput hfields hvalid
     have hinner := complete_ih runtimeType ref fieldName definition group
       (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hfields hvalid
     simpa [completeAnnotatedResponseValue, hfuel] using
-      compatible.toCompatibilityCore.completeNonNullResult_related
+      soundness.toSoundnessCore.completeNonNullResult_sound
         (completeAnnotatedResponseValue schema resolvers variableValues fuel inner fields
           value)
         (summarizedChildren abstract schema variableValues group fixedVariableValues)
@@ -1090,15 +1092,15 @@ private theorem annotatedResponseExecution_related_all
     intro fuel fieldType fields hnotNonNull runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hnotNonNull,
-      foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+      foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
       foldChildSummaryForValueResult, foldChildSummaryForValue] using
-      compatible.empty_related
+      soundness.empty_sound
   case case12 =>
     intro fuel typeName fields value hcomposite runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hcomposite,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hfields _hvalid
@@ -1107,9 +1109,9 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotComposite hvalue)
     simpa [completeAnnotatedResponseValue, hcomposite,
-      foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+      foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
       foldChildSummaryForValueResult, foldChildSummaryForValue] using
-      compatible.empty_related
+      soundness.empty_sound
   case case14 =>
     intro fuel childParentType fields childRuntimeType childRef hinclude childGroups
       child_ih runtimeType ref fieldName definition group hnamed hlookup
@@ -1169,7 +1171,7 @@ private theorem annotatedResponseExecution_related_all
           simpa [rootCondition] using List.contains_iff_mem.mp hpossible)
     have hchild := child_ih childRuntimeType childRef childStaticGroups rfl
       hchildEquivalent hchildValid
-    have hcandidatesLe : compatible.abstractLawful.le
+    have hcandidatesLe : soundness.abstractLawful.le
         (summarizeCollectedGroups abstract schema variableValues childStaticGroups
           fixedVariableValues)
         (summarizedChildren abstract schema variableValues group
@@ -1179,7 +1181,7 @@ private theorem annotatedResponseExecution_related_all
         simp only [List.mem_eraseDups, List.mem_map]
         exact ⟨definition.outputType, houtput, rfl⟩
       have hbound := candidateChildGroupsFor_le_summarizeCollectedChildren abstract
-        compatible.abstractLawful schema variableValues fixedVariableValues
+        soundness.joinFactoringLaws schema variableValues fixedVariableValues
         definition.outputType.namedType childRuntimeType [group]
         (List.contains_iff_mem.mp hpossible)
         (by
@@ -1187,8 +1189,8 @@ private theorem annotatedResponseExecution_related_all
           have heq : candidate = group := List.mem_singleton.mp hcandidate
           simpa [heq] using hchildType)
       simpa [candidateChildGroupsFor, childStaticGroups, summarizeCollectedChildren,
-        summarizedChildren, compatible.abstractLawful.combine_empty] using hbound
-    have hchild' := compatible.related_mono _ _ _ hchild hcandidatesLe
+        summarizedChildren, soundness.abstractLawful.combine_empty] using hbound
+    have hchild' := soundness.approximates_upward _ _ _ hchild hcandidatesLe
     cases hresult : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
         (.object childRuntimeType childRef) childGroups with
     | error errors =>
@@ -1204,9 +1206,9 @@ private theorem annotatedResponseExecution_related_all
             hresult
         simpa [completeAnnotatedResponseValue, hinclude, hresult',
           catchAnnotatedResponseBubbleAsNull,
-          foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using
-          compatible.empty_related
+          soundness.empty_sound
     | ok completed =>
         rcases completed with ⟨childFields, errors⟩
         rw [hresult] at hchild'
@@ -1220,16 +1222,16 @@ private theorem annotatedResponseExecution_related_all
           simpa [childGroups,
             NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet] using
             hresult
-        have hchildFields : compatible.related
+        have hchildFields : soundness.approximates
             (foldAnnotatedResponseFields concrete childFields)
             (summarizedChildren abstract schema variableValues group
               fixedVariableValues) := by
           simpa [foldAnnotatedResponseFieldsResult] using hchild'
         simpa [completeAnnotatedResponseValue, hinclude, hresult',
           catchAnnotatedResponseBubbleAsNull,
-          foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue,
-          compatible.abstractLawful.combine_empty] using hchildFields
+          soundness.abstractLawful.combine_empty] using hchildFields
   case case15 =>
     intro fuel parentType fields childRuntimeType childRef hnotInclude runtimeType ref
       fieldName definition group _hnamed _hlookup _houtput _hfields _hvalid
@@ -1239,7 +1241,7 @@ private theorem annotatedResponseExecution_related_all
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref fieldName
       definition group hnamed hlookup houtput hfields hvalid
@@ -1250,13 +1252,13 @@ private theorem annotatedResponseExecution_related_all
     | error errors =>
         simpa [completeAnnotatedResponseValue, hresult,
           catchAnnotatedResponseBubbleAsNull,
-          foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using
-          compatible.empty_related
+          soundness.empty_sound
     | ok completed =>
         rcases completed with ⟨completedValues, errors⟩
         rw [hresult] at hlist
-        have hvalues : compatible.related
+        have hvalues : soundness.approximates
             (foldAnnotatedResponseValues concrete completedValues)
             (foldChildSummaryForValues abstract
               (summarizedChildren abstract schema variableValues group
@@ -1266,27 +1268,27 @@ private theorem annotatedResponseExecution_related_all
             foldChildSummaryForValuesResult] using hlist
         simpa [completeAnnotatedResponseValue, hresult,
           catchAnnotatedResponseBubbleAsNull,
-          foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using hvalues
   case case17 =>
     intro fuel typeName fields values runtimeType ref fieldName definition
       group _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref fieldName
       definition group _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref fieldName definition group
       _hnamed _hlookup _houtput _hfields _hvalid
     simpa [completeAnnotatedResponseValueList,
       foldAnnotatedResponseValuesResult, foldAnnotatedResponseValues,
       foldChildSummaryForValuesResult, foldChildSummaryForValues] using
-      compatible.empty_related
+      soundness.empty_sound
   case case20 =>
     intro fuel itemType fields value values head_ih tail_ih runtimeType ref
       fieldName definition group hnamed hlookup houtput hfields hvalid
@@ -1295,7 +1297,7 @@ private theorem annotatedResponseExecution_related_all
     have htail := tail_ih runtimeType ref fieldName definition group hnamed
       hlookup houtput hfields hvalid
     simpa [completeAnnotatedResponseValueList] using
-      compatible.toCompatibilityCore.combineValuesResult_related
+      soundness.toSoundnessCore.combineValuesResult_sound
         (completeAnnotatedResponseValue schema resolvers variableValues fuel itemType fields
           value)
         (completeAnnotatedResponseValueList schema resolvers variableValues fuel itemType
@@ -1303,7 +1305,7 @@ private theorem annotatedResponseExecution_related_all
         (summarizedChildren abstract schema variableValues group fixedVariableValues)
         hhead htail
 
-private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
+private theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (operation : Operation) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
@@ -1311,14 +1313,14 @@ private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
     (hmatch
       : BooleanValuesMatchForPruning
           (coerceVariableValues operation variableValues) pruningValues)
-    (compatible
-      : Compatible concrete abstract schema
+    (soundness
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
     (fuel : Nat)
     (source : ResolverValue ObjectRef)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponse concrete
           (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
             source))
@@ -1332,8 +1334,8 @@ private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
   cases hroot : rootSourceAppliesBool schema operation source with
   | false =>
       simpa [executeQueryAnnotatedWithFuel, hroot, foldAnnotatedResponse,
-        foldAnnotatedResponseValueChildren] using
-        compatible.toCompatibilityCore.empty_related_any
+        foldAnnotatedResponseValue] using
+        soundness.toSoundnessCore.empty_sound_any
           (summarizeSelectionSetResolved abstract schema (operation.rootType schema) []
             operation.selectionSet (coerceVariableValues operation variableValues)
             pruningValues)
@@ -1384,10 +1386,10 @@ private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
           (by simp [booleanConditionAllows]) htreePossible
       have hrelated :=
         (annotatedResponseExecution_related_all schema resolvers coercedVariableValues
-          pruningValues hmatch compatible).1 fuel
+          pruningValues hmatch soundness).1 fuel
           (.object (operation.rootType schema) ref) executionGroups
           (operation.rootType schema) ref staticGroups rfl hequivalent hvalid
-      have hsummaryLe : compatible.abstractLawful.le
+      have hsummaryLe : soundness.abstractLawful.le
           (summarizeCollectedGroups abstract schema coercedVariableValues staticGroups
             pruningValues)
           (summarizeSelectionSetResolved abstract schema (operation.rootType schema) []
@@ -1398,13 +1400,17 @@ private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
           (operation.rootType schema) [] (.ofConditionTree tree)
           tree.condition.possibleTypes (operation.rootType schema)
           coercedVariableValues pruningValues]
-        simpa [summarizeSelectionSetResolved, summarizeConditionTreeResolved,
-          tree] using
-          RuntimeCase.summarize_le abstract compatible.abstractLawful schema
+        apply soundness.abstractLawful.le_trans _
+          (CaseCursor.summarize abstract schema [] (.ofConditionTree tree)
+            tree.condition.possibleTypes
+            coercedVariableValues pruningValues)
+        · exact RuntimeCase.summarize_le abstract soundness.joinFactoringLaws schema
             (operation.rootType schema) [] (.ofConditionTree tree)
             tree.condition.possibleTypes (operation.rootType schema)
             coercedVariableValues pruningValues htreePossible
-      have hrelated' := compatible.related_mono _ _ _ hrelated hsummaryLe
+        · rw [CaseCursor.summarize_ofConditionTree_eq_resolved]
+          exact soundness.abstractLawful.le_refl _
+      have hrelated' := soundness.approximates_upward _ _ _ hrelated hsummaryLe
       cases hresult
             : executeQueryAnnotatedCollectedFields schema resolvers
                 coercedVariableValues fuel (.object (operation.rootType schema) ref)
@@ -1413,218 +1419,121 @@ private theorem Compatible.executeQueryAnnotatedWithFuel_relatedAt
           rw [hresult] at hrelated'
           simpa [executeQueryAnnotatedWithFuel, hroot, coercedVariableValues,
             executionGroups, hresult, foldAnnotatedResponse,
-            foldAnnotatedResponseValueChildren,
+            foldAnnotatedResponseValue,
             foldAnnotatedResponseFieldsResult] using hrelated'
       | ok completed =>
           rcases completed with ⟨fields, errors⟩
           rw [hresult] at hrelated'
           simpa [executeQueryAnnotatedWithFuel, hroot, coercedVariableValues,
             executionGroups, hresult, foldAnnotatedResponse,
-            foldAnnotatedResponseValueChildren,
+            foldAnnotatedResponseValue,
             foldAnnotatedResponseFieldsResult] using hrelated'
 
-private theorem Compatible.executeQueryAnnotatedWithFuel_relatedResolvedContext
+theorem Soundness.executeQueryAnnotatedWithFuel_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (operation : Operation) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (compatible
-      : Compatible concrete abstract schema
-          (coerceVariableValues operation variableValues))
-    (fuel : Nat) (source : ResolverValue ObjectRef)
-    (environment : BooleanEnvironment)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hoperation : Validation.operationDefinitionValid schema operation)
-    (hvalues : environment.variableValues = coerceVariableValues operation variableValues)
-    (hfixed
-      : environment.fixedVariableValues = coerceVariableValues operation variableValues)
-    (hresolved : environment.ResolvedFor (operationBooleanVariables operation))
-    : compatible.related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-            source))
-        (summarizeSelectionSet abstract schema (operation.rootType schema) []
-          operation.selectionSet environment) := by
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  have htreeResolved :
-      environment.ResolvedFor
-        (conditionTreeBooleanVariables
-          (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
-            (operation.rootType schema) [] environment.fixedVariableValues
-            operation.selectionSet)).eraseDups := by
-    intro variableName hvariable
-    apply hresolved variableName
-    simp only [operationBooleanVariables, List.mem_eraseDups]
-    apply ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_booleanVariablesWithin schema
-      (operation.rootType schema) [] environment.fixedVariableValues
-      operation.selectionSet variableName
-    simpa only [List.mem_eraseDups] using hvariable
-  have hsummary :=
-    summarizeSelectionSet_eq_resolved_of_resolvedFor abstract schema
-      (operation.rootType schema) [] operation.selectionSet environment htreeResolved
-  have hrelated :=
-    Compatible.executeQueryAnnotatedWithFuel_relatedAt operation resolvers
-      variableValues environment.fixedVariableValues
-      (by rw [hfixed]; intro variableName value hvalue; simp [hvalue])
-      compatible fuel source hschema hoperation
-  rw [hfixed] at hrelated
-  rw [hsummary, hvalues, hfixed]
-  simpa [coercedVariableValues] using hrelated
-
-private theorem Compatible.executeQueryAnnotated_relatedResolvedContext
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (operation : Operation) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues)
-    (compatible
-      : Compatible concrete abstract schema
-          (coerceVariableValues operation variableValues))
-    (source : ResolverValue ObjectRef) (environment : BooleanEnvironment)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hoperation : Validation.operationDefinitionValid schema operation)
-    (hvalues : environment.variableValues = coerceVariableValues operation variableValues)
-    (hfixed
-      : environment.fixedVariableValues = coerceVariableValues operation variableValues)
-    (hresolved : environment.ResolvedFor (operationBooleanVariables operation))
-    : compatible.related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotated schema resolvers variableValues operation source))
-        (summarizeSelectionSet abstract schema (operation.rootType schema) []
-          operation.selectionSet environment) := by
-  simpa [executeQueryAnnotated] using
-    Compatible.executeQueryAnnotatedWithFuel_relatedResolvedContext operation resolvers
-      variableValues compatible (executeQueryFuelBound schema operation) source environment
-      hschema hoperation hvalues hfixed hresolved
-
-theorem operationContextWithVariablesSound
-    {concrete : ConcreteAlgebra.{u}}
-    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
-    (operation : Operation)
-    : OperationContextWithVariablesSound algebraFor compatibleFor operation := by
-  intro hschema hoperation ObjectRef resolvers variableValues source environment
-  dsimp only
-  intro hvalues hfixed hresolved
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  exact Compatible.executeQueryAnnotated_relatedResolvedContext operation resolvers
-    variableValues (compatibleFor coercedVariableValues) source environment hschema
-    hoperation hvalues hfixed hresolved
-
-theorem operationContextSound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete abstract schema values)
-    (operation : Operation)
-    : OperationContextSound compatibleFor operation := by
-  intro hschema hoperation ObjectRef resolvers variableValues source environment
-  dsimp only
-  intro hvalues hfixed hresolved
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  exact Compatible.executeQueryAnnotated_relatedResolvedContext operation resolvers
-    variableValues (compatibleFor coercedVariableValues) source environment hschema
-    hoperation hvalues hfixed hresolved
-
-theorem Compatible.executeQueryAnnotatedWithFuel_related
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (operation : Operation) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues)
-    (compatible
-      : Compatible concrete abstract schema
+    (soundness
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
     (fuel : Nat) (source : ResolverValue ObjectRef)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponse concrete
           (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
             source))
         (summarizeOperation abstract schema operation) := by
   let coercedVariableValues := coerceVariableValues operation variableValues
   have hresolved :=
-    Compatible.executeQueryAnnotatedWithFuel_relatedAt operation resolvers
+    Soundness.executeQueryAnnotatedWithFuel_soundAt operation resolvers
       variableValues []
       (by intro variableName value hvalue;
           simp [inputValueBoolean?, lookupVariableValue?] at hvalue)
-      compatible fuel source hschema hoperation
+      soundness fuel source hschema hoperation
   have hforget := summarizeOperationResolved_le_unknown abstract
-    compatible.abstractLawful schema operation coercedVariableValues
-  exact compatible.related_mono _ _ _ hresolved hforget
+    soundness.joinFactoringLaws schema operation coercedVariableValues
+  exact soundness.approximates_upward _ _ _ hresolved hforget
 
-theorem Compatible.executeQueryAnnotated_related
+theorem Soundness.executeQueryAnnotated_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (operation : Operation) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (compatible
-      : Compatible concrete abstract schema
+    (soundness
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
     (source : ResolverValue ObjectRef)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponse concrete
           (executeQueryAnnotated schema resolvers variableValues operation source))
         (summarizeOperation abstract schema operation) := by
   simpa [executeQueryAnnotated] using
-    Compatible.executeQueryAnnotatedWithFuel_related operation resolvers
-      variableValues compatible (executeQueryFuelBound schema operation) source
+    Soundness.executeQueryAnnotatedWithFuel_sound operation resolvers
+      variableValues soundness (executeQueryFuelBound schema operation) source
       hschema hoperation
 
-theorem operationSoundWithFuel
+theorem analysisSound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete abstract schema values)
+    (soundnessFor : ∀ values, Soundness concrete abstract schema values)
     (operation : Operation)
-    : OperationSoundWithFuel compatibleFor operation := by
-  intro hschema hoperation ObjectRef resolvers variableValues fuel source
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  exact Compatible.executeQueryAnnotatedWithFuel_related operation resolvers
-    variableValues (compatibleFor coercedVariableValues) fuel source hschema hoperation
-
-theorem operationSound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete abstract schema values)
-    (operation : Operation)
-    : OperationSound compatibleFor operation := by
+    : AnalysisSound soundnessFor operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source
   let coercedVariableValues := coerceVariableValues operation variableValues
-  exact Compatible.executeQueryAnnotated_related operation resolvers variableValues
-    (compatibleFor coercedVariableValues) source hschema hoperation
+  exact Soundness.executeQueryAnnotated_sound operation resolvers variableValues
+    (soundnessFor coercedVariableValues) source hschema hoperation
+
+-- Proof-facing fuel variant used by analyses whose algebra depends on coerced request
+-- variables. The public definition module exposes only the default-executor statement.
+def OperationWithVariablesSoundWithFuel
+    {concrete : ConcreteAlgebra.{u}}
+    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
+    (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
+      (soundnessFor coercedVariableValues).approximates
+        (foldAnnotatedResponse concrete
+          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+            source))
+        (summarizeOperationWithVariables algebraFor schema variableValues operation)
 
 theorem operationWithVariablesSoundWithFuel
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
     (operation : Operation)
-    : OperationWithVariablesSoundWithFuel algebraFor compatibleFor operation := by
+    : OperationWithVariablesSoundWithFuel algebraFor soundnessFor operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source
   let coercedVariableValues := coerceVariableValues operation variableValues
   have hrelated :=
-    Compatible.executeQueryAnnotatedWithFuel_relatedAt operation resolvers variableValues
+    Soundness.executeQueryAnnotatedWithFuel_soundAt operation resolvers variableValues
       coercedVariableValues (by intro variableName value hvalue; rw [hvalue]; rfl)
-      (compatibleFor coercedVariableValues) fuel source hschema hoperation
+      (soundnessFor coercedVariableValues) fuel source hschema hoperation
   simpa [summarizeOperationWithVariables, summarizeSelectionSetResolved,
-    summarizeConditionTreeResolved, coercedVariableValues] using hrelated
+    summarizeSelectionSet, summarizeConditionTree, summarizeConditionTreeResolved,
+    Internal.summarizeConditionTreeDecision, summarizeConditionTreeWithPruning,
+    summarizeConditionTreeDecisionWithPruning,
+    BooleanEnvironment.ofCompleteValues, BooleanEnvironment.complete,
+    BooleanEnvironment.pruningValues, coercedVariableValues] using hrelated
 
-theorem operationWithVariablesSound
+theorem analysisWithVariablesSound
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
     (operation : Operation)
-    : OperationWithVariablesSound algebraFor compatibleFor operation := by
+    : AnalysisWithVariablesSound algebraFor soundnessFor operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source
-  have hsound := operationWithVariablesSoundWithFuel algebraFor compatibleFor operation
+  have hsound := operationWithVariablesSoundWithFuel algebraFor soundnessFor operation
     hschema hoperation ObjectRef resolvers variableValues
     (executeQueryFuelBound schema operation) source
   simpa [executeQueryAnnotated] using hsound
-
-theorem analysisWithVariablesSound
-    (algebraFor : VariableValues -> Algebra.{v}) (schema : Schema)
-    (operation : Operation)
-    : AnalysisWithVariablesSound algebraFor schema operation := by
-  intro concrete compatibleFor
-  exact operationWithVariablesSound algebraFor compatibleFor operation
-
--- Generic witness for the public exact-case analysis soundness statement.
-theorem analysisSound (abstract : Algebra.{v}) (schema : Schema) (operation : Operation)
-    : AnalysisSound abstract schema operation := by
-  intro concrete compatibleFor
-  exact operationSound compatibleFor operation
 
 end ExactCases
 end TreeSummary

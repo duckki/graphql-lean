@@ -1,9 +1,7 @@
-import Proofs.GraphQL.Theories.ConditionTree.BooleanVariables
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.BooleanDecision
-import Proofs.GraphQL.Theories.TreeSummary.ExactCases.Relation
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.ResolvedContext
 
-/-! Refinement from a concrete Boolean environment to the unknown-variable summary. -/
+/-! Refinement from one concrete Boolean environment to the unknown-variable summary. -/
 
 namespace GraphQL
 namespace TreeSummary
@@ -11,224 +9,765 @@ namespace ExactCases
 
 open GraphQL.Execution
 open GraphQL.ConditionTree
-open GraphQL.ConditionTree.Termination
-open TreeSummary.Measure
-open Measure
+open Internal
 
-private def BooleanValuesAgreeOn (variables : List Name) (left right : VariableValues)
-    : Prop :=
-  ∀ variableName,
-    variableName ∈ variables
-    -> inputValueBoolean? left (.variable variableName)
-        = inputValueBoolean? right (.variable variableName)
+namespace Internal.BooleanDecision
 
-private theorem booleanConditionAllows_eq_of_agree
-    (left right : VariableValues) (literal : BooleanLiteral)
-    (hagrees
-      : inputValueBoolean? left (.variable literal.variableName)
-        = inputValueBoolean? right (.variable literal.variableName))
-    : booleanConditionAllows left [literal] = booleanConditionAllows right [literal] := by
-  cases literal <;>
-    simp_all [booleanConditionAllows, BooleanLiteral.allows,
-      directiveAllowsSelectionBool, BooleanLiteral.toDirective,
-      BooleanLiteral.variableName]
+def selectedValue (variableValues : VariableValues) (variableName : Name) : Bool :=
+  (inputValueBoolean? variableValues (.variable variableName)).getD false
 
-private theorem selectedChildren_eq_of_agree
-    (possibleTypes : PossibleTypeRegion) (left right : VariableValues)
-    (branches : List (Branch Tree))
-    (hagrees
-      : ∀ branch,
-          branch ∈ branches
-          -> match branch.condition with
-              | .typeCondition _typeName => True
-              | .booleanLiteral literal =>
-                  inputValueBoolean? left (.variable literal.variableName)
-                  = inputValueBoolean? right (.variable literal.variableName))
-    : CaseForest.selectedChildren possibleTypes left branches
-      = CaseForest.selectedChildren possibleTypes right branches := by
-  induction branches with
-  | nil => rfl
-  | cons branch rest ih =>
-      rw [CaseForest.selectedChildren, CaseForest.selectedChildren]
-      have hrest := ih (by
-        intro candidate hcandidate
-        exact hagrees candidate (by simp [hcandidate]))
-      cases hcondition : branch.condition with
-      | typeCondition typeName => simp [hrest]
-      | booleanLiteral literal =>
-          have hvalue := hagrees branch (by simp)
-          rw [hcondition] at hvalue
-          simp only
-          rw [booleanConditionAllows_eq_of_agree left right literal hvalue, hrest]
+-- Chooses the request's branch at Boolean tests while retaining factored type joins.
+def select (variableValues : VariableValues) : BooleanDecision α -> BooleanDecision α
+  | .leaf summary => .leaf summary
+  | .split test onFalse onTrue =>
+      if selectedValue variableValues test then
+        select variableValues onTrue
+      else
+        select variableValues onFalse
+  | .join left right =>
+      .join (select variableValues left) (select variableValues right)
 
-private theorem resolveActiveTrees_eq_of_agree
-    (possibleTypes : PossibleTypeRegion) (left right : VariableValues)
-    (items : List Tree)
-    (hagrees
-      : ∀ item,
-          item ∈ items
-          -> ∀ branch,
-              branch ∈ item.branches
-              -> match branch.condition with
-                  | .typeCondition _typeName => True
-                  | .booleanLiteral literal =>
-                      inputValueBoolean? left (.variable literal.variableName)
-                      = inputValueBoolean? right (.variable literal.variableName))
-    : CaseForest.resolveActiveTrees possibleTypes left items
-      = CaseForest.resolveActiveTrees possibleTypes right items := by
+theorem select_map (variableValues : VariableValues) (transform : α -> β)
+    (decision : BooleanDecision α)
+    : select variableValues (decision.map transform)
+      = (select variableValues decision).map transform := by
+  induction decision with
+  | leaf => rfl
+  | split test onFalse onTrue ihFalse ihTrue =>
+      simp only [map, select]
+      split <;> assumption
+  | join left right ihLeft ihRight =>
+      simp [map, select, ihLeft, ihRight]
+
+theorem select_restrict (variableValues : VariableValues)
+    (selectedVariable : Name) (selected : Bool)
+    (hselected : selectedValue variableValues selectedVariable = selected)
+    (decision : BooleanDecision α)
+    : select variableValues (decision.restrict selectedVariable selected)
+      = select variableValues decision := by
+  induction decision with
+  | leaf => rfl
+  | split test onFalse onTrue ihFalse ihTrue =>
+      simp only [restrict, select]
+      by_cases heq : test = selectedVariable
+      · subst test
+        simp only [hselected]
+        cases selected <;> simp [ihFalse, ihTrue]
+      · simp only [if_neg heq]
+        simp [select, ihFalse, ihTrue]
+  | join left right ihLeft ihRight =>
+      simp [restrict, select, ihLeft, ihRight]
+
+def leaves : BooleanDecision α -> List α
+  | .leaf value => [value]
+  | .split _test onFalse onTrue => leaves onFalse ++ leaves onTrue
+  | .join left right => leaves left ++ leaves right
+
+def SplitFree : BooleanDecision α -> Prop
+  | .leaf _value => True
+  | .split _test _onFalse _onTrue => False
+  | .join left right => left.SplitFree ∧ right.SplitFree
+
+theorem select_splitFree (variableValues : VariableValues) (decision : BooleanDecision α)
+    : (select variableValues decision).SplitFree := by
+  induction decision with
+  | leaf => trivial
+  | split test onFalse onTrue ihFalse ihTrue =>
+      simp only [select]
+      split <;> assumption
+  | join left right ihLeft ihRight => exact ⟨ihLeft, ihRight⟩
+
+theorem select_eq_self_of_splitFree (variableValues : VariableValues)
+    {decision : BooleanDecision α} (hfree : decision.SplitFree)
+    : select variableValues decision = decision := by
+  induction decision with
+  | leaf => rfl
+  | split => contradiction
+  | join left right ihLeft ihRight =>
+      simp [select, ihLeft hfree.1, ihRight hfree.2]
+
+theorem mem_leaves_map {value : β} (transform : α -> β) (decision : BooleanDecision α)
+    : value ∈ (decision.map transform).leaves
+      ↔ ∃ source, source ∈ decision.leaves ∧ value = transform source := by
+  induction decision with
+  | leaf source => simp [map, leaves]
+  | split test onFalse onTrue ihFalse ihTrue =>
+      simp only [map, leaves, List.mem_append, ihFalse, ihTrue]
+      grind
+  | join left right ihLeft ihRight =>
+      simp only [map, leaves, List.mem_append, ihLeft, ihRight]
+      grind
+
+theorem mem_leaves_select_zipWith (variableValues : VariableValues)
+    (variableOrder : BooleanVariableNames) (operation : α -> β -> γ)
+    (left : BooleanDecision α) (right : BooleanDecision β) (value : γ)
+    : value ∈ (select variableValues (zipWith variableOrder operation left right)).leaves
+      ↔ ∃ leftValue,
+          leftValue ∈ (select variableValues left).leaves
+          ∧ ∃ rightValue,
+              rightValue ∈ (select variableValues right).leaves
+              ∧ value = operation leftValue rightValue := by
+  induction left, right using BooleanDecision.zipWith.induct variableOrder with
+  | case1 left right =>
+      simp [zipWith, select, select_map, leaves, mem_leaves_map]
+  | case2 left right hnotLeaf =>
+      cases left <;>
+        simp_all [zipWith, select, select_map, leaves, mem_leaves_map]
+  | case3 leftFirst leftSecond right hnotLeaf ihFirst ihSecond =>
+      cases right <;> simp_all [zipWith, select, leaves] <;>
+        grind
+  | case4 left rightFirst rightSecond hnotLeaf hnotJoin ihFirst ihSecond =>
+      cases left <;> simp_all [zipWith, select, leaves] <;>
+        grind
+  | case5 leftFalse leftTrue test rightFalse rightTrue ihFalse ihTrue =>
+      by_cases hselected : selectedValue variableValues test
+      · simpa [zipWith, select, leaves, hselected] using ihTrue
+      · simpa [zipWith, select, leaves, hselected] using ihFalse
+  | case6 leftTest leftFalse leftTrue rightTest rightFalse rightTrue
+      hne horder ihFalse ihTrue =>
+      by_cases hselected : selectedValue variableValues leftTest
+      · simp only [zipWith, if_neg hne, if_pos horder]
+        simp only [select, hselected, if_true]
+        rw [ihTrue]
+        rw [select_restrict variableValues leftTest true (by simp [hselected])]
+        simp [select]
+      · have hselectedFalse : selectedValue variableValues leftTest = false :=
+          by cases hvalue : selectedValue variableValues leftTest <;> simp_all
+        simp only [zipWith, if_neg hne, if_pos horder]
+        simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
+        rw [ihFalse]
+        rw [select_restrict variableValues leftTest false (by simp [hselected])]
+        simp [select]
+  | case7 leftTest leftFalse leftTrue rightTest rightFalse rightTrue
+      hne horder ihFalse ihTrue =>
+      by_cases hselected : selectedValue variableValues rightTest
+      · simp only [zipWith, if_neg hne, if_neg horder]
+        simp only [select, hselected, if_true]
+        rw [ihTrue]
+        rw [select_restrict variableValues rightTest true (by simp [hselected])]
+        simp [select]
+      · have hselectedFalse : selectedValue variableValues rightTest = false :=
+          by cases hvalue : selectedValue variableValues rightTest <;> simp_all
+        simp only [zipWith, if_neg hne, if_neg horder]
+        simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
+        rw [ihFalse]
+        rw [select_restrict variableValues rightTest false (by simp [hselected])]
+        simp [select]
+
+theorem map_splitFree (transform : α -> β) {decision : BooleanDecision α}
+    (hfree : decision.SplitFree)
+    : (decision.map transform).SplitFree := by
+  induction decision with
+  | leaf => trivial
+  | split => contradiction
+  | join left right ihLeft ihRight => exact ⟨ihLeft hfree.1, ihRight hfree.2⟩
+
+theorem zipWith_splitFree (variableOrder : BooleanVariableNames)
+    (operation : α -> β -> γ) {left : BooleanDecision α}
+    {right : BooleanDecision β} (hleft : left.SplitFree) (hright : right.SplitFree)
+    : (zipWith variableOrder operation left right).SplitFree := by
+  induction left generalizing right with
+  | leaf left =>
+      rw [zipWith]
+      exact map_splitFree _ hright
+  | split => contradiction
+  | join leftFirst leftSecond ihFirst ihSecond =>
+      cases right with
+      | leaf right =>
+          simpa [zipWith] using map_splitFree (fun value => operation value right) hleft
+      | split rightTest rightFalse rightTrue => contradiction
+      | join rightFirst rightSecond =>
+          simpa [zipWith, SplitFree] using
+            And.intro (ihFirst hleft.1 hright) (ihSecond hleft.2 hright)
+
+theorem zipWith_eq_of_splitFree (leftOrder rightOrder : BooleanVariableNames)
+    (operation : α -> β -> γ) {left : BooleanDecision α}
+    {right : BooleanDecision β} (hleft : left.SplitFree) (hright : right.SplitFree)
+    : zipWith leftOrder operation left right
+      = zipWith rightOrder operation left right := by
+  induction left generalizing right with
+  | leaf => simp [zipWith]
+  | split => contradiction
+  | join leftFirst leftSecond ihFirst ihSecond =>
+      cases right with
+      | leaf => simp [zipWith]
+      | split => contradiction
+      | join rightFirst rightSecond =>
+          simp only [zipWith]
+          rw [ihFirst hleft.1 hright, ihSecond hleft.2 hright]
+
+theorem mem_leaves_zipWith_of_splitFree
+    (variableValues : VariableValues) (variableOrder : BooleanVariableNames)
+    (operation : α -> β -> γ) {left : BooleanDecision α}
+    {right : BooleanDecision β} (hleft : left.SplitFree) (hright : right.SplitFree)
+    (value : γ)
+    : value ∈ (zipWith variableOrder operation left right).leaves
+      ↔ ∃ leftValue,
+          leftValue ∈ left.leaves
+          ∧ ∃ rightValue,
+              rightValue ∈ right.leaves ∧ value = operation leftValue rightValue := by
+  have hzip := mem_leaves_select_zipWith variableValues variableOrder operation
+    left right value
+  rw [select_eq_self_of_splitFree variableValues hleft,
+    select_eq_self_of_splitFree variableValues hright] at hzip
+  rw [select_eq_self_of_splitFree variableValues
+    (zipWith_splitFree variableOrder operation hleft hright)] at hzip
+  exact hzip
+
+structure Refines (variableValues : VariableValues)
+    (resolved symbolic : BooleanDecision α)
+    : Prop where
+  splitFree : resolved.SplitFree
+  leaves
+    : ∀ value, value ∈ resolved.leaves -> value ∈ (select variableValues symbolic).leaves
+
+theorem Refines.leaf (variableValues : VariableValues) (value : α)
+    : Refines variableValues (.leaf value) (.leaf value) := by
+  exact ⟨True.intro, by simp [select]⟩
+
+theorem Refines.map (variableValues : VariableValues) (transform : α -> β)
+    {resolved symbolic : BooleanDecision α}
+    (hrefines : Refines variableValues resolved symbolic)
+    : Refines variableValues (resolved.map transform) (symbolic.map transform) := by
+  constructor
+  · exact map_splitFree transform hrefines.splitFree
+  · intro value hvalue
+    rw [mem_leaves_map] at hvalue
+    rcases hvalue with ⟨source, hsource, rfl⟩
+    rw [select_map, mem_leaves_map]
+    exact ⟨source, hrefines.leaves source hsource, rfl⟩
+
+theorem Refines.join (variableValues : VariableValues)
+    {resolvedLeft resolvedRight symbolicLeft symbolicRight : BooleanDecision α}
+    (hleft : Refines variableValues resolvedLeft symbolicLeft)
+    (hright : Refines variableValues resolvedRight symbolicRight)
+    : Refines variableValues (.join resolvedLeft resolvedRight)
+        (.join symbolicLeft symbolicRight) := by
+  constructor
+  · exact ⟨hleft.splitFree, hright.splitFree⟩
+  · intro value hvalue
+    change value ∈ resolvedLeft.leaves ++ resolvedRight.leaves at hvalue
+    rw [List.mem_append] at hvalue
+    change value ∈
+      (select variableValues symbolicLeft).leaves ++
+        (select variableValues symbolicRight).leaves
+    rw [List.mem_append]
+    rcases hvalue with hvalue | hvalue
+    · exact Or.inl (hleft.leaves value hvalue)
+    · exact Or.inr (hright.leaves value hvalue)
+
+theorem Refines.of_select_eq (variableValues : VariableValues)
+    {resolved selected symbolic : BooleanDecision α}
+    (hselect : select variableValues symbolic = select variableValues selected)
+    (hrefines : Refines variableValues resolved selected)
+    : Refines variableValues resolved symbolic := by
+  exact ⟨hrefines.splitFree, fun value hvalue => hselect.symm ▸
+    hrefines.leaves value hvalue⟩
+
+theorem Refines.zipWith (variableValues : VariableValues)
+    (variableOrder : BooleanVariableNames) (operation : α -> β -> γ)
+    {resolvedLeft symbolicLeft : BooleanDecision α}
+    {resolvedRight symbolicRight : BooleanDecision β}
+    (hleft : Refines variableValues resolvedLeft symbolicLeft)
+    (hright : Refines variableValues resolvedRight symbolicRight)
+    : Refines variableValues
+        (BooleanDecision.zipWith variableOrder operation resolvedLeft resolvedRight)
+        (BooleanDecision.zipWith variableOrder operation symbolicLeft symbolicRight) := by
+  constructor
+  · exact zipWith_splitFree variableOrder operation hleft.splitFree hright.splitFree
+  · intro value hvalue
+    rw [mem_leaves_zipWith_of_splitFree variableValues variableOrder operation
+      hleft.splitFree hright.splitFree] at hvalue
+    rcases hvalue with
+      ⟨leftValue, hleftValue, rightValue, hrightValue, rfl⟩
+    rw [mem_leaves_select_zipWith]
+    exact ⟨leftValue, hleft.leaves leftValue hleftValue,
+      rightValue, hright.leaves rightValue hrightValue, rfl⟩
+
+theorem Refines.combineMap (algebra : Algebra) (variableValues : VariableValues)
+    (variableOrder : BooleanVariableNames) (items : List α)
+    (resolved symbolic : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hrefines
+      : ∀ item hitem, Refines variableValues (resolved item hitem) (symbolic item hitem))
+    : Refines variableValues
+        (BooleanDecision.combineMap algebra variableOrder items resolved)
+        (BooleanDecision.combineMap algebra variableOrder items symbolic) := by
   induction items with
-  | nil => rfl
+  | nil => simpa [BooleanDecision.combineMap] using
+      Refines.leaf variableValues algebra.empty
   | cons item rest ih =>
-      rw [CaseForest.resolveActiveTrees, CaseForest.resolveActiveTrees]
-      rw [selectedChildren_eq_of_agree possibleTypes left right item.branches
-        (hagrees item (by simp))]
-      rw [ih (by
-        intro candidate hcandidate
-        exact hagrees candidate (by simp [hcandidate]))]
+      rw [BooleanDecision.combineMap, BooleanDecision.combineMap]
+      apply Refines.zipWith variableValues variableOrder algebra.combine
+      · exact hrefines item (by simp)
+      · exact ih
+          (fun candidate hcandidate => resolved candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => symbolic candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => hrefines candidate (by simp [hcandidate]))
 
-private def CaseForest.BooleanVariablesWithin (variables : List Name) (tree : CaseForest)
-    : Prop :=
-  ∀ item,
-    item ∈ tree.activeTrees
-    -> ∀ variableName,
-        variableName ∈ conditionTreeBooleanVariables item -> variableName ∈ variables
+theorem Refines.joinMap (algebra : Algebra) (variableValues : VariableValues)
+    (items : List α)
+    (resolved symbolic : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hrefines
+      : ∀ item hitem, Refines variableValues (resolved item hitem) (symbolic item hitem))
+    : Refines variableValues
+        (BooleanDecision.joinMap algebra items resolved)
+        (BooleanDecision.joinMap algebra items symbolic) := by
+  cases items with
+  | nil => simpa [BooleanDecision.joinMap] using
+      Refines.leaf variableValues algebra.empty
+  | cons item rest =>
+      cases rest with
+      | nil => simpa [BooleanDecision.joinMap] using hrefines item (by simp)
+      | cons next tail =>
+          rw [BooleanDecision.joinMap, BooleanDecision.joinMap]
+          exact Refines.join variableValues (hrefines item (by simp))
+            (Refines.joinMap algebra variableValues (next :: tail)
+              (fun candidate hcandidate => resolved candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => symbolic candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => hrefines candidate (by simp [hcandidate])))
 
-private theorem conditionTreeBranchesBooleanVariable_mem
-    (branches : List (Branch Tree)) (branch : Branch Tree)
-    (hbranch : branch ∈ branches) (literal : BooleanLiteral)
-    (hcondition : branch.condition = .booleanLiteral literal)
-    : literal.variableName ∈ conditionTreeBranchesBooleanVariables branches := by
-  induction branches with
-  | nil => simp at hbranch
-  | cons current rest ih =>
-      rw [conditionTreeBranchesBooleanVariables.eq_def]
-      simp only [List.mem_cons] at hbranch
-      rcases hbranch with rfl | hbranch
-      · simp [hcondition]
-      · simp only [List.mem_append]
-        exact Or.inr (ih hbranch)
+theorem le_collapse_of_mem (algebra : Algebra) (lawful : algebra.Lawful)
+    (decision : BooleanDecision algebra.Summary) (value : algebra.Summary)
+    (hvalue : value ∈ decision.leaves)
+    : lawful.le value (decision.collapse algebra) := by
+  induction decision with
+  | leaf summary =>
+      simp [leaves] at hvalue
+      subst value
+      exact lawful.le_refl summary
+  | split test onFalse onTrue ihFalse ihTrue =>
+      simp only [leaves, List.mem_append] at hvalue
+      rcases hvalue with hvalue | hvalue
+      · exact lawful.le_trans _ _ _ (ihFalse hvalue) (lawful.le_join_left _ _)
+      · exact lawful.le_trans _ _ _ (ihTrue hvalue) (lawful.le_join_right _ _)
+  | join left right ihLeft ihRight =>
+      simp only [leaves, List.mem_append] at hvalue
+      rcases hvalue with hvalue | hvalue
+      · exact lawful.le_trans _ _ _ (ihLeft hvalue) (lawful.le_join_left _ _)
+      · exact lawful.le_trans _ _ _ (ihRight hvalue) (lawful.le_join_right _ _)
 
-private theorem CaseForest.booleanVariable_mem_of_within
-    (tree : CaseForest) (variables : List Name)
-    (hwithin : tree.BooleanVariablesWithin variables)
-    (variableName : Name) (hvariable : variableName ∈ tree.booleanVariables)
-    : variableName ∈ variables := by
-  unfold CaseForest.booleanVariables CaseForest.branches at hvariable
-  simp only [List.mem_eraseDups, List.mem_filterMap, List.mem_flatMap] at hvariable
-  rcases hvariable with ⟨branch, ⟨item, hitem, hbranch⟩, hcondition⟩
-  cases hbranchCondition : branch.condition with
-  | typeCondition typeName => simp [hbranchCondition] at hcondition
-  | booleanLiteral literal =>
-      simp [hbranchCondition] at hcondition
-      subst variableName
-      apply hwithin item hitem
-      cases item with
-      | mk condition fields branches =>
-          simp only [conditionTreeBooleanVariables, List.mem_append]
-          apply Or.inr
-          exact conditionTreeBranchesBooleanVariable_mem branches branch hbranch literal
-            hbranchCondition
+theorem collapse_le_of_leaves (algebra : Algebra) (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (decision : BooleanDecision algebra.Summary) (upper : algebra.Summary)
+    (hleaves : ∀ value, value ∈ decision.leaves -> lawful.le value upper)
+    : lawful.le (decision.collapse algebra) upper := by
+  induction decision with
+  | leaf value => exact hleaves value (by simp [leaves])
+  | split test onFalse onTrue ihFalse ihTrue =>
+      apply hjoinUpper
+      · exact ihFalse (fun value hvalue => hleaves value (by simp [leaves, hvalue]))
+      · exact ihTrue (fun value hvalue => hleaves value (by simp [leaves, hvalue]))
+  | join left right ihLeft ihRight =>
+      apply hjoinUpper
+      · exact ihLeft (fun value hvalue => hleaves value (by simp [leaves, hvalue]))
+      · exact ihRight (fun value hvalue => hleaves value (by simp [leaves, hvalue]))
 
-private theorem selectedChildren_source
-    (possibleTypes : PossibleTypeRegion) (variableValues : VariableValues)
-    (branches : List (Branch Tree)) (child : Tree)
-    (hchild : child ∈ CaseForest.selectedChildren possibleTypes variableValues branches)
-    : ∃ branch, branch ∈ branches ∧ child = branch.body := by
-  induction branches with
-  | nil => simp [CaseForest.selectedChildren] at hchild
-  | cons branch rest ih =>
-      rw [CaseForest.selectedChildren] at hchild
-      cases hcondition : branch.condition with
-      | typeCondition typeName =>
-          simp only [hcondition] at hchild
-          split at hchild
-          · simp only [List.mem_cons] at hchild
-            rcases hchild with rfl | hchild
-            · exact ⟨branch, by simp, rfl⟩
-            · rcases ih hchild with ⟨source, hsource, rfl⟩
-              exact ⟨source, by simp [hsource], rfl⟩
-          · rcases ih hchild with ⟨source, hsource, rfl⟩
-            exact ⟨source, by simp [hsource], rfl⟩
-      | booleanLiteral literal =>
-          simp only [hcondition] at hchild
-          split at hchild
-          · simp only [List.mem_cons] at hchild
-            rcases hchild with rfl | hchild
-            · exact ⟨branch, by simp, rfl⟩
-            · rcases ih hchild with ⟨source, hsource, rfl⟩
-              exact ⟨source, by simp [hsource], rfl⟩
-          · rcases ih hchild with ⟨source, hsource, rfl⟩
-            exact ⟨source, by simp [hsource], rfl⟩
+theorem collapse_select_le (algebra : Algebra) (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (variableValues : VariableValues) (decision : BooleanDecision algebra.Summary)
+    : lawful.le ((select variableValues decision).collapse algebra)
+        (decision.collapse algebra) := by
+  induction decision with
+  | leaf summary => exact lawful.le_refl summary
+  | split test onFalse onTrue ihFalse ihTrue =>
+      by_cases hselected : selectedValue variableValues test
+      · simpa [select, collapse, hselected] using
+          lawful.le_trans _ _ _ ihTrue (lawful.le_join_right _ _)
+      · simpa [select, collapse, hselected] using
+          lawful.le_trans _ _ _ ihFalse (lawful.le_join_left _ _)
+  | join left right ihLeft ihRight =>
+      simp only [select, collapse]
+      apply hjoinUpper
+      · exact lawful.le_trans _ _ _ ihLeft (lawful.le_join_left _ _)
+      · exact lawful.le_trans _ _ _ ihRight (lawful.le_join_right _ _)
 
-private theorem conditionTreeBranches_bodyVariable_mem
-    (branches : List (Branch Tree)) (branch : Branch Tree)
-    (hbranch : branch ∈ branches) (variableName : Name)
-    (hvariable : variableName ∈ conditionTreeBooleanVariables branch.body)
-    : variableName ∈ conditionTreeBranchesBooleanVariables branches := by
-  induction branches with
-  | nil => simp at hbranch
-  | cons current rest ih =>
-      rw [conditionTreeBranchesBooleanVariables.eq_def]
-      simp only [List.mem_cons] at hbranch
-      simp only [List.mem_append]
-      rcases hbranch with rfl | hbranch
-      · exact Or.inl (Or.inr hvariable)
-      · exact Or.inr (ih hbranch)
+theorem Refines.collapse_le (algebra : Algebra) (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (variableValues : VariableValues)
+    {resolved symbolic : BooleanDecision algebra.Summary}
+    (hrefines : Refines variableValues resolved symbolic)
+    : lawful.le (resolved.collapse algebra) (symbolic.collapse algebra) := by
+  apply collapse_le_of_leaves algebra lawful hjoinUpper resolved _
+  intro value hvalue
+  apply lawful.le_trans _ ((select variableValues symbolic).collapse algebra) _
+  · exact le_collapse_of_mem algebra lawful (select variableValues symbolic) value
+      (hrefines.leaves value hvalue)
+  · exact collapse_select_le algebra lawful hjoinUpper variableValues symbolic
 
-private theorem resolveActiveTrees_variablesWithin
-    (possibleTypes : PossibleTypeRegion) (variableValues : VariableValues)
-    (items : List Tree) (variables : List Name)
-    (hwithin
-      : ∀ item,
-          item ∈ items
-          -> ∀ variableName,
-              variableName ∈ conditionTreeBooleanVariables item
-              -> variableName ∈ variables)
-    : ∀ item,
-        item ∈ CaseForest.resolveActiveTrees possibleTypes variableValues items
-        -> ∀ variableName,
-            variableName ∈ conditionTreeBooleanVariables item
-            -> variableName ∈ variables := by
+private theorem join_mono_of_le (algebra : Algebra) (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    {left lower right upper : algebra.Summary}
+    (hleft : lawful.le left lower) (hright : lawful.le right upper)
+    : lawful.le (algebra.join left right) (algebra.join lower upper) := by
+  apply hjoinUpper
+  · exact lawful.le_trans _ _ _ hleft (lawful.le_join_left _ _)
+  · exact lawful.le_trans _ _ _ hright (lawful.le_join_right _ _)
+
+theorem collapse_map_le_of_splitFree (algebra : Algebra) (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (transform : algebra.Summary -> algebra.Summary)
+    (hjoin
+      : ∀ left right,
+          lawful.le (transform (algebra.join left right))
+            (algebra.join (transform left) (transform right)))
+    {decision : BooleanDecision algebra.Summary} (hfree : decision.SplitFree)
+    : lawful.le (transform (decision.collapse algebra))
+        ((decision.map transform).collapse algebra) := by
+  induction decision with
+  | leaf => exact lawful.le_refl _
+  | split => contradiction
+  | join left right ihLeft ihRight =>
+      apply lawful.le_trans _
+        (algebra.join (transform (left.collapse algebra))
+          (transform (right.collapse algebra)))
+      · exact hjoin _ _
+      · exact join_mono_of_le algebra lawful hjoinUpper
+          (ihLeft hfree.1) (ihRight hfree.2)
+
+private theorem combine_join_right_le (algebra : Algebra) (lawful : algebra.Lawful)
+    (hcombine
+      : ∀ left right other,
+          lawful.le (algebra.combine (algebra.join left right) other)
+            (algebra.join (algebra.combine left other) (algebra.combine right other)))
+    (other left right : algebra.Summary)
+    : lawful.le (algebra.combine other (algebra.join left right))
+        (algebra.join (algebra.combine other left) (algebra.combine other right)) := by
+  rw [lawful.combine_comm other (algebra.join left right)]
+  apply lawful.le_trans _
+    (algebra.join (algebra.combine left other) (algebra.combine right other))
+  · exact hcombine left right other
+  · rw [lawful.combine_comm left other, lawful.combine_comm right other]
+    exact lawful.le_refl _
+
+theorem collapse_zipWith_combine_le_of_splitFree (algebra : Algebra)
+    (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (hcombine
+      : ∀ left right other,
+          lawful.le (algebra.combine (algebra.join left right) other)
+            (algebra.join (algebra.combine left other) (algebra.combine right other)))
+    (variableOrder : BooleanVariableNames)
+    {left right : BooleanDecision algebra.Summary}
+    (hleft : left.SplitFree) (hright : right.SplitFree)
+    : lawful.le (algebra.combine (left.collapse algebra) (right.collapse algebra))
+        ((BooleanDecision.zipWith variableOrder algebra.combine left right).collapse
+          algebra) := by
+  induction left generalizing right with
+  | leaf left =>
+      rw [BooleanDecision.zipWith]
+      exact collapse_map_le_of_splitFree algebra lawful hjoinUpper (algebra.combine left)
+        (combine_join_right_le algebra lawful hcombine left) hright
+  | split => contradiction
+  | join leftFirst leftSecond ihFirst ihSecond =>
+      cases right with
+      | leaf right =>
+          have hzip :
+              BooleanDecision.zipWith variableOrder algebra.combine
+                  (.join leftFirst leftSecond) (.leaf right)
+                = (BooleanDecision.join leftFirst leftSecond).map
+                    (fun value => algebra.combine value right) := by
+            rw [BooleanDecision.zipWith] <;> simp
+          rw [hzip]
+          exact collapse_map_le_of_splitFree algebra lawful hjoinUpper
+            (fun value => algebra.combine value right) (fun first second =>
+              hcombine first second right) hleft
+      | split => contradiction
+      | join rightFirst rightSecond =>
+          have hzip :
+              BooleanDecision.zipWith variableOrder algebra.combine
+                  (.join leftFirst leftSecond) (.join rightFirst rightSecond)
+                = .join
+                    (BooleanDecision.zipWith variableOrder algebra.combine leftFirst
+                      (.join rightFirst rightSecond))
+                    (BooleanDecision.zipWith variableOrder algebra.combine leftSecond
+                      (.join rightFirst rightSecond)) := by
+            rw [BooleanDecision.zipWith] <;> simp
+          rw [hzip]
+          apply lawful.le_trans _
+            (algebra.join
+              (algebra.combine (leftFirst.collapse algebra)
+                ((BooleanDecision.join rightFirst rightSecond).collapse algebra))
+              (algebra.combine (leftSecond.collapse algebra)
+                ((BooleanDecision.join rightFirst rightSecond).collapse algebra)))
+          · exact hcombine _ _ _
+          · exact join_mono_of_le algebra lawful hjoinUpper
+              (ihFirst hleft.1 hright) (ihSecond hleft.2 hright)
+
+theorem collapse_joinMap (algebra : Algebra) (items : List α)
+    (summarize : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    : (BooleanDecision.joinMap algebra items summarize).collapse algebra
+      = TreeSummary.joinMap algebra items
+          fun item hitem => (summarize item hitem).collapse algebra := by
+  cases items with
+  | nil => simp [BooleanDecision.joinMap, TreeSummary.joinMap,
+      BooleanDecision.collapse]
+  | cons item rest =>
+      cases rest with
+      | nil => simp [BooleanDecision.joinMap, TreeSummary.joinMap]
+      | cons next tail =>
+          rw [BooleanDecision.joinMap, TreeSummary.joinMap,
+            BooleanDecision.collapse]
+          exact congrArg (algebra.join ((summarize item (by simp)).collapse algebra))
+            (collapse_joinMap algebra (next :: tail)
+              (fun candidate hcandidate => summarize candidate (by simp [hcandidate])))
+
+theorem combineMap_splitFree (algebra : Algebra)
+    (variableOrder : BooleanVariableNames) (items : List α)
+    (summarize : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hfree : ∀ item hitem, (summarize item hitem).SplitFree)
+    : (BooleanDecision.combineMap algebra variableOrder items summarize).SplitFree := by
   induction items with
-  | nil => simp [CaseForest.resolveActiveTrees]
-  | cons source rest ih =>
-      rw [CaseForest.resolveActiveTrees]
-      intro item hitem variableName hvariable
-      simp only [List.mem_cons, List.mem_append] at hitem
-      rcases hitem with hitem | hitem | hitem
-      · subst item
-        apply hwithin source (by simp)
-        cases source with
-        | mk condition fields branches =>
-            simp only [conditionTreeBooleanVariables, List.mem_append] at hvariable ⊢
-            have hfields : variableName ∈ fields.flatMap
-                (fun group => group.fields.flatMap
-                  fun field =>
-                    SelectionConditions.selectionSetBooleanVariables field.selectionSet) := by
-              simpa [conditionTreeBranchesBooleanVariables] using hvariable
-            exact Or.inl hfields
-      · rcases selectedChildren_source possibleTypes variableValues source.branches
-          item hitem with ⟨branch, hbranch, rfl⟩
-        apply hwithin source (by simp)
-        cases source with
-        | mk condition fields branches =>
-            simp only [conditionTreeBooleanVariables, List.mem_append]
-            exact Or.inr
-              (conditionTreeBranches_bodyVariable_mem branches branch hbranch variableName
-                hvariable)
-      · exact ih (by
-          intro candidate hcandidate
-          exact hwithin candidate (by simp [hcandidate])) item hitem variableName hvariable
+  | nil => simp [BooleanDecision.combineMap, BooleanDecision.SplitFree]
+  | cons item rest ih =>
+      rw [BooleanDecision.combineMap]
+      exact BooleanDecision.zipWith_splitFree variableOrder algebra.combine
+        (hfree item (by simp))
+        (ih
+          (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => hfree candidate (by simp [hcandidate])))
 
-private theorem CaseForest.resolveBranches_variablesWithin
-    (possibleTypes : PossibleTypeRegion) (variableValues : VariableValues)
-    (tree : CaseForest) (variables : List Name)
-    (hwithin : tree.BooleanVariablesWithin variables)
-    : (tree.resolveBranches possibleTypes variableValues).BooleanVariablesWithin
-        variables := by
-  intro item hitem variableName hvariable
-  exact resolveActiveTrees_variablesWithin possibleTypes variableValues tree.activeTrees
-    variables hwithin item hitem variableName hvariable
+theorem combineMap_congr_orders (algebra : Algebra)
+    (leftOrder rightOrder : BooleanVariableNames) (items : List α)
+    (left right : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hitems : ∀ item hitem, left item hitem = right item hitem)
+    (hfree : ∀ item hitem, (right item hitem).SplitFree)
+    : BooleanDecision.combineMap algebra leftOrder items left
+      = BooleanDecision.combineMap algebra rightOrder items right := by
+  induction items with
+  | nil => simp [BooleanDecision.combineMap]
+  | cons item rest ih =>
+      rw [BooleanDecision.combineMap, BooleanDecision.combineMap,
+        hitems item (by simp)]
+      have hrest := ih
+        (fun candidate hcandidate => left candidate (by simp [hcandidate]))
+        (fun candidate hcandidate => right candidate (by simp [hcandidate]))
+        (fun candidate hcandidate => hitems candidate (by simp [hcandidate]))
+        (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))
+      rw [hrest]
+      exact zipWith_eq_of_splitFree leftOrder rightOrder algebra.combine
+        (hfree item (by simp))
+        (combineMap_splitFree algebra rightOrder rest
+          (fun candidate hcandidate => right candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => hfree candidate (by simp [hcandidate])))
+
+theorem joinMap_congr (algebra : Algebra) (items : List α)
+    (left right : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hitems : ∀ item hitem, left item hitem = right item hitem)
+    : BooleanDecision.joinMap algebra items left
+      = BooleanDecision.joinMap algebra items right := by
+  cases items with
+  | nil => simp [BooleanDecision.joinMap]
+  | cons item rest =>
+      cases rest with
+      | nil => simpa [BooleanDecision.joinMap] using hitems item (by simp)
+      | cons next tail =>
+          rw [BooleanDecision.joinMap, BooleanDecision.joinMap,
+            hitems item (by simp)]
+          exact congrArg (BooleanDecision.join (right item (by simp)))
+            (joinMap_congr algebra (next :: tail)
+              (fun candidate hcandidate => left candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => right candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => hitems candidate (by simp [hcandidate])))
+termination_by items.length
+
+theorem joinMap_splitFree (algebra : Algebra)
+    (items : List α)
+    (summarize : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hfree : ∀ item hitem, (summarize item hitem).SplitFree)
+    : (BooleanDecision.joinMap algebra items summarize).SplitFree := by
+  cases items with
+  | nil => simp [BooleanDecision.joinMap, BooleanDecision.SplitFree]
+  | cons item rest =>
+      cases rest with
+      | nil => simpa [BooleanDecision.joinMap] using hfree item (by simp)
+      | cons next tail =>
+          rw [BooleanDecision.joinMap]
+          exact ⟨hfree item (by simp),
+            joinMap_splitFree algebra (next :: tail)
+              (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
+              (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))⟩
+
+private theorem combineMap_congr (algebra : Algebra) (items : List α)
+    (left right : ∀ item, item ∈ items -> algebra.Summary)
+    (hitems : ∀ item hitem, left item hitem = right item hitem)
+    : TreeSummary.combineMap algebra items left
+      = TreeSummary.combineMap algebra items right := by
+  induction items with
+  | nil => simp [TreeSummary.combineMap]
+  | cons item rest ih =>
+      rw [TreeSummary.combineMap, TreeSummary.combineMap, hitems item (by simp)]
+      exact congrArg (algebra.combine (right item (by simp)))
+        (ih
+          (fun candidate hcandidate => left candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => right candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => hitems candidate (by simp [hcandidate])))
+
+private theorem combineMap_mono (algebra : Algebra) (lawful : algebra.Lawful)
+    (items : List α)
+    (lower upper : ∀ item, item ∈ items -> algebra.Summary)
+    (hitems : ∀ item hitem, lawful.le (lower item hitem) (upper item hitem))
+    : lawful.le (TreeSummary.combineMap algebra items lower)
+        (TreeSummary.combineMap algebra items upper) := by
+  induction items with
+  | nil => simpa [TreeSummary.combineMap] using lawful.le_refl algebra.empty
+  | cons item rest ih =>
+      rw [TreeSummary.combineMap, TreeSummary.combineMap]
+      apply lawful.combine_mono
+      · exact hitems item (by simp)
+      · exact ih
+          (fun candidate hcandidate => lower candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => upper candidate (by simp [hcandidate]))
+          (fun candidate hcandidate => hitems candidate (by simp [hcandidate]))
+
+theorem collapse_combineMap_le_of_splitFree (algebra : Algebra)
+    (lawful : algebra.Lawful)
+    (hjoinUpper
+      : ∀ left right upper,
+          lawful.le left upper
+          -> lawful.le right upper
+          -> lawful.le (algebra.join left right) upper)
+    (hcombine
+      : ∀ left right other,
+          lawful.le (algebra.combine (algebra.join left right) other)
+            (algebra.join (algebra.combine left other) (algebra.combine right other)))
+    (variableOrder : BooleanVariableNames) (items : List α)
+    (summarize : ∀ item, item ∈ items -> BooleanDecision algebra.Summary)
+    (hfree : ∀ item hitem, (summarize item hitem).SplitFree)
+    : lawful.le
+        (TreeSummary.combineMap algebra items
+          fun item hitem => (summarize item hitem).collapse algebra)
+        ((BooleanDecision.combineMap algebra variableOrder items summarize).collapse
+          algebra) := by
+  induction items with
+  | nil =>
+      simpa [TreeSummary.combineMap, BooleanDecision.combineMap,
+        BooleanDecision.collapse] using lawful.le_refl algebra.empty
+  | cons item rest ih =>
+      rw [TreeSummary.combineMap, BooleanDecision.combineMap]
+      apply lawful.le_trans _
+        (algebra.combine ((summarize item (by simp)).collapse algebra)
+          ((BooleanDecision.combineMap algebra variableOrder rest
+            fun candidate hcandidate =>
+              summarize candidate (by simp [hcandidate])).collapse algebra))
+      · apply lawful.combine_mono
+        · exact lawful.le_refl _
+        · exact ih
+            (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
+            (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))
+      · exact collapse_zipWith_combine_le_of_splitFree algebra lawful hjoinUpper hcombine
+          variableOrder (hfree item (by simp))
+          (BooleanDecision.combineMap_splitFree algebra variableOrder rest
+            (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
+            (fun candidate hcandidate => hfree candidate (by simp [hcandidate])))
+
+end BooleanDecision
+end Internal
+
+theorem BooleanEnvironment.complete_statusForVariable
+    (variableValues : VariableValues) (variableName : Name)
+    : (BooleanEnvironment.complete variableValues).statusForVariable variableName
+      = match inputValueBoolean? variableValues (.variable variableName) with
+        | some value => some value
+        | none => some false := by
+  unfold BooleanEnvironment.statusForVariable BooleanEnvironment.variableValues
+  cases hvalue : inputValueBoolean? variableValues (.variable variableName) with
+  | some value => rfl
+  | none => rfl
+
+private def BooleanEnvironment.IsSymbolic : BooleanEnvironment -> Prop
+  | .symbolic _values => True
+  | .complete _values => False
+
+private theorem BooleanEnvironment.IsSymbolic.assign
+    {environment : BooleanEnvironment} (hsymbolic : environment.IsSymbolic)
+    (variableName : Name) (value : Bool)
+    : (environment.assign variableName value).IsSymbolic := by
+  cases environment <;> simp_all [BooleanEnvironment.IsSymbolic,
+    BooleanEnvironment.assign]
+
+private def BooleanEnvironment.Realizes (environment : BooleanEnvironment)
+    (variableValues : VariableValues)
+    : Prop :=
+  ∀ variableName value,
+    environment.statusForVariable variableName = some value
+    -> (inputValueBoolean? variableValues (.variable variableName)).getD false = value
+
+private theorem BooleanEnvironment.unresolved_realizes (variableValues : VariableValues)
+    : BooleanEnvironment.unresolved.Realizes variableValues := by
+  intro variableName value hstatus
+  simp [BooleanEnvironment.unresolved, BooleanEnvironment.statusForVariable,
+    BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?]
+    at hstatus
+
+private theorem BooleanEnvironment.Realizes.assign {environment : BooleanEnvironment}
+    {variableValues : VariableValues}
+    (hrealizes : environment.Realizes variableValues)
+    (hsymbolic : environment.IsSymbolic) (variableName : Name) (value : Bool)
+    (hvalue
+      : (inputValueBoolean? variableValues (.variable variableName)).getD false = value)
+    : (environment.assign variableName value).Realizes variableValues := by
+  cases environment with
+  | complete values => contradiction
+  | symbolic values =>
+      intro candidate candidateValue hstatus
+      by_cases heq : candidate = variableName
+      · subst candidate
+        simp [BooleanEnvironment.assign, BooleanEnvironment.statusForVariable,
+          BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?,
+          ConstInputValue.toInputValue, InputValue.staticBoolean?] at hstatus
+        subst candidateValue
+        exact hvalue
+      · have hne : variableName ≠ candidate := fun equal => heq equal.symm
+        apply hrealizes candidate candidateValue
+        simpa [BooleanEnvironment.assign, BooleanEnvironment.statusForVariable,
+          BooleanEnvironment.variableValues, inputValueBoolean?, lookupVariableValue?,
+          heq, hne] using hstatus
+
+private def NamedFieldsBooleanFree (fields : List NamedField) : Prop :=
+  ∀ namedField,
+    namedField ∈ fields
+    -> SelectionConditions.selectionSetBooleanVariables namedField.field.selectionSet = []
+
+private def FieldGroupBooleanFree (group : ConditionTree.FieldGroup) : Prop :=
+  ∀ field,
+    field ∈ group.fields
+    -> SelectionConditions.selectionSetBooleanVariables field.selectionSet = []
+
+private def FieldGroupsBooleanFree (groups : List ConditionTree.FieldGroup) : Prop :=
+  ∀ group, group ∈ groups -> FieldGroupBooleanFree group
+
+private def CollectedFieldGroupsBooleanFree (groups : List CollectedFieldGroup) : Prop :=
+  ∀ group,
+    group ∈ groups
+    -> SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet = []
+
+private def CaseCursorBooleanFree (cursor : CaseCursor) : Prop :=
+  NamedFieldsBooleanFree cursor.namedFields
+  ∧ conditionTreeBranchesBooleanVariables cursor.pendingBranches = []
 
 private theorem selectionSetBooleanVariables_append (left right : List Selection)
     : SelectionConditions.selectionSetBooleanVariables (left ++ right)
@@ -236,782 +775,910 @@ private theorem selectionSetBooleanVariables_append (left right : List Selection
         ++ SelectionConditions.selectionSetBooleanVariables right := by
   induction left with
   | nil => rfl
-  | cons selection rest tail_ih =>
-      simp only [List.cons_append, SelectionConditions.selectionSetBooleanVariables, tail_ih,
-        List.append_assoc]
+  | cons selection rest ih =>
+      simp [SelectionConditions.selectionSetBooleanVariables, ih, List.append_assoc]
 
-private theorem mergeSelectionSets_eq_flatMap (selections : List Selection)
-    : SelectionSet.mergeSelectionSets selections
-      = selections.flatMap Selection.subselections :=
+private theorem conditionTreeBranchesBooleanVariables_append
+    (left right : List (Branch Tree))
+    : conditionTreeBranchesBooleanVariables (left ++ right)
+      = conditionTreeBranchesBooleanVariables left
+        ++ conditionTreeBranchesBooleanVariables right := by
+  induction left with
+  | nil => simp [conditionTreeBranchesBooleanVariables]
+  | cons branch rest ih =>
+      rcases branch with ⟨condition, body⟩
+      rw [List.cons_append, conditionTreeBranchesBooleanVariables.eq_def,
+        conditionTreeBranchesBooleanVariables.eq_def]
+      change (match condition with
+                | .typeCondition _ => []
+                | .booleanLiteral literal => [literal.variableName])
+                ++ conditionTreeBooleanVariables body
+                ++ conditionTreeBranchesBooleanVariables (rest ++ right)
+              = ((match condition with
+                  | .typeCondition _ => []
+                  | .booleanLiteral literal => [literal.variableName])
+                  ++ conditionTreeBooleanVariables body
+                  ++ conditionTreeBranchesBooleanVariables rest)
+                ++ conditionTreeBranchesBooleanVariables right
+      rw [ih]
+      simp [List.append_assoc]
+
+private theorem fieldGroupsBooleanFree_addFieldWithResponseName
+    {groups : List ConditionTree.FieldGroup} (hgroups : FieldGroupsBooleanFree groups)
+    (responseName : Name) (field : Field)
+    (hfield : SelectionConditions.selectionSetBooleanVariables field.selectionSet = [])
+    : FieldGroupsBooleanFree (addFieldWithResponseName responseName field groups) := by
+  induction groups with
+  | nil =>
+      intro group hgroup candidate hcandidate
+      simp only [addFieldWithResponseName, List.mem_singleton] at hgroup
+      subst group
+      simp only [FieldGroup.fields, List.mem_cons, List.mem_nil_iff, or_false] at hcandidate
+      subst candidate
+      exact hfield
+  | cons headGroup rest ih =>
+      rw [addFieldWithResponseName]
+      split
+      · intro candidateGroup hcandidateGroup candidateField hcandidateField
+        simp only [List.mem_cons] at hcandidateGroup
+        rcases hcandidateGroup with hcandidateGroup | hcandidateGroup
+        · subst candidateGroup
+          simp only [FieldGroup.fields, List.mem_cons, List.mem_append,
+            List.not_mem_nil, or_false] at hcandidateField
+          rcases hcandidateField with hcandidateField | hcandidateField
+          · subst candidateField
+            exact hgroups headGroup (by simp) headGroup.first (by
+              simp [FieldGroup.fields])
+          · rcases hcandidateField with hcandidateField | hcandidateField
+            · exact hgroups headGroup (by simp) candidateField (by
+                simp [FieldGroup.fields, hcandidateField])
+            · exact hcandidateField ▸ hfield
+        · exact hgroups candidateGroup (by simp [hcandidateGroup]) candidateField
+            hcandidateField
+      · intro candidateGroup hcandidateGroup
+        simp only [List.mem_cons] at hcandidateGroup
+        rcases hcandidateGroup with hcandidateGroup | hcandidateGroup
+        · subst candidateGroup
+          exact hgroups headGroup (by simp)
+        · exact ih
+            (fun candidate hcandidate => hgroups candidate (by simp [hcandidate]))
+            candidateGroup hcandidateGroup
+
+private theorem collectFieldGroups_booleanFree
+    {fields : List NamedField} (hfields : NamedFieldsBooleanFree fields)
+    : FieldGroupsBooleanFree (ConditionTree.collectFieldGroups fields) := by
+  unfold ConditionTree.collectFieldGroups
+  have hfold : ∀ rest groups,
+      NamedFieldsBooleanFree rest
+      -> FieldGroupsBooleanFree groups
+      -> FieldGroupsBooleanFree
+          (rest.foldl (fun current field => addFieldToGroups field current) groups) := by
+    intro rest
+    induction rest with
+    | nil => exact fun groups _hrest hgroups => hgroups
+    | cons namedField tail ih =>
+        intro groups hrest hgroups
+        rw [List.foldl_cons]
+        apply ih _
+        · intro candidate hcandidate
+          exact hrest candidate (by simp [hcandidate])
+        · exact fieldGroupsBooleanFree_addFieldWithResponseName hgroups
+            namedField.responseName
+            namedField.field (hrest namedField (by simp))
+  exact hfold fields [] hfields (by intro group hgroup; simp at hgroup)
+
+private theorem fieldGroupBooleanVariables_mergedSelectionSet
+    (group : ConditionTree.FieldGroup) (hgroup : FieldGroupBooleanFree group)
+    : SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet = [] := by
+  unfold ConditionTree.FieldGroup.mergedSelectionSet SelectionSet.mergeSelectionSets
+    ConditionTree.FieldGroup.selections
+  have hfields : ∀ fields : List Field,
+      (∀ field, field ∈ fields
+        -> SelectionConditions.selectionSetBooleanVariables field.selectionSet = [])
+      -> SelectionConditions.selectionSetBooleanVariables
+          (fields.map (Field.toSelection group.responseName)
+            |>.flatMap Selection.subselections) = [] := by
+    intro fields hfree
+    induction fields with
+    | nil => rfl
+    | cons field rest ih =>
+        simp only [List.map_cons, List.flatMap_cons, Field.toSelection,
+          Selection.subselections]
+        rw [selectionSetBooleanVariables_append, hfree field (by simp)]
+        simp only [List.nil_append]
+        exact ih (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))
+  exact hfields group.fields hgroup
+
+private theorem CaseCursor.fieldGroups_booleanFree
+    {cursor : CaseCursor} (hcursor : CaseCursorBooleanFree cursor)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (possibleTypes : PossibleTypeRegion)
+    : CollectedFieldGroupsBooleanFree
+        (cursor.fieldGroups inheritedBooleanCondition possibleTypes) := by
+  intro group hgroup
+  unfold CaseCursor.fieldGroups TreeSummary.fieldGroupsWithContext at hgroup
+  rw [List.mem_map] at hgroup
+  rcases hgroup with ⟨source, hsource, rfl⟩
+  exact fieldGroupBooleanVariables_mergedSelectionSet source
+    ((collectFieldGroups_booleanFree hcursor.1) source hsource)
+
+private theorem CaseCursor.skipBranch_booleanFree
+    {cursor : CaseCursor} {branch : Branch Tree} {rest : List (Branch Tree)}
+    (hcursor : CaseCursorBooleanFree cursor)
+    (hbranches : cursor.pendingBranches = branch :: rest)
+    : CaseCursorBooleanFree (cursor.skipBranch rest) := by
+  constructor
+  · exact hcursor.1
+  · change conditionTreeBranchesBooleanVariables rest = []
+    have hsupport := hcursor.2
+    rw [hbranches] at hsupport
+    rcases branch with ⟨condition, body⟩
+    cases condition <;>
+      simp_all [conditionTreeBranchesBooleanVariables]
+
+private theorem CaseCursor.selectBranch_booleanFree
+    {cursor : CaseCursor} {branch : Branch Tree} {rest : List (Branch Tree)}
+    (hcursor : CaseCursorBooleanFree cursor)
+    (hbranches : cursor.pendingBranches = branch :: rest)
+    (hcondition : ∃ typeName, branch.condition = .typeCondition typeName)
+    : CaseCursorBooleanFree (cursor.selectBranch branch.body rest) := by
+  rcases hcondition with ⟨typeName, hcondition⟩
+  rcases branch with ⟨condition, body⟩
+  simp only at hcondition
+  subst condition
+  have hsupport := hcursor.2
+  rw [hbranches] at hsupport
+  simp only [conditionTreeBranchesBooleanVariables, List.nil_append] at hsupport
+  have hbody : conditionTreeBooleanVariables body = [] :=
+    (List.append_eq_nil_iff.mp hsupport).1
+  have hrest : conditionTreeBranchesBooleanVariables rest = [] :=
+    (List.append_eq_nil_iff.mp hsupport).2
+  rcases body with ⟨bodyCondition, bodyFields, bodyBranches⟩
+  rw [conditionTreeBooleanVariables.eq_def] at hbody
+  change
+    (bodyFields.flatMap fun group =>
+        group.fields.flatMap fun field =>
+          SelectionConditions.selectionSetBooleanVariables field.selectionSet)
+      ++ conditionTreeBranchesBooleanVariables bodyBranches = [] at hbody
+  have hbodyFields := (List.append_eq_nil_iff.mp hbody).1
+  have hbodyBranches := (List.append_eq_nil_iff.mp hbody).2
+  constructor
+  · intro namedField hnamedField
+    have hnamedField :
+        namedField ∈ cursor.namedFields ++ CaseCursor.localNamedFields
+          { condition := bodyCondition, fields := bodyFields, branches := bodyBranches } := by
+      simpa [CaseCursor.selectBranch, CaseCursor.namedFields] using hnamedField
+    rw [List.mem_append] at hnamedField
+    rcases hnamedField with hnamedField | hnamedField
+    · exact hcursor.1 namedField hnamedField
+    · unfold CaseCursor.localNamedFields at hnamedField
+      simp only [List.mem_flatMap, List.mem_map] at hnamedField
+      rcases hnamedField with ⟨group, hgroup, field, hfield, rfl⟩
+      have hgroupFree := (List.flatMap_eq_nil_iff.mp hbodyFields) group hgroup
+      simp only [List.flatMap_eq_nil_iff] at hgroupFree
+      exact hgroupFree field hfield
+  · change conditionTreeBranchesBooleanVariables (bodyBranches ++ rest) = []
+    rw [conditionTreeBranchesBooleanVariables_append]
+    simp [hbodyBranches, hrest]
+
+private theorem CaseCursor.booleanBranch_impossible
+    {cursor : CaseCursor} {branch : Branch Tree} {rest : List (Branch Tree)}
+    (hcursor : CaseCursorBooleanFree cursor)
+    (hbranches : cursor.pendingBranches = branch :: rest)
+    (literal : BooleanLiteral)
+    (hcondition : branch.condition = .booleanLiteral literal)
+    : False := by
+  have hsupport := hcursor.2
+  rw [hbranches] at hsupport
+  rcases branch with ⟨condition, body⟩
+  simp only at hcondition
+  subst condition
+  simp [conditionTreeBranchesBooleanVariables] at hsupport
+
+private theorem CaseCursor.ofConditionTree_booleanFree
+    (tree : Tree) (htree : conditionTreeBooleanVariables tree = [])
+    : CaseCursorBooleanFree (.ofConditionTree tree) := by
+  rcases tree with ⟨condition, fields, branches⟩
+  rw [conditionTreeBooleanVariables.eq_def] at htree
+  change
+    (fields.flatMap fun group =>
+        group.fields.flatMap fun field =>
+          SelectionConditions.selectionSetBooleanVariables field.selectionSet)
+      ++ conditionTreeBranchesBooleanVariables branches = [] at htree
+  have hfields := (List.append_eq_nil_iff.mp htree).1
+  have hbranches := (List.append_eq_nil_iff.mp htree).2
+  constructor
+  · intro namedField hnamedField
+    have hnamedField : namedField ∈ CaseCursor.localNamedFields
+        { condition, fields, branches } := by
+      simpa [CaseCursor.ofConditionTree, CaseCursor.namedFields] using hnamedField
+    unfold CaseCursor.localNamedFields at hnamedField
+    simp only [List.mem_flatMap, List.mem_map] at hnamedField
+    rcases hnamedField with ⟨group, hgroup, field, hfield, rfl⟩
+    have hgroupFree := (List.flatMap_eq_nil_iff.mp hfields) group hgroup
+    exact (List.flatMap_eq_nil_iff.mp hgroupFree) field hfield
+  · exact hbranches
+
+theorem CaseCursor.summarizeDecisionWithPruning_nil_values
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (pruningValues : VariableValues := environment.pruningValues)
+    (hbranches : cursor.pendingBranches = [])
+    : cursor.summarizeDecisionWithPruning algebra schema variableOrder
+        inheritedBooleanCondition caseCondition possibleTypes environment pruningValues
+      = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder
+          (cursor.fieldGroups
+            (extendBooleanCondition inheritedBooleanCondition caseCondition)
+            possibleTypes)
+          environment pruningValues := by
+  rcases cursor with ⟨namedFields, pendingBranches⟩
+  change pendingBranches = [] at hbranches
+  subst pendingBranches
+  rw [CaseCursor.summarizeDecisionWithPruning.eq_1]
+
+theorem CaseCursor.summarizeDecisionWithPruning_cons_values
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (pruningValues : VariableValues := environment.pruningValues)
+    (branch : Branch Tree) (rest : List (Branch Tree))
+    (hbranches : cursor.pendingBranches = branch :: rest)
+    : cursor.summarizeDecisionWithPruning algebra schema variableOrder
+        inheritedBooleanCondition caseCondition possibleTypes environment pruningValues
+      = match branch.condition with
+        | .typeCondition _typeName =>
+            BooleanDecision.joinMap algebra
+              (possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes])
+              fun region _hregion =>
+                if possibleTypesSubset region branch.body.condition.possibleTypes then
+                  (cursor.selectBranch branch.body rest).summarizeDecisionWithPruning
+                    algebra schema variableOrder inheritedBooleanCondition caseCondition
+                    region environment pruningValues
+                else
+                  (cursor.skipBranch rest).summarizeDecisionWithPruning algebra schema
+                    variableOrder inheritedBooleanCondition caseCondition region
+                    environment pruningValues
+        | .booleanLiteral literal =>
+            match environment.statusForVariable literal.variableName with
+            | some value =>
+                let selectedLiteral :=
+                  if value then
+                    BooleanLiteral.positive literal.variableName
+                  else
+                    BooleanLiteral.negative literal.variableName
+                (cursor.resolveBooleanBranch branch.body rest literal
+                  value).summarizeDecisionWithPruning
+                  algebra schema variableOrder inheritedBooleanCondition
+                  (selectedLiteral :: caseCondition) possibleTypes environment
+                  pruningValues
+            | none =>
+                .split literal.variableName
+                  ((cursor.resolveBooleanBranch branch.body rest literal
+                      false).summarizeDecisionWithPruning
+                    algebra schema variableOrder inheritedBooleanCondition
+                    (.negative literal.variableName :: caseCondition) possibleTypes
+                    (environment.assign literal.variableName false) pruningValues)
+                  ((cursor.resolveBooleanBranch branch.body rest literal
+                      true).summarizeDecisionWithPruning
+                    algebra schema variableOrder inheritedBooleanCondition
+                    (.positive literal.variableName :: caseCondition) possibleTypes
+                    (environment.assign literal.variableName true) pruningValues) := by
+  rcases cursor with ⟨namedFields, pendingBranches⟩
+  change pendingBranches = branch :: rest at hbranches
+  subst pendingBranches
+  rw [CaseCursor.summarizeDecisionWithPruning.eq_1]
   rfl
 
-private theorem mergedSelectionSet_variable_source
-    (selections : List Selection) (variableName : Name)
-    (hvariable
-      : variableName
-        ∈ SelectionConditions.selectionSetBooleanVariables
-            (SelectionSet.mergeSelectionSets selections))
-    : ∃ selection,
-        selection ∈ selections
-        ∧ variableName ∈ SelectionConditions.selectionBooleanVariables selection := by
-  rw [mergeSelectionSets_eq_flatMap] at hvariable
-  induction selections with
-  | nil => simp [SelectionConditions.selectionSetBooleanVariables] at hvariable
-  | cons selection rest ih =>
-      simp only [List.flatMap_cons, selectionSetBooleanVariables_append,
-        List.mem_append] at hvariable
-      rcases hvariable with hhead | htail
-      · exact ⟨selection, by simp, by
-          cases selection <;>
-            exact List.mem_append.mpr (Or.inr hhead)⟩
-      · rcases ih htail with ⟨source, hsource, hsourceVariable⟩
-        exact ⟨source, by simp [hsource], hsourceVariable⟩
+private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (variableValues pruningValues : VariableValues)
+    (hrealizes : environment.Realizes variableValues)
+    (hsymbolic : environment.IsSymbolic)
+    : BooleanDecision.Refines variableValues
+        (cursor.summarizeDecisionWithPruning algebra schema variableOrder
+          inheritedBooleanCondition caseCondition possibleTypes
+          (BooleanEnvironment.complete variableValues) pruningValues)
+        (cursor.summarizeDecisionWithPruning algebra schema variableOrder
+          inheritedBooleanCondition caseCondition possibleTypes environment
+          pruningValues) := by
+  apply CaseCursor.summarizeDecisionWithPruning.induct schema pruningValues
+    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
+      ∀ variableValues,
+        environment.Realizes variableValues
+        -> environment.IsSymbolic
+        -> BooleanDecision.Refines variableValues
+            (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+              caseCondition possibleTypes
+              (BooleanEnvironment.complete variableValues) pruningValues)
+            (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+              caseCondition possibleTypes environment pruningValues))
+    (motive2 := fun groups environment =>
+      ∀ variableValues,
+        environment.Realizes variableValues
+        -> environment.IsSymbolic
+        -> BooleanDecision.Refines variableValues
+            (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
+              (BooleanEnvironment.complete variableValues) pruningValues)
+            (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
+              environment pruningValues))
+    (motive3 := fun group parentTypes environment =>
+      ∀ variableValues,
+        environment.Realizes variableValues
+        -> environment.IsSymbolic
+        -> BooleanDecision.Refines variableValues
+            (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
+              parentTypes
+              (BooleanEnvironment.complete variableValues) pruningValues)
+            (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
+              parentTypes environment pruningValues))
+  case case1 =>
+    intro inherited caseCondition cursor possibleTypes environment
+      hbranches ih variableValues hrealizes hsymbolic
+    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes environment pruningValues hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) pruningValues hbranches]
+    exact ih variableValues hrealizes hsymbolic
+  case case2 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches typeName hcondition ihSelect ihSkip variableValues hrealizes hsymbolic
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes environment pruningValues branch rest
+      hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) pruningValues branch rest
+        hbranches]
+    simp only [hcondition]
+    apply BooleanDecision.Refines.joinMap algebra variableValues
+    intro region hregion
+    split
+    · exact ihSelect region variableValues hrealizes hsymbolic
+    · exact ihSkip region variableValues hrealizes hsymbolic
+  case case3 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition value hstatus selectedLiteral ih variableValues
+      hrealizes hsymbolic
+    have hknown := hrealizes literal.variableName value hstatus
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes environment pruningValues branch rest
+      hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) pruningValues branch rest
+        hbranches]
+    simp only [hcondition, hstatus]
+    rw [BooleanEnvironment.complete_statusForVariable]
+    cases hvalue : inputValueBoolean? variableValues (.variable literal.variableName) with
+    | none =>
+        have hfalse : value = false := by simpa [hvalue] using hknown.symm
+        subst value
+        simp
+        simpa [selectedLiteral, hvalue] using
+          ih variableValues hrealizes hsymbolic
+    | some actual =>
+        have heq : actual = value := by simpa [hvalue] using hknown
+        subst actual
+        simp
+        simpa [selectedLiteral, hvalue] using
+          ih variableValues hrealizes hsymbolic
+  case case4 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition hstatus ihFalse ihTrue variableValues
+      hrealizes hsymbolic
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes environment pruningValues branch rest
+      hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) pruningValues branch rest
+        hbranches]
+    simp only [hcondition, hstatus]
+    rw [BooleanEnvironment.complete_statusForVariable]
+    cases hvalue : inputValueBoolean? variableValues (.variable literal.variableName) with
+    | none =>
+        have hrefines := ihFalse variableValues
+          (hrealizes.assign hsymbolic literal.variableName false (by simp [hvalue]))
+          (hsymbolic.assign literal.variableName false)
+        exact BooleanDecision.Refines.of_select_eq variableValues
+          (by simp [BooleanDecision.select, BooleanDecision.selectedValue, hvalue]) hrefines
+    | some selected =>
+        cases selected
+        · simp only
+          have hrefines := ihFalse variableValues
+            (hrealizes.assign hsymbolic literal.variableName false (by simp [hvalue]))
+            (hsymbolic.assign literal.variableName false)
+          exact BooleanDecision.Refines.of_select_eq variableValues
+            (by simp [BooleanDecision.select, BooleanDecision.selectedValue, hvalue]) hrefines
+        · simp only
+          have hrefines := ihTrue variableValues
+            (hrealizes.assign hsymbolic literal.variableName true (by simp [hvalue]))
+            (hsymbolic.assign literal.variableName true)
+          exact BooleanDecision.Refines.of_select_eq variableValues
+            (by simp [BooleanDecision.select, BooleanDecision.selectedValue, hvalue]) hrefines
+  case case5 =>
+    intro groups environment ih variableValues hrealizes hsymbolic
+    simp only [CaseCursor.summarizeFieldGroupsDecisionWithPruning.eq_1]
+    apply BooleanDecision.Refines.combineMap algebra variableValues variableOrder
+    intro group hgroup
+    exact BooleanDecision.Refines.map variableValues (algebra.field group)
+      (ih group hgroup variableValues hrealizes hsymbolic)
+  case case6 =>
+    intro group parentTypes environment ih variableValues hrealizes hsymbolic
+    simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+    apply BooleanDecision.Refines.joinMap algebra variableValues
+    intro childParentType hparentType
+    exact ih childParentType variableValues hrealizes hsymbolic
+  exact hrealizes
+  exact hsymbolic
 
-private theorem collectFieldGroups_selections_source
-    (fields : List NamedField) (selection : Selection)
-    (hselection
-      : selection
-        ∈ (ConditionTree.collectFieldGroups fields).flatMap FieldGroup.selections)
-    : ∃ field, field ∈ fields ∧ selection = field.toSelection := by
-  unfold ConditionTree.collectFieldGroups at hselection
-  have hfold : ∀ (rest : List NamedField) (groups : List FieldGroup),
-      selection ∈ ((rest.foldl
-          (fun current field => addFieldToGroups field current) groups).flatMap
-            FieldGroup.selections)
-      -> selection ∈ groups.flatMap FieldGroup.selections
-        ∨ ∃ field, field ∈ rest ∧ selection = field.toSelection := by
-    intro rest groups hmember
-    induction rest generalizing groups with
-    | nil => exact Or.inl hmember
-    | cons field tail ih =>
-        rw [List.foldl_cons] at hmember
-        rcases ih (addFieldToGroups field groups) hmember with hadded | htail
-        · rw [mem_groupedSelections_addField] at hadded
-          rcases hadded with hfield | hgroup
-          · exact Or.inr ⟨field, by simp, hfield⟩
-          · exact Or.inl hgroup
-        · rcases htail with ⟨source, hsource, heq⟩
-          exact Or.inr ⟨source, by simp [hsource], heq⟩
-  rcases hfold fields [] hselection with hnil | hsource
-  · simp at hnil
-  · exact hsource
+theorem CaseCursor.summarizeDecisionWithPruning_complete_splitFree
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion)
+    (variableValues fixedVariableValues : VariableValues)
+    : (CaseCursor.summarizeDecisionWithPruning algebra schema variableOrder
+        inheritedBooleanCondition caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) fixedVariableValues).SplitFree := by
+  apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
+    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> (CaseCursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+          caseCondition cursor possibleTypes environment
+          fixedVariableValues).SplitFree)
+    (motive2 := fun groups environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
+          environment fixedVariableValues).SplitFree)
+    (motive3 := fun group parentTypes environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
+          parentTypes environment fixedVariableValues).SplitFree)
+  case case1 =>
+    intro inherited caseCondition cursor possibleTypes environment
+      hbranches ih variableValues henvironment
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues hbranches]
+    exact ih variableValues rfl
+  case case2 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches typeName hcondition ihSelect ihSkip variableValues henvironment
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches]
+    simp only [hcondition]
+    apply BooleanDecision.joinMap_splitFree
+    intro region hregion
+    split
+    · exact ihSelect region variableValues rfl
+    · exact ihSkip region variableValues rfl
+  case case3 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition value hstatus selectedLiteral ih variableValues
+      henvironment
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches]
+    simp only [hcondition, hstatus]
+    exact ih variableValues rfl
+  case case4 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition hstatus ihFalse ihTrue variableValues
+      henvironment
+    subst environment
+    rw [BooleanEnvironment.complete_statusForVariable] at hstatus
+    cases hvalue : inputValueBoolean? variableValues (.variable literal.variableName) <;>
+      simp [hvalue] at hstatus
+  case case5 =>
+    intro groups environment ih variableValues henvironment
+    subst environment
+    simp only [CaseCursor.summarizeFieldGroupsDecisionWithPruning.eq_1]
+    apply BooleanDecision.combineMap_splitFree
+    intro group hgroup
+    exact BooleanDecision.map_splitFree (algebra.field group)
+      (ih group hgroup variableValues rfl)
+  case case6 =>
+    intro group parentTypes environment ih variableValues henvironment
+    subst environment
+    simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+    apply BooleanDecision.joinMap_splitFree
+    intro childParentType hparentType
+    exact ih childParentType variableValues rfl
+  exact rfl
 
-private theorem CaseForest.namedField_variable_mem_of_within
-    (tree : CaseForest) (variables : List Name)
-    (hwithin : tree.BooleanVariablesWithin variables)
-    (field : NamedField) (hfield : field ∈ tree.namedFields)
-    (variableName : Name)
-    (hvariable
-      : variableName
-        ∈ SelectionConditions.selectionSetBooleanVariables field.field.selectionSet)
-    : variableName ∈ variables := by
-  unfold CaseForest.namedFields at hfield
-  simp only [List.mem_flatMap, List.mem_map] at hfield
-  rcases hfield with ⟨item, hitem, group, hgroup, source, hsource, rfl⟩
-  apply hwithin item hitem
-  cases item with
-  | mk condition fields branches =>
-      simp only [conditionTreeBooleanVariables, List.mem_append]
-      apply Or.inl
-      apply List.mem_flatMap.mpr
-      refine ⟨group, hgroup, ?_⟩
-      apply List.mem_flatMap.mpr
-      exact ⟨source, hsource, hvariable⟩
+namespace CaseCursor
 
-private theorem CaseForest.fieldGroup_variablesWithin
-    (tree : CaseForest) (variables : List Name)
-    (hwithin : tree.BooleanVariablesWithin variables)
+def summarize (algebra : Algebra) (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (possibleTypes : PossibleTypeRegion) (group : CollectedFieldGroup)
-    (hgroup : group ∈ tree.fieldGroups inheritedBooleanCondition possibleTypes)
-    (variableName : Name)
-    (hvariable
-      : variableName
-        ∈ SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet)
-    : variableName ∈ variables := by
-  unfold CaseForest.fieldGroups TreeSummary.collectFieldGroups at hgroup
-  rcases List.mem_map.mp hgroup with ⟨sourceGroup, hsourceGroup, rfl⟩
-  rcases mergedSelectionSet_variable_source sourceGroup.selections variableName
-      hvariable with ⟨selection, hselection, hselectionVariable⟩
-  have hselectionAll : selection ∈
-      (ConditionTree.collectFieldGroups tree.namedFields).flatMap
-        FieldGroup.selections := by
-    exact List.mem_flatMap.mpr ⟨sourceGroup, hsourceGroup, hselection⟩
-  rcases collectFieldGroups_selections_source tree.namedFields selection hselectionAll with
-    ⟨field, hfield, rfl⟩
-  cases field with
-  | mk responseName sourceField =>
-      apply tree.namedField_variable_mem_of_within variables hwithin
-        { responseName := responseName, field := sourceField } hfield variableName
-      simpa [NamedField.toSelection, Field.toSelection,
-        SelectionConditions.selectionBooleanVariables] using hselectionVariable
+    (cursor : CaseCursor) (possibleTypes : PossibleTypeRegion)
+    (variableValues : VariableValues)
+    (fixedVariableValues : VariableValues := variableValues)
+    : algebra.Summary :=
+  (cursor.summarizeDecisionWithPruning algebra schema [] inheritedBooleanCondition []
+    possibleTypes
+    (BooleanEnvironment.complete variableValues) fixedVariableValues).collapse
+    algebra
 
-private theorem assignedBooleanLiterals_eq_of_agree
-    (variables : List Name) (left right : VariableValues)
-    (hagrees : BooleanValuesAgreeOn variables left right)
-    : variables.filterMap
-        (fun variableName => do
-          let value ← inputValueBoolean? left (.variable variableName)
-          pure
-            (if value then
-                BooleanLiteral.positive variableName
-              else
-                BooleanLiteral.negative variableName))
-      = variables.filterMap
-          (fun variableName => do
-            let value ← inputValueBoolean? right (.variable variableName)
-            pure
-              (if value then
-                  BooleanLiteral.positive variableName
-                else
-                  BooleanLiteral.negative variableName)) := by
-  induction variables with
-  | nil => rfl
-  | cons variableName rest ih =>
-      rw [List.filterMap_cons, List.filterMap_cons,
-        hagrees variableName (by simp), ih (by
-          intro candidate hcandidate
-          exact hagrees candidate (by simp [hcandidate]))]
+def summarizeChildTypes (algebra : Algebra) (schema : Schema)
+    (group : CollectedFieldGroup) (parentTypes : TypeNames)
+    (variableValues : VariableValues)
+    (fixedVariableValues : VariableValues := variableValues)
+    : algebra.Summary :=
+  TreeSummary.joinMap algebra parentTypes
+    fun childParentType _hparentType =>
+      let childTree :=
+        group.childTreeWithKnownFalsePruning schema childParentType fixedVariableValues
+      summarize algebra schema group.childInheritedBooleanCondition
+        (.ofConditionTree childTree) childTree.condition.possibleTypes variableValues
+        fixedVariableValues
 
-private theorem extendBooleanCondition_eq_of_agree
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (variables : List Name) (left right : VariableValues)
-    (hagrees : BooleanValuesAgreeOn variables left right)
-    : extendBooleanCondition inheritedBooleanCondition variables left
-      = extendBooleanCondition inheritedBooleanCondition variables right := by
-  unfold extendBooleanCondition
-  rw [assignedBooleanLiterals_eq_of_agree variables left right hagrees]
+def summarizeFieldGroups (algebra : Algebra) (schema : Schema)
+    (groups : List CollectedFieldGroup) (variableValues : VariableValues)
+    (fixedVariableValues : VariableValues := variableValues)
+    : algebra.Summary :=
+  TreeSummary.combineMap algebra groups
+    fun group _hgroup =>
+      algebra.field group
+        (summarizeChildTypes algebra schema group (childParentTypes schema group)
+          variableValues fixedVariableValues)
 
-private def BooleanEnvironment.Realizes (environment : BooleanEnvironment)
-    (variableOrder remainingVariables : BooleanVariableNames)
-    (assignment : Name -> Bool) (variableValues : VariableValues)
-    : Prop :=
-  ∀ variableName,
-    variableName ∈ variableOrder
-    -> match environment.status? variableName with
-        | some (.known value) =>
-            inputValueBoolean? environment.variableValues (.variable variableName)
-              = some value
-            ∧ inputValueBoolean? variableValues (.variable variableName) = some value
-        | some .missing =>
-            inputValueBoolean? environment.variableValues (.variable variableName) = none
-            ∧ inputValueBoolean? variableValues (.variable variableName) = none
-        | some .unresolved =>
-            variableName ∈ remainingVariables
-            ∧ inputValueBoolean? variableValues (.variable variableName)
-              = some (assignment variableName)
-        | none => False
+theorem summarizeChildTypesDecisionWithPruning_collapse_complete
+    (algebra : Algebra) (_lawful : algebra.Lawful) (schema : Schema)
+    (group : CollectedFieldGroup) (parentTypes : TypeNames)
+    (variableValues fixedVariableValues : VariableValues)
+    : (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema [] group
+        parentTypes (BooleanEnvironment.complete variableValues)
+        fixedVariableValues).collapse
+        algebra
+      = summarizeChildTypes algebra schema group parentTypes variableValues
+          fixedVariableValues := by
+  simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+  rw [BooleanDecision.collapse_joinMap]
+  rfl
 
-private theorem mem_erase_of_ne_of_mem {α : Type} [BEq α] [LawfulBEq α]
-    {selected candidate : α} {items : List α}
-    (hne : candidate ≠ selected) (hmem : candidate ∈ items)
-    : candidate ∈ items.erase selected := by
-  induction items with
-  | nil => simp at hmem
-  | cons head tail ih =>
-      by_cases hhead : head = selected
-      · subst head
-        rw [List.erase_cons_head]
-        rcases List.mem_cons.mp hmem with hsame | htail
-        · exact False.elim (hne hsame)
-        · exact htail
-      · have htailErase : ¬(head == selected) = true := by
-          rw [show (head == selected) = false from (beq_eq_false_iff_ne).2 hhead]
-          decide
-        rw [List.erase_cons_tail htailErase]
-        rcases List.mem_cons.mp hmem with hsame | htail
-        · exact List.mem_cons.mpr (Or.inl hsame)
-        · exact List.mem_cons_of_mem head (ih htail)
+theorem summarizeChildTypesDecisionWithPruning_complete_splitFree
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (group : CollectedFieldGroup) (parentTypes : TypeNames)
+    (variableValues fixedVariableValues : VariableValues)
+    : (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder
+        group parentTypes (BooleanEnvironment.complete variableValues)
+        fixedVariableValues).SplitFree := by
+  simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+  apply BooleanDecision.joinMap_splitFree
+  intro childParentType hparentType
+  exact CaseCursor.summarizeDecisionWithPruning_complete_splitFree algebra schema variableOrder
+    group.childInheritedBooleanCondition []
+    (.ofConditionTree
+      (group.childTreeWithKnownFalsePruning schema childParentType fixedVariableValues))
+    (group.childTreeWithKnownFalsePruning schema childParentType
+      fixedVariableValues).condition.possibleTypes
+    variableValues fixedVariableValues
 
-private theorem BooleanEnvironment.Realizes.assign
-    {environment : BooleanEnvironment}
-    {variableOrder remainingVariables : BooleanVariableNames}
-    {assignment : Name -> Bool} {variableValues : VariableValues}
-    (hrealizes
-      : environment.Realizes variableOrder remainingVariables assignment variableValues)
-    (variableName : Name) (hvariable : variableName ∈ variableOrder)
-    (hstatus : environment.status? variableName = some .unresolved)
-    : (environment.assign variableName (assignment variableName)).Realizes
-        variableOrder (remainingVariables.erase variableName) assignment
-        variableValues := by
-  intro candidate hcandidate
-  by_cases heq : candidate = variableName
-  · subst candidate
-    have hvalue := hrealizes variableName hvariable
-    simp only [hstatus] at hvalue
-    simp only [BooleanEnvironment.assign, BooleanEnvironment.status?, List.lookup,
-      beq_self_eq_true, ↓reduceIte, inputValueBoolean?, lookupVariableValue?,
-      InputValue.staticBoolean?]
-    exact ⟨rfl, hvalue.2⟩
-  · have hne : variableName ≠ candidate := fun equal => heq equal.symm
-    have hcandidateRealizes := hrealizes candidate hcandidate
-    have hstatusEq :
-        (environment.assign variableName (assignment variableName)).status? candidate
-          = environment.status? candidate := by
-      unfold BooleanEnvironment.assign BooleanEnvironment.status?
-      simp only [List.lookup]
-      rw [show (candidate == variableName) = false from
-        (beq_eq_false_iff_ne).2 heq]
-    have hinputEq :
-        inputValueBoolean?
-            (environment.assign variableName (assignment variableName)).variableValues
-            (.variable candidate)
-          = inputValueBoolean? environment.variableValues (.variable candidate) := by
-      simp only [BooleanEnvironment.assign, inputValueBoolean?, lookupVariableValue?]
-      rw [if_neg hne]
-    rw [hstatusEq]
-    cases hcandidateStatus : environment.status? candidate with
-    | none => simp [hcandidateStatus] at hcandidateRealizes
-    | some status =>
-        cases status with
-        | known value =>
-            simp only [hcandidateStatus] at hcandidateRealizes
-            rw [hinputEq]
-            exact hcandidateRealizes
-        | missing =>
-            simp only [hcandidateStatus] at hcandidateRealizes
-            rw [hinputEq]
-            exact hcandidateRealizes
-        | unresolved =>
-            simp only [hcandidateStatus] at hcandidateRealizes
-            exact ⟨mem_erase_of_ne_of_mem heq hcandidateRealizes.1,
-              hcandidateRealizes.2⟩
+theorem summarizeDecisionWithPruning_complete_eq_of_booleanFree
+    (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion) (left right fixedVariableValues : VariableValues)
+    (hcursor : CaseCursorBooleanFree cursor)
+    : cursor.summarizeDecisionWithPruning algebra schema variableOrder
+        inheritedBooleanCondition caseCondition possibleTypes
+        (BooleanEnvironment.complete left) fixedVariableValues
+      = cursor.summarizeDecisionWithPruning algebra schema variableOrder
+          inheritedBooleanCondition caseCondition possibleTypes
+          (BooleanEnvironment.complete right) fixedVariableValues := by
+  apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
+    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
+      ∀ left right,
+        environment = BooleanEnvironment.complete left
+        -> CaseCursorBooleanFree cursor
+        -> cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+              caseCondition possibleTypes environment
+              fixedVariableValues
+          = cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+              caseCondition possibleTypes
+              (BooleanEnvironment.complete right) fixedVariableValues)
+    (motive2 := fun groups environment =>
+      ∀ left right,
+        environment = BooleanEnvironment.complete left
+        -> CollectedFieldGroupsBooleanFree groups
+        -> CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
+              environment fixedVariableValues
+          = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
+              (BooleanEnvironment.complete right) fixedVariableValues)
+    (motive3 := fun group parentTypes environment =>
+      ∀ left right,
+        environment = BooleanEnvironment.complete left
+        -> SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet = []
+        -> CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
+              parentTypes environment fixedVariableValues
+          = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
+              parentTypes (BooleanEnvironment.complete right) fixedVariableValues)
+  case case1 =>
+    intro inherited caseCondition cursor possibleTypes environment hbranches ih
+      left right henvironment hcursor
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete left) fixedVariableValues hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete right) fixedVariableValues hbranches]
+    exact ih left right rfl
+      (cursor.fieldGroups_booleanFree hcursor _ possibleTypes)
+  case case2 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches typeName hcondition ihSelect ihSkip left right henvironment hcursor
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete left) fixedVariableValues branch rest hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema variableOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete right) fixedVariableValues branch rest hbranches]
+    simp only [hcondition]
+    apply BooleanDecision.joinMap_congr algebra
+    intro region hregion
+    split
+    · exact ihSelect region left right rfl
+        (cursor.selectBranch_booleanFree hcursor hbranches ⟨typeName, hcondition⟩)
+    · exact ihSkip region left right rfl
+        (cursor.skipBranch_booleanFree hcursor hbranches)
+  case case3 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition value hstatus selectedLiteral ih left right
+      henvironment hcursor
+    exact (cursor.booleanBranch_impossible hcursor hbranches literal hcondition).elim
+  case case4 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition hstatus ihFalse ihTrue left right
+      henvironment hcursor
+    exact (cursor.booleanBranch_impossible hcursor hbranches literal hcondition).elim
+  case case5 =>
+    intro groups environment ih left right henvironment hgroups
+    subst environment
+    simp only [CaseCursor.summarizeFieldGroupsDecisionWithPruning.eq_1]
+    apply BooleanDecision.combineMap_congr_orders algebra variableOrder variableOrder
+    · intro group hgroup
+      exact congrArg (BooleanDecision.map (algebra.field group))
+        (ih group hgroup left right rfl (hgroups group hgroup))
+    · intro group hgroup
+      exact BooleanDecision.map_splitFree (algebra.field group)
+        (summarizeChildTypesDecisionWithPruning_complete_splitFree algebra schema variableOrder group
+          (childParentTypes schema group) right fixedVariableValues)
+  case case6 =>
+    intro group parentTypes environment ih left right henvironment hgroup
+    subst environment
+    simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+    apply BooleanDecision.joinMap_congr algebra
+    intro childParentType hparentType
+    let tree := group.childTreeWithKnownFalsePruning schema childParentType
+      fixedVariableValues
+    have htree : conditionTreeBooleanVariables tree = [] := by
+      apply List.eq_nil_iff_forall_not_mem.mpr
+      intro variableName hvariable
+      have hwithin :=
+        ofSelectionSetInScopeWithKnownFalsePruning_booleanVariablesWithin schema
+          childParentType group.childInheritedBooleanCondition fixedVariableValues
+          group.mergedSelectionSet variableName hvariable
+      rw [hgroup] at hwithin
+      contradiction
+    exact ih childParentType left right rfl
+      (CaseCursor.ofConditionTree_booleanFree tree htree)
+  exact rfl
+  exact hcursor
 
-private theorem BooleanEnvironment.Realizes.agreesOn
-    {environment : BooleanEnvironment}
-    {variableOrder remainingVariables localVariables : BooleanVariableNames}
-    {assignment : Name -> Bool} {variableValues : VariableValues}
-    (hrealizes
-      : environment.Realizes variableOrder remainingVariables assignment variableValues)
-    (hlocal
-      : ∀ variableName, variableName ∈ localVariables -> variableName ∈ variableOrder)
-    (hnext : environment.nextUnresolved remainingVariables localVariables = none)
-    : BooleanValuesAgreeOn localVariables environment.variableValues variableValues := by
-  intro variableName hvariable
-  have hreal := hrealizes variableName (hlocal variableName hvariable)
-  cases hstatus : environment.status? variableName with
-  | none => simp [hstatus] at hreal
-  | some status =>
-      cases status with
-      | known value =>
-          simp only [hstatus] at hreal
-          exact hreal.1.trans hreal.2.symm
-      | missing =>
-          simp only [hstatus] at hreal
-          exact hreal.1.trans hreal.2.symm
-      | unresolved =>
-          simp only [hstatus] at hreal
-          have hnot := (List.find?_eq_none.mp hnext) variableName hreal.1
-          simp [hvariable, hstatus] at hnot
-
-private def realizationSummarizePhase : Nat := 3
-private def realizationTypeRegionsPhase : Nat := 2
-private def realizationFieldGroupsPhase : Nat := 1
-private def realizationChildTypesPhase : Nat := 0
-
-private def realizationControlCount (tree : CaseForest)
-    (remainingVariables : BooleanVariableNames)
-    : Nat :=
-  caseForestUnresolvedCount tree + remainingVariables.length
-
-private theorem CaseForest.resolveBranches_eq_of_agreeBooleanVariables
-    (possibleTypes : PossibleTypeRegion) (left right : VariableValues)
-    (tree : CaseForest)
-    (hagrees : BooleanValuesAgreeOn tree.booleanVariables left right)
-    : tree.resolveBranches possibleTypes left
-      = tree.resolveBranches possibleTypes right := by
-  apply congrArg CaseForest.mk
-  apply resolveActiveTrees_eq_of_agree
-  intro item hitem branch hbranch
-  cases hcondition : branch.condition with
-  | typeCondition typeName => trivial
-  | booleanLiteral literal =>
-      apply hagrees literal.variableName
-      unfold CaseForest.booleanVariables CaseForest.branches
-      simp only [List.mem_eraseDups, List.mem_filterMap, List.mem_flatMap]
-      exact ⟨branch, ⟨item, hitem, hbranch⟩, by simp [hcondition]⟩
-
-mutual
-  private theorem CaseForest.summarizeDecision_evaluate_eq
-      (algebra : Algebra) (schema : Schema)
-      (variableOrder remainingVariables : BooleanVariableNames)
-      (assignment : Name -> Bool) (environment : BooleanEnvironment)
-      (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
-      (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
-      (variableValues : VariableValues)
-      (hwithin : tree.BooleanVariablesWithin variableOrder)
-      (hrealizes
-        : environment.Realizes variableOrder remainingVariables assignment variableValues)
-      : (summarizeDecision algebra schema variableOrder remainingVariables parentType
-          inheritedBooleanCondition tree possibleTypes environment).evaluate
-          assignment
-        = summarize algebra schema parentType inheritedBooleanCondition tree possibleTypes
-            variableValues environment.fixedVariableValues := by
-    rw [summarizeDecision, summarize]
-    split <;> rename_i hbranches
-    · cases hnext
-            : environment.nextUnresolved remainingVariables tree.booleanVariables with
-      | some variableName =>
-          simp only [BooleanDecision.evaluate]
-          have hremaining := List.mem_of_find?_eq_some hnext
-          have hselected := List.find?_some hnext
-          change
-            (variableName ∈ tree.booleanVariables
-              && match environment.status? variableName with
-                | some .missing | some (.known _value) => false
-                | some .unresolved | none => true) = true at hselected
-          simp only [Bool.and_eq_true] at hselected
-          have hvariable :=
-            tree.booleanVariable_mem_of_within variableOrder hwithin variableName
-              (of_decide_eq_true hselected.1)
-          have hstatus : environment.status? variableName = some .unresolved := by
-            have hreal := hrealizes variableName hvariable
-            cases hstatus : environment.status? variableName with
-            | none => simp [hstatus] at hreal
-            | some status =>
-                cases status <;> simp_all
-          have hnextRealizes :=
-            hrealizes.assign variableName hvariable hstatus
-          by_cases hvalue : assignment variableName
-          · simpa [hvalue, CaseForest.summarize, hbranches,
-                BooleanEnvironment.assign] using
-              summarizeDecision_evaluate_eq algebra schema variableOrder
-                (remainingVariables.erase variableName) assignment
-                (environment.assign variableName (assignment variableName)) parentType
-                inheritedBooleanCondition tree possibleTypes variableValues hwithin
-                hnextRealizes
-          · simpa [hvalue, CaseForest.summarize, hbranches,
-                BooleanEnvironment.assign] using
-              summarizeDecision_evaluate_eq algebra schema variableOrder
-                (remainingVariables.erase variableName) assignment
-                (environment.assign variableName (assignment variableName)) parentType
-                inheritedBooleanCondition tree possibleTypes variableValues hwithin
-                hnextRealizes
-      | none =>
-          simp only
-          exact summarizeTypeRegionsDecision_evaluate_eq algebra schema variableOrder
-            remainingVariables assignment environment parentType inheritedBooleanCondition
-            tree (tree.typeRegions possibleTypes) variableValues hbranches hwithin
-            hrealizes hnext
-    · exact summarizeFieldGroupsDecision_evaluate_eq algebra schema variableOrder
-        remainingVariables assignment environment
-        (tree.fieldGroups inheritedBooleanCondition possibleTypes)
-        variableValues hrealizes (by
-          intro group hgroup variableName hvariable
-          exact tree.fieldGroup_variablesWithin variableOrder hwithin
-            inheritedBooleanCondition possibleTypes group hgroup variableName hvariable)
-  termination_by
-    (
-      caseForestResponseDepth tree,
-      realizationControlCount tree remainingVariables,
-      realizationSummarizePhase,
-      0
-    )
-  decreasing_by
-    all_goals
-      first
-      | apply quadruple_lt_of_depth_le_of_control_lt
-        · exact Nat.le_refl _
-        · have hlength := List.length_erase_of_mem hremaining
-          have hpositive := List.length_pos_of_mem hremaining
-          unfold realizationControlCount
-          rw [hlength]
-          omega
-      | apply quadruple_lt_of_depth_le_of_control_le_of_phase_lt
-        · exact Nat.le_refl _
-        · exact Nat.le_refl _
-        · decide
-      | apply quadruple_lt_of_depth_le_of_control_le_of_phase_lt
-        · exact fieldGroupsResponseDepth_le inheritedBooleanCondition
-            possibleTypes tree
-        · unfold realizationControlCount
-          omega
-        · decide
-
-  private theorem CaseForest.summarizeTypeRegionsDecision_evaluate_eq
-      (algebra : Algebra) (schema : Schema)
-      (variableOrder remainingVariables : BooleanVariableNames)
-      (assignment : Name -> Bool) (environment : BooleanEnvironment)
-      (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
-      (tree : CaseForest) (regions : List PossibleTypeRegion)
-      (variableValues : VariableValues)
-      (hbranches : tree.hasUnresolvedBranches = true)
-      (hwithin : tree.BooleanVariablesWithin variableOrder)
-      (hrealizes
-        : environment.Realizes variableOrder remainingVariables assignment variableValues)
-      (hnext : environment.nextUnresolved remainingVariables tree.booleanVariables = none)
-      : (summarizeTypeRegionsDecision algebra schema variableOrder remainingVariables
-          parentType inheritedBooleanCondition tree regions environment
-          hbranches).evaluate
-          assignment
-        = summarizeTypeRegions algebra schema parentType inheritedBooleanCondition tree
-            regions variableValues hbranches environment.fixedVariableValues := by
-    rw [summarizeTypeRegionsDecision, BooleanDecision.evaluate_joinMap]
-    unfold summarizeTypeRegions
-    apply congrArg (joinMap algebra regions)
-    funext region hregion
-    have hagrees := hrealizes.agreesOn
-      (fun variableName hvariable =>
-        tree.booleanVariable_mem_of_within variableOrder hwithin variableName hvariable)
-      hnext
-    have hinherited := extendBooleanCondition_eq_of_agree
-      inheritedBooleanCondition tree.booleanVariables environment.variableValues
-      variableValues hagrees
-    have hresolved := tree.resolveBranches_eq_of_agreeBooleanVariables region
-      environment.variableValues variableValues hagrees
-    rw [hinherited, hresolved]
-    exact summarizeDecision_evaluate_eq algebra schema variableOrder remainingVariables
-      assignment environment parentType
-      (extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
-        variableValues)
-      (tree.resolveBranches region variableValues) region variableValues
-      (tree.resolveBranches_variablesWithin region variableValues variableOrder hwithin)
-      hrealizes
-  termination_by
-    (
-      caseForestResponseDepth tree,
-      realizationControlCount tree remainingVariables,
-      realizationTypeRegionsPhase,
-      sizeOf regions
-    )
-  decreasing_by
-    apply quadruple_lt_of_depth_le_of_control_lt
-    · exact resolveBranches_responseDepth_le region variableValues tree
-    · have hcount := resolveBranches_unresolvedCount_lt region variableValues tree
-        hbranches
-      unfold realizationControlCount
-      omega
-
-  private theorem CaseForest.summarizeFieldGroupsDecision_evaluate_eq
-      (algebra : Algebra) (schema : Schema)
-      (variableOrder remainingVariables : BooleanVariableNames)
-      (assignment : Name -> Bool) (environment : BooleanEnvironment)
-      (groups : List CollectedFieldGroup) (variableValues : VariableValues)
-      (hrealizes
-        : environment.Realizes variableOrder remainingVariables assignment variableValues)
-      (hgroups
-        : ∀ group,
-            group ∈ groups
-            -> ∀ variableName,
-                variableName
-                  ∈ SelectionConditions.selectionSetBooleanVariables
-                      group.mergedSelectionSet
-                -> variableName ∈ variableOrder)
-      : (summarizeFieldGroupsDecision algebra schema variableOrder remainingVariables
-          groups environment).evaluate
-          assignment
-        = summarizeFieldGroups algebra schema groups variableValues
-            environment.fixedVariableValues := by
-    rw [summarizeFieldGroupsDecision, BooleanDecision.evaluate_combineMap]
-    unfold summarizeFieldGroups
-    apply congrArg (combineMap algebra groups)
-    funext group hgroup
-    rw [BooleanDecision.evaluate_map]
-    apply congrArg (algebra.field group)
-    exact summarizeChildTypesDecision_evaluate_eq algebra schema variableOrder
-      remainingVariables assignment environment group (childParentTypes schema group)
-      variableValues hrealizes (hgroups group hgroup)
-  termination_by
-    (
-      collectedFieldGroupsResponseDepth groups,
-      remainingVariables.length,
-      realizationFieldGroupsPhase,
-      sizeOf groups
-    )
-  decreasing_by
-    apply quadruple_lt_of_depth_le_of_control_le_of_phase_lt
-    · exact collectedFieldGroupResponseDepth_le_of_mem group groups hgroup
-    · exact Nat.le_refl _
-    · decide
-
-  private theorem CaseForest.summarizeChildTypesDecision_evaluate_eq
-      (algebra : Algebra) (schema : Schema)
-      (variableOrder remainingVariables : BooleanVariableNames)
-      (assignment : Name -> Bool) (environment : BooleanEnvironment)
-      (group : CollectedFieldGroup) (parentTypes : TypeNames)
-      (variableValues : VariableValues)
-      (hrealizes
-        : environment.Realizes variableOrder remainingVariables assignment variableValues)
-      (hgroup
-        : ∀ variableName,
-            variableName
-              ∈ SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet
-            -> variableName ∈ variableOrder)
-      : (summarizeChildTypesDecision algebra schema variableOrder remainingVariables
-          group parentTypes environment).evaluate
-          assignment
-        = summarizeChildTypes algebra schema group parentTypes variableValues
-            environment.fixedVariableValues := by
-    rw [summarizeChildTypesDecision, BooleanDecision.evaluate_joinMap]
-    unfold summarizeChildTypes
-    apply congrArg (joinMap algebra parentTypes)
-    funext childParentType hparentType
-    let childTree := group.childTreeWithKnownFalsePruning schema childParentType
-      environment.fixedVariableValues
-    apply summarizeDecision_evaluate_eq algebra schema variableOrder remainingVariables
-      assignment environment childParentType group.childInheritedBooleanCondition
-      (.ofConditionTree childTree) childTree.condition.possibleTypes variableValues
-    · intro item hitem variableName hvariable
-      simp only [CaseForest.ofConditionTree, List.mem_singleton] at hitem
-      subst item
-      apply hgroup variableName
-      exact ofSelectionSetInScopeWithKnownFalsePruning_booleanVariablesWithin schema
-        childParentType group.childInheritedBooleanCondition
-        environment.fixedVariableValues group.mergedSelectionSet variableName hvariable
-    · exact hrealizes
-  termination_by
-    (
-      collectedFieldGroupResponseDepth group,
-      remainingVariables.length,
-      realizationChildTypesPhase,
-      sizeOf parentTypes
-    )
-  decreasing_by
-    apply Prod.Lex.left
-    have hchild := conditionTreeResponseDepth_ofSelectionSetInScopeWithKnownFalsePruning schema
-      childParentType group.childInheritedBooleanCondition
-      environment.fixedVariableValues group.mergedSelectionSet
-    change conditionTreeResponseDepth childTree
-      ≤ Termination.selectionSetResponseDepth group.mergedSelectionSet at hchild
-    simp only [CaseForest.ofConditionTree, caseForestResponseDepth,
-      activeTreesResponseDepth, Nat.max_zero]
-    exact Nat.lt_of_le_of_lt hchild (Nat.lt_succ_self _)
-end
-
-private def BooleanEnvironment.prepareFor
-    : BooleanVariableNames -> VariableValues -> BooleanEnvironment -> BooleanEnvironment
-  | [], _variableValues, environment => environment
-  | variableName :: rest, variableValues, environment =>
-      let status :=
-        match inputValueBoolean? variableValues (.variable variableName) with
-        | some _value => .unresolved
-        | none => .missing
-      prepareFor rest variableValues (environment.withStatus variableName status)
-
-private def assignmentFor (variableValues : VariableValues) (variableName : Name)
-    : Bool :=
-  (inputValueBoolean? variableValues (.variable variableName)).getD false
-
-private theorem BooleanEnvironment.prepareFor_variableValues
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (environment : BooleanEnvironment)
-    : (environment.prepareFor variables variableValues).variableValues
-      = environment.variableValues := by
-  induction variables generalizing environment with
-  | nil => rfl
-  | cons variableName rest ih =>
-      rw [BooleanEnvironment.prepareFor]
-      exact ih _
-
-private theorem BooleanEnvironment.prepareFor_fixedVariableValues
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (environment : BooleanEnvironment)
-    : (environment.prepareFor variables variableValues).fixedVariableValues
-      = environment.fixedVariableValues := by
-  induction variables generalizing environment with
-  | nil => rfl
-  | cons variableName rest ih =>
-      rw [BooleanEnvironment.prepareFor]
-      exact ih _
-
-private theorem BooleanEnvironment.prepareFor_status?_of_not_mem
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (environment : BooleanEnvironment) (candidate : Name)
-    (hnotMem : candidate ∉ variables)
-    : (environment.prepareFor variables variableValues).status? candidate
-      = environment.status? candidate := by
-  induction variables generalizing environment with
-  | nil => rfl
-  | cons variableName rest ih =>
-      simp only [List.mem_cons, not_or] at hnotMem
-      rw [BooleanEnvironment.prepareFor, ih _ hnotMem.2]
-      unfold BooleanEnvironment.withStatus BooleanEnvironment.status?
-      simp only [List.lookup]
-      rw [show (candidate == variableName) = false from
-        (beq_eq_false_iff_ne).2 hnotMem.1]
-
-private theorem BooleanEnvironment.prepareFor_status?_of_mem
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (environment : BooleanEnvironment) (candidate : Name)
-    (hnodup : variables.Nodup) (hmem : candidate ∈ variables)
-    : (environment.prepareFor variables variableValues).status? candidate
-      = match inputValueBoolean? variableValues (.variable candidate) with
-        | some _value => some .unresolved
-        | none => some .missing := by
-  induction variables generalizing environment with
-  | nil => simp at hmem
-  | cons variableName rest ih =>
-      rw [BooleanEnvironment.prepareFor]
-      simp only [List.nodup_cons] at hnodup
-      rcases List.mem_cons.mp hmem with rfl | hmem
-      · rw [BooleanEnvironment.prepareFor_status?_of_not_mem rest variableValues
-          _ _ hnodup.1]
-        unfold BooleanEnvironment.withStatus BooleanEnvironment.status?
-        simp only [List.lookup, beq_self_eq_true]
-        split <;> rfl
-      · exact ih _ hnodup.2 hmem
-
-private theorem BooleanEnvironment.prepareFor_realizes
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (hnodup : variables.Nodup)
-    : BooleanEnvironment.unknown.prepareFor variables variableValues
-      |>.Realizes variables variables (assignmentFor variableValues) variableValues := by
-  intro variableName hvariable
-  rw [BooleanEnvironment.prepareFor_status?_of_mem variables variableValues _
-    variableName hnodup hvariable]
-  rw [BooleanEnvironment.prepareFor_variableValues]
-  cases hvalue : inputValueBoolean? variableValues (.variable variableName) with
-  | none =>
-      simp [BooleanEnvironment.unknown, inputValueBoolean?, lookupVariableValue?]
-  | some value =>
-      simp only [hvalue, assignmentFor, Option.getD_some]
-      exact ⟨hvariable, True.intro⟩
-
-private theorem BooleanDecision.evaluate_le_collapse
-    (algebra : Algebra) (lawful : algebra.Lawful)
-    (assignment : Name -> Bool) (decision : BooleanDecision algebra.Summary)
-    : lawful.le (decision.evaluate assignment) (decision.collapse algebra) := by
-  induction decision with
-  | leaf summary => exact lawful.le_refl summary
-  | split variableName onFalse onTrue ihFalse ihTrue =>
-      by_cases hvalue : assignment variableName
-      · simpa [BooleanDecision.evaluate, BooleanDecision.collapse, hvalue] using
-          lawful.le_trans _ _ _ ihTrue (lawful.le_join_right _ _)
-      · simpa [BooleanDecision.evaluate, BooleanDecision.collapse, hvalue] using
-          lawful.le_trans _ _ _ ihFalse (lawful.le_join_left _ _)
-
-private theorem BooleanEnvironment.prepareFor_le_summarizeCompletions
-    (algebra : Algebra) (lawful : algebra.Lawful)
-    (summarize : BooleanEnvironment -> algebra.Summary)
-    (variables : BooleanVariableNames) (variableValues : VariableValues)
-    (environment : BooleanEnvironment)
-    (hnodup : variables.Nodup)
-    (hemptyValues : environment.variableValues = [])
-    (habsent
-      : ∀ variableName,
-          variableName ∈ variables -> environment.status? variableName = none)
-    : lawful.le (summarize (environment.prepareFor variables variableValues))
-        (environment.summarizeCompletions algebra summarize variables) := by
-  induction variables generalizing environment with
-  | nil =>
-      simpa [BooleanEnvironment.prepareFor,
-        BooleanEnvironment.summarizeCompletions] using
-        lawful.le_refl (summarize environment)
-  | cons variableName rest ih =>
-      simp only [List.nodup_cons] at hnodup
-      have hstatus := habsent variableName (by simp)
-      have hinput : inputValueBoolean? environment.variableValues
-          (.variable variableName) = none := by
-        rw [hemptyValues]
-        simp [inputValueBoolean?, lookupVariableValue?]
-      have hlookup : lookupVariableValue? environment.variableValues variableName = none := by
-        rw [hemptyValues]
-        simp [lookupVariableValue?]
-      have hrestAbsent (status : BooleanStatus) :
-          ∀ candidate,
-            candidate ∈ rest
-            -> (environment.withStatus variableName status).status? candidate = none := by
-        intro candidate hcandidate
-        have hcandidateNe : candidate ≠ variableName := by
-          intro heq
-          subst candidate
-          exact hnodup.1 hcandidate
-        unfold BooleanEnvironment.withStatus BooleanEnvironment.status?
-        simp only [List.lookup]
-        rw [show (candidate == variableName) = false from
-          (beq_eq_false_iff_ne).2 hcandidateNe]
-        exact habsent candidate (by simp [hcandidate])
-      rw [BooleanEnvironment.prepareFor,
-        BooleanEnvironment.summarizeCompletions, hstatus, hinput, hlookup]
-      cases hvalue : inputValueBoolean? variableValues (.variable variableName) with
-      | none =>
-          exact lawful.le_trans _ _ _
-            (ih (environment.withStatus variableName .missing) hnodup.2
-              hemptyValues (hrestAbsent .missing))
-            (lawful.le_join_left _ _)
-      | some value =>
-          exact lawful.le_trans _ _ _
-            (ih (environment.withStatus variableName .unresolved) hnodup.2
-              hemptyValues (hrestAbsent .unresolved))
-            (lawful.le_join_right _ _)
-
-private theorem summarizeSelectionSetResolved_le_unknown
-    (algebra : Algebra) (lawful : algebra.Lawful)
-    (schema : Schema) (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (variableValues : VariableValues)
+theorem summarizeFieldGroups_le_decision_complete
+    (algebra : Algebra) {lawful : algebra.Lawful}
+    (joinFactoringLaws : ExactCases.JoinFactoringLaws algebra lawful)
+    (schema : Schema) (groups : List CollectedFieldGroup)
+    (variableValues fixedVariableValues : VariableValues)
     : lawful.le
-        (summarizeSelectionSetResolved algebra schema parentType
-          inheritedBooleanCondition selectionSet variableValues [])
-        (summarizeSelectionSet algebra schema parentType inheritedBooleanCondition
-          selectionSet BooleanEnvironment.unknown) := by
-  let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
-    inheritedBooleanCondition [] selectionSet
-  let variables := (conditionTreeBooleanVariables tree).eraseDups
-  let initial : BooleanEnvironment := BooleanEnvironment.unknown
-  let prepared := initial.prepareFor variables variableValues
-  let assignment := assignmentFor variableValues
-  have hwithin : (CaseForest.ofConditionTree tree).BooleanVariablesWithin variables := by
-    intro item hitem variableName hvariable
-    simp only [CaseForest.ofConditionTree, List.mem_singleton] at hitem
-    subst item
-    exact List.mem_eraseDups.mpr hvariable
-  have hrealizes : prepared.Realizes variables variables assignment variableValues := by
-    exact BooleanEnvironment.prepareFor_realizes variables variableValues
-      (BooleanDecision.eraseDups_nodup _)
-  have hevaluate :=
-    CaseForest.summarizeDecision_evaluate_eq algebra schema variables variables assignment
-      prepared parentType inheritedBooleanCondition (.ofConditionTree tree)
-      tree.condition.possibleTypes variableValues hwithin hrealizes
-  have hpreparedFixed : prepared.fixedVariableValues = [] := by
-    rw [BooleanEnvironment.prepareFor_fixedVariableValues]
-    rfl
-  rw [hpreparedFixed] at hevaluate
-  have hevaluateLe := BooleanDecision.evaluate_le_collapse algebra lawful assignment
-    (CaseForest.summarizeDecision algebra schema variables variables parentType
-      inheritedBooleanCondition (.ofConditionTree tree) tree.condition.possibleTypes
-      prepared)
-  have hprepared : lawful.le
-      ((CaseForest.summarizeDecision algebra schema variables variables parentType
-        inheritedBooleanCondition (.ofConditionTree tree) tree.condition.possibleTypes
-        prepared).collapse algebra)
-      (BooleanEnvironment.summarizeCompletions algebra
-        (fun completed =>
-          (CaseForest.summarizeDecision algebra schema variables variables parentType
-            inheritedBooleanCondition (.ofConditionTree tree)
-            tree.condition.possibleTypes completed).collapse algebra)
-        variables initial) := by
-    simpa [prepared] using
-      (BooleanEnvironment.prepareFor_le_summarizeCompletions algebra lawful
-        (fun completed =>
-          (CaseForest.summarizeDecision algebra schema variables variables parentType
-            inheritedBooleanCondition (.ofConditionTree tree)
-            tree.condition.possibleTypes completed).collapse algebra)
-        variables variableValues initial (BooleanDecision.eraseDups_nodup _) rfl
-        (by intro variableName hvariable; rfl))
-  unfold summarizeSelectionSetResolved summarizeConditionTreeResolved
-    summarizeSelectionSet summarizeConditionTree summarizeConditionTreeDecision
-  change lawful.le
-    (CaseForest.summarize algebra schema parentType inheritedBooleanCondition
-      (.ofConditionTree tree) tree.condition.possibleTypes variableValues [])
-    (BooleanEnvironment.summarizeCompletions algebra
-      (fun completed =>
-        (CaseForest.summarizeDecision algebra schema variables variables parentType
-          inheritedBooleanCondition (.ofConditionTree tree)
-          tree.condition.possibleTypes completed).collapse algebra)
-      variables initial)
-  exact lawful.le_trans _ _ _ (hevaluate ▸ hevaluateLe) hprepared
+        (summarizeFieldGroups algebra schema groups variableValues fixedVariableValues)
+        ((CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema [] groups
+            (BooleanEnvironment.complete variableValues) fixedVariableValues).collapse
+          algebra) := by
+  simp only [CaseCursor.summarizeFieldGroupsDecisionWithPruning.eq_1]
+  unfold summarizeFieldGroups
+  apply lawful.le_trans _
+    (TreeSummary.combineMap algebra groups fun group hgroup =>
+      (((CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema [] group
+        (childParentTypes schema group)
+        (BooleanEnvironment.complete variableValues) fixedVariableValues).map
+          (algebra.field group)).collapse algebra))
+  · apply BooleanDecision.combineMap_mono algebra lawful
+    intro group hgroup
+    rw [← summarizeChildTypesDecisionWithPruning_collapse_complete algebra lawful schema group
+      (childParentTypes schema group) variableValues fixedVariableValues]
+    exact BooleanDecision.collapse_map_le_of_splitFree algebra lawful joinFactoringLaws.join_le
+      (algebra.field group) (joinFactoringLaws.field_join_le group)
+      (summarizeChildTypesDecisionWithPruning_complete_splitFree algebra schema [] group
+        (childParentTypes schema group) variableValues fixedVariableValues)
+  · apply BooleanDecision.collapse_combineMap_le_of_splitFree algebra lawful
+      joinFactoringLaws.join_le joinFactoringLaws.combine_join_le
+    intro group hgroup
+    exact BooleanDecision.map_splitFree (algebra.field group)
+      (summarizeChildTypesDecisionWithPruning_complete_splitFree algebra schema [] group
+        (childParentTypes schema group) variableValues fixedVariableValues)
+
+theorem summarizeDecisionWithPruning_complete_order_independent
+    (algebra : Algebra) (schema : Schema)
+    (leftOrder rightOrder : BooleanVariableNames)
+    (inheritedBooleanCondition caseCondition : List BooleanLiteral)
+    (cursor : CaseCursor)
+    (possibleTypes : PossibleTypeRegion)
+    (variableValues fixedVariableValues : VariableValues)
+    : CaseCursor.summarizeDecisionWithPruning algebra schema leftOrder
+        inheritedBooleanCondition caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) fixedVariableValues
+      = CaseCursor.summarizeDecisionWithPruning algebra schema rightOrder
+          inheritedBooleanCondition caseCondition cursor possibleTypes
+          (BooleanEnvironment.complete variableValues) fixedVariableValues := by
+  apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
+    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> ∀ leftOrder rightOrder,
+          CaseCursor.summarizeDecisionWithPruning algebra schema leftOrder inherited
+              caseCondition cursor possibleTypes environment fixedVariableValues
+            = CaseCursor.summarizeDecisionWithPruning algebra schema rightOrder inherited
+                caseCondition cursor possibleTypes environment fixedVariableValues)
+    (motive2 := fun groups environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> ∀ leftOrder rightOrder,
+          CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema leftOrder groups environment
+              fixedVariableValues
+            = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema rightOrder groups
+                environment fixedVariableValues)
+    (motive3 := fun group parentTypes environment =>
+      ∀ variableValues,
+        environment = BooleanEnvironment.complete variableValues
+        -> ∀ leftOrder rightOrder,
+          CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema leftOrder group parentTypes
+              environment fixedVariableValues
+            = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema rightOrder group
+                parentTypes environment fixedVariableValues)
+  case case1 =>
+    intro inherited caseCondition cursor possibleTypes environment
+      hbranches ih variableValues henvironment leftOrder rightOrder
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema leftOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues hbranches,
+      CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema rightOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) fixedVariableValues hbranches]
+    exact ih variableValues rfl leftOrder rightOrder
+  case case2 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches typeName hcondition ihSelect ihSkip variableValues henvironment leftOrder
+      rightOrder
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches]
+    simp only [hcondition]
+    apply BooleanDecision.joinMap_congr algebra
+    intro region hregion
+    split
+    · exact ihSelect region variableValues rfl leftOrder rightOrder
+    · exact ihSkip region variableValues rfl leftOrder rightOrder
+  case case3 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition value hstatus selectedLiteral ih variableValues
+      henvironment leftOrder rightOrder
+    subst environment
+    rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema leftOrder inherited
+      caseCondition cursor possibleTypes
+      (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches,
+      CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema rightOrder inherited
+        caseCondition cursor possibleTypes
+        (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest hbranches]
+    simp only [hcondition, hstatus]
+    exact ih variableValues rfl leftOrder rightOrder
+  case case4 =>
+    intro inherited caseCondition cursor possibleTypes environment branch rest
+      hbranches literal hcondition hstatus ihFalse ihTrue variableValues
+      henvironment leftOrder rightOrder
+    subst environment
+    rw [BooleanEnvironment.complete_statusForVariable] at hstatus
+    cases hvalue : inputValueBoolean? variableValues (.variable literal.variableName) <;>
+      simp [hvalue] at hstatus
+  case case5 =>
+    intro groups environment ih variableValues henvironment
+      leftOrder rightOrder
+    subst environment
+    simp only [CaseCursor.summarizeFieldGroupsDecisionWithPruning.eq_1]
+    apply BooleanDecision.combineMap_congr_orders algebra leftOrder rightOrder
+    · intro group hgroup
+      exact congrArg (BooleanDecision.map (algebra.field group))
+        (ih group hgroup variableValues rfl leftOrder rightOrder)
+    · intro group hgroup
+      exact BooleanDecision.map_splitFree (algebra.field group)
+        (summarizeChildTypesDecisionWithPruning_complete_splitFree algebra schema rightOrder group
+          (childParentTypes schema group) variableValues fixedVariableValues)
+  case case6 =>
+    intro group parentTypes environment ih variableValues henvironment leftOrder rightOrder
+    subst environment
+    simp only [CaseCursor.summarizeChildTypesDecisionWithPruning.eq_1]
+    apply BooleanDecision.joinMap_congr algebra
+    intro childParentType hparentType
+    exact ih childParentType variableValues rfl leftOrder rightOrder
+  exact rfl
+
+end CaseCursor
+
+theorem CaseCursor.summarize_ofConditionTree_eq_resolved
+    (algebra : Algebra) (schema : Schema)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (variableValues fixedVariableValues : VariableValues)
+    : CaseCursor.summarize algebra schema inheritedBooleanCondition
+        (.ofConditionTree tree) tree.condition.possibleTypes variableValues
+        fixedVariableValues
+      = summarizeConditionTreeResolved algebra schema inheritedBooleanCondition tree
+          variableValues fixedVariableValues := by
+  unfold CaseCursor.summarize summarizeConditionTreeResolved
+    summarizeConditionTreeWithPruning summarizeConditionTreeDecisionWithPruning
+  rw [BooleanDecision.collapse_compact]
+  exact congrArg (BooleanDecision.collapse algebra)
+    (CaseCursor.summarizeDecisionWithPruning_complete_order_independent algebra schema []
+      (conditionTreeBooleanVariables tree).eraseDups inheritedBooleanCondition []
+      (.ofConditionTree tree) tree.condition.possibleTypes
+      variableValues fixedVariableValues)
+
+private theorem summarizeConditionTreeResolved_le_environment
+    (algebra : Algebra) {lawful : algebra.Lawful}
+    (joinFactoringLaws : ExactCases.JoinFactoringLaws algebra lawful) (schema : Schema)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (environment : BooleanEnvironment)
+    (variableValues fixedVariableValues : VariableValues)
+    (hrealizes : environment.Realizes variableValues)
+    (hsymbolic : environment.IsSymbolic)
+    : lawful.le
+        (summarizeConditionTreeResolved algebra schema inheritedBooleanCondition tree
+          variableValues fixedVariableValues)
+        (summarizeConditionTreeWithPruning algebra schema inheritedBooleanCondition tree
+          environment fixedVariableValues) := by
+  unfold summarizeConditionTreeResolved summarizeConditionTreeWithPruning
+    summarizeConditionTreeDecisionWithPruning
+  rw [BooleanDecision.collapse_compact, BooleanDecision.collapse_compact]
+  apply BooleanDecision.Refines.collapse_le algebra lawful joinFactoringLaws.join_le variableValues
+  exact CaseCursor.summarizeDecisionWithPruning_refines_complete algebra schema
+    (conditionTreeBooleanVariables tree).eraseDups inheritedBooleanCondition []
+    (.ofConditionTree tree) tree.condition.possibleTypes environment variableValues
+    fixedVariableValues hrealizes hsymbolic
 
 theorem summarizeOperationResolved_le_unknown
-    (algebra : Algebra) (lawful : algebra.Lawful) (schema : Schema)
+    (algebra : Algebra) {lawful : algebra.Lawful}
+    (joinFactoringLaws : ExactCases.JoinFactoringLaws algebra lawful) (schema : Schema)
     (operation : Operation) (variableValues : VariableValues)
     : lawful.le
         (summarizeSelectionSetResolved algebra schema (operation.rootType schema) []
           operation.selectionSet variableValues [])
         (summarizeOperation algebra schema operation) := by
-  simpa [summarizeOperation, summarizeSelectionSet] using
-    summarizeSelectionSetResolved_le_unknown algebra lawful schema
-      (operation.rootType schema) [] operation.selectionSet variableValues
+  unfold summarizeSelectionSetResolved summarizeOperation
+  apply summarizeConditionTreeResolved_le_environment algebra joinFactoringLaws schema
+    [] _ BooleanEnvironment.unresolved variableValues []
+  · exact BooleanEnvironment.unresolved_realizes variableValues
+  · trivial
 
 end ExactCases
 end TreeSummary

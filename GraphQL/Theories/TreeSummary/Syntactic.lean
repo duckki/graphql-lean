@@ -1,5 +1,7 @@
-import GraphQL.Theories.TreeSummary.ResponseFold
-import GraphQL.Theories.ConditionTree.Execution
+import GraphQL.Theories.TreeSummary.Soundness
+import GraphQL.Theories.ConditionTree.FieldCollection
+import GraphQL.SchemaWellFormedness
+import GraphQL.Validation
 
 /-! Fast syntactic tree-summary traversal.
 
@@ -204,7 +206,8 @@ mutual
       (tree : Tree) (variableValues : Execution.VariableValues)
       (typeScope : PossibleTypes := tree.condition.possibleTypes)
       : algebra.Summary :=
-    let groups := collectFieldGroups inheritedBooleanCondition tree.condition tree.fields
+    let groups :=
+      fieldGroupsWithContext inheritedBooleanCondition tree.condition tree.fields
     let branchSummaries :=
       summarizeBranches algebra schema parentType inheritedBooleanCondition tree.branches
         variableValues typeScope
@@ -221,7 +224,7 @@ mutual
         simp_wf
         omega
     · simp only [conditionTreeResponseDepth]
-      rw [collectedFieldGroupsResponseDepth_collectFieldGroups]
+      rw [collectedFieldGroupsResponseDepth_fieldGroupsWithContext]
       apply quadruple_lt_of_depth_le_of_control_lt
       · exact Nat.le_max_left _ _
       · cases tree
@@ -478,13 +481,13 @@ def conditionsAllowGroupsAt (variableValues : VariableValues) (runtimeType : Nam
   ∀ group, group ∈ groups -> group.condition.allows variableValues runtimeType = true
 
 -- Direct local soundness contract for the syntactic backend. Unlike the exact backend's
--- single-group field obligation, `field_related` may summarize several syntactic groups
+-- single-group field obligation, `field_sound` may summarize several syntactic groups
 -- that jointly represent one executed response field.
-structure Compatible
+structure Soundness
     (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
     (schema : Schema) (variableValues : VariableValues)
-    extends CompatibilityCore concrete abstract where
-  field_related
+    extends SoundnessCore concrete abstract where
+  field_sound
     : ∀ (ObjectRef : Type) (runtimeType : Name) (ref : ObjectRef)
         (_responseName : Name)
         (field : ExecutableField) (rest : List ExecutableField)
@@ -500,110 +503,49 @@ structure Compatible
         -> groupsCoverFields schema variableValues runtimeType runtimeType
             (.object runtimeType ref) groups (field :: rest)
         -> groupsRepresentField schema variableValues runtimeType ref groups field
-        -> related children
+        -> approximates children
             (foldChildSummaryForValue abstract
               (foldChildSummaries abstract abstractChildren groups) value)
-        -> related
+        -> approximates
             (concrete.field
               (resolvedFieldProvenance schema variableValues definition field)
               value children)
             (foldFieldGroups abstract abstractChildren groups)
 
--- Soundness for a variable-indexed syntactic algebra at explicit execution fuel. Its
--- theorem witness is `Syntactic.operationWithVariablesSoundWithFuel` in
--- `Proofs.GraphQL.Theories.TreeSummary.Syntactic.Soundness`.
-def OperationWithVariablesSoundWithFuel
-    {concrete : ConcreteAlgebra.{u}}
-    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-      (compatibleFor coercedVariableValues).related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-            source))
-        (summarizeOperationWithVariables algebraFor schema variableValues operation)
-
--- Default-executor form of `OperationWithVariablesSoundWithFuel`. Its theorem witness
--- is `Syntactic.operationWithVariablesSound` in the syntactic soundness proof module.
-def OperationWithVariablesSound
-    {concrete : ConcreteAlgebra.{u}}
-    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (source : ResolverValue ObjectRef),
-      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-      (compatibleFor coercedVariableValues).related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotated schema resolvers variableValues operation source))
-        (summarizeOperationWithVariables algebraFor schema variableValues operation)
-
--- Every variable-indexed syntactic analysis supplying compatible concrete semantics is
--- sound. Its theorem witness is `Syntactic.analysisWithVariablesSound` in the syntactic
--- soundness proof module.
-def AnalysisWithVariablesSound
-    (algebraFor : VariableValues -> Algebra.{v}) (schema : Schema)
-    (operation : Operation)
-    : Prop :=
-  ∀ (concrete : ConcreteAlgebra.{u})
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values),
-    OperationWithVariablesSound algebraFor compatibleFor operation
-
--- Direct soundness for the fuel-parameterized executor. Its theorem witness is
--- `Syntactic.operationSoundWithFuel` in the syntactic soundness proof module.
-def OperationSoundWithFuel
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete abstract schema values)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (fuel : Nat)
-        (source : ResolverValue ObjectRef),
-      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-      (compatibleFor coercedVariableValues).related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-            source))
-        (summarizeOperation abstract schema operation)
-
--- Direct soundness for the default executor. Its theorem witness is
--- `Syntactic.operationSound` in the syntactic soundness proof module.
-def OperationSound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete abstract schema values)
-    (operation : Operation)
-    : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (variableValues : VariableValues) (source : ResolverValue ObjectRef),
-      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-      (compatibleFor coercedVariableValues).related
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotated schema resolvers variableValues operation source))
-        (summarizeOperation abstract schema operation)
-
--- Every analysis that supplies the local syntactic compatibility contract for each
--- coerced variable environment is sound. Its generic theorem witness is
+-- Per-operation soundness of a syntactic analysis. Its theorem witness is
 -- `Syntactic.analysisSound` in the syntactic soundness proof module.
-def AnalysisSound (abstract : Algebra.{v}) (schema : Schema) (operation : Operation)
+def AnalysisSound
+    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
+    (soundnessFor : ∀ values, Soundness concrete abstract schema values)
+    (operation : Operation)
     : Prop :=
-  ∀ (concrete : ConcreteAlgebra.{u})
-    (compatibleFor
-      : ∀ variableValues, Compatible concrete abstract schema variableValues),
-    OperationSound compatibleFor operation
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (source : ResolverValue ObjectRef),
+      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
+      (soundnessFor coercedVariableValues).approximates
+        (foldAnnotatedResponse concrete
+          (executeQueryAnnotated schema resolvers variableValues operation source))
+        (summarizeOperation abstract schema operation)
+
+-- Per-operation soundness of a variable-indexed syntactic analysis. Its theorem witness
+-- is `Syntactic.analysisWithVariablesSound` in the syntactic soundness proof module.
+def AnalysisWithVariablesSound
+    {concrete : ConcreteAlgebra.{u}}
+    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
+    (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (source : ResolverValue ObjectRef),
+      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
+      (soundnessFor coercedVariableValues).approximates
+        (foldAnnotatedResponse concrete
+          (executeQueryAnnotated schema resolvers variableValues operation source))
+        (summarizeOperationWithVariables algebraFor schema variableValues operation)
 
 end Syntactic
 end TreeSummary

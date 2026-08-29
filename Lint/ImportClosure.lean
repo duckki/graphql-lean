@@ -10,6 +10,7 @@ def defaultRoots : List String :=
     "Proofs",
     "Tests",
     "Benchmarks.QueryInclusion",
+    "Benchmarks.ExactCases",
     "Lint",
     "Lint.ImportClosureMain"
   ]

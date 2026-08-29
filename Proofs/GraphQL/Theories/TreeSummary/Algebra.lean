@@ -5,6 +5,31 @@ import GraphQL.Theories.TreeSummary
 namespace GraphQL
 namespace TreeSummary
 
+universe u v
+
+-- A constructor-by-constructor logical relation used to transport proof obligations
+-- between two summary algebras.
+structure Algebra.Relation (left : Algebra.{u}) (right : Algebra.{v})
+    : Type (max u v) where
+  related : left.Summary -> right.Summary -> Prop
+  empty_related : related left.empty right.empty
+  combine_related
+    : ∀ leftValue leftEstimate rightValue rightEstimate,
+        related leftValue leftEstimate
+        -> related rightValue rightEstimate
+        -> related (left.combine leftValue rightValue)
+            (right.combine leftEstimate rightEstimate)
+  field_related
+    : ∀ group leftChildren rightChildren,
+        related leftChildren rightChildren
+        -> related (left.field group leftChildren) (right.field group rightChildren)
+  join_related
+    : ∀ leftValue leftEstimate rightValue rightEstimate,
+        related leftValue leftEstimate
+        -> related rightValue rightEstimate
+        -> related (left.join leftValue rightValue)
+            (right.join leftEstimate rightEstimate)
+
 namespace CollectedFieldGroup
 
 @[simp]
@@ -18,8 +43,6 @@ theorem selections_ne_nil (group : CollectedFieldGroup) : group.selections ≠ [
 end CollectedFieldGroup
 
 namespace Algebra.Lawful
-
-universe v
 
 theorem combine_left_mono {algebra : Algebra.{v}} (lawful : algebra.Lawful)
     {left lower : algebra.Summary} (hleft : lawful.le left lower)
@@ -77,8 +100,6 @@ termination_by items.length
 end Algebra.Lawful
 
 namespace Algebra.Relation
-
-universe u v
 
 theorem combineMap_related
     {left : Algebra.{u}} {right : Algebra.{v}}

@@ -1,5 +1,5 @@
 import Proofs.GraphQL.Theories.TreeSummary.Syntactic.Coverage
-import Proofs.GraphQL.Theories.TreeSummary.ResponseFold
+import Proofs.GraphQL.Theories.TreeSummary.Soundness
 
 /-! Direct execution soundness for the fast Syntactic tree-summary backend. -/
 
@@ -16,10 +16,10 @@ open TreeSummary.Measure
 
 universe u v
 
-theorem Compatible.singleFieldResult_related
+theorem Soundness.singleFieldResult_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
     (schema : Schema) (variableValues : VariableValues)
-    (compatible : Compatible concrete abstract schema variableValues)
+    (soundness : Soundness concrete abstract schema variableValues)
     (runtimeType : Name) (ref : ObjectRef) (responseName : Name)
     (field : ExecutableField) (rest : List ExecutableField)
     (definition : FieldDefinition)
@@ -36,38 +36,38 @@ theorem Compatible.singleFieldResult_related
           (.object runtimeType ref) groups (field :: rest))
     (hmatch : groupsRepresentField schema variableValues runtimeType ref groups field)
     (hcompleted
-      : compatible.related (foldAnnotatedResponseValueResult concrete completed)
+      : soundness.approximates (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract
             (summarizeCollectedChildren abstract schema traversal groups) completed))
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponseFieldsResult concrete
           (singleAnnotatedResponseFieldResult schema variableValues definition
             responseName field completed))
         (summarizeCollectedGroups abstract schema traversal groups) := by
   cases completed with
-  | error errors => exact compatible.toCompatibilityCore.empty_related_any _
+  | error errors => exact soundness.toSoundnessCore.empty_sound_any _
   | ok completed =>
       rcases completed with ⟨value, errors⟩
       have hcompleted' :
-          compatible.related (foldAnnotatedResponseValueChildren concrete value)
+          soundness.approximates (foldAnnotatedResponseValue concrete value)
             (foldChildSummaryForValue abstract
               (foldChildSummaries abstract
                 (summarizedChildren abstract schema traversal) groups) value) := by
         rw [foldChildSummaries_eq_summarizeCollectedChildren]
         simpa [foldAnnotatedResponseValueResult,
           foldChildSummaryForValueResult] using hcompleted
-      have hfield := compatible.field_related ObjectRef runtimeType
+      have hfield := soundness.field_sound ObjectRef runtimeType
         ref responseName field rest definition value
-        (foldAnnotatedResponseValueChildren concrete value) groups
+        (foldAnnotatedResponseValue concrete value) groups
         (summarizedChildren abstract schema traversal)
         hparent hlookup harguments hnonempty hallows hconditions hcover hmatch hcompleted'
       rw [foldFieldGroups_eq_summarizeCollectedGroups] at hfield
       simpa [singleAnnotatedResponseFieldResult,
         resolvedFieldProvenance,
         foldAnnotatedResponseFieldsResult, foldAnnotatedResponseFields,
-        compatible.concreteLawful.combine_empty] using hfield
+        soundness.concreteLawful.combine_empty] using hfield
 
--- The sole execution-induction argument. Analyses instantiate `Compatible`; they do not
+-- The sole execution-induction argument. Analyses instantiate `Soundness`; they do not
 -- recurse over resolvers, completion, list bubbling, or response-name grouping.
 private theorem annotatedResponseExecution_related_all
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
@@ -76,7 +76,7 @@ private theorem annotatedResponseExecution_related_all
     (resolvers : Resolvers ObjectRef) (variableValues : VariableValues)
     (summaryVariableValues : VariableValues)
     (hsummaryValues : BooleanValuesMatchRuntime variableValues summaryVariableValues)
-    (compatible : Compatible concrete abstract schema variableValues)
+    (soundness : Soundness concrete abstract schema variableValues)
     (traversal : Traversal)
     (htraversal : traversal.ExecutionComplete schema variableValues)
     (htraversalRuntime
@@ -96,7 +96,7 @@ private theorem annotatedResponseExecution_related_all
           -> groupsRepresentFields schema variableValues runtimeType runtimeType
               (.object runtimeType ref) availableGroups
               (flattenCollectedFields executionGroups)
-          -> compatible.related
+          -> soundness.approximates
               (foldAnnotatedResponseFieldsResult concrete
                 (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
                   source executionGroups))
@@ -119,7 +119,7 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups fields
             -> groupsRepresentFields schema variableValues runtimeType runtimeType
                 (.object runtimeType ref) groups fields
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseFieldsResult concrete
                   (executeQueryAnnotatedField schema resolvers variableValues fuel source
                     responseName fields))
@@ -144,7 +144,7 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups fields
             -> groupsRepresentFields schema variableValues runtimeType runtimeType
                 (.object runtimeType ref) groups fields
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseValueResult concrete
                   (completeAnnotatedResponseValue schema resolvers variableValues fuel
                     fieldType fields value))
@@ -172,7 +172,7 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups fields
             -> groupsRepresentFields schema variableValues runtimeType runtimeType
                 (.object runtimeType ref) groups fields
-            -> compatible.related
+            -> soundness.approximates
                 (foldAnnotatedResponseValuesResult concrete
                   (completeAnnotatedResponseValueList schema resolvers variableValues fuel
                     itemType fields values))
@@ -186,7 +186,7 @@ private theorem annotatedResponseExecution_related_all
       _hwellFormed _hnodup _hvalid _hinherited _hcover _hrepresent
     simpa [executeQueryAnnotatedCollectedFields,
       foldAnnotatedResponseFieldsResult, foldAnnotatedResponseFields] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizeCollectedGroups abstract schema traversal availableGroups)
   case case2 =>
     intro fuel source responseName fields rest field_ih tail_ih
@@ -269,8 +269,8 @@ private theorem annotatedResponseExecution_related_all
     have hhead := field_ih runtimeType ref activeGroups rfl hgroupParent
       hgroupWellFormed.1 hgroupWellFormed.2 hgroupValid hactiveNonempty
       hactiveInherited hactiveConditions hactiveCover hactiveRepresent
-    have hhead' := compatible.related_mono _ _ _ hhead
-      (activeGroupsWithResponseName_le abstract compatible.abstractLawful schema
+    have hhead' := soundness.approximates_upward _ _ _ hhead
+      (activeGroupsWithResponseName_le abstract soundness.abstractLawful schema
         traversal variableValues runtimeType responseName availableGroups)
     have htail := tail_ih runtimeType ref
       (groupsWithoutResponseName responseName availableGroups) rfl
@@ -307,8 +307,8 @@ private theorem annotatedResponseExecution_related_all
         exact ⟨candidate, hcandidateRest, hgroupCover, heq⟩)
     rw [executeQueryAnnotatedCollectedFields,
       summarizeCollectedGroups_partition_responseName abstract
-        compatible.abstractLawful schema traversal responseName availableGroups]
-    exact compatible.toCompatibilityCore.combineFieldsResult_related _ _ _ _ hhead' htail
+        soundness.abstractLawful schema traversal responseName availableGroups]
+    exact soundness.toSoundnessCore.combineFieldsResult_sound _ _ _ _ hhead' htail
   case case3 =>
     intro fuel source responseName runtimeType ref groups _hsource _hparents
       hnonempty _hnames _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent
@@ -317,7 +317,7 @@ private theorem annotatedResponseExecution_related_all
     intro source responseName field rest runtimeType ref groups _hsource _hparents
       _hnonempty _hnames _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent
     simpa [executeQueryAnnotatedField, foldAnnotatedResponseFieldsResult] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizeCollectedGroups abstract schema traversal groups)
   case case5 =>
     intro source responseName field rest fuel hlookup runtimeType ref groups
@@ -325,7 +325,7 @@ private theorem annotatedResponseExecution_related_all
       _hcover _hrepresent
     simpa [executeQueryAnnotatedField, hlookup,
       foldAnnotatedResponseFieldsResult] using
-      compatible.toCompatibilityCore.empty_related_any
+      soundness.toSoundnessCore.empty_sound_any
         (summarizeCollectedGroups abstract schema traversal groups)
   case case6 =>
     intro source responseName field rest fuel definition hlookup hcoerce
@@ -337,14 +337,14 @@ private theorem annotatedResponseExecution_related_all
       | .nonNull _inner => .error 1
       | _ => .ok (.null, 1)
     have hcompleted :
-        compatible.related (foldAnnotatedResponseValueResult concrete completed)
+        soundness.approximates (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract
             (summarizeCollectedChildren abstract schema traversal groups) completed) := by
       cases htype : definition.outputType <;>
         simp [completed, htype, foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren, foldChildSummaryForValueResult,
+          foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
-        exact compatible.toCompatibilityCore.empty_related_any _
+        exact soundness.toSoundnessCore.empty_sound_any _
     have hmatch :
         groupsRepresentField schema variableValues runtimeType ref groups field :=
       groupsRepresentField_of_represent_and_compatible schema variableValues runtimeType ref
@@ -352,7 +352,7 @@ private theorem annotatedResponseExecution_related_all
           intro candidate hcandidate
           exact (hnames candidate hcandidate).trans (hnames field (by simp)).symm)
         hvalid.1 hconditions hrepresent
-    have hsingle := compatible.singleFieldResult_related schema variableValues
+    have hsingle := soundness.singleFieldResult_sound schema variableValues
       runtimeType ref responseName field rest definition completed groups traversal
       (hparents field (by simp)) hlookup (hvalid.2.2.1 field (by simp)) hgroups
       hinherited hconditions hcover hmatch hcompleted
@@ -369,14 +369,14 @@ private theorem annotatedResponseExecution_related_all
       | .nonNull _inner => .error 1
       | _ => .ok (.null, 1)
     have hcompleted :
-        compatible.related (foldAnnotatedResponseValueResult concrete completed)
+        soundness.approximates (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract
             (summarizeCollectedChildren abstract schema traversal groups) completed) := by
       cases htype : definition.outputType <;>
         simp [completed, htype, foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren, foldChildSummaryForValueResult,
+          foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
-        exact compatible.toCompatibilityCore.empty_related_any _
+        exact soundness.toSoundnessCore.empty_sound_any _
     have hmatch :
         groupsRepresentField schema variableValues runtimeType ref groups field :=
       groupsRepresentField_of_represent_and_compatible schema variableValues runtimeType ref
@@ -384,7 +384,7 @@ private theorem annotatedResponseExecution_related_all
           intro candidate hcandidate
           exact (hnames candidate hcandidate).trans (hnames field (by simp)).symm)
         hvalid.1 hconditions hrepresent
-    have hsingle := compatible.singleFieldResult_related schema variableValues
+    have hsingle := soundness.singleFieldResult_sound schema variableValues
       runtimeType ref responseName field rest definition completed groups traversal
       (hparents field (by simp)) hlookup (hvalid.2.2.1 field (by simp)) hgroups
       hinherited hconditions hcover hmatch hcompleted
@@ -409,7 +409,7 @@ private theorem annotatedResponseExecution_related_all
           intro candidate hcandidate
           exact (hnames candidate hcandidate).trans (hnames field (by simp)).symm)
         hvalid.1 hconditions hrepresent
-    have hsingle := compatible.singleFieldResult_related schema variableValues
+    have hsingle := soundness.singleFieldResult_sound schema variableValues
       runtimeType ref responseName field rest definition
       (completeAnnotatedResponseValue schema resolvers variableValues fuel
         definition.outputType (field :: rest) resolved)
@@ -423,7 +423,7 @@ private theorem annotatedResponseExecution_related_all
       _hinherited _hconditions _hcover _hrepresent
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case10 =>
     intro fuel inner fields value hfuel complete_ih runtimeType ref responseName
       fieldName definition groups hnamed hlookup hwitness hparents hnonempty hnames
@@ -432,7 +432,7 @@ private theorem annotatedResponseExecution_related_all
       (by simpa [TypeRef.namedType] using hnamed) hlookup hwitness hparents hnonempty hnames
       hvalid hgroups hinherited hconditions hcover hrepresent
     simpa [completeAnnotatedResponseValue, hfuel] using
-      compatible.toCompatibilityCore.completeNonNullResult_related
+      soundness.toSoundnessCore.completeNonNullResult_sound
         (completeAnnotatedResponseValue schema resolvers variableValues fuel inner fields
           value)
         (summarizeCollectedChildren abstract schema traversal groups) hinner
@@ -441,16 +441,16 @@ private theorem annotatedResponseExecution_related_all
       definition groups _hnamed _hlookup _hwitness _hparents _hnonempty _hnames
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent
     simpa [completeAnnotatedResponseValue, hnotNonNull,
-      foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+      foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
       foldChildSummaryForValueResult, foldChildSummaryForValue] using
-      compatible.empty_related
+      soundness.empty_sound
   case case12 =>
     intro fuel typeName fields value hcomposite runtimeType ref responseName fieldName
       definition groups _hnamed _hlookup _hwitness _hparents _hnonempty _hnames
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent
     simpa [completeAnnotatedResponseValue, hcomposite,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref responseName
       fieldName definition groups _hnamed _hlookup _hwitness _hparents _hnonempty
@@ -460,9 +460,9 @@ private theorem annotatedResponseExecution_related_all
       | false => rfl
       | true => exact False.elim (hnotComposite hvalue)
     simpa [completeAnnotatedResponseValue, hcomposite,
-      foldAnnotatedResponseValueResult, foldAnnotatedResponseValueChildren,
+      foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
       foldChildSummaryForValueResult, foldChildSummaryForValue] using
-      compatible.empty_related
+      soundness.empty_sound
   case case14 =>
     intro fuel childParentType fields childRuntimeType childRef hinclude childGroups
       child_ih runtimeType ref responseName fieldName definition groups hnamed hlookup
@@ -549,7 +549,7 @@ private theorem annotatedResponseExecution_related_all
         hvalid.1 hconditions hrepresent
     have hcandidatesLe :=
       candidateChildGroupsFor_le_summarizeCollectedChildren abstract
-        compatible.abstractLawful schema definition.outputType.namedType childRuntimeType
+        soundness.abstractLawful schema definition.outputType.namedType childRuntimeType
         variableValues summaryVariableValues traversal hsummaryValues htraversalRuntime groups
         (List.contains_iff_mem.mp (by
           simpa [Schema.typeIncludesObjectBool] using hinclude))
@@ -562,7 +562,7 @@ private theorem annotatedResponseExecution_related_all
               exact fieldName_mem_of_groupsRepresentField schema variableValues runtimeType
                 ref groups first hmatch group hgroup)
             hlookup)
-    have hchild' := compatible.related_mono _ _ _ hchild hcandidatesLe
+    have hchild' := soundness.approximates_upward _ _ _ hchild hcandidatesLe
     cases hresult :
         executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
           (.object childRuntimeType childRef) childGroups with
@@ -580,9 +580,9 @@ private theorem annotatedResponseExecution_related_all
         simpa [completeAnnotatedResponseValue, hinclude, hresult',
           catchAnnotatedResponseBubbleAsNull,
           foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using
-          compatible.empty_related
+          soundness.empty_sound
     | ok completed =>
         rcases completed with ⟨childFields, errors⟩
         rw [hresult] at hchild'
@@ -597,15 +597,15 @@ private theorem annotatedResponseExecution_related_all
             NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet] using
             hresult
         have hchildFields :
-            compatible.related (foldAnnotatedResponseFields concrete childFields)
+            soundness.approximates (foldAnnotatedResponseFields concrete childFields)
               (summarizeCollectedChildren abstract schema traversal groups) := by
           simpa [foldAnnotatedResponseFieldsResult] using hchild'
         simpa [completeAnnotatedResponseValue, hinclude, hresult',
           catchAnnotatedResponseBubbleAsNull,
           foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue,
-          compatible.abstractLawful.combine_empty] using hchildFields
+          soundness.abstractLawful.combine_empty] using hchildFields
   case case15 =>
     intro fuel parentType fields childRuntimeType childRef hnotInclude runtimeType ref
       responseName fieldName definition groups _hnamed _hlookup _hwitness _hparents
@@ -616,7 +616,7 @@ private theorem annotatedResponseExecution_related_all
       | true => exact False.elim (hnotInclude hvalue)
     simpa [completeAnnotatedResponseValue, hinclude,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref responseName fieldName
       definition groups hnamed hlookup hwitness hparents hnonempty hnames hvalid hgroups
@@ -631,14 +631,14 @@ private theorem annotatedResponseExecution_related_all
         simpa [completeAnnotatedResponseValue, hresult,
           catchAnnotatedResponseBubbleAsNull,
           foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using
-          compatible.empty_related
+          soundness.empty_sound
     | ok completed =>
         rcases completed with ⟨completedValues, errors⟩
         rw [hresult] at hlist
         have hvalues :
-            compatible.related (foldAnnotatedResponseValues concrete completedValues)
+            soundness.approximates (foldAnnotatedResponseValues concrete completedValues)
               (foldChildSummaryForValues abstract
                 (summarizeCollectedChildren abstract schema traversal groups)
                 completedValues) := by
@@ -647,7 +647,7 @@ private theorem annotatedResponseExecution_related_all
         simpa [completeAnnotatedResponseValue, hresult,
           catchAnnotatedResponseBubbleAsNull,
           foldAnnotatedResponseValueResult,
-          foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValue,
           foldChildSummaryForValueResult, foldChildSummaryForValue] using hvalues
   case case17 =>
     intro fuel typeName fields values runtimeType ref responseName fieldName definition
@@ -655,14 +655,14 @@ private theorem annotatedResponseExecution_related_all
       _hinherited _hconditions _hcover _hrepresent
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref responseName
       fieldName definition groups _hnamed _hlookup _hwitness _hparents _hnonempty _hnames
       _hvalid _hgroups _hinherited _hconditions _hcover _hrepresent
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
-      compatible.empty_related
+      soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref responseName fieldName definition
       groups _hnamed _hlookup _hwitness _hparents _hnonempty _hnames _hvalid _hgroups
@@ -670,7 +670,7 @@ private theorem annotatedResponseExecution_related_all
     simpa [completeAnnotatedResponseValueList,
       foldAnnotatedResponseValuesResult, foldAnnotatedResponseValues,
       foldChildSummaryForValuesResult, foldChildSummaryForValues] using
-      compatible.empty_related
+      soundness.empty_sound
   case case20 =>
     intro fuel itemType fields value values head_ih tail_ih runtimeType ref
       responseName fieldName definition groups hnamed hlookup hwitness hparents hnonempty
@@ -682,7 +682,7 @@ private theorem annotatedResponseExecution_related_all
       hnamed hlookup hwitness hparents hnonempty hnames hvalid hgroups hinherited hconditions
       hcover hrepresent
     simpa [completeAnnotatedResponseValueList] using
-      compatible.toCompatibilityCore.combineValuesResult_related
+      soundness.toSoundnessCore.combineValuesResult_sound
         (completeAnnotatedResponseValue schema resolvers variableValues fuel itemType
           fields value)
         (completeAnnotatedResponseValueList schema resolvers variableValues fuel itemType
@@ -692,7 +692,7 @@ private theorem annotatedResponseExecution_related_all
 -- Generic execution soundness with a Boolean environment already known to the abstract
 -- traversal. The environment must agree with concrete execution wherever it supplies a
 -- Boolean value.
-theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
+theorem Soundness.executeQueryAnnotatedWithFuel_soundUsingVariables
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
     (schema : Schema) (operation : Operation)
     (resolvers : Resolvers ObjectRef) (variableValues : VariableValues)
@@ -703,10 +703,10 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
     (fuel : Nat) (source : ResolverValue ObjectRef)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    (compatible
-      : Compatible concrete abstract schema
+    (soundness
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponse concrete
           (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
             source))
@@ -734,8 +734,8 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
   cases hroot : rootSourceAppliesBool schema operation source with
   | false =>
       simpa [executeQueryAnnotatedWithFuel, hroot, foldAnnotatedResponse,
-        foldAnnotatedResponseValueChildren] using
-        compatible.toCompatibilityCore.empty_related_any
+        foldAnnotatedResponseValue] using
+        soundness.toSoundnessCore.empty_sound_any
           (summarizeSelectionSet abstract schema (operation.rootType schema) []
             operation.selectionSet summaryVariableValues)
   | true =>
@@ -791,7 +791,7 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
                 traversal := by
         simpa [availableGroups] using
           summarize_traversedCollectedGroupsAtRuntimeType abstract
-            compatible.abstractLawful schema (operation.rootType schema) []
+            soundness.abstractLawful schema (operation.rootType schema) []
             (operation.rootType schema) tree traversal
       have hrootPossible :
           operation.rootType schema ∈ tree.condition.possibleTypes := by
@@ -805,7 +805,7 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
         rw [hcondition]
         simpa [rootCondition] using hmem
       have hsummaryLe :
-          compatible.abstractLawful.le
+          soundness.abstractLawful.le
             (summarizeCollectedGroups abstract schema traversal availableGroups)
             (summarizeSelectionSet abstract schema (operation.rootType schema) []
               operation.selectionSet summaryVariableValues) := by
@@ -814,7 +814,7 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
         unfold summarizeSelectionSet summarizeConditionTree
         simpa [tree, booleanConditionValues] using
           summarizeTreeAtRuntimeType_le abstract
-            compatible.abstractLawful schema (operation.rootType schema) [] tree
+            soundness.abstractLawful schema (operation.rootType schema) [] tree
             tree.condition.possibleTypes (operation.rootType schema)
             (by
               unfold tree
@@ -852,11 +852,11 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
       have hrelated :=
         (annotatedResponseExecution_related_all schema hschema resolvers
           coercedVariableValues summaryVariableValues hsummaryValues
-          compatible traversal htraversal htraversalRuntime).1 fuel
+          soundness traversal htraversal htraversalRuntime).1 fuel
           (.object (operation.rootType schema) ref) executionGroups
           (operation.rootType schema) ref availableGroups rfl hparents hwellFormed hnodup
           hvalid hinherited hcover hrepresent
-      have hrelated' := compatible.related_mono _ _ _ hrelated hsummaryLe
+      have hrelated' := soundness.approximates_upward _ _ _ hrelated hsummaryLe
       cases hresult
             : executeQueryAnnotatedCollectedFields schema resolvers coercedVariableValues
                 fuel (.object (operation.rootType schema) ref) executionGroups with
@@ -864,109 +864,136 @@ theorem Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables
           rw [hresult] at hrelated'
           simpa [executeQueryAnnotatedWithFuel, hroot, coercedVariableValues,
             executionGroups, hresult, foldAnnotatedResponse,
-            foldAnnotatedResponseValueChildren,
+            foldAnnotatedResponseValue,
             foldAnnotatedResponseFieldsResult] using hrelated'
       | ok completed =>
           rcases completed with ⟨fields, errors⟩
           rw [hresult] at hrelated'
           simpa [executeQueryAnnotatedWithFuel, hroot, coercedVariableValues,
             executionGroups, hresult, foldAnnotatedResponse,
-            foldAnnotatedResponseValueChildren,
+            foldAnnotatedResponseValue,
             foldAnnotatedResponseFieldsResult] using hrelated'
 
 -- Unknown-variable specialization of the resolved Boolean-environment theorem.
-theorem Compatible.executeQueryAnnotatedWithFuel_related
+theorem Soundness.executeQueryAnnotatedWithFuel_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
     (schema : Schema) (operation : Operation)
     (resolvers : Resolvers ObjectRef) (variableValues : VariableValues)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hoperation : Validation.operationDefinitionValid schema operation)
-    (compatible
-      : Compatible concrete abstract schema
+    (soundness
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponse concrete
           (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
             source))
         (summarizeOperation abstract schema operation) := by
   simpa [summarizeOperation] using
-    Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables schema operation
+    Soundness.executeQueryAnnotatedWithFuel_soundUsingVariables schema operation
       resolvers variableValues []
       (booleanValuesMatchRuntime_empty
         (coerceVariableValues operation variableValues))
-      fuel source hschema hoperation compatible
+      fuel source hschema hoperation soundness
+
+-- Proof-facing fuel variant used by concrete analyses and by the default-executor
+-- theorem below. The public definition module exposes only `AnalysisSound`.
+def OperationSoundWithFuel
+    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
+    (soundnessFor : ∀ values, Soundness concrete abstract schema values)
+    (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
+      (soundnessFor coercedVariableValues).approximates
+        (foldAnnotatedResponse concrete
+          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+            source))
+        (summarizeOperation abstract schema operation)
+
+-- Proof-facing fuel variant for variable-indexed syntactic algebras. The public
+-- definition module exposes only `AnalysisWithVariablesSound`.
+def OperationWithVariablesSoundWithFuel
+    {concrete : ConcreteAlgebra.{u}}
+    (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
+    (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      let coercedVariableValues := Execution.coerceVariableValues operation variableValues
+      (soundnessFor coercedVariableValues).approximates
+        (foldAnnotatedResponse concrete
+          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+            source))
+        (summarizeOperationWithVariables algebraFor schema variableValues operation)
 
 theorem operationWithVariablesSoundWithFuel
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v})
     {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
     (operation : Operation)
-    : OperationWithVariablesSoundWithFuel algebraFor compatibleFor operation := by
+    : OperationWithVariablesSoundWithFuel algebraFor soundnessFor operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source
   let coercedVariableValues := coerceVariableValues operation variableValues
   have hrelated :=
-    Compatible.executeQueryAnnotatedWithFuel_relatedUsingVariables schema operation
+    Soundness.executeQueryAnnotatedWithFuel_soundUsingVariables schema operation
       resolvers variableValues coercedVariableValues
       (booleanValuesMatchRuntime_self coercedVariableValues) fuel source hschema hoperation
-      (compatibleFor coercedVariableValues)
+      (soundnessFor coercedVariableValues)
   simpa [summarizeOperationWithVariables, coercedVariableValues] using hrelated
 
-theorem operationWithVariablesSound
+theorem analysisWithVariablesSound
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v})
     {schema : Schema}
-    (compatibleFor : ∀ values, Compatible concrete (algebraFor values) schema values)
+    (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
     (operation : Operation)
-    : OperationWithVariablesSound algebraFor compatibleFor operation := by
+    : AnalysisWithVariablesSound algebraFor soundnessFor operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source
-  have hsound := operationWithVariablesSoundWithFuel algebraFor compatibleFor
+  have hsound := operationWithVariablesSoundWithFuel algebraFor soundnessFor
     operation hschema hoperation ObjectRef resolvers variableValues
     (executeQueryFuelBound schema operation) source
   simpa [executeQueryAnnotated] using hsound
 
-theorem analysisWithVariablesSound
-    (algebraFor : VariableValues -> Algebra.{v}) (schema : Schema)
-    (operation : Operation)
-    : AnalysisWithVariablesSound algebraFor schema operation := by
-  intro concrete compatibleFor
-  exact operationWithVariablesSound algebraFor compatibleFor operation
-
--- Generic witness for direct fuel-parameterized syntactic soundness. The compatibility
+-- Generic witness for direct fuel-parameterized syntactic soundness. The soundness
 -- provider supplies the local field-group obligation after operation variables are
 -- coerced; no comparison with the exact-case summary is used.
 theorem operationSoundWithFuel
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
     {schema : Schema} {operation : Operation}
-    (compatible : ∀ variableValues, Compatible concrete abstract schema variableValues)
+    (soundness : ∀ variableValues, Soundness concrete abstract schema variableValues)
     : OperationSoundWithFuel (concrete := concrete) (abstract := abstract)
-        compatible operation := by
+        soundness operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source
   let coercedVariableValues := coerceVariableValues operation variableValues
   exact
-    Compatible.executeQueryAnnotatedWithFuel_related
+    Soundness.executeQueryAnnotatedWithFuel_sound
       schema operation resolvers variableValues fuel source hschema hoperation
-      (compatible coercedVariableValues)
+      (soundness coercedVariableValues)
 
 -- Generic witness for direct default-executor syntactic soundness.
-theorem operationSound
+theorem analysisSound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
-    {schema : Schema} {operation : Operation}
-    (compatible : ∀ variableValues, Compatible concrete abstract schema variableValues)
-    : OperationSound (concrete := concrete) (abstract := abstract)
-        compatible operation := by
+    {schema : Schema}
+    (soundness : ∀ variableValues, Soundness concrete abstract schema variableValues)
+    (operation : Operation)
+    : AnalysisSound (concrete := concrete) (abstract := abstract)
+        soundness operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source
   have hsound :=
-    operationSoundWithFuel compatible hschema hoperation ObjectRef resolvers
+    operationSoundWithFuel soundness hschema hoperation ObjectRef resolvers
       variableValues (executeQueryFuelBound schema operation) source
   simpa [executeQueryAnnotated] using hsound
-
--- Generic witness for the public syntactic analysis soundness statement.
-theorem analysisSound (abstract : Algebra.{v}) (schema : Schema) (operation : Operation)
-    : AnalysisSound abstract schema operation := by
-  intro concrete compatible
-  exact operationSound compatible
 
 end Syntactic
 end TreeSummary

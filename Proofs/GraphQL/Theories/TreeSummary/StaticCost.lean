@@ -5,10 +5,10 @@ import Proofs.GraphQL.Theories.TreeSummary.Syntactic.Soundness
 
 /-! Static-cost algebra laws, local optimality, and execution soundness.
 
-`StaticCost.evaluateAnnotatedResponse` is the concrete cost fold. The generic exact-case
-tree-summary theorem reduces execution soundness to the local compatibility proof below.
-The optimality section independently proves feasible pointwise least bounds for the
-same modeled local field transfers.
+`StaticCost.Internal.evaluateAnnotatedResponse` is the concrete cost fold. The generic
+exact-case tree-summary theorem reduces execution soundness to the local soundness
+proof below. The optimality section independently proves feasible pointwise least bounds
+for the same modeled local field transfers.
 -/
 
 namespace GraphQL
@@ -18,6 +18,7 @@ namespace StaticCost
 open GraphQL.TreeSummary.ExactCases
 open GraphQL.AnnotatedExecution
 open TreeSummary.Optimality
+open Internal
 
 private theorem cost_le_refl (cost : Bound) : cost ≤ cost :=
   ⟨Nat.le_refl _, Nat.le_refl _⟩
@@ -65,6 +66,104 @@ private theorem cost_max_mono {leftLower leftUpper rightLower rightUpper : Bound
         Nat.le_trans hright.2 (Nat.le_max_right _ _)
       ⟩
   ⟩
+
+private theorem nat_add_max_left (left right other : Nat)
+    : max left right + other = max (left + other) (right + other) := by
+  by_cases hle : left ≤ right
+  · rw [Nat.max_eq_right hle,
+      Nat.max_eq_right (Nat.add_le_add_right hle other)]
+  · have hge : right ≤ left := Nat.le_of_not_ge hle
+    rw [Nat.max_eq_left hge,
+      Nat.max_eq_left (Nat.add_le_add_right hge other)]
+
+private theorem nat_add_max_right (other left right : Nat)
+    : other + max left right = max (other + left) (other + right) := by
+  by_cases hle : left ≤ right
+  · rw [Nat.max_eq_right hle,
+      Nat.max_eq_right (Nat.add_le_add_left hle other)]
+  · have hge : right ≤ left := Nat.le_of_not_ge hle
+    rw [Nat.max_eq_left hge,
+      Nat.max_eq_left (Nat.add_le_add_left hge other)]
+
+private theorem nat_max_interchange
+    (leftAccumulator rightAccumulator leftValue rightValue : Nat)
+    : max (max leftAccumulator rightAccumulator) (max leftValue rightValue)
+      = max (max leftAccumulator leftValue) (max rightAccumulator rightValue) := by
+  rw [Nat.max_assoc, Nat.max_left_comm rightAccumulator leftValue rightValue,
+    ← Nat.max_assoc]
+
+private theorem cost_add_max_left (left right other : Bound)
+    : Bound.add (Bound.max left right) other
+      = Bound.max (Bound.add left other) (Bound.add right other) := by
+  rcases left with ⟨leftType, leftField⟩
+  rcases right with ⟨rightType, rightField⟩
+  rcases other with ⟨otherType, otherField⟩
+  change
+    Bound.mk (max leftType rightType + otherType)
+        (max leftField rightField + otherField)
+      = Bound.mk (max (leftType + otherType) (rightType + otherType))
+          (max (leftField + otherField) (rightField + otherField))
+  rw [nat_add_max_left, nat_add_max_left]
+
+private theorem cost_add_max_right (other left right : Bound)
+    : Bound.add other (Bound.max left right)
+      = Bound.max (Bound.add other left) (Bound.add other right) := by
+  rcases left with ⟨leftType, leftField⟩
+  rcases right with ⟨rightType, rightField⟩
+  rcases other with ⟨otherType, otherField⟩
+  change
+    Bound.mk (otherType + max leftType rightType)
+        (otherField + max leftField rightField)
+      = Bound.mk (max (otherType + leftType) (otherType + rightType))
+          (max (otherField + leftField) (otherField + rightField))
+  rw [nat_add_max_right, nat_add_max_right]
+
+private theorem cost_max_interchange
+    (leftAccumulator rightAccumulator leftValue rightValue : Bound)
+    : Bound.max (Bound.max leftAccumulator rightAccumulator)
+        (Bound.max leftValue rightValue)
+      = Bound.max (Bound.max leftAccumulator leftValue)
+          (Bound.max rightAccumulator rightValue) := by
+  rcases leftAccumulator with ⟨leftAccumulatorType, leftAccumulatorField⟩
+  rcases rightAccumulator with ⟨rightAccumulatorType, rightAccumulatorField⟩
+  rcases leftValue with ⟨leftValueType, leftValueField⟩
+  rcases rightValue with ⟨rightValueType, rightValueField⟩
+  change
+    Bound.mk
+        (max (max leftAccumulatorType rightAccumulatorType)
+          (max leftValueType rightValueType))
+        (max (max leftAccumulatorField rightAccumulatorField)
+          (max leftValueField rightValueField))
+      = Bound.mk
+          (max (max leftAccumulatorType leftValueType)
+            (max rightAccumulatorType rightValueType))
+          (max (max leftAccumulatorField leftValueField)
+            (max rightAccumulatorField rightValueField))
+  rw [nat_max_interchange leftAccumulatorType rightAccumulatorType leftValueType
+      rightValueType,
+    nat_max_interchange leftAccumulatorField rightAccumulatorField leftValueField
+      rightValueField]
+
+private theorem foldl_project_max_pair
+    {alpha : Type} (combined left right : alpha -> Bound)
+    (values : List alpha) (leftAccumulator rightAccumulator : Bound)
+    (hcombined
+      : ∀ value, value ∈ values -> combined value = Bound.max (left value) (right value))
+    : values.foldl (fun maximum value => Bound.max maximum (combined value))
+        (Bound.max leftAccumulator rightAccumulator)
+      = Bound.max
+          (values.foldl (fun maximum value => Bound.max maximum (left value))
+            leftAccumulator)
+          (values.foldl (fun maximum value => Bound.max maximum (right value))
+            rightAccumulator) := by
+  induction values generalizing leftAccumulator rightAccumulator with
+  | nil => rfl
+  | cons first rest ih =>
+      simp only [List.foldl_cons]
+      rw [hcombined first (by simp), cost_max_interchange]
+      exact ih _ _ (by
+        intro value hvalue
+        exact hcombined value (by simp [hvalue]))
 
 private theorem actualCost_le_refl (cost : Cost) : cost ≤ cost :=
   ⟨Int.le_refl _, Nat.le_refl _⟩
@@ -368,7 +467,7 @@ private theorem expectedSize_eq_of_argumentValues
       : ∀ argumentName,
           listsRelatedAsSets InputValue.equivalent
             (argumentValues left argumentName) (argumentValues right argumentName))
-    : listSize.expectedSize? left = listSize.expectedSize? right := by
+    : Internal.expectedSize? listSize left = Internal.expectedSize? listSize right := by
   have hslicing :
       listSize.slicingArguments.filterMap
           (slicingArgumentSize? left)
@@ -379,7 +478,7 @@ private theorem expectedSize_eq_of_argumentValues
         listSize.slicingArguments.filterMap project)
     funext argumentName
     exact slicingArgumentSize_eq_of_argumentValues hvalues argumentName
-  unfold ListSize.expectedSize?
+  unfold Internal.expectedSize?
   rw [hslicing]
 
 private theorem argumentsCost_eq_of_argumentValues
@@ -397,16 +496,14 @@ private theorem argumentsCost_eq_of_argumentValues
     (fun step : Int -> InputValueDefinition -> Int => definitions.foldl step 0)
   funext cost definition
   have hmaximum :
-      maximumInt?
-          ((argumentValues left definition.name).map
+      ((argumentValues left definition.name).map
             fun value =>
               inputValueCost schema model
-                (.argumentDefinition field definition.name) definition value)
-        = maximumInt?
-          ((argumentValues right definition.name).map
+                (.argumentDefinition field definition.name) definition value).max?
+        = ((argumentValues right definition.name).map
             fun value =>
               inputValueCost schema model
-                (.argumentDefinition field definition.name) definition value) := by
+                (.argumentDefinition field definition.name) definition value).max? := by
     apply listMax_eq_of_mem_iff
     exact listMap_mem_iff_of_related InputValue.equivalent
       (fun value =>
@@ -466,7 +563,7 @@ private theorem expectedSize_eq_of_argumentsEquivalent
     (listSize : ListSize)
     {left right : List Argument}
     (hequivalent : Argument.argumentsEquivalent left right)
-    : listSize.expectedSize? left = listSize.expectedSize? right := by
+    : Internal.expectedSize? listSize left = Internal.expectedSize? listSize right := by
   apply expectedSize_eq_of_argumentValues
   exact argumentValues_related_of_argumentsEquivalent hequivalent
 
@@ -638,10 +735,204 @@ theorem concreteAlgebra_lawful (schema : Schema) (model : CostModel)
     simp [concreteAlgebra, ResponseObservation.empty, ResponseObservation.combine,
       actualCost_add_zero]
 
+private def fieldBound (instanceCount : Nat) (outputCost : Int)
+    (callCost : Nat) (childCost : Bound)
+    : Bound :=
+  {
+    typeCost :=
+      (Int.ofNat instanceCount * (outputCost + Int.ofNat childCost.typeCost)).toNat
+    fieldCost := callCost + instanceCount * childCost.fieldCost
+  }
+
+private theorem fieldBound_max (instanceCount : Nat) (outputCost : Int)
+    (callCost : Nat) (left right : Bound)
+    : fieldBound instanceCount outputCost callCost (Bound.max left right)
+      = Bound.max (fieldBound instanceCount outputCost callCost left)
+          (fieldBound instanceCount outputCost callCost right) := by
+  cases left with
+  | mk leftType leftField =>
+      cases right with
+      | mk rightType rightField =>
+          unfold fieldBound Bound.max
+          congr
+          · change (Int.ofNat instanceCount
+                      * (outputCost + Int.ofNat (max leftType rightType))).toNat
+                    = max
+                        ((Int.ofNat instanceCount
+                          * (outputCost + Int.ofNat leftType)).toNat)
+                        ((Int.ofNat instanceCount
+                          * (outputCost + Int.ofNat rightType)).toNat)
+            by_cases hle : leftType ≤ rightType
+            · have hmono :
+                  (Int.ofNat instanceCount
+                    * (outputCost + Int.ofNat leftType)).toNat
+                    ≤ (Int.ofNat instanceCount
+                      * (outputCost + Int.ofNat rightType)).toNat := by
+                apply Int.toNat_le_toNat
+                apply Int.mul_le_mul_of_nonneg_left
+                · exact Int.add_le_add_left (Int.ofNat_le.mpr hle) _
+                · exact Int.natCast_nonneg _
+              rw [Nat.max_eq_right hle, Nat.max_eq_right hmono]
+            · have hge : rightType ≤ leftType := Nat.le_of_not_ge hle
+              have hmono :
+                  (Int.ofNat instanceCount
+                    * (outputCost + Int.ofNat rightType)).toNat
+                    ≤ (Int.ofNat instanceCount
+                      * (outputCost + Int.ofNat leftType)).toNat := by
+                apply Int.toNat_le_toNat
+                apply Int.mul_le_mul_of_nonneg_left
+                · exact Int.add_le_add_left (Int.ofNat_le.mpr hge) _
+                · exact Int.natCast_nonneg _
+              rw [Nat.max_eq_left hge, Nat.max_eq_left hmono]
+          · change callCost + instanceCount * max leftField rightField
+              = max (callCost + instanceCount * leftField)
+                  (callCost + instanceCount * rightField)
+            by_cases hle : leftField ≤ rightField
+            · rw [Nat.max_eq_right hle,
+                Nat.max_eq_right (Nat.add_le_add_left
+                  (Nat.mul_le_mul_left instanceCount hle) callCost)]
+            · have hge : rightField ≤ leftField := Nat.le_of_not_ge hle
+              rw [Nat.max_eq_left hge,
+                Nat.max_eq_left (Nat.add_le_add_left
+                  (Nat.mul_le_mul_left instanceCount hge) callCost)]
+
+private theorem fieldUseCostAtParentType_max
+    (schema : Schema) (model : CostModel) (parentType : Name)
+    (left right : Summary) (inheritedSizedFields : List SizedField)
+    (fieldName : Name) (arguments : List Argument)
+    : fieldUseCostAtParentType schema model parentType
+        (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+        inheritedSizedFields fieldName arguments
+      = Bound.max
+          (fieldUseCostAtParentType schema model parentType left inheritedSizedFields
+            fieldName arguments)
+          (fieldUseCostAtParentType schema model parentType right inheritedSizedFields
+            fieldName arguments) := by
+  unfold fieldUseCostAtParentType
+  split
+  · rfl
+  · exact fieldBound_max _ _ _ _ _
+
+private theorem fieldUseCostAtParentTypeWithVariables_max
+    (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues) (parentType : Name)
+    (left right : Summary) (inheritedSizedFields : List SizedField)
+    (fieldName : Name) (arguments : List Argument)
+    : fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
+        (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+        inheritedSizedFields fieldName arguments
+      = Bound.max
+          (fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
+            left inheritedSizedFields fieldName arguments)
+          (fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
+            right inheritedSizedFields fieldName arguments) := by
+  unfold fieldUseCostAtParentTypeWithVariables
+  split
+  · rfl
+  · exact fieldUseCostAtParentType_max schema model parentType left right
+      inheritedSizedFields fieldName _
+
+private theorem fieldUseCost_max
+    (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
+    (left right : Summary) (inheritedSizedFields : List SizedField)
+    (fieldName : Name) (arguments : List Argument)
+    : fieldUseCost schema model variableValues group
+        (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+        inheritedSizedFields fieldName arguments
+      = Bound.max
+          (fieldUseCost schema model variableValues group left inheritedSizedFields
+            fieldName arguments)
+          (fieldUseCost schema model variableValues group right inheritedSizedFields
+            fieldName arguments) := by
+  unfold fieldUseCost
+  simpa [Bound.max, Bound.zero] using
+    foldl_project_max_pair
+      (fun parentType =>
+        fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
+          (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+          inheritedSizedFields fieldName arguments)
+      (fun parentType =>
+        fieldUseCostAtParentTypeWithVariables schema model variableValues parentType left
+          inheritedSizedFields fieldName arguments)
+      (fun parentType =>
+        fieldUseCostAtParentTypeWithVariables schema model variableValues parentType right
+          inheritedSizedFields fieldName arguments)
+      group.condition.possibleTypes .zero .zero (by
+        intro parentType _hparentType
+        exact fieldUseCostAtParentTypeWithVariables_max schema model variableValues
+          parentType left right inheritedSizedFields fieldName arguments)
+
+private theorem groupCost_eq_foldl_max
+    (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
+    (childSummary : Summary) (inheritedSizedFields : List SizedField)
+    : groupCost schema model variableValues group childSummary inheritedSizedFields
+      = group.selections.foldl
+          (fun maximum selection =>
+            Bound.max maximum
+              (match selectionFieldUse? selection with
+                | none => .zero
+                | some (fieldName, arguments) =>
+                    fieldUseCost schema model variableValues group childSummary
+                      inheritedSizedFields fieldName arguments))
+          .zero := by
+  unfold groupCost
+  apply congrArg
+    (fun step : Bound -> Selection -> Bound => group.selections.foldl step .zero)
+  funext cost selection
+  cases cost
+  cases selection <;> simp [selectionFieldUse?, Bound.max, Bound.zero]
+
+private theorem groupCost_max
+    (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
+    (left right : Summary) (inheritedSizedFields : List SizedField)
+    : groupCost schema model variableValues group
+        (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+        inheritedSizedFields
+      = Bound.max
+          (groupCost schema model variableValues group left inheritedSizedFields)
+          (groupCost schema model variableValues group right inheritedSizedFields) := by
+  rw [groupCost_eq_foldl_max, groupCost_eq_foldl_max,
+    groupCost_eq_foldl_max]
+  have hpair := foldl_project_max_pair
+      (fun selection =>
+        match selectionFieldUse? selection with
+        | none => .zero
+        | some (fieldName, arguments) =>
+            fieldUseCost schema model variableValues group
+              (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
+              inheritedSizedFields fieldName arguments)
+      (fun selection =>
+        match selectionFieldUse? selection with
+        | none => .zero
+        | some (fieldName, arguments) =>
+            fieldUseCost schema model variableValues group left inheritedSizedFields
+              fieldName arguments)
+      (fun selection =>
+        match selectionFieldUse? selection with
+        | none => .zero
+        | some (fieldName, arguments) =>
+            fieldUseCost schema model variableValues group right inheritedSizedFields
+              fieldName arguments)
+      group.selections .zero .zero (by
+        intro selection _hselection
+        cases huse : selectionFieldUse? selection with
+        | none => simp [Bound.max, Bound.zero]
+        | some use =>
+            rcases use with ⟨fieldName, arguments⟩
+            simpa [huse] using fieldUseCost_max schema model variableValues group
+              left right inheritedSizedFields fieldName arguments)
+  have hzero : Bound.max Bound.zero Bound.zero = Bound.zero := rfl
+  rw [hzero] at hpair
+  exact hpair
+
 def algebraLawful (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
-    : (algebra schema model variableValues).Lawful :=
-  {
+    : (algebra schema model variableValues).Lawful := by
+  unfold algebra
+  exact {
     le := fun lower upper => ∀ sizedFields, lower sizedFields ≤ upper sizedFields
     le_refl := fun _ _ => cost_le_refl _
     le_trans :=
@@ -1363,7 +1654,7 @@ mutual
     | null =>
         simp [responseValueTypeCost, actualInstanceCount]
     | scalar value =>
-        simp [responseValueTypeCost, responseLeafTypeCost, actualInstanceCount]
+        simp [responseValueTypeCost, actualInstanceCount]
     | object runtimeType fields =>
         simp [responseValueTypeCost, actualInstanceCount]
     | list values =>
@@ -1395,7 +1686,7 @@ mutual
         ≤ Bound.scale (actualInstanceCount value) (childSummary sizedFields) := by
     cases value with
     | null =>
-        simpa [foldChildSummaryForValue, actualInstanceCount, Bound.scale,
+        simpa [foldChildSummaryForValue, actualInstanceCount, algebra, Bound.scale,
           Bound.zero]
           using cost_le_refl Bound.zero
     | scalar value =>
@@ -1417,7 +1708,7 @@ mutual
         ≤ Bound.scale (actualInstanceCountList values) (childSummary sizedFields) := by
     cases values with
     | nil =>
-        simpa [foldChildSummaryForValues, actualInstanceCountList, Bound.scale,
+        simpa [foldChildSummaryForValues, actualInstanceCountList, algebra, Bound.scale,
           Bound.zero]
           using cost_le_refl Bound.zero
     | cons value rest =>
@@ -1548,12 +1839,12 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
         exact Int.le_trans (by simp [responseFieldCost, hlookup])
           (Int.natCast_nonneg _)
     | scalar scalarValue =>
-        have hleaf : responseLeafTypeCost schema model schemaDefinition.outputType
+        have hleaf : outputTypeCost schema model schemaDefinition.outputType
             ≤ perInstanceTypeCost := by
           exact Int.le_add_of_nonneg_right (Int.natCast_nonneg _)
         exact Int.le_trans (by
           simpa [responseFieldCost, hlookup, parentType, fieldName, arguments,
-            responseLeafTypeCost, actualInstanceCount] using hleaf) hfinalType
+            actualInstanceCount] using hleaf) hfinalType
     | list values =>
         exact Int.le_trans (by
           simpa [responseFieldCost, hlookup, parentType, fieldName, arguments, coordinate,
@@ -1607,15 +1898,16 @@ private theorem actualCost_le_staticBound
     subst data
     constructor
     · simpa [actualCost, responseRootCost, evaluateAnnotatedResponse,
+        concreteAlgebra,
         TreeSummary.foldAnnotatedResponse,
-        TreeSummary.foldAnnotatedResponseValueChildren,
+        foldAnnotatedResponseValue,
         ResponseObservation.empty, Cost.add, Cost.zero] using
         (Int.le_max_left 0
           (namedTypeCost schema model schema.queryType
             + Int.ofNat selectionBound.typeCost))
-    · simp [actualCost, responseRootCost, evaluateAnnotatedResponse,
+    · simp [actualCost, responseRootCost, evaluateAnnotatedResponse, concreteAlgebra,
         TreeSummary.foldAnnotatedResponse,
-        TreeSummary.foldAnnotatedResponseValueChildren,
+        foldAnnotatedResponseValue,
         ResponseObservation.empty, Cost.add, Cost.zero]
   · change data = .object runtimeType fields at hobject
     subst data
@@ -1649,10 +1941,11 @@ namespace ExactCases
 private def bestTransferLaws (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
     : TreeSummary.ExactCases.BestTransferLaws
-        (caseSemantics schema model variableValues)
-        (algebra schema model variableValues) :=
-  {
-    related := SummaryBound
+        (outcomeSemantics schema model variableValues)
+        (algebra schema model variableValues) := by
+  unfold outcomeSemantics algebra
+  exact {
+    approximates := SummaryBound
     le := SummaryBound
     empty_best := by
       let emptySummary : Summary := fun _sizedFields => .zero
@@ -1746,34 +2039,63 @@ private def bestTransferLaws (schema : Schema) (model : CostModel)
 -- Public witness: the variable-aware exact static-cost summary is the pointwise least
 -- bound of its local modeled field costs, recursively through every child selection
 -- set.
-theorem summaryOptimalWithVariables (schema : Schema) (model : CostModel)
+theorem analysisWithVariablesOptimal (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
-    : SummaryOptimalWithVariables schema model variableValues operation := by
+    : AnalysisWithVariablesOptimal schema model variableValues operation := by
   have hbest :=
     TreeSummary.ExactCases.summarizeOperationWithVariables_best
       (algebra schema model) (schema := schema) variableValues operation
       (bestTransferLaws schema model
         (Execution.coerceVariableValues operation variableValues))
   change BestBound SummaryBound SummaryBound _ _ at hbest
-  simpa [SummaryOptimalWithVariables] using hbest
+  simpa [AnalysisWithVariablesOptimal] using hbest
 
-def compatible (schema : Schema) (model : CostModel)
+theorem joinFactoringLaws (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.Compatible (concreteAlgebra schema model)
+    : TreeSummary.ExactCases.JoinFactoringLaws (algebra schema model variableValues)
+        (algebraLawful schema model variableValues) := by
+  unfold algebra
+  exact {
+    join_le := by
+      intro left right upper hleft hright sizedFields
+      exact cost_max_le (hleft sizedFields) (hright sizedFields)
+    combine_join_le := by
+      intro left right other sizedFields
+      change Bound.add (Bound.max (left sizedFields) (right sizedFields))
+          (other sizedFields)
+        ≤ Bound.max (Bound.add (left sizedFields) (other sizedFields))
+            (Bound.add (right sizedFields) (other sizedFields))
+      rw [cost_add_max_left]
+      exact cost_le_refl _
+    field_join_le := by
+      intro group left right sizedFields
+      change groupCost schema model variableValues group
+          (fun inherited => Bound.max (left inherited) (right inherited)) sizedFields
+        ≤ Bound.max
+            (groupCost schema model variableValues group left sizedFields)
+            (groupCost schema model variableValues group right sizedFields)
+      rw [groupCost_max]
+      exact cost_le_refl _
+  }
+
+def soundness (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues)
+    : TreeSummary.ExactCases.Soundness (concreteAlgebra schema model)
         (algebra schema model variableValues) schema variableValues :=
   {
-    related := ResponseObservationBound
+    approximates := ResponseObservationBound
     concreteLawful := concreteAlgebra_lawful schema model
     abstractLawful := algebraLawful schema model variableValues
-    empty_related := empty_bound
-    combine_related := by
+    joinFactoringLaws := joinFactoringLaws schema model variableValues
+    empty_sound := empty_bound
+    combine_sound := by
       intro concreteLeft abstractLeft concreteRight abstractRight hleft hright
       exact combine_bound hleft hright
-    related_mono := by
+    approximates_upward := by
       intro concreteValue abstractLower abstractUpper hlower hle sizedFields hadmissible
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
-    field_related := by
+    field_sound := by
       intro group field definition value children abstractChildren hparent
         hrepresents hlookup _houtput hchildren
       intro inheritedSizedFields hadmissible
@@ -1810,14 +2132,31 @@ def compatible (schema : Schema) (model : CostModel)
           simpa [algebra] using hselectionBound)))
   }
 
-theorem soundWithVariablesWithFuel
+-- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.
+def AnalysisWithVariablesSoundWithFuel
     (schema : Schema) (model : CostModel) (operation : Operation)
-    : SoundWithVariablesWithFuel schema model operation := by
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Execution.Resolvers ObjectRef)
+        (variableValues : Execution.VariableValues) (fuel : Nat)
+        (source : Execution.ResolverValue ObjectRef),
+      ResponseWithinEstimatedSizes schema model
+        (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+          source)
+      -> actualCost schema model
+            (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+              source)
+          ≤ estimateOperationWithVariables schema model variableValues operation
+
+theorem analysisWithVariablesSoundWithFuel
+    (schema : Schema) (model : CostModel) (operation : Operation)
+    : AnalysisWithVariablesSoundWithFuel schema model operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source hadmissible
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
   have hrefinement :=
     TreeSummary.ExactCases.operationWithVariablesSoundWithFuel
-      (algebra schema model) (compatible schema model) operation hschema hoperation
+      (algebra schema model) (soundness schema model) operation hschema hoperation
       ObjectRef resolvers variableValues fuel source
   have hcost := actualCost_le_staticBound schema model
     (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel source)
@@ -1827,39 +2166,40 @@ theorem soundWithVariablesWithFuel
       fuel source)
     (hrefinement [] hadmissible)
   simpa [ResponseWithinEstimatedSizes, actualCost,
-    StaticCost.evaluateAnnotatedResponse, estimateOperationWithVariables,
+    Internal.evaluateAnnotatedResponse, estimateOperationWithVariables,
     coercedVariableValues] using
     hcost
 
-theorem soundWithVariables (schema : Schema) (model : CostModel) (operation : Operation)
-    : SoundWithVariables schema model operation := by
+theorem analysisWithVariablesSound
+    (schema : Schema) (model : CostModel) (operation : Operation)
+    : AnalysisWithVariablesSound schema model operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source hadmissible
-  exact soundWithVariablesWithFuel schema model operation hschema hoperation ObjectRef
-    resolvers variableValues (Execution.executeQueryFuelBound schema operation) source
-    hadmissible
+  exact analysisWithVariablesSoundWithFuel schema model operation hschema hoperation
+    ObjectRef resolvers variableValues (Execution.executeQueryFuelBound schema operation)
+    source hadmissible
 
 end ExactCases
 
 namespace Syntactic
 
-def compatible (schema : Schema) (model : CostModel)
+def soundness (schema : Schema) (model : CostModel)
     (hnonnegative : TypeCostsNonnegative schema model)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.Syntactic.Compatible (concreteAlgebra schema model)
+    : TreeSummary.Syntactic.Soundness (concreteAlgebra schema model)
         (algebra schema model variableValues) schema variableValues :=
   {
-    related := ResponseObservationBound
+    approximates := ResponseObservationBound
     concreteLawful := concreteAlgebra_lawful schema model
     abstractLawful := algebraLawful schema model variableValues
-    empty_related := empty_bound
-    combine_related := by
+    empty_sound := empty_bound
+    combine_sound := by
       intro concreteLeft abstractLeft concreteRight abstractRight hleft hright
       exact combine_bound hleft hright
-    related_mono := by
+    approximates_upward := by
       intro concreteValue abstractLower abstractUpper hlower hle sizedFields hadmissible
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
-    field_related := by
+    field_sound := by
       intro ObjectRef runtimeType ref _responseName field _rest definition value children
         groups abstractChildren hparent hlookup hargumentsNodup hnonempty _hinherited
         hconditions _hcover hmatch hchildren
@@ -1896,9 +2236,27 @@ def compatible (schema : Schema) (model : CostModel)
         simpa [hparent, combinedChildren, algebra] using hcapacity))
   }
 
-theorem soundWithVariablesWithFuel
+-- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.
+def AnalysisWithVariablesSoundWithFuel
     (schema : Schema) (model : CostModel) (operation : Operation)
-    : SoundWithVariablesWithFuel schema model operation := by
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> TypeCostsNonnegative schema model
+  -> ∀ (ObjectRef : Type) (resolvers : Execution.Resolvers ObjectRef)
+        (variableValues : Execution.VariableValues) (fuel : Nat)
+        (source : Execution.ResolverValue ObjectRef),
+      ResponseWithinEstimatedSizes schema model
+        (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+          source)
+      -> actualCost schema model
+            (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
+              source)
+          ≤ estimateOperationWithVariables schema model variableValues operation
+
+theorem analysisWithVariablesSoundWithFuel
+    (schema : Schema) (model : CostModel) (operation : Operation)
+    : AnalysisWithVariablesSoundWithFuel schema model operation := by
   intro hschema hoperation hnonnegative ObjectRef resolvers variableValues fuel source
     hadmissible
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
@@ -1906,7 +2264,7 @@ theorem soundWithVariablesWithFuel
     TreeSummary.Syntactic.operationWithVariablesSoundWithFuel
       (concrete := concreteAlgebra schema model)
       (algebra schema model)
-      (fun values => compatible schema model hnonnegative values) operation hschema
+      (fun values => soundness schema model hnonnegative values) operation hschema
       hoperation ObjectRef resolvers variableValues fuel source
   have hcost := actualCost_le_staticBound schema model
     (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel source)
@@ -1916,16 +2274,17 @@ theorem soundWithVariablesWithFuel
       fuel source)
     (hrefinement [] hadmissible)
   simpa [ResponseWithinEstimatedSizes, actualCost,
-    StaticCost.evaluateAnnotatedResponse, Syntactic.estimateOperationWithVariables,
+    Internal.evaluateAnnotatedResponse, Syntactic.estimateOperationWithVariables,
     coercedVariableValues] using hcost
 
-theorem soundWithVariables (schema : Schema) (model : CostModel) (operation : Operation)
-    : SoundWithVariables schema model operation := by
+theorem analysisWithVariablesSound
+    (schema : Schema) (model : CostModel) (operation : Operation)
+    : AnalysisWithVariablesSound schema model operation := by
   intro hschema hoperation hnonnegative ObjectRef resolvers variableValues source
     hadmissible
-  exact soundWithVariablesWithFuel schema model operation hschema hoperation hnonnegative
-    ObjectRef resolvers variableValues (Execution.executeQueryFuelBound schema operation)
-    source hadmissible
+  exact analysisWithVariablesSoundWithFuel schema model operation hschema hoperation
+    hnonnegative ObjectRef resolvers variableValues
+    (Execution.executeQueryFuelBound schema operation) source hadmissible
 
 end Syntactic
 

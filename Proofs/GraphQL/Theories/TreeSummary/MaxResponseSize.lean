@@ -133,14 +133,14 @@ theorem concreteAlgebra_lawful (schema : Schema) : (concreteAlgebra schema).Lawf
 theorem responseValueSize_toResponseValue (schema : Schema)
     (value : AnnotatedResponseValue)
     : responseValueSize value.toResponseValue
-      = (foldAnnotatedResponseValueChildren (concreteAlgebra schema) value).size := by
+      = (foldAnnotatedResponseValue (concreteAlgebra schema) value).size := by
   apply AnnotatedResponseValue.rec
     (motive_1 := fun value =>
       responseValueSize value.toResponseValue
-        = (foldAnnotatedResponseValueChildren (concreteAlgebra schema) value).size)
+        = (foldAnnotatedResponseValue (concreteAlgebra schema) value).size)
     (motive_2 := fun field =>
       responseValueSize field.value.toResponseValue
-        = (foldAnnotatedResponseValueChildren
+        = (foldAnnotatedResponseValue
             (concreteAlgebra schema) field.value).size)
     (motive_3 := fun fields =>
       responseObjectFieldsSize (annotatedResponseFieldsToResponseFields fields)
@@ -153,7 +153,7 @@ theorem responseValueSize_toResponseValue (schema : Schema)
     simp_all [AnnotatedResponseValue.toResponseValue,
       annotatedResponseFieldsToResponseFields, annotatedResponseValuesToResponseValues,
       responseValueSize, responseObjectFieldsSize, responseValuesSize,
-      foldAnnotatedResponseValueChildren, foldAnnotatedResponseFields,
+      foldAnnotatedResponseValue, foldAnnotatedResponseFields,
       foldAnnotatedResponseValues, concreteAlgebra,
       ResponseObservation.combine, ResponseObservation.empty,
       AnnotatedResponseField.value]
@@ -182,8 +182,7 @@ private def annotatedValueResultAdmissible (schema : Schema) (listSize : Nat)
   | .error _errors => True
   | .ok (value, _errors) =>
       responseValueChildMultiplicity value ≤ max 1 (listMultiplier listSize fieldType)
-      ∧ (foldAnnotatedResponseValueChildren (concreteAlgebra schema) value).admissible
-          listSize
+      ∧ (foldAnnotatedResponseValue (concreteAlgebra schema) value).admissible listSize
 
 private def annotatedValuesResultAdmissible (schema : Schema) (listSize length : Nat)
     (itemType : TypeRef)
@@ -301,7 +300,7 @@ private theorem annotatedExecution_admissible
         annotatedFieldsResultAdmissible,
         foldAnnotatedResponseFields, responseFieldObservation,
         ResponseObservation.combine, ResponseObservation.empty,
-        foldAnnotatedResponseValueChildren, responseValueChildMultiplicity]
+        foldAnnotatedResponseValue, responseValueChildMultiplicity]
   case case7 =>
     intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
       hresolve
@@ -311,7 +310,7 @@ private theorem annotatedExecution_admissible
         annotatedFieldsResultAdmissible,
         foldAnnotatedResponseFields, responseFieldObservation,
         ResponseObservation.combine, ResponseObservation.empty,
-        foldAnnotatedResponseValueChildren, responseValueChildMultiplicity]
+        foldAnnotatedResponseValue, responseValueChildMultiplicity]
   case case8 =>
     intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
       resolved hresolve complete_ih
@@ -349,7 +348,7 @@ private theorem annotatedExecution_admissible
     intro fuel fieldType fields hnotNonNull _hsafe
     simp [completeAnnotatedResponseValue,
       annotatedValueResultAdmissible, responseValueChildMultiplicity,
-      foldAnnotatedResponseValueChildren, ResponseObservation.empty]
+      foldAnnotatedResponseValue, ResponseObservation.empty]
   case case12 =>
     intro fuel typeName fields value hcomposite _hsafe
     simp [completeAnnotatedResponseValue, hcomposite, annotatedValueResultAdmissible]
@@ -360,7 +359,7 @@ private theorem annotatedExecution_admissible
       | false => rfl
       | true => exact False.elim (hnotComposite hvalue)
     simp [completeAnnotatedResponseValue, hcomposite, annotatedValueResultAdmissible,
-      responseValueChildMultiplicity, foldAnnotatedResponseValueChildren,
+      responseValueChildMultiplicity, foldAnnotatedResponseValue,
       ResponseObservation.empty, listMultiplier]
   case case14 =>
     intro fuel parentType fields runtimeType ref hinclude childGroups child_ih _hsafe
@@ -378,7 +377,7 @@ private theorem annotatedExecution_admissible
             hcompleted
         simp_all [completeAnnotatedResponseValue,
           catchAnnotatedResponseBubbleAsNull, annotatedValueResultAdmissible,
-          responseValueChildMultiplicity, foldAnnotatedResponseValueChildren,
+          responseValueChildMultiplicity, foldAnnotatedResponseValue,
           ResponseObservation.empty, listMultiplier]
     | ok completed =>
         rcases completed with ⟨childFields, errors⟩
@@ -393,7 +392,7 @@ private theorem annotatedExecution_admissible
             hcompleted
         simp_all [completeAnnotatedResponseValue,
           catchAnnotatedResponseBubbleAsNull, annotatedValueResultAdmissible,
-          responseValueChildMultiplicity, foldAnnotatedResponseValueChildren,
+          responseValueChildMultiplicity, foldAnnotatedResponseValue,
           listMultiplier]
         simpa [annotatedFieldsResultAdmissible] using child_ih
   case case15 =>
@@ -411,13 +410,13 @@ private theorem annotatedExecution_admissible
     | error errors =>
         simp_all [completeAnnotatedResponseValue, catchAnnotatedResponseBubbleAsNull,
           annotatedValueResultAdmissible, responseValueChildMultiplicity,
-          foldAnnotatedResponseValueChildren,
+          foldAnnotatedResponseValue,
           ResponseObservation.empty, listMultiplier]
     | ok completed =>
         rcases completed with ⟨completedValues, errors⟩
         simp_all [completeAnnotatedResponseValue, catchAnnotatedResponseBubbleAsNull,
           annotatedValueResultAdmissible, responseValueChildMultiplicity,
-          foldAnnotatedResponseValueChildren, listMultiplier]
+          foldAnnotatedResponseValue, listMultiplier]
         exact ⟨Nat.le_trans hlist.1
           (length_mul_max_one_listMultiplier_le listSize values.length inner hsafe.1),
           hlist.2⟩
@@ -529,8 +528,8 @@ mutual
   private theorem foldChildSummaryForValue_le_mul
       (schema : Schema) (listSize childSummary : Nat)
       (value : AnnotatedResponseValue)
-      : foldChildSummaryForValue (algebra schema listSize) childSummary value
-        ≤ responseValueChildMultiplicity value * childSummary := by
+      : Nat.le (foldChildSummaryForValue (algebra schema listSize) childSummary value)
+          (responseValueChildMultiplicity value * childSummary) := by
     cases value with
     | null => simp [foldChildSummaryForValue, responseValueChildMultiplicity, algebra]
     | scalar value =>
@@ -543,8 +542,8 @@ mutual
   private theorem foldChildSummaryForValues_le_mul
       (schema : Schema) (listSize childSummary : Nat)
       (values : List AnnotatedResponseValue)
-      : foldChildSummaryForValues (algebra schema listSize) childSummary values
-        ≤ responseValuesChildMultiplicity values * childSummary := by
+      : Nat.le (foldChildSummaryForValues (algebra schema listSize) childSummary values)
+          (responseValuesChildMultiplicity values * childSummary) := by
     cases values with
     | nil => simp [foldChildSummaryForValues, responseValuesChildMultiplicity, algebra]
     | cons value rest =>
@@ -585,10 +584,11 @@ private theorem natBestBound_attains {outcomes : OutcomeSet Nat} {estimate : Nat
 -- multiplicity semantics. Positivity of `listSize` is only needed when interpreting
 -- the model as actual list cardinalities; the algebraic result is valid for every Nat.
 private def bestTransferLaws (schema : Schema) (listSize : Nat)
-    : TreeSummary.ExactCases.BestTransferLaws (caseSemantics schema listSize)
-        (algebra schema listSize) :=
-  {
-    related := Nat.le
+    : TreeSummary.ExactCases.BestTransferLaws (outcomeSemantics schema listSize)
+        (algebra schema listSize) := by
+  unfold outcomeSemantics algebra
+  exact {
+    approximates := Nat.le
     le := Nat.le
     empty_best := by
       refine ⟨⟨0, rfl⟩, ?_, ?_⟩
@@ -655,38 +655,74 @@ private def bestTransferLaws (schema : Schema) (listSize : Nat)
 
 -- Public witness: the exact response-size summary is the least bound of the local
 -- multiplicity semantics, recursively through every child selection set.
-theorem summaryOptimal (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SummaryOptimal schema listSize operation := by
-  simpa [SummaryOptimal, estimateOperation, bestTransferLaws] using
+theorem analysisOptimal (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisOptimal schema listSize operation := by
+  simpa [AnalysisOptimal, estimateOperation, bestTransferLaws, outcomeSemantics,
+    algebra] using
     TreeSummary.ExactCases.summarizeOperation_best
       (bestTransferLaws schema listSize) operation
 
 -- Public witness for the variable-aware response-size optimality statement.
-theorem summaryOptimalWithVariables (schema : Schema) (listSize : Nat)
+theorem analysisWithVariablesOptimal (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues) (operation : Operation)
-    : SummaryOptimalWithVariables schema listSize variableValues operation := by
-  simpa [SummaryOptimalWithVariables, estimateOperationWithVariables,
-    bestTransferLaws] using
+    : AnalysisWithVariablesOptimal schema listSize variableValues operation := by
+  simpa [AnalysisWithVariablesOptimal, estimateOperationWithVariables,
+    bestTransferLaws, outcomeSemantics, algebra] using
     TreeSummary.ExactCases.summarizeOperationWithVariables_best
       (fun _values => algebra schema listSize) variableValues operation
       (bestTransferLaws schema listSize)
 
-def compatible (schema : Schema) (listSize : Nat)
+theorem joinFactoringLaws (schema : Schema) (listSize : Nat)
+    : TreeSummary.ExactCases.JoinFactoringLaws (algebra schema listSize)
+        (algebraLawful schema listSize) := by
+  unfold algebra
+  exact {
+    join_le := fun _ _ _ hleft hright => Nat.max_le.mpr ⟨hleft, hright⟩
+    combine_join_le := by
+      intro left right other
+      change max left right + other ≤ max (left + other) (right + other)
+      by_cases hle : left ≤ right
+      · rw [Nat.max_eq_right hle,
+          Nat.max_eq_right (Nat.add_le_add_right hle other)]
+        exact Nat.le_refl _
+      · have hge : right ≤ left := Nat.le_of_not_ge hle
+        rw [Nat.max_eq_left hge,
+          Nat.max_eq_left (Nat.add_le_add_right hge other)]
+        exact Nat.le_refl _
+    field_join_le := by
+      intro group left right
+      change 1 + fieldListMultiplier schema listSize group * max left right
+        ≤ max (1 + fieldListMultiplier schema listSize group * left)
+            (1 + fieldListMultiplier schema listSize group * right)
+      by_cases hle : left ≤ right
+      · rw [Nat.max_eq_right hle,
+          Nat.max_eq_right (Nat.add_le_add_left
+            (Nat.mul_le_mul_left (fieldListMultiplier schema listSize group) hle) 1)]
+        exact Nat.le_refl _
+      · have hge : right ≤ left := Nat.le_of_not_ge hle
+        rw [Nat.max_eq_left hge,
+          Nat.max_eq_left (Nat.add_le_add_left
+            (Nat.mul_le_mul_left (fieldListMultiplier schema listSize group) hge) 1)]
+        exact Nat.le_refl _
+  }
+
+def soundness (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.Compatible (concreteAlgebra schema)
+    : TreeSummary.ExactCases.Soundness (concreteAlgebra schema)
         (algebra schema listSize) schema variableValues :=
   {
-    related := ResponseObservationBound listSize
+    approximates := ResponseObservationBound listSize
     concreteLawful := concreteAlgebra_lawful schema
     abstractLawful := algebraLawful schema listSize
-    empty_related := empty_bound listSize
-    combine_related := by
+    joinFactoringLaws := joinFactoringLaws schema listSize
+    empty_sound := empty_bound listSize
+    combine_sound := by
       intro concreteLeft abstractLeft concreteRight abstractRight hleft hright
       exact combine_bound hleft hright
-    related_mono := by
+    approximates_upward := by
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
-    field_related := by
+    field_sound := by
       intro group _field schemaDefinition value children abstractChildren _hparent
         _hrepresents hlookup houtput hchildren
       intro hadmissible
@@ -708,6 +744,18 @@ def compatible (schema : Schema) (listSize : Nat)
 
 end ExactCases
 
+private def foldChildSummariesNat (schema : Schema) (listSize : Nat)
+    (abstractChildren : CollectedFieldGroup -> Nat)
+    (groups : List CollectedFieldGroup)
+    : Nat :=
+  foldChildSummaries (algebra schema listSize) abstractChildren groups
+
+private def foldFieldGroupsNat (schema : Schema) (listSize : Nat)
+    (abstractChildren : CollectedFieldGroup -> Nat)
+    (groups : List CollectedFieldGroup)
+    : Nat :=
+  foldFieldGroups (algebra schema listSize) abstractChildren groups
+
 private theorem summarizedGroups_capacity
     (schema : Schema) (listSize instanceCount : Nat)
     (abstractChildren : CollectedFieldGroup -> Nat)
@@ -716,24 +764,25 @@ private theorem summarizedGroups_capacity
       : ∀ group,
           group ∈ groups -> instanceCount ≤ fieldListMultiplier schema listSize group)
     : groups.length
-        + instanceCount
-          * foldChildSummaries (algebra schema listSize) abstractChildren groups
-      ≤ foldFieldGroups (algebra schema listSize) abstractChildren groups := by
+        + instanceCount * foldChildSummariesNat schema listSize abstractChildren groups
+      ≤ foldFieldGroupsNat schema listSize abstractChildren groups := by
   induction groups with
-  | nil => simp [foldChildSummaries, foldFieldGroups, algebra]
+  | nil => simp [foldChildSummariesNat, foldFieldGroupsNat, foldChildSummaries,
+      foldFieldGroups, algebra]
   | cons group rest ih =>
       have hgroup := hmultiplier group (by simp)
       have hrest := ih (by
         intro candidate hcandidate
         exact hmultiplier candidate (by simp [hcandidate]))
-      simp only [List.length_cons, foldChildSummaries, foldFieldGroups]
+      simp only [List.length_cons, foldChildSummariesNat, foldFieldGroupsNat,
+        foldChildSummaries, foldFieldGroups, algebra]
       change rest.length + 1
           + instanceCount
           * (abstractChildren group
-              + foldChildSummaries (algebra schema listSize) abstractChildren rest)
+              + foldChildSummariesNat schema listSize abstractChildren rest)
         ≤ (1 + fieldListMultiplier schema listSize group
               * abstractChildren group)
-            + foldFieldGroups (algebra schema listSize) abstractChildren rest
+            + foldFieldGroupsNat schema listSize abstractChildren rest
       rw [Nat.mul_add]
       have hchild := Nat.mul_le_mul_right
         (abstractChildren group)
@@ -743,22 +792,22 @@ private theorem summarizedGroups_capacity
 
 namespace Syntactic
 
-def compatible (schema : Schema) (listSize : Nat)
+def soundness (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.Syntactic.Compatible (concreteAlgebra schema)
+    : TreeSummary.Syntactic.Soundness (concreteAlgebra schema)
         (algebra schema listSize) schema variableValues :=
   {
-    related := ResponseObservationBound listSize
+    approximates := ResponseObservationBound listSize
     concreteLawful := concreteAlgebra_lawful schema
     abstractLawful := algebraLawful schema listSize
-    empty_related := empty_bound listSize
-    combine_related := by
+    empty_sound := empty_bound listSize
+    combine_sound := by
       intro concreteLeft abstractLeft concreteRight abstractRight hleft hright
       exact combine_bound hleft hright
-    related_mono := by
+    approximates_upward := by
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
-    field_related := by
+    field_sound := by
       intro ObjectRef runtimeType ref responseName field rest definition value children
         groups abstractChildren hparent hlookup _harguments hnonempty _hinherited
         hconditions _hcover hmatch hchildren
@@ -771,7 +820,7 @@ def compatible (schema : Schema) (listSize : Nat)
           hlookup] using hadmissible
       have hchild := Nat.le_trans (hchildren hadmissible'.2)
         (foldChildSummaryForValue_le_mul schema listSize
-          (foldChildSummaries (algebra schema listSize) abstractChildren groups) value)
+          (foldChildSummariesNat schema listSize abstractChildren groups) value)
       have hmultipliers : ∀ group,
           group ∈ groups
           -> responseValueChildMultiplicity value
@@ -798,8 +847,7 @@ def compatible (schema : Schema) (listSize : Nat)
           1 + children.size
             ≤ groups.length
               + responseValueChildMultiplicity value
-                  * foldChildSummaries (algebra schema listSize) abstractChildren
-                    groups :=
+                  * foldChildSummariesNat schema listSize abstractChildren groups :=
         by
           exact Nat.add_le_add hlength hchild
       exact Nat.le_trans hbeforeCapacity hcapacity
@@ -828,7 +876,7 @@ theorem executeQueryAnnotatedWithFuel_responseWithinListSize
   | false =>
       simp [ResponseWithinListSize, MaxResponseSize.foldAnnotatedResponse,
         TreeSummary.foldAnnotatedResponse, executeQueryAnnotatedWithFuel, hroot,
-        foldAnnotatedResponseValueChildren, concreteAlgebra, ResponseObservation.empty]
+        foldAnnotatedResponseValue, concreteAlgebra, ResponseObservation.empty]
   | true =>
       cases hresult
             : executeQueryAnnotatedCollectedFields schema resolvers
@@ -836,7 +884,7 @@ theorem executeQueryAnnotatedWithFuel_responseWithinListSize
       | error errors =>
           simp [ResponseWithinListSize, MaxResponseSize.foldAnnotatedResponse,
             TreeSummary.foldAnnotatedResponse, executeQueryAnnotatedWithFuel, hroot,
-            coercedVariableValues, groups, hresult, foldAnnotatedResponseValueChildren,
+            coercedVariableValues, groups, hresult, foldAnnotatedResponseValue,
             concreteAlgebra, ResponseObservation.empty]
       | ok completed =>
           rcases completed with ⟨fields, errors⟩
@@ -844,7 +892,7 @@ theorem executeQueryAnnotatedWithFuel_responseWithinListSize
           simpa [ResponseWithinListSize, MaxResponseSize.foldAnnotatedResponse,
             TreeSummary.foldAnnotatedResponse, executeQueryAnnotatedWithFuel, hroot,
             coercedVariableValues, groups, hresult, annotatedFieldsResultAdmissible,
-            foldAnnotatedResponseValueChildren] using hfields
+            foldAnnotatedResponseValue] using hfields
 
 theorem executeQueryAnnotated_responseWithinListSize
     (schema : Schema) (listSize : Nat) (operation : Operation)
@@ -872,9 +920,9 @@ theorem algebraSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Ope
           source)
       ≤ estimateOperation schema listSize operation := by
   have hrefinement :=
-    TreeSummary.ExactCases.Compatible.executeQueryAnnotatedWithFuel_related operation
+    TreeSummary.ExactCases.Soundness.executeQueryAnnotatedWithFuel_sound operation
       resolvers variableValues
-      (compatible schema listSize
+      (soundness schema listSize
         (Execution.coerceVariableValues operation variableValues))
       fuel source hschema hoperation
   simpa [ResponseWithinListSize, annotatedSize,
@@ -896,8 +944,21 @@ theorem algebraSound (schema : Schema) (listSize : Nat) (operation : Operation)
   exact algebraSoundWithFuel schema listSize operation hschema hoperation ObjectRef resolvers
     variableValues (Execution.executeQueryFuelBound schema operation) source hadmissible
 
-theorem soundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithFuel schema listSize operation := by
+-- Proof-local explicit-fuel form of `AnalysisSound`.
+def AnalysisSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      ResolversRespectListSize listSize resolvers
+      -> actualSize
+            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
+          ≤ estimateOperation schema listSize operation
+
+theorem analysisSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisSoundWithFuel schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source hresolvers
   have hbound := algebraSoundWithFuel schema listSize operation hschema hoperation
     ObjectRef resolvers variableValues fuel source
@@ -906,8 +967,8 @@ theorem soundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
   rw [← actualSize_toResponse_eq_annotatedSize schema] at hbound
   simpa [executeQueryAnnotatedWithFuel_toResponse] using hbound
 
-theorem sound (schema : Schema) (listSize : Nat) (operation : Operation)
-    : Sound schema listSize operation := by
+theorem analysisSound (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisSound schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source hresolvers
   have hbound := algebraSound schema listSize operation hschema hoperation ObjectRef
     resolvers variableValues source
@@ -933,8 +994,8 @@ theorem algebraWithVariablesSoundWithFuel
   have hrefinement :=
     TreeSummary.ExactCases.operationWithVariablesSoundWithFuel
       (fun _values => algebra schema listSize)
-      (fun values => compatible schema listSize values) operation hschema hoperation
-      ObjectRef resolvers variableValues fuel source
+      (fun values => soundness schema listSize values)
+      operation hschema hoperation ObjectRef resolvers variableValues fuel source
   simpa [ResponseWithinListSize, annotatedSize,
     MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using
     hrefinement hadmissible
@@ -955,9 +1016,23 @@ theorem algebraWithVariablesSound
     ObjectRef resolvers variableValues (Execution.executeQueryFuelBound schema operation)
     source hadmissible
 
-theorem soundWithVariablesWithFuel
+-- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.
+def AnalysisWithVariablesSoundWithFuel
     (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithVariablesWithFuel schema listSize operation := by
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      ResolversRespectListSize listSize resolvers
+      -> actualSize
+            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
+          ≤ estimateOperationWithVariables schema listSize variableValues operation
+
+theorem analysisWithVariablesSoundWithFuel
+    (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisWithVariablesSoundWithFuel schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source hresolvers
   have hbound := algebraWithVariablesSoundWithFuel schema listSize operation hschema
     hoperation ObjectRef resolvers variableValues fuel source
@@ -966,8 +1041,9 @@ theorem soundWithVariablesWithFuel
   rw [← actualSize_toResponse_eq_annotatedSize schema] at hbound
   simpa [executeQueryAnnotatedWithFuel_toResponse] using hbound
 
-theorem soundWithVariables (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithVariables schema listSize operation := by
+theorem analysisWithVariablesSound
+    (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisWithVariablesSound schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source hresolvers
   have hbound := algebraWithVariablesSound schema listSize operation hschema hoperation
     ObjectRef resolvers variableValues source
@@ -996,7 +1072,7 @@ theorem algebraSoundWithFuel
       ≤ estimateOperation schema listSize operation := by
   have hrefinement :=
     _root_.GraphQL.TreeSummary.Syntactic.operationSoundWithFuel
-      (fun values => compatible schema listSize values)
+      (fun values => soundness schema listSize values)
       hschema hoperation ObjectRef resolvers variableValues fuel source
   simpa [ResponseWithinListSize, annotatedSize,
     MaxResponseSize.foldAnnotatedResponse, estimateOperation] using
@@ -1018,8 +1094,21 @@ theorem algebraSound
     ObjectRef resolvers variableValues (Execution.executeQueryFuelBound schema operation)
     source hadmissible
 
-theorem soundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithFuel schema listSize operation := by
+-- Proof-local explicit-fuel form of `AnalysisSound`.
+def AnalysisSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      ResolversRespectListSize listSize resolvers
+      -> actualSize
+            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
+          ≤ estimateOperation schema listSize operation
+
+theorem analysisSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisSoundWithFuel schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source hresolvers
   have hbound := algebraSoundWithFuel schema listSize operation hschema hoperation
     ObjectRef resolvers variableValues fuel source
@@ -1028,8 +1117,8 @@ theorem soundWithFuel (schema : Schema) (listSize : Nat) (operation : Operation)
   rw [← actualSize_toResponse_eq_annotatedSize schema] at hbound
   simpa [executeQueryAnnotatedWithFuel_toResponse] using hbound
 
-theorem sound (schema : Schema) (listSize : Nat) (operation : Operation)
-    : Sound schema listSize operation := by
+theorem analysisSound (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisSound schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source hresolvers
   have hbound := algebraSound schema listSize operation hschema hoperation
     ObjectRef resolvers variableValues source
@@ -1056,7 +1145,7 @@ theorem algebraWithVariablesSoundWithFuel
     _root_.GraphQL.TreeSummary.Syntactic.operationWithVariablesSoundWithFuel
       (concrete := concreteAlgebra schema)
       (fun _values => algebra schema listSize)
-      (fun values => compatible schema listSize values) operation hschema hoperation
+      (fun values => soundness schema listSize values) operation hschema hoperation
       ObjectRef resolvers variableValues fuel source
   simpa [ResponseWithinListSize, annotatedSize,
     MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using
@@ -1078,9 +1167,23 @@ theorem algebraWithVariablesSound
     ObjectRef resolvers variableValues (Execution.executeQueryFuelBound schema operation)
     source hadmissible
 
-theorem soundWithVariablesWithFuel
+-- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.
+def AnalysisWithVariablesSoundWithFuel
     (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithVariablesWithFuel schema listSize operation := by
+    : Prop :=
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+        (variableValues : VariableValues) (fuel : Nat)
+        (source : ResolverValue ObjectRef),
+      ResolversRespectListSize listSize resolvers
+      -> actualSize
+            (executeQueryWithFuel schema resolvers variableValues operation fuel source)
+          ≤ estimateOperationWithVariables schema listSize variableValues operation
+
+theorem analysisWithVariablesSoundWithFuel
+    (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisWithVariablesSoundWithFuel schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues fuel source hresolvers
   have hbound := algebraWithVariablesSoundWithFuel schema listSize operation hschema
     hoperation ObjectRef resolvers variableValues fuel source
@@ -1089,8 +1192,9 @@ theorem soundWithVariablesWithFuel
   rw [← actualSize_toResponse_eq_annotatedSize schema] at hbound
   simpa [executeQueryAnnotatedWithFuel_toResponse] using hbound
 
-theorem soundWithVariables (schema : Schema) (listSize : Nat) (operation : Operation)
-    : SoundWithVariables schema listSize operation := by
+theorem analysisWithVariablesSound
+    (schema : Schema) (listSize : Nat) (operation : Operation)
+    : AnalysisWithVariablesSound schema listSize operation := by
   intro hschema hoperation ObjectRef resolvers variableValues source hresolvers
   have hbound := algebraWithVariablesSound schema listSize operation hschema hoperation
     ObjectRef resolvers variableValues source

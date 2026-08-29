@@ -138,30 +138,6 @@ structure Algebra where
   combine : Summary -> Summary -> Summary
   join : Summary -> Summary -> Summary
 
--- A constructor-by-constructor logical relation between two summary algebras. Generic
--- fold lemmas lift these local obligations through `combineMap` and `joinMap`; clients
--- choose the relation appropriate to soundness, refinement, or least-bound proofs.
-structure Algebra.Relation (left : Algebra.{u}) (right : Algebra.{v})
-    : Type (max u v) where
-  related : left.Summary -> right.Summary -> Prop
-  empty_related : related left.empty right.empty
-  combine_related
-    : ∀ leftValue leftEstimate rightValue rightEstimate,
-        related leftValue leftEstimate
-        -> related rightValue rightEstimate
-        -> related (left.combine leftValue rightValue)
-            (right.combine leftEstimate rightEstimate)
-  field_related
-    : ∀ group leftChildren rightChildren,
-        related leftChildren rightChildren
-        -> related (left.field group leftChildren) (right.field group rightChildren)
-  join_related
-    : ∀ leftValue leftEstimate rightValue rightEstimate,
-        related leftValue leftEstimate
-        -> related rightValue rightEstimate
-        -> related (left.join leftValue rightValue)
-            (right.join leftEstimate rightEstimate)
-
 -- Proof-facing order and algebraic laws for soundness and refinement. The order remains
 -- outside `Algebra` so executable summaries pay no extra contract.
 structure Algebra.Lawful (algebra : Algebra.{v}) : Type v where
@@ -217,7 +193,7 @@ termination_by items
 
 -- Adds summary context to response-name groups already collected by a traversal.
 -- Cross-node grouping, when needed, happens before this decoration step.
-def collectFieldGroups (inheritedBooleanCondition : List BooleanLiteral)
+def fieldGroupsWithContext (inheritedBooleanCondition : List BooleanLiteral)
     (condition : Condition)
     (fieldGroups : List ConditionTree.FieldGroup)
     : List CollectedFieldGroup :=
@@ -228,6 +204,34 @@ def collectFieldGroups (inheritedBooleanCondition : List BooleanLiteral)
         condition
         fieldGroup := group
       }
+
+-----------------------------------------------------------------------------------------
+-- PossibleTypeRegion invariant
+-----------------------------------------------------------------------------------------
+
+-- Exact symbolic partition induced by type-condition membership. The first conjunct
+-- excludes empty/out-of-scope regions, the second gives unique coverage of every
+-- possible runtime type, and the third says every condition is constant on a region.
+-- Its theorem witness is `possibleTypeRegions_exact` in
+-- `Proofs.GraphQL.Theories.TreeSummary.PossibleTypeRegions`.
+def PossibleTypeRegionsExact (scope : PossibleTypes) (conditions : List PossibleTypes)
+    : Prop :=
+  let regions := possibleTypeRegions scope conditions
+  (∀ region,
+    region ∈ regions -> region ≠ [] ∧ ∀ typeName, typeName ∈ region -> typeName ∈ scope)
+  ∧ (∀ typeName,
+      typeName ∈ scope
+      -> ∃ region,
+          (region ∈ regions ∧ typeName ∈ region)
+          ∧ ∀ candidate, candidate ∈ regions ∧ typeName ∈ candidate -> candidate = region)
+  ∧ (∀ region,
+      region ∈ regions
+      -> ∀ left,
+          left ∈ region
+          -> ∀ right,
+              right ∈ region
+              -> ∀ allowed,
+                  allowed ∈ conditions -> allowed.contains left = allowed.contains right)
 
 -----------------------------------------------------------------------------------------
 -- Termination measure
@@ -286,24 +290,24 @@ private theorem mergedFieldSelections_responseDepth_succ
       rw [← ih next]
       omega
 
-theorem collectedFieldGroupsResponseDepth_collectFieldGroups
+theorem collectedFieldGroupsResponseDepth_fieldGroupsWithContext
     (inheritedBooleanCondition : List BooleanLiteral)
     (condition : Condition) (fieldGroups : List ConditionTree.FieldGroup)
     : collectedFieldGroupsResponseDepth
-        (collectFieldGroups inheritedBooleanCondition condition fieldGroups)
+        (fieldGroupsWithContext inheritedBooleanCondition condition fieldGroups)
       = conditionFieldGroupsResponseDepth fieldGroups := by
   induction fieldGroups with
   | nil =>
-      simp [collectFieldGroups, collectedFieldGroupsResponseDepth,
+      simp [fieldGroupsWithContext, collectedFieldGroupsResponseDepth,
         conditionFieldGroupsResponseDepth]
   | cons group rest ih =>
-      simp only [collectFieldGroups, List.map_cons, collectedFieldGroupsResponseDepth,
+      simp only [fieldGroupsWithContext, List.map_cons, collectedFieldGroupsResponseDepth,
         conditionFieldGroupsResponseDepth]
       change
         max
             (selectionSetResponseDepth group.mergedSelectionSet + 1)
             (collectedFieldGroupsResponseDepth
-              (collectFieldGroups inheritedBooleanCondition condition rest))
+              (fieldGroupsWithContext inheritedBooleanCondition condition rest))
           = max (conditionFieldGroupResponseDepth group)
               (conditionFieldGroupsResponseDepth rest)
       rw [ih]

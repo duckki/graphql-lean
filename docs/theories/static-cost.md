@@ -208,8 +208,8 @@ response field records the concrete resolver call `(parentType, fieldName, argum
 that produced its value. Field and argument costs are paid once per resolver call;
 completed values determine the concrete type counts and child field multiplicities.
 
-The public `ExactCases.SoundWithVariables` proposition bounds that concrete result
-componentwise for all signed IBM weights. Its statement is:
+The public `ExactCases.AnalysisWithVariablesSound` proposition bounds that concrete
+result componentwise for all signed IBM weights. Its statement is:
 
 ```lean
 schemaWellFormed schema
@@ -227,10 +227,10 @@ Here `≤` means both actual type cost and actual field cost are at most their s
 estimates. `executeQueryAnnotated_equal` separately proves that erasing annotations is
 exactly `Execution.executeQuery`, so the theorem covers every resolver environment,
 root source, and variable assignment for a well-formed schema and valid operation.
-`ExactCases.SoundWithVariablesWithFuel` gives the corresponding explicit-fuel statement;
-the Syntactic backend exposes the same pair of statements and witnesses in its namespace,
-with the additional `TypeCostsNonnegative schema model` premise required by its factored
-field proof.
+The explicit-fuel contract is a proof-local bridge to this public default-executor
+statement. The Syntactic backend exposes the same public statement and witness in its
+namespace, with the additional `TypeCostsNonnegative schema model` premise required by
+its factored field proof.
 
 Syntactic soundness relies on a field-merge invariant: argument-equivalent syntactic
 field pieces resolve to the same canonical argument set for the supplied variables.
@@ -250,12 +250,12 @@ conditions. Componentwise maximum exists only in the abstract static analysis.
 
 ## Exact-case optimality
 
-`ExactCases.SummaryOptimalWithVariables` states that the synthesized summary function
+`ExactCases.AnalysisWithVariablesOptimal` states that the synthesized summary function
 is the pointwise least bound of every recursively feasible modeled outcome after
 applying supplied variable values and operation defaults. The statement mentions only
 the pointwise `SummaryBound`, the independent structural-case semantics, and the
 computed summary.
-Its theorem witness is `ExactCases.summaryOptimalWithVariables`; the localized
+Its theorem witness is `ExactCases.analysisWithVariablesOptimal`; the localized
 best-transfer laws used by that proof remain private to the proof module.
 
 This is structural optimality for the analysis's modeled field outcomes, not a claim

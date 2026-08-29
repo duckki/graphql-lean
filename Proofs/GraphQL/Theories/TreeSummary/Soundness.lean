@@ -1,4 +1,4 @@
-import GraphQL.Theories.TreeSummary.ResponseFold
+import GraphQL.Theories.TreeSummary.Soundness
 
 /-! Backend-independent lemmas for tree-summary response folds. -/
 
@@ -18,7 +18,7 @@ def foldAnnotatedResponseFieldsResult (algebra : ConcreteAlgebra)
 def foldAnnotatedResponseValueResult (algebra : ConcreteAlgebra)
     : Result AnnotatedResponseValue -> algebra.Summary
   | .error _errors => algebra.empty
-  | .ok (value, _errors) => foldAnnotatedResponseValueChildren algebra value
+  | .ok (value, _errors) => foldAnnotatedResponseValue algebra value
 
 def foldAnnotatedResponseValuesResult (algebra : ConcreteAlgebra)
     : Result (List AnnotatedResponseValue) -> algebra.Summary
@@ -50,88 +50,89 @@ theorem foldAnnotatedResponseFields_append
       simp only [List.cons_append, foldAnnotatedResponseFields]
       rw [ih, lawful.combine_assoc]
 
-namespace CompatibilityCore
+namespace SoundnessCore
 
-theorem empty_related_any
+theorem empty_sound_any
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
-    (compatible : CompatibilityCore concrete abstract)
+    (soundness : SoundnessCore concrete abstract)
     (abstractValue : abstract.Summary)
-    : compatible.related concrete.empty abstractValue :=
-  compatible.related_mono concrete.empty abstract.empty abstractValue
-    compatible.empty_related (compatible.abstractLawful.empty_le abstractValue)
+    : soundness.approximates concrete.empty abstractValue :=
+  soundness.approximates_upward concrete.empty abstract.empty abstractValue
+    soundness.empty_sound (soundness.abstractLawful.empty_le abstractValue)
 
-theorem combineFieldsResult_related
+theorem combineFieldsResult_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
-    (compatible : CompatibilityCore concrete abstract)
+    (soundness : SoundnessCore concrete abstract)
     (left right : Result (List AnnotatedResponseField))
     (abstractLeft abstractRight : abstract.Summary)
     (hleft
-      : compatible.related (foldAnnotatedResponseFieldsResult concrete left) abstractLeft)
+      : soundness.approximates
+          (foldAnnotatedResponseFieldsResult concrete left) abstractLeft)
     (hright
-      : compatible.related
+      : soundness.approximates
           (foldAnnotatedResponseFieldsResult concrete right) abstractRight)
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponseFieldsResult concrete
           (Result.combine List.append left right))
         (abstract.combine abstractLeft abstractRight) := by
   cases left with
   | error leftErrors =>
-      cases right <;> exact compatible.empty_related_any _
+      cases right <;> exact soundness.empty_sound_any _
   | ok left =>
       rcases left with ⟨leftFields, leftErrors⟩
       cases right with
-      | error rightErrors => exact compatible.empty_related_any _
+      | error rightErrors => exact soundness.empty_sound_any _
       | ok right =>
           rcases right with ⟨rightFields, rightErrors⟩
           simp only [Result.combine, foldAnnotatedResponseFieldsResult] at hleft hright ⊢
-          change compatible.related
+          change soundness.approximates
             (foldAnnotatedResponseFields concrete (leftFields ++ rightFields))
             (abstract.combine abstractLeft abstractRight)
-          rw [foldAnnotatedResponseFields_append concrete compatible.concreteLawful]
-          exact compatible.combine_related _ _ _ _ hleft hright
+          rw [foldAnnotatedResponseFields_append concrete soundness.concreteLawful]
+          exact soundness.combine_sound _ _ _ _ hleft hright
 
-theorem combineValuesResult_related
+theorem combineValuesResult_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
-    (compatible : CompatibilityCore concrete abstract)
+    (soundness : SoundnessCore concrete abstract)
     (left : Result AnnotatedResponseValue)
     (right : Result (List AnnotatedResponseValue))
     (abstractChild : abstract.Summary)
     (hleft
-      : compatible.related (foldAnnotatedResponseValueResult concrete left)
+      : soundness.approximates (foldAnnotatedResponseValueResult concrete left)
           (foldChildSummaryForValueResult abstract abstractChild left))
     (hright
-      : compatible.related (foldAnnotatedResponseValuesResult concrete right)
+      : soundness.approximates (foldAnnotatedResponseValuesResult concrete right)
           (foldChildSummaryForValuesResult abstract abstractChild right))
     : let combined := Result.combine List.cons left right
-      compatible.related (foldAnnotatedResponseValuesResult concrete combined)
+      soundness.approximates (foldAnnotatedResponseValuesResult concrete combined)
         (foldChildSummaryForValuesResult abstract abstractChild combined) := by
   cases left with
   | error leftErrors =>
       cases right <;>
         simpa [Result.combine, foldAnnotatedResponseValuesResult,
-          foldChildSummaryForValuesResult] using compatible.empty_related
+          foldChildSummaryForValuesResult] using soundness.empty_sound
   | ok left =>
       rcases left with ⟨leftValue, leftErrors⟩
       cases right with
       | error rightErrors =>
           simpa [Result.combine, foldAnnotatedResponseValuesResult,
-            foldChildSummaryForValuesResult] using compatible.empty_related
+            foldChildSummaryForValuesResult] using soundness.empty_sound
       | ok right =>
           rcases right with ⟨rightValues, rightErrors⟩
           simp only [Result.combine, foldAnnotatedResponseValuesResult,
             foldChildSummaryForValuesResult, foldAnnotatedResponseValues,
             foldChildSummaryForValues]
-          exact compatible.combine_related _ _ _ _ hleft hright
+          exact soundness.combine_sound _ _ _ _ hleft hright
 
-theorem completeNonNullResult_related
+theorem completeNonNullResult_sound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}}
-    (compatible : CompatibilityCore concrete abstract)
+    (soundness : SoundnessCore concrete abstract)
     (completed : Result AnnotatedResponseValue)
     (abstractChild : abstract.Summary)
     (hcompleted
-      : compatible.related (foldAnnotatedResponseValueResult concrete completed)
+      : soundness.approximates (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract abstractChild completed))
-    : compatible.related
+    : soundness.approximates
         (foldAnnotatedResponseValueResult concrete
           (completeNonNullAnnotatedResponseValue completed))
         (foldChildSummaryForValueResult abstract abstractChild
@@ -146,10 +147,10 @@ theorem completeNonNullResult_related
       cases value <;> cases errors <;>
         simp_all [completeNonNullAnnotatedResponseValue,
           foldAnnotatedResponseValueResult,
-          foldChildSummaryForValueResult, foldAnnotatedResponseValueChildren,
+          foldChildSummaryForValueResult, foldAnnotatedResponseValue,
           foldChildSummaryForValue]
-      all_goals exact compatible.empty_related
+      all_goals exact soundness.empty_sound
 
-end CompatibilityCore
+end SoundnessCore
 end TreeSummary
 end GraphQL

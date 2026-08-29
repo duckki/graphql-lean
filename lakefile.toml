@@ -31,3 +31,7 @@ root = "Lint.ImportClosureMain"
 [[lean_exe]]
 name = "query-inclusion-bench"
 root = "Benchmarks.QueryInclusion"
+
+[[lean_exe]]
+name = "exact-cases-bench"
+root = "Benchmarks.ExactCases"
