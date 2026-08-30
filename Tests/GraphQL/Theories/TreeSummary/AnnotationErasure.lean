@@ -30,7 +30,8 @@ theorem executeQueryAnnotatedToResponseApiSmoke
 
 theorem exactAnalysisSoundApiSmoke
     {concrete : ConcreteAlgebra} {abstract : Algebra} {schema : Schema}
-    (soundnessFor : ∀ values, ExactCases.Soundness concrete abstract schema values)
+    (soundnessFor
+      : ∀ values, ExactCases.SoundnessWithFactoring concrete abstract schema values)
     (operation : Operation)
     : ExactCases.AnalysisSound soundnessFor operation :=
   ExactCases.analysisSound soundnessFor operation

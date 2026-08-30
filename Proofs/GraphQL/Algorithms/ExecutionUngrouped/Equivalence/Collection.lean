@@ -312,9 +312,8 @@ theorem
             middleGroups)) = _
   rw [GraphQL.NormalForm.mergeExecutableGroups_eq_append_of_namesDisjoint
     [(responseName, [first])] middleGroups hdisjoint hmiddleNodup]
-  simp [middleGroups, GraphQL.Execution.mergeExecutableGroups,
-    GraphQL.Execution.addExecutableGroup, collectedExecutableSelections,
-    executableFieldSelections, List.append_assoc]
+  simp [middleGroups, GraphQL.Execution.addExecutableGroup,
+    collectedExecutableSelections, executableFieldSelections]
 
 theorem
     executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
@@ -377,9 +376,8 @@ theorem
           simp at hsingle
           exact hnotMiddle (by simpa [middleGroups, hsingle] using hmiddle))
         hmiddleNodup]
-      simp [middleGroups, GraphQL.Execution.mergeExecutableGroups,
-        GraphQL.Execution.addExecutableGroup, collectedExecutableSelections,
-        executableFieldSelections, List.append_assoc]
+      simp [middleGroups, GraphQL.Execution.addExecutableGroup,
+        collectedExecutableSelections, executableFieldSelections, List.append_assoc]
 
 theorem collectFields_executableFieldSelections_collectedExecutableFields
     {ObjectIdentity : Type}
@@ -394,8 +392,7 @@ theorem collectFields_executableFieldSelections_collectedExecutableFields
   induction groups with
   | nil =>
       intro _hnodup _hnonempty
-      simp [collectedExecutableSelections, executableFieldSelections,
-        GraphQL.Execution.collectFields]
+      simp [collectedExecutableSelections, GraphQL.Execution.collectFields]
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
       intro hnodup hnonempty

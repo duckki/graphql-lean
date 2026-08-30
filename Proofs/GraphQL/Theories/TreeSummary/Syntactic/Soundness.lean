@@ -216,7 +216,7 @@ private theorem annotatedResponseExecution_related_all
       rcases hactiveCover (responseName, fields.head hgroupWellFormed)
           (List.mem_map_of_mem (List.head_mem hgroupWellFormed)) with
         ⟨group, hgroup, _hgroupCover⟩
-      simpa [hnil] using hgroup
+      simp [hnil] at hgroup
     have hactiveRepresent :
         groupsRepresentFields schema variableValues runtimeType runtimeType
           (.object runtimeType ref) activeGroups

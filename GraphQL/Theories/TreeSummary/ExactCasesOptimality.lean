@@ -136,7 +136,8 @@ namespace BooleanAssignment
 
 /-- A total assignment respects every Boolean value already fixed by the initial
 environment. Values for unresolved variables remain unconstrained. -/
-def Extends (assignment : BooleanAssignment) (environment : BooleanEnvironment) : Prop :=
+def Extends (assignment : BooleanAssignment) (environment : CaseCursor.BooleanEnvironment)
+    : Prop :=
   ∀ variableName value,
     environment.statusForVariable variableName = some value
     -> assignment variableName = value
@@ -146,9 +147,10 @@ end BooleanAssignment
 /-- Records one total assignment for the listed variables. Symbolic environments gain
 the corresponding case values; concrete environments remain unchanged because the
 request already fixes every directive result. -/
-def BooleanEnvironment.assignVariables (environment : BooleanEnvironment)
+def CaseCursor.BooleanEnvironment.assignVariables
+    (environment : CaseCursor.BooleanEnvironment)
     (variables : BooleanVariableNames) (assignment : BooleanAssignment)
-    : BooleanEnvironment :=
+    : CaseCursor.BooleanEnvironment :=
   variables.foldl
     (fun current variableName =>
       current.assign variableName (assignment variableName))
@@ -160,7 +162,7 @@ mutual
   assignment; it does not invoke the executable summary fold or mention an analysis
   algebra. -/
   inductive CaseCursor.ContextOutcome (semantics : OutcomeSemantics.{u}) (schema : Schema)
-      : BooleanAssignment -> BooleanEnvironment -> List BooleanLiteral
+      : BooleanAssignment -> CaseCursor.BooleanEnvironment -> List BooleanLiteral
         -> List BooleanLiteral -> CaseCursor -> PossibleTypeRegion
         -> semantics.Summary -> Prop
     | noTypeRegion
@@ -257,7 +259,7 @@ mutual
   ruling out inconsistent choices for repeated variables in sibling groups. -/
   inductive CaseCursor.ContextFieldGroupsOutcome (semantics : OutcomeSemantics.{u})
       (schema : Schema)
-      : BooleanAssignment -> BooleanEnvironment -> List CollectedFieldGroup
+      : BooleanAssignment -> CaseCursor.BooleanEnvironment -> List CollectedFieldGroup
         -> semantics.Summary -> Prop
     | nil (assignment environment)
       : CaseCursor.ContextFieldGroupsOutcome semantics schema assignment environment []
@@ -278,8 +280,8 @@ mutual
   retaining the assignment shared by the enclosing response boundary. -/
   inductive CaseCursor.ContextChildTypesOutcome (semantics : OutcomeSemantics.{u})
       (schema : Schema)
-      : BooleanAssignment -> BooleanEnvironment -> CollectedFieldGroup -> TypeNames
-        -> semantics.Summary -> Prop
+      : BooleanAssignment -> CaseCursor.BooleanEnvironment -> CollectedFieldGroup
+        -> TypeNames -> semantics.Summary -> Prop
     | none (assignment environment group)
       : CaseCursor.ContextChildTypesOutcome semantics schema assignment environment group
           [] semantics.empty
@@ -299,9 +301,9 @@ end
 
 /-- Feasible outcomes of an extracted condition tree under an explicit initial context.
 This definition is independent of the executable fold and abstract analysis. -/
-def conditionTreeOutcomes (semantics : OutcomeSemantics.{u})
+def CaseCursor.conditionTreeOutcomes (semantics : OutcomeSemantics.{u})
     (schema : Schema) (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
-    (initial : BooleanEnvironment)
+    (initial : CaseCursor.BooleanEnvironment)
     : OutcomeSet semantics.Summary :=
   fun outcome =>
     ∃ assignment,
@@ -311,12 +313,12 @@ def conditionTreeOutcomes (semantics : OutcomeSemantics.{u})
           tree.condition.possibleTypes outcome
 
 /-- Feasible outcomes of a selection hierarchy under an explicit initial context. -/
-def selectionSetOutcomes (semantics : OutcomeSemantics.{u})
+def CaseCursor.selectionSetOutcomes (semantics : OutcomeSemantics.{u})
     (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (initial : BooleanEnvironment)
+    (selectionSet : List Selection) (initial : CaseCursor.BooleanEnvironment)
     : OutcomeSet semantics.Summary :=
-  conditionTreeOutcomes semantics schema inheritedBooleanCondition
+  CaseCursor.conditionTreeOutcomes semantics schema inheritedBooleanCondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
       inheritedBooleanCondition initial.pruningValues selectionSet)
     initial
@@ -325,17 +327,17 @@ def selectionSetOutcomes (semantics : OutcomeSemantics.{u})
 def operationOutcomes (semantics : OutcomeSemantics.{u})
     (schema : Schema) (operation : Operation)
     : OutcomeSet semantics.Summary :=
-  selectionSetOutcomes semantics schema (operation.rootType schema) []
-    operation.selectionSet BooleanEnvironment.unresolved
+  CaseCursor.selectionSetOutcomes semantics schema (operation.rootType schema) []
+    operation.selectionSet CaseCursor.BooleanEnvironment.unresolved
 
 /-- Feasible outcomes after applying operation defaults and supplied values. -/
 def operationOutcomesWithVariables (semantics : OutcomeSemantics.{u})
     (schema : Schema) (variableValues : VariableValues) (operation : Operation)
     : OutcomeSet semantics.Summary :=
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
-  selectionSetOutcomes semantics schema (operation.rootType schema) []
+  CaseCursor.selectionSetOutcomes semantics schema (operation.rootType schema) []
     operation.selectionSet
-    (BooleanEnvironment.concrete coercedVariableValues)
+    (CaseCursor.BooleanEnvironment.concrete coercedVariableValues)
 
 end ExactCases
 
@@ -397,34 +399,43 @@ namespace ExactCases
 -- Execution coverage
 -----------------------------------------------------------------------------------------
 
-/-- Upper-bound execution coverage by the relational outcome semantics for one complete
-request. Every common abstract upper bound of the request's modeled outcomes also bounds
-its concrete annotated execution; the execution need not itself be a modeled outcome.
-Its theorem witness is
-`ExactCases.operationOutcomesCoverExecutions` in the exact-case optimality proof
-module. -/
-def OperationOutcomesCoverExecutions
+/-- Semantic exhaustiveness of modeled outcomes at one active selection-set boundary.
+Every common abstract bound of the recursively feasible outcomes also bounds every
+annotated execution result. Error/null bubbling at the boundary contributes the
+concrete algebra's empty result. Its theorem witness is
+`ExactCases.selectionSetExecutionCovered` in the exact-case optimality proof module. -/
+def SelectionSetExecutionCovered
     {semantics : OutcomeSemantics.{u}} {concrete : ConcreteAlgebra.{v}}
-    {abstract : Algebra.{w}}
-    (schema : Schema) (variableValues : VariableValues) (operation : Operation)
-    (soundness
-      : Soundness concrete abstract schema
-          (Execution.coerceVariableValues operation variableValues))
+    {abstract : Algebra.{w}} {schema : Schema} (variableValues : VariableValues)
+    (soundness : SoundnessWithFactoring concrete abstract schema variableValues)
     (laws : BestTransferLaws semantics abstract soundness.abstractLawful.le)
+    (variableDefinitions : List VariableDefinition)
+    (parentType : Name)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (selectionSet : List Selection)
     : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema operation
-  -> ∀ candidate,
-      OutcomeSet.IsUpperBound laws.approximates
-        (operationOutcomesWithVariables semantics schema variableValues operation)
-        candidate
-      -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-            (source : ResolverValue ObjectRef),
-          soundness.approximates
-            (foldAnnotatedResponse concrete
-              (AnnotatedExecution.executeQueryAnnotated schema resolvers variableValues
-                operation source))
+  ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+    (fuel : Nat) (runtimeType : Name) (ref : ObjectRef),
+    booleanConditionAllows variableValues inheritedBooleanCondition = true
+    -> schema.typeIncludesObject parentType runtimeType
+    -> SchemaWellFormedness.schemaWellFormed schema
+    -> schema.objectType runtimeType
+    -> Validation.selectionSetValid schema variableDefinitions runtimeType selectionSet
+    -> FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet
+    ->  let source : ResolverValue ObjectRef := .object runtimeType ref
+        let runtimeGroups :=
+          collectFields schema variableValues runtimeType source selectionSet
+        let executionResult :=
+          AnnotatedExecution.executeQueryAnnotatedCollectedFields schema resolvers
+            variableValues fuel runtimeType source runtimeGroups
+        let concreteOutcome := foldAnnotatedResponseFieldsResult concrete executionResult
+        ∀ candidate,
+          OutcomeSet.IsUpperBound laws.approximates
+            (CaseCursor.selectionSetOutcomes semantics schema parentType
+              inheritedBooleanCondition selectionSet
+              (CaseCursor.BooleanEnvironment.concrete variableValues))
             candidate
+          -> soundness.approximates concreteOutcome candidate
 
 -----------------------------------------------------------------------------------------
 -- Boolean-case exactness
@@ -437,17 +448,19 @@ exhaustive union rather than a disjointness claim. Its theorem witness is
 def SelectionSetBooleanSplitExact
     (semantics : OutcomeSemantics.{u}) (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (initial : BooleanEnvironment)
+    (selectionSet : List Selection) (initial : CaseCursor.BooleanEnvironment)
     (variableName : Name)
     : Prop :=
   initial.statusForVariable variableName = none
   -> ∀ outcome,
-      selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
-        selectionSet initial outcome
-      ↔ selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
-          selectionSet (initial.assign variableName false) outcome
-        ∨ selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
-            selectionSet (initial.assign variableName true) outcome
+      CaseCursor.selectionSetOutcomes semantics schema parentType
+        inheritedBooleanCondition selectionSet initial outcome
+      ↔ CaseCursor.selectionSetOutcomes semantics schema parentType
+          inheritedBooleanCondition selectionSet (initial.assign variableName false)
+          outcome
+        ∨ CaseCursor.selectionSetOutcomes semantics schema parentType
+            inheritedBooleanCondition selectionSet (initial.assign variableName true)
+            outcome
 
 /-- Outcomes are exactly the union of assignments that resolve every Boolean variable
 occurring in the extracted selection hierarchy. Assigning a symbolic environment
@@ -458,18 +471,18 @@ module. -/
 def SelectionSetResolvedAssignmentsExact
     (semantics : OutcomeSemantics.{u}) (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (initial : BooleanEnvironment)
+    (selectionSet : List Selection) (initial : CaseCursor.BooleanEnvironment)
     : Prop :=
   let tree :=
     ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
       inheritedBooleanCondition initial.pruningValues selectionSet
   let variables := (conditionTreeBooleanVariables tree).eraseDups
   ∀ outcome,
-    selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
+    CaseCursor.selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
       selectionSet initial outcome
     ↔ ∃ assignment : BooleanAssignment,
         assignment.Extends initial
-        ∧ selectionSetOutcomes semantics schema parentType
+        ∧ CaseCursor.selectionSetOutcomes semantics schema parentType
             inheritedBooleanCondition selectionSet
             (initial.assignVariables variables assignment)
             outcome
@@ -490,12 +503,12 @@ optimality proof module. -/
 def SelectionSetOutcomesInhabited
     (semantics : OutcomeSemantics.{u}) (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (initial : BooleanEnvironment)
+    (selectionSet : List Selection) (initial : CaseCursor.BooleanEnvironment)
     : Prop :=
   semantics.FieldOutcomesInhabited
   -> ∃ outcome,
-      selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
-        selectionSet initial outcome
+      CaseCursor.selectionSetOutcomes semantics schema parentType
+        inheritedBooleanCondition selectionSet initial outcome
 
 -----------------------------------------------------------------------------------------
 -- Runtime field-group adequacy
@@ -540,9 +553,9 @@ def SelectionSetRuntimeGroupsExact
     (selectionSet : List Selection)
     : Prop :=
   let cases :=
-    selectionSetOutcomes OutcomeSemantics.boundaryFieldGroups schema parentType
+    CaseCursor.selectionSetOutcomes OutcomeSemantics.boundaryFieldGroups schema parentType
       inheritedBooleanCondition selectionSet
-      (BooleanEnvironment.concrete variableValues)
+      (CaseCursor.BooleanEnvironment.concrete variableValues)
   (∃ runtimeType, schema.typeIncludesObject parentType runtimeType)
   -> booleanConditionAllows variableValues inheritedBooleanCondition = true
   -> (∀ runtimeType,

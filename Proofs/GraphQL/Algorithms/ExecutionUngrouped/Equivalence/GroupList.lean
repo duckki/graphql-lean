@@ -1442,7 +1442,7 @@ theorem collectedExecutableFields_collectFields_executableFieldSelections_lookup
           have hfieldEq :
               field = original := by
             simpa [collectedExecutableFields, executableField] using hheadMem
-          simp [hfieldEq, executableField]
+          simp [hfieldEq]
         rcases hlookups original (by simp) with
           ⟨fieldDefinition, hlookup⟩
         exact ⟨fieldDefinition, by simpa [hfieldName] using hlookup⟩

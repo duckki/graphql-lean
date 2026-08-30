@@ -707,7 +707,7 @@ theorem joinFactoringLaws (schema : Schema) (listSize : Nat)
 
 def soundness (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.Soundness (concreteAlgebra schema)
+    : TreeSummary.ExactCases.SoundnessWithFactoring (concreteAlgebra schema)
         (algebra schema listSize) schema variableValues :=
   {
     approximates := ResponseObservationBound listSize
@@ -919,7 +919,8 @@ theorem algebraSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Ope
           source)
       ≤ estimateOperation schema listSize operation := by
   have hrefinement :=
-    TreeSummary.ExactCases.Soundness.executeQueryAnnotatedWithFuel_sound operation
+    TreeSummary.ExactCases.SoundnessWithFactoring.executeQueryAnnotatedWithFuel_sound
+      operation
       resolvers variableValues
       (soundness schema listSize
         (Execution.coerceVariableValues operation variableValues))
@@ -993,7 +994,7 @@ theorem algebraWithVariablesSoundWithFuel
   have hrefinement :=
     TreeSummary.ExactCases.operationWithVariablesSoundWithFuel
       (fun _values => algebra schema listSize)
-      (fun values => soundness schema listSize values)
+      (fun values => (soundness schema listSize values).toSoundness)
       operation hschema hoperation ObjectRef resolvers variableValues fuel source
   simpa [ResponseWithinListSize, annotatedSize,
     MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using

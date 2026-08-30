@@ -135,7 +135,7 @@ def boundaryMetrics (booleanCount : Nat) : DecisionMetrics :=
   let variables := variableNames booleanCount
   let decision :=
     Internal.summarizeConditionTreeDecision workloadAlgebra benchmarkSchema [] tree
-      variables BooleanEnvironment.unresolved
+      variables CaseCursor.BooleanEnvironment.unresolved
   decisionMetrics decision
 
 def nanosecondsToMilliseconds (nanoseconds : Nat) : Float :=

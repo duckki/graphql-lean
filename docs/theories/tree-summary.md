@@ -6,7 +6,7 @@ backends with different precision and cost.
 | Backend | Recursion domain | Condition treatment | Cost and precision |
 | --- | --- | --- | --- |
 | `TreeSummary.Syntactic` | `ConditionTree.Tree` | Evaluates node-local materializable type-condition products and factors Boolean alternatives by variable, then recurses into selected condition-tree subtrees | Faster, sound, but may lose correlations and global response-name grouping |
-| `TreeSummary.ExactCases` | `ExactCases.CaseCursor` | Walks one condition-tree branch at a time, interleaving local type-region partitions and lazy Boolean splits while preserving one correlated Boolean context across the selection hierarchy | More expensive; globally groups each completed boundary and supports least-bound proofs |
+| `TreeSummary.ExactCases` | `ExactCases.CaseCursor` or `ExactCases.CaseForest` | Uses the cursor for variable-independent analysis and the batched forest for supplied variables | More expensive; globally groups each completed boundary and supports least-bound proofs |
 
 An individual analysis supplies the same `Algebra` for either backend. The caller chooses
 the traversal strategy.
@@ -30,8 +30,8 @@ equivalent argument set. `representativeField` exposes the first occurrence for
 analyses to inspect that shared identity and arguments once; the complete occurrence
 list remains necessary to merge every child selection set. The estimators are total,
 but their correctness contracts intentionally make no claim for invalid operations.
-`toExecutableGroup` is the canonical conversion used when a theorem compares a
-collected static group with runtime field collection.
+`toExecutableGroup` is the canonical conversion used by adequacy theorems that compare
+a collected static group with runtime field collection.
 `mergedSelectionSet` follows GraphQL `CollectSubfields`. Schema and condition context
 flow down, while algebra summaries flow up.
 
@@ -53,26 +53,20 @@ processing.
 
 ## Abstract-interpretation perspective
 
-TreeSummary is an abstract-interpretation-style analysis framework, with the following
-correspondence:
+TreeSummary uses an abstract-interpretation-style organization:
 
-- `OutcomeSet` is a predicate-valued collecting semantics for relationally feasible
-  exact cases;
-- `OutcomeSemantics` gives the concrete empty, simultaneous-composition, and field
-  transfer relations used by that collecting semantics;
-- `Algebra` gives the corresponding executable abstract transfer operations;
-- `approximates` relates one modeled outcome to one abstract summary;
-- `BestBound` states that a summary is a sound upper bound and is below every other
-  sound upper bound;
-- `BestTransferLaws` requires each local abstract transfer to compute such a best bound.
+- `OutcomeSet` is the predicate-valued collecting domain for feasible exact cases;
+- `OutcomeSemantics` supplies concrete empty, simultaneous-composition, and field
+  transfers;
+- `Algebra` supplies the corresponding executable abstract transfers;
+- `approximates` relates modeled outcomes to abstract summaries;
+- `BestBound` states soundness and leastness relative to an analysis-defined order;
+- `BestTransferLaws` requires every local abstract transfer to preserve best bounds.
 
-The development proves two deliberately separate claims: the analyses are sound against
-GraphQL execution, and ExactCases computes the best approximation of its relational
-outcome semantics when the local transfer laws are best. This is a relational formulation
-of best correct approximation; it does not currently package abstraction and
-concretization functions or prove a Galois connection. Adding that structure, and deriving
-a conventional abstract-interpretation interface for downstream formal-verification
-applications, is future work.
+Execution soundness and structural optimality remain separate claims. The former relates
+an analysis directly to GraphQL execution; the latter says an ExactCases evaluator is the
+best approximation of its relational outcome model. The interface does not require a
+Galois connection.
 
 ## Variable-aware known-false pruning
 
@@ -82,13 +76,11 @@ and `@skip` selections are removed. Known-active, missing, and unavailable condi
 remain explicit, and every recursively summarized field selection set repeats the same
 boundary-local pruning.
 
-ExactCases derives extraction-pruning values from the Boolean environment. A symbolic
-environment contributes no pruning values, even after `assign` records a speculative
-case choice; a concrete environment contributes its coerced request values. A lazy split
-therefore cannot prune later syntax as if its choice had been supplied by the request.
-Syntactic likewise carries its request pruning values through recursive child
-extractions. The optimality specification uses `assignVariables` when it needs the
-environment obtained by resolving a finite set from one total Boolean assignment.
+The ExactCases cursor contributes no pruning values, even after a speculative case
+choice is recorded. The batched forest carries the coerced request values directly. A
+lazy cursor split therefore cannot prune later syntax as if its choice had been supplied
+by the request. Syntactic likewise carries its request pruning values through recursive
+child extractions.
 
 There are two different correctness questions:
 
@@ -163,44 +155,49 @@ Its motivation, algebraic laws, and direct soundness proof are described in
 
 ## Exact-case backend
 
-`TreeSummary.ExactCases` uses an incremental branch-local `CaseCursor` scheduler. The
-cursor retains the activated named fields and a preorder
-list of pending condition-tree branches. Activated fields are stored as reversed chunks,
-so selecting a deeply nested branch does not repeatedly copy the accumulated prefix;
-source order is materialized only when a completed case is grouped.
+`TreeSummary.ExactCases` has one analysis surface backed by two independently verified
+evaluators.
 
-Every entry point uses the same compact Boolean context. `BooleanEnvironment` is either
-symbolic or concrete. `statusForVariable` returns `Option Bool`: `none` means unresolved,
-and `some value` means known. In a concrete request, missing, null, or non-Boolean values
-resolve to `some false`, matching modeled directive evaluation rather than creating a
-third case.
+`summarizeOperation` uses an incremental branch-local `CaseCursor`. The cursor retains
+the activated named fields and a preorder list of pending condition-tree branches.
+Activated fields are stored as reversed chunks, so selecting a deeply nested branch does
+not repeatedly copy the accumulated prefix; source order is materialized only when a
+completed case is grouped.
 
 An unresolved truth value becomes an `Internal.BooleanDecision.split` only when the
-current cursor reaches its literal. Decisions from sibling and child summaries are
-combined pointwise in one canonical variable order, so repeated uses stay correlated
-instead of forming false Cartesian products. Type alternatives use factored decision
-joins. Type partitions and Boolean splits can therefore interleave in the order exposed
-by the condition tree, and each split remains local to that tree node and its children.
+cursor reaches its literal. Decisions from sibling and child summaries are combined
+pointwise in one canonical variable order, so repeated uses stay correlated. Disjoint
+type alternatives use `BooleanDecision.join`, which keeps unrelated variables in
+separate alternatives instead of forming a Cartesian product. `joinCases` and the final
+bottom-up compaction evaluate a join eagerly only when both operands are leaves; this is
+the same scheduled algebra operation and requires no extra algebra law.
 
-When the cursor reaches a type branch, it partitions only its current possible-type
-region and continues separately in each feasible subregion. When no branches remain,
-all fields activated at that selection-set boundary are materialized in source order,
-globally collected by response name, and passed to the algebra. Completed leaves are
-compacted eagerly only after the boundary's recursive `field` applications, preserving
-factoring without requiring `field` monotonicity.
+`summarizeOperationWithVariables` uses the batched `CaseForest` compatibility-region
+scheduler. At
+each selection-set boundary it resolves the whole active frontier for every feasible
+type region, resolves Boolean branches directly from the closed request environment,
+records those assignments in inherited conditions, globally collects completed fields
+by response name, and immediately folds the region summaries in their specified order.
+It constructs no Boolean decision tree, performs no Boolean splitting, and retains no
+persistent cursor. Missing, null, and non-Boolean directive inputs are determined as
+false.
 
 The entry points are:
 
-- `ExactCases.summarizeConditionTree`;
-- `ExactCases.summarizeSelectionSet`;
 - `ExactCases.summarizeOperation`;
 - `ExactCases.summarizeOperationWithVariables`.
 
-The condition-tree and selection-set functions take an explicit `BooleanEnvironment`.
-The ordinary operation entry point supplies `BooleanEnvironment.unresolved`; the
-variable-aware operation entry point constructs a concrete environment after applying
-operation defaults. The internal decision builder derives its pruning context
-canonically from that environment.
+Condition-tree and selection-set functions are algorithm-specific helpers under
+`CaseCursor` and `CaseForest`, not generic entry points. The variable-independent
+operation summary begins with every Boolean unresolved. The variable-aware operation
+summary applies operation defaults and passes the resulting request values to the
+batched evaluator.
+
+The model intentionally does not assert that the cursor and forest evaluators return
+equal algebra terms. Their alternative schedules can associate `join` differently, and
+`Algebra` does not require associativity, commutativity, idempotence, or distributivity.
+Instead, each operation entry point is proved sound and optimal against its own
+independent outcome relation.
 
 ## Soundness boundaries
 
@@ -224,9 +221,11 @@ Forgetting concrete operation-variable values is proved by evaluating one path o
 lazy Boolean decision tree and placing that path below its collapsed join. It uses
 `Algebra.Lawful` together with the ExactCases-specific
 `ExactCases.JoinFactoringLaws` needed by factored type alternatives.
-`ExactCases.Soundness` carries both: its inherited `abstractLawful` field is the sole
-core witness, while its dependent `joinFactoringLaws` field contains only the
-additional laws indexed by that witness.
+`ExactCases.Soundness` is the narrower shared contract containing the core and field
+obligations. `ExactCases.SoundnessWithFactoring` extends it with
+`JoinFactoringLaws`; cursor execution theorems, including selection-set outcome
+coverage, require the extended contract. The variable-aware batched operation theorem
+uses `Soundness` directly.
 
 The ExactCases backend also supports variable-indexed algebras without forgetting the
 coerced request variables. `AnalysisWithVariablesSound` targets
@@ -234,9 +233,9 @@ coerced request variables. `AnalysisWithVariablesSound` targets
 `ExactCases.analysisWithVariablesSound`. The proof module retains the fuel-parameterized
 `operationWithVariablesSoundWithFuel` theorem used by concrete analysis proofs, but its
 statement is not part of the public definition module.
-Because coercion gives a concrete environment, this entry point resolves each Boolean
-literal when reached and constructs no Boolean split. Missing, null, and non-Boolean
-values select false. Type-region alternatives remain incremental and branch-local.
+Because coercion gives a closed request environment, this entry point uses the batched
+compatibility-region evaluator. It constructs no Boolean split or decision tree.
+Missing, null, and non-Boolean values select false.
 
 The Syntactic backend has the same public variable-indexed surface:
 `AnalysisWithVariablesSound`, witnessed by
@@ -270,17 +269,18 @@ boundary; the erasure theorem does not specify that metadata independently.
 ## Optional optimality
 
 Optimality is available only for `ExactCases` and is separate from ordinary execution
-soundness. `ExactCases.OutcomeSemantics` describes modeled simultaneous composition and
-the possible modeled results of one collected field group. Feasible outcomes are defined
-relationally by the mutually inductive `CaseCursor.ContextOutcome`,
-`ContextFieldGroupsOutcome`, and `ContextChildTypesOutcome` relations. A derivation
-chooses one branch-local type region, follows one total Boolean assignment shared across
-sibling groups and recursive children, and selects one modeled field outcome.
+soundness. `ExactCases.OutcomeSemantics` describes concrete simultaneous composition and
+the possible concrete result of one collected field group. The cursor evaluator has an
+independent mutually inductive `CaseCursor` outcome relation: a derivation chooses one
+branch-local type region and follows one total Boolean assignment shared across sibling
+groups and recursive children. The batched evaluator has a separate mutually inductive
+`CaseForest` relation that chooses the frontier regions and resolves
+Boolean branches from the closed environment.
 
-The proof module establishes that these relational derivations characterize the
-executable cursor exactly. Only after that characterization does it use a private
-predicate-valued algebra as a proof device to transport local best-bound obligations to
-the analysis algebra.
+The proof modules establish that each independent relation characterizes its executable
+evaluator exactly. Only after those characterizations do they use private
+predicate-valued algebras to transport local best-bound obligations to the analysis
+algebra. No cross-mode summary-equivalence lemma is assumed or proved.
 
 An analysis that opts in provides `ExactCases.BestTransferLaws`: localized best-bound
 obligations for `empty`, `combine`, `field`, and `join`. This package is part of the
@@ -299,9 +299,9 @@ The first item is structural-case soundness. The last item is needed for simulta
 composition to preserve least bounds.
 
 `BestBound` accepts the summary comparison relation directly. `BestTransferLaws` is
-indexed by that relation and supplies the modeled-to-abstract `approximates` relation.
-Execution coverage indexes it by the order already carried by soundness, so there is one
-shared abstract order rather than two separately equated relations.
+indexed by that same relation and supplies the modeled-to-abstract `approximates`
+relation. Execution coverage indexes it by the order already carried by soundness, so
+the coverage theorem cannot silently compare two different abstract orders.
 
 Optimality is an opt-in layer: import
 `GraphQL.Theories.TreeSummary.ExactCasesOptimality` for its public contracts and
@@ -310,31 +310,31 @@ The per-operation contracts are `ExactCases.AnalysisOptimal` and
 `ExactCases.AnalysisWithVariablesOptimal`, witnessed by `ExactCases.analysisOptimal`
 and `ExactCases.analysisWithVariablesOptimal`.
 
-`ExactCases.summarizeOperation_best` proves the central theorem. Its characterization
-lemma connects the relational outcomes to the incremental decisions, including nested
-child selection sets, correlated Boolean choices, local type regions, and field
-outcomes.
+`ExactCases.summarizeOperation_best` and
+`ExactCases.summarizeOperationWithVariables_best` are the corresponding generic
+least-bound theorems. Their `BestBound.sound` projections provide structural soundness;
+the execution-soundness theorems above connect each entry point to GraphQL execution.
 
 Thus the framework does not claim that every analysis algebra is intrinsically
 precise. It says that, once its four local transfer steps are best, exact-case traversal
 does not introduce additional over-approximation: its result is the least bound of all
 and only the recursively feasible cases represented by the traversal.
 
-`OperationOutcomesCoverExecutions` bridges the relational outcomes to executable GraphQL
-semantics. It says that every `OutcomeSet.IsUpperBound` of a complete request's
-relational outcomes also bounds every annotated execution of that valid operation.
-Its premises expose the same schema well-formedness and operation-validity requirements
-used by analysis soundness. Coverage uses this upper-closure formulation because one
-execution can combine several modeled cases, for example when a list contains objects
-of different runtime types; it need not be represented by one outcome member. The
-theorem follows from operation execution soundness and the least-bound theorem. It does
-not claim that every modeled outcome is realizable by some resolver.
+Five adequacy theorems make the shared cursor outcome model independently inspectable:
 
-This gives the framework two explicit specifications and two corresponding correctness
-directions:
+- `SelectionSetExecutionCovered` says every common abstract bound of the cursor outcomes
+  also bounds every execution at the same complete request context;
+- `SelectionSetBooleanSplitExact` shows that resolving one unknown Boolean gives the
+  exhaustive union of its false and true cofactors;
+- `SelectionSetResolvedAssignmentsExact` extends this to every Boolean variable in an
+  extracted hierarchy without changing the request-pruning policy;
+- `SelectionSetOutcomesInhabited` shows that enumeration cannot get stuck when each
+  analysis-defined field transfer has an outcome;
+- `SelectionSetRuntimeGroupsExact` specializes outcomes to field-group observation and
+  relates every complete-request case to runtime `collectFields` in both directions.
 
 - GraphQL execution is the external behavioral specification. `AnalysisSound` relates
-  the implementation directly to it, while `OperationOutcomesCoverExecutions` shows that
+  the implementation directly to it, while `SelectionSetExecutionCovered` shows that
   upper bounds of the relational outcome semantics are also sound for execution.
 - `OutcomeSemantics` is the relational feasible-case specification. `AnalysisOptimal`
   proves that the implementation computes its least abstract bound. It deliberately
@@ -362,6 +362,14 @@ coverage explain the intended tightness boundary. Remaining over-approximation m
 come from analysis-defined local field outcomes or from combining several runtime
 objects in one response, but not from missing Boolean assignments, infeasible root type
 regions, or the incremental case scheduler itself.
+
+`SelectionSetExecutionCovered` requires a well-formed schema, a runtime object type,
+selection validity, and field-merging validity. It uses an upper-closure statement
+because one execution can combine several modeled cases, for example when a list
+contains objects of different runtime types; it need not be represented by one outcome
+member. The theorem does not claim that every modeled outcome is realizable by some
+resolver. Structural optimality itself remains separate from executable GraphQL
+semantics.
 
 There is intentionally no general syntactic optimality statement: losing correlations
 and splitting response-name groups can make its result strictly less precise.
@@ -456,17 +464,15 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   possible-type-region partitions and their exactness contract, and structural
   termination measures.
 - `GraphQL/Theories/TreeSummary/Syntactic.lean`: fast structural traversal.
-- `GraphQL/Theories/TreeSummary/ExactCases.lean`: ExactCases environments, cursor,
-  measures, entry points, laws, and soundness contracts; Boolean-decision construction
-  is qualified under `ExactCases.Internal`.
+- `GraphQL/Theories/TreeSummary/ExactCases.lean`: ExactCases cursor, case forest,
+  measures, operation entry points, laws, and soundness
+  contracts; Boolean-decision construction is qualified under `ExactCases.Internal`.
 - `GraphQL/Theories/AnnotatedExecution.lean`: annotated response syntax and execution,
   with an erasure statement connecting it to ordinary execution.
 - `GraphQL/Theories/TreeSummary/Soundness.lean`: abstract child-shape and concrete
-  response/result folds, `ConcreteAlgebra`, and the soundness core shared by both
-  backends.
-- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: relational inductive outcome
-  semantics, execution coverage, outcome-adequacy contracts, and public
-  least-bound contracts.
+  response folds, `ConcreteAlgebra`, and the soundness core shared by both backends.
+- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: independent cursor and
+  case-forest outcome semantics plus public least-bound contracts.
 - `GraphQL/Theories/TreeSummary/StaticCost.lean`: external cost/list-size model and IBM
   static/query-response cost analyses.
 - `GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: both response-size entry points.
@@ -480,11 +486,12 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   possible-type-region partition shared by both traversal backends.
 - `Proofs/GraphQL/Theories/TreeSummary/ExecutionValidity.lean`: recursive field-merging
   and argument-validity facts shared by both execution-soundness proofs.
-- `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: the proof-only deterministic
-  runtime-case interpreter, runtime alignment, variable refinement, and execution
-  soundness.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: cursor and case-forest runtime-case
+  interpreters, runtime alignment, variable refinement, execution soundness, and the
+  case-forest optimality characterization.
 - `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: proof aggregator for
-  ExactCases relational outcome semantics and best bounds.
+  ExactCases relational outcome semantics, cursor characterization, and recursive
+  exact-case best-bound induction.
 - `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality/OutcomeCharacterization.lean`:
   executable-cursor characterization and condition-tree best-bound induction.
 - `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality/BestBounds.lean`:
@@ -512,5 +519,3 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   soundness, optimality, and analysis witnesses.
 - `Proofs/GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: response-size
   soundness, optimality, and analysis witnesses.
-- `Benchmarks/ExactCases.lean`: structural and timing benchmark for branch-local Boolean
-  splitting across disjoint abstract-type regions.

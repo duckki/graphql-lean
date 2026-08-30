@@ -19,6 +19,7 @@ open GraphQL.Execution
 open GraphQL.Execution.FieldGroups
 open Optimality
 open Internal
+open CaseCursor
 
 universe u v w
 
@@ -57,7 +58,7 @@ private def relation {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
 
 end BestTransferLaws
 
-namespace BooleanEnvironment
+namespace CaseCursor.BooleanEnvironment
 
 abbrev Matches (environment : BooleanEnvironment) (assignment : BooleanAssignment)
     : Prop :=
@@ -249,7 +250,7 @@ theorem pruningValues_assignVariables
   | cons variableName rest ih =>
       rw [List.foldl_cons, ih, pruningValues_assign]
 
-end BooleanEnvironment
+end CaseCursor.BooleanEnvironment
 
 namespace Internal.BooleanDecision
 
@@ -1578,10 +1579,12 @@ private theorem conditionTreeOutcomes_iff_proofFold
     (semantics : OutcomeSemantics.{u}) (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
     (initial : BooleanEnvironment) (outcome : semantics.Summary)
-    : conditionTreeOutcomes semantics schema inheritedBooleanCondition tree initial
-        outcome
-      ↔ summarizeConditionTree (OutcomeSemantics.proofAlgebra semantics) schema
-          inheritedBooleanCondition tree initial outcome := by
+    : CaseCursor.conditionTreeOutcomes semantics schema inheritedBooleanCondition
+        tree initial outcome
+      ↔ (Internal.summarizeConditionTreeDecision
+          (OutcomeSemantics.proofAlgebra semantics) schema inheritedBooleanCondition
+          tree (conditionTreeBooleanVariables tree).eraseDups initial).collapse
+          (OutcomeSemantics.proofAlgebra semantics) outcome := by
   let variableOrder := (conditionTreeBooleanVariables tree).eraseDups
   let decision :=
     CaseCursor.summarizeDecisionWithPruning (OutcomeSemantics.proofAlgebra semantics) schema
@@ -1592,7 +1595,8 @@ private theorem conditionTreeOutcomes_iff_proofFold
       (OutcomeSemantics.proofAlgebra semantics) schema variableOrder
       inheritedBooleanCondition [] (.ofConditionTree tree) tree.condition.possibleTypes
       initial initial.pruningValues
-  unfold conditionTreeOutcomes summarizeConditionTree
+  unfold CaseCursor.conditionTreeOutcomes
+    Internal.summarizeConditionTreeDecision
   change (∃ assignment,
             assignment.Extends initial
             ∧ CaseCursor.ContextOutcome semantics schema assignment initial
@@ -1610,7 +1614,7 @@ private theorem conditionTreeOutcomes_iff_proofFold
     inheritedBooleanCondition [] (.ofConditionTree tree) tree.condition.possibleTypes
     outcome
 
-private theorem bestBound_of_attainable_iff
+theorem bestBound_of_attainable_iff
     {ConcreteSummary : Type u} {AbstractSummary : Type v}
     {le : AbstractSummary -> AbstractSummary -> Prop}
     {related : ConcreteSummary -> AbstractSummary -> Prop}
@@ -1630,23 +1634,50 @@ private theorem bestBound_of_attainable_iff
             hcandidate outcome ((hiff outcome).mpr houtcome)
   }
 
--- The exact traversal is the least abstract bound of the relational feasible cases
--- under the supplied local transfer laws.
-theorem summarizeConditionTree_best
+-- The internal decision builder is the least abstract bound of the relational feasible
+-- cases under any explicit Boolean environment. This proof-facing theorem does not add
+-- a generic public evaluation entry point.
+theorem Internal.summarizeConditionTreeDecision_best
     {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
     {le : abstract.Summary -> abstract.Summary -> Prop}
     (laws : BestTransferLaws semantics abstract le) (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : Tree) (initial : BooleanEnvironment)
+    (tree : Tree) (initial : CaseCursor.BooleanEnvironment)
     : BestBound le laws.approximates
-        (conditionTreeOutcomes semantics schema inheritedBooleanCondition tree initial)
-        (summarizeConditionTree abstract schema inheritedBooleanCondition tree
-          initial) := by
+        (CaseCursor.conditionTreeOutcomes semantics schema
+          inheritedBooleanCondition tree initial)
+        ((Internal.summarizeConditionTreeDecision abstract schema
+            inheritedBooleanCondition tree (conditionTreeBooleanVariables tree).eraseDups
+            initial).collapse
+          abstract) := by
   apply bestBound_of_attainable_iff
     (conditionTreeOutcomes_iff_proofFold semantics schema
       inheritedBooleanCondition tree initial)
-  exact summarizeConditionTree_related (OutcomeSemantics.proofAlgebra semantics) abstract
-    laws.relation schema inheritedBooleanCondition tree initial
+  unfold Internal.summarizeConditionTreeDecision
+  rw [BooleanDecision.collapse_compact, BooleanDecision.collapse_compact]
+  apply BooleanDecision.Related.collapse
+    (OutcomeSemantics.proofAlgebra semantics) abstract laws.relation
+  exact CaseCursor.summarizeDecisionWithPruning_related
+    (OutcomeSemantics.proofAlgebra semantics) abstract laws.relation schema
+    (conditionTreeBooleanVariables tree).eraseDups inheritedBooleanCondition []
+    (.ofConditionTree tree) tree.condition.possibleTypes initial initial.pruningValues
+
+-- The symbolic cursor entry point is the corresponding specialization with every
+-- absent Boolean still unresolved.
+theorem CaseCursor.summarizeConditionTree_best
+    {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
+    {le : abstract.Summary -> abstract.Summary -> Prop}
+    (laws : BestTransferLaws semantics abstract le) (schema : Schema)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (caseValues : VariableValues)
+    : BestBound le laws.approximates
+        (CaseCursor.conditionTreeOutcomes semantics schema
+          inheritedBooleanCondition tree (.symbolic caseValues))
+        (CaseCursor.summarizeConditionTree abstract schema inheritedBooleanCondition tree
+          caseValues) := by
+  simpa [CaseCursor.summarizeConditionTree] using
+    Internal.summarizeConditionTreeDecision_best laws schema
+      inheritedBooleanCondition tree (.symbolic caseValues)
 
 end ExactCases
 end TreeSummary

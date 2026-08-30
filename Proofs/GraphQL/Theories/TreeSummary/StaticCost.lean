@@ -1976,7 +1976,7 @@ theorem joinFactoringLaws (schema : Schema) (model : CostModel)
 
 def soundness (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.Soundness (concreteAlgebra schema model)
+    : TreeSummary.ExactCases.SoundnessWithFactoring (concreteAlgebra schema model)
         (algebra schema model variableValues) schema variableValues :=
   {
     approximates := ResponseObservationBound
@@ -2053,7 +2053,9 @@ theorem analysisWithVariablesSoundWithFuel
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
   have hrefinement :=
     TreeSummary.ExactCases.operationWithVariablesSoundWithFuel
-      (algebra schema model) (soundness schema model) operation hschema hoperation
+      (algebra schema model)
+      (fun values => (soundness schema model values).toSoundness) operation
+      hschema hoperation
       ObjectRef resolvers variableValues fuel source
   have hcost := actualCost_le_staticBound schema model
     (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel source)
