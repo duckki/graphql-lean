@@ -5,10 +5,14 @@ import Tests.GraphQL.Common
 
 The field scope has two disjoint abstract-type regions. For an even total `K`, each
 region contains conditional fields controlled by its own disjoint `K / 2` variables.
-An eager operation-wide Boolean expansion visits `2^K` assignments; a region-local
-scheduler needs only `2 * 2^(K / 2)` terminal boundary cases.
+An analytically eager operation-wide Boolean expansion has `2^K` assignments; the
+branch-local scheduler should construct only `2 * 2^(K / 2)` terminal boundary cases.
 
-The measurement goes through the public unresolved-context constructor.
+The structural assertions test that separation directly. Timings measure only the
+current branch-local implementation after warmup; the eager assignment count is a
+complexity reference, not a measured baseline. Paper-level performance comparisons
+should additionally preserve and measure an eager implementation or baseline commit,
+and report the commit, Lean toolchain, build mode, and host hardware.
 -/
 
 namespace GraphQL.Benchmarks.ExactCases
@@ -134,17 +138,57 @@ def boundaryMetrics (booleanCount : Nat) : DecisionMetrics :=
       variables BooleanEnvironment.unresolved
   decisionMetrics decision
 
-def elapsedMilliseconds (started finished : Nat) : Float :=
-  (finished - started).toFloat / 1000000.0
+def nanosecondsToMilliseconds (nanoseconds : Nat) : Float :=
+  nanoseconds.toFloat / 1000000.0
 
-def timeMetrics (compute : Unit -> DecisionMetrics) : IO (DecisionMetrics × Float) := do
+def timeMetrics (compute : Unit -> DecisionMetrics) : IO (DecisionMetrics × Nat) := do
   let started ← IO.monoNanosNow
   let metrics := compute ()
   let checksum := metrics.nodes + metrics.leaves + metrics.leafGroupSum
   if checksum == 0 then
     throw <| IO.userError "exact-cases benchmark unexpectedly produced no work"
   let finished ← IO.monoNanosNow
-  pure (metrics, elapsedMilliseconds started finished)
+  pure (metrics, finished - started)
+
+def insertSorted (value : Nat) : List Nat -> List Nat
+  | [] => [value]
+  | head :: tail =>
+      if value ≤ head then
+        value :: head :: tail
+      else
+        head :: insertSorted value tail
+
+def sortNats (values : List Nat) : List Nat :=
+  values.foldl (fun sorted value => insertSorted value sorted) []
+
+structure TimingSummary where
+  medianNanos : Nat
+  minimumNanos : Nat
+  maximumNanos : Nat
+deriving Repr
+
+def summarizeTimings (samples : List Nat) : TimingSummary :=
+  let sorted := sortNats samples
+  {
+    medianNanos := sorted[sorted.length / 2]?.getD 0
+    minimumNanos := sorted.head?.getD 0
+    maximumNanos := sorted.foldl Nat.max 0
+  }
+
+def warmupCount : Nat := 3
+
+def sampleCount : Nat := 11
+
+def sampleMetrics (compute : Unit -> DecisionMetrics)
+    : IO (DecisionMetrics × List Nat) := do
+  for _ in List.range warmupCount do
+    let _ ← timeMetrics compute
+  let (metrics, firstElapsed) ← timeMetrics compute
+  let mut samples := [firstElapsed]
+  for _ in List.range (sampleCount - 1) do
+    let (_, elapsed) ← timeMetrics compute
+    samples := elapsed :: samples
+  pure (metrics, samples)
 
 def runScenario (booleanCount : Nat) : IO Unit := do
   if booleanCount % 2 != 0 then
@@ -152,23 +196,35 @@ def runScenario (booleanCount : Nat) : IO Unit := do
   let eagerAssignments := 2 ^ booleanCount
   let perRegion := booleanCount / 2
   let expectedLocalCases := 2 * 2 ^ perRegion
+  let expectedNodes := 2 * expectedLocalCases - 1
   let expectedLeafGroupSum := perRegion * 2 ^ perRegion
-  let (metrics, elapsedMs) ← timeMetrics fun _ => boundaryMetrics booleanCount
+  let (metrics, samples) ← sampleMetrics fun _ => boundaryMetrics booleanCount
   if metrics.leaves != expectedLocalCases then
     throw
     <| IO.userError
         s!"expected {expectedLocalCases} traversal leaves, got {metrics.leaves}"
+  if metrics.nodes != expectedNodes then
+    throw
+    <| IO.userError s!"expected {expectedNodes} traversal nodes, got {metrics.nodes}"
   if metrics.leafGroupSum != expectedLeafGroupSum then
     throw
     <| IO.userError
         s!"expected leaf group sum {expectedLeafGroupSum}, got {metrics.leafGroupSum}"
+  let timing := summarizeTimings samples
   IO.println
-    s!"K={booleanCount}: eagerAssignments={eagerAssignments}, expectedLocalCases={expectedLocalCases}"
-  IO.println
-    s!"  traversal: nodes={metrics.nodes}, leaves={metrics.leaves}, leafGroupSum={metrics.leafGroupSum}, ms={elapsedMs}"
+  <| s!"{booleanCount},{eagerAssignments},{expectedLocalCases},{metrics.nodes},"
+      ++ s!"{metrics.leaves},{metrics.leafGroupSum},{samples.length},"
+      ++ s!"{nanosecondsToMilliseconds timing.medianNanos},"
+      ++ s!"{nanosecondsToMilliseconds timing.minimumNanos},"
+      ++ s!"{nanosecondsToMilliseconds timing.maximumNanos}"
 
 def run : IO Unit := do
-  IO.println "ExactCases disjoint-region Boolean benchmark"
+  IO.println "# ExactCases disjoint-region Boolean benchmark"
+  IO.println
+    "# eager assignments are analytical; timings measure branch-local traversal only"
+  IO.println
+  <| "k,analytical_eager_assignments,expected_local_cases,nodes,leaves,"
+      ++ "leaf_group_sum,samples,median_ms,min_ms,max_ms"
   for booleanCount in [8, 12, 16, 20] do
     runScenario booleanCount
 

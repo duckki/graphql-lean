@@ -20,20 +20,24 @@ open GraphQL.ConditionTree.Termination
 
 universe u v
 
--- Semantic aliases distinguish GraphQL type-name collections from other `Name` lists.
+/-- Possible GraphQL runtime object types. -/
 abbrev PossibleTypes := List Name
+
+/-- GraphQL type names used as traversal alternatives. -/
 abbrev TypeNames := List Name
+
+/-- Boolean variable names in canonical decision order. -/
 abbrev BooleanVariableNames := List Name
 
 -----------------------------------------------------------------------------------------
 -- Tree summary algebra
 -----------------------------------------------------------------------------------------
 
--- The statically collected fields for one response name at one condition-tree node.
--- `fieldGroup` makes the two invariants supplied by condition-tree extraction part of
--- the type: the group is nonempty and every member is field syntax. `fields` exposes
--- those typed fields; `selections` reconstructs selection syntax for analyses that need
--- executable field shape or merged children.
+/-- The statically collected fields for one response name at one condition-tree node.
+`fieldGroup` makes the two invariants supplied by condition-tree extraction part of the
+type: the group is nonempty and every member is field syntax. `fields` exposes those
+typed fields; `selections` reconstructs selection syntax for analyses that need
+executable field shape or merged children. -/
 structure CollectedFieldGroup where
   inheritedBooleanCondition : List BooleanLiteral
   condition : Condition
@@ -47,6 +51,24 @@ def responseName (group : CollectedFieldGroup) : Name :=
 
 def fields (group : CollectedFieldGroup) : List Field :=
   group.fieldGroup.fields
+
+/-- Converts one statically collected response-name group to executable field syntax.
+`CollectedFieldGroup` already guarantees that every member is a field with the enclosing
+response name, so no selection filtering is needed here. -/
+def toExecutableGroup (group : CollectedFieldGroup) (parentType : Name)
+    : Name × List Execution.ExecutableField :=
+  (
+    group.responseName,
+    group.fields.map
+      fun field =>
+        {
+          parentType
+          responseName := group.responseName
+          fieldName := field.fieldName
+          arguments := field.arguments
+          selectionSet := field.selectionSet
+        }
+  )
 
 def selections (group : CollectedFieldGroup) : List Selection :=
   group.fieldGroup.selections
@@ -94,17 +116,17 @@ def fieldOutputTypes (schema : Schema) (group : CollectedFieldGroup) : List Type
 
 end CollectedFieldGroup
 
--- Child selection sets are interpreted once for every output type that this collected
--- group can resolve to. The alternatives belong to the framework, not an analysis.
+/-- Child selection sets are interpreted once for every output type that this collected
+group can resolve to. The alternatives belong to the framework, not an analysis. -/
 def childParentTypes (schema : Schema) (group : CollectedFieldGroup) : TypeNames :=
   ((group.fieldOutputTypes schema).map TypeRef.namedType).eraseDups
 
 def possibleTypesSubset (left right : PossibleTypes) : Bool :=
   left.all right.contains
 
--- One realizable equivalence class of runtime object types. Refining the current scope
--- by cumulative type-condition sets groups object names exactly when they activate the
--- same conditions; consumers can therefore evaluate one representative per region.
+/-- One realizable equivalence class of runtime object types. Refining the current scope
+by cumulative type-condition sets groups object names exactly when they activate the
+same conditions; consumers can therefore evaluate one representative per region. -/
 abbrev PossibleTypeRegion := PossibleTypes
 
 def splitPossibleTypeRegion (region allowed : PossibleTypeRegion)
@@ -125,12 +147,12 @@ def possibleTypeRegions (scope : PossibleTypes) (conditions : List PossibleTypes
     (fun regions allowed => refinePossibleTypeRegions allowed regions)
     (if scope.isEmpty then [] else [scope])
 
--- Algebra for a contextual fold over a condition tree.
---
--- `field` receives one statically collected response-name group and the synthesized
--- summary of its merged child selection set. `combine` composes contributions that may
--- occur together; `join` merges alternative Boolean assignments and type-condition
--- possible-type cases.
+/-- Algebra for a contextual fold over a condition tree.
+
+`field` receives one statically collected response-name group and the synthesized
+summary of its merged child selection set. `combine` composes contributions that may
+occur together; `join` merges alternative Boolean assignments and type-condition
+possible-type cases. -/
 structure Algebra where
   Summary : Type u
   empty : Summary
@@ -138,8 +160,8 @@ structure Algebra where
   combine : Summary -> Summary -> Summary
   join : Summary -> Summary -> Summary
 
--- Proof-facing order and algebraic laws for soundness and refinement. The order remains
--- outside `Algebra` so executable summaries pay no extra contract.
+/-- Proof-facing order and algebraic laws for soundness and refinement. The order remains
+outside `Algebra` so executable summaries pay no extra contract. -/
 structure Algebra.Lawful (algebra : Algebra.{v}) : Type v where
   le : algebra.Summary -> algebra.Summary -> Prop
   le_refl : ∀ value, le value value
@@ -209,11 +231,11 @@ def fieldGroupsWithContext (inheritedBooleanCondition : List BooleanLiteral)
 -- PossibleTypeRegion invariant
 -----------------------------------------------------------------------------------------
 
--- Exact symbolic partition induced by type-condition membership. The first conjunct
--- excludes empty/out-of-scope regions, the second gives unique coverage of every
--- possible runtime type, and the third says every condition is constant on a region.
--- Its theorem witness is `possibleTypeRegions_exact` in
--- `Proofs.GraphQL.Theories.TreeSummary.PossibleTypeRegions`.
+/-- Exact symbolic partition induced by type-condition membership. The first conjunct
+excludes empty/out-of-scope regions, the second gives unique coverage of every possible
+runtime type, and the third says every condition is constant on a region. Its theorem
+witness is `possibleTypeRegions_exact` in
+`Proofs.GraphQL.Theories.TreeSummary.PossibleTypeRegions`. -/
 def PossibleTypeRegionsExact (scope : PossibleTypes) (conditions : List PossibleTypes)
     : Prop :=
   let regions := possibleTypeRegions scope conditions

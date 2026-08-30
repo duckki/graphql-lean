@@ -248,8 +248,8 @@ It should remain definition-only.
   condition trees. Algebras provide a synthesized summary type plus field,
   simultaneous-composition, and alternative-join operations. Condition pruning is
   framework traversal policy, independent of the algebra.
-- `GraphQL.Theories.TreeSummary.Soundness`: abstract child-shape and concrete response
-  folds over the annotated responses produced by
+- `GraphQL.Theories.TreeSummary.Soundness`: abstract child-shape and concrete
+  response/result folds over the annotated responses produced by
   `GraphQL.Theories.AnnotatedExecution`, plus their shared soundness contract.
 - `GraphQL.Theories.TreeSummary.Syntactic`: direct node-local materializable
   type-condition products and factorized Boolean-case traversal together with its direct
@@ -258,8 +258,8 @@ It should remain definition-only.
   globally shared Boolean context per selection hierarchy, node-local lazy truth-value
   decisions for explicit contexts, and node-local type-region resolution, together with
   its direct operation soundness contract.
-- `GraphQL.Theories.TreeSummary.ExactCasesOptimality`: independent structural-case
-  semantics and optional best-bound contracts for the exact backend.
+- `GraphQL.Theories.TreeSummary.ExactCasesOptimality`: relational outcome semantics and
+  optional best-bound contracts for the exact backend.
 - `GraphQL.Theories.TreeSummary.StaticCost`: IBM GraphQL Cost Directives
   static and query-response analyses, with separate type and field costs and a
   sound upper bound for the supplied variable assignment and every remaining

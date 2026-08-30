@@ -249,7 +249,8 @@ private theorem mappedGroupKeys
         (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType)).map
         Prod.fst
       = groups.map CollectedFieldGroup.responseName := by
-  simp [List.map_map, RuntimeCase.collectedFieldGroupToExecutableGroup]
+  simp [List.map_map, RuntimeCase.collectedFieldGroupToExecutableGroup,
+    CollectedFieldGroup.toExecutableGroup]
 
 theorem staticResponseNamesNodup
     (executionParentType : Name) (groups : List CollectedFieldGroup)
@@ -383,7 +384,8 @@ theorem alignStaticGroup
         :: staticTail.map
           (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
       ((responseName, executionFields) :: executionTail) := by
-    simpa [RuntimeCase.collectedFieldGroupToExecutableGroup, hgroupName] using haligned
+    simpa [RuntimeCase.collectedFieldGroupToExecutableGroup,
+      CollectedFieldGroup.toExecutableGroup, hgroupName] using haligned
   exact ⟨group, staticTail, hperm, hgroupName, haligned'.headFields,
     haligned'.tails⟩
 
@@ -675,19 +677,10 @@ theorem mappedExecutableField_source
       : field
         ∈ (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType group).2)
     : field.parentType = executionParentType ∧ field.fieldName ∈ group.fieldNames := by
-  unfold RuntimeCase.collectedFieldGroupToExecutableGroup at hfield
-  rcases List.mem_filterMap.mp hfield with ⟨selection, hselection, hmapped⟩
-  cases selection with
-  | inlineFragment typeCondition directives selectionSet => simp at hmapped
-  | field responseName fieldName arguments directives selectionSet =>
-      simp only at hmapped
-      cases hmapped
-      refine ⟨rfl, ?_⟩
-      simp [CollectedFieldGroup.selections, ConditionTree.FieldGroup.selections,
-        ConditionTree.Field.toSelection] at hselection
-      rcases hselection with
-        ⟨candidate, hcandidate, _hresponseName, hfieldName, _⟩
-      exact List.mem_map.mpr ⟨candidate, hcandidate, hfieldName⟩
+  unfold RuntimeCase.collectedFieldGroupToExecutableGroup
+    CollectedFieldGroup.toExecutableGroup at hfield
+  rcases List.mem_map.mp hfield with ⟨candidate, hcandidate, rfl⟩
+  exact ⟨rfl, List.mem_map.mpr ⟨candidate, hcandidate, rfl⟩⟩
 
 theorem mappedExecutableField_represented
     (executionParentType : Name) (group : CollectedFieldGroup)
@@ -695,65 +688,22 @@ theorem mappedExecutableField_represented
     (hfield
       : field
         ∈ (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType group).2)
-    (hshape
+    (_hshape
       : ∀ selection,
           selection ∈ group.selections
           -> ∃ candidate : Field, selection = candidate.toSelection group.responseName)
     : groupRepresentsField group field := by
-  unfold RuntimeCase.collectedFieldGroupToExecutableGroup at hfield
-  rcases List.mem_filterMap.mp hfield with ⟨selection, hselection, hmapped⟩
-  cases selection with
-  | inlineFragment typeCondition directives selectionSet => simp at hmapped
-  | field responseName fieldName arguments directives selectionSet =>
-      simp only at hmapped
-      cases hmapped
-      rcases hshape (.field responseName fieldName arguments directives selectionSet)
-          hselection with ⟨candidate, hcandidate⟩
-      cases candidate
-      simp [groupRepresentsField, Field.toSelection] at hcandidate ⊢
-      simpa [hcandidate] using hselection
-
-private theorem mergeSelectionSets_eq_flatMap (selections : List Selection)
-    : SelectionSet.mergeSelectionSets selections
-      = selections.flatMap Selection.subselections :=
-  rfl
-
-private theorem mappedExecutableFields_selectionSets
-    (executionParentType responseName : Name) (selections : List Selection)
-    (hshape
-      : ∀ selection,
-          selection ∈ selections
-          -> ∃ field : Field, selection = field.toSelection responseName)
-    : (selections.filterMap
-        fun selection =>
-          match selection with
-          | .field selectedResponseName fieldName arguments _directives selectionSet =>
-              some
-                ({
-                    parentType := executionParentType
-                    responseName := selectedResponseName
-                    fieldName
-                    arguments
-                    selectionSet
-                  }
-                  : ExecutableField)
-          | .inlineFragment _typeCondition _directives _selectionSet => none).flatMap
-        ExecutableField.selectionSet
-      = selections.flatMap Selection.subselections := by
-  induction selections with
-  | nil => rfl
-  | cons selection rest ih =>
-      rcases hshape selection (by simp) with ⟨field, rfl⟩
-      simp only [List.filterMap_cons, List.flatMap_cons, Field.toSelection,
-        Selection.subselections]
-      rw [ih (by
-        intro candidate hcandidate
-        exact hshape candidate (by simp [hcandidate]))]
+  unfold RuntimeCase.collectedFieldGroupToExecutableGroup
+    CollectedFieldGroup.toExecutableGroup at hfield
+  rcases List.mem_map.mp hfield with ⟨candidate, hcandidate, rfl⟩
+  unfold groupRepresentsField CollectedFieldGroup.selections
+    ConditionTree.FieldGroup.selections
+  exact List.mem_map.mpr ⟨candidate, hcandidate, rfl⟩
 
 theorem collectedFieldGroup_mergedSelectionSet_perm
     (executionParentType : Name) (group : CollectedFieldGroup)
     (fields : List ExecutableField)
-    (hshape
+    (_hshape
       : ∀ selection,
           selection ∈ group.selections
           -> ∃ field : Field, selection = field.toSelection group.responseName)
@@ -762,13 +712,22 @@ theorem collectedFieldGroup_mergedSelectionSet_perm
           group).2.Perm
           fields)
     : group.mergedSelectionSet.Perm (Execution.mergedFieldSelectionSet fields) := by
-  rw [CollectedFieldGroup.mergedSelectionSet,
-    ConditionTree.FieldGroup.mergedSelectionSet, mergeSelectionSets_eq_flatMap]
-  change (group.selections.flatMap Selection.subselections).Perm
-    (Execution.mergedFieldSelectionSet fields)
-  rw [← mappedExecutableFields_selectionSets executionParentType group.responseName
-      group.selections hshape,
-    ← mergedFieldSelectionSet_eq_flatMap]
+  have hgroup :
+      group.mergedSelectionSet
+        = Execution.mergedFieldSelectionSet
+            (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType
+              group).2 := by
+    rw [CollectedFieldGroup.mergedSelectionSet,
+      ConditionTree.FieldGroup.mergedSelectionSet,
+      mergedFieldSelectionSet_eq_flatMap]
+    simp [
+      RuntimeCase.collectedFieldGroupToExecutableGroup,
+      CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.fields,
+      CollectedFieldGroup.responseName,
+      SelectionSet.mergeSelectionSets, ConditionTree.FieldGroup.selections,
+      ConditionTree.Field.toSelection,
+      Selection.subselections, List.flatMap_map]
+  rw [hgroup]
   exact mergedFieldSelectionSet_perm hfields
 
 theorem lookupField_outputType_mem_fieldOutputTypes
@@ -943,14 +902,14 @@ private theorem annotatedResponseExecution_related_all
     have hmappedNonempty :
         (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2 ≠ [] := by
       intro hempty
-      unfold RuntimeCase.collectedFieldGroupToExecutableGroup at hempty
-      have hshape := (hvalid group (by simp)).2.2.2
-      cases hgroups : group.selections with
-      | nil => exact hnonempty hgroups
-      | cons selection rest =>
-          rcases hshape selection (by simp [hgroups]) with ⟨field, hfield⟩
-          subst selection
-          simp [hgroups, Field.toSelection] at hempty
+      unfold RuntimeCase.collectedFieldGroupToExecutableGroup
+        CollectedFieldGroup.toExecutableGroup at hempty
+      dsimp only [Prod.snd] at hempty
+      have hfields : group.fields = [] := List.map_eq_nil_iff.mp hempty
+      unfold CollectedFieldGroup.fields at hfields
+      exact hnonempty (by
+        simp [CollectedFieldGroup.selections, ConditionTree.FieldGroup.selections,
+          hfields])
     exact False.elim (hmappedNonempty (List.Perm.eq_nil hfields))
   case case4 =>
     intro source responseName field rest runtimeType ref group _hsource _hname _hfields
@@ -1305,6 +1264,86 @@ private theorem annotatedResponseExecution_related_all
         (summarizedChildren abstract schema variableValues group fixedVariableValues)
         hhead htail
 
+-- Execution at one active selection-set boundary is sound for the concrete request
+-- environment used by the variable-aware exact traversal.
+theorem Soundness.executeSelectionSetAnnotated_sound
+    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
+    (soundness : Soundness concrete abstract schema variableValues)
+    (resolvers : Resolvers ObjectRef) (parentType : Name)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (selectionSet : List Selection) (fuel : Nat) (runtimeType : Name)
+    (ref : ObjectRef)
+    (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
+    (hpossible : schema.typeIncludesObject parentType runtimeType)
+    : soundness.approximates
+        (foldAnnotatedResponseFieldsResult concrete
+          (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
+            (.object runtimeType ref)
+            (collectFields schema variableValues runtimeType
+              (.object runtimeType ref) selectionSet)))
+        (summarizeSelectionSet abstract schema parentType inheritedBooleanCondition
+          selectionSet (BooleanEnvironment.concrete variableValues)) := by
+  let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
+    parentType inheritedBooleanCondition variableValues selectionSet
+  let staticGroups := RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+    (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
+  let executionGroups := collectFields schema variableValues runtimeType
+    (.object runtimeType ref) selectionSet
+  have hmatch : BooleanValuesMatchForPruning variableValues variableValues := by
+    intro variableName value hvalue
+    simp [hvalue]
+  have hpossibleBool :
+      (schema.getPossibleTypes parentType).contains runtimeType = true :=
+    List.contains_iff_mem.mpr hpossible
+  have hrootCondition : tree.condition = rootCondition schema parentType := by
+    unfold tree
+      ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning
+      ConditionTree.ofSelectionSetInScope
+    rw [ConditionTree.Tree.insertSelections_condition]
+    rfl
+  have htreePossible : runtimeType ∈ tree.condition.possibleTypes := by
+    rw [hrootCondition]
+    simpa [rootCondition, Schema.typeIncludesObject] using hpossible
+  have hequivalent : RuntimeGroupsPermutationEquivalent
+      (staticGroups.map
+        (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType))
+      executionGroups := by
+    simpa [tree, staticGroups, executionGroups] using
+      runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm schema
+        parentType runtimeType runtimeType inheritedBooleanCondition
+        (List.Perm.refl selectionSet) variableValues variableValues hmatch ref
+        hinherited hpossibleBool
+  have hvalid : StaticGroupsValid variableValues runtimeType staticGroups := by
+    exact runtimeCaseGroups_valid parentType inheritedBooleanCondition
+      (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
+      hinherited htreePossible
+  have hrelated :=
+    (annotatedResponseExecution_related_all schema resolvers variableValues
+      variableValues hmatch soundness).1 fuel (.object runtimeType ref)
+      executionGroups runtimeType ref staticGroups rfl hequivalent hvalid
+  have hsummaryLe : soundness.abstractLawful.le
+      (summarizeCollectedGroups abstract schema variableValues staticGroups
+        variableValues)
+      (summarizeSelectionSetResolved abstract schema parentType
+        inheritedBooleanCondition selectionSet variableValues variableValues) := by
+    rw [summarizeCollectedGroups_eq abstract schema variableValues variableValues _]
+    rw [← RuntimeCase.summarize_eq_resolved abstract schema parentType
+      inheritedBooleanCondition (.ofConditionTree tree)
+      tree.condition.possibleTypes runtimeType variableValues variableValues]
+    apply soundness.abstractLawful.le_trans _
+      (CaseCursor.summarize abstract schema inheritedBooleanCondition
+        (.ofConditionTree tree) tree.condition.possibleTypes
+        variableValues variableValues)
+    · exact RuntimeCase.summarize_le abstract soundness.joinFactoringLaws schema
+        parentType inheritedBooleanCondition (.ofConditionTree tree)
+        tree.condition.possibleTypes runtimeType variableValues variableValues
+        htreePossible
+    · rw [CaseCursor.summarize_ofConditionTree_eq_resolved]
+      exact soundness.abstractLawful.le_refl _
+  have hrelated' := soundness.approximates_upward _ _ _ hrelated hsummaryLe
+  rw [summarizeSelectionSet_eq_resolved_concrete]
+  simpa [executionGroups, foldAnnotatedResponseFieldsResult] using hrelated'
+
 private theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (operation : Operation) (resolvers : Resolvers ObjectRef)
@@ -1520,7 +1559,7 @@ theorem operationWithVariablesSoundWithFuel
     summarizeSelectionSet, summarizeConditionTree, summarizeConditionTreeResolved,
     Internal.summarizeConditionTreeDecision, summarizeConditionTreeWithPruning,
     summarizeConditionTreeDecisionWithPruning,
-    BooleanEnvironment.ofCompleteValues, BooleanEnvironment.complete,
+    BooleanEnvironment.concrete, BooleanEnvironment.concrete,
     BooleanEnvironment.pruningValues, coercedVariableValues] using hrelated
 
 theorem analysisWithVariablesSound

@@ -783,6 +783,30 @@ theorem RuntimeGroupsPermutationEquivalent.keys
   · rintro ⟨field, hfield, hname⟩
     exact ⟨field, equivalent.flattenedFieldsPerm.mem_iff.mpr hfield, hname⟩
 
+private theorem count_eq_indicator_of_nodup {α : Type} [BEq α] [LawfulBEq α] (value : α)
+    : ∀ {items : List α},
+        items.Nodup -> items.count value = if value ∈ items then 1 else 0
+  | [], _hnodup => by simp
+  | head :: tail, hnodup => by
+      have hparts : head ∉ tail ∧ tail.Nodup := by simpa using hnodup
+      by_cases hequal : value = head
+      · subst head
+        rw [List.count_cons_self, List.count_eq_zero.mpr hparts.1]
+        simp
+      · rw [List.count_cons_of_ne (fun h => hequal h.symm),
+          count_eq_indicator_of_nodup value hparts.2]
+        simp [hequal]
+
+theorem RuntimeGroupsPermutationEquivalent.keysPerm
+    {left right : List (Name × List ExecutableField)}
+    (equivalent : RuntimeGroupsPermutationEquivalent left right)
+    : (left.map Prod.fst).Perm (right.map Prod.fst) := by
+  rw [List.perm_iff_count]
+  intro responseName
+  rw [count_eq_indicator_of_nodup responseName equivalent.leftKeysNodup,
+    count_eq_indicator_of_nodup responseName equivalent.rightKeysNodup]
+  simp only [equivalent.keys responseName]
+
 theorem filter_eq_nil_of_all_false {α : Type}
     (predicate : α -> Bool) (values : List α)
     (hfalse : ∀ value, value ∈ values -> predicate value = false)

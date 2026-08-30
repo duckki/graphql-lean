@@ -35,43 +35,40 @@ def extendBooleanCondition (inheritedBooleanCondition caseCondition : List Boole
 
 end Internal
 
--- Boolean control context shared by every selection-set scope in one exact case.
--- Symbolic contexts split absent Boolean values lazily. Complete contexts instead use
--- the request's coerced values and resolve an absent Boolean as `false`.
+/-- Boolean control context shared by every selection-set scope in one exact case.
+Symbolic contexts split absent Boolean values lazily. Concrete contexts instead use the
+request's coerced values and resolve an absent Boolean as `false`. -/
 inductive BooleanEnvironment where
   | symbolic (caseValues : Execution.VariableValues)
-  | complete (variableValues : Execution.VariableValues)
+  | concrete (variableValues : Execution.VariableValues)
 deriving Repr
 
 namespace BooleanEnvironment
 
 def variableValues : BooleanEnvironment -> Execution.VariableValues
   | .symbolic values => values
-  | .complete values => values
+  | .concrete values => values
 
 -- Immutable request knowledge used only by condition-tree extraction. Case splitting
 -- extends `variableValues`, but those speculative assignments must not prune syntax.
 def pruningValues : BooleanEnvironment -> Execution.VariableValues
   | .symbolic _caseValues => []
-  | .complete values => values
+  | .concrete values => values
 
--- Variable-independent request context. Every Boolean is unresolved until traversal
--- reaches its first literal.
+/-- Variable-independent request context. Every Boolean is unresolved until traversal
+reaches its first literal. -/
 def unresolved : BooleanEnvironment :=
   .symbolic []
 
+/-- Records one symbolic case choice; concrete request contexts remain immutable. -/
 def assign (environment : BooleanEnvironment) (variableName : Name) (value : Bool)
     : BooleanEnvironment :=
   match environment with
   | .symbolic values => .symbolic ((variableName, .boolean value) :: values)
-  | .complete values => .complete values
+  | .concrete values => .concrete values
 
--- A concrete, already-coerced request context. Unresolved is never introduced.
-def ofCompleteValues (variableValues : Execution.VariableValues) : BooleanEnvironment :=
-  .complete variableValues
-
--- A supplied Boolean is known. An absent/non-Boolean symbolic value is unresolved,
--- while the same complete request value selects the directive's false behavior.
+/-- A supplied Boolean is known. An absent/non-Boolean symbolic value is unresolved,
+while the same concrete request value selects the directive's false behavior. -/
 def statusForVariable (environment : BooleanEnvironment) (variableName : Name)
     : Option Bool :=
   match inputValueBoolean? environment.variableValues (.variable variableName) with
@@ -79,7 +76,7 @@ def statusForVariable (environment : BooleanEnvironment) (variableName : Name)
   | none =>
       match environment with
       | .symbolic _caseValues => none
-      | .complete _values => some false
+      | .concrete _values => some false
 
 end BooleanEnvironment
 
@@ -259,10 +256,10 @@ end Internal
 -- Incremental branch-local scheduler
 -----------------------------------------------------------------------------------------
 
--- One selection-set boundary under construction. Activated fields are stored as
--- newest-first chunks, so selecting a deeply nested path never copies the accumulated
--- prefix. `pendingBranches` is a preorder work list: selecting its head schedules that
--- branch body's children before later siblings.
+/-- One selection-set boundary under construction. Activated fields are stored as
+newest-first chunks, so selecting a deeply nested path never copies the accumulated
+prefix. `pendingBranches` is a preorder work list: selecting its head schedules that
+branch body's children before later siblings. -/
 structure CaseCursor where
   namedFieldChunksRev : List (List NamedField)
   pendingBranches : List (Branch Tree)
@@ -668,8 +665,8 @@ def Internal.summarizeConditionTreeDecision (algebra : Algebra) (schema : Schema
     tree.condition.possibleTypes environment environment.pruningValues).compact
     algebra.join
 
--- Summarizes one tree under the pruning context canonically derived from its Boolean
--- environment.
+/-- Summarizes one tree under the pruning context canonically derived from its Boolean
+environment. -/
 def summarizeConditionTree (algebra : Algebra) (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral)
     (tree : Tree) (environment : BooleanEnvironment)
@@ -679,7 +676,7 @@ def summarizeConditionTree (algebra : Algebra) (schema : Schema)
     variables environment).collapse
     algebra
 
--- Extracts and summarizes a selection set under an explicit Boolean context.
+/-- Extracts and summarizes a selection set under an explicit Boolean context. -/
 def summarizeSelectionSet (algebra : Algebra) (schema : Schema)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
     (selectionSet : List Selection) (environment : BooleanEnvironment)
@@ -689,17 +686,17 @@ def summarizeSelectionSet (algebra : Algebra) (schema : Schema)
       inheritedBooleanCondition environment.pruningValues selectionSet)
     environment
 
--- Operation summary with every Boolean variable initially unresolved.
+/-- Operation summary with every Boolean variable initially unresolved. -/
 def summarizeOperation (algebra : Algebra) (schema : Schema) (operation : Operation)
     : algebra.Summary :=
   summarizeSelectionSet algebra schema (operation.rootType schema) []
     operation.selectionSet
     BooleanEnvironment.unresolved
 
--- Summarizes one supplied-variable execution case after applying operation defaults.
--- The resulting context is total: Boolean values are known, while missing or null values
--- behave like false for modeled directives. No Boolean split is constructed on this
--- path; only the incrementally scheduled type alternatives remain to be collapsed.
+/-- Summarizes one supplied-variable execution case after applying operation defaults.
+The resulting context is total: Boolean values are known, while missing or null values
+behave like false for modeled directives. No Boolean split is constructed on this path;
+only the incrementally scheduled type alternatives remain to be collapsed. -/
 def summarizeOperationWithVariables
     (algebraFor : Execution.VariableValues -> Algebra) (schema : Schema)
     (variableValues : Execution.VariableValues) (operation : Operation)
@@ -707,14 +704,14 @@ def summarizeOperationWithVariables
   let coercedVariableValues := Execution.coerceVariableValues operation variableValues
   summarizeSelectionSet (algebraFor coercedVariableValues) schema
     (operation.rootType schema) [] operation.selectionSet
-    (BooleanEnvironment.ofCompleteValues coercedVariableValues)
+    (BooleanEnvironment.concrete coercedVariableValues)
 
 -----------------------------------------------------------------------------------------
 -- Exact-case soundness contract for analyses
 -----------------------------------------------------------------------------------------
 
--- ExactCases-specific extension of the core algebra laws. The core witness is an index,
--- so every additional law necessarily uses the same order carried by soundness.
+/-- ExactCases-specific extension of the core algebra laws. The core witness is an index,
+so every additional law necessarily uses the same order carried by soundness. -/
 structure JoinFactoringLaws (abstract : Algebra.{v}) (core : abstract.Lawful) : Prop where
   -- ExactCases preserves type-region alternatives below branch-local Boolean decisions.
   -- Their collapse must be monotone when corresponding branches are refined.
@@ -741,9 +738,9 @@ def groupRepresentsField (group : CollectedFieldGroup) (field : ExecutableField)
   .field field.responseName field.fieldName field.arguments [] field.selectionSet
   ∈ group.selections
 
--- Local soundness contract for the exact-case traversal. It relates one concrete
--- response fold to one abstract tree-fold constructor at a time and imposes no
--- leastness requirement.
+/-- Local soundness contract for the exact-case traversal. It relates one concrete
+response fold to one abstract tree-fold constructor at a time and imposes no leastness
+requirement. -/
 structure Soundness
     (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
     (schema : Schema) (variableValues : VariableValues)
@@ -767,8 +764,8 @@ structure Soundness
 -- Exact-case soundness statements
 -----------------------------------------------------------------------------------------
 
--- Per-operation soundness of an exact-case analysis. Its theorem witness is
--- `ExactCases.analysisSound`.
+/-- Per-operation soundness of an exact-case analysis. Its theorem witness is
+`ExactCases.analysisSound`. -/
 def AnalysisSound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (soundnessFor : ∀ values, Soundness concrete abstract schema values)
@@ -784,8 +781,8 @@ def AnalysisSound
           (executeQueryAnnotated schema resolvers variableValues operation source))
         (summarizeOperation abstract schema operation)
 
--- Per-operation soundness of a variable-indexed exact-case analysis. Its theorem
--- witness is `ExactCases.analysisWithVariablesSound`.
+/-- Per-operation soundness of a variable-indexed exact-case analysis. Its theorem
+witness is `ExactCases.analysisWithVariablesSound`. -/
 def AnalysisWithVariablesSound
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}

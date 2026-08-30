@@ -2,7 +2,7 @@ import Proofs.GraphQL.Theories.ConditionTree.BooleanVariables
 import Proofs.GraphQL.Theories.ConditionTree.KnownFalsePruning
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.BooleanDecision
 
-/-! Exact-case traversal under a complete request Boolean environment. -/
+/-! Exact-case traversal under a concrete request Boolean environment. -/
 
 namespace GraphQL
 namespace TreeSummary
@@ -40,7 +40,7 @@ def summarizeConditionTreeResolved (algebra : Algebra) (schema : Schema)
     (fixedVariableValues : VariableValues := variableValues)
     : algebra.Summary :=
   summarizeConditionTreeWithPruning algebra schema inheritedBooleanCondition tree
-    (BooleanEnvironment.complete variableValues) fixedVariableValues
+    (BooleanEnvironment.concrete variableValues) fixedVariableValues
 
 def summarizeSelectionSetResolved (algebra : Algebra) (schema : Schema)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
@@ -50,22 +50,28 @@ def summarizeSelectionSetResolved (algebra : Algebra) (schema : Schema)
   summarizeConditionTreeWithPruning algebra schema inheritedBooleanCondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
       inheritedBooleanCondition fixedVariableValues selectionSet)
-    (BooleanEnvironment.complete variableValues) fixedVariableValues
+    (BooleanEnvironment.concrete variableValues) fixedVariableValues
 
-theorem BooleanEnvironment.ofCompleteValues_eq_complete (values : VariableValues)
-    : BooleanEnvironment.ofCompleteValues values
-      = BooleanEnvironment.complete values := by
+theorem summarizeSelectionSet_eq_resolved_concrete
+    (algebra : Algebra) (schema : Schema) (parentType : Name)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (selectionSet : List Selection) (variableValues : VariableValues)
+    : summarizeSelectionSet algebra schema parentType inheritedBooleanCondition
+        selectionSet (BooleanEnvironment.concrete variableValues)
+      = summarizeSelectionSetResolved algebra schema parentType
+          inheritedBooleanCondition selectionSet variableValues variableValues := by
   rfl
 
-theorem summarizeOperationSelectionSet_eq_resolved_ofCompleteValues
+theorem summarizeOperationSelectionSet_eq_resolved_concrete
     (algebra : Algebra) (schema : Schema) (operation : Operation)
     (variableValues : VariableValues)
     : summarizeSelectionSet algebra schema (operation.rootType schema) []
         operation.selectionSet
-        (BooleanEnvironment.ofCompleteValues variableValues)
+        (BooleanEnvironment.concrete variableValues)
       = summarizeSelectionSetResolved algebra schema (operation.rootType schema) []
           operation.selectionSet variableValues variableValues := by
-  rfl
+  exact summarizeSelectionSet_eq_resolved_concrete algebra schema
+    (operation.rootType schema) [] operation.selectionSet variableValues
 
 end ExactCases
 end TreeSummary

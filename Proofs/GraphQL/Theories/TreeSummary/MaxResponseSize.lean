@@ -585,11 +585,10 @@ private theorem natBestBound_attains {outcomes : OutcomeSet Nat} {estimate : Nat
 -- the model as actual list cardinalities; the algebraic result is valid for every Nat.
 private def bestTransferLaws (schema : Schema) (listSize : Nat)
     : TreeSummary.ExactCases.BestTransferLaws (outcomeSemantics schema listSize)
-        (algebra schema listSize) := by
+        (algebra schema listSize) Nat.le := by
   unfold outcomeSemantics algebra
   exact {
     approximates := Nat.le
-    le := Nat.le
     empty_best := by
       refine ⟨⟨0, rfl⟩, ?_, ?_⟩
       · intro concrete hconcrete

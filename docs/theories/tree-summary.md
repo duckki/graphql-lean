@@ -24,7 +24,8 @@ An `Algebra` supplies one synthesized `Summary` type and four operations:
 one nonempty typed `ConditionTree.FieldGroup`. Its `fields` projection retains typed fields,
 while `selections` reconstructs their directive-free GraphQL syntax. The response name
 and field syntax therefore cannot disagree, and no inline-fragment case remains for an
-analysis to reject.
+analysis to reject. `toExecutableGroup` is the canonical conversion used when a theorem
+compares a collected static group with runtime field collection.
 `mergedSelectionSet` follows GraphQL `CollectSubfields`. Schema and condition context
 flow down, while algebra summaries flow up.
 
@@ -44,6 +45,29 @@ shared `SoundnessCore` live in `TreeSummary.Soundness`. Each traversal
 backend extends that contract with its own field transfer and owns its condition
 processing.
 
+## Abstract-interpretation perspective
+
+TreeSummary is an abstract-interpretation-style analysis framework, with the following
+correspondence:
+
+- `OutcomeSet` is a predicate-valued collecting semantics for relationally feasible
+  exact cases;
+- `OutcomeSemantics` gives the concrete empty, simultaneous-composition, and field
+  transfer relations used by that collecting semantics;
+- `Algebra` gives the corresponding executable abstract transfer operations;
+- `approximates` relates one modeled outcome to one abstract summary;
+- `BestBound` states that a summary is a sound upper bound and is below every other
+  sound upper bound;
+- `BestTransferLaws` requires each local abstract transfer to compute such a best bound.
+
+The development proves two deliberately separate claims: the analyses are sound against
+GraphQL execution, and ExactCases computes the best approximation of its relational
+outcome semantics when the local transfer laws are best. This is a relational formulation
+of best correct approximation; it does not currently package abstraction and
+concretization functions or prove a Galois connection. Adding that structure, and deriving
+a conventional abstract-interpretation interface for downstream formal-verification
+applications, is future work.
+
 ## Variable-aware known-false pruning
 
 The supplied-variable entry points of both backends extract through the request-aware
@@ -54,10 +78,11 @@ boundary-local pruning.
 
 ExactCases derives extraction-pruning values from the Boolean environment. A symbolic
 environment contributes no pruning values, even after `assign` records a speculative
-case choice; a complete environment contributes its coerced request values. A lazy split
+case choice; a concrete environment contributes its coerced request values. A lazy split
 therefore cannot prune later syntax as if its choice had been supplied by the request.
 Syntactic likewise carries its request pruning values through recursive child
-extractions.
+extractions. The optimality specification uses `assignVariables` when it needs the
+environment obtained by resolving a finite set from one total Boolean assignment.
 
 There are two different correctness questions:
 
@@ -139,8 +164,8 @@ so selecting a deeply nested branch does not repeatedly copy the accumulated pre
 source order is materialized only when a completed case is grouped.
 
 Every entry point uses the same compact Boolean context. `BooleanEnvironment` is either
-symbolic or complete. `statusForVariable` returns `Option Bool`: `none` means unresolved,
-and `some value` means known. In a complete request, missing, null, or non-Boolean values
+symbolic or concrete. `statusForVariable` returns `Option Bool`: `none` means unresolved,
+and `some value` means known. In a concrete request, missing, null, or non-Boolean values
 resolve to `some false`, matching modeled directive evaluation rather than creating a
 third case.
 
@@ -167,7 +192,7 @@ The entry points are:
 
 The condition-tree and selection-set functions take an explicit `BooleanEnvironment`.
 The ordinary operation entry point supplies `BooleanEnvironment.unresolved`; the
-variable-aware operation entry point constructs a complete environment after applying
+variable-aware operation entry point constructs a concrete environment after applying
 operation defaults. The internal decision builder derives its pruning context
 canonically from that environment.
 
@@ -203,7 +228,7 @@ coerced request variables. `AnalysisWithVariablesSound` targets
 `ExactCases.analysisWithVariablesSound`. The proof module retains the fuel-parameterized
 `operationWithVariablesSoundWithFuel` theorem used by concrete analysis proofs, but its
 statement is not part of the public definition module.
-Because coercion gives a complete environment, this entry point resolves each Boolean
+Because coercion gives a concrete environment, this entry point resolves each Boolean
 literal when reached and constructs no Boolean split. Missing, null, and non-Boolean
 values select false. Type-region alternatives remain incremental and branch-local.
 
@@ -239,14 +264,14 @@ boundary; the erasure theorem does not specify that metadata independently.
 ## Optional optimality
 
 Optimality is available only for `ExactCases` and is separate from ordinary execution
-soundness. `ExactCases.OutcomeSemantics` describes concrete simultaneous composition and
-the possible concrete result of one collected field group. Feasible outcomes are defined
-independently by the mutually inductive `CaseCursor.ContextOutcome`,
+soundness. `ExactCases.OutcomeSemantics` describes modeled simultaneous composition and
+the possible modeled results of one collected field group. Feasible outcomes are defined
+relationally by the mutually inductive `CaseCursor.ContextOutcome`,
 `ContextFieldGroupsOutcome`, and `ContextChildTypesOutcome` relations. A derivation
 chooses one branch-local type region, follows one total Boolean assignment shared across
 sibling groups and recursive children, and selects one modeled field outcome.
 
-The proof module establishes that these independent derivations characterize the
+The proof module establishes that these relational derivations characterize the
 executable cursor exactly. Only after that characterization does it use a private
 predicate-valued algebra as a proof device to transport local best-bound obligations to
 the analysis algebra.
@@ -267,9 +292,10 @@ the computed estimate:
 The first item is structural-case soundness. The last item is needed for simultaneous
 composition to preserve least bounds.
 
-`BestBound` accepts the summary comparison relation directly. Public analysis statements
-take `BestTransferLaws` and use its `le` and `approximates` projections, so the local proof
-requirements and the resulting least-bound claim are visible in one contract.
+`BestBound` accepts the summary comparison relation directly. `BestTransferLaws` is
+indexed by that relation and supplies the modeled-to-abstract `approximates` relation.
+Execution coverage indexes it by the order already carried by soundness, so there is one
+shared abstract order rather than two separately equated relations.
 
 Optimality is an opt-in layer: import
 `GraphQL.Theories.TreeSummary.ExactCasesOptimality` for its public contracts and
@@ -279,7 +305,7 @@ The per-operation contracts are `ExactCases.AnalysisOptimal` and
 and `ExactCases.analysisWithVariablesOptimal`.
 
 `ExactCases.summarizeOperation_best` proves the central theorem. Its characterization
-lemma connects the independent outcomes to the incremental decisions, including nested
+lemma connects the relational outcomes to the incremental decisions, including nested
 child selection sets, correlated Boolean choices, local type regions, and field
 outcomes.
 
@@ -288,9 +314,47 @@ precise. It says that, once its four local transfer steps are best, exact-case t
 does not introduce additional over-approximation: its result is the least bound of all
 and only the recursively feasible cases represented by the traversal.
 
-This structural optimality layer is deliberately separate from executable GraphQL
-semantics. Realizing every collected outcome through `executeQueryAnnotated` depends on
-resolver behavior and is not part of the generic optimality statement.
+`SelectionSetExecutionCovered` bridges the relational outcomes to executable GraphQL
+semantics. It says that every `OutcomeSet.IsUpperBound` of `selectionSetOutcomes` also
+bounds every annotated execution at that complete request context. Coverage uses this
+upper-closure formulation because one execution can combine several modeled cases, for
+example when a list contains objects of different runtime types; it need not be
+represented by one outcome member. The theorem follows from selection-set execution
+soundness and the least-bound theorem. It does not claim that every modeled outcome is
+realizable by some resolver.
+
+This gives the framework two explicit specifications and two corresponding correctness
+directions:
+
+- GraphQL execution is the external behavioral specification. `AnalysisSound` relates
+  the implementation directly to it, while `SelectionSetExecutionCovered` shows that
+  upper bounds of the relational outcome semantics are also sound for execution.
+- `OutcomeSemantics` is the relational feasible-case specification. `AnalysisOptimal`
+  proves that the implementation computes its least abstract bound. It deliberately
+  describes the precision target of the static analysis rather than promising that
+  every member is an independently realizable resolver execution.
+
+Additional adequacy theorems make the second specification inspectable instead of
+treating it as an opaque definition:
+
+- `SelectionSetBooleanSplitExact` proves that resolving one unknown Boolean partitions
+  the current outcome set into its false and true cofactors.
+- `SelectionSetResolvedAssignmentsExact` lifts that result to all Boolean variables in
+  the extracted selection hierarchy while preserving the extraction-pruning policy.
+- `SelectionSetOutcomesInhabited` proves that case enumeration cannot get stuck when
+  every analysis-defined field transfer admits an outcome.
+- `SelectionSetRuntimeGroupsExact` specializes the relational outcome semantics to
+  collected-field-group observation at a complete request context through
+  `OutcomeSemantics.boundaryFieldGroups`. For every runtime object type in the root
+  scope it produces a modeled case related by `CollectedGroupsMatchRuntimeGroups` to
+  runtime `collectFields`; conversely, every modeled group case has a runtime object-type
+  representative with the same response-name keys and flattened executable fields.
+
+Together, Boolean exactness, inhabitance, runtime-group exactness, and execution
+coverage explain the intended tightness boundary. Remaining over-approximation may
+come from analysis-defined local field outcomes or from combining several runtime
+objects in one response, but not from missing Boolean assignments, infeasible root type
+regions, or the incremental case scheduler itself.
 
 There is intentionally no general syntactic optimality statement: losing correlations
 and splitting response-name groups can make its result strictly less precise.
@@ -391,9 +455,11 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
 - `GraphQL/Theories/AnnotatedExecution.lean`: annotated response syntax and execution,
   with an erasure statement connecting it to ordinary execution.
 - `GraphQL/Theories/TreeSummary/Soundness.lean`: abstract child-shape and concrete
-  response folds, `ConcreteAlgebra`, and the soundness core shared by both backends.
-- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: independent inductive
-  outcome semantics and public least-bound contracts.
+  response/result folds, `ConcreteAlgebra`, and the soundness core shared by both
+  backends.
+- `GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: relational inductive outcome
+  semantics, execution coverage, outcome-adequacy contracts, and public
+  least-bound contracts.
 - `GraphQL/Theories/TreeSummary/StaticCost.lean`: external cost/list-size model and IBM
   static/query-response cost analyses.
 - `GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: both response-size entry points.
@@ -408,8 +474,15 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
 - `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: the proof-only deterministic
   runtime-case interpreter, runtime alignment, variable refinement, and execution
   soundness.
-- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: cursor
-  characterization and recursive exact-case best-bound induction.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality.lean`: proof aggregator for
+  ExactCases relational outcome semantics and best bounds.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality/OutcomeCharacterization.lean`:
+  executable-cursor characterization and condition-tree best-bound induction.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality/BestBounds.lean`:
+  selection-set and operation best bounds, execution coverage, and the public
+  optimality witnesses.
+- `Proofs/GraphQL/Theories/TreeSummary/ExactCasesOptimality/OutcomeAdequacy.lean`:
+  Boolean-case exactness, outcome inhabitance, and runtime-field-group adequacy.
 - `Proofs/GraphQL/Theories/TreeSummary/Algebra.lean`: reusable lawful-algebra lemmas.
 - `Proofs/GraphQL/Theories/ConditionTree/Invariants.lean`: feasibility and uniqueness
   facts for extracted conditions.
@@ -430,3 +503,5 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   soundness, optimality, and analysis witnesses.
 - `Proofs/GraphQL/Theories/TreeSummary/MaxResponseSize.lean`: response-size
   soundness, optimality, and analysis witnesses.
+- `Benchmarks/ExactCases.lean`: structural and timing benchmark for branch-local Boolean
+  splitting across disjoint abstract-type regions.

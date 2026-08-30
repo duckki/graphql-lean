@@ -1942,11 +1942,10 @@ private def bestTransferLaws (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
     : TreeSummary.ExactCases.BestTransferLaws
         (outcomeSemantics schema model variableValues)
-        (algebra schema model variableValues) := by
+        (algebra schema model variableValues) SummaryBound := by
   unfold outcomeSemantics algebra
   exact {
     approximates := SummaryBound
-    le := SummaryBound
     empty_best := by
       let emptySummary : Summary := fun _sizedFields => .zero
       refine ⟨⟨emptySummary, rfl⟩, ?_, ?_⟩

@@ -10,11 +10,6 @@ open GraphQL.AnnotatedExecution
 
 universe u v
 
-def foldAnnotatedResponseFieldsResult (algebra : ConcreteAlgebra)
-    : Result (List AnnotatedResponseField) -> algebra.Summary
-  | .error _errors => algebra.empty
-  | .ok (fields, _errors) => foldAnnotatedResponseFields algebra fields
-
 def foldAnnotatedResponseValueResult (algebra : ConcreteAlgebra)
     : Result AnnotatedResponseValue -> algebra.Summary
   | .error _errors => algebra.empty

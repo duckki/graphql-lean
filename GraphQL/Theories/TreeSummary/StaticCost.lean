@@ -24,13 +24,13 @@ open GraphQL.AnnotatedExecution
 -- External cost and list-size model
 -----------------------------------------------------------------------------------------
 
--- A schema field coordinate, used as the target of field metadata.
+/-- A schema field coordinate, used as the target of field metadata. -/
 structure FieldCoordinate where
   parentType : Name
   fieldName : Name
 deriving Repr, DecidableEq
 
--- A schema location supported by IBM's `@cost` directive in the scoped syntax.
+/-- A schema location supported by IBM's `@cost` directive in the scoped syntax. -/
 inductive CostCoordinate where
   | typeDefinition (typeName : Name)
   | fieldDefinition (field : FieldCoordinate)
@@ -38,8 +38,8 @@ inductive CostCoordinate where
   | inputFieldDefinition (inputType : Name) (fieldName : Name)
 deriving Repr, DecidableEq
 
--- The information represented by one IBM `@listSize` application. Names are already
--- parsed instead of being stored in their SDL string form.
+/-- The information represented by one IBM `@listSize` application. Names are already
+parsed instead of being stored in their SDL string form. -/
 structure ListSize where
   assumedSize : Option Nat := none
   slicingArguments : List Name := []
@@ -47,17 +47,17 @@ structure ListSize where
   requireOneSlicingArgument : Bool := true
 deriving Repr
 
--- Static-cost metadata kept separate from `Schema` because this project does not
--- model custom schema directives. Cost weights are signed so argument and input-field
--- weights can reduce a resolver's call cost; each complete field cost is clamped at zero.
+/-- Static-cost metadata kept separate from `Schema` because this project does not model
+custom schema directives. Cost weights are signed so argument and input-field weights
+can reduce a resolver's call cost; each complete field cost is clamped at zero. -/
 structure CostModel where
   defaultListSize : Nat
   cost : CostCoordinate -> Option Int := fun _coordinate => none
   listSize : FieldCoordinate -> Option ListSize := fun _field => none
 
--- IBM reports type cost and field cost independently. Type cost is signed because the
--- specification permits negative type weights. Field cost remains nonnegative because
--- every complete field-call cost is clamped at zero.
+/-- IBM reports type cost and field cost independently. Type cost is signed because the
+specification permits negative type weights. Field cost remains nonnegative because
+every complete field-call cost is clamped at zero. -/
 structure Cost where
   typeCost : Int
   fieldCost : Nat
@@ -91,10 +91,10 @@ instance : Add Cost where
 
 end Cost
 
--- Static query analysis bounds every response, including executions where a nullable
--- value or an error contributes no returned type. Its synthesized contributions are
--- therefore nonnegative even though the concrete IBM type cost is signed. Keeping this
--- invariant in the carrier lets the generic tree-summary order use zero as its bottom.
+/-- Static query analysis bounds every response, including executions where a nullable
+value or an error contributes no returned type. Its synthesized contributions are
+therefore nonnegative even though the concrete IBM type cost is signed. Keeping this
+invariant in the carrier lets the generic tree-summary order use zero as its bottom. -/
 structure Bound where
   typeCost : Nat
   fieldCost : Nat
@@ -342,15 +342,16 @@ end Internal
 -- Tree-summary algebra for cost analysis
 -----------------------------------------------------------------------------------------
 
--- A resolved `sizedFields` entry waiting to be applied to a direct child field.
+/-- A resolved `sizedFields` entry waiting to be applied to a direct child field. -/
 structure SizedField where
   fieldName : Name
   size : Nat
 deriving Repr
 
+/-- A cost bound parameterized by inherited direct-child size information. -/
 abbrev Summary := List SizedField -> Bound
 
--- Pointwise order on synthesized static-cost summaries.
+/-- Pointwise order on synthesized static-cost summaries. -/
 def SummaryBound (lower upper : Summary) : Prop :=
   ∀ sizedFields, lower sizedFields ≤ upper sizedFields
 
@@ -492,9 +493,9 @@ def groupCost (schema : Schema) (model : CostModel)
 
 end Internal
 
--- The synthesized summary is a function of inherited, already-resolved `sizedFields`
--- metadata. This lets a bottom-up fold apply a parent field's list-size annotation to a
--- selected direct-child list.
+/-- The synthesized summary is a function of inherited, already-resolved `sizedFields`
+metadata. This lets a bottom-up fold apply a parent field's list-size annotation to a
+selected direct-child list. -/
 def algebra (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
     : Algebra :=
@@ -516,7 +517,7 @@ def algebra (schema : Schema) (model : CostModel)
 
 namespace ExactCases
 
--- Exact-case estimate after applying operation-variable defaults and supplied values.
+/-- Exact-case estimate after applying operation-variable defaults and supplied values. -/
 def estimateOperationWithVariables (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : Cost :=
@@ -535,7 +536,7 @@ end ExactCases
 
 namespace Syntactic
 
--- Fast syntactic estimate after applying defaults and supplied variable values.
+/-- Fast syntactic estimate after applying defaults and supplied variable values. -/
 def estimateOperationWithVariables (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : Cost :=
@@ -682,7 +683,7 @@ def responseFieldObservation (schema : Schema) (model : CostModel)
 
 end Internal
 
--- Concrete static-cost semantics.
+/-- Concrete static-cost semantics. -/
 def concreteAlgebra (schema : Schema) (model : CostModel) : ConcreteAlgebra :=
   {
     Summary := Internal.ResponseObservation
@@ -707,9 +708,9 @@ def responseRootCost (schema : Schema) (model : CostModel) (response : Annotated
 
 end Internal
 
--- IBM query-response costs calculated from the annotated response. Field and argument
--- costs are paid once per resolver; returned values determine type counts, including
--- the query root.
+/-- IBM query-response costs calculated from the annotated response. Field and argument
+costs are paid once per resolver; returned values determine type counts, including the
+query root. -/
 def actualCost (schema : Schema) (model : CostModel) (response : AnnotatedResponse)
     : Cost :=
   Cost.add (Internal.responseRootCost schema model response)
@@ -719,9 +720,9 @@ def actualCost (schema : Schema) (model : CostModel) (response : AnnotatedRespon
 -- Soundness statements
 -----------------------------------------------------------------------------------------
 
--- The concrete response satisfies every list-size estimate encountered while matching
--- the operation to the response. This assumption is necessary: an estimated list size
--- is not an upper bound when a resolver returns more items than the model predicts.
+/-- The concrete response satisfies every list-size estimate encountered while matching
+the operation to the response. This assumption is necessary: an estimated list size is
+not an upper bound when a resolver returns more items than the model predicts. -/
 def ResponseWithinEstimatedSizes (schema : Schema) (model : CostModel)
     (response : AnnotatedResponse)
     : Prop :=
@@ -729,9 +730,9 @@ def ResponseWithinEstimatedSizes (schema : Schema) (model : CostModel)
 
 namespace ExactCases
 
--- Default-executor soundness target, quantified over all resolvers, variable conditions,
--- and root source values. Its theorem witness is
--- `StaticCost.ExactCases.analysisWithVariablesSound` in the static-cost proof module.
+/-- Default-executor soundness target, quantified over all resolvers, variable conditions,
+and root source values. Its theorem witness is
+`StaticCost.ExactCases.analysisWithVariablesSound` in the static-cost proof module. -/
 def AnalysisWithVariablesSound (schema : Schema) (model : CostModel)
     (operation : Operation)
     : Prop :=
@@ -750,9 +751,9 @@ end ExactCases
 
 namespace Syntactic
 
--- Default-executor soundness for the variable-aware syntactic estimator under the same
--- nonnegative-type-cost premise. Its theorem witness is
--- `StaticCost.Syntactic.analysisWithVariablesSound` in the static-cost proof module.
+/-- Default-executor soundness for the variable-aware syntactic estimator under the same
+nonnegative-type-cost premise. Its theorem witness is
+`StaticCost.Syntactic.analysisWithVariablesSound` in the static-cost proof module. -/
 def AnalysisWithVariablesSound (schema : Schema) (model : CostModel)
     (operation : Operation)
     : Prop :=
@@ -776,9 +777,9 @@ end Syntactic
 
 namespace ExactCases
 
--- Local static-cost semantics used by the exact-case optimality theorem. Each field
--- outcome applies one deterministic modeled field transfer; condition alternatives
--- remain separate outcomes.
+/-- Local static-cost semantics used by the exact-case optimality theorem. Each field
+outcome applies one deterministic modeled field transfer; condition alternatives remain
+separate outcomes. -/
 def outcomeSemantics (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
     : TreeSummary.ExactCases.OutcomeSemantics :=
@@ -794,9 +795,9 @@ def outcomeSemantics (schema : Schema) (model : CostModel)
             Internal.groupCost schema model variableValues group childSummary sizedFields)
   }
 
--- The variable-aware exact-case summary is the pointwise least bound of its recursively
--- feasible modeled outcomes. Its witness is
--- `StaticCost.ExactCases.analysisWithVariablesOptimal` in the static-cost proof module.
+/-- The variable-aware exact-case summary is the pointwise least bound of its recursively
+feasible modeled outcomes. Its witness is
+`StaticCost.ExactCases.analysisWithVariablesOptimal` in the static-cost proof module. -/
 def AnalysisWithVariablesOptimal (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : Prop :=

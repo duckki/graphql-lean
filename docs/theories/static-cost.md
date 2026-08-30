@@ -253,7 +253,7 @@ conditions. Componentwise maximum exists only in the abstract static analysis.
 `ExactCases.AnalysisWithVariablesOptimal` states that the synthesized summary function
 is the pointwise least bound of every recursively feasible modeled outcome after
 applying supplied variable values and operation defaults. The statement mentions only
-the pointwise `SummaryBound`, the independent structural-case semantics, and the
+the pointwise `SummaryBound`, the relational outcome semantics, and the
 computed summary.
 Its theorem witness is `ExactCases.analysisWithVariablesOptimal`; the localized
 best-transfer laws used by that proof remain private to the proof module.

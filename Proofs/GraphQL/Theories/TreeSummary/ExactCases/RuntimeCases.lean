@@ -63,6 +63,21 @@ theorem chooseTypeRegion_mem
   exact chooseTypeRegion_mem_of_exists runtimeType scope
     (possibleTypeRegions scope conditions) ⟨region, hregion.1, hregion.2⟩
 
+theorem chooseTypeRegion_eq_of_mem
+    (scope : PossibleTypeRegion) (conditions : List PossibleTypes)
+    (runtimeType : Name) (region : PossibleTypeRegion)
+    (hruntimeScope : runtimeType ∈ scope)
+    (hregion : region ∈ possibleTypeRegions scope conditions)
+    (hruntimeRegion : runtimeType ∈ region)
+    : chooseTypeRegion runtimeType scope (possibleTypeRegions scope conditions)
+      = region := by
+  have hexact := possibleTypeRegions_exact scope conditions
+  have hchosen := chooseTypeRegion_mem scope conditions runtimeType hruntimeScope
+  rcases hexact.2.1 runtimeType hruntimeScope with
+    ⟨canonicalRegion, _hcanonicalRegion, hunique⟩
+  exact (hunique _ ⟨hchosen.1, hchosen.2⟩).trans
+    (hunique region ⟨hregion, hruntimeRegion⟩).symm
+
 private theorem unresolvedBranchesCount_append (left right : List (Branch Tree))
     : unresolvedBranchesCount (left ++ right)
       = unresolvedBranchesCount left + unresolvedBranchesCount right := by
@@ -295,19 +310,19 @@ private theorem summarizeFrom_le
           fixedVariableValues)
         ((cursor.summarizeDecisionWithPruning algebra schema []
             inheritedBooleanCondition caseCondition possibleTypes
-            (BooleanEnvironment.complete variableValues) fixedVariableValues).collapse
+            (BooleanEnvironment.concrete variableValues) fixedVariableValues).collapse
           algebra) := by
   rw [summarizeFrom]
   split <;> rename_i hbranches
   · rw [CaseCursor.summarizeDecisionWithPruning_nil_values algebra schema []
       inheritedBooleanCondition caseCondition cursor possibleTypes
-      (BooleanEnvironment.complete variableValues) fixedVariableValues hbranches]
+      (BooleanEnvironment.concrete variableValues) fixedVariableValues hbranches]
     exact CaseCursor.summarizeFieldGroups_le_decision_complete algebra joinFactoringLaws schema _
       variableValues fixedVariableValues
   · rename_i branch rest
     rw [CaseCursor.summarizeDecisionWithPruning_cons_values algebra schema []
       inheritedBooleanCondition caseCondition cursor possibleTypes
-      (BooleanEnvironment.complete variableValues) fixedVariableValues branch rest
+      (BooleanEnvironment.concrete variableValues) fixedVariableValues branch rest
       hbranches]
     cases hcondition : branch.condition with
     | typeCondition typeName =>
@@ -325,7 +340,7 @@ private theorem summarizeFrom_le
             apply lawful.le_trans _
               (((cursor.skipBranch rest).summarizeDecisionWithPruning algebra schema []
                 inheritedBooleanCondition caseCondition region
-                (BooleanEnvironment.complete variableValues)
+                (BooleanEnvironment.concrete variableValues)
                   fixedVariableValues).collapse algebra)
             · exact summarizeFrom_le algebra joinFactoringLaws schema parentType
                 inheritedBooleanCondition caseCondition (cursor.skipBranch rest)
@@ -336,18 +351,18 @@ private theorem summarizeFrom_le
                         branch.body.condition.possibleTypes then
                       (cursor.selectBranch branch.body rest).summarizeDecisionWithPruning algebra schema
                         [] inheritedBooleanCondition caseCondition candidate
-                        (BooleanEnvironment.complete variableValues) fixedVariableValues
+                        (BooleanEnvironment.concrete variableValues) fixedVariableValues
                     else
                       (cursor.skipBranch rest).summarizeDecisionWithPruning algebra schema []
                         inheritedBooleanCondition caseCondition candidate
-                        (BooleanEnvironment.complete variableValues) fixedVariableValues
+                        (BooleanEnvironment.concrete variableValues) fixedVariableValues
                     ).collapse algebra))
                 hregion.1
         | true =>
             apply lawful.le_trans _
               (((cursor.selectBranch branch.body rest).summarizeDecisionWithPruning algebra schema []
                 inheritedBooleanCondition caseCondition region
-                (BooleanEnvironment.complete variableValues)
+                (BooleanEnvironment.concrete variableValues)
                   fixedVariableValues).collapse algebra)
             · exact summarizeFrom_le algebra joinFactoringLaws schema parentType
                 inheritedBooleanCondition caseCondition
@@ -359,11 +374,11 @@ private theorem summarizeFrom_le
                         branch.body.condition.possibleTypes then
                       (cursor.selectBranch branch.body rest).summarizeDecisionWithPruning algebra schema
                         [] inheritedBooleanCondition caseCondition candidate
-                        (BooleanEnvironment.complete variableValues) fixedVariableValues
+                        (BooleanEnvironment.concrete variableValues) fixedVariableValues
                     else
                       (cursor.skipBranch rest).summarizeDecisionWithPruning algebra schema []
                         inheritedBooleanCondition caseCondition candidate
-                        (BooleanEnvironment.complete variableValues) fixedVariableValues
+                        (BooleanEnvironment.concrete variableValues) fixedVariableValues
                     ).collapse algebra))
                 hregion.1
     | booleanLiteral literal =>
@@ -371,7 +386,7 @@ private theorem summarizeFrom_le
         cases hvalue
               : inputValueBoolean? variableValues (.variable literal.variableName) with
         | none =>
-            rw [BooleanEnvironment.complete_statusForVariable, hvalue]
+            rw [BooleanEnvironment.concrete_statusForVariable, hvalue]
             simp only [Option.getD_none]
             exact summarizeFrom_le algebra joinFactoringLaws schema parentType
               inheritedBooleanCondition
@@ -379,7 +394,7 @@ private theorem summarizeFrom_le
               (cursor.resolveBooleanBranch branch.body rest literal false) possibleTypes
               runtimeType variableValues fixedVariableValues hruntime
         | some value =>
-            rw [BooleanEnvironment.complete_statusForVariable, hvalue]
+            rw [BooleanEnvironment.concrete_statusForVariable, hvalue]
             simp only [Option.getD_some]
             exact summarizeFrom_le algebra joinFactoringLaws schema parentType
               inheritedBooleanCondition
@@ -497,52 +512,17 @@ private theorem fieldGroupToExecutableGroup_collectFieldGroups
 def collectedFieldGroupToExecutableGroup (executionParentType : Name)
     (group : CollectedFieldGroup)
     : Name × List ExecutableField :=
-  (
-    group.responseName,
-    group.selections.filterMap
-      fun selection =>
-        match selection with
-        | .field responseName fieldName arguments _directives selectionSet =>
-            some
-              {
-                parentType := executionParentType
-                responseName
-                fieldName
-                arguments
-                selectionSet
-              }
-        | .inlineFragment _typeCondition _directives _selectionSet => none
-  )
+  group.toExecutableGroup executionParentType
 
-private theorem fieldSelectionsToExecutableFields
-    (executionParentType responseName : Name) (fields : List Field)
-    : (fields.map (Field.toSelection responseName)).filterMap
-        (fun selection =>
-          match selection with
-          | .field selectedResponseName fieldName arguments _directives selectionSet =>
-              some
-                ({
-                    parentType := executionParentType
-                    responseName := selectedResponseName
-                    fieldName
-                    arguments
-                    selectionSet
-                  }
-                  : ExecutableField)
-          | .inlineFragment _typeCondition _directives _selectionSet => none)
-      = fields.map
-          fun field =>
-            ({
-                parentType := executionParentType
-                responseName
-                fieldName := field.fieldName
-                arguments := field.arguments
-                selectionSet := field.selectionSet
-              }
-              : ExecutableField) := by
-  induction fields with
+theorem collectedFieldGroupToExecutableGroup_keys
+    (executionParentType : Name) (groups : List CollectedFieldGroup)
+    : (groups.map (collectedFieldGroupToExecutableGroup executionParentType)).map Prod.fst
+      = groups.map CollectedFieldGroup.responseName := by
+  induction groups with
   | nil => rfl
-  | cons field rest ih => simp [Field.toSelection, ih]
+  | cons group rest ih =>
+      simp [collectedFieldGroupToExecutableGroup,
+        CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.responseName, ih]
 
 private theorem collectedFieldGroupToExecutableGroup_collectFieldGroups
     (executionParentType : Name)
@@ -551,17 +531,9 @@ private theorem collectedFieldGroupToExecutableGroup_collectFieldGroups
     : (TreeSummary.fieldGroupsWithContext inheritedBooleanCondition condition groups).map
         (collectedFieldGroupToExecutableGroup executionParentType)
       = groups.map (fieldGroupToExecutableGroup executionParentType) := by
-  unfold TreeSummary.fieldGroupsWithContext
-  rw [List.map_map]
-  apply List.map_congr_left
-  intro group hgroup
-  apply Prod.ext
-  · rfl
-  · unfold collectedFieldGroupToExecutableGroup fieldGroupToExecutableGroup
-    unfold CollectedFieldGroup.responseName CollectedFieldGroup.selections
-      FieldGroup.selections
-    exact fieldSelectionsToExecutableFields executionParentType group.responseName
-      group.fields
+  simp [TreeSummary.fieldGroupsWithContext, collectedFieldGroupToExecutableGroup,
+    CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.responseName,
+    CollectedFieldGroup.fields, fieldGroupToExecutableGroup, List.map_map]
 
 private def runtimeNamedFields (variableValues : VariableValues)
     (runtimeType : Name) (tree : Tree)

@@ -39,18 +39,18 @@ end
 -- Concrete algebra over annotated responses
 -----------------------------------------------------------------------------------------
 
--- A concrete algebra observes the exact resolver call selected by one execution.
--- `child` is synthesized from the object fields contained in the completed value;
--- lists combine the child summaries of all returned items. There is intentionally no
--- concrete `join`: execution has already selected one runtime path.
+/-- A concrete algebra observes the exact resolver call selected by one execution.
+`child` is synthesized from the object fields contained in the completed value; lists
+combine the child summaries of all returned items. There is intentionally no concrete
+`join`: execution has already selected one runtime path. -/
 structure ConcreteAlgebra where
   Summary : Type u
   empty : Summary
   combine : Summary -> Summary -> Summary
   field : ResolvedFieldProvenance -> AnnotatedResponseValue -> Summary -> Summary
 
--- Concrete response folds form a monoid. A value is the witness used when execution
--- regrouping changes only the association of simultaneously returned fields.
+/-- Concrete response folds form a monoid. A value is the witness used when execution
+regrouping changes only the association of simultaneously returned fields. -/
 structure ConcreteAlgebra.Lawful (algebra : ConcreteAlgebra.{u}) : Prop where
   combine_assoc
     : ∀ left middle right,
@@ -90,6 +90,14 @@ mutual
           (foldAnnotatedResponseFields algebra rest)
 end
 
+/-- Interprets the result of executing one collected-field boundary. Null bubbling or
+another boundary error contributes the concrete algebra's empty observation. -/
+def foldAnnotatedResponseFieldsResult (algebra : ConcreteAlgebra)
+    : Execution.Result (List AnnotatedResponseField) -> algebra.Summary
+  | .error _errors => algebra.empty
+  | .ok (fields, _errors) => foldAnnotatedResponseFields algebra fields
+
+/-- Folds a completed annotated response through a concrete algebra. -/
 def foldAnnotatedResponse (algebra : ConcreteAlgebra) (annotated : AnnotatedResponse)
     : algebra.Summary :=
   foldAnnotatedResponseValue algebra annotated.data
@@ -98,9 +106,9 @@ def foldAnnotatedResponse (algebra : ConcreteAlgebra) (annotated : AnnotatedResp
 -- Core soundness contract
 -----------------------------------------------------------------------------------------
 
--- Backend-independent obligations relating one concrete response fold to one abstract
--- summary algebra. Exact and syntactic traversal contracts extend this core with only
--- the field-transfer obligation specific to their grouping strategy.
+/-- Backend-independent obligations relating one concrete response fold to one abstract
+summary algebra. Exact and syntactic traversal contracts extend this core with only the
+field-transfer obligation specific to their grouping strategy. -/
 structure SoundnessCore (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
     : Type (max u v) where
   approximates : concrete.Summary -> abstract.Summary -> Prop

@@ -244,17 +244,15 @@ theorem exactCasesCompactRetainsLocalDecisionStructure
 theorem explicitMissingBooleanContextSelectsNegativePolarity
     : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
         conditionSchema [] complementaryConditionalFieldsTree
-        (ExactCases.BooleanEnvironment.ofCompleteValues [])
+        (ExactCases.BooleanEnvironment.concrete [])
       = [1] := by
   native_decide
 
 theorem completeBooleanStatusUsesOption
     : (
-        (ExactCases.BooleanEnvironment.ofCompleteValues []).statusForVariable "x",
-        (ExactCases.BooleanEnvironment.ofCompleteValues [("x", .int 1)]).statusForVariable
-          "x",
-        (ExactCases.BooleanEnvironment.ofCompleteValues
-          [("x", .boolean true)]).statusForVariable
+        (ExactCases.BooleanEnvironment.concrete []).statusForVariable "x",
+        (ExactCases.BooleanEnvironment.concrete [("x", .int 1)]).statusForVariable "x",
+        (ExactCases.BooleanEnvironment.concrete [("x", .boolean true)]).statusForVariable
           "x"
       )
       = (some false, some false, some true) := by
@@ -263,7 +261,7 @@ theorem completeBooleanStatusUsesOption
 theorem explicitKnownBooleanContextSelectsOnePolarity
     : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
         conditionSchema [] complementaryConditionalFieldsTree
-        (ExactCases.BooleanEnvironment.ofCompleteValues [("x", .boolean false)])
+        (ExactCases.BooleanEnvironment.concrete [("x", .boolean false)])
       = [1] := by
   native_decide
 
@@ -575,11 +573,11 @@ def conditionallyVisitedNameSelection : List Selection :=
 theorem knownFalsePruningSkipsFieldHandlersSmoke
     : ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.ofCompleteValues [("showName", .boolean false)])
+          (ExactCases.BooleanEnvironment.concrete [("showName", .boolean false)])
         = []
       ∧ ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.ofCompleteValues [("showName", .boolean true)])
+          (ExactCases.BooleanEnvironment.concrete [("showName", .boolean true)])
         = ["name"]
       ∧ Syntactic.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection [("showName", .boolean false)]

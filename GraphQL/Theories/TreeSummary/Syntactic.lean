@@ -36,14 +36,14 @@ def evaluateBooleanLiteral? (variableValues : Execution.VariableValues)
   let value ← Execution.inputValueBoolean? variableValues (.variable literal.variableName)
   pure (value == literal.requiredValue)
 
--- A widened summary for one feasible immediate Boolean branch.
+/-- A widened summary for one feasible immediate Boolean branch. -/
 structure BooleanBranchSummary (Summary : Type u) where
   literal : BooleanLiteral
   summary : Summary
 
--- The simultaneous contributions selected by each value of one Boolean variable.
--- `none` means that the value selects no branch, rather than an algebra summary that
--- happens to equal `empty`.
+/-- The simultaneous contributions selected by each value of one Boolean variable.
+`none` means that the value selects no branch, rather than an algebra summary that
+happens to equal `empty`. -/
 structure BooleanAlternatives (Summary : Type u) where
   whenFalse : Option Summary := none
   whenTrue : Option Summary := none
@@ -121,14 +121,14 @@ def summarizeBooleanBranchSummaries (algebra : Algebra.{u})
     fun entry _hentry =>
       (summarizeBooleanAlternatives? algebra variableValues entry).getD algebra.empty
 
--- Cached applicability and widened summary for one feasible immediate type branch.
+/-- Cached applicability and widened summary for one feasible immediate type branch. -/
 structure TypeBranchSummary (Summary : Type u) where
   possibleTypes : PossibleTypes
   summary : Summary
 
--- Compact summaries of the two independent immediate-branch families at one tree node.
--- Each source branch contributes to exactly one list; infeasible type scopes and known-
--- false Boolean branches contribute to neither.
+/-- Compact summaries of the two independent immediate-branch families at one tree node.
+Each source branch contributes to exactly one list; infeasible type scopes and
+known-false Boolean branches contribute to neither. -/
 structure ImmediateBranchSummaries (Summary : Type u) where
   typeBranches : List (TypeBranchSummary Summary) := []
   booleanBranches : List (BooleanBranchSummary Summary) := []
@@ -363,7 +363,7 @@ def booleanConditionValues (inheritedBooleanCondition : List BooleanLiteral)
     fun literal =>
       (literal.variableName, .boolean literal.requiredValue)
 
--- Summarizes one extracted condition tree by its node-local type and Boolean cases.
+/-- Summarizes one extracted condition tree by its node-local type and Boolean cases. -/
 def summarizeConditionTree (algebra : Algebra) (schema : Schema)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
     (tree : Tree) (variableValues : Execution.VariableValues := [])
@@ -375,6 +375,7 @@ def summarizeConditionTree (algebra : Algebra) (schema : Schema)
 -- Public entry points
 -----------------------------------------------------------------------------------------
 
+/-- Extracts and summarizes a selection set with the fast syntactic backend. -/
 def summarizeSelectionSet (algebra : Algebra) (schema : Schema)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
     (selectionSet : List Selection)
@@ -386,13 +387,14 @@ def summarizeSelectionSet (algebra : Algebra) (schema : Schema)
   summarizeConditionTree algebra schema parentType inheritedBooleanCondition tree
     variableValues
 
+/-- Summarizes an operation while leaving its Boolean variables unresolved. -/
 def summarizeOperation (algebra : Algebra) (schema : Schema) (operation : Operation)
     : algebra.Summary :=
   summarizeSelectionSet algebra schema (operation.rootType schema) []
     operation.selectionSet []
 
--- Summarizes an operation after applying its variable defaults and supplied values.
--- Known Boolean conditions are pruned; unresolved conditions remain conservative.
+/-- Summarizes an operation after applying its variable defaults and supplied values.
+Known Boolean conditions are pruned; unresolved conditions remain conservative. -/
 def summarizeOperationWithVariables
     (algebraFor : Execution.VariableValues -> Algebra) (schema : Schema)
     (variableValues : Execution.VariableValues) (operation : Operation)
@@ -480,9 +482,9 @@ def conditionsAllowGroupsAt (variableValues : VariableValues) (runtimeType : Nam
     : Prop :=
   ∀ group, group ∈ groups -> group.condition.allows variableValues runtimeType = true
 
--- Direct local soundness contract for the syntactic backend. Unlike the exact backend's
--- single-group field obligation, `field_sound` may summarize several syntactic groups
--- that jointly represent one executed response field.
+/-- Direct local soundness contract for the syntactic backend. Unlike the exact backend's
+single-group field obligation, `field_sound` may summarize several syntactic groups that
+jointly represent one executed response field. -/
 structure Soundness
     (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
     (schema : Schema) (variableValues : VariableValues)
@@ -512,8 +514,8 @@ structure Soundness
               value children)
             (foldFieldGroups abstract abstractChildren groups)
 
--- Per-operation soundness of a syntactic analysis. Its theorem witness is
--- `Syntactic.analysisSound` in the syntactic soundness proof module.
+/-- Per-operation soundness of a syntactic analysis. Its theorem witness is
+`Syntactic.analysisSound` in the syntactic soundness proof module. -/
 def AnalysisSound
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (soundnessFor : ∀ values, Soundness concrete abstract schema values)
@@ -529,8 +531,8 @@ def AnalysisSound
           (executeQueryAnnotated schema resolvers variableValues operation source))
         (summarizeOperation abstract schema operation)
 
--- Per-operation soundness of a variable-indexed syntactic analysis. Its theorem witness
--- is `Syntactic.analysisWithVariablesSound` in the syntactic soundness proof module.
+/-- Per-operation soundness of a variable-indexed syntactic analysis. Its theorem witness
+is `Syntactic.analysisWithVariablesSound` in the syntactic soundness proof module. -/
 def AnalysisWithVariablesSound
     {concrete : ConcreteAlgebra.{u}}
     (algebraFor : VariableValues -> Algebra.{v}) {schema : Schema}
