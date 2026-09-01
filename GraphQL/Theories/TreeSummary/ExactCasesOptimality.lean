@@ -397,37 +397,34 @@ namespace ExactCases
 -- Execution coverage
 -----------------------------------------------------------------------------------------
 
-/-- Semantic exhaustiveness of modeled outcomes at one active selection-set boundary.
-Every common abstract bound of the recursively feasible outcomes also bounds every
-annotated execution result. Error/null bubbling at the boundary contributes the
-concrete algebra's empty result. Its theorem witness is
-`ExactCases.selectionSetExecutionCovered` in the exact-case optimality proof module. -/
-def SelectionSetExecutionCovered
+/-- Upper-bound execution coverage by the relational outcome semantics for one complete
+request. Every common abstract upper bound of the request's modeled outcomes also bounds
+its concrete annotated execution; the execution need not itself be a modeled outcome.
+Its theorem witness is
+`ExactCases.operationOutcomesCoverExecutions` in the exact-case optimality proof
+module. -/
+def OperationOutcomesCoverExecutions
     {semantics : OutcomeSemantics.{u}} {concrete : ConcreteAlgebra.{v}}
-    {abstract : Algebra.{w}} {schema : Schema} (variableValues : VariableValues)
-    (soundness : Soundness concrete abstract schema variableValues)
+    {abstract : Algebra.{w}}
+    (schema : Schema) (variableValues : VariableValues) (operation : Operation)
+    (soundness
+      : Soundness concrete abstract schema
+          (Execution.coerceVariableValues operation variableValues))
     (laws : BestTransferLaws semantics abstract soundness.abstractLawful.le)
-    (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection)
     : Prop :=
-  ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-    (fuel : Nat) (runtimeType : Name) (ref : ObjectRef),
-    booleanConditionAllows variableValues inheritedBooleanCondition = true
-    -> schema.typeIncludesObject parentType runtimeType
-    ->  let source : ResolverValue ObjectRef := .object runtimeType ref
-        let runtimeGroups :=
-          collectFields schema variableValues runtimeType source selectionSet
-        let executionResult :=
-          AnnotatedExecution.executeQueryAnnotatedCollectedFields schema resolvers
-            variableValues fuel source runtimeGroups
-        let concreteOutcome := foldAnnotatedResponseFieldsResult concrete executionResult
-        ∀ candidate,
-          OutcomeSet.IsUpperBound laws.approximates
-            (selectionSetOutcomes semantics schema parentType inheritedBooleanCondition
-              selectionSet (BooleanEnvironment.concrete variableValues))
+  SchemaWellFormedness.schemaWellFormed schema
+  -> Validation.operationDefinitionValid schema operation
+  -> ∀ candidate,
+      OutcomeSet.IsUpperBound laws.approximates
+        (operationOutcomesWithVariables semantics schema variableValues operation)
+        candidate
+      -> ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
+            (source : ResolverValue ObjectRef),
+          soundness.approximates
+            (foldAnnotatedResponse concrete
+              (AnnotatedExecution.executeQueryAnnotated schema resolvers variableValues
+                operation source))
             candidate
-          -> soundness.approximates concreteOutcome candidate
 
 -----------------------------------------------------------------------------------------
 -- Boolean-case exactness

@@ -692,6 +692,26 @@ private theorem fieldUseCostAtParentTypeWithVariables_eq_of_argumentsEquivalent
       exact fieldUseCostAtParentType_eq_of_argumentsEquivalent schema model parentType
         childSummary inheritedSizedFields fieldName harguments
 
+private theorem fieldUseCost_eq_of_argumentsEquivalent
+    (schema : Schema) (model : CostModel)
+    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
+    (childSummary : Summary) (inheritedSizedFields : List SizedField)
+    (fieldName : Name) {left right : List Argument}
+    (hright : (right.map Argument.name).Nodup)
+    (hequivalent : Argument.argumentsEquivalent left right)
+    : fieldUseCost schema model variableValues group childSummary inheritedSizedFields
+        fieldName left
+      = fieldUseCost schema model variableValues group childSummary inheritedSizedFields
+          fieldName right := by
+  unfold fieldUseCost
+  apply congrArg
+    (fun project : Name -> Bound =>
+      group.condition.possibleTypes.foldl
+        (fun cost parentType => Bound.max cost (project parentType)) .zero)
+  funext parentType
+  exact fieldUseCostAtParentTypeWithVariables_eq_of_argumentsEquivalent schema model
+    variableValues parentType childSummary inheritedSizedFields fieldName hright hequivalent
+
 def ResponseObservationBound (concrete : ResponseObservation) (abstract : Summary)
     : Prop :=
   ∀ sizedFields,
@@ -863,27 +883,6 @@ private theorem fieldUseCost_max
         exact fieldUseCostAtParentTypeWithVariables_max schema model variableValues
           parentType left right inheritedSizedFields fieldName arguments)
 
-private theorem groupCost_eq_foldl_max
-    (schema : Schema) (model : CostModel)
-    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
-    (childSummary : Summary) (inheritedSizedFields : List SizedField)
-    : groupCost schema model variableValues group childSummary inheritedSizedFields
-      = group.selections.foldl
-          (fun maximum selection =>
-            Bound.max maximum
-              (match selectionFieldUse? selection with
-                | none => .zero
-                | some (fieldName, arguments) =>
-                    fieldUseCost schema model variableValues group childSummary
-                      inheritedSizedFields fieldName arguments))
-          .zero := by
-  unfold groupCost
-  apply congrArg
-    (fun step : Bound -> Selection -> Bound => group.selections.foldl step .zero)
-  funext cost selection
-  cases cost
-  cases selection <;> simp [selectionFieldUse?, Bound.max, Bound.zero]
-
 private theorem groupCost_max
     (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
@@ -894,39 +893,10 @@ private theorem groupCost_max
       = Bound.max
           (groupCost schema model variableValues group left inheritedSizedFields)
           (groupCost schema model variableValues group right inheritedSizedFields) := by
-  rw [groupCost_eq_foldl_max, groupCost_eq_foldl_max,
-    groupCost_eq_foldl_max]
-  have hpair := foldl_project_max_pair
-      (fun selection =>
-        match selectionFieldUse? selection with
-        | none => .zero
-        | some (fieldName, arguments) =>
-            fieldUseCost schema model variableValues group
-              (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
-              inheritedSizedFields fieldName arguments)
-      (fun selection =>
-        match selectionFieldUse? selection with
-        | none => .zero
-        | some (fieldName, arguments) =>
-            fieldUseCost schema model variableValues group left inheritedSizedFields
-              fieldName arguments)
-      (fun selection =>
-        match selectionFieldUse? selection with
-        | none => .zero
-        | some (fieldName, arguments) =>
-            fieldUseCost schema model variableValues group right inheritedSizedFields
-              fieldName arguments)
-      group.selections .zero .zero (by
-        intro selection _hselection
-        cases huse : selectionFieldUse? selection with
-        | none => simp [Bound.max, Bound.zero]
-        | some use =>
-            rcases use with ⟨fieldName, arguments⟩
-            simpa [huse] using fieldUseCost_max schema model variableValues group
-              left right inheritedSizedFields fieldName arguments)
-  have hzero : Bound.max Bound.zero Bound.zero = Bound.zero := rfl
-  rw [hzero] at hpair
-  exact hpair
+  unfold groupCost
+  exact fieldUseCost_max schema model variableValues group left right
+    inheritedSizedFields group.representativeField.fieldName
+      group.representativeField.arguments
 
 def algebraLawful (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues)
@@ -1111,55 +1081,25 @@ private theorem foldl_project_max_mono
       · intro value hvalue
         exact hproject value (by simp [hvalue])
 
-private def selectionCost (schema : Schema) (model : CostModel)
-    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
-    (childSummary : Summary) (inheritedSizedFields : List SizedField)
-    : Selection -> Bound
-  | selection =>
-      match selectionFieldUse? selection with
-      | none => .zero
-      | some (fieldName, arguments) =>
-          fieldUseCost schema model variableValues group childSummary
-            inheritedSizedFields fieldName arguments
-
-private theorem groupCost_eq_foldl_selectionCost
+private theorem fieldUseCost_le_groupCost
     (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
     (childSummary : Summary) (inheritedSizedFields : List SizedField)
-    : groupCost schema model variableValues group childSummary inheritedSizedFields
-      = group.selections.foldl
-          (fun maximum selection =>
-            Bound.max maximum
-              (selectionCost schema model variableValues group childSummary
-                inheritedSizedFields selection))
-          0 := by
-  unfold groupCost
-  apply congrArg
-    (fun step : Bound -> Selection -> Bound => group.selections.foldl step .zero)
-  funext cost selection
-  cases cost
-  cases selection <;> simp [selectionCost, selectionFieldUse?, Bound.max, Bound.zero]
-
-private theorem fieldUseCost_le_groupCost_of_selection
-    (schema : Schema) (model : CostModel)
-    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
-    (childSummary : Summary) (inheritedSizedFields : List SizedField)
-    (responseName fieldName : Name) (arguments : List Argument)
-    (directives : List DirectiveApplication) (selectionSet : List Selection)
-    (hselection
-      : Selection.field responseName fieldName arguments directives selectionSet
-        ∈ group.selections)
+    (fieldName : Name) (arguments : List Argument)
+    (hfieldName : fieldName = group.representativeField.fieldName)
+    (hargumentsNodup : (arguments.map Argument.name).Nodup)
+    (harguments
+      : Argument.argumentsEquivalent group.representativeField.arguments arguments)
     : fieldUseCost schema model variableValues group childSummary inheritedSizedFields
         fieldName arguments
       ≤ groupCost schema model variableValues group childSummary
           inheritedSizedFields := by
-  rw [groupCost_eq_foldl_selectionCost]
-  simpa [selectionCost, selectionFieldUse?] using
-    project_le_foldl_max_of_mem
-      (selectionCost schema model variableValues group childSummary
-        inheritedSizedFields)
-      (.field responseName fieldName arguments directives selectionSet) group.selections 0
-      hselection
+  unfold groupCost
+  rw [hfieldName]
+  rw [← fieldUseCost_eq_of_argumentsEquivalent schema model variableValues group
+    childSummary inheritedSizedFields group.representativeField.fieldName
+    hargumentsNodup harguments]
+  exact cost_le_refl _
 
 private theorem fieldUseCostAtParentType_le_fieldUseCost
     (schema : Schema) (model : CostModel) (group : CollectedFieldGroup)
@@ -1238,21 +1178,6 @@ private theorem fieldUseCost_mono
       · exact fieldUseCostAtParentType_mono schema model parentType lower upper hle
           inheritedSizedFields fieldName _)
 
-private theorem selectionCost_mono
-    (schema : Schema) (model : CostModel)
-    (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
-    (lower upper : Summary)
-    (hle : ∀ sizedFields, lower sizedFields ≤ upper sizedFields)
-    (inheritedSizedFields : List SizedField) (selection : Selection)
-    : selectionCost schema model variableValues group lower inheritedSizedFields selection
-      ≤ selectionCost schema model variableValues group upper inheritedSizedFields
-          selection := by
-  cases selection with
-  | inlineFragment => exact cost_le_refl _
-  | field responseName fieldName arguments directives selectionSet =>
-      exact fieldUseCost_mono schema model variableValues group lower upper hle
-        inheritedSizedFields fieldName arguments
-
 private theorem groupCost_mono
     (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
@@ -1261,14 +1186,10 @@ private theorem groupCost_mono
     (inheritedSizedFields : List SizedField)
     : groupCost schema model variableValues group lower inheritedSizedFields
       ≤ groupCost schema model variableValues group upper inheritedSizedFields := by
-  rw [groupCost_eq_foldl_selectionCost, groupCost_eq_foldl_selectionCost]
-  exact foldl_project_max_mono
-    (selectionCost schema model variableValues group lower inheritedSizedFields)
-    (selectionCost schema model variableValues group upper inheritedSizedFields)
-    group.selections .zero .zero (cost_le_refl _) (by
-      intro selection _hselection
-      exact selectionCost_mono schema model variableValues group lower upper hle
-        inheritedSizedFields selection)
+  unfold groupCost
+  exact fieldUseCost_mono schema model variableValues group lower upper hle
+    inheritedSizedFields group.representativeField.fieldName
+      group.representativeField.arguments
 
 private theorem fieldUseCostAtParentType_best_le
     (schema : Schema) (model : CostModel)
@@ -1281,15 +1202,16 @@ private theorem fieldUseCostAtParentType_best_le
           children child
           -> groupCost schema model variableValues group child inheritedSizedFields
               ≤ candidate)
-    (parentType responseName fieldName : Name) (arguments : List Argument)
-    (directives : List DirectiveApplication) (selectionSet : List Selection)
+    (parentType : Name)
     (hparent : parentType ∈ group.condition.possibleTypes)
-    (hselection
-      : Selection.field responseName fieldName arguments directives selectionSet
-        ∈ group.selections)
     : fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
-        abstractChildren inheritedSizedFields fieldName arguments
+        abstractChildren inheritedSizedFields group.representativeField.fieldName
+        group.representativeField.arguments
       ≤ candidate := by
+  let fieldName := group.representativeField.fieldName
+  let arguments := group.representativeField.arguments
+  change fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
+      abstractChildren inheritedSizedFields fieldName arguments ≤ candidate
   have hlocalBound : ∀ child, children child ->
       fieldUseCostAtParentTypeWithVariables schema model variableValues parentType child
           inheritedSizedFields fieldName arguments
@@ -1298,11 +1220,7 @@ private theorem fieldUseCostAtParentType_best_le
     exact cost_le_trans
       (fieldUseCostAtParentType_le_fieldUseCost schema model group variableValues child
         inheritedSizedFields parentType fieldName arguments hparent)
-      (cost_le_trans
-        (fieldUseCost_le_groupCost_of_selection schema model variableValues group child
-          inheritedSizedFields responseName fieldName arguments directives selectionSet
-          hselection)
-        (hcandidate child hchild))
+      (by simpa [groupCost, fieldName, arguments] using hcandidate child hchild)
   cases hlookup : schema.lookupField parentType fieldName with
   | none =>
       rcases summaryBestBound_component_attainsAt hchildren .typeCost [] with
@@ -1388,22 +1306,13 @@ private theorem groupCost_best_le
     (inheritedSizedFields : List SizedField)
     : groupCost schema model variableValues group abstractChildren inheritedSizedFields
       ≤ candidate inheritedSizedFields := by
-  rw [groupCost_eq_foldl_selectionCost]
+  unfold groupCost fieldUseCost
   apply foldl_project_max_le _ _ _ _ (cost_zero_le _)
-  intro selection hselection
-  cases selection with
-  | inlineFragment typeCondition directives selectionSet =>
-      exact cost_zero_le _
-  | field responseName fieldName arguments directives selectionSet =>
-      simp only [selectionCost, selectionFieldUse?]
-      unfold fieldUseCost
-      apply foldl_project_max_le _ _ _ _ (cost_zero_le _)
-      intro parentType hparent
-      exact fieldUseCostAtParentType_best_le schema model variableValues group hchildren
-        inheritedSizedFields (candidate inheritedSizedFields)
-        (fun child hchild => hcandidate child hchild inheritedSizedFields)
-        parentType responseName fieldName arguments directives selectionSet hparent
-        hselection
+  intro parentType hparent
+  exact fieldUseCostAtParentType_best_le schema model variableValues group hchildren
+    inheritedSizedFields (candidate inheritedSizedFields)
+    (fun child hchild => hcandidate child hchild inheritedSizedFields)
+    parentType hparent
 
 private theorem fieldUseCostAtParentType_combine_le
     (schema : Schema) (model : CostModel)
@@ -1548,55 +1457,43 @@ private theorem fieldUseCostAtParentTypeWithVariables_combine_le
 private theorem representedGroup_bounds_fieldUseCostAtParentType
     (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (runtimeType : Name)
-    (ref : ObjectRef) (field : Execution.ExecutableField)
+    (field : Execution.ExecutableField)
     (groups : List CollectedFieldGroup) (group : CollectedFieldGroup)
     (abstractChild : Summary) (inheritedSizedFields : List SizedField)
     (hgroup : group ∈ groups)
     (hconditions
       : TreeSummary.Syntactic.conditionsAllowGroupsAt variableValues runtimeType groups)
-    (hmatch
-      : TreeSummary.Syntactic.groupsRepresentField schema variableValues runtimeType ref
-          groups field)
+    (hmatch : TreeSummary.Syntactic.groupsRepresentField groups field)
     (hfieldArgumentsNodup : (field.arguments.map Argument.name).Nodup)
     : fieldUseCostAtParentTypeWithVariables schema model variableValues runtimeType
         abstractChild inheritedSizedFields field.fieldName field.arguments
       ≤ groupCost schema model variableValues group abstractChild
           inheritedSizedFields := by
   rcases hmatch group hgroup with
-    ⟨candidate, _hcover, hfieldName, harguments,
-      selection, hselection, hselectionEq⟩
+    ⟨hrepresentativeName, hrepresentativeArguments⟩
   have hruntimeType : runtimeType ∈ group.condition.possibleTypes :=
     List.contains_iff_mem.mp
       (Bool.and_eq_true_iff.mp (hconditions group hgroup)).1
-  rw [hselectionEq] at hselection
-  have hargumentCost :=
-    fieldUseCostAtParentTypeWithVariables_eq_of_argumentsEquivalent schema model
-      variableValues runtimeType abstractChild inheritedSizedFields candidate.fieldName
-      hfieldArgumentsNodup harguments
-  rw [hfieldName] at hargumentCost hselection
-  rw [← hargumentCost]
   exact cost_le_trans
     (fieldUseCostAtParentType_le_fieldUseCost schema model group variableValues
-      abstractChild inheritedSizedFields runtimeType field.fieldName candidate.arguments
+      abstractChild inheritedSizedFields runtimeType field.fieldName field.arguments
       hruntimeType)
-    (fieldUseCost_le_groupCost_of_selection schema model variableValues group
-      abstractChild inheritedSizedFields group.responseName field.fieldName
-      candidate.arguments [] candidate.selectionSet hselection)
+    (fieldUseCost_le_groupCost schema model variableValues group abstractChild
+      inheritedSizedFields field.fieldName field.arguments hrepresentativeName.symm
+      hfieldArgumentsNodup hrepresentativeArguments)
 
 private theorem representedGroups_capacity
     (schema : Schema) (model : CostModel)
     (hnonnegative : TypeCostsNonnegative schema model)
     (variableValues : Execution.VariableValues) (runtimeType : Name)
-    (ref : ObjectRef) (field : Execution.ExecutableField)
+    (field : Execution.ExecutableField)
     (groups : List CollectedFieldGroup)
     (abstractChildren : CollectedFieldGroup -> Summary)
     (inheritedSizedFields : List SizedField)
     (hnonempty : groups ≠ [])
     (hconditions
       : TreeSummary.Syntactic.conditionsAllowGroupsAt variableValues runtimeType groups)
-    (hmatch
-      : TreeSummary.Syntactic.groupsRepresentField schema variableValues runtimeType ref
-          groups field)
+    (hmatch : TreeSummary.Syntactic.groupsRepresentField groups field)
     (hfieldArgumentsNodup : (field.arguments.map Argument.name).Nodup)
     : fieldUseCostAtParentTypeWithVariables schema model variableValues runtimeType
         (TreeSummary.Syntactic.foldChildSummaries
@@ -1609,7 +1506,7 @@ private theorem representedGroups_capacity
   | nil => contradiction
   | cons group rest ih =>
       have hgroup := representedGroup_bounds_fieldUseCostAtParentType schema model
-        variableValues runtimeType ref field (group :: rest) group
+        variableValues runtimeType field (group :: rest) group
         (abstractChildren group) inheritedSizedFields (by simp) hconditions hmatch
         hfieldArgumentsNodup
       cases rest with
@@ -2095,8 +1992,8 @@ def soundness (schema : Schema) (model : CostModel)
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
-      intro group field definition value children abstractChildren hparent
-        hrepresents hlookup _houtput hchildren
+      intro group field definition value children abstractChildren hrepresentative
+        hparent harguments hlookup _houtput hchildren
       intro inheritedSizedFields hadmissible
       have hchildren' :
           ResponseObservationBound children
@@ -2123,9 +2020,9 @@ def soundness (schema : Schema) (model : CostModel)
       have hparentBound := fieldUseCostAtParentType_le_fieldUseCost schema model group
         variableValues abstractChildren inheritedSizedFields field.parentType
         field.fieldName field.arguments hparent
-      have hselectionBound := fieldUseCost_le_groupCost_of_selection schema model
-        variableValues group abstractChildren inheritedSizedFields field.responseName
-        field.fieldName field.arguments [] field.selectionSet hrepresents
+      have hselectionBound := fieldUseCost_le_groupCost schema model variableValues group
+        abstractChildren inheritedSizedFields field.fieldName field.arguments
+        hrepresentative.1.symm harguments hrepresentative.2
       exact actualCost_le_trans hfield' (bound_toCost_le_toCost
         (cost_le_trans hparentBound (by
           simpa [algebra] using hselectionBound)))
@@ -2199,9 +2096,8 @@ def soundness (schema : Schema) (model : CostModel)
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
-      intro ObjectRef runtimeType ref _responseName field _rest definition value children
-        groups abstractChildren hparent hlookup hargumentsNodup hnonempty _hinherited
-        hconditions _hcover hmatch hchildren
+      intro field definition value children groups abstractChildren hnonempty hmatch
+        hconditions hargumentsNodup hlookup hchildren
       intro inheritedSizedFields hadmissible
       let combinedChildren :=
         TreeSummary.Syntactic.foldChildSummaries
@@ -2229,10 +2125,10 @@ def soundness (schema : Schema) (model : CostModel)
         simpa [concreteAlgebra, responseFieldObservation,
           fieldUseCostAtParentTypeWithVariables, hlookup] using hfield
       have hcapacity := representedGroups_capacity schema model hnonnegative variableValues
-        runtimeType ref field groups abstractChildren inheritedSizedFields hnonempty
+        field.parentType field groups abstractChildren inheritedSizedFields hnonempty
         hconditions hmatch hargumentsNodup
       exact actualCost_le_trans hfield' (bound_toCost_le_toCost (by
-        simpa [hparent, combinedChildren, algebra] using hcapacity))
+        simpa [combinedChildren, algebra] using hcapacity))
   }
 
 -- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.

@@ -425,57 +425,11 @@ def foldFieldGroups (algebra : Algebra)
       algebra.combine (algebra.field group (children group))
         (foldFieldGroups algebra children rest)
 
-def groupCoversField {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
-    (group : CollectedFieldGroup) (field : ExecutableField)
+/-- Every active static group uses a representative occurrence compatible with the
+executed response field. -/
+def groupsRepresentField (groups : List CollectedFieldGroup) (field : ExecutableField)
     : Prop :=
-  group.condition.allows variableValues runtimeType = true
-  ∧ field
-    ∈ collectFlatFields schema variableValues executionParentType source group.selections
-  ∧ field.responseName = group.responseName
-  ∧ ∀ selection,
-      selection ∈ group.selections -> selection.responseName? = some group.responseName
-
-def groupsCoverFields {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
-    (availableGroups : List CollectedFieldGroup)
-    (fields : List ExecutableField)
-    : Prop :=
-  ∀ field,
-    field ∈ fields
-    -> ∃ group,
-        group ∈ availableGroups
-        ∧ groupCoversField schema variableValues executionParentType runtimeType source
-            group field
-
-def groupsRepresentField {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (runtimeType : Name) (ref : ObjectRef)
-    (groups : List CollectedFieldGroup) (field : ExecutableField)
-    : Prop :=
-  ∀ group,
-    group ∈ groups
-    -> ∃ candidate,
-        groupCoversField schema variableValues runtimeType runtimeType
-          (.object runtimeType ref) group candidate
-        ∧ candidate.fieldName = field.fieldName
-        ∧ Argument.argumentsEquivalent candidate.arguments field.arguments
-        ∧ ∃ selection,
-            selection ∈ group.selections
-            ∧ selection
-              = .field group.responseName candidate.fieldName candidate.arguments []
-                  candidate.selectionSet
-
-def inheritedConditionsAllowGroups (variableValues : VariableValues)
-    (groups : List CollectedFieldGroup)
-    : Prop :=
-  ∀ group,
-    group ∈ groups
-    -> booleanConditionAllows variableValues group.inheritedBooleanCondition = true
+  ∀ group, group ∈ groups -> group.representativeMatches field
 
 def conditionsAllowGroupsAt (variableValues : VariableValues) (runtimeType : Name)
     (groups : List CollectedFieldGroup)
@@ -490,21 +444,15 @@ structure Soundness
     (schema : Schema) (variableValues : VariableValues)
     extends SoundnessCore concrete abstract where
   field_sound
-    : ∀ (ObjectRef : Type) (runtimeType : Name) (ref : ObjectRef)
-        (_responseName : Name)
-        (field : ExecutableField) (rest : List ExecutableField)
+    : ∀ (field : ExecutableField)
         (definition : FieldDefinition) (value : AnnotatedResponseValue)
         (children : concrete.Summary) (groups : List CollectedFieldGroup)
         (abstractChildren : CollectedFieldGroup -> abstract.Summary),
-        field.parentType = runtimeType
-        -> schema.lookupField field.parentType field.fieldName = some definition
+        groups ≠ []
+        -> groupsRepresentField groups field
+        -> conditionsAllowGroupsAt variableValues field.parentType groups
         -> (field.arguments.map Argument.name).Nodup
-        -> groups ≠ []
-        -> inheritedConditionsAllowGroups variableValues groups
-        -> conditionsAllowGroupsAt variableValues runtimeType groups
-        -> groupsCoverFields schema variableValues runtimeType runtimeType
-            (.object runtimeType ref) groups (field :: rest)
-        -> groupsRepresentField schema variableValues runtimeType ref groups field
+        -> schema.lookupField field.parentType field.fieldName = some definition
         -> approximates children
             (foldChildSummaryForValue abstract
               (foldChildSummaries abstract abstractChildren groups) value)

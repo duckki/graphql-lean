@@ -1,5 +1,7 @@
 import Proofs.GraphQL.Theories.TreeSummary.Syntactic.RuntimeGroups
 import Proofs.GraphQL.Theories.ConditionTree.KnownFalsePruning
+import Proofs.GraphQL.Theories.TreeSummary.Algebra
+import Proofs.GraphQL.Theories.TreeSummary.ExecutionValidity
 
 /-! Runtime field coverage and runtime-type selection for Syntactic summaries. -/
 
@@ -18,6 +20,43 @@ universe u v
 -----------------------------------------------------------------------------------------
 -- Runtime coverage by stored condition-tree groups
 -----------------------------------------------------------------------------------------
+
+/-- One active stored group contains the concrete field occurrence produced by runtime
+field collection. This richer occurrence relation is needed only by coverage proofs;
+analysis transfer contracts consume its representative-level projection. -/
+def groupCoversField {ObjectRef : Type}
+    (schema : Schema) (variableValues : VariableValues)
+    (executionParentType runtimeType : Name)
+    (source : ResolverValue ObjectRef)
+    (group : CollectedFieldGroup) (field : ExecutableField)
+    : Prop :=
+  group.condition.allows variableValues runtimeType = true
+  ∧ field
+    ∈ collectFlatFields schema variableValues executionParentType source group.selections
+  ∧ field.responseName = group.responseName
+  ∧ ∀ selection,
+      selection ∈ group.selections -> selection.responseName? = some group.responseName
+
+def groupsCoverFields {ObjectRef : Type}
+    (schema : Schema) (variableValues : VariableValues)
+    (executionParentType runtimeType : Name)
+    (source : ResolverValue ObjectRef)
+    (availableGroups : List CollectedFieldGroup)
+    (fields : List ExecutableField)
+    : Prop :=
+  ∀ field,
+    field ∈ fields
+    -> ∃ group,
+        group ∈ availableGroups
+        ∧ groupCoversField schema variableValues executionParentType runtimeType source
+            group field
+
+def inheritedConditionsAllowGroups (variableValues : VariableValues)
+    (groups : List CollectedFieldGroup)
+    : Prop :=
+  ∀ group,
+    group ∈ groups
+    -> booleanConditionAllows variableValues group.inheritedBooleanCondition = true
 
 def allCollectedGroups (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
@@ -49,46 +88,12 @@ def groupsRepresentFields {ObjectRef : Type}
                   = .field group.responseName field.fieldName field.arguments []
                       field.selectionSet
 
-theorem fieldName_mem_of_groupsRepresentField
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (runtimeType : Name) (ref : ObjectRef)
+theorem representativeMatches_of_groupsRepresentField
     (groups : List CollectedFieldGroup) (field : ExecutableField)
-    (hmatch : groupsRepresentField schema variableValues runtimeType ref groups field)
+    (hmatch : groupsRepresentField groups field)
     (group : CollectedFieldGroup) (hgroup : group ∈ groups)
-    : field.fieldName ∈ group.fieldNames := by
-  rcases hmatch group hgroup with
-    ⟨candidate, _hcover, hcandidateName, _harguments,
-      selection, hselection, hselectionEq⟩
-  rw [← hcandidateName]
-  simp [CollectedFieldGroup.selections,
-    ConditionTree.FieldGroup.selections, ConditionTree.Field.toSelection,
-    hselectionEq] at hselection
-  rcases hselection with ⟨field, hfield, _hresponseName, hfieldName, _⟩
-  exact List.mem_map.mpr ⟨field, hfield, hfieldName⟩
-
--- Validation facts retained for one concrete response-name group. They are generic
--- execution invariants; analyses only consume field identity compatibility.
-def ExecutableFieldsChildrenValid (schema : Schema) (fields : List ExecutableField)
-    : Prop :=
-  ∀ first definition childRuntime,
-    first ∈ fields
-    -> schema.lookupField first.parentType first.fieldName = some definition
-    -> schema.typeIncludesObjectBool definition.outputType.namedType childRuntime = true
-    -> schema.objectType childRuntime
-        ∧ NormalForm.selectionSetSemanticsReady schema childRuntime
-            (Execution.mergedFieldSelectionSet fields)
-        ∧ FieldMerge.fieldsInSetCanMerge schema childRuntime
-            (Execution.mergedFieldSelectionSet fields)
-
-def ExecutableGroupsValid (schema : Schema) (groups : List (Name × List ExecutableField))
-    : Prop :=
-  ∀ responseName fields,
-    (responseName, fields) ∈ groups
-    -> ExecutableFieldsFieldValidationMergeCompatible fields
-        ∧ ExecutableFieldsChildrenValid schema fields
-        ∧ ExecutableFieldsArgumentsNodup fields
-        ∧ ∀ field, field ∈ fields -> selectionSetArgumentsNodup field.selectionSet
+    : group.representativeMatches field := by
+  exact hmatch group hgroup
 
 theorem groupsRepresentField_of_represent_and_compatible
     {ObjectRef : Type}
@@ -105,7 +110,7 @@ theorem groupsRepresentField_of_represent_and_compatible
     (hrepresent
       : groupsRepresentFields schema variableValues runtimeType runtimeType
           (.object runtimeType ref) groups fields)
-    : groupsRepresentField schema variableValues runtimeType ref groups field := by
+    : groupsRepresentField groups field := by
   intro group hgroup
   rcases hrepresent group hgroup with ⟨hfields, hselections⟩
   let selection := group.selections.head hfields
@@ -115,8 +120,22 @@ theorem groupsRepresentField_of_represent_and_compatible
     exact hnames candidate hcandidate
   rcases hcompatible candidate field hcandidate hfield hresponse with
     ⟨hfieldName, harguments⟩
-  exact ⟨candidate, hcover, hfieldName, harguments, selection,
-    List.head_mem hfields, hselection⟩
+  have hrepresentativeSelection :
+      selection = group.representativeField.toSelection group.responseName := by
+    simp [selection, CollectedFieldGroup.selections,
+      ConditionTree.FieldGroup.selections, CollectedFieldGroup.representativeField,
+      CollectedFieldGroup.responseName, ConditionTree.FieldGroup.fields]
+  have hrepresentativeShape := hselection
+  rw [hrepresentativeSelection] at hrepresentativeShape
+  simp only [ConditionTree.Field.toSelection, Selection.field.injEq]
+    at hrepresentativeShape
+  have hrepresentativeName :
+      group.representativeField.fieldName = field.fieldName :=
+    hrepresentativeShape.2.1.trans hfieldName
+  have hrepresentativeArguments :
+      Argument.argumentsEquivalent group.representativeField.arguments field.arguments := by
+    simpa [hrepresentativeShape.2.2.1] using harguments
+  exact ⟨hrepresentativeName, hrepresentativeArguments⟩
 
 theorem groupsCoverFields_activeGroupsWithResponseName
     {ObjectRef : Type}
@@ -1244,55 +1263,6 @@ theorem objectType_getPossibleTypes_contains_self
     simpa [Schema.lookupType, TypeDefinition.name] using hmatch
   simp [Schema.getPossibleTypes, hlookup, hname]
 
-theorem collectFields_executableGroupsValid
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (runtimeType : Name) (ref : ObjectRef) (selectionSet : List Selection)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hobject : schema.objectType runtimeType)
-    (hready : NormalForm.selectionSetSemanticsReady schema runtimeType selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
-    (harguments : selectionSetArgumentsNodup selectionSet)
-    : ExecutableGroupsValid schema
-        (collectFields schema variableValues runtimeType (.object runtimeType ref)
-          selectionSet) := by
-  let source : ResolverValue ObjectRef := .object runtimeType ref
-  let groups := collectFields schema variableValues runtimeType source selectionSet
-  have hself : ScopedParentRuntimeApplies schema runtimeType runtimeType := by
-    exact NormalForm.object_typeIncludesObjectBool_self schema hobject
-  have hlookupValid :
-      NormalForm.selectionSetLookupValid schema runtimeType selectionSet :=
-    NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet hready
-  intro responseName fields hgroup
-  have hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields := by
-    have hall := collectFields_fieldCompatible_of_canMerge_lookupValid_object schema
-      variableValues runtimeType runtimeType runtimeType ref selectionSet hmerge hself
-      hlookupValid
-    exact hall responseName fields (by simpa [groups, source] using hgroup)
-  have hargumentFacts := collectFields_argumentsAndChildrenNodup schema variableValues
-    runtimeType source selectionSet harguments
-  refine ⟨hcompatible, ?_, ?_, ?_⟩
-  · intro first definition childRuntime hfirst hlookup hinclude
-    have hchildScoped :
-        ScopedParentRuntimeApplies schema childRuntime definition.outputType.namedType :=
-      ScopedParentRuntimeApplies.of_typeIncludesObjectBool schema childRuntime
-        definition.outputType.namedType hinclude
-    have hchildObject : schema.objectType childRuntime :=
-      ScopedParentRuntimeApplies.runtimeObjectType schema hschema hchildScoped
-    refine ⟨hchildObject, ?_, ?_⟩
-    · exact Algorithms.ExecutionUngrouped.collectedGroup_mergedFieldSelectionSet_semanticsReady
-        schema variableValues runtimeType runtimeType ref selectionSet responseName fields
-        first definition childRuntime hobject hself hready hmerge
-        (by simpa [groups, source] using hgroup) hfirst hlookup hinclude
-    · exact Algorithms.ExecutionUngrouped.collectedGroup_mergedFieldSelectionSet_canMerge
-        schema variableValues runtimeType runtimeType ref selectionSet responseName fields
-        hmerge hself hlookupValid (by simpa [groups, source] using hgroup) childRuntime
-  · exact hargumentFacts.1 responseName fields (by simpa [groups, source] using hgroup)
-  · intro field hfield
-    exact hargumentFacts.2 field
-      (collectedExecutableFields_mem_of_group_mem
-        (by simpa [groups, source] using hgroup) hfield)
-
 theorem candidateChildGroupsFor_cover_subfields
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
@@ -1439,34 +1409,20 @@ theorem candidateChildGroupsFor_represent_subfields
       childField).mp hchildInMergedFields
   exact ⟨childField, hchildCollected, hchildCover, hchildSelectionEq⟩
 
-theorem lookupField_outputType_mem_fieldOutputTypes_of_condition_allows
-    (schema : Schema) (variableValues : VariableValues)
-    (runtimeType : Name) (group : CollectedFieldGroup)
-    (fieldName : Name) (definition : FieldDefinition)
-    (hallows : group.condition.allows variableValues runtimeType = true)
-    (hfieldName : fieldName ∈ group.fieldNames)
-    (hlookup : schema.lookupField runtimeType fieldName = some definition)
-    : definition.outputType ∈ group.fieldOutputTypes schema := by
-  have hruntime : runtimeType ∈ group.condition.possibleTypes :=
-    List.contains_iff_mem.mp (Bool.and_eq_true_iff.mp hallows).1
-  unfold CollectedFieldGroup.fieldOutputTypes
-  apply List.mem_flatMap.mpr
-  refine ⟨runtimeType, hruntime, ?_⟩
-  exact List.mem_filterMap.mpr ⟨fieldName, hfieldName, by simp [hlookup]⟩
-
 theorem lookupField_childParentType_mem_of_condition_allows
     (schema : Schema) (variableValues : VariableValues)
     (runtimeType : Name) (group : CollectedFieldGroup)
-    (fieldName : Name) (definition : FieldDefinition)
+    (definition : FieldDefinition)
     (hallows : group.condition.allows variableValues runtimeType = true)
-    (hfieldName : fieldName ∈ group.fieldNames)
-    (hlookup : schema.lookupField runtimeType fieldName = some definition)
+    (hlookup
+      : schema.lookupField runtimeType group.representativeField.fieldName
+        = some definition)
     : definition.outputType.namedType ∈ childParentTypes schema group := by
   unfold childParentTypes
   simp only [List.mem_eraseDups, List.mem_map]
   exact ⟨definition.outputType,
-    lookupField_outputType_mem_fieldOutputTypes_of_condition_allows schema
-      variableValues runtimeType group fieldName definition hallows hfieldName hlookup,
+    CollectedFieldGroup.representativeOutputType_mem_fieldOutputTypes schema
+      variableValues runtimeType group definition hallows hlookup,
     rfl⟩
 
 theorem summarizeCollectedChildren_append

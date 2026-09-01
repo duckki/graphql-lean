@@ -722,8 +722,8 @@ def soundness (schema : Schema) (listSize : Nat)
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
-      intro group _field schemaDefinition value children abstractChildren _hparent
-        _hrepresents hlookup houtput hchildren
+      intro group _field schemaDefinition value children abstractChildren
+        _hrepresentative _hparent _harguments hlookup houtput hchildren
       intro hadmissible
       have hadmissible' :
           responseValueChildMultiplicity value
@@ -807,9 +807,8 @@ def soundness (schema : Schema) (listSize : Nat)
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
-      intro ObjectRef runtimeType ref responseName field rest definition value children
-        groups abstractChildren hparent hlookup _harguments hnonempty _hinherited
-        hconditions _hcover hmatch hchildren
+      intro field definition value children groups abstractChildren hnonempty hmatch
+        hconditions _harguments hlookup hchildren
       intro hadmissible
       have hadmissible' :
           responseValueChildMultiplicity value
@@ -825,16 +824,17 @@ def soundness (schema : Schema) (listSize : Nat)
           -> responseValueChildMultiplicity value
             ≤ fieldListMultiplier schema listSize group := by
         intro group hgroup
-        have hlookupRuntime :
-            schema.lookupField runtimeType field.fieldName = some definition := by
-          simpa [hparent] using hlookup
-        have hfieldName : field.fieldName ∈ group.fieldNames :=
-          fieldName_mem_of_groupsRepresentField schema variableValues runtimeType ref
-            groups field hmatch group hgroup
+        have hrepresentative :=
+          representativeMatches_of_groupsRepresentField groups field hmatch group hgroup
+        have hlookupRepresentative :
+            schema.lookupField field.parentType group.representativeField.fieldName
+              = some definition := by
+          rw [hrepresentative.1]
+          exact hlookup
         have houtput :=
-          lookupField_outputType_mem_fieldOutputTypes_of_condition_allows schema
-            variableValues runtimeType group field.fieldName definition
-            (hconditions group hgroup) hfieldName hlookupRuntime
+          CollectedFieldGroup.representativeOutputType_mem_fieldOutputTypes schema
+            variableValues field.parentType group definition (hconditions group hgroup)
+            hlookupRepresentative
         exact Nat.le_trans hadmissible'.1
           (max_one_listMultiplier_le_fieldListMultiplier schema listSize group
             definition.outputType houtput)

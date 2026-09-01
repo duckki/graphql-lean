@@ -731,16 +731,10 @@ structure JoinFactoringLaws (abstract : Algebra.{v}) (core : abstract.Lawful) : 
         core.le (abstract.field group (abstract.join left right))
           (abstract.join (abstract.field group left) (abstract.field group right))
 
--- The exact static group contains the executable field syntax that produced one
--- concrete resolver call. Runtime execution supplies the parent type separately because
--- one group can represent several possible object parents.
-def groupRepresentsField (group : CollectedFieldGroup) (field : ExecutableField) : Prop :=
-  .field field.responseName field.fieldName field.arguments [] field.selectionSet
-  ∈ group.selections
-
 /-- Local soundness contract for the exact-case traversal. It relates one concrete
 response fold to one abstract tree-fold constructor at a time and imposes no leastness
-requirement. -/
+requirement. Field compatibility and argument-name uniqueness are supplied by valid
+operation execution. -/
 structure Soundness
     (concrete : ConcreteAlgebra.{u}) (abstract : Algebra.{v})
     (schema : Schema) (variableValues : VariableValues)
@@ -748,8 +742,9 @@ structure Soundness
   joinFactoringLaws : JoinFactoringLaws abstract abstractLawful
   field_sound
     : ∀ group field fieldDefinition value children abstractChildren,
-        field.parentType ∈ group.condition.possibleTypes
-        -> groupRepresentsField group field
+        group.representativeMatches field
+        -> field.parentType ∈ group.condition.possibleTypes
+        -> (field.arguments.map Argument.name).Nodup
         -> schema.lookupField field.parentType field.fieldName = some fieldDefinition
         -> fieldDefinition.outputType ∈ group.fieldOutputTypes schema
         -> approximates children

@@ -52,6 +52,25 @@ def responseName (group : CollectedFieldGroup) : Name :=
 def fields (group : CollectedFieldGroup) : List Field :=
   group.fieldGroup.fields
 
+/-- The canonical occurrence used for the group's selected field name and arguments.
+GraphQL field-merging validation ensures that fields collected under one response name
+and applicable to the same runtime object select the same field with an equivalent
+argument set. Analyses therefore inspect this first occurrence instead of repeatedly
+scanning duplicate field uses. The complete `fields` list remains necessary for merging
+all child selection sets and for occurrence-preserving execution proofs. -/
+def representativeField (group : CollectedFieldGroup) : Field :=
+  group.fieldGroup.first
+
+/-- The resolved-provenance components that valid field merging makes common between
+an executed field and the representative of its scheduled static group. Response aliases
+are carried by the group, while child selection sets are merged across all occurrences;
+neither belongs to this representative-level relation. -/
+def representativeMatches (group : CollectedFieldGroup)
+    (field : Execution.ExecutableField)
+    : Prop :=
+  group.representativeField.fieldName = field.fieldName
+  ∧ Argument.argumentsEquivalent group.representativeField.arguments field.arguments
+
 /-- Converts one statically collected response-name group to executable field syntax.
 `CollectedFieldGroup` already guarantees that every member is a field with the enclosing
 response name, so no selection filtering is needed here. -/
@@ -98,21 +117,14 @@ def childTreeWithKnownFalsePruning (group : CollectedFieldGroup) (schema : Schem
   ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema childParentType
     group.childInheritedBooleanCondition variableValues group.mergedSelectionSet
 
--- Field names retained by this response-name group.
-def fieldNames (group : CollectedFieldGroup) : List Name :=
-  group.fields.map Field.fieldName
-
--- Declared outputs of the fields actually retained by this response-name group, looked
--- up on every runtime parent type allowed by its condition. This remains conservative
--- for mutually exclusive fields merged under one response name without importing output
--- types of unrelated schema fields.
+/-- Declared outputs on every runtime parent type allowed by this group's condition.
+Analyses are specified for valid operations, whose field-merging rule makes the
+representative's field name and arguments canonical for this type case. -/
 def fieldOutputTypes (schema : Schema) (group : CollectedFieldGroup) : List TypeRef :=
-  let fieldNames := group.fieldNames
-  group.condition.possibleTypes.flatMap
+  group.condition.possibleTypes.filterMap
     fun parentType =>
-      fieldNames.filterMap
-        fun fieldName =>
-          (schema.lookupField parentType fieldName).map FieldDefinition.outputType
+      (schema.lookupField parentType group.representativeField.fieldName).map
+        FieldDefinition.outputType
 
 end CollectedFieldGroup
 

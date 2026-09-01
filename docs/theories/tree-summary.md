@@ -24,8 +24,14 @@ An `Algebra` supplies one synthesized `Summary` type and four operations:
 one nonempty typed `ConditionTree.FieldGroup`. Its `fields` projection retains typed fields,
 while `selections` reconstructs their directive-free GraphQL syntax. The response name
 and field syntax therefore cannot disagree, and no inline-fragment case remains for an
-analysis to reject. `toExecutableGroup` is the canonical conversion used when a theorem
-compares a collected static group with runtime field collection.
+analysis to reject. For a valid operation, field-merging validation also ensures that
+occurrences applicable to the same runtime object have one selected field name and an
+equivalent argument set. `representativeField` exposes the first occurrence for
+analyses to inspect that shared identity and arguments once; the complete occurrence
+list remains necessary to merge every child selection set. The estimators are total,
+but their correctness contracts intentionally make no claim for invalid operations.
+`toExecutableGroup` is the canonical conversion used when a theorem compares a
+collected static group with runtime field collection.
 `mergedSelectionSet` follows GraphQL `CollectSubfields`. Schema and condition context
 flow down, while algebra summaries flow up.
 
@@ -314,20 +320,21 @@ precise. It says that, once its four local transfer steps are best, exact-case t
 does not introduce additional over-approximation: its result is the least bound of all
 and only the recursively feasible cases represented by the traversal.
 
-`SelectionSetExecutionCovered` bridges the relational outcomes to executable GraphQL
-semantics. It says that every `OutcomeSet.IsUpperBound` of `selectionSetOutcomes` also
-bounds every annotated execution at that complete request context. Coverage uses this
-upper-closure formulation because one execution can combine several modeled cases, for
-example when a list contains objects of different runtime types; it need not be
-represented by one outcome member. The theorem follows from selection-set execution
-soundness and the least-bound theorem. It does not claim that every modeled outcome is
-realizable by some resolver.
+`OperationOutcomesCoverExecutions` bridges the relational outcomes to executable GraphQL
+semantics. It says that every `OutcomeSet.IsUpperBound` of a complete request's
+relational outcomes also bounds every annotated execution of that valid operation.
+Its premises expose the same schema well-formedness and operation-validity requirements
+used by analysis soundness. Coverage uses this upper-closure formulation because one
+execution can combine several modeled cases, for example when a list contains objects
+of different runtime types; it need not be represented by one outcome member. The
+theorem follows from operation execution soundness and the least-bound theorem. It does
+not claim that every modeled outcome is realizable by some resolver.
 
 This gives the framework two explicit specifications and two corresponding correctness
 directions:
 
 - GraphQL execution is the external behavioral specification. `AnalysisSound` relates
-  the implementation directly to it, while `SelectionSetExecutionCovered` shows that
+  the implementation directly to it, while `OperationOutcomesCoverExecutions` shows that
   upper bounds of the relational outcome semantics are also sound for execution.
 - `OutcomeSemantics` is the relational feasible-case specification. `AnalysisOptimal`
   proves that the implementation computes its least abstract bound. It deliberately
@@ -471,6 +478,8 @@ See [Static Cost Analysis](static-cost.md) for the model and cost rule.
   runtime-group preservation witnesses.
 - `Proofs/GraphQL/Theories/TreeSummary/PossibleTypeRegions.lean`: exactness of the
   possible-type-region partition shared by both traversal backends.
+- `Proofs/GraphQL/Theories/TreeSummary/ExecutionValidity.lean`: recursive field-merging
+  and argument-validity facts shared by both execution-soundness proofs.
 - `Proofs/GraphQL/Theories/TreeSummary/ExactCases/`: the proof-only deterministic
   runtime-case interpreter, runtime alignment, variable refinement, and execution
   soundness.

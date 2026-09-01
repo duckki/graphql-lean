@@ -40,6 +40,27 @@ theorem selections_ne_nil (group : CollectedFieldGroup) : group.selections ≠ [
   simp [selections, ConditionTree.FieldGroup.selections,
     ConditionTree.FieldGroup.fields]
 
+@[simp]
+theorem representativeField_mem_fields (group : CollectedFieldGroup)
+    : group.representativeField ∈ group.fields := by
+  simp [representativeField, fields, ConditionTree.FieldGroup.fields]
+
+theorem representativeOutputType_mem_fieldOutputTypes
+    (schema : Schema) (variableValues : Execution.VariableValues)
+    (runtimeType : Name) (group : CollectedFieldGroup)
+    (definition : FieldDefinition)
+    (hallows : group.condition.allows variableValues runtimeType = true)
+    (hlookup
+      : schema.lookupField runtimeType group.representativeField.fieldName
+        = some definition)
+    : definition.outputType ∈ group.fieldOutputTypes schema := by
+  have hruntime : runtimeType ∈ group.condition.possibleTypes :=
+    List.contains_iff_mem.mp (Bool.and_eq_true_iff.mp hallows).1
+  unfold fieldOutputTypes
+  apply List.mem_filterMap.mpr
+  refine ⟨runtimeType, hruntime, ?_⟩
+  simp [hlookup]
+
 end CollectedFieldGroup
 
 namespace Algebra.Lawful

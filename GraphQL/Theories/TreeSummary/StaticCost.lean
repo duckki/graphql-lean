@@ -372,11 +372,6 @@ def resolvedSizedFields (listSize : ListSize) (expectedSize : Option Nat)
   | some size =>
       listSize.sizedFields.map fun fieldName => { fieldName, size }
 
-def selectionFieldUse? : Selection -> Option (Name × List Argument)
-  | .field _responseName fieldName arguments _directives _selectionSet =>
-      some (fieldName, arguments)
-  | .inlineFragment _typeCondition _directives _selectionSet => none
-
 def expectedListSize? (model : CostModel) (coordinate : FieldCoordinate)
     (arguments : List Argument)
     : Option Nat :=
@@ -481,15 +476,8 @@ def groupCost (schema : Schema) (model : CostModel)
     (variableValues : Execution.VariableValues) (group : CollectedFieldGroup)
     (childSummary : Summary) (inheritedSizedFields : List SizedField)
     : Bound :=
-  group.selections.foldl
-    (fun cost selection =>
-      match selectionFieldUse? selection with
-      | none => cost
-      | some (fieldName, arguments) =>
-          Bound.max cost
-            (fieldUseCost schema model variableValues group childSummary
-              inheritedSizedFields fieldName arguments))
-    .zero
+  fieldUseCost schema model variableValues group childSummary inheritedSizedFields
+    group.representativeField.fieldName group.representativeField.arguments
 
 end Internal
 

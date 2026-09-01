@@ -734,6 +734,29 @@ theorem duplicateCollectedFieldCostsOnceSmoke
       = { typeCost := 2, fieldCost := 1 } := by
   native_decide
 
+def reorderedEquivalentArgumentsOperation : Operation :=
+  operation
+    [
+      .field "books" "rangeBooks"
+        [{ name := "first", value := .int 3 }, { name := "last", value := .int 5 }]
+        [] [field "title"],
+      .field "books" "rangeBooks"
+        [{ name := "last", value := .int 5 }, { name := "first", value := .int 3 }]
+        [] [field "title"]
+    ]
+
+-- Both backends inspect one representative field use. Valid field merging makes the
+-- reordered argument occurrence equivalent, so it neither changes the bound nor pays
+-- for the collected response field twice.
+theorem representativeFieldUsesEquivalentArgumentsRegression
+    : estimateOperationWithVariables staticCostSchema staticCostModel []
+          reorderedEquivalentArgumentsOperation
+        = { typeCost := 6, fieldCost := 1 }
+      ∧ GraphQL.TreeSummary.StaticCost.Syntactic.estimateOperationWithVariables
+          staticCostSchema staticCostModel [] reorderedEquivalentArgumentsOperation
+        = { typeCost := 6, fieldCost := 1 } := by
+  native_decide
+
 def defaultPrunedOperation : Operation :=
   {
     variableDefinitions :=
