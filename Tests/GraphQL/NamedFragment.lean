@@ -354,13 +354,12 @@ def pairSpreadExecutableField : GraphQL.NamedFragment.Execution.ExecutableField 
     fieldName := "parent"
     arguments := []
     selectionSet := [.fragmentSpread "Pair" []]
-    availableFragments := [pairFragment]
   }
 
 theorem collectSubfieldsUsesFreshVisitedFragments
     : let groups :=
         GraphQL.NamedFragment.Execution.collectSubfields Execution.sampleSchema []
-          "Query" (GraphQL.Execution.ResolverValue.object "Query" ())
+          [pairFragment] "Query" (GraphQL.Execution.ResolverValue.object "Query" ())
           [pairSpreadExecutableField, pairSpreadExecutableField]
       groups.map (fun group => (group.fst, group.snd.length))
       = [("name", 2), ("age", 2)] := by

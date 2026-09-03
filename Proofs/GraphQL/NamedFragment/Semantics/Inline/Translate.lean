@@ -334,12 +334,13 @@ end
 
 theorem collectSubfields_inlined
     (schema : Schema) (variableValues : Execution.VariableValues)
+    (fragments : List FragmentDefinition)
     (objectType : Name) (objectValue : Execution.ResolverValue ObjectRef)
     : ∀ (fields : List Execution.ExecutableField),
         executableFieldsInlined fields
         -> executableGroupsInlined
-            (Execution.collectSubfields schema variableValues objectType objectValue
-              fields)
+            (Execution.collectSubfields schema variableValues fragments objectType
+              objectValue fields)
   | [], _hinlined => by
       simp [Execution.collectSubfields, executableGroupsInlined]
   | field :: rest, hinlined => by
@@ -350,19 +351,20 @@ theorem collectSubfields_inlined
         exact hinlined candidate (by simp [hcandidate])
       simp only [Execution.collectSubfields]
       apply mergeExecutableGroups_inlined
-      · exact collectFields_inlined schema variableValues field.availableFragments []
+      · exact collectFields_inlined schema variableValues fragments []
           objectType objectValue field.selectionSet hfield
-      · exact collectSubfields_inlined schema variableValues objectType objectValue
-          rest hrest
+      · exact collectSubfields_inlined schema variableValues fragments objectType
+          objectValue rest hrest
 
 theorem collectSubfields_toSpec
     (schema : Schema) (variableValues : Execution.VariableValues)
+    (fragments : List FragmentDefinition)
     (objectType : Name) (objectValue : Execution.ResolverValue ObjectRef)
     : ∀ (fields : List Execution.ExecutableField),
         (∀ field, field ∈ fields -> selectionSetInlined field.selectionSet)
         -> executableGroupsToSpec
-              (Execution.collectSubfields schema variableValues objectType objectValue
-                fields)
+              (Execution.collectSubfields schema variableValues fragments objectType
+                objectValue fields)
             = GraphQL.Execution.collectSubfields schema variableValues objectType
                 objectValue (fields.map executableFieldToSpec)
   | [], _hinlined => by
@@ -377,9 +379,10 @@ theorem collectSubfields_toSpec
         exact hinlined candidate (by simp [hcandidate])
       simp [Execution.collectSubfields, GraphQL.Execution.collectSubfields,
         mergeExecutableGroups_toSpec, executableFieldToSpec,
-        collectSubfields_toSpec schema variableValues objectType objectValue rest hrest]
+        collectSubfields_toSpec schema variableValues fragments objectType objectValue
+          rest hrest]
       rw [(collectFields_toSpec_of_inlined schema variableValues
-        field.availableFragments [] objectType objectValue field.selectionSet
+        fragments [] objectType objectValue field.selectionSet
         hfield).1]
 
 end Semantics

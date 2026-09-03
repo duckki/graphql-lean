@@ -16,7 +16,8 @@ set_option maxHeartbeats 1000000
 
 variable {ObjectRef : Type}
 
-def expandedExecutableFieldToSpec (field : Execution.ExecutableField)
+def expandedExecutableFieldToSpec (fragments : List FragmentDefinition)
+    (field : Execution.ExecutableField)
     : GraphQL.Execution.ExecutableField :=
   {
     parentType := field.parentType
@@ -25,16 +26,18 @@ def expandedExecutableFieldToSpec (field : Execution.ExecutableField)
     arguments := field.arguments
     selectionSet :=
       Translate.reduceSelectionSet
-        (Inline.inlineSelectionSet field.availableFragments field.selectionSet)
+        (Inline.inlineSelectionSet fragments field.selectionSet)
   }
 
-def expandedExecutableGroupToSpec (group : Name × List Execution.ExecutableField)
+def expandedExecutableGroupToSpec (fragments : List FragmentDefinition)
+    (group : Name × List Execution.ExecutableField)
     : Name × List GraphQL.Execution.ExecutableField :=
-  (group.fst, group.snd.map expandedExecutableFieldToSpec)
+  (group.fst, group.snd.map (expandedExecutableFieldToSpec fragments))
 
-def expandedExecutableGroupsToSpec (groups : List (Name × List Execution.ExecutableField))
+def expandedExecutableGroupsToSpec (fragments : List FragmentDefinition)
+    (groups : List (Name × List Execution.ExecutableField))
     : List (Name × List GraphQL.Execution.ExecutableField) :=
-  groups.map expandedExecutableGroupToSpec
+  groups.map (expandedExecutableGroupToSpec fragments)
 
 def selectionToSpecAfterInline
     (fragments : List FragmentDefinition) (selection : Selection)
@@ -73,12 +76,13 @@ theorem reduce_inlineSelectionSet
         selectionToSpecAfterInline]
 
 theorem expanded_addExecutableGroup
+    (fragments : List FragmentDefinition)
     (group : Name × List Execution.ExecutableField)
     (groups : List (Name × List Execution.ExecutableField))
-    : expandedExecutableGroupsToSpec (Execution.addExecutableGroup group groups)
+    : expandedExecutableGroupsToSpec fragments (Execution.addExecutableGroup group groups)
       = GraphQL.Execution.addExecutableGroup
-          (expandedExecutableGroupToSpec group)
-          (expandedExecutableGroupsToSpec groups) := by
+          (expandedExecutableGroupToSpec fragments group)
+          (expandedExecutableGroupsToSpec fragments groups) := by
   induction groups with
   | nil =>
       simp [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec,
@@ -97,28 +101,67 @@ theorem expanded_addExecutableGroup
           using ih
 
 theorem expanded_mergeExecutableGroups
+    (fragments : List FragmentDefinition)
     (left right : List (Name × List Execution.ExecutableField))
-    : expandedExecutableGroupsToSpec (Execution.mergeExecutableGroups left right)
+    : expandedExecutableGroupsToSpec fragments
+        (Execution.mergeExecutableGroups left right)
       = GraphQL.Execution.mergeExecutableGroups
-          (expandedExecutableGroupsToSpec left)
-          (expandedExecutableGroupsToSpec right) := by
+          (expandedExecutableGroupsToSpec fragments left)
+          (expandedExecutableGroupsToSpec fragments right) := by
   induction right generalizing left with
   | nil =>
       simp [expandedExecutableGroupsToSpec, Execution.mergeExecutableGroups,
         GraphQL.Execution.mergeExecutableGroups]
   | cons group rest ih =>
       change
-        expandedExecutableGroupsToSpec
+        expandedExecutableGroupsToSpec fragments
             (Execution.mergeExecutableGroups
               (Execution.addExecutableGroup group left) rest)
           =
         GraphQL.Execution.mergeExecutableGroups
           (GraphQL.Execution.addExecutableGroup
-            (expandedExecutableGroupToSpec group)
-            (expandedExecutableGroupsToSpec left))
-          (expandedExecutableGroupsToSpec rest)
-      rw [ih, expanded_addExecutableGroup]
+            (expandedExecutableGroupToSpec fragments group)
+            (expandedExecutableGroupsToSpec fragments left))
+          (expandedExecutableGroupsToSpec fragments rest)
+      rw [ih, expanded_addExecutableGroup fragments]
 
+theorem expandedExecutableGroups_namesNodup_iff
+    (leftFragments rightFragments : List FragmentDefinition)
+    : ∀ groups : List (Name × List Execution.ExecutableField),
+        GraphQL.NormalForm.executableGroupNamesNodup
+          (expandedExecutableGroupsToSpec leftFragments groups)
+        ↔ GraphQL.NormalForm.executableGroupNamesNodup
+            (expandedExecutableGroupsToSpec rightFragments groups)
+  | [] => by
+      simp [expandedExecutableGroupsToSpec, GraphQL.NormalForm.executableGroupNamesNodup]
+  | (responseName, fields) :: rest => by
+      constructor
+      · rintro ⟨hname, hrest⟩
+        refine ⟨?_, (expandedExecutableGroups_namesNodup_iff
+          leftFragments rightFragments rest).mp hrest⟩
+        simpa [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec] using hname
+      · rintro ⟨hname, hrest⟩
+        refine ⟨?_, (expandedExecutableGroups_namesNodup_iff
+          leftFragments rightFragments rest).mpr hrest⟩
+        simpa [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec] using hname
+
+theorem selectionSpreadNamesWithin_of_mem
+    {selection : Selection} {selectionSet : List Selection}
+    (hmember : selection ∈ selectionSet)
+    : selectionSpreadNamesWithin selection selectionSet := by
+  induction selectionSet with
+  | nil => simp at hmember
+  | cons head rest ih =>
+      simp only [List.mem_cons] at hmember
+      intro fragmentName hname
+      cases hmember with
+      | inl hselection =>
+          subst head
+          simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+            hname]
+      | inr hrest =>
+          simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+            ih hrest fragmentName hname]
 mutual
   theorem expanded_collectSelection_namesNodup
       (schema : Schema) (variableValues : Execution.VariableValues)
@@ -126,7 +169,7 @@ mutual
           (parentType : Name) (source : Execution.ResolverValue ObjectRef)
           (selection : Selection),
           GraphQL.NormalForm.executableGroupNamesNodup
-            (expandedExecutableGroupsToSpec
+            (expandedExecutableGroupsToSpec fragments
               (Execution.collectSelection schema variableValues fragments visited
                 parentType source selection).groupedFields)
     | fragments, visited, parentType, source,
@@ -215,8 +258,9 @@ mutual
                 by_cases happly :
                     GraphQL.Execution.doesFragmentTypeApplyBool schema parentType source
                       fragment.typeCondition = true
-                · simpa [Execution.collectSelection, hallows, hseen, hlookup,
-                    happly] using
+                · apply
+                    (expandedExecutableGroups_namesNodup_iff remaining.val fragments _).mp
+                  simpa [Execution.collectSelection, hallows, hseen, hlookup, happly] using
                     expanded_collectFields_namesNodup schema variableValues remaining.val
                       (fragmentName :: visited) parentType source fragment.selectionSet
                 · have happlyFalse :
@@ -255,7 +299,7 @@ mutual
           (parentType : Name) (source : Execution.ResolverValue ObjectRef)
           (selectionSet : List Selection),
           GraphQL.NormalForm.executableGroupNamesNodup
-            (expandedExecutableGroupsToSpec
+            (expandedExecutableGroupsToSpec fragments
               (Execution.collectFields schema variableValues fragments visited parentType
                 source selectionSet).groupedFields)
     | fragments, visited, parentType, source, [] => by
@@ -489,6 +533,222 @@ theorem SpreadContext.fragmentBody
     ⟨originalRemaining, horiginal⟩
   exact ⟨hchildRemovals, originalRemaining, horiginal⟩
 
+mutual
+  theorem inlineSelection_eq_of_spreadContext
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {original : List FragmentDefinition}
+      (hunique : GraphQL.NamedFragment.Validation.fragmentNamesUnique original)
+      (hacyclic : GraphQL.NamedFragment.Validation.fragmentsAcyclic original)
+      (hall
+        : GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
+            variableDefinitions original)
+      : ∀ (current : List FragmentDefinition) (parentType : Name) (selection : Selection),
+          GraphQL.NamedFragment.Validation.selectionValid schema variableDefinitions
+            current parentType selection
+          -> SpreadContext original current [selection]
+          -> Inline.inlineSelection original selection
+              = Inline.inlineSelection current selection
+    | current, parentType,
+        .field responseName fieldName arguments directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
+        rcases hvalid with
+          ⟨_hdirectives, fieldDefinition, hlookup, _harguments, hselectionSet⟩
+        simp [GraphQL.NamedFragment.Validation.fieldSelectionSetValid] at hselectionSet
+        rcases hselectionSet with ⟨_houtput, hshape⟩
+        cases hshape with
+        | inl hleaf =>
+            rcases hleaf with ⟨_hleafType, hselectionSet⟩
+            subst selectionSet
+            simp only [Inline.inlineSelection, Inline.inlineSelectionSet]
+        | inr hcomposite =>
+            simp only [Inline.inlineSelection]
+            rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
+              fieldDefinition.outputType.namedType selectionSet hcomposite.2.2
+              (hcontext.subset (by
+                intro fragmentName hname
+                simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+                  GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+                  using hname))]
+    | current, parentType,
+        .inlineFragment none directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
+        simp only [Inline.inlineSelection]
+        rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
+          parentType selectionSet hvalid.2.2
+          (hcontext.subset (by
+            intro fragmentName hname
+            simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+              GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+              using hname))]
+    | current, _parentType,
+        .inlineFragment (some typeCondition) directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid
+        simp only [Inline.inlineSelection]
+        rw [inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
+          typeCondition selectionSet hvalid.2.2.2.2
+          (hcontext.subset (by
+            intro fragmentName hname
+            simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+              GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+              using hname))]
+    | current, _parentType,
+        .fragmentSpread fragmentName directives,
+        hvalid, hcontext => by
+        rcases
+            GraphQL.NamedFragment.Validation.selectionValid_fragmentSpread_lookupFragmentAndRestLt?
+              hvalid with
+          ⟨_hdirectives, fragment, remaining, hlookup, _hcomposite, _hoverlap⟩
+        rcases hcontext fragmentName (by
+          simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+            GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]) hlookup with
+          ⟨hremovals, originalRemaining, horiginal⟩
+        have hlookupOriginal : lookupFragment? original fragmentName = some fragment :=
+          GraphQL.NamedFragment.Validation.lookupFragment?_of_lookupFragmentAndRestLt?
+            horiginal
+        have hstable :=
+          fragmentInlineSelectionSet_eq_of_reachable_contexts hunique hacyclic hall
+            hremovals ReachableAncestorRemovals.root hlookupOriginal hlookup horiginal
+        simp [Inline.inlineSelection, hlookup, horiginal, hstable]
+
+  theorem inlineSelectionSet_eq_of_spreadContext
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {original : List FragmentDefinition}
+      (hunique : GraphQL.NamedFragment.Validation.fragmentNamesUnique original)
+      (hacyclic : GraphQL.NamedFragment.Validation.fragmentsAcyclic original)
+      (hall
+        : GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
+            variableDefinitions original)
+      : ∀ (current : List FragmentDefinition) (parentType : Name)
+          (selectionSet : List Selection),
+          GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
+            current parentType selectionSet
+          -> SpreadContext original current selectionSet
+          -> Inline.inlineSelectionSet original selectionSet
+              = Inline.inlineSelectionSet current selectionSet
+    | _current, _parentType, [], _hvalid, _hcontext => by
+        simp
+    | current, parentType, selection :: rest, hvalid, hcontext => by
+        have hvalidPair := hvalid
+        simp [GraphQL.NamedFragment.Validation.selectionSetValid] at hvalidPair
+        have hselectionContext : SpreadContext original current [selection] :=
+          hcontext.subset (by
+            intro fragmentName hname
+            simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames]
+              at hname ⊢
+            exact Or.inl hname)
+        have hrestContext : SpreadContext original current rest :=
+          hcontext.subset (by
+            intro fragmentName hname
+            simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+              hname])
+        simp only [Inline.inlineSelectionSet]
+        rw [inlineSelection_eq_of_spreadContext hunique hacyclic hall current
+          parentType selection hvalidPair.1 hselectionContext,
+          inlineSelectionSet_eq_of_spreadContext hunique hacyclic hall current
+            parentType rest
+              (by
+                simpa [GraphQL.NamedFragment.Validation.selectionSetValid]
+                  using hvalidPair.2)
+              hrestContext]
+end
+
+mutual
+  theorem selectionValid_of_spreadContext
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {original : List FragmentDefinition}
+      : ∀ (current : List FragmentDefinition) (parentType : Name) (selection : Selection),
+          GraphQL.NamedFragment.Validation.selectionValid schema variableDefinitions
+            current parentType selection
+          -> SpreadContext original current [selection]
+          -> GraphQL.NamedFragment.Validation.selectionValid schema variableDefinitions
+              original parentType selection
+    | current, parentType,
+        .field responseName fieldName arguments directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
+        rcases hvalid with
+          ⟨hdirectives, fieldDefinition, hlookup, harguments, hselectionSet⟩
+        refine ⟨hdirectives, fieldDefinition, hlookup, harguments, ?_⟩
+        simp [GraphQL.NamedFragment.Validation.fieldSelectionSetValid] at hselectionSet ⊢
+        rcases hselectionSet with ⟨houtput, hshape⟩
+        refine ⟨houtput, ?_⟩
+        cases hshape with
+        | inl hleaf => exact Or.inl hleaf
+        | inr hcomposite =>
+            exact Or.inr ⟨hcomposite.1, hcomposite.2.1,
+              selectionSetValid_of_spreadContext current
+                fieldDefinition.outputType.namedType selectionSet hcomposite.2.2
+                (hcontext.subset (by
+                  intro fragmentName hname
+                  simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+                    GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+                    using hname))⟩
+    | current, parentType,
+        .inlineFragment none directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
+        exact ⟨hvalid.1, hvalid.2.1,
+          selectionSetValid_of_spreadContext current parentType selectionSet hvalid.2.2
+            (hcontext.subset (by
+              intro fragmentName hname
+              simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+                GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+                using hname))⟩
+    | current, parentType,
+        .inlineFragment (some typeCondition) directives selectionSet,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
+        exact ⟨hvalid.1, hvalid.2.1, hvalid.2.2.1, hvalid.2.2.2.1,
+          selectionSetValid_of_spreadContext current typeCondition selectionSet
+            hvalid.2.2.2.2
+            (hcontext.subset (by
+              intro fragmentName hname
+              simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+                GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]
+                using hname))⟩
+    | current, _parentType,
+        .fragmentSpread fragmentName directives,
+        hvalid, hcontext => by
+        simp [GraphQL.NamedFragment.Validation.selectionValid] at hvalid ⊢
+        rcases hvalid with ⟨hdirectives, fragment, hlookup, hcomposite, hoverlap⟩
+        rcases
+            GraphQL.NamedFragment.Validation.lookupFragmentAndRestLt?_some_of_lookupFragment?
+              hlookup with
+          ⟨remaining, hremaining⟩
+        rcases hcontext fragmentName (by
+          simp [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
+            GraphQL.NamedFragment.Validation.selectionFragmentSpreadNames]) hremaining with
+          ⟨_hremovals, originalRemaining, horiginal⟩
+        exact ⟨hdirectives, fragment,
+          GraphQL.NamedFragment.Validation.lookupFragment?_of_lookupFragmentAndRestLt?
+            horiginal,
+          hcomposite, hoverlap⟩
+
+  theorem selectionSetValid_of_spreadContext
+      {schema : Schema} {variableDefinitions : List VariableDefinition}
+      {original : List FragmentDefinition}
+      : ∀ (current : List FragmentDefinition) (parentType : Name)
+          (selectionSet : List Selection),
+          GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
+            current parentType selectionSet
+          -> SpreadContext original current selectionSet
+          -> GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
+              original parentType selectionSet
+    | current, parentType, selectionSet, hvalid, hcontext => by
+        simp only [GraphQL.NamedFragment.Validation.selectionSetValid] at hvalid ⊢
+        intro selection hmember
+        exact selectionValid_of_spreadContext current parentType selection
+          (hvalid selection hmember)
+          (hcontext.subset (by
+            intro fragmentName hname
+            apply selectionSpreadNamesWithin_of_mem hmember fragmentName
+            simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames]
+              using hname))
+end
+
 theorem collectFields_firstOccurrences_aux
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     (variableValues : Execution.VariableValues)
@@ -516,14 +776,14 @@ theorem collectFields_firstOccurrences_aux
                 source selectionSet
             GroupFirstOccurrences
               (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                (expandedExecutableGroupsToSpec collected.groupedFields))
+                (expandedExecutableGroupsToSpec original collected.groupedFields))
               (GraphQL.Execution.mergeExecutableGroups rightPrefix
                 (GraphQL.Execution.collectFields schema variableValues parentType source
                   (Translate.reduceSelectionSet
                     (Inline.inlineSelectionSet current selectionSet))))
             ∧ VisitedContained schema variableValues original current parentType source
                 (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                  (expandedExecutableGroupsToSpec collected.groupedFields))
+                  (expandedExecutableGroupsToSpec original collected.groupedFields))
                 collected.visitedFragments
   | current, visited, validationParentType, parentType, source, [], leftPrefix,
       rightPrefix,
@@ -555,14 +815,22 @@ theorem collectFields_firstOccurrences_aux
       have hselected :
           GroupFirstOccurrences
               (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                (expandedExecutableGroupsToSpec selected.groupedFields))
+                (expandedExecutableGroupsToSpec original selected.groupedFields))
               (GraphQL.Execution.mergeExecutableGroups rightPrefix staticSelected)
           ∧ VisitedContained schema variableValues original current parentType source
               (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                (expandedExecutableGroupsToSpec selected.groupedFields))
+                (expandedExecutableGroupsToSpec original selected.groupedFields))
               selected.visitedFragments := by
         cases selection with
         | field responseName fieldName arguments directives nested =>
+            have hinline := inlineSelection_eq_of_spreadContext hunique hacyclic hall
+              current validationParentType
+                (.field responseName fieldName arguments directives nested)
+                hvalidPair.1 hselectionContext
+            simp only [Inline.inlineSelection] at hinline
+            have hinlineSet : Inline.inlineSelectionSet original nested
+                = Inline.inlineSelectionSet current nested := by
+              simpa using hinline
             by_cases hallows :
                 GraphQL.Execution.selectionDirectivesAllowBool variableValues
                   directives = true
@@ -570,7 +838,7 @@ theorem collectFields_firstOccurrences_aux
                 GraphQL.Execution.collectSelection, selectionToSpecAfterInline,
                 inlinedSelectionToSpec, Inline.inlineSelection,
                 expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec,
-                expandedExecutableFieldToSpec, hallows]
+                expandedExecutableFieldToSpec, hallows, hinlineSet]
               constructor
               · exact hprefixes.mergeSame
                   [(responseName,
@@ -808,7 +1076,8 @@ theorem collectFields_firstOccurrences_aux
                   have hbodyRelation :
                       GroupFirstOccurrences
                         (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                          (expandedExecutableGroupsToSpec bodyCollected.groupedFields))
+                          (expandedExecutableGroupsToSpec original
+                            bodyCollected.groupedFields))
                         (GraphQL.Execution.mergeExecutableGroups rightPrefix bodyStatic) :=
                     hbody.1
                   have hbodyInvariant := hbody.2
@@ -820,7 +1089,8 @@ theorem collectFields_firstOccurrences_aux
                   have hbodyLeftContains :
                       GroupsContained
                         (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                          (expandedExecutableGroupsToSpec bodyCollected.groupedFields))
+                          (expandedExecutableGroupsToSpec original
+                            bodyCollected.groupedFields))
                         bodyStatic :=
                     groupsContained_trans hbodyRelation.rightContainedInLeft
                       hbodyRightContains
@@ -833,7 +1103,8 @@ theorem collectFields_firstOccurrences_aux
                       VisitedContained schema variableValues original current parentType
                         source
                         (GraphQL.Execution.mergeExecutableGroups leftPrefix
-                          (expandedExecutableGroupsToSpec bodyCollected.groupedFields))
+                          (expandedExecutableGroupsToSpec original
+                            bodyCollected.groupedFields))
                         bodyCollected.visitedFragments := by
                     intro candidate hcandidate hcandidateCurrent
                     by_cases hcand : candidate = fragmentName
@@ -904,7 +1175,7 @@ theorem collectFields_firstOccurrences_aux
       have hselectedLeftNodup :
           GraphQL.NormalForm.executableGroupNamesNodup
             (GraphQL.Execution.mergeExecutableGroups leftPrefix
-              (expandedExecutableGroupsToSpec selected.groupedFields)) := by
+              (expandedExecutableGroupsToSpec original selected.groupedFields)) := by
         have hrightPrefixNodup := hprefixes.right_namesNodup hleftNodup
         have hstaticNodup :=
           GraphQL.NormalForm.collectSelection_namesNodup schema variableValues
@@ -921,7 +1192,7 @@ theorem collectFields_firstOccurrences_aux
         collectFields_firstOccurrences_aux variableValues hunique hacyclic hall current
           selected.visitedFragments validationParentType parentType source rest
           (GraphQL.Execution.mergeExecutableGroups leftPrefix
-            (expandedExecutableGroupsToSpec selected.groupedFields))
+            (expandedExecutableGroupsToSpec original selected.groupedFields))
           (GraphQL.Execution.mergeExecutableGroups rightPrefix staticSelected)
           hcurrentUnique
           (by
@@ -938,9 +1209,15 @@ theorem collectFields_firstOccurrences_aux
       have hselectedNodup :=
         expanded_collectSelection_namesNodup schema variableValues current visited
           parentType source selection
+      have hselectedNodupOriginal :=
+        (expandedExecutableGroups_namesNodup_iff current original
+          selected.groupedFields).mp hselectedNodup
       have hremainingNodup :=
         expanded_collectFields_namesNodup schema variableValues current
           selected.visitedFragments parentType source rest
+      have hremainingNodupOriginal :=
+        (expandedExecutableGroups_namesNodup_iff current original
+          remaining.groupedFields).mp hremainingNodup
       have hstaticSelectedNodup :=
         GraphQL.NormalForm.collectSelection_namesNodup schema variableValues
           parentType source (selectionToSpecAfterInline current selection)
@@ -952,23 +1229,23 @@ theorem collectFields_firstOccurrences_aux
       constructor
       · have hrelation := hrest.1
         rw [GraphQL.NormalForm.mergeExecutableGroups_assoc_of_namesNodup
-          leftPrefix (expandedExecutableGroupsToSpec selected.groupedFields)
-          (expandedExecutableGroupsToSpec remaining.groupedFields)
-          hselectedNodup hremainingNodup] at hrelation
+          leftPrefix (expandedExecutableGroupsToSpec original selected.groupedFields)
+          (expandedExecutableGroupsToSpec original remaining.groupedFields)
+          hselectedNodupOriginal hremainingNodupOriginal] at hrelation
         rw [GraphQL.NormalForm.mergeExecutableGroups_assoc_of_namesNodup
           rightPrefix staticSelected staticRemaining hstaticSelectedNodup
           hstaticRemainingNodup] at hrelation
         simpa [Execution.collectFields, selected, remaining,
-          expanded_mergeExecutableGroups, reduce_inlineSelectionSet,
+          expanded_mergeExecutableGroups original, reduce_inlineSelectionSet,
           GraphQL.Execution.collectFields, staticSelected, staticRemaining] using
           hrelation
       · have hinvariant := hrest.2
         rw [GraphQL.NormalForm.mergeExecutableGroups_assoc_of_namesNodup
-          leftPrefix (expandedExecutableGroupsToSpec selected.groupedFields)
-          (expandedExecutableGroupsToSpec remaining.groupedFields)
-          hselectedNodup hremainingNodup] at hinvariant
+          leftPrefix (expandedExecutableGroupsToSpec original selected.groupedFields)
+          (expandedExecutableGroupsToSpec original remaining.groupedFields)
+          hselectedNodupOriginal hremainingNodupOriginal] at hinvariant
         simpa [Execution.collectFields, selected, remaining,
-          expanded_mergeExecutableGroups] using hinvariant
+          expanded_mergeExecutableGroups original] using hinvariant
 termination_by current _visited _validationParentType _parentType _source
     selectionSet _leftPrefix _rightPrefix _hcurrentUnique _hvalid _hcontext
     _hprefixes _hleftNodup _hvisited =>
@@ -990,22 +1267,22 @@ theorem collectFields_firstOccurrences
     (hall
       : GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
           variableDefinitions fragments)
-    (parentType : Name) (source : Execution.ResolverValue ObjectRef)
+    (validationParentType parentType : Name) (source : Execution.ResolverValue ObjectRef)
     (selectionSet : List Selection)
     (hvalid
       : GraphQL.NamedFragment.Validation.selectionSetValid schema
-          variableDefinitions fragments parentType selectionSet)
+          variableDefinitions fragments validationParentType selectionSet)
     : let collected :=
         Execution.collectFields schema variableValues fragments [] parentType source
           selectionSet
       GroupFirstOccurrences
-        (expandedExecutableGroupsToSpec collected.groupedFields)
+        (expandedExecutableGroupsToSpec fragments collected.groupedFields)
         (GraphQL.Execution.collectFields schema variableValues parentType source
           (Translate.reduceSelectionSet
             (Inline.inlineSelectionSet fragments selectionSet))) := by
   have hresult :=
     collectFields_firstOccurrences_aux variableValues hunique hacyclic hall fragments []
-      parentType parentType source selectionSet [] [] hunique hvalid
+      validationParentType parentType source selectionSet [] [] hunique hvalid
       (SpreadContext.root fragments selectionSet) .nil
       (by simp [GraphQL.NormalForm.executableGroupNamesNodup])
       (by
@@ -1030,11 +1307,12 @@ def ExecutableFieldValidContext
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (original : List FragmentDefinition) (field : Execution.ExecutableField)
     : Prop :=
-  GraphQL.NamedFragment.Validation.fragmentNamesUnique field.availableFragments
-  ∧ SpreadContext original field.availableFragments field.selectionSet
-  ∧ ∃ validationParentType,
-      GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
-        field.availableFragments validationParentType field.selectionSet
+  ∃ current,
+    GraphQL.NamedFragment.Validation.fragmentNamesUnique current
+    ∧ SpreadContext original current field.selectionSet
+    ∧ ∃ validationParentType,
+        GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
+          current validationParentType field.selectionSet
 
 def ExecutableFieldsValidContext
     (schema : Schema) (variableDefinitions : List VariableDefinition)
@@ -1150,7 +1428,7 @@ mutual
         · simp [Execution.collectSelection, hallows,
             ExecutableGroupsValidContext, ExecutableFieldsValidContext,
             ExecutableFieldValidContext]
-          exact ⟨hcurrentUnique,
+          exact ⟨current, hcurrentUnique,
             hcontext.subset (by
               intro fragmentName hname
               simpa [GraphQL.NamedFragment.Validation.selectionSetFragmentSpreadNames,
@@ -1358,10 +1636,11 @@ end
 
 theorem ExecutableFieldValidContext.selectionSetValid
     (hfield : ExecutableFieldValidContext schema variableDefinitions original field)
-    : ∃ validationParentType,
+    : ∃ current validationParentType,
         GraphQL.NamedFragment.Validation.selectionSetValid schema variableDefinitions
-          field.availableFragments validationParentType field.selectionSet := by
-  exact hfield.2.2
+          current validationParentType field.selectionSet := by
+  rcases hfield with ⟨current, _hunique, _hcontext, validationParentType, hvalid⟩
+  exact ⟨current, validationParentType, hvalid⟩
 
 theorem collectFields_firstOccurrences_withRuntimeParent
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1384,7 +1663,7 @@ theorem collectFields_firstOccurrences_withRuntimeParent
         Execution.collectFields schema variableValues current [] parentType source
           selectionSet
       GroupFirstOccurrences
-        (expandedExecutableGroupsToSpec collected.groupedFields)
+        (expandedExecutableGroupsToSpec original collected.groupedFields)
         (GraphQL.Execution.collectFields schema variableValues parentType source
           (Translate.reduceSelectionSet
             (Inline.inlineSelectionSet current selectionSet))) := by
@@ -1402,12 +1681,15 @@ theorem collectFields_firstOccurrences_withRuntimeParent
   have hleftNodup :=
     expanded_collectFields_namesNodup schema variableValues current [] parentType
       source selectionSet
+  have hleftNodupOriginal :=
+    (expandedExecutableGroups_namesNodup_iff current original
+      collected.groupedFields).mp hleftNodup
   have hrightNodup :=
     GraphQL.NormalForm.collectFields_namesNodup schema variableValues parentType source
       (Translate.reduceSelectionSet
         (Inline.inlineSelectionSet current selectionSet))
   simpa [collected,
-    GraphQL.NormalForm.mergeExecutableGroups_nil_left_of_namesNodup _ hleftNodup,
+    GraphQL.NormalForm.mergeExecutableGroups_nil_left_of_namesNodup _ hleftNodupOriginal,
     GraphQL.NormalForm.mergeExecutableGroups_nil_left_of_namesNodup _ hrightNodup]
     using hresult.1
 
@@ -1424,11 +1706,11 @@ theorem collectSubfields_firstOccurrences
     : ∀ fields,
         ExecutableFieldsValidContext schema variableDefinitions original fields
         -> GroupFirstOccurrences
-            (expandedExecutableGroupsToSpec
-              (Execution.collectSubfields schema variableValues objectType objectValue
-                fields))
+            (expandedExecutableGroupsToSpec original
+              (Execution.collectSubfields schema variableValues original objectType
+                objectValue fields))
             (GraphQL.Execution.collectSubfields schema variableValues objectType
-              objectValue (fields.map expandedExecutableFieldToSpec))
+              objectValue (fields.map (expandedExecutableFieldToSpec original)))
   | [], _hfields => by
       exact .nil
   | field :: rest, hfields => by
@@ -1438,16 +1720,18 @@ theorem collectSubfields_firstOccurrences
         intro candidate hcandidate
         exact hfields candidate (by simp [hcandidate])
       rcases hfield with
-        ⟨hcurrentUnique, hcontext, validationParentType, hvalid⟩
+        ⟨current, _hcurrentUnique, hcontext, validationParentType, hvalid⟩
+      have hvalidOriginal :=
+        selectionSetValid_of_spreadContext current validationParentType field.selectionSet
+          hvalid hcontext
       have hhead :=
-        collectFields_firstOccurrences_withRuntimeParent variableValues hunique hacyclic
-          hall hcurrentUnique validationParentType objectType objectValue
-          field.selectionSet hvalid hcontext
+        collectFields_firstOccurrences variableValues hunique hacyclic hall
+          validationParentType objectType objectValue field.selectionSet hvalidOriginal
       have htail :=
         collectSubfields_firstOccurrences variableValues hunique hacyclic hall objectType
           objectValue rest hrest
       simpa only [Execution.collectSubfields, GraphQL.Execution.collectSubfields,
-        expanded_mergeExecutableGroups, expandedExecutableFieldToSpec,
+        expanded_mergeExecutableGroups original, expandedExecutableFieldToSpec,
         List.map_cons] using htail.mergeRelated hhead
 
 theorem collectSubfields_validContext
@@ -1463,8 +1747,8 @@ theorem collectSubfields_validContext
     : ∀ fields,
         ExecutableFieldsValidContext schema variableDefinitions original fields
         -> ExecutableGroupsValidContext schema variableDefinitions original
-            (Execution.collectSubfields schema variableValues objectType objectValue
-              fields)
+            (Execution.collectSubfields schema variableValues original objectType
+              objectValue fields)
   | [], _hfields => by
       simp [Execution.collectSubfields, ExecutableGroupsValidContext]
   | field :: rest, hfields => by
@@ -1474,12 +1758,16 @@ theorem collectSubfields_validContext
         intro candidate hcandidate
         exact hfields candidate (by simp [hcandidate])
       rcases hfield with
-        ⟨hcurrentUnique, hcontext, validationParentType, hvalid⟩
+        ⟨current, _hcurrentUnique, hcontext, validationParentType, hvalid⟩
+      have hvalidOriginal :=
+        selectionSetValid_of_spreadContext current validationParentType field.selectionSet
+          hvalid hcontext
       simp only [Execution.collectSubfields]
       apply ExecutableGroupsValidContext.merge
       · exact collectFields_validContext hunique hacyclic hall variableValues
-          field.availableFragments [] validationParentType objectType objectValue
-          field.selectionSet hcurrentUnique hvalid hcontext
+          original [] validationParentType objectType objectValue field.selectionSet
+          hunique hvalidOriginal
+          (SpreadContext.root original field.selectionSet)
       · exact collectSubfields_validContext hunique hacyclic hall variableValues
           objectType objectValue rest hrest
 
