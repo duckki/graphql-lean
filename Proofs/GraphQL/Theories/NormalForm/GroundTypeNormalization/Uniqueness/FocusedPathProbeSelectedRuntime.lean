@@ -1459,12 +1459,11 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1481,7 +1480,7 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
                         rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel leftRuntime
                     (projectionTargetResolverValue
                       (.object leftRuntime
                         (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
@@ -1594,12 +1593,11 @@ theorem
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1616,7 +1614,7 @@ theorem
                         rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel rightRuntime
                     (projectionTargetResolverValue
                       (.object rightRuntime
                         (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
@@ -1723,13 +1721,11 @@ theorem
             (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
               (ProjectionResolverRef.filler
                 : ProjectionResolverRef FieldPairSelectedPathProbeRef))
-            variableValues parentFuel
+            variableValues parentFuel targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -1742,13 +1738,11 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues parentFuel
+            variableValues parentFuel targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -1785,13 +1779,11 @@ theorem
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 (ProjectionResolverRef.filler
                   : ProjectionResolverRef FieldPairSelectedPathProbeRef))
-              variableValues parentFuel
+              variableValues parentFuel targetParent
               (projectionRootResolverValue
                 (.object targetParent FieldPairSelectedPathProbeRef.root))
               responseName
               [{
-                parentType := targetParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1818,13 +1810,11 @@ theorem
                     rightRuntime)
                   targetParent leftField rightField leftArguments
                   rightArguments)
-                variableValues parentFuel
+                variableValues parentFuel targetParent
                 (projectionRootResolverValue
                   (.object targetParent FieldPairSelectedPathProbeRef.root))
                 responseName
                 [{
-                  parentType := targetParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1892,13 +1882,11 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1922,6 +1910,7 @@ theorem
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
           (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          leftRuntime
           (projectionTargetResolverValue
             (.object leftRuntime
               (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
@@ -2006,13 +1995,11 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairSelectedPathProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2036,6 +2023,7 @@ theorem
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
           (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          rightRuntime
           (projectionTargetResolverValue
             (.object rightRuntime
               (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
@@ -2176,13 +2164,11 @@ theorem
                       rightRuntime)
                     targetParent leftField rightField leftArguments
                     rightArguments)
-                  variableValues (parentFuel + 1)
+                  variableValues (parentFuel + 1) targetParent
                   (projectionRootResolverValue
                     (.object targetParent FieldPairSelectedPathProbeRef.root))
                   responseName
                   [{
-                    parentType := targetParent
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -2422,13 +2408,11 @@ theorem executeField_fieldPairSelectedPathProbe_tagged_object_leaf (schema : Sch
               rightInitialSelectionSet leftInitialSpine rightInitialSpine
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2516,14 +2500,12 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2546,13 +2528,12 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_leaf
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
           spine))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -2592,13 +2573,11 @@ theorem
               rightInitialSelectionSet leftInitialSpine rightInitialSpine
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2715,14 +2694,12 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2759,13 +2736,12 @@ theorem
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
           spine))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -2849,14 +2825,12 @@ theorem
                   targetParent leftField rightField leftArguments rightArguments
                   leftRuntime rightRuntime)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -2914,13 +2888,11 @@ theorem
               rightInitialSelectionSet leftInitialSpine rightInitialSpine
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3034,14 +3006,12 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3076,13 +3046,12 @@ theorem
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
           spine))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -3168,14 +3137,12 @@ theorem
                   targetParent leftField rightField leftArguments rightArguments
                   leftRuntime rightRuntime)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -3236,13 +3203,11 @@ theorem
               rightInitialSelectionSet leftInitialSpine rightInitialSpine
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3353,14 +3318,12 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3394,13 +3357,12 @@ theorem
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
           spine))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -3486,14 +3448,12 @@ theorem
                   targetParent leftField rightField leftArguments rightArguments
                   leftRuntime rightRuntime)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet

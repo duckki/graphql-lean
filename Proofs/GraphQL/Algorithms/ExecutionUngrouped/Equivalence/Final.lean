@@ -308,7 +308,7 @@ def of_collected_groups_state
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
           -> ExecutedFieldAppendPlanState schema resolvers variableValues depth
-              field fields [] fields)
+              parentType field fields [] fields)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet := by
   let state : ExecutionEquivalenceState ObjectIdentity :=
@@ -419,7 +419,8 @@ def of_collected_groups_collectedAppendInvariant
     (hlookups : CollectedGroupsFieldLookupValid schema parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
-      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
+      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth
+          parentType groups)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
   of_collected_groups_state hcollect hflat hcollected hlookups hcompatible
@@ -462,7 +463,7 @@ def of_collected_groups_collectedLocalAppendInvariant
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
   of_collected_groups_state hcollect hflat hcollected hlookups hcompatible
@@ -591,7 +592,7 @@ end ExecutedGroupedSelectionSetAlignedState
 structure CollectedFieldGroupRecursiveAppendState
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (depth : Nat)
+    (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (groups : List (Name × List ExecutableField))
     : Type where
   prefixChildren
@@ -601,7 +602,7 @@ structure CollectedFieldGroupRecursiveAppendState
         -> ∀ childDepth runtimeType identity,
             childDepth < depth
             -> schema.typeIncludesObjectBool
-                  ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                  ((schema.fieldReturnType? parentType field.fieldName).getD
                     field.fieldName)
                   runtimeType
                 = true
@@ -627,9 +628,10 @@ namespace CollectedFieldGroupRecursiveAppendState
 def depth_zero
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues)
+    (variableValues : VariableValues) (parentType : Name)
     (groups : List (Name × List ExecutableField))
-    : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues 0 groups :=
+    : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues 0
+        parentType groups :=
   {
     prefixChildren := by
       intro _responseName _field _fields _prefixTail _hgroup _hprefix
@@ -648,9 +650,9 @@ theorem localAppendInvariant
     {groups : List (Name × List ExecutableField)}
     (state
       : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
-        depth groups :=
+        depth parentType groups :=
   {
     prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
@@ -667,6 +669,7 @@ structure CollectedFieldGroupRecursiveAlignedAppendState
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     : Type where
@@ -677,11 +680,11 @@ structure CollectedFieldGroupRecursiveAlignedAppendState
         -> ∀ childDepth runtimeType identity,
             childDepth < completionDepth + 1
             -> ValueContainsObject
-                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                (resolveFieldValueByName schema resolvers variableValues parentType
                   field.fieldName field.arguments source)
                 runtimeType identity
             -> schema.typeIncludesObjectBool
-                  ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                  ((schema.fieldReturnType? parentType field.fieldName).getD
                     field.fieldName)
                   runtimeType
                 = true
@@ -696,7 +699,7 @@ structure CollectedFieldGroupRecursiveAlignedAppendState
         -> ∀ childDepth runtimeType identity,
             childDepth < completionDepth + 1
             -> ValueContainsObject
-                (resolveFieldValueByName schema resolvers variableValues field.parentType
+                (resolveFieldValueByName schema resolvers variableValues parentType
                   field.fieldName field.arguments source)
                 runtimeType identity
             -> ResponseAbsorbs
@@ -721,7 +724,7 @@ theorem alignedAppendSteps_from_prefix
     {groups : List (Name × List ExecutableField)}
     (state
       : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
-          variableValues completionDepth source groups)
+          variableValues completionDepth parentType source groups)
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
@@ -733,7 +736,7 @@ theorem alignedAppendSteps_from_prefix
     (hremaining : ∀ candidate, candidate ∈ remaining -> candidate ∈ fields)
     : ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
         (completionDepth + 1) parentType source responseName field
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         prefixTail remaining := by
   cases remaining with
@@ -741,34 +744,20 @@ theorem alignedAppendSteps_from_prefix
       simp [ExecutableFieldsMergedAlignedAppendSteps]
   | cons later rest =>
       have hlater : later ∈ fields := hremaining later (by simp)
-      have hgroupResponses :
-          ExecutableFieldsResponseName responseName (field :: fields) :=
-        hresponses responseName (field :: fields) hgroup
-      have hgroupParents :
-          ExecutableFieldsParent parentType (field :: fields) :=
-        hparents responseName (field :: fields) hgroup
       have hgroupCompatible :
           ExecutableFieldsFieldValidationMergeCompatible (field :: fields) :=
         hcompatible responseName (field :: fields) hgroup
       have hgroupStable :
           ExecutableFieldsResolveStable schema resolvers variableValues source (field :: fields) :=
         hstable responseName (field :: fields) hgroup
-      have hfieldResponse : field.responseName = responseName :=
-        hgroupResponses field (by simp)
-      have hlaterResponse : later.responseName = responseName :=
-        hgroupResponses later (List.mem_cons_of_mem field hlater)
-      have hlaterParent : later.parentType = parentType :=
-        hgroupParents later (List.mem_cons_of_mem field hlater)
-      have hsameResponse : field.responseName = later.responseName := by
-        rw [hfieldResponse, hlaterResponse]
       have hfieldName : later.fieldName = field.fieldName :=
         (hgroupCompatible field later (by simp)
-          (List.mem_cons_of_mem field hlater) hsameResponse).1.symm
+          (List.mem_cons_of_mem field hlater)).1.symm
       have hresolveLater :
-          resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
-          resolveFieldValueByName schema resolvers variableValues field.parentType field.fieldName field.arguments source :=
-        (hgroupStable field later (by simp)
-          (List.mem_cons_of_mem field hlater) hsameResponse).symm
+          resolveFieldValueByName schema resolvers variableValues parentType later.fieldName later.arguments source =
+          resolveFieldValueByName schema resolvers variableValues parentType field.fieldName field.arguments source :=
+        (hgroupStable parentType field later (by simp)
+          (List.mem_cons_of_mem field hlater)).symm
       have hprefixNext :
           ∀ candidate, candidate ∈ prefixTail ++ [later] ->
             candidate ∈ fields := by
@@ -783,8 +772,6 @@ theorem alignedAppendSteps_from_prefix
         exact hremaining candidate (by simp [hcandidate])
       simp [ExecutableFieldsMergedAlignedAppendSteps]
       exact ⟨
-        hlaterResponse,
-        hlaterParent,
         hfieldName,
         hresolveLater,
         (by
@@ -815,7 +802,7 @@ theorem alignedAppendSteps
     {groups : List (Name × List ExecutableField)}
     (state
       : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
-          variableValues completionDepth source groups)
+          variableValues completionDepth parentType source groups)
     (hresponses : CollectedGroupsResponseName groups)
     (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
@@ -825,7 +812,7 @@ theorem alignedAppendSteps
     (hgroup : (responseName, field :: fields) ∈ groups)
     : ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
         (completionDepth + 1) parentType source responseName field
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         [] fields :=
   alignedAppendSteps_from_prefix state hresponses hparents hcompatible hstable
@@ -867,7 +854,7 @@ def
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
-          variableValues completionDepth source groups)
+          variableValues completionDepth parentType source groups)
     : ExecutedGroupedSelectionSetAlignedState schema resolvers variableValues
         (completionDepth + 2) parentType source selectionSet := by
   let state :
@@ -953,7 +940,7 @@ def ExecutedGroupedSelectionSetState.of_collected_groups_recursiveAppendState
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : ExecutedGroupedSelectionSetState schema resolvers variableValues
         (depth + 1) parentType source selectionSet :=
   ExecutedGroupedSelectionSetState.of_collected_groups_collectedLocalAppendInvariant
@@ -992,7 +979,8 @@ structure RecursiveGroupedSelectionSetState
   lookups : CollectedGroupsFieldLookupValid schema parentType groups
   compatible : CollectedGroupsFieldValidationMergeCompatible groups
   recursiveAppend
-    : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues depth groups
+    : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues depth
+        parentType groups
 
 namespace RecursiveGroupedSelectionSetState
 
@@ -1029,7 +1017,7 @@ def of_allOutputs
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : RecursiveGroupedSelectionSetState schema resolvers variableValues depth
         parentType source selectionSet :=
   {
@@ -1122,6 +1110,7 @@ def of_positiveRecursiveChildren
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {depth : Nat}
+    {parentType : Name}
     {groups : List (Name × List ExecutableField)}
     (hchildren
       : ∀ responseName field fields prefixTail,
@@ -1130,7 +1119,7 @@ def of_positiveRecursiveChildren
           -> ∀ childDepth runtimeType identity,
               childDepth + 1 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1144,7 +1133,7 @@ def of_positiveRecursiveChildren
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1166,7 +1155,7 @@ def of_positiveRecursiveChildren
                     (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail))
                     (.object [])).fst)
     : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-        depth groups :=
+        depth parentType groups :=
   {
     prefixChildren := by
       intro responseName field fields prefixTail hgroup hprefix childDepth
@@ -1249,7 +1238,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_state_of_invariant
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
           -> ExecutedFieldAppendPlanState schema resolvers variableValues depth
-              field fields [] fields)
+              parentType field fields [] fields)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -1329,7 +1318,8 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_collectedAppendInvar
     (hlookups : CollectedGroupsFieldLookupValid schema parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
-      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
+      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth
+          parentType groups)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -1369,7 +1359,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_collectedLocalAppend
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -1411,7 +1401,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_recursiveAppendState
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-          depth groups)
+          depth parentType groups)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -1527,7 +1517,8 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_depth_one
           parentType source selectionSet :=
   executeRootSelectionSet_eq_spec_of_collected_groups_collectedAppendInvariant
     hcollect hflat hcollected hlookups hcompatible
-    (CollectedFieldGroupAppendInvariant.depth_zero schema resolvers variableValues groups)
+    (CollectedFieldGroupAppendInvariant.depth_zero schema resolvers variableValues
+      parentType groups)
 
 structure ExecutedGroupedOperationState
     {ObjectIdentity : Type}
@@ -1636,7 +1627,7 @@ def ExecutedGroupedOperationState.of_collected_groups_state
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
           -> ExecutedFieldAppendPlanState schema resolvers variableValues depth
-              field fields [] fields)
+              (operation.rootType schema) field fields [] fields)
     : ExecutedGroupedOperationState schema resolvers variableValues operation
         (depth + 1) source :=
   {
@@ -1719,7 +1710,8 @@ def ExecutedGroupedOperationState.of_collected_groups_collectedAppendInvariant
     (hlookups : CollectedGroupsFieldLookupValid schema (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
-      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth groups)
+      : CollectedFieldGroupAppendInvariant schema resolvers variableValues depth
+          (operation.rootType schema) groups)
     : ExecutedGroupedOperationState schema resolvers variableValues operation
         (depth + 1) source :=
   {
@@ -1762,7 +1754,7 @@ def ExecutedGroupedOperationState.of_collected_groups_collectedLocalAppendInvari
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
-          depth groups)
+          depth (operation.rootType schema) groups)
     : ExecutedGroupedOperationState schema resolvers variableValues operation
         (depth + 1) source :=
   {
@@ -1805,7 +1797,7 @@ def ExecutedGroupedOperationState.of_collected_groups_recursiveAppendState
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers variableValues
-          depth groups)
+          depth (operation.rootType schema) groups)
     : ExecutedGroupedOperationState schema resolvers variableValues operation
         (depth + 1) source :=
   {
@@ -1883,7 +1875,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_state_of_invariant
           (responseName, field :: fields) ∈ groups
           -> ExecutedFieldAppendPlanState schema resolvers
               (GraphQL.Execution.coerceVariableValues operation variableValues)
-              depth field fields [] fields)
+              depth (operation.rootType schema) field fields [] fields)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -1974,7 +1966,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_collectedAppendInvarian
     (happend
       : CollectedFieldGroupAppendInvariant schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -2020,7 +2012,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_collectedLocalAppendInv
     (happend
       : CollectedFieldGroupLocalAppendInvariant schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -2066,7 +2058,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_recursiveAppendState
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source :=
@@ -2191,7 +2183,8 @@ theorem executeQueryWithFuel_eq_spec_of_collected_groups_depth_one
   executeQueryWithFuel_eq_spec_of_collected_groups_collectedAppendInvariant
     hroot hcollect hflat hcollected hlookups hcompatible
     (CollectedFieldGroupAppendInvariant.depth_zero schema resolvers
-      (GraphQL.Execution.coerceVariableValues operation variableValues) groups)
+      (GraphQL.Execution.coerceVariableValues operation variableValues)
+      (operation.rootType schema) groups)
 
 theorem executeQuery_eq_spec_of_executedGroups
     {ObjectIdentity : Type}
@@ -2265,7 +2258,7 @@ theorem executeQuery_eq_spec_of_collected_groups_state_of_invariant
           (responseName, field :: fields) ∈ groups
           -> ExecutedFieldAppendPlanState schema resolvers
               (GraphQL.Execution.coerceVariableValues operation variableValues)
-              depth field fields [] fields)
+              depth (operation.rootType schema) field fields [] fields)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by
@@ -2362,7 +2355,7 @@ theorem executeQuery_eq_spec_of_collected_groups_collectedAppendInvariant
     (happend
       : CollectedFieldGroupAppendInvariant schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by
@@ -2411,7 +2404,7 @@ theorem executeQuery_eq_spec_of_collected_groups_collectedLocalAppendInvariant
     (happend
       : CollectedFieldGroupLocalAppendInvariant schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by
@@ -2460,7 +2453,7 @@ theorem executeQuery_eq_spec_of_collected_groups_recursiveAppendState
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth groups)
+          depth (operation.rootType schema) groups)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by

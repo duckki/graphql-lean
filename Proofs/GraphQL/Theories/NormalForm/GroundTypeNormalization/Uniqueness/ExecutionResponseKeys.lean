@@ -51,11 +51,11 @@ theorem executeSelectionSetAsResponse_eq_null_of_executeSelectionSet_error
 theorem executeField_ok_keys
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
-    (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+    (fuel : Nat) (parentType : Name) (source : Execution.ResolverValue ObjectRef)
     (responseName : Name) (fields : List Execution.ExecutableField)
     {outputFields : List (Name × Execution.ResponseValue)}
     {errors : Nat}
-    : Execution.executeField schema resolvers variableValues fuel source
+    : Execution.executeField schema resolvers variableValues fuel parentType source
           responseName fields
         = .ok (outputFields, errors)
       -> outputFields.map Prod.fst = [responseName] := by
@@ -68,7 +68,7 @@ theorem executeField_ok_keys
       | zero =>
           simp [Execution.executeField, Execution.outOfFuel] at hok
       | succ fuel' =>
-          cases hlookup : schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField parentType field.fieldName with
           | none =>
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
@@ -89,7 +89,7 @@ theorem executeField_ok_keys
               | success coercedArguments =>
                   cases hresolve
                         : Execution.resolveFieldValue resolvers
-                            field.parentType field.fieldName coercedArguments source with
+                            parentType field.fieldName coercedArguments source with
                   | none =>
                       cases hhandled
                             : Execution.handleFieldError fieldDefinition.outputType with
@@ -118,12 +118,12 @@ theorem executeField_ok_keys
 theorem executeCollectedFields_ok_keys
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
-    (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+    (fuel : Nat) (parentType : Name) (source : Execution.ResolverValue ObjectRef)
     : ∀ (groups : List (Name × List Execution.ExecutableField))
         (outputFields : List (Name × Execution.ResponseValue))
         (errors : Nat),
         Execution.executeCollectedFields schema resolvers variableValues fuel
-            source groups
+            parentType source groups
           = .ok (outputFields, errors)
         -> outputFields.map Prod.fst = groups.map Prod.fst
   | [], outputFields, errors, hok => by
@@ -131,12 +131,12 @@ theorem executeCollectedFields_ok_keys
       exact hok.1 ▸ rfl
   | (responseName, fields) :: rest, outputFields, errors, hok => by
       cases hhead :
-          Execution.executeField schema resolvers variableValues fuel source
+          Execution.executeField schema resolvers variableValues fuel parentType source
             responseName fields with
       | error headErrors =>
           cases htail :
               Execution.executeCollectedFields schema resolvers variableValues
-                fuel source rest with
+                fuel parentType source rest with
           | error tailErrors =>
               simp [Execution.executeCollectedFields, hhead, htail,
                 Execution.Result.combine] at hok
@@ -148,7 +148,7 @@ theorem executeCollectedFields_ok_keys
           rcases headResult with ⟨headFields, headErrors⟩
           cases htail :
               Execution.executeCollectedFields schema resolvers variableValues
-                fuel source rest with
+                fuel parentType source rest with
           | error tailErrors =>
               simp [Execution.executeCollectedFields, hhead, htail,
                 Execution.Result.combine] at hok
@@ -160,11 +160,11 @@ theorem executeCollectedFields_ok_keys
               have hheadKeys :
                   headFields.map Prod.fst = [responseName] :=
                 executeField_ok_keys schema resolvers variableValues fuel
-                  source responseName fields hhead
+                  parentType source responseName fields hhead
               have htailKeys :
                   tailFields.map Prod.fst = rest.map Prod.fst :=
                 executeCollectedFields_ok_keys schema resolvers variableValues
-                  fuel source rest tailFields tailErrors htail
+                  fuel parentType source rest tailFields tailErrors htail
               rw [← houtputFields]
               simp [List.map_append, hheadKeys, htailKeys]
 
@@ -197,7 +197,7 @@ theorem executeSelectionSetAsResponse_object_keys_eq_collectFields
       unfold Execution.executeSelectionSet Execution.executeRootSelectionSet
         at hresult
       have hkeys := executeCollectedFields_ok_keys schema resolvers variableValues
-        fuel source
+        fuel parentType source
         (Execution.collectFields schema variableValues parentType source
           selectionSet) outputFields outputErrors hresult
       simpa [hresponse.1] using hkeys

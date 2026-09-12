@@ -92,7 +92,7 @@ theorem executeQueryWithFuel_eq_uncached_of_valid
         have hwithin :
             SelectionSetFieldsWithin schema coercedVariableValues
               (operation.rootType schema) (.object runtimeType ref)
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema coercedVariableValues
                   (operation.rootType schema) (.object runtimeType ref)
                   operation.selectionSet))
@@ -102,13 +102,15 @@ theorem executeQueryWithFuel_eq_uncached_of_valid
             operation.selectionSet
         have hinitial :
             OutputCacheTreeSoundForGroups schema resolvers coercedVariableValues fuel
+              (operation.rootType schema)
               (.object runtimeType ref)
               (GraphQL.Execution.collectFields schema coercedVariableValues
                 (operation.rootType schema) (.object runtimeType ref)
                 operation.selectionSet)
               (.object (.object runtimeType ref) []) :=
           OutputCacheTreeSoundForGroups.empty_object schema resolvers
-            coercedVariableValues fuel (.object runtimeType ref)
+            coercedVariableValues fuel (operation.rootType schema)
+            (.object runtimeType ref)
             (.object runtimeType ref)
             (GraphQL.Execution.collectFields schema coercedVariableValues
               (operation.rootType schema) (.object runtimeType ref)

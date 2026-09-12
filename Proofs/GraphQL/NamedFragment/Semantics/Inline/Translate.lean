@@ -12,8 +12,6 @@ variable {ObjectRef : Type}
 def executableFieldToSpec (field : Execution.ExecutableField)
     : GraphQL.Execution.ExecutableField :=
   {
-    parentType := field.parentType
-    responseName := field.responseName
     fieldName := field.fieldName
     arguments := field.arguments
     selectionSet := Translate.reduceSelectionSet field.selectionSet

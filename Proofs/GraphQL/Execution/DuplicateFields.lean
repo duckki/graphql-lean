@@ -557,35 +557,39 @@ mutual
   theorem executeCollectedFields_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
           (variableValues : VariableValues) (fuel : Nat)
-          (source : ResolverValue ObjectRef) (left right),
+          (parentType : Name) (source : ResolverValue ObjectRef) (left right),
           GroupFirstOccurrences left right
-          -> executeCollectedFields schema resolvers variableValues fuel source left
-              = executeCollectedFields schema resolvers variableValues fuel source right
-    | schema, resolvers, variableValues, fuel, source, [], [], .nil => by
+          -> executeCollectedFields schema resolvers variableValues fuel parentType source
+                left
+              = executeCollectedFields schema resolvers variableValues fuel parentType
+                  source right
+    | schema, resolvers, variableValues, fuel, parentType, source, [], [], .nil => by
         rfl
-    | schema, resolvers, variableValues, fuel, source,
+    | schema, resolvers, variableValues, fuel, parentType, source,
         (responseName, leftFields) :: leftRest,
         (rightResponseName, rightFields) :: rightRest, hgroups => by
         cases hgroups with
         | cons _ fields rest =>
             simp [executeCollectedFields,
-              executeField_firstOccurrences schema resolvers variableValues fuel source
-                responseName fields,
+              executeField_firstOccurrences schema resolvers variableValues fuel parentType
+                source responseName fields,
               executeCollectedFields_firstOccurrences schema resolvers variableValues fuel
-                source leftRest rightRest rest]
-  termination_by _schema _resolvers _variableValues fuel _source left _right _trace =>
+                parentType source leftRest rightRest rest]
+  termination_by _schema _resolvers _variableValues fuel _parentType _source left _right
+      _trace =>
     (fuel, 4, 0, sizeOf left)
 
   theorem executeField_firstOccurrences
       : ∀ (schema : Schema) (resolvers : Resolvers ObjectRef)
           (variableValues : VariableValues) (fuel : Nat)
-          (source : ResolverValue ObjectRef) (responseName : Name)
+          (parentType : Name) (source : ResolverValue ObjectRef) (responseName : Name)
           {left right : List ExecutableField},
           FirstOccurrences [] left right
-          -> executeField schema resolvers variableValues fuel source responseName left
-              = executeField schema resolvers variableValues fuel source responseName
-                  right
-    | schema, resolvers, variableValues, fuel, source, responseName,
+          -> executeField schema resolvers variableValues fuel parentType source
+                responseName left
+              = executeField schema resolvers variableValues fuel parentType source
+                  responseName right
+    | schema, resolvers, variableValues, fuel, parentType, source, responseName,
         left, right, trace => by
         cases trace with
         | nil => simp [executeField]
@@ -594,7 +598,7 @@ mutual
             cases fuel with
             | zero => simp [executeField]
             | succ fuel =>
-                cases hlookup : schema.lookupField field.parentType field.fieldName with
+                cases hlookup : schema.lookupField parentType field.fieldName with
                 | none => simp [executeField, hlookup]
                 | some fieldDefinition =>
                     cases hcoerce : coerceArgumentValues schema variableValues
@@ -602,7 +606,7 @@ mutual
                     | error =>
                         simp [executeField, hlookup, hcoerce]
                     | success coercedArguments =>
-                        cases hresolve : resolvers.resolve field.parentType
+                        cases hresolve : resolvers.resolve parentType
                             field.fieldName coercedArguments source with
                         | none =>
                             simp [executeField, resolveFieldValue, hlookup, hresolve,
@@ -613,8 +617,8 @@ mutual
                               completeValue_firstOccurrences schema resolvers
                                 variableValues fuel fieldDefinition.outputType resolved
                                 (FirstOccurrences.keep [] field rest)]
-  termination_by _schema _resolvers _variableValues fuel _source _responseName left
-      _right _trace =>
+  termination_by _schema _resolvers _variableValues fuel _parentType _source _responseName
+      left _right _trace =>
     (fuel, 3, 0, sizeOf left)
 
   theorem completeValue_firstOccurrences
@@ -643,6 +647,7 @@ mutual
         · simpa only [completeValue, happly, ↓reduceIte] using
             congrArg (catchBubbleAsNull ResponseValue.object)
               (executeCollectedFields_firstOccurrences schema resolvers variableValues fuel
+                runtimeType
                 (ResolverValue.object runtimeType ref)
                 (collectSubfields schema variableValues runtimeType
                   (ResolverValue.object runtimeType ref) left)

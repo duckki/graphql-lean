@@ -1003,19 +1003,20 @@ def runtimeFieldsForConditionEntries
     (executionParentType runtimeType : Name)
     (_source : ResolverValue ObjectRef)
     (entries : List (Condition × Selection))
-    : List ExecutableField :=
+    : List (Name × ExecutableField) :=
   entries.flatMap
     fun entry =>
       if entry.1.allows variableValues runtimeType then
         match entry.2 with
         | .field responseName fieldName arguments _directives selectionSet =>
-            [{
-              parentType := executionParentType
-              responseName
+            [(
+              responseName,
+              {
               fieldName
               arguments
               selectionSet
-            }]
+            }
+            )]
         | .inlineFragment .. => []
       else
         []
@@ -1045,13 +1046,14 @@ theorem runtimeFieldsForConditionEntries_singleton
       = if condition.allows variableValues runtimeType then
           match selection with
           | .field responseName fieldName arguments _directives selectionSet =>
-              [{
-                parentType := executionParentType
-                responseName
+              [(
+                responseName,
+                {
                 fieldName
                 arguments
                 selectionSet
-              }]
+              }
+              )]
           | .inlineFragment .. => []
         else
           [] := by
@@ -1297,7 +1299,7 @@ theorem runtimeFieldsForConditionEntries_mem_congr
     (source : ResolverValue ObjectRef)
     (left right : List (Condition × Selection))
     (hentries : ∀ entry, entry ∈ left ↔ entry ∈ right)
-    (field : ExecutableField)
+    (field : Name × ExecutableField)
     : field
         ∈ runtimeFieldsForConditionEntries schema variableValues
             executionParentType runtimeType source left
@@ -1315,16 +1317,17 @@ theorem collectFlatFields_mem_collectFields
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef)
-    (selectionSet : List Selection) (field : ExecutableField)
+    (selectionSet : List Selection) (field : Name × ExecutableField)
     : field ∈ collectFlatFields schema variableValues parentType source selectionSet
       ↔ field
-        ∈ flattenCollectedFields
+        ∈ flattenExecutableFieldGroups
             (Execution.collectFields schema variableValues parentType source
               selectionSet) := by
-  rw [collectFlatFields_eq_fieldGroups,
-    flattenCollectedFields_eq_fieldGroups]
-  exact Execution.FieldGroups.collectFlatFields_mem_collectFields schema
-    variableValues parentType source selectionSet field
+  rw [collectFlatFields_eq_fieldGroups]
+  simpa [ConditionTree.flattenExecutableFieldGroups,
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
+      Execution.FieldGroups.collectFlatFields_mem_collectFields schema
+        variableValues parentType source selectionSet field
 
 theorem extraction_sound
     (schema : Schema) (parentType : Name)
@@ -1364,23 +1367,22 @@ theorem extraction_sound
   exact collectFlatFields_mem_collectFields schema variableValues
     executionParentType (.object runtimeType ref) selectionSet field
 
-theorem mem_flattenCollectedFields_iff
+theorem mem_map_snd_flattenExecutableFieldGroups_iff
     (groups : List (Name × List ExecutableField)) (field : ExecutableField)
-    : field ∈ flattenCollectedFields groups
+    : field ∈ (flattenExecutableFieldGroups groups).map Prod.snd
       ↔ ∃ responseName fields, (responseName, fields) ∈ groups ∧ field ∈ fields := by
-  rw [flattenCollectedFields_eq_fieldGroups]
-  exact Execution.FieldGroups.mem_flattenCollectedFields_iff groups field
+  exact Execution.FieldGroups.mem_map_snd_flattenExecutableFieldGroups_iff groups field
 
 theorem mem_group_key_iff_exists_field_of_wellFormed
     (groups : List (Name × List ExecutableField))
     (hgroups : NormalForm.executableGroupsWellFormed groups)
     (responseName : Name)
     : responseName ∈ groups.map Prod.fst
-      ↔ ∃ field,
-          field ∈ flattenCollectedFields groups ∧ responseName = field.responseName := by
-  rw [flattenCollectedFields_eq_fieldGroups]
-  exact Execution.FieldGroups.mem_group_key_iff_exists_field_of_wellFormed
-    groups hgroups responseName
+      ↔ ∃ field, (responseName, field) ∈ flattenExecutableFieldGroups groups := by
+  simpa [ConditionTree.flattenExecutableFieldGroups,
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
+      Execution.FieldGroups.mem_group_key_iff_exists_field_of_wellFormed
+        groups hgroups responseName
 
 theorem collectFields_key_iff_exists_flat_field
     {ObjectRef : Type}
@@ -1392,11 +1394,10 @@ theorem collectFields_key_iff_exists_flat_field
             selectionSet).map
             Prod.fst
       ↔ ∃ field,
-          field
-            ∈ flattenCollectedFields
-                (Execution.collectFields schema variableValues parentType source
-                  selectionSet)
-          ∧ responseName = field.responseName := by
+          (responseName, field)
+          ∈ flattenExecutableFieldGroups
+              (Execution.collectFields schema variableValues parentType source
+                selectionSet) := by
   exact mem_group_key_iff_exists_field_of_wellFormed _
     (NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
       variableValues parentType source selectionSet)
@@ -1427,10 +1428,13 @@ theorem extraction_groups_equivalent
       mem_groupExecutableFields_key_iff,
       collectFields_key_iff_exists_flat_field]
     constructor
-    · rintro ⟨field, hfield, hname⟩
-      exact ⟨field, (hfields field).mp hfield, hname⟩
-    · rintro ⟨field, hfield, hname⟩
-      exact ⟨field, (hfields field).mpr hfield, hname⟩
+    · rintro ⟨⟨entryName, field⟩, hfield, hname⟩
+      simp only at hname
+      subst entryName
+      exact ⟨field, (hfields (responseName, field)).mp hfield⟩
+    · rintro ⟨field, hfield⟩
+      exact ⟨(responseName, field),
+        (hfields (responseName, field)).mpr hfield, rfl⟩
   · intro field
     exact hexact.2.mem_iff.trans (hfields field)
 

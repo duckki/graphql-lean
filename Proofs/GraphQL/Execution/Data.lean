@@ -26,20 +26,21 @@ def completeValueData
 def executeFieldData
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (responseName : Name) (fields : List ExecutableField)
     : List (Name × ResponseValue) :=
   Result.getD []
-    (executeField schema resolvers variableValues fuel source responseName fields)
+    (executeField schema resolvers variableValues fuel parentType source responseName
+      fields)
 
 def executeCollectedFieldsData
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (fields : List (Name × List ExecutableField))
     : List (Name × ResponseValue) :=
   Result.getD []
-    (executeCollectedFields schema resolvers variableValues fuel source fields)
+    (executeCollectedFields schema resolvers variableValues fuel parentType source fields)
 
 def executeRootSelectionSetData
     (schema : Schema) (resolvers : Resolvers ObjectRef)

@@ -372,17 +372,18 @@ def ofTypeRegion (schema : Schema) (region : List Name) (selectionSet : List Sel
 -- condition is the complete gate; extracted fields no longer carry modeled directives.
 def runtimeFields (variableValues : VariableValues)
     (executionParentType runtimeType : Name) (entries : List ConditionedField)
-    : List ExecutableField :=
+    : List (Name × ExecutableField) :=
   entries.flatMap
     fun entry =>
       if entry.condition.allows variableValues runtimeType then
-        [{
-          parentType := executionParentType
-          responseName := entry.field.responseName
-          fieldName := entry.field.fieldName
-          arguments := entry.field.arguments
-          selectionSet := entry.field.selectionSet
-        }]
+        [(
+          entry.field.responseName,
+          {
+            fieldName := entry.field.fieldName
+            arguments := entry.field.arguments
+            selectionSet := entry.field.selectionSet
+          }
+        )]
       else
         []
 

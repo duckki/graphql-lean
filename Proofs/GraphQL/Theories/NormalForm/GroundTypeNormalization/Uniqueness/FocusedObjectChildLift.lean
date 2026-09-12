@@ -785,10 +785,8 @@ theorem
                                 parentType otherFieldName arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
-                        parentSource otherResponseName
+                        parentType parentSource otherResponseName
                         [{
-                          parentType := parentType,
-                          responseName := otherResponseName,
                           fieldName := otherFieldName,
                           arguments := arguments,
                           selectionSet := childSelectionSet
@@ -830,10 +828,8 @@ theorem
                                 parentType otherFieldName arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
-                        parentSource otherResponseName
+                        parentType parentSource otherResponseName
                         [{
-                          parentType := parentType,
-                          responseName := otherResponseName,
                           fieldName := otherFieldName,
                           arguments := arguments,
                           selectionSet := childSelectionSet
@@ -875,10 +871,8 @@ theorem
                                 parentType otherFieldName arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
-                        parentSource otherResponseName
+                        parentType parentSource otherResponseName
                         [{
-                          parentType := parentType,
-                          responseName := otherResponseName,
                           fieldName := otherFieldName,
                           arguments := arguments,
                           selectionSet := childSelectionSet
@@ -920,10 +914,8 @@ theorem
                                 parentType otherFieldName arguments))
                   -> ∃ responseValue fieldErrors,
                       Execution.executeField schema resolvers variableValues parentFuel
-                        parentSource otherResponseName
+                        parentType parentSource otherResponseName
                         [{
-                          parentType := parentType,
-                          responseName := otherResponseName,
                           fieldName := otherFieldName,
                           arguments := arguments,
                           selectionSet := childSelectionSet
@@ -1276,10 +1268,8 @@ theorem
                   (Execution.coercedArgumentsForField schema variableValues parentType otherFieldName arguments)) ->
               ∃ responseValue fieldErrors,
                 Execution.executeField schema resolvers variableValues
-                  parentFuel parentSource otherResponseName
+                  parentFuel parentType parentSource otherResponseName
                   [{
-                    parentType := parentType,
-                    responseName := otherResponseName,
                     fieldName := otherFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -1368,10 +1358,8 @@ theorem
                   (Execution.coercedArgumentsForField schema variableValues parentType otherFieldName arguments)) ->
               ∃ responseValue fieldErrors,
                 Execution.executeField schema resolvers variableValues
-                  parentFuel parentSource otherResponseName
+                  parentFuel parentType parentSource otherResponseName
                   [{
-                    parentType := parentType,
-                    responseName := otherResponseName,
                     fieldName := otherFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -1937,10 +1925,8 @@ theorem
                 (Execution.coercedArgumentsForField schema variableValues parentType otherFieldName arguments)) ->
             ∃ responseValue fieldErrors,
               Execution.executeField schema parentResolvers variableValues
-                parentFuel parentSource otherResponseName
+                parentFuel parentType parentSource otherResponseName
                 [{
-                  parentType := parentType,
-                  responseName := otherResponseName,
                   fieldName := otherFieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet

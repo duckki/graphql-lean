@@ -1184,7 +1184,7 @@ theorem completeValue_deepSelectionSetSuccessWithRef_object_of_executeCollectedF
         objectTypeNameBool schema outputType.namedType = true
         -> Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues fuel
+              variableValues fuel outputType.namedType
               (.object outputType.namedType objectRef)
               (Execution.collectSubfields schema variableValues outputType.namedType
                 (.object outputType.namedType objectRef) fields)
@@ -1214,7 +1214,7 @@ theorem completeValue_deepSelectionSetSuccessWithRef_object_of_executeCollectedF
             Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema
                 rootSelectionSet objectRef)
-              variableValues fuel (.object typeName objectRef)
+              variableValues fuel typeName (.object typeName objectRef)
               (Execution.collectFields schema variableValues typeName
                 (.object typeName objectRef)
                 (Execution.mergedFieldSelectionSet fields))
@@ -1281,7 +1281,7 @@ theorem completeValue_deepSelectionSetSuccessWithRef_abstract_of_executeCollecte
         -> schema.typeIncludesObjectBool outputType.namedType runtimeType = true
         -> Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues fuel
+              variableValues fuel runtimeType
               (.object runtimeType objectRef)
               (Execution.collectSubfields schema variableValues runtimeType
                 (.object runtimeType objectRef) fields)
@@ -1313,7 +1313,7 @@ theorem completeValue_deepSelectionSetSuccessWithRef_abstract_of_executeCollecte
             Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema
                 rootSelectionSet objectRef)
-              variableValues fuel (.object runtimeType objectRef)
+              variableValues fuel runtimeType (.object runtimeType objectRef)
               (Execution.collectFields schema variableValues runtimeType
                 (.object runtimeType objectRef)
                 (Execution.mergedFieldSelectionSet fields))
@@ -1384,10 +1384,8 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
           = true
       -> Execution.executeField schema
             (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-            variableValues (fuel + 1) source responseName
+            variableValues (fuel + 1) parentType source responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1398,8 +1396,6 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
                   objectRef)
                 variableValues fuel fieldDefinition.outputType
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet
@@ -1443,14 +1439,12 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
                 Execution.executeCollectedFields schema
                   (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                     objectRef)
-                  variableValues fuel
+                  variableValues fuel fieldDefinition.outputType.namedType
                   (.object fieldDefinition.outputType.namedType objectRef)
                   (Execution.collectSubfields schema variableValues
                     fieldDefinition.outputType.namedType
                     (.object fieldDefinition.outputType.namedType objectRef)
                     [{
-                      parentType := parentType
-                      responseName := responseName
                       fieldName := fieldName
                       arguments := arguments
                       selectionSet := childSelectionSet
@@ -1471,12 +1465,10 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
               ∧ Execution.executeCollectedFields schema
                   (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                     objectRef)
-                  variableValues fuel (.object runtimeType objectRef)
+                  variableValues fuel runtimeType (.object runtimeType objectRef)
                   (Execution.collectSubfields schema variableValues runtimeType
                     (.object runtimeType objectRef)
                     [{
-                      parentType := parentType
-                      responseName := responseName
                       fieldName := fieldName
                       arguments := arguments
                       selectionSet := childSelectionSet
@@ -1487,10 +1479,8 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
               variableValues
               (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-              source responseName
+              parentType source responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1512,8 +1502,6 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
           schema rootSelectionSet objectRef variableValues fuel parentType
           fieldName
           [{
-            parentType := parentType
-            responseName := responseName
             fieldName := fieldName
             arguments := arguments
             selectionSet := childSelectionSet
@@ -1530,8 +1518,6 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
             rootSelectionSet objectRef variableValues fuel parentType
             fieldName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1549,8 +1535,6 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
             schema rootSelectionSet objectRef variableValues fuel parentType
             fieldName runtimeType
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1605,10 +1589,8 @@ theorem
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
               variableValues
               (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-              source responseName
+              parentType source responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1622,14 +1604,12 @@ theorem
             Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 objectRef)
-              variableValues fuel
+              variableValues fuel fieldDefinition.outputType.namedType
               (.object fieldDefinition.outputType.namedType objectRef)
               (Execution.collectSubfields schema variableValues
                 fieldDefinition.outputType.namedType
                 (.object fieldDefinition.outputType.namedType objectRef)
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet
@@ -1650,12 +1630,10 @@ theorem
             ∧ Execution.executeCollectedFields schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 objectRef)
-              variableValues fuel (.object runtimeType objectRef)
+              variableValues fuel runtimeType (.object runtimeType objectRef)
               (Execution.collectSubfields schema variableValues runtimeType
                 (.object runtimeType objectRef)
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet
@@ -1733,10 +1711,8 @@ theorem
       -> ∃ responseValue errors,
           Execution.executeField schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues (fuel + 1) source responseName
+              variableValues (fuel + 1) parentType source responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1815,10 +1791,8 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_ready_
       -> ∃ responseValue errors,
           Execution.executeField schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-              variableValues (fuel + 1) source responseName
+              variableValues (fuel + 1) parentType source responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1913,7 +1887,7 @@ theorem executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
           Execution.executeCollectedFields schema
             (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
               objectRef)
-            variableValues (fuel + 1) source
+            variableValues (fuel + 1) parentType source
             (Execution.collectFields schema variableValues parentType source
               rest)
           =
@@ -1926,8 +1900,6 @@ theorem executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
               childSelectionSet :: rest)
           =
           (responseName, [{
-            parentType := parentType
-            responseName := responseName
             fieldName := fieldName
             arguments := arguments
             selectionSet := childSelectionSet
@@ -2276,11 +2248,10 @@ theorem executeField_leafProbe_singleton_of_resolve_fuel_ge
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> (TypeRef.named fieldDefinition.outputType.namedType).isCompositeBool schema
           = false
-      -> Execution.executeField schema resolvers variableValues (fuel + 1) source
+      -> Execution.executeField schema resolvers variableValues (fuel + 1)
+            parentType source
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := selectionSet
@@ -2295,8 +2266,6 @@ theorem executeField_leafProbe_singleton_of_resolve_fuel_ge
       Execution.completeValue schema resolvers variableValues fuel
         fieldDefinition.outputType
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := arguments
           selectionSet := selectionSet
@@ -2308,8 +2277,6 @@ theorem executeField_leafProbe_singleton_of_resolve_fuel_ge
     completeValue_leafProbe_of_fuel_ge schema resolvers variableValues
       fieldDefinition.outputType
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := selectionSet
@@ -2334,10 +2301,8 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
           = false
       -> Execution.executeField schema
             (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
-            variableValues (fuel + 1) source responseName
+            variableValues (fuel + 1) parentType source responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := selectionSet
@@ -2396,10 +2361,8 @@ theorem executeField_named_object_of_resolve
             parentType fieldName arguments source
           = some (.object runtimeType ref)
       -> Execution.executeField schema resolvers variableValues (fuel + 2)
-            source responseName
+            parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -2418,7 +2381,7 @@ theorem executeField_named_object_of_resolve
   intro hlookup hinclude hresolve
   cases hchild
         : Execution.executeCollectedFields schema resolvers variableValues fuel
-            (Execution.ResolverValue.object runtimeType ref)
+            runtimeType (Execution.ResolverValue.object runtimeType ref)
             (Execution.collectFields schema variableValues runtimeType
               (Execution.ResolverValue.object runtimeType ref)
               childSelectionSet) with
@@ -2483,10 +2446,8 @@ theorem executeSelectionSetAsResponse_singleton_named_object_of_resolve
   intro hlookup hinclude hresolve
   have hfield :
       Execution.executeField schema resolvers variableValues (fuel + 2)
-        source responseName
+        parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := childSelectionSet
@@ -3151,7 +3112,7 @@ theorem completeValue_objectProbeWithRuntime_response
             = wrapTypeRefSelectionSetResult outputType
                 (Execution.selectionSetResultToResponse
                   (Execution.executeCollectedFields schema resolvers
-                    variableValues fuel (.object runtimeType ref)
+                    variableValues fuel runtimeType (.object runtimeType ref)
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType ref)
                       (Execution.mergedFieldSelectionSet fields))))
@@ -3161,7 +3122,7 @@ theorem completeValue_objectProbeWithRuntime_response
         simpa [TypeRef.namedType] using hinclude
       cases hchild :
           Execution.executeCollectedFields schema resolvers variableValues fuel
-            (.object runtimeType ref)
+            runtimeType (.object runtimeType ref)
             (Execution.collectFields schema variableValues runtimeType
               (.object runtimeType ref)
               (Execution.mergedFieldSelectionSet fields)) with
@@ -3187,7 +3148,7 @@ theorem completeValue_objectProbeWithRuntime_response
           wrapTypeRefSelectionSetResult inner
             (Execution.selectionSetResultToResponse
               (Execution.executeCollectedFields schema resolvers
-                variableValues fuel (.object runtimeType ref)
+                variableValues fuel runtimeType (.object runtimeType ref)
                 (Execution.collectFields schema variableValues runtimeType
                   (.object runtimeType ref)
                   (Execution.mergedFieldSelectionSet fields)))) with
@@ -3265,10 +3226,8 @@ theorem executeField_objectProbeWithRuntime_response
           = true
       -> Execution.executeField schema resolvers variableValues
             (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-            source responseName
+            parentType source responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := selectionSet
@@ -3277,7 +3236,7 @@ theorem executeField_objectProbeWithRuntime_response
               (wrapTypeRefSelectionSetResult fieldDefinition.outputType
                 (Execution.selectionSetResultToResponse
                   (Execution.executeCollectedFields schema resolvers variableValues
-                    fuel (.object runtimeType ref)
+                    fuel runtimeType (.object runtimeType ref)
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType ref) selectionSet)))) := by
   intro hlookup hresolve hinclude
@@ -3285,8 +3244,6 @@ theorem executeField_objectProbeWithRuntime_response
     completeValue_objectProbeWithRuntime_response schema resolvers
       variableValues fuel runtimeType ref
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := selectionSet
@@ -3314,10 +3271,8 @@ theorem executeField_objectProbeWithRuntime_response_of_fuel_ge
           = true
       -> leafProbeFuel fieldDefinition.outputType ≤ fuel
       -> Execution.executeField schema resolvers variableValues (fuel + 1)
-            source responseName
+            parentType source responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := selectionSet
@@ -3369,10 +3324,8 @@ theorem executeSelectionSetAsResponse_singleton_objectProbeWithRuntime_response
   have hfield :
       Execution.executeField schema resolvers variableValues
         (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-        source responseName
+        parentType source responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := arguments
           selectionSet := childSelectionSet
@@ -3382,7 +3335,7 @@ theorem executeSelectionSetAsResponse_singleton_objectProbeWithRuntime_response
         (wrapTypeRefSelectionSetResult fieldDefinition.outputType
           (Execution.selectionSetResultToResponse
             (Execution.executeCollectedFields schema resolvers variableValues
-              fuel (.object runtimeType ref)
+              fuel runtimeType (.object runtimeType ref)
               (Execution.collectFields schema variableValues runtimeType
                 (.object runtimeType ref) childSelectionSet)))) :=
     executeField_objectProbeWithRuntime_response schema resolvers

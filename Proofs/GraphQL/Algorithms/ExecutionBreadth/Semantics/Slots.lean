@@ -1192,7 +1192,8 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
           = (
             singleFieldResultValue key.responseName
               (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                source key.responseName [key.executableField selectionSet]),
+                key.parentType source key.responseName
+                [key.executableField selectionSet]),
             stack
           ) := by
   intro hlookup hready
@@ -1210,7 +1211,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
           omega
       | succ fuel =>
           rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
-            schema resolvers variableValues fuel source key.responseName
+            schema resolvers variableValues fuel key.parentType source key.responseName
             (key.executableField selectionSet) [] fieldDefinition
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
@@ -1241,7 +1242,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
               (ObjectRef := ObjectRef) schema resolvers variableValues selectionSet key
               fuel fieldDefinition.outputType value stack hpos hfuel
           rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
-            schema resolvers variableValues fuel source key.responseName
+            schema resolvers variableValues fuel key.parentType source key.responseName
             (key.executableField selectionSet) [] fieldDefinition
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
@@ -1429,7 +1430,7 @@ theorem
                 (fun tail =>
                   singleFieldResultValue key.responseName
                     (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                      source key.responseName [key.executableField selectionSet]) ::
+                      key.parentType source key.responseName [key.executableField selectionSet]) ::
                     tail)
                 htailF
           · exact congrArg Prod.snd htail'

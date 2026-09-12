@@ -444,21 +444,21 @@ structure Soundness
     (schema : Schema) (variableValues : VariableValues)
     extends SoundnessCore concrete abstract where
   field_sound
-    : ∀ (field : ExecutableField)
+    : ∀ (parentType : Name) (field : ExecutableField)
         (definition : FieldDefinition) (value : AnnotatedResponseValue)
         (children : concrete.Summary) (groups : List CollectedFieldGroup)
         (abstractChildren : CollectedFieldGroup -> abstract.Summary),
         groups ≠ []
         -> groupsRepresentField groups field
-        -> conditionsAllowGroupsAt variableValues field.parentType groups
+        -> conditionsAllowGroupsAt variableValues parentType groups
         -> (field.arguments.map Argument.name).Nodup
-        -> schema.lookupField field.parentType field.fieldName = some definition
+        -> schema.lookupField parentType field.fieldName = some definition
         -> approximates children
             (foldChildSummaryForValue abstract
               (foldChildSummaries abstract abstractChildren groups) value)
         -> approximates
             (concrete.field
-              (resolvedFieldProvenance schema variableValues definition field)
+              (resolvedFieldProvenance schema variableValues parentType definition field)
               value children)
             (foldFieldGroups abstract abstractChildren groups)
 

@@ -74,15 +74,13 @@ def representativeMatches (group : CollectedFieldGroup)
 /-- Converts one statically collected response-name group to executable field syntax.
 `CollectedFieldGroup` already guarantees that every member is a field with the enclosing
 response name, so no selection filtering is needed here. -/
-def toExecutableGroup (group : CollectedFieldGroup) (parentType : Name)
+def toExecutableGroup (group : CollectedFieldGroup)
     : Name × List Execution.ExecutableField :=
   (
     group.responseName,
     group.fields.map
       fun field =>
         {
-          parentType
-          responseName := group.responseName
           fieldName := field.fieldName
           arguments := field.arguments
           selectionSet := field.selectionSet

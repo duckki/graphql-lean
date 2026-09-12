@@ -583,13 +583,14 @@ theorem runtimeFields_singleton
     (condition : Condition) (field : Field)
     : runtimeFields variableValues executionParentType runtimeType [{ condition, field }]
       = if condition.allows variableValues runtimeType then
-          [{
-            parentType := executionParentType
-            responseName := field.responseName
-            fieldName := field.fieldName
-            arguments := field.arguments
-            selectionSet := field.selectionSet
-          }]
+          [(
+            field.responseName,
+            {
+              fieldName := field.fieldName
+              arguments := field.arguments
+              selectionSet := field.selectionSet
+            }
+          )]
         else
           [] := by
   simp [runtimeFields]

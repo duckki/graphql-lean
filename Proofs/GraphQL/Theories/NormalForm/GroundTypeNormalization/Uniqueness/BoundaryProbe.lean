@@ -1454,13 +1454,11 @@ theorem executeField_fieldPairPathLocalProbe_tagged_object_leaf (schema : Schema
             (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
               rightInitialSelectionSet targetParent leftField rightField
               leftArguments rightArguments leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1533,14 +1531,12 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf
                 rightInitialSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1562,12 +1558,11 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -1612,13 +1607,11 @@ theorem executeField_fieldPairPathLocalProbe_tagged_object_objectProbe_response_
             (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
               rightInitialSelectionSet targetParent leftField rightField
               leftArguments rightArguments leftRuntime rightRuntime)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (.object sourceRuntimeType
               (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1739,13 +1732,11 @@ theorem
               (fieldPairPathLocalProbeResolvers schema leftInitialSelectionSet
                 rightInitialSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (.object sourceRuntimeType
                 (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1802,14 +1793,12 @@ theorem
                 rightInitialSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1)
+            variableValues (fuel + 1) parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1844,12 +1833,11 @@ theorem
     executeField_fieldPairOrDeepSuccessResolvers_projectionTargetResolverValue
       schema rootSelectionSet base variableValues targetParent leftField
       rightField leftArguments rightArguments (fuel + 1)
+      parentType
       (.object sourceRuntimeType
         (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
       responseName
       [{
-        parentType := parentType
-        responseName := responseName
         fieldName := fieldName
         arguments := arguments
         selectionSet := childSelectionSet
@@ -1932,14 +1920,12 @@ theorem
                   rightInitialSelectionSet targetParent leftField rightField
                   leftArguments rightArguments leftRuntime rightRuntime)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -2036,14 +2022,12 @@ theorem
                     rightArguments leftRuntime rightRuntime)
                   targetParent leftField rightField leftArguments
                   rightArguments)
-                variableValues (fuel + 1)
+                variableValues (fuel + 1) parentType
                 (projectionTargetResolverValue
                   (.object sourceRuntimeType
                     (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
                 responseName
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet
@@ -2172,14 +2156,13 @@ theorem
             childSelectionSet ∈ selectionSet ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues (fuel + 1)
+              parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairPathLocalProbeRef.target tag
                     currentSelectionSet)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -2292,10 +2275,9 @@ theorem executeField_fieldPairRuntimeProbe_left_root_objectProbe_response
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (.object targetParent none) responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2307,7 +2289,7 @@ theorem executeField_fieldPairRuntimeProbe_left_root_objectProbe_response
                     (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
                       targetParent leftField rightField leftArguments
                       rightArguments leftRuntime rightRuntime)
-                    variableValues fuel
+                    variableValues fuel leftRuntime
                     (.object leftRuntime (some FieldPairProbeTag.left))
                     (Execution.collectFields schema variableValues leftRuntime
                       (.object leftRuntime (some FieldPairProbeTag.left))
@@ -2378,10 +2360,9 @@ theorem executeField_fieldPairRuntimeProbe_right_root_objectProbe_response_of_no
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (.object targetParent none) responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2393,7 +2374,7 @@ theorem executeField_fieldPairRuntimeProbe_right_root_objectProbe_response_of_no
                     (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
                       targetParent leftField rightField leftArguments
                       rightArguments leftRuntime rightRuntime)
-                    variableValues fuel
+                    variableValues fuel rightRuntime
                     (.object rightRuntime (some FieldPairProbeTag.right))
                     (Execution.collectFields schema variableValues rightRuntime
                       (.object rightRuntime (some FieldPairProbeTag.right))
@@ -2473,12 +2454,11 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_response
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2493,7 +2473,7 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_response
                         rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel leftRuntime
                     (projectionTargetResolverValue
                       (.object leftRuntime (some FieldPairProbeTag.left)))
                     (Execution.collectFields schema variableValues leftRuntime
@@ -2595,12 +2575,11 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2615,7 +2594,7 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_
                         rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel rightRuntime
                     (projectionTargetResolverValue
                       (.object rightRuntime (some FieldPairProbeTag.right)))
                     (Execution.collectFields schema variableValues rightRuntime
@@ -2731,13 +2710,11 @@ theorem
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues
-            (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2757,7 +2734,7 @@ theorem
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
-          variableValues fuel
+          variableValues fuel leftRuntime
           (projectionTargetResolverValue
             (.object leftRuntime (some FieldPairProbeTag.left)))
           (Execution.collectFields schema variableValues leftRuntime
@@ -2821,13 +2798,11 @@ theorem
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues
-            (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2847,7 +2822,7 @@ theorem
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
-          variableValues fuel
+          variableValues fuel rightRuntime
           (projectionTargetResolverValue
             (.object rightRuntime (some FieldPairProbeTag.right)))
           (Execution.collectFields schema variableValues rightRuntime
@@ -2908,13 +2883,11 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -2981,13 +2954,11 @@ theorem
                 targetParent leftField rightField leftArguments rightArguments
                 leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3037,12 +3008,11 @@ theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_response
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3058,7 +3028,7 @@ theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_response
                         rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel leftRuntime
                     (projectionTargetResolverValue
                       (.object leftRuntime (some FieldPairProbeTag.left)))
                     (Execution.collectFields schema variableValues leftRuntime
@@ -3166,12 +3136,11 @@ theorem
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3187,7 +3156,7 @@ theorem
                         rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel rightRuntime
                     (projectionTargetResolverValue
                       (.object rightRuntime (some FieldPairProbeTag.right)))
                     (Execution.collectFields schema variableValues rightRuntime
@@ -3289,12 +3258,11 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3309,7 +3277,7 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
                         leftArguments rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel leftRuntime
                     (projectionTargetResolverValue
                       (.object leftRuntime
                         (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3424,12 +3392,11 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_o
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3444,7 +3411,7 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_o
                         leftArguments rightArguments leftRuntime rightRuntime)
                       targetParent leftField rightField leftArguments
                       rightArguments)
-                    variableValues fuel
+                    variableValues fuel rightRuntime
                     (projectionTargetResolverValue
                       (.object rightRuntime
                         (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3572,13 +3539,11 @@ theorem
                 rightInitialSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3599,7 +3564,7 @@ theorem
               leftArguments rightArguments leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
-          (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          (parentFuel - leafProbeFuel fieldDefinition.outputType) leftRuntime
           (projectionTargetResolverValue
             (.object leftRuntime
               (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3680,13 +3645,11 @@ theorem
                 rightInitialSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3707,7 +3670,7 @@ theorem
               leftArguments rightArguments leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
-          (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          (parentFuel - leafProbeFuel fieldDefinition.outputType) rightRuntime
           (projectionTargetResolverValue
             (.object rightRuntime
               (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3783,13 +3746,11 @@ theorem
                 rightChildRootSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3811,7 +3772,7 @@ theorem
               leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
-          (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          (parentFuel - leafProbeFuel fieldDefinition.outputType) leftRuntime
           (projectionTargetResolverValue
             (.object leftRuntime (some FieldPairProbeTag.left)))
           (Execution.collectFields schema variableValues leftRuntime
@@ -3887,13 +3848,11 @@ theorem
                 rightChildRootSelectionSet targetParent leftField rightField
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
-            variableValues (parentFuel + 1)
+            variableValues (parentFuel + 1) targetParent
             (projectionRootResolverValue
               (.object targetParent (none : Option FieldPairProbeTag)))
             responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -3915,7 +3874,7 @@ theorem
               leftRuntime rightRuntime)
             targetParent leftField rightField leftArguments rightArguments)
           variableValues
-          (parentFuel - leafProbeFuel fieldDefinition.outputType)
+          (parentFuel - leafProbeFuel fieldDefinition.outputType) rightRuntime
           (projectionTargetResolverValue
             (.object rightRuntime (some FieldPairProbeTag.right)))
           (Execution.collectFields schema variableValues rightRuntime
@@ -4037,13 +3996,11 @@ theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_pathLocalProbe_of_fie
                       leftArguments rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments
                     rightArguments)
-                  variableValues (parentFuel + 1)
+                  variableValues (parentFuel + 1) targetParent
                   (projectionRootResolverValue
                     (.object targetParent FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := targetParent
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -4218,13 +4175,11 @@ theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_sideRuntimeProbe_of_f
                       rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments
                     rightArguments)
-                  variableValues (parentFuel + 1)
+                  variableValues (parentFuel + 1) targetParent
                   (projectionRootResolverValue
                     (.object targetParent (none : Option FieldPairProbeTag)))
                   responseName
                   [{
-                    parentType := targetParent
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -4394,13 +4349,11 @@ theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_runtimeProbe_of_field
                       rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments
                     rightArguments)
-                  variableValues (parentFuel + 1)
+                  variableValues (parentFuel + 1) targetParent
                   (projectionRootResolverValue
                     (.object targetParent (none : Option FieldPairProbeTag)))
                   responseName
                   [{
-                    parentType := targetParent
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -4489,29 +4442,29 @@ mutual
       (leftArguments rightArguments : Execution.CoercedArguments)
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
-      : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
+      : ∀ (fuel : Nat) (parentType runtimeType : Name) (tag : FieldPairProbeTag)
           (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues fuel (.object runtimeType (some tag)) fields
+            variableValues fuel parentType (.object runtimeType (some tag)) fields
           = Execution.executeCollectedFields schema
               (fieldPairProbeResolvers schema childRootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
-              variableValues fuel (.object runtimeType (some tag)) fields
-    | fuel, runtimeType, tag, [] => by
+              variableValues fuel parentType (.object runtimeType (some tag)) fields
+    | fuel, parentType, runtimeType, tag, [] => by
         simp [Execution.executeCollectedFields]
-    | fuel, runtimeType, tag, (responseName, fields) :: rest => by
+    | fuel, parentType, runtimeType, tag, (responseName, fields) :: rest => by
         simp [Execution.executeCollectedFields,
           executeField_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
             schema childRootSelectionSet targetParent leftField rightField
             leftArguments rightArguments leftRuntime rightRuntime
-            variableValues fuel runtimeType tag responseName fields,
+            variableValues fuel parentType runtimeType tag responseName fields,
           executeCollectedFields_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
             schema childRootSelectionSet targetParent leftField rightField
             leftArguments rightArguments leftRuntime rightRuntime
-            variableValues fuel runtimeType tag rest]
+            variableValues fuel parentType runtimeType tag rest]
 
   theorem executeField_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
       (schema : Schema) (childRootSelectionSet : List Selection)
@@ -4519,44 +4472,44 @@ mutual
       (leftArguments rightArguments : Execution.CoercedArguments)
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
-      : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
+      : ∀ (fuel : Nat) (parentType runtimeType : Name) (tag : FieldPairProbeTag)
           (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
               targetParent leftField rightField leftArguments rightArguments
               leftRuntime rightRuntime)
-            variableValues fuel (.object runtimeType (some tag)) responseName
+            variableValues fuel parentType (.object runtimeType (some tag)) responseName
             fields
           = Execution.executeField schema
               (fieldPairProbeResolvers schema childRootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
-              variableValues fuel (.object runtimeType (some tag)) responseName
+              variableValues fuel parentType (.object runtimeType (some tag)) responseName
               fields
-    | fuel, runtimeType, tag, responseName, [] => by
+    | fuel, parentType, runtimeType, tag, responseName, [] => by
         simp [Execution.executeField]
-    | 0, runtimeType, tag, responseName, field :: fields => by
+    | 0, parentType, runtimeType, tag, responseName, field :: fields => by
         simp [Execution.executeField]
-    | fuel + 1, runtimeType, tag, responseName, field :: fields => by
+    | fuel + 1, parentType, runtimeType, tag, responseName, field :: fields => by
         cases hlookup :
-            schema.lookupField field.parentType field.fieldName with
+            schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, hlookup, fieldPairProbeResolvers]
         | some fieldDefinition =>
             have hruntimeResolve :=
               fieldPairRuntimeProbeResolvers_tagged_object schema
                 childRootSelectionSet targetParent leftField rightField
-                field.parentType field.fieldName runtimeType leftArguments
+                parentType field.fieldName runtimeType leftArguments
                 rightArguments
                 (Execution.coercedArgumentsForField schema variableValues
-                  field.parentType field.fieldName field.arguments)
+                  parentType field.fieldName field.arguments)
                 leftRuntime rightRuntime tag
                 fieldDefinition hlookup
             have hprobeResolve :=
               fieldPairProbeResolvers_tagged_object schema childRootSelectionSet
-                targetParent leftField rightField field.parentType
+                targetParent leftField rightField parentType
                 field.fieldName runtimeType leftArguments rightArguments
                 (Execution.coercedArgumentsForField schema variableValues
-                  field.parentType field.fieldName field.arguments)
+                  parentType field.fieldName field.arguments)
                 tag fieldDefinition hlookup
             cases hcoercionResult :
                 Execution.coerceArgumentValues schema variableValues
@@ -4567,10 +4520,10 @@ mutual
             | success coercedArguments =>
                 have hcoercedArguments :
                     Execution.coercedArgumentsForField schema variableValues
-                        field.parentType field.fieldName field.arguments
+                        parentType field.fieldName field.arguments
                       = coercedArguments :=
                   Execution.coercedArgumentsForField_eq_of_success schema
-                    variableValues field.parentType field.fieldName
+                    variableValues parentType field.fieldName
                     field.arguments fieldDefinition coercedArguments hlookup
                     hcoercionResult
                 rw [hcoercedArguments] at hruntimeResolve hprobeResolve
@@ -4580,7 +4533,7 @@ mutual
                     schema childRootSelectionSet targetParent leftField
                     rightField leftArguments rightArguments leftRuntime
                     rightRuntime variableValues fuel fieldDefinition.outputType
-                    (field :: fields) field.parentType field.fieldName
+                    (field :: fields) parentType field.fieldName
                     coercedArguments tag]
 
   theorem completeValue_fieldPairRuntimeProbe_resolverValue_eq_fieldPairProbe
@@ -4637,7 +4590,7 @@ mutual
                 executeCollectedFields_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
                   schema childRootSelectionSet targetParent leftField
                   rightField leftArguments rightArguments leftRuntime
-                  rightRuntime variableValues fuel typeName tag]
+                  rightRuntime variableValues fuel typeName typeName tag]
             · have hincludeFalse :
                   schema.typeIncludesObjectBool typeName typeName = false := by
                 cases h : schema.typeIncludesObjectBool typeName typeName
@@ -4661,7 +4614,7 @@ mutual
                     executeCollectedFields_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
                       schema childRootSelectionSet targetParent leftField
                       rightField leftArguments rightArguments leftRuntime
-                      rightRuntime variableValues fuel typeName tag]
+                      rightRuntime variableValues fuel typeName typeName tag]
                 · have hincludeFalse :
                       schema.typeIncludesObjectBool typeName typeName =
                         false := by
@@ -4678,7 +4631,7 @@ mutual
                     executeCollectedFields_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
                       schema childRootSelectionSet targetParent leftField
                       rightField leftArguments rightArguments leftRuntime
-                      rightRuntime variableValues fuel runtimeType tag]
+                      rightRuntime variableValues fuel runtimeType runtimeType tag]
                 · have hincludeFalse :
                       schema.typeIncludesObjectBool typeName runtimeType =
                         false := by
@@ -4722,7 +4675,7 @@ theorem executeSelectionSetAsResponse_fieldPairRuntimeProbe_tagged_eq_fieldPairP
     executeCollectedFields_fieldPairRuntimeProbe_tagged_eq_fieldPairProbe
       schema childRootSelectionSet targetParent leftField rightField
       leftArguments rightArguments leftRuntime rightRuntime variableValues
-      fuel runtimeType tag
+      fuel parentType runtimeType tag
       (Execution.collectFields schema variableValues parentType
         (.object runtimeType (some tag)) selectionSet)]
 
@@ -4734,32 +4687,32 @@ mutual
       (leftArguments rightArguments : Execution.CoercedArguments)
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
-      : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
+      : ∀ (fuel : Nat) (parentType runtimeType : Name) (tag : FieldPairProbeTag)
           (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (fieldPairSideRuntimeProbeResolvers schema leftChildRootSelectionSet
               rightChildRootSelectionSet targetParent leftField rightField
               leftArguments rightArguments leftRuntime rightRuntime)
-            variableValues fuel (.object runtimeType (some tag)) fields
+            variableValues fuel parentType (.object runtimeType (some tag)) fields
           = Execution.executeCollectedFields schema
               (fieldPairProbeResolvers schema
                 (fieldPairSideRuntimeProbeRoot leftChildRootSelectionSet
                   rightChildRootSelectionSet tag)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues fuel (.object runtimeType (some tag)) fields
-    | fuel, runtimeType, tag, [] => by
+              variableValues fuel parentType (.object runtimeType (some tag)) fields
+    | fuel, parentType, runtimeType, tag, [] => by
         simp [Execution.executeCollectedFields]
-    | fuel, runtimeType, tag, (responseName, fields) :: rest => by
+    | fuel, parentType, runtimeType, tag, (responseName, fields) :: rest => by
         simp [Execution.executeCollectedFields,
           executeField_fieldPairSideRuntimeProbe_tagged_eq_fieldPairProbe
             schema leftChildRootSelectionSet rightChildRootSelectionSet
             targetParent leftField rightField leftArguments rightArguments
-            leftRuntime rightRuntime variableValues fuel runtimeType tag
+            leftRuntime rightRuntime variableValues fuel parentType runtimeType tag
             responseName fields,
           executeCollectedFields_fieldPairSideRuntimeProbe_tagged_eq_fieldPairProbe
             schema leftChildRootSelectionSet rightChildRootSelectionSet
             targetParent leftField rightField leftArguments rightArguments
-            leftRuntime rightRuntime variableValues fuel runtimeType tag rest]
+            leftRuntime rightRuntime variableValues fuel parentType runtimeType tag rest]
 
   theorem executeField_fieldPairSideRuntimeProbe_tagged_eq_fieldPairProbe
       (schema : Schema)
@@ -4768,48 +4721,48 @@ mutual
       (leftArguments rightArguments : Execution.CoercedArguments)
       (leftRuntime rightRuntime : Name)
       (variableValues : Execution.VariableValues)
-      : ∀ (fuel : Nat) (runtimeType : Name) (tag : FieldPairProbeTag)
+      : ∀ (fuel : Nat) (parentType runtimeType : Name) (tag : FieldPairProbeTag)
           (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (fieldPairSideRuntimeProbeResolvers schema leftChildRootSelectionSet
               rightChildRootSelectionSet targetParent leftField rightField
               leftArguments rightArguments leftRuntime rightRuntime)
-            variableValues fuel (.object runtimeType (some tag)) responseName
+            variableValues fuel parentType (.object runtimeType (some tag)) responseName
             fields
           = Execution.executeField schema
               (fieldPairProbeResolvers schema
                 (fieldPairSideRuntimeProbeRoot leftChildRootSelectionSet
                   rightChildRootSelectionSet tag)
                 targetParent leftField rightField leftArguments rightArguments)
-              variableValues fuel (.object runtimeType (some tag)) responseName
+              variableValues fuel parentType (.object runtimeType (some tag)) responseName
               fields
-    | fuel, runtimeType, tag, responseName, [] => by
+    | fuel, parentType, runtimeType, tag, responseName, [] => by
         simp [Execution.executeField]
-    | 0, runtimeType, tag, responseName, field :: fields => by
+    | 0, parentType, runtimeType, tag, responseName, field :: fields => by
         simp [Execution.executeField]
-    | fuel + 1, runtimeType, tag, responseName, field :: fields => by
+    | fuel + 1, parentType, runtimeType, tag, responseName, field :: fields => by
         cases hlookup :
-            schema.lookupField field.parentType field.fieldName with
+            schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, hlookup, fieldPairProbeResolvers]
         | some fieldDefinition =>
             have hsideResolve :=
               fieldPairSideRuntimeProbeResolvers_tagged_object schema
                 leftChildRootSelectionSet rightChildRootSelectionSet
-                targetParent leftField rightField field.parentType
+                targetParent leftField rightField parentType
                 field.fieldName runtimeType leftArguments rightArguments
                 (Execution.coercedArgumentsForField schema variableValues
-                  field.parentType field.fieldName field.arguments)
+                  parentType field.fieldName field.arguments)
                 leftRuntime rightRuntime tag fieldDefinition
                 hlookup
             have hprobeResolve :=
               fieldPairProbeResolvers_tagged_object schema
                 (fieldPairSideRuntimeProbeRoot leftChildRootSelectionSet
                   rightChildRootSelectionSet tag)
-                targetParent leftField rightField field.parentType
+                targetParent leftField rightField parentType
                 field.fieldName runtimeType leftArguments rightArguments
                 (Execution.coercedArgumentsForField schema variableValues
-                  field.parentType field.fieldName field.arguments)
+                  parentType field.fieldName field.arguments)
                 tag fieldDefinition hlookup
             cases hcoercionResult :
                 Execution.coerceArgumentValues schema variableValues
@@ -4820,10 +4773,10 @@ mutual
             | success coercedArguments =>
                 have hcoercedArguments :
                     Execution.coercedArgumentsForField schema variableValues
-                        field.parentType field.fieldName field.arguments
+                        parentType field.fieldName field.arguments
                       = coercedArguments :=
                   Execution.coercedArgumentsForField_eq_of_success schema
-                    variableValues field.parentType field.fieldName
+                    variableValues parentType field.fieldName
                     field.arguments fieldDefinition coercedArguments hlookup
                     hcoercionResult
                 rw [hcoercedArguments] at hsideResolve hprobeResolve
@@ -4834,7 +4787,7 @@ mutual
                     targetParent leftField rightField leftArguments rightArguments
                     leftRuntime rightRuntime variableValues fuel
                     fieldDefinition.outputType (field :: fields)
-                    field.parentType field.fieldName coercedArguments tag]
+                    parentType field.fieldName coercedArguments tag]
 
   theorem completeValue_fieldPairSideRuntimeProbe_resolverValue_eq_fieldPairProbe
       (schema : Schema)
@@ -4898,7 +4851,7 @@ mutual
                   schema leftChildRootSelectionSet
                   rightChildRootSelectionSet targetParent leftField
                   rightField leftArguments rightArguments leftRuntime
-                  rightRuntime variableValues fuel typeName tag]
+                  rightRuntime variableValues fuel typeName typeName tag]
             · have hincludeFalse :
                   schema.typeIncludesObjectBool typeName typeName = false := by
                 cases h : schema.typeIncludesObjectBool typeName typeName
@@ -4925,7 +4878,7 @@ mutual
                       schema leftChildRootSelectionSet
                       rightChildRootSelectionSet targetParent leftField
                       rightField leftArguments rightArguments leftRuntime
-                      rightRuntime variableValues fuel typeName tag]
+                      rightRuntime variableValues fuel typeName typeName tag]
                 · have hincludeFalse :
                       schema.typeIncludesObjectBool typeName typeName =
                         false := by
@@ -4943,7 +4896,7 @@ mutual
                       schema leftChildRootSelectionSet
                       rightChildRootSelectionSet targetParent leftField
                       rightField leftArguments rightArguments leftRuntime
-                      rightRuntime variableValues fuel runtimeType tag]
+                      rightRuntime variableValues fuel runtimeType runtimeType tag]
                 · have hincludeFalse :
                       schema.typeIncludesObjectBool typeName runtimeType =
                         false := by
@@ -4990,7 +4943,7 @@ theorem executeSelectionSetAsResponse_fieldPairSideRuntimeProbe_tagged_eq_fieldP
     executeCollectedFields_fieldPairSideRuntimeProbe_tagged_eq_fieldPairProbe
       schema leftChildRootSelectionSet rightChildRootSelectionSet
       targetParent leftField rightField leftArguments rightArguments
-      leftRuntime rightRuntime variableValues fuel runtimeType tag
+      leftRuntime rightRuntime variableValues fuel parentType runtimeType tag
       (Execution.collectFields schema variableValues parentType
         (.object runtimeType (some tag)) selectionSet)]
 

@@ -21,68 +21,65 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle : List Selection)
+    (responseName : Name) (first later : ExecutableField) (middle : List Selection)
     (firstResponse laterResponse : ResponseValue)
     (suffix : List (Name × ResponseValue))
-    (hsameResponse : later.responseName = first.responseName)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
     (hfirstResponse
       : firstResponse
-        = executeField schema resolvers variableValues completionDepth source
+        = executeField schema resolvers variableValues completionDepth parentType source
             none
-            (executableField parentType first.responseName first.fieldName
-              first.arguments first.selectionSet))
+            (executableField first.fieldName first.arguments first.selectionSet))
     (hlaterResponse
       : laterResponse
-        = executeField schema resolvers variableValues completionDepth source
+        = executeField schema resolvers variableValues completionDepth parentType source
             (some firstResponse)
-            (executableField parentType later.responseName later.fieldName
-              later.arguments later.selectionSet))
+            (executableField later.fieldName later.arguments later.selectionSet))
     (hmiddleEmpty
       : (visitSubfields schema resolvers variableValues (completionDepth + 1)
           parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source middle)))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source middle))
           (.object [])).fst
         = .object suffix)
     (hmiddleFlatBase
       : VisitSubfieldsFlatCollects schema resolvers variableValues
           (completionDepth + 1) parentType source middle
-          (.object [(first.responseName, firstResponse)]))
+          (.object [(responseName, firstResponse)]))
     : VisitSubfieldsFlatCollects schema resolvers variableValues (completionDepth + 1)
         parentType source
-        (executableFieldSelections [first] ++ middle ++ executableFieldSelections [later])
+        (executableFieldSelections responseName [first]
+          ++ middle
+          ++ executableFieldSelections responseName [later])
         (.object []) := by
   let firstField :=
-    executableField parentType first.responseName first.fieldName
+    executableField first.fieldName
       first.arguments first.selectionSet
   let laterField :=
-    executableField parentType later.responseName later.fieldName
+    executableField later.fieldName
       later.arguments later.selectionSet
   let flatMiddle :=
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            middle))
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+            middle)
   let firstStatus :=
       resultStatus
-        (executeField schema resolvers variableValues completionDepth source
+        (executeField schema resolvers variableValues completionDepth parentType source
           none firstField)
   let middleStatus :=
     (visitSubfields schema resolvers variableValues (completionDepth + 1)
       parentType source flatMiddle (.object [])).snd
   let laterVisitResult : Result ResponseValue :=
-      executeFieldVisitResult schema resolvers variableValues completionDepth
-        source (some firstResponse) laterField
+      executeFieldVisitResult schema resolvers variableValues completionDepth parentType source (some firstResponse) laterField
   let laterStatus :=
     match firstResponse with
     | .null => visitOk
@@ -90,38 +87,38 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
   have hfirstResponse' :
         firstResponse =
           Result.getD default
-            (executeField schema resolvers variableValues completionDepth source
+            (executeField schema resolvers variableValues completionDepth parentType source
               none firstField) := by
     simpa [firstField] using hfirstResponse
   have hfirstValue :
         resultValueOrNull
-          (executeField schema resolvers variableValues completionDepth source
+          (executeField schema resolvers variableValues completionDepth parentType source
             none firstField) =
       firstResponse := by
     rw [hfirstResponse']
     cases
-          executeField schema resolvers variableValues completionDepth source
+          executeField schema resolvers variableValues completionDepth parentType source
             none firstField <;> rfl
   have hlaterResponse' :
         laterResponse =
           Result.getD default
-            (executeField schema resolvers variableValues completionDepth source
+            (executeField schema resolvers variableValues completionDepth parentType source
               (some firstResponse) laterField) := by
     simpa [laterField] using hlaterResponse
   have hlaterValue :
         resultValueOrNull
-          (executeField schema resolvers variableValues completionDepth source
+          (executeField schema resolvers variableValues completionDepth parentType source
             (some firstResponse) laterField) =
       laterResponse := by
     rw [hlaterResponse']
     cases
-          executeField schema resolvers variableValues completionDepth source
+          executeField schema resolvers variableValues completionDepth parentType source
             (some firstResponse) laterField <;> rfl
   have hlaterValueSameResponse :
         resultValueOrNull
-          (executeField schema resolvers variableValues completionDepth source
+          (executeField schema resolvers variableValues completionDepth parentType source
             (some firstResponse)
-            (executableField parentType first.responseName later.fieldName
+            (executableField later.fieldName
               later.arguments later.selectionSet)) =
          laterResponse := by
     simpa [laterField, hsameResponse] using hlaterValue
@@ -129,13 +126,13 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
       resultValueOrNull laterVisitResult = laterResponse := by
     dsimp [laterVisitResult]
     exact (resultValueOrNull_fieldVisitResult_eq_executeField schema resolvers
-            variableValues completionDepth source (some firstResponse)
+      variableValues completionDepth parentType source (some firstResponse)
             laterField).trans
             hlaterValue
   have hfirstVisit :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [first]) (.object []) =
-      (.object [(first.responseName, firstResponse)], firstStatus) := by
+        parentType source (executableFieldSelections responseName [first]) (.object []) =
+      (.object [(responseName, firstResponse)], firstStatus) := by
     rw [visitSubfields_executableFieldSelections_singleton_succ schema
       resolvers variableValues completionDepth parentType source first]
     simp [firstField, firstStatus, hfirstValue]
@@ -145,80 +142,73 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
       (.object suffix, middleStatus) := by
     exact Prod.ext (by simpa [flatMiddle] using hmiddleEmpty) rfl
   have hsuffixFresh :
-      first.responseName ∉ suffix.map Prod.fst := by
+      responseName ∉ suffix.map Prod.fst := by
     intro hmem
     have hkey :
-        first.responseName ∈
+        responseName ∈
           (GraphQL.Execution.collectFields schema variableValues parentType source
             middle).map Prod.fst :=
       visitSubfields_flattened_empty_key_mem_collectFields schema resolvers
         variableValues (completionDepth + 1) parentType source middle suffix
-        first.responseName
+        responseName
         (by simpa [flatMiddle] using hmiddleEmpty)
         hmem
     exact hnotMiddle hkey
   have hmiddleBaseFlat :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source middle (.object [(first.responseName, firstResponse)]) =
-      (.object ([(first.responseName, firstResponse)] ++ suffix),
+        parentType source middle (.object [(responseName, firstResponse)]) =
+      (.object ([(responseName, firstResponse)] ++ suffix),
         middleStatus) := by
     have hflatPrefix :
         visitSubfields schema resolvers variableValues (completionDepth + 1)
           parentType source flatMiddle
-          (.object ([(first.responseName, firstResponse)] ++ [])) =
-        (.object ([(first.responseName, firstResponse)] ++ suffix),
+          (.object ([(responseName, firstResponse)] ++ [])) =
+        (.object ([(responseName, firstResponse)] ++ suffix),
           middleStatus) := by
-      apply visitSubfields_executableFieldSelections_prefix_fresh schema
-        resolvers variableValues (completionDepth + 1) parentType source
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))
-        [(first.responseName, firstResponse)] [] suffix middleStatus
-      · intro field hmem hname
-        have hfieldName :
-            field.responseName ∈
+      apply visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source flatMiddle
+        [(responseName, firstResponse)] [] suffix middleStatus
+      · intro key hmem hname
+        rw [show flatMiddle =
+            collectedExecutableSelections
               (GraphQL.Execution.collectFields schema variableValues parentType
-                source middle).map Prod.fst :=
-          collectedExecutableFields_responseName_mem
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source middle)
-            (collectFields_responseName schema variableValues parentType source
-              middle)
-            field hmem
-        have hfieldEq : field.responseName = first.responseName := by
+                source middle) by rfl] at hmem
+        rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+          at hmem
+        have hfieldEq : key = responseName := by
           simpa using hname
-        exact hnotMiddle (by simpa [hfieldEq] using hfieldName)
+        exact hnotMiddle (by simpa [hfieldEq] using hmem)
       · simpa [flatMiddle] using hmiddleEmptyPair
     have hflatBase :
         visitSubfields schema resolvers variableValues (completionDepth + 1)
           parentType source flatMiddle
-          (.object [(first.responseName, firstResponse)]) =
-        (.object ([(first.responseName, firstResponse)] ++ suffix),
+          (.object [(responseName, firstResponse)]) =
+        (.object ([(responseName, firstResponse)] ++ suffix),
           middleStatus) := by
       simpa using hflatPrefix
     simpa [VisitSubfieldsFlatCollects, flatMiddle] using
       hmiddleFlatBase.trans hflatBase
   have hlaterVisitAfterMiddle :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [later])
-        (.object ([(first.responseName, firstResponse)] ++ suffix)) =
+        parentType source (executableFieldSelections responseName [later])
+        (.object ([(responseName, firstResponse)] ++ suffix)) =
       (.object
-        (mergeResponseField first.responseName laterResponse
-          ([(first.responseName, firstResponse)] ++ suffix)),
+        (mergeResponseField responseName laterResponse
+          ([(responseName, firstResponse)] ++ suffix)),
         laterStatus) := by
     have hlookup :
-        responseObjectField? later.responseName
-          (.object ([(first.responseName, firstResponse)] ++ suffix)) =
+        responseObjectField? responseName
+          (.object ([(responseName, firstResponse)] ++ suffix)) =
         some firstResponse := by
       apply responseObjectField?_object_append_of_some_left
       simp [responseObjectField?, lookupResponseField?, hsameResponse]
-    rw [show executableFieldSelections [later] =
-        [executableFieldSelection later] by rfl]
+    rw [show executableFieldSelections responseName [later] =
+        [executableFieldSelection responseName later] by rfl]
     simp only [visitSubfields, executableFieldSelection]
     rw [visitSelection_field_allowed_succ schema resolvers variableValues
-      completionDepth parentType source later.responseName later.fieldName
+      completionDepth parentType source responseName later.fieldName
       later.arguments [] later.selectionSet
-      (.object ([(first.responseName, firstResponse)] ++ suffix))
+      (.object ([(responseName, firstResponse)] ++ suffix))
       (selectionDirectivesAllowBool_empty variableValues)]
     rw [hlookup]
     cases firstResponse with
@@ -230,16 +220,14 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         have hlaterDataNull :
             Result.getD default
               (executeField schema resolvers variableValues completionDepth
-                source (some .null)
-                (executableField parentType first.responseName
-                  later.fieldName later.arguments later.selectionSet)) =
+                parentType source (some .null)
+                (executableField later.fieldName later.arguments later.selectionSet)) =
             .null := by
           have hdata :
               Result.getD default
                 (executeField schema resolvers variableValues completionDepth
-                  source (some .null)
-                  (executableField parentType first.responseName
-                    later.fieldName later.arguments later.selectionSet)) =
+                  parentType source (some .null)
+                  (executableField later.fieldName later.arguments later.selectionSet)) =
               laterResponse := by
             symm
             simpa [laterField, hsameResponse] using hlaterResponse
@@ -250,28 +238,27 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.scalar value))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.scalar value))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              ((first.responseName, .scalar value) :: suffix) =
-            mergeResponseField first.responseName laterResponse
-              ((first.responseName, .scalar value) :: suffix) ∧
+              ((responseName, .scalar value) :: suffix) =
+            mergeResponseField responseName laterResponse
+              ((responseName, .scalar value) :: suffix) ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.scalar value))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.scalar value))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.scalar value))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.scalar value))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
@@ -281,28 +268,27 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.object objectFields))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.object objectFields))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              ((first.responseName, .object objectFields) :: suffix) =
-            mergeResponseField first.responseName laterResponse
-              ((first.responseName, .object objectFields) :: suffix) ∧
+              ((responseName, .object objectFields) :: suffix) =
+            mergeResponseField responseName laterResponse
+              ((responseName, .object objectFields) :: suffix) ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.object objectFields))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.object objectFields))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.object objectFields))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.object objectFields))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
@@ -312,28 +298,27 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.list values))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.list values))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              ((first.responseName, .list values) :: suffix) =
-            mergeResponseField first.responseName laterResponse
-              ((first.responseName, .list values) :: suffix) ∧
+              ((responseName, .list values) :: suffix) =
+            mergeResponseField responseName laterResponse
+              ((responseName, .list values) :: suffix) ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.list values))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.list values))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.list values))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.list values))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
@@ -341,75 +326,68 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
   have hmergedMiddleFlat :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatMiddle
-        (mergeResponseFieldIntoObject first.responseName laterResponse
-          (.object [(first.responseName, firstResponse)])) =
+        (mergeResponseFieldIntoObject responseName laterResponse
+          (.object [(responseName, firstResponse)])) =
       (.object
-        (mergeResponseField first.responseName laterResponse
-          [(first.responseName, firstResponse)] ++ suffix),
+        (mergeResponseField responseName laterResponse
+          [(responseName, firstResponse)] ++ suffix),
         middleStatus) := by
     have hflatPrefix :
         visitSubfields schema resolvers variableValues (completionDepth + 1)
           parentType source flatMiddle
           (.object
-            (mergeResponseField first.responseName laterResponse
-              [(first.responseName, firstResponse)] ++ [])) =
+            (mergeResponseField responseName laterResponse
+              [(responseName, firstResponse)] ++ [])) =
         (.object
-          (mergeResponseField first.responseName laterResponse
-            [(first.responseName, firstResponse)] ++ suffix),
+          (mergeResponseField responseName laterResponse
+            [(responseName, firstResponse)] ++ suffix),
           middleStatus) := by
-      apply visitSubfields_executableFieldSelections_prefix_fresh schema
-        resolvers variableValues (completionDepth + 1) parentType source
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))
-        (mergeResponseField first.responseName laterResponse
-          [(first.responseName, firstResponse)])
+      apply visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source flatMiddle
+        (mergeResponseField responseName laterResponse
+          [(responseName, firstResponse)])
         [] suffix middleStatus
-      · intro field hmem hname
-        have hfieldName :
-            field.responseName ∈
+      · intro key hmem hname
+        rw [show flatMiddle =
+            collectedExecutableSelections
               (GraphQL.Execution.collectFields schema variableValues parentType
-                source middle).map Prod.fst :=
-          collectedExecutableFields_responseName_mem
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source middle)
-            (collectFields_responseName schema variableValues parentType source
-              middle)
-            field hmem
-        have hfieldEq : field.responseName = first.responseName := by
+                source middle) by rfl] at hmem
+        rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+          at hmem
+        have hfieldEq : key = responseName := by
           simpa [mergeResponseField, mergeResponse] using hname
-        exact hnotMiddle (by simpa [hfieldEq] using hfieldName)
+        exact hnotMiddle (by simpa [hfieldEq] using hmem)
       · simpa [flatMiddle] using hmiddleEmptyPair
     simpa [mergeResponseFieldIntoObject] using hflatPrefix
   have hraw :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source
-        (executableFieldSelections [first] ++ middle ++
-          executableFieldSelections [later]) (.object []) =
+        (executableFieldSelections responseName [first] ++ middle ++
+          executableFieldSelections responseName [later]) (.object []) =
       (.object
-        (mergeResponseField first.responseName laterResponse
-          ([(first.responseName, firstResponse)] ++ suffix)),
+        (mergeResponseField responseName laterResponse
+          ([(responseName, firstResponse)] ++ suffix)),
         combineVisitStatus firstStatus
           (combineVisitStatus middleStatus laterStatus)) := by
-    rw [show executableFieldSelections [first] ++ middle ++
-        executableFieldSelections [later] =
-      executableFieldSelections [first] ++
-        (middle ++ executableFieldSelections [later]) by
+    rw [show executableFieldSelections responseName [first] ++ middle ++
+        executableFieldSelections responseName [later] =
+      executableFieldSelections responseName [first] ++
+        (middle ++ executableFieldSelections responseName [later]) by
       simp [List.append_assoc]]
     rw [visitSubfields_append_equivalence]
     rw [hfirstVisit]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (middle ++ executableFieldSelections [later])
-                (.object [(first.responseName, firstResponse)])
+                parentType source (middle ++ executableFieldSelections responseName [later])
+                (.object [(responseName, firstResponse)])
             (rightResult.fst, combineVisitStatus firstStatus rightResult.snd))
             = _
     rw [visitSubfields_append_equivalence]
     rw [hmiddleBaseFlat]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (executableFieldSelections [later])
-                (.object ([(first.responseName, firstResponse)] ++ suffix))
+                parentType source (executableFieldSelections responseName [later])
+                (.object ([(responseName, firstResponse)] ++ suffix))
             (
               rightResult.fst,
               combineVisitStatus firstStatus
@@ -418,36 +396,35 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
             = _
     rw [hlaterVisitAfterMiddle]
   have hnormalizedBlock :
-      executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
+      collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
               source
-              (executableFieldSelections [first] ++ middle ++
-                executableFieldSelections [later]))) =
-      executableFieldSelections [first, later] ++ flatMiddle := by
+              (executableFieldSelections responseName [first] ++ middle ++
+                executableFieldSelections responseName [later])) =
+      executableFieldSelections responseName [first, later] ++ flatMiddle := by
     simpa [flatMiddle] using
       executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
-        schema variableValues parentType source first later middle
-        hsameResponse hnotMiddle
+        schema variableValues parentType source responseName first later middle
+        hnotMiddle
   have hlaterVisitAfterFirst :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [later])
-        (.object [(first.responseName, firstResponse)]) =
-      (mergeResponseFieldIntoObject first.responseName laterResponse
-        (.object [(first.responseName, firstResponse)]),
+        parentType source (executableFieldSelections responseName [later])
+        (.object [(responseName, firstResponse)]) =
+      (mergeResponseFieldIntoObject responseName laterResponse
+        (.object [(responseName, firstResponse)]),
         laterStatus) := by
     have hlookup :
-        responseObjectField? later.responseName
-          (.object [(first.responseName, firstResponse)]) =
+        responseObjectField? responseName
+          (.object [(responseName, firstResponse)]) =
         some firstResponse := by
       simp [responseObjectField?, lookupResponseField?, hsameResponse]
-    rw [show executableFieldSelections [later] =
-        [executableFieldSelection later] by rfl]
+    rw [show executableFieldSelections responseName [later] =
+        [executableFieldSelection responseName later] by rfl]
     simp only [visitSubfields, executableFieldSelection]
     rw [visitSelection_field_allowed_succ schema resolvers variableValues
-      completionDepth parentType source later.responseName later.fieldName
+      completionDepth parentType source responseName later.fieldName
       later.arguments [] later.selectionSet
-      (.object [(first.responseName, firstResponse)])
+      (.object [(responseName, firstResponse)])
       (selectionDirectivesAllowBool_empty variableValues)]
     rw [hlookup]
     cases firstResponse with
@@ -459,16 +436,14 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         have hlaterDataNull :
             Result.getD default
               (executeField schema resolvers variableValues completionDepth
-                source (some .null)
-                (executableField parentType first.responseName
-                  later.fieldName later.arguments later.selectionSet)) =
+                parentType source (some .null)
+                (executableField later.fieldName later.arguments later.selectionSet)) =
             .null := by
           have hdata :
               Result.getD default
                 (executeField schema resolvers variableValues completionDepth
-                  source (some .null)
-                  (executableField parentType first.responseName
-                    later.fieldName later.arguments later.selectionSet)) =
+                  parentType source (some .null)
+                  (executableField later.fieldName later.arguments later.selectionSet)) =
               laterResponse := by
             symm
             simpa [laterField, hsameResponse] using hlaterResponse
@@ -479,28 +454,27 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.scalar value))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.scalar value))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              [(first.responseName, .scalar value)] =
-            mergeResponseField first.responseName laterResponse
-              [(first.responseName, .scalar value)] ∧
+              [(responseName, .scalar value)] =
+            mergeResponseField responseName laterResponse
+              [(responseName, .scalar value)] ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.scalar value))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.scalar value))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.scalar value))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.scalar value))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
@@ -510,28 +484,27 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.object objectFields))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.object objectFields))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              [(first.responseName, .object objectFields)] =
-            mergeResponseField first.responseName laterResponse
-              [(first.responseName, .object objectFields)] ∧
+              [(responseName, .object objectFields)] =
+            mergeResponseField responseName laterResponse
+              [(responseName, .object objectFields)] ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.object objectFields))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.object objectFields))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.object objectFields))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.object objectFields))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
@@ -541,58 +514,57 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           laterStatus]
         rw [hsameResponse]
         change
-          mergeResponseField first.responseName
+          mergeResponseField responseName
               (resultValueOrNull
                 (executeFieldVisitResult schema resolvers variableValues
-                  completionDepth source (some (.list values))
-                  (executableField parentType first.responseName later.fieldName
+                  completionDepth parentType source (some (.list values))
+                  (executableField later.fieldName
                     later.arguments later.selectionSet)))
-              [(first.responseName, .list values)] =
-            mergeResponseField first.responseName laterResponse
-              [(first.responseName, .list values)] ∧
+              [(responseName, .list values)] =
+            mergeResponseField responseName laterResponse
+              [(responseName, .list values)] ∧
           resultStatus
               (executeFieldVisitResult schema resolvers variableValues
-                completionDepth source (some (.list values))
-                (executableField parentType first.responseName later.fieldName
+                completionDepth parentType source (some (.list values))
+                (executableField later.fieldName
                   later.arguments later.selectionSet)) =
             laterStatus
         constructor
         · rw [show
               resultValueOrNull
                   (executeFieldVisitResult schema resolvers variableValues
-                    completionDepth source (some (.list values))
-                    (executableField parentType first.responseName
-                      later.fieldName later.arguments later.selectionSet)) =
+                    completionDepth parentType source (some (.list values))
+                    (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
                 simpa [laterVisitResult, laterField, hsameResponse] using
                   hlaterVisitValue]
         · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
   have hfirstLater :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [first, later])
+        parentType source (executableFieldSelections responseName [first, later])
         (.object []) =
-      (mergeResponseFieldIntoObject first.responseName laterResponse
-        (.object [(first.responseName, firstResponse)]),
+      (mergeResponseFieldIntoObject responseName laterResponse
+        (.object [(responseName, firstResponse)]),
         combineVisitStatus firstStatus laterStatus) := by
-    rw [show executableFieldSelections [first, later] =
-        executableFieldSelections [first] ++ executableFieldSelections [later] by
+    rw [show executableFieldSelections responseName [first, later] =
+        executableFieldSelections responseName [first] ++ executableFieldSelections responseName [later] by
       rfl]
     rw [visitSubfields_append_equivalence]
     rw [hfirstVisit]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (executableFieldSelections [later])
-                (.object [(first.responseName, firstResponse)])
+                parentType source (executableFieldSelections responseName [later])
+                (.object [(responseName, firstResponse)])
             (rightResult.fst, combineVisitStatus firstStatus rightResult.snd))
             = _
     rw [hlaterVisitAfterFirst]
   have hnormalized :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [first, later] ++ flatMiddle)
+        parentType source (executableFieldSelections responseName [first, later] ++ flatMiddle)
         (.object []) =
       (.object
-        (mergeResponseField first.responseName laterResponse
-          [(first.responseName, firstResponse)] ++ suffix),
+        (mergeResponseField responseName laterResponse
+          [(responseName, firstResponse)] ++ suffix),
         combineVisitStatus (combineVisitStatus firstStatus laterStatus)
           middleStatus) := by
     rw [visitSubfields_append_equivalence]
@@ -600,8 +572,8 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
                 parentType source flatMiddle
-                (mergeResponseFieldIntoObject first.responseName laterResponse
-                  (.object [(first.responseName, firstResponse)]))
+                (mergeResponseFieldIntoObject responseName laterResponse
+                  (.object [(responseName, firstResponse)]))
             (
               rightResult.fst,
               combineVisitStatus (combineVisitStatus firstStatus laterStatus)
@@ -614,8 +586,8 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
   rw [hnormalizedBlock]
   rw [hnormalized]
   apply Prod.ext
-  · rw [mergeResponseField_append_of_mem_left first.responseName laterResponse
-      [(first.responseName, firstResponse)] suffix (by simp)]
+  · rw [mergeResponseField_append_of_mem_left responseName laterResponse
+      [(responseName, firstResponse)] suffix (by simp)]
   · rw [combineVisitStatus_assoc]
     rw [combineVisitStatus_comm middleStatus laterStatus]
 
@@ -624,13 +596,13 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (responseName : Name) (first later : ExecutableField) (middle : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
@@ -638,58 +610,50 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
       : ∃ suffix,
           (visitSubfields schema resolvers variableValues (completionDepth + 1)
             parentType source
-            (executableFieldSelections
-              (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source middle)))
+            (collectedExecutableSelections
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source middle))
             (.object [])).fst
           = .object suffix)
     (hmiddleFresh
-      : ∀ fields,
-          (∀ field,
-            field
-              ∈ collectedExecutableFields
-                  (GraphQL.Execution.collectFields schema variableValues parentType
-                    source middle)
-            -> field.responseName ∉ fields.map Prod.fst)
-          -> VisitSubfieldsFlatCollects schema resolvers variableValues
-              (completionDepth + 1) parentType source middle (.object fields))
+      : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
+          (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollects schema resolvers variableValues (completionDepth + 1)
         parentType source
-        (executableFieldSelections [first] ++ middle ++ executableFieldSelections [later])
+        (executableFieldSelections responseName [first]
+          ++ middle
+          ++ executableFieldSelections responseName [later])
         (.object []) := by
   rcases hmiddleEmpty with ⟨suffix, hmiddleEmpty⟩
   let firstResponse : ResponseValue :=
-      executeField schema resolvers variableValues completionDepth source
+      executeField schema resolvers variableValues completionDepth parentType source
         none
-        (executableField parentType first.responseName first.fieldName
+        (executableField first.fieldName
           first.arguments first.selectionSet)
   let laterResponse : ResponseValue :=
-      executeField schema resolvers variableValues completionDepth source
+      executeField schema resolvers variableValues completionDepth parentType source
         (some firstResponse)
-        (executableField parentType later.responseName later.fieldName
+        (executableField later.fieldName
           later.arguments later.selectionSet)
   apply
     VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singleton
-      schema resolvers variableValues completionDepth parentType source first
+      schema resolvers variableValues completionDepth parentType source responseName first
       later middle firstResponse laterResponse suffix hsameResponse
       hlaterLookup hnotMiddle
   · rfl
   · rfl
   · exact hmiddleEmpty
   · apply hmiddleFresh
-    intro field hmem hname
+    intro entry hmem hname
     have hfieldName :
-        field.responseName ∈
+        entry.1 ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map Prod.fst :=
-      collectedExecutableFields_responseName_mem
+      collectedExecutableEntries_responseName_mem
         (GraphQL.Execution.collectFields schema variableValues parentType
           source middle)
-        (collectFields_responseName schema variableValues parentType source
-          middle)
-        field hmem
-    have hfieldEq : field.responseName = first.responseName := by
+        entry.1 entry.2 hmem
+    have hfieldEq : entry.1 = responseName := by
       simpa using hname
     exact hnotMiddle (by simpa [hfieldEq] using hfieldName)
 
@@ -698,13 +662,13 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (responseName : Name) (first later : ExecutableField) (middle : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
@@ -713,18 +677,19 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes
           (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollects schema resolvers variableValues (completionDepth + 1)
         parentType source
-        (executableFieldSelections [first] ++ middle ++ executableFieldSelections [later])
+        (executableFieldSelections responseName [first]
+          ++ middle
+          ++ executableFieldSelections responseName [later])
         (.object []) := by
   apply VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
-    schema resolvers variableValues completionDepth parentType source first
-    later middle hsameResponse hlaterLookup hnotMiddle
+    schema resolvers variableValues completionDepth parentType source responseName first
+      later middle hsameResponse hlaterLookup hnotMiddle
   · obtain ⟨suffix, hsuffix⟩ :=
       visitSubfields_preserves_object schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source middle)))
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+              source middle))
         []
     exact ⟨suffix, hsuffix⟩
   · exact hmiddle
@@ -734,13 +699,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (responseName : Name) (first later : ExecutableField) (middle : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
@@ -749,17 +714,30 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
           (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections [first]
+        (executableFieldSelections responseName [first]
           ++ middle
-          ++ executableFieldSelections [later]) := by
+          ++ executableFieldSelections responseName [later]) := by
   intro prefixFields hfresh
   let rawBlock :=
-    executableFieldSelections [first] ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName [first] ++ middle ++
+      executableFieldSelections responseName [later]
   let flatFields :=
-    collectedExecutableFields
+    collectedExecutableSelections
       (GraphQL.Execution.collectFields schema variableValues parentType source
         rawBlock)
+  have hrawKeyFresh :
+      ∀ key,
+        key ∈
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock).map Prod.fst ->
+          key ∉ prefixFields.map Prod.fst :=
+    collectedKeyFresh_of_collectedEntryFresh
+      (GraphQL.Execution.collectFields schema variableValues parentType source
+        rawBlock)
+      (collectFields_fieldsNonempty schema variableValues parentType source
+        rawBlock)
+      prefixFields
+      (by simpa [rawBlock] using hfresh)
   obtain ⟨resultFields, hresultFields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues
       (completionDepth + 1) parentType source rawBlock []
@@ -779,14 +757,15 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
       simpa using
         visitSubfields_prefix_fresh schema resolvers variableValues
           (completionDepth + 1) parentType source rawBlock prefixFields []
-          resultFields status hfresh hrawEmpty
+          resultFields status hrawKeyFresh hrawEmpty
   have hflatEmpty :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections flatFields) (.object []) =
+        parentType source flatFields (.object []) =
       (.object resultFields, status) := by
     have hflat :=
       VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes schema
-        resolvers variableValues completionDepth parentType source first later
+        resolvers variableValues completionDepth parentType source responseName first
+      later
         middle hsameResponse hlaterLookup hnotMiddle hmiddle
     unfold VisitSubfieldsFlatCollects at hflat
     dsimp [rawBlock, flatFields] at hflat
@@ -794,38 +773,30 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
     exact hrawEmpty
   have hflatPrefix :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections flatFields)
+        parentType source flatFields
         (.object prefixFields) =
       (.object (prefixFields ++ resultFields), status) :=
     by
       simpa using
-        visitSubfields_executableFieldSelections_prefix_fresh schema resolvers
-          variableValues (completionDepth + 1) parentType source flatFields
+        visitSubfields_prefix_fresh schema resolvers variableValues
+          (completionDepth + 1) parentType source flatFields
           prefixFields [] resultFields status
           (by
-            intro field hmem
-            exact hfresh field
-              (show
-                field ∈
-                  collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source
-                      (executableFieldSelections [first] ++ middle ++
-                        executableFieldSelections [later])) from
-                by
-                  change
-                    field ∈
-                      collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source rawBlock)
-                  exact hmem))
+            intro key hmem
+            rw [show flatFields =
+                collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source rawBlock) by rfl] at hmem
+            rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+              at hmem
+            exact hrawKeyFresh key hmem)
           hflatEmpty
   unfold VisitSubfieldsFlatCollects
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
       parentType source rawBlock (.object prefixFields) =
     visitSubfields schema resolvers variableValues (completionDepth + 1)
-      parentType source (executableFieldSelections flatFields)
+      parentType source flatFields
         (.object prefixFields)
   rw [hrawPrefix, hflatPrefix]
 
@@ -837,8 +808,8 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
     (responseName : Name) (prefixFields : List ExecutableField)
     (later : ExecutableField) (middle : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
+    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
+    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -852,19 +823,18 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
           (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollects schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections prefixFields
+        (executableFieldSelections responseName prefixFields
           ++ middle
-          ++ executableFieldSelections [later]) (.object []) := by
+          ++ executableFieldSelections responseName [later]) (.object []) := by
   let rawBlock :=
-    executableFieldSelections prefixFields ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName prefixFields ++ middle ++
+      executableFieldSelections responseName [later]
   let flatMiddle :=
-    executableFieldSelections
-      (collectedExecutableFields
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source middle))
+    collectedExecutableSelections
+      (GraphQL.Execution.collectFields schema variableValues parentType
+          source middle)
   let normalizedBlock :=
-    executableFieldSelections (prefixFields ++ [later]) ++ flatMiddle
+    executableFieldSelections responseName (prefixFields ++ [later]) ++ flatMiddle
   obtain ⟨middleSuffix, hmiddleSuffix⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues
       (completionDepth + 1) parentType source flatMiddle []
@@ -879,14 +849,14 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
   obtain ⟨prefixResult, hprefixFst, hprefixKey⟩ :=
     visitSubfields_executableFieldSelections_same_response_key_mem schema
       resolvers variableValues completionDepth parentType source responseName
-      prefixFields [] hprefixNonempty hprefixResponse
+      prefixFields [] hprefixNonempty
   let prefixStatus :=
     (visitSubfields schema resolvers variableValues (completionDepth + 1)
-      parentType source (executableFieldSelections prefixFields)
+      parentType source (executableFieldSelections responseName prefixFields)
       (.object [])).snd
   have hprefixVisit :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections prefixFields)
+        parentType source (executableFieldSelections responseName prefixFields)
         (.object []) =
       (.object prefixResult, prefixStatus) :=
     Prod.ext hprefixFst rfl
@@ -896,39 +866,53 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
     have hcollectKey :
         key ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
-            source (executableFieldSelections prefixFields)).map Prod.fst :=
+            source (executableFieldSelections responseName prefixFields)).map Prod.fst :=
       visitSubfields_object_empty_key_mem_collectFields schema resolvers
         variableValues (completionDepth + 1) parentType source
-        (executableFieldSelections prefixFields) prefixResult key hprefixFst
+        (executableFieldSelections responseName prefixFields) prefixResult key hprefixFst
         hkey
-    have hfieldKey :
-        key ∈ prefixFields.map (fun field => field.responseName) :=
-      (collectFields_executableFieldSelections_key_mem_global schema
-        variableValues parentType source prefixFields key).mp hcollectKey
-    rcases List.mem_map.mp hfieldKey with ⟨field, hfield, hfieldKeyEq⟩
-    rw [← hfieldKeyEq]
-    exact hprefixResponse field hfield
+    exact ((collectFields_executableFieldSelections_key_mem_global schema
+              variableValues parentType source responseName prefixFields key).mp
+            hcollectKey).2
   have hmiddleFreshPrefix :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source middle) ->
-        field.responseName ∉ prefixResult.map Prod.fst := by
-    intro field hmem hkey
+        entry.1 ∉ prefixResult.map Prod.fst := by
+    intro entry hmem hkey
     have hfieldCollectName :
-        field.responseName ∈
+        entry.1 ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map Prod.fst :=
-      collectedExecutableFields_responseName_mem
+      collectedExecutableEntries_responseName_mem
         (GraphQL.Execution.collectFields schema variableValues parentType
           source middle)
-        (collectFields_responseName schema variableValues parentType source
-          middle)
-        field hmem
-    have hfieldName : field.responseName = responseName :=
-      hprefixKeys field.responseName hkey
+        entry.1 entry.2 hmem
+    have hfieldName : entry.1 = responseName :=
+      hprefixKeys entry.1 hkey
     exact hnotMiddle (by simpa [hfieldName] using hfieldCollectName)
+  have hmiddleKeyFreshPrefix :
+      ∀ key,
+        key ∈
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source flatMiddle).map Prod.fst ->
+          key ∉ prefixResult.map Prod.fst := by
+    intro key hmem
+    rw [show flatMiddle =
+        collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle) by rfl] at hmem
+    rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+      at hmem
+    exact
+      collectedKeyFresh_of_collectedEntryFresh
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+          middle)
+        (collectFields_fieldsNonempty schema variableValues parentType source
+          middle)
+        prefixResult hmiddleFreshPrefix key hmem
   have hmiddlePrefix :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source middle (.object prefixResult) =
@@ -938,40 +922,38 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
           parentType source flatMiddle (.object prefixResult) =
         (.object (prefixResult ++ middleSuffix), middleStatus) := by
       simpa [flatMiddle] using
-        visitSubfields_executableFieldSelections_prefix_fresh schema resolvers
-          variableValues (completionDepth + 1) parentType source
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source middle))
-          prefixResult [] middleSuffix middleStatus hmiddleFreshPrefix
+        visitSubfields_prefix_fresh schema resolvers variableValues
+          (completionDepth + 1) parentType source flatMiddle
+          prefixResult [] middleSuffix middleStatus hmiddleKeyFreshPrefix
           (by simpa [flatMiddle] using hmiddleEmpty)
     have hrawFlat := hmiddle prefixResult hmiddleFreshPrefix
     unfold VisitSubfieldsFlatCollects at hrawFlat
     rw [hrawFlat]
     exact hflatPrefix
-  have hlaterMemPrefix : later.responseName ∈ prefixResult.map Prod.fst := by
-    simpa [hlaterResponse] using hprefixKey
+  have hlaterMemPrefix : responseName ∈ prefixResult.map Prod.fst := by
+    exact hprefixKey
   obtain ⟨laterResult, hlaterFst⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues
       (completionDepth + 1) parentType source
-      (executableFieldSelections [later]) prefixResult
+      (executableFieldSelections responseName [later]) prefixResult
   let laterStatus :=
     (visitSubfields schema resolvers variableValues (completionDepth + 1)
-      parentType source (executableFieldSelections [later])
+      parentType source (executableFieldSelections responseName [later])
       (.object prefixResult)).snd
   have hlaterVisit :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [later])
+        parentType source (executableFieldSelections responseName [later])
         (.object prefixResult) =
       (.object laterResult, laterStatus) :=
     Prod.ext hlaterFst rfl
   have hlaterVisitAfterMiddle :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections [later])
+        parentType source (executableFieldSelections responseName [later])
         (.object (prefixResult ++ middleSuffix)) =
       (.object (laterResult ++ middleSuffix), laterStatus) :=
     visitSubfields_executableFieldSelections_singleton_append_of_mem_succ
-      schema resolvers variableValues completionDepth parentType source later
+      schema resolvers variableValues completionDepth parentType source
+      responseName later
       prefixResult middleSuffix laterResult laterStatus hlaterMemPrefix
       hlaterLookup
       hlaterVisit
@@ -982,16 +964,16 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
         combineVisitStatus prefixStatus
           (combineVisitStatus middleStatus laterStatus)) := by
     dsimp [rawBlock]
-    rw [show executableFieldSelections prefixFields ++ middle ++
-        executableFieldSelections [later] =
-      executableFieldSelections prefixFields ++
-        (middle ++ executableFieldSelections [later]) by
+    rw [show executableFieldSelections responseName prefixFields ++ middle ++
+        executableFieldSelections responseName [later] =
+      executableFieldSelections responseName prefixFields ++
+        (middle ++ executableFieldSelections responseName [later]) by
       simp [List.append_assoc]]
     rw [visitSubfields_append_equivalence]
     rw [hprefixVisit]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (middle ++ executableFieldSelections [later])
+                parentType source (middle ++ executableFieldSelections responseName [later])
                 (.object prefixResult)
             (rightResult.fst, combineVisitStatus prefixStatus rightResult.snd))
             = _
@@ -999,7 +981,7 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
     rw [hmiddlePrefix]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (executableFieldSelections [later])
+                parentType source (executableFieldSelections responseName [later])
                 (.object (prefixResult ++ middleSuffix))
             (
               rightResult.fst,
@@ -1010,18 +992,18 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
     rw [hlaterVisitAfterMiddle]
   have hprefixLater :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections (prefixFields ++ [later]))
+        parentType source (executableFieldSelections responseName (prefixFields ++ [later]))
         (.object []) =
       (.object laterResult, combineVisitStatus prefixStatus laterStatus) := by
-    rw [show executableFieldSelections (prefixFields ++ [later]) =
-        executableFieldSelections prefixFields ++
-          executableFieldSelections [later] by
+    rw [show executableFieldSelections responseName (prefixFields ++ [later]) =
+        executableFieldSelections responseName prefixFields ++
+          executableFieldSelections responseName [later] by
       simp [executableFieldSelections, List.map_append]]
     rw [visitSubfields_append_equivalence]
     rw [hprefixVisit]
     change (let rightResult :=
               visitSubfields schema resolvers variableValues (completionDepth + 1)
-                parentType source (executableFieldSelections [later])
+                parentType source (executableFieldSelections responseName [later])
                 (.object prefixResult)
             (rightResult.fst, combineVisitStatus prefixStatus rightResult.snd))
             = _
@@ -1033,59 +1015,66 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
         key ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
             source
-            (executableFieldSelections (prefixFields ++ [later]))).map
+            (executableFieldSelections responseName (prefixFields ++ [later]))).map
             Prod.fst :=
       visitSubfields_object_empty_key_mem_collectFields schema resolvers
         variableValues (completionDepth + 1) parentType source
-        (executableFieldSelections (prefixFields ++ [later])) laterResult key
+        (executableFieldSelections responseName (prefixFields ++ [later])) laterResult key
         (by
           have hfst := congrArg Prod.fst hprefixLater
           simpa using hfst)
         hkey
-    have hfieldKey :
-        key ∈ (prefixFields ++ [later]).map
-          (fun field => field.responseName) :=
-      (collectFields_executableFieldSelections_key_mem_global schema
-        variableValues parentType source (prefixFields ++ [later]) key).mp
-        hcollectKey
-    rcases List.mem_map.mp hfieldKey with ⟨field, hfield, hfieldKeyEq⟩
-    rw [← hfieldKeyEq]
-    rcases List.mem_append.mp hfield with hprefix | hlater
-    · exact hprefixResponse field hprefix
-    · rcases List.mem_singleton.mp hlater
-      exact hlaterResponse
+    exact ((collectFields_executableFieldSelections_key_mem_global schema
+              variableValues parentType source responseName
+              (prefixFields ++ [later]) key).mp
+            hcollectKey).2
   have hmiddleFreshLater :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source middle) ->
-        field.responseName ∉ laterResult.map Prod.fst := by
-    intro field hmem hkey
+        entry.1 ∉ laterResult.map Prod.fst := by
+    intro entry hmem hkey
     have hfieldCollectName :
-        field.responseName ∈
+        entry.1 ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map Prod.fst :=
-      collectedExecutableFields_responseName_mem
+      collectedExecutableEntries_responseName_mem
         (GraphQL.Execution.collectFields schema variableValues parentType
           source middle)
-        (collectFields_responseName schema variableValues parentType source
-          middle)
-        field hmem
-    have hfieldName : field.responseName = responseName :=
-      hprefixLaterKeys field.responseName hkey
+        entry.1 entry.2 hmem
+    have hfieldName : entry.1 = responseName :=
+      hprefixLaterKeys entry.1 hkey
     exact hnotMiddle (by simpa [hfieldName] using hfieldCollectName)
+  have hmiddleKeyFreshLater :
+      ∀ key,
+        key ∈
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source flatMiddle).map Prod.fst ->
+          key ∉ laterResult.map Prod.fst := by
+    intro key hmem
+    rw [show flatMiddle =
+        collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle) by rfl] at hmem
+    rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+      at hmem
+    exact
+      collectedKeyFresh_of_collectedEntryFresh
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+          middle)
+        (collectFields_fieldsNonempty schema variableValues parentType source
+          middle)
+        laterResult hmiddleFreshLater key hmem
   have hflatMiddleLater :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatMiddle (.object laterResult) =
       (.object (laterResult ++ middleSuffix), middleStatus) := by
     simpa [flatMiddle] using
-      visitSubfields_executableFieldSelections_prefix_fresh schema resolvers
-        variableValues (completionDepth + 1) parentType source
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))
-        laterResult [] middleSuffix middleStatus hmiddleFreshLater
+      visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source flatMiddle
+        laterResult [] middleSuffix middleStatus hmiddleKeyFreshLater
         (by simpa [flatMiddle] using hmiddleEmpty)
   have hnormalized :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
@@ -1107,26 +1096,24 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
             = _
     rw [hflatMiddleLater]
   have hnormalizedBlock :
-      executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rawBlock)) =
+      collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock) =
         normalizedBlock := by
     dsimp [rawBlock, normalizedBlock, flatMiddle]
     exact
       executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
         schema variableValues parentType source responseName prefixFields later
-        middle hprefixNonempty hprefixResponse hlaterResponse hnotMiddle
+        middle hprefixNonempty hnotMiddle
   unfold VisitSubfieldsFlatCollects
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
       parentType source rawBlock (.object []) =
     visitSubfields schema resolvers variableValues (completionDepth + 1)
       parentType source
-      (executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source rawBlock)))
+      (collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+            source rawBlock))
       (.object [])
   rw [hraw, hnormalizedBlock, hnormalized]
   apply Prod.ext
@@ -1141,8 +1128,8 @@ theorem
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (prefixFields : List ExecutableField) (later : ExecutableField)
     (middle : List Selection) (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
+    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
+    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1156,17 +1143,30 @@ theorem
           (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections prefixFields
+        (executableFieldSelections responseName prefixFields
           ++ middle
-          ++ executableFieldSelections [later]) := by
+          ++ executableFieldSelections responseName [later]) := by
   intro outputFields hfresh
   let rawBlock :=
-    executableFieldSelections prefixFields ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName prefixFields ++ middle ++
+      executableFieldSelections responseName [later]
   let flatFields :=
-    collectedExecutableFields
+    collectedExecutableSelections
       (GraphQL.Execution.collectFields schema variableValues parentType source
         rawBlock)
+  have hrawKeyFresh :
+      ∀ key,
+        key ∈
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock).map Prod.fst ->
+          key ∉ outputFields.map Prod.fst :=
+    collectedKeyFresh_of_collectedEntryFresh
+      (GraphQL.Execution.collectFields schema variableValues parentType source
+        rawBlock)
+      (collectFields_fieldsNonempty schema variableValues parentType source
+        rawBlock)
+      outputFields
+      (by simpa [rawBlock] using hfresh)
   obtain ⟨resultFields, hresultFields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues
       (completionDepth + 1) parentType source rawBlock []
@@ -1186,10 +1186,10 @@ theorem
       simpa using
         visitSubfields_prefix_fresh schema resolvers variableValues
           (completionDepth + 1) parentType source rawBlock outputFields []
-          resultFields status hfresh hrawEmpty
+          resultFields status hrawKeyFresh hrawEmpty
   have hflatEmpty :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections flatFields)
+        parentType source flatFields
         (.object []) =
       (.object resultFields, status) := by
     have hflat :=
@@ -1203,38 +1203,30 @@ theorem
     exact hrawEmpty
   have hflatPrefix :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source (executableFieldSelections flatFields)
+        parentType source flatFields
         (.object outputFields) =
       (.object (outputFields ++ resultFields), status) :=
     by
       simpa using
-        visitSubfields_executableFieldSelections_prefix_fresh schema resolvers
-          variableValues (completionDepth + 1) parentType source flatFields
+        visitSubfields_prefix_fresh schema resolvers variableValues
+          (completionDepth + 1) parentType source flatFields
           outputFields [] resultFields status
           (by
-            intro field hmem
-            exact hfresh field
-              (show
-                field ∈
-                  collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source
-                      (executableFieldSelections prefixFields ++ middle ++
-                        executableFieldSelections [later])) from
-                by
-                  change
-                    field ∈
-                      collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source rawBlock)
-                  exact hmem))
+            intro key hmem
+            rw [show flatFields =
+                collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source rawBlock) by rfl] at hmem
+            rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+              at hmem
+            exact hrawKeyFresh key hmem)
           hflatEmpty
   unfold VisitSubfieldsFlatCollects
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
       parentType source rawBlock (.object outputFields) =
     visitSubfields schema resolvers variableValues (completionDepth + 1)
-      parentType source (executableFieldSelections flatFields)
+      parentType source flatFields
         (.object outputFields)
   rw [hrawPrefix, hflatPrefix]
 
@@ -1243,14 +1235,14 @@ theorem visitSubfields_duplicate_field_middle_append_eq_collected_middle
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle suffix : List Selection)
+    (responseName : Name) (first later : ExecutableField) (middle suffix : List Selection)
     (prefixFields : List (Name × ResponseValue))
-    (hsameResponse : later.responseName = first.responseName)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
@@ -1258,58 +1250,56 @@ theorem visitSubfields_duplicate_field_middle_append_eq_collected_middle
       : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           (completionDepth + 1) parentType source middle)
     (hfresh
-      : ∀ field,
-          field
-            ∈ collectedExecutableFields
+      : ∀ entry,
+          entry
+            ∈ collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source
-                  (executableFieldSelections [first]
+                  (executableFieldSelections responseName [first]
                     ++ middle
-                    ++ executableFieldSelections [later]))
-          -> field.responseName ∉ prefixFields.map Prod.fst)
+                    ++ executableFieldSelections responseName [later]))
+          -> entry.1 ∉ prefixFields.map Prod.fst)
     : visitSubfields schema resolvers variableValues
         (completionDepth + 1) parentType source
-        ((executableFieldSelections [first]
+        ((executableFieldSelections responseName [first]
             ++ middle
-            ++ executableFieldSelections [later])
+            ++ executableFieldSelections responseName [later])
           ++ suffix)
         (.object prefixFields)
       = visitSubfields schema resolvers variableValues
           (completionDepth + 1) parentType source
-          ((executableFieldSelections [first, later]
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
+          ((executableFieldSelections responseName [first, later]
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
             ++ suffix)
           (.object prefixFields) := by
   let rawBlock :=
-    executableFieldSelections [first] ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName [first] ++ middle ++
+      executableFieldSelections responseName [later]
   let normalizedBlock :=
-    executableFieldSelections [first, later] ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            middle))
+    executableFieldSelections responseName [first, later] ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+            middle)
   have hblock :
       VisitSubfieldsFlatCollects schema resolvers variableValues
         (completionDepth + 1) parentType source rawBlock
         (.object prefixFields) :=
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
-      resolvers variableValues completionDepth parentType source first later
+      resolvers variableValues completionDepth parentType source responseName first
+      later
       middle hsameResponse hlaterLookup hnotMiddle hmiddle prefixFields hfresh
   have hnormalizedBlock :
-      executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rawBlock)) =
+      collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock) =
         normalizedBlock := by
     dsimp [rawBlock, normalizedBlock]
     exact
       executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
-        schema variableValues parentType source first later middle
-        hsameResponse hnotMiddle
+        schema variableValues parentType source responseName first later middle
+        hnotMiddle
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source (rawBlock ++ suffix) (.object prefixFields) =
@@ -1334,8 +1324,8 @@ theorem visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
     (later : ExecutableField) (middle suffix : List Selection)
     (outputFields : List (Name × ResponseValue))
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
+    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
+    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1348,40 +1338,38 @@ theorem visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
       : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           (completionDepth + 1) parentType source middle)
     (hfresh
-      : ∀ field,
-          field
-            ∈ collectedExecutableFields
+      : ∀ entry,
+          entry
+            ∈ collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source
-                  (executableFieldSelections prefixFields
+                  (executableFieldSelections responseName prefixFields
                     ++ middle
-                    ++ executableFieldSelections [later]))
-          -> field.responseName ∉ outputFields.map Prod.fst)
+                    ++ executableFieldSelections responseName [later]))
+          -> entry.1 ∉ outputFields.map Prod.fst)
     : visitSubfields schema resolvers variableValues
         (completionDepth + 1) parentType source
-        ((executableFieldSelections prefixFields
+        ((executableFieldSelections responseName prefixFields
             ++ middle
-            ++ executableFieldSelections [later])
+            ++ executableFieldSelections responseName [later])
           ++ suffix)
         (.object outputFields)
       = visitSubfields schema resolvers variableValues
           (completionDepth + 1) parentType source
-          ((executableFieldSelections (prefixFields ++ [later])
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
+          ((executableFieldSelections responseName (prefixFields ++ [later])
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
             ++ suffix)
           (.object outputFields) := by
   let rawBlock :=
-    executableFieldSelections prefixFields ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName prefixFields ++ middle ++
+      executableFieldSelections responseName [later]
   let normalizedBlock :=
-    executableFieldSelections (prefixFields ++ [later]) ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            middle))
+    executableFieldSelections responseName (prefixFields ++ [later]) ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+            middle)
   have hblock :
       VisitSubfieldsFlatCollects schema resolvers variableValues
         (completionDepth + 1) parentType source rawBlock
@@ -1391,16 +1379,15 @@ theorem visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
       responseName prefixFields later middle hprefixNonempty hprefixResponse
       hlaterResponse hlaterLookup hnotMiddle hmiddle outputFields hfresh
   have hnormalizedBlock :
-      executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rawBlock)) =
+      collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock) =
         normalizedBlock := by
     dsimp [rawBlock, normalizedBlock]
     exact
       executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
         schema variableValues parentType source responseName prefixFields later
-        middle hprefixNonempty hprefixResponse hlaterResponse hnotMiddle
+        middle hprefixNonempty hnotMiddle
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source (rawBlock ++ suffix) (.object outputFields) =
@@ -1420,34 +1407,32 @@ theorem collectFields_duplicate_field_middle_append_eq_collected_middle
     {ObjectIdentity : Type}
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle suffix : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (responseName : Name) (first later : ExecutableField) (middle suffix : List Selection)
+    (hsameResponse : responseName = responseName)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
     : GraphQL.Execution.collectFields schema variableValues parentType source
-        ((executableFieldSelections [first]
+        ((executableFieldSelections responseName [first]
             ++ middle
-            ++ executableFieldSelections [later])
+            ++ executableFieldSelections responseName [later])
           ++ suffix)
       = GraphQL.Execution.collectFields schema variableValues parentType source
-          ((executableFieldSelections [first, later]
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
+          ((executableFieldSelections responseName [first, later]
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
             ++ suffix) := by
   let rawBlock :=
-    executableFieldSelections [first] ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName [first] ++ middle ++
+      executableFieldSelections responseName [later]
   let normalizedBlock :=
-    executableFieldSelections [first, later] ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))
+    executableFieldSelections responseName [first, later] ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle)
   have hblock :
       GraphQL.Execution.collectFields schema variableValues parentType source
           rawBlock =
@@ -1456,13 +1441,13 @@ theorem collectFields_duplicate_field_middle_append_eq_collected_middle
     dsimp [rawBlock, normalizedBlock]
     rw [←
       executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
-        schema variableValues parentType source first later middle
-        hsameResponse hnotMiddle]
+        schema variableValues parentType source responseName first later middle
+        hnotMiddle]
     exact (collectFields_executableFieldSelections_collectedExecutableFields_collectFields
             schema variableValues parentType source
-            (executableFieldSelections [first]
+            (executableFieldSelections responseName [first]
               ++ middle
-              ++ executableFieldSelections [later])).symm
+              ++ executableFieldSelections responseName [later])).symm
   change
     GraphQL.Execution.collectFields schema variableValues parentType source
         (rawBlock ++ suffix) =
@@ -1481,34 +1466,32 @@ theorem collectFields_group_duplicate_field_middle_append_eq_collected_middle
     (responseName : Name) (prefixFields : List ExecutableField)
     (later : ExecutableField) (middle suffix : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
+    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
+    (hlaterResponse : responseName = responseName)
     (hnotMiddle
       : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
     : GraphQL.Execution.collectFields schema variableValues parentType source
-        ((executableFieldSelections prefixFields
+        ((executableFieldSelections responseName prefixFields
             ++ middle
-            ++ executableFieldSelections [later])
+            ++ executableFieldSelections responseName [later])
           ++ suffix)
       = GraphQL.Execution.collectFields schema variableValues parentType source
-          ((executableFieldSelections (prefixFields ++ [later])
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
+          ((executableFieldSelections responseName (prefixFields ++ [later])
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
             ++ suffix) := by
   let rawBlock :=
-    executableFieldSelections prefixFields ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName prefixFields ++ middle ++
+      executableFieldSelections responseName [later]
   let normalizedBlock :=
-    executableFieldSelections (prefixFields ++ [later]) ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))
+    executableFieldSelections responseName (prefixFields ++ [later]) ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle)
   have hblock :
       GraphQL.Execution.collectFields schema variableValues parentType source
           rawBlock =
@@ -1518,12 +1501,12 @@ theorem collectFields_group_duplicate_field_middle_append_eq_collected_middle
     rw [←
       executableFieldSelections_collectedExecutableFields_collectFields_group_duplicate_around_disjoint
         schema variableValues parentType source responseName prefixFields later
-        middle hprefixNonempty hprefixResponse hlaterResponse hnotMiddle]
+        middle hprefixNonempty hnotMiddle]
     exact (collectFields_executableFieldSelections_collectedExecutableFields_collectFields
             schema variableValues parentType source
-            (executableFieldSelections prefixFields
+            (executableFieldSelections responseName prefixFields
               ++ middle
-              ++ executableFieldSelections [later])).symm
+              ++ executableFieldSelections responseName [later])).symm
   change
     GraphQL.Execution.collectFields schema variableValues parentType source
         (rawBlock ++ suffix) =
@@ -1539,119 +1522,9 @@ theorem
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
-    (source : ResolverValue ObjectIdentity) (first later : ExecutableField)
-    (middle suffix : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
-    (hlaterLookup
-      : ∃ fieldDefinition,
-          schema.lookupField parentType later.fieldName = some fieldDefinition)
-    (hnotMiddle
-      : first.responseName
-        ∉ (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle).map
-            Prod.fst)
-    (hmiddle
-      : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
-          (completionDepth + 1) parentType source middle)
-    (hnormalized
-      : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
-          (completionDepth + 1) parentType source
-          ((executableFieldSelections [first, later]
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
-            ++ suffix))
-    : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
-        (completionDepth + 1) parentType source
-        ((executableFieldSelections [first]
-            ++ middle
-            ++ executableFieldSelections [later])
-          ++ suffix) := by
-  intro prefixFields hfresh
-  let rawBlock :=
-    executableFieldSelections [first] ++ middle ++
-      executableFieldSelections [later]
-  let normalized :=
-    (executableFieldSelections [first, later] ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))) ++ suffix
-  have hcollect :
-      GraphQL.Execution.collectFields schema variableValues parentType source
-          (rawBlock ++ suffix) =
-        GraphQL.Execution.collectFields schema variableValues parentType source
-          normalized := by
-    dsimp [rawBlock, normalized]
-    exact
-      collectFields_duplicate_field_middle_append_eq_collected_middle schema
-        variableValues parentType source first later middle suffix
-        hsameResponse hnotMiddle
-  have hblockFresh :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source rawBlock) ->
-        field.responseName ∉ prefixFields.map Prod.fst := by
-    intro field hfield
-    apply hfresh field
-    have hfieldRaw :
-        field ∈
-          collectedExecutableFields
-            (GraphQL.Execution.mergeExecutableGroups
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source rawBlock)
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source suffix)) := by
-      exact (collectedExecutableFields_mem_mergeExecutableGroups
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source rawBlock)
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source suffix) field).mpr
-              (Or.inl hfield)
-    have hfieldWhole :
-        field ∈
-          collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source (rawBlock ++ suffix)) := by
-      rw [GraphQL.NormalForm.collectFields_append schema variableValues
-        parentType source rawBlock suffix]
-      exact hfieldRaw
-    simpa [rawBlock] using hfieldWhole
-  change
-    VisitSubfieldsFlatCollects schema resolvers variableValues
-      (completionDepth + 1) parentType source (rawBlock ++ suffix)
-      (.object prefixFields)
-  unfold VisitSubfieldsFlatCollects
-  rw [visitSubfields_duplicate_field_middle_append_eq_collected_middle schema
-    resolvers variableValues completionDepth parentType source first later
-    middle suffix prefixFields hsameResponse hlaterLookup hnotMiddle hmiddle
-    hblockFresh]
-  rw [hcollect]
-  exact hnormalized prefixFields
-    (by
-      intro field hfield
-      have hfieldRaw :
-          field ∈
-            collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source (rawBlock ++ suffix)) := by
-        rw [hcollect]
-        exact hfield
-      apply hfresh field
-      simpa [rawBlock, List.append_assoc] using hfieldRaw)
-
-theorem
-    VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
-    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
-    (prefixFields : List ExecutableField) (later : ExecutableField)
-    (middle suffix : List Selection) (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
+    (first later : ExecutableField) (middle suffix : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1666,28 +1539,135 @@ theorem
     (hnormalized
       : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           (completionDepth + 1) parentType source
-          ((executableFieldSelections (prefixFields ++ [later])
-              ++ executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues
-                      parentType source middle)))
+          ((executableFieldSelections responseName [first, later]
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
             ++ suffix))
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        ((executableFieldSelections prefixFields
+        ((executableFieldSelections responseName [first]
             ++ middle
-            ++ executableFieldSelections [later])
+            ++ executableFieldSelections responseName [later])
+          ++ suffix) := by
+  intro prefixFields hfresh
+  let rawBlock :=
+    executableFieldSelections responseName [first] ++ middle ++
+      executableFieldSelections responseName [later]
+  let normalized :=
+    (executableFieldSelections responseName [first, later] ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle)) ++ suffix
+  have hcollect :
+      GraphQL.Execution.collectFields schema variableValues parentType source
+          (rawBlock ++ suffix) =
+        GraphQL.Execution.collectFields schema variableValues parentType source
+          normalized := by
+    dsimp [rawBlock, normalized]
+    exact
+      collectFields_duplicate_field_middle_append_eq_collected_middle schema
+        variableValues parentType source responseName first later middle suffix
+        hsameResponse hnotMiddle
+  have hblockFresh :
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source rawBlock) ->
+        entry.1 ∉ prefixFields.map Prod.fst := by
+    intro entry hentry
+    apply hfresh entry
+    have hentryRaw :
+        entry ∈
+          collectedExecutableEntries
+            (GraphQL.Execution.mergeExecutableGroups
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source rawBlock)
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source suffix)) := by
+      exact (collectedExecutableEntries_mem_mergeExecutableGroups
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source rawBlock)
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source suffix) entry).mpr
+              (Or.inl hentry)
+    have hentryWhole :
+        entry ∈
+          collectedExecutableEntries
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source (rawBlock ++ suffix)) := by
+      rw [GraphQL.NormalForm.collectFields_append schema variableValues
+        parentType source rawBlock suffix]
+      exact hentryRaw
+    simpa [rawBlock] using hentryWhole
+  change
+    VisitSubfieldsFlatCollects schema resolvers variableValues
+      (completionDepth + 1) parentType source (rawBlock ++ suffix)
+      (.object prefixFields)
+  unfold VisitSubfieldsFlatCollects
+  rw [visitSubfields_duplicate_field_middle_append_eq_collected_middle schema
+    resolvers variableValues completionDepth parentType source responseName first
+      later
+    middle suffix prefixFields hsameResponse hlaterLookup hnotMiddle hmiddle
+    hblockFresh]
+  rw [hcollect]
+  exact hnormalized prefixFields
+    (by
+      intro entry hentry
+      have hentryRaw :
+          entry ∈
+            collectedExecutableEntries
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source (rawBlock ++ suffix)) := by
+        rw [hcollect]
+        exact hentry
+      apply hfresh entry
+      simpa [rawBlock, List.append_assoc] using hentryRaw)
+
+theorem
+    VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
+    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
+    (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
+    (source : ResolverValue ObjectIdentity) (responseName : Name)
+    (prefixFields : List ExecutableField) (later : ExecutableField)
+    (middle suffix : List Selection) (hprefixNonempty : prefixFields ≠ [])
+    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
+    (hlaterResponse : responseName = responseName)
+    (hlaterLookup
+      : ∃ fieldDefinition,
+          schema.lookupField parentType later.fieldName = some fieldDefinition)
+    (hnotMiddle
+      : responseName
+        ∉ (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle).map
+            Prod.fst)
+    (hmiddle
+      : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
+          (completionDepth + 1) parentType source middle)
+    (hnormalized
+      : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
+          (completionDepth + 1) parentType source
+          ((executableFieldSelections responseName (prefixFields ++ [later])
+              ++ collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues
+                    parentType source middle))
+            ++ suffix))
+    : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
+        (completionDepth + 1) parentType source
+        ((executableFieldSelections responseName prefixFields
+            ++ middle
+            ++ executableFieldSelections responseName [later])
           ++ suffix) := by
   intro outputFields hfresh
   let rawBlock :=
-    executableFieldSelections prefixFields ++ middle ++
-      executableFieldSelections [later]
+    executableFieldSelections responseName prefixFields ++ middle ++
+      executableFieldSelections responseName [later]
   let normalized :=
-    (executableFieldSelections (prefixFields ++ [later]) ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source middle))) ++ suffix
+    (executableFieldSelections responseName (prefixFields ++ [later]) ++
+      collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+            source middle)) ++ suffix
   have hcollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           (rawBlock ++ suffix) =
@@ -1699,37 +1679,37 @@ theorem
         schema variableValues parentType source responseName prefixFields later
         middle suffix hprefixNonempty hprefixResponse hlaterResponse hnotMiddle
   have hblockFresh :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source rawBlock) ->
-        field.responseName ∉ outputFields.map Prod.fst := by
-    intro field hfield
-    apply hfresh field
-    have hfieldRaw :
-        field ∈
-          collectedExecutableFields
+        entry.1 ∉ outputFields.map Prod.fst := by
+    intro entry hentry
+    apply hfresh entry
+    have hentryRaw :
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.mergeExecutableGroups
               (GraphQL.Execution.collectFields schema variableValues parentType
                 source rawBlock)
               (GraphQL.Execution.collectFields schema variableValues parentType
                 source suffix)) := by
-      exact (collectedExecutableFields_mem_mergeExecutableGroups
+      exact (collectedExecutableEntries_mem_mergeExecutableGroups
               (GraphQL.Execution.collectFields schema variableValues parentType
                 source rawBlock)
               (GraphQL.Execution.collectFields schema variableValues parentType
-                source suffix) field).mpr
-              (Or.inl hfield)
-    have hfieldWhole :
-        field ∈
-          collectedExecutableFields
+                source suffix) entry).mpr
+              (Or.inl hentry)
+    have hentryWhole :
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source (rawBlock ++ suffix)) := by
       rw [GraphQL.NormalForm.collectFields_append schema variableValues
         parentType source rawBlock suffix]
-      exact hfieldRaw
-    simpa [rawBlock] using hfieldWhole
+      exact hentryRaw
+    simpa [rawBlock] using hentryWhole
   change
     VisitSubfieldsFlatCollects schema resolvers variableValues
       (completionDepth + 1) parentType source (rawBlock ++ suffix)
@@ -1743,29 +1723,29 @@ theorem
   rw [hcollect]
   exact hnormalized outputFields
     (by
-      intro field hfield
-      have hfieldRaw :
-          field ∈
-            collectedExecutableFields
+      intro entry hentry
+      have hentryRaw :
+          entry ∈
+            collectedExecutableEntries
               (GraphQL.Execution.collectFields schema variableValues parentType
                 source (rawBlock ++ suffix)) := by
         rw [hcollect]
-        exact hfield
-      apply hfresh field
-      simpa [rawBlock, List.append_assoc] using hfieldRaw)
+        exact hentry
+      apply hfresh entry
+      simpa [rawBlock, List.append_assoc] using hentryRaw)
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_of_allOutputs
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (responseName : Name) (first later : ExecutableField) (middle : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
@@ -1774,11 +1754,12 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_of_allOut
           (completionDepth + 1) parentType source middle)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections [first]
+        (executableFieldSelections responseName [first]
           ++ middle
-          ++ executableFieldSelections [later]) :=
+          ++ executableFieldSelections responseName [later]) :=
   VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
-    resolvers variableValues completionDepth parentType source first later
+    resolvers variableValues completionDepth parentType source responseName first
+    later
     middle hsameResponse hlaterLookup hnotMiddle
     (VisitSubfieldsFlatCollectsFreshPrefixes.of_allOutputs schema resolvers
       variableValues (completionDepth + 1) parentType source middle hmiddle)
@@ -1787,23 +1768,23 @@ theorem
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
-    (source : ResolverValue ObjectIdentity) (first later : ExecutableField)
-    (middle suffix : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (source : ResolverValue ObjectIdentity) (responseName : Name)
+    (first later : ExecutableField) (middle suffix : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
     (hdisjoint
       : GraphQL.NormalForm.executableGroupNamesDisjoint
           (GraphQL.Execution.collectFields schema variableValues parentType source
-            (executableFieldSelections [first]
+            (executableFieldSelections responseName [first]
               ++ middle
-              ++ executableFieldSelections [later]))
+              ++ executableFieldSelections responseName [later]))
           (GraphQL.Execution.collectFields schema variableValues parentType source
             suffix))
     (hmiddle
@@ -1814,46 +1795,47 @@ theorem
           (completionDepth + 1) parentType source suffix)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections [first]
+        (executableFieldSelections responseName [first]
           ++ middle
-          ++ executableFieldSelections [later]
+          ++ executableFieldSelections responseName [later]
           ++ suffix) := by
   have hblock :
       VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections [first] ++ middle ++
-          executableFieldSelections [later]) :=
+        (executableFieldSelections responseName [first] ++ middle ++
+          executableFieldSelections responseName [later]) :=
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
-      resolvers variableValues completionDepth parentType source first later
+      resolvers variableValues completionDepth parentType source responseName first
+      later
       middle hsameResponse hlaterLookup hnotMiddle hmiddle
   simpa [List.append_assoc] using
     VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
       resolvers variableValues (completionDepth + 1) parentType source
-      (executableFieldSelections [first] ++ middle ++
-        executableFieldSelections [later])
+      (executableFieldSelections responseName [first] ++ middle ++
+        executableFieldSelections responseName [later])
       suffix hdisjoint hblock hsuffix
 
 theorem
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_headDisjointTrees
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
-    (source : ResolverValue ObjectIdentity) (first later : ExecutableField)
-    (middle suffix : List Selection)
-    (hsameResponse : later.responseName = first.responseName)
+    (source : ResolverValue ObjectIdentity) (responseName : Name)
+    (first later : ExecutableField) (middle suffix : List Selection)
+    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
     (hnotMiddle
-      : first.responseName
+      : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
             source middle).map
             Prod.fst)
     (hdisjoint
       : GraphQL.NormalForm.executableGroupNamesDisjoint
           (GraphQL.Execution.collectFields schema variableValues parentType source
-            (executableFieldSelections [first]
+            (executableFieldSelections responseName [first]
               ++ middle
-              ++ executableFieldSelections [later]))
+              ++ executableFieldSelections responseName [later]))
           (GraphQL.Execution.collectFields schema variableValues parentType source
             suffix))
     (hmiddle
@@ -1864,12 +1846,13 @@ theorem
           parentType source suffix)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         (completionDepth + 1) parentType source
-        (executableFieldSelections [first]
+        (executableFieldSelections responseName [first]
           ++ middle
-          ++ executableFieldSelections [later]
+          ++ executableFieldSelections responseName [later]
           ++ suffix) :=
   VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
-    schema resolvers variableValues completionDepth parentType source first later
+    schema resolvers variableValues completionDepth parentType source responseName first
+    later
     middle suffix hsameResponse hlaterLookup hnotMiddle hdisjoint
     (VisitSubfieldsFlatCollectsFreshPrefixes_of_headDisjointTree schema
       resolvers variableValues (completionDepth + 1) parentType source middle

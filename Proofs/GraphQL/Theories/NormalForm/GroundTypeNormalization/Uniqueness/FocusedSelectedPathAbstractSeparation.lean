@@ -1930,14 +1930,12 @@ theorem
                   leftRuntime rightRuntime)
                 targetParent leftField rightField targetLeftArguments
                 targetRightArguments)
-              variableValues (fuel + 1)
+              variableValues (fuel + 1) parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet

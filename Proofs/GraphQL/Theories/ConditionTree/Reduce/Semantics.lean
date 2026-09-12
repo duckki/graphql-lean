@@ -50,9 +50,10 @@ structure ReductionExecutionBoundary {ObjectRef : Type}
   groupRuntimeScoped
     : ∀ {responseName fields},
         (responseName, fields) ∈ allSpecGroups
-        -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableFieldsRuntimeScopedBy
+        -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableEntriesRuntimeScopedBy
             schema runtimeType
-            (FieldMerge.collectFields schema extractionParentType selectionSet) fields
+            (FieldMerge.collectFields schema extractionParentType selectionSet)
+            (fields.map fun field => (responseName, field))
 
 theorem ReductionExecutionBoundary.groupsSameParent
     {ObjectRef : Type} {schema : Schema} {variableValues : VariableValues}
@@ -73,8 +74,8 @@ theorem ReductionExecutionBoundary.groupField_mem_collected
     : field
       ∈ Algorithms.ExecutionUngroupedUncached.Eager.collectedExecutableFields
           boundary.allSpecGroups := by
-  rw [← RuntimeExtraction.flattenCollectedFields_eq_collectedExecutableFields]
-  exact (mem_flattenCollectedFields_iff boundary.allSpecGroups field).mpr
+  rw [← RuntimeExtraction.flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields]
+  exact (mem_map_snd_flattenExecutableFieldGroups_iff boundary.allSpecGroups field).mpr
     ⟨responseName, fields, hgroup, hfield⟩
 
 theorem ReductionExecutionBoundary.fieldArgumentsNodup
@@ -86,8 +87,10 @@ theorem ReductionExecutionBoundary.fieldArgumentsNodup
         ∈ Algorithms.ExecutionUngroupedUncached.Eager.collectedExecutableFields
             boundary.allSpecGroups)
     : (field.arguments.map Argument.name).Nodup := by
-  rw [← RuntimeExtraction.flattenCollectedFields_eq_collectedExecutableFields] at hfield
-  rcases (mem_flattenCollectedFields_iff boundary.allSpecGroups field).mp hfield with
+  rw [← RuntimeExtraction.flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields]
+    at hfield
+  rcases (mem_map_snd_flattenExecutableFieldGroups_iff boundary.allSpecGroups field).mp
+      hfield with
     ⟨responseName, fields, hgroup, hfield⟩
   exact boundary.argumentsNodup responseName fields hgroup field hfield
 
@@ -98,25 +101,18 @@ theorem ReductionExecutionBoundary.fieldLookup
     (hgroup : (responseName, fields) ∈ boundary.allSpecGroups)
     {field : ExecutableField} (hfield : field ∈ fields)
     : ∃ fieldDefinition,
-        schema.lookupField field.parentType field.fieldName = some fieldDefinition := by
+        schema.lookupField boundary.parentType field.fieldName
+        = some fieldDefinition := by
   have hlookup :=
     Algorithms.ExecutionUngroupedUncached.Eager.collectFields_lookupValid_of_selectionSetSemanticsReady_object schema
       variableValues boundary.parentType boundary.runtimeType boundary.ref
       boundary.selectionSet boundary.parentObject boundary.parentRuntimeApplies
       boundary.semanticsReady
   rw [← boundary.allSpecGroups_eq] at hlookup
-  rw [← RuntimeExtraction.flattenCollectedFields_eq_collectedExecutableFields] at hlookup
-  have hparent : field.parentType = boundary.parentType := by
-    have hgroupsParent : Algorithms.ExecutionUngroupedUncached.Eager.CollectedGroupsParent
-        boundary.parentType boundary.allSpecGroups := by
-      rw [boundary.allSpecGroups_eq]
-      exact Algorithms.ExecutionUngroupedUncached.Eager.collectFields_parent schema
-        variableValues boundary.parentType
-        (.object boundary.runtimeType boundary.ref) boundary.selectionSet
-    exact hgroupsParent responseName fields hgroup field hfield
-  rw [hparent]
+  rw [← RuntimeExtraction.flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields]
+    at hlookup
   exact hlookup field
-    ((mem_flattenCollectedFields_iff boundary.allSpecGroups field).mpr
+    ((mem_map_snd_flattenExecutableFieldGroups_iff boundary.allSpecGroups field).mpr
       ⟨responseName, fields, hgroup, hfield⟩)
 
 theorem ReductionExecutionBoundary.fieldChildSemanticsReady
@@ -126,7 +122,8 @@ theorem ReductionExecutionBoundary.fieldChildSemanticsReady
     (hgroup : (responseName, fields) ∈ boundary.allSpecGroups)
     {field : ExecutableField} (hfield : field ∈ fields)
     (fieldDefinition : FieldDefinition)
-    (hlookup : schema.lookupField field.parentType field.fieldName = some fieldDefinition)
+    (hlookup
+      : schema.lookupField boundary.parentType field.fieldName = some fieldDefinition)
     (childRuntime : Name)
     (hinclude
       : schema.typeIncludesObjectBool fieldDefinition.outputType.namedType childRuntime
@@ -138,9 +135,10 @@ theorem ReductionExecutionBoundary.fieldChildSemanticsReady
       boundary.selectionSet boundary.parentObject boundary.parentRuntimeApplies
       boundary.semanticsReady
   rw [← boundary.allSpecGroups_eq] at hready
-  rw [← RuntimeExtraction.flattenCollectedFields_eq_collectedExecutableFields] at hready
+  rw [← RuntimeExtraction.flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields]
+    at hready
   exact hready field
-    ((mem_flattenCollectedFields_iff boundary.allSpecGroups field).mpr
+    ((mem_map_snd_flattenExecutableFieldGroups_iff boundary.allSpecGroups field).mpr
       ⟨responseName, fields, hgroup, hfield⟩)
     fieldDefinition hlookup childRuntime hinclude
 
@@ -176,10 +174,10 @@ mutual
             (responseName, fields)
               ∈ collectFields schema variableValues runtimeType
                   (.object runtimeType ref) rightSelectionSet
-            -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableFieldsRuntimeScopedBy
+            -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableEntriesRuntimeScopedBy
                 schema runtimeType
                 (FieldMerge.collectFields schema validationParentType rightSelectionSet)
-                fields)
+                (fields.map fun field => (responseName, field)))
       (hrightMerge
         : FieldMerge.fieldsInSetCanMerge schema validationParentType rightSelectionSet)
       (happlicable
@@ -240,8 +238,10 @@ mutual
         runtimeFieldDefinition hlookup childRuntimeType hinclude
     change SelectionSetResultEquivalent
       (Execution.executeCollectedFields schema resolvers variableValues fuel
+        runtimeType
         (.object runtimeType ref) leftGroups)
       (Execution.executeCollectedFields schema resolvers variableValues fuel
+        runtimeType
         (.object runtimeType ref) rightGroups)
     exact executeBundleGroups_equivalent schema resolvers variableValues hschema
       boundary fuel bundleGroups leftGroups rightGroups hleftEquivalent
@@ -275,8 +275,10 @@ mutual
             variableValues boundary.runtimeType bundleGroups)
       : SelectionSetResultEquivalent
           (Execution.executeCollectedFields schema resolvers variableValues fuel
+            boundary.parentType
             (.object boundary.runtimeType boundary.ref) leftGroups)
           (Execution.executeCollectedFields schema resolvers variableValues fuel
+            boundary.parentType
             (.object boundary.runtimeType boundary.ref) rightGroups) := by
     cases hbundleGroups : bundleGroups with
     | nil =>
@@ -285,26 +287,30 @@ mutual
           cases leftGroups with
           | nil => rfl
           | cons group rest =>
-              have hnonempty := (leftEquivalent.rightWellFormed group (by simp)).1
+              have hnonempty := leftEquivalent.rightWellFormed group (by simp)
               have hfield : ∃ field, field ∈ group.2 :=
                 List.exists_mem_of_ne_nil group.2 hnonempty
               rcases hfield with ⟨field, hfield⟩
-              have : field ∈ flattenCollectedFields ([] : List (Name × List ExecutableField)) :=
+              have : (group.1, field) ∈
+                  ConditionTree.flattenExecutableFieldGroups
+                    ([] : List (Name × List ExecutableField)) :=
                 leftEquivalent.fieldsPerm.mem_iff.mpr (by
-                  simp [hfield])
-              simp [flattenCollectedFields] at this
+                  simp [ConditionTree.flattenExecutableFieldGroups, hfield])
+              simp [ConditionTree.flattenExecutableFieldGroups] at this
         have hrightNil : rightGroups = [] := by
           cases rightGroups with
           | nil => rfl
           | cons group rest =>
-              have hnonempty := (rightEquivalent.rightWellFormed group (by simp)).1
+              have hnonempty := rightEquivalent.rightWellFormed group (by simp)
               have hfield : ∃ field, field ∈ group.2 :=
                 List.exists_mem_of_ne_nil group.2 hnonempty
               rcases hfield with ⟨field, hfield⟩
-              have : field ∈ flattenCollectedFields ([] : List (Name × List ExecutableField)) :=
+              have : (group.1, field) ∈
+                  ConditionTree.flattenExecutableFieldGroups
+                    ([] : List (Name × List ExecutableField)) :=
                 rightEquivalent.fieldsPerm.mem_iff.mpr (by
-                  simp [hfield])
-              simp [flattenCollectedFields] at this
+                  simp [ConditionTree.flattenExecutableFieldGroups, hfield])
+              simp [ConditionTree.flattenExecutableFieldGroups] at this
         subst leftGroups
         subst rightGroups
         exact selectionSetResultEquivalent_of_eq rfl
@@ -321,8 +327,8 @@ mutual
         have hrightGroup : (responseName, rightFields) ∈ boundary.allSpecGroups :=
           alignedSubset _ (by simp)
         have hbundleNonempty : bundles ≠ [] := by
-          have := (leftAligned.leftWellFormed
-            (responseName, bundles.map RuntimeFieldBundle.reducedField) (by simp)).1
+          have := leftAligned.leftWellFormed
+            (responseName, bundles.map RuntimeFieldBundle.reducedField) (by simp)
           intro hempty
           subst bundles
           exact this rfl
@@ -330,10 +336,10 @@ mutual
         | nil => contradiction
         | cons firstBundle restBundles =>
             subst bundles
-            have hleftNonempty := (leftAligned.rightWellFormed
-              (responseName, leftFields) (by simp)).1
-            have hrightNonempty := (rightAligned.rightWellFormed
-              (responseName, rightFields) (by simp)).1
+            have hleftNonempty := leftAligned.rightWellFormed
+              (responseName, leftFields) (by simp)
+            have hrightNonempty := rightAligned.rightWellFormed
+              (responseName, rightFields) (by simp)
             cases hleftFields : leftFields with
             | nil => contradiction
             | cons leftHead leftRest =>
@@ -355,7 +361,7 @@ mutual
                       simp only [flattenRuntimeFieldBundleGroups]
                       exact List.mem_append.mpr (Or.inl hheadBundle))
                     rcases hheadBundleWF.representative with
-                      ⟨representative, hrepresentative, hrepresentativeParent,
+                      ⟨representative, hrepresentative,
                         hrepresentativeField, hrepresentativeArguments⟩
                     have hrepresentativeCanonical : representative ∈
                         (firstBundle :: restBundles).flatMap
@@ -364,21 +370,9 @@ mutual
                         ⟨headBundle, hheadBundle, hrepresentative⟩
                     have hrepresentativeRight : representative ∈ rightHead :: rightRest :=
                       hrightFieldsPerm.mem_iff.mp hrepresentativeCanonical
-                    have hrightWellFormed := rightAligned.rightWellFormed
-                      (responseName, rightHead :: rightRest) (by simp)
-                    have hrepresentativeResponse := hrightWellFormed.2 representative
-                      hrepresentativeRight
-                    have hrightResponse := hrightWellFormed.2 rightHead (by simp)
-                    have hsameParent := boundary.groupsSameParent responseName
-                      (rightHead :: rightRest) hrightGroup representative rightHead
-                      hrepresentativeRight (by simp)
-                      (hrepresentativeResponse.trans hrightResponse.symm)
                     have hcompatible := boundary.groupsFieldCompatible responseName
                       (rightHead :: rightRest) hrightGroup representative rightHead
                       hrepresentativeRight (by simp)
-                      (hrepresentativeResponse.trans hrightResponse.symm)
-                    have hparent : headBundle.reducedField.parentType = rightHead.parentType :=
-                      hrepresentativeParent.symm.trans hsameParent
                     have hfieldName : headBundle.reducedField.fieldName = rightHead.fieldName :=
                       hrepresentativeField.symm.trans hcompatible.1
                     have harguments : Argument.argumentsEquivalent
@@ -388,9 +382,9 @@ mutual
                     obtain ⟨fieldDefinition, hrightLookup⟩ :=
                       boundary.fieldLookup (field := rightHead) hrightGroup (by simp)
                     have hleftLookup : schema.lookupField
-                        headBundle.reducedField.parentType headBundle.reducedField.fieldName
+                        boundary.parentType headBundle.reducedField.fieldName
                         = some fieldDefinition := by
-                      rw [hparent, hfieldName]
+                      rw [hfieldName]
                       exact hrightLookup
                     have hreducedArgumentsNodup :
                         (headBundle.reducedField.arguments.map Argument.name).Nodup := by
@@ -412,13 +406,13 @@ mutual
                         hrightArgumentsNodup harguments
                     have hresolveEq :
                         coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
-                            headBundle.reducedField.parentType
+                            boundary.parentType
                             headBundle.reducedField.fieldName
                             headBundle.reducedField.arguments
                             (.object boundary.runtimeType boundary.ref)
                           = coerceAndResolveFieldValue schema resolvers variableValues
                             fieldDefinition
-                            rightHead.parentType rightHead.fieldName rightHead.arguments
+                            boundary.parentType rightHead.fieldName rightHead.arguments
                             (.object boundary.runtimeType boundary.ref) := by
                       unfold coerceAndResolveFieldValue
                       cases hleftCoerce : coerceArgumentValues schema variableValues
@@ -428,22 +422,18 @@ mutual
                               fieldDefinition.arguments rightHead.arguments <;>
                         simp [hleftCoerce, hrightCoerce,
                           ArgumentCoercionResult.equivalent] at hcoercedArguments ⊢
-                      rw [hparent, hfieldName]
+                      rw [hfieldName]
                       exact resolvers.resolve_argumentsEquivalent _ _ _ _ _
                         hcoercedArguments
                     have hlookupAll : ∀ field,
                         field ∈ rightHead :: rightRest
-                        -> schema.lookupField field.parentType field.fieldName
+                        -> schema.lookupField boundary.parentType field.fieldName
                           = some fieldDefinition := by
                       intro field hfield
-                      have hfieldResponse := hrightWellFormed.2 field hfield
                       have hsameField := boundary.groupsFieldCompatible responseName
                         (rightHead :: rightRest) hrightGroup rightHead field (by simp)
-                        hfield (hrightResponse.trans hfieldResponse.symm)
-                      have hsameParent' := boundary.groupsSameParent responseName
-                        (rightHead :: rightRest) hrightGroup rightHead field (by simp)
-                        hfield (hrightResponse.trans hfieldResponse.symm)
-                      rw [← hsameParent', ← hsameField.1]
+                        hfield
+                      rw [← hsameField.1]
                       exact hrightLookup
                     have hlookupBundles : ∀ bundle,
                         bundle ∈ firstBundle :: restBundles
@@ -454,7 +444,7 @@ mutual
                         simp only [flattenRuntimeFieldBundleGroups]
                         exact List.mem_append.mpr (Or.inl hbundle))
                       rcases hbundleWF.representative with
-                        ⟨sourceField, hsourceField, hsourceParent, hsourceName,
+                        ⟨sourceField, hsourceField, hsourceName,
                           _hsourceArguments⟩
                       have hsourceCanonical : sourceField ∈
                           (firstBundle :: restBundles).flatMap
@@ -462,29 +452,11 @@ mutual
                         List.mem_flatMap.mpr ⟨bundle, hbundle, hsourceField⟩
                       have hsourceRight : sourceField ∈ rightHead :: rightRest :=
                         hrightFieldsPerm.mem_iff.mp hsourceCanonical
-                      have hsourceResponse := hrightWellFormed.2 sourceField hsourceRight
-                      have hsameField := boundary.groupsFieldCompatible responseName
-                        (rightHead :: rightRest) hrightGroup sourceField rightHead
-                        hsourceRight (by simp)
-                        (hsourceResponse.trans hrightResponse.symm)
-                      have hsourceRuntimeParent : sourceField.parentType = boundary.runtimeType := by
-                        have hgroupsParent :
-                            Algorithms.ExecutionUngroupedUncached.Eager.CollectedGroupsParent
-                              boundary.parentType
-                            boundary.allSpecGroups := by
-                          rw [boundary.allSpecGroups_eq]
-                          exact Algorithms.ExecutionUngroupedUncached.Eager.collectFields_parent
-                            schema variableValues boundary.parentType
-                            (.object boundary.runtimeType boundary.ref)
-                            boundary.selectionSet
-                        have hparent' := hgroupsParent responseName
-                          (rightHead :: rightRest) hrightGroup sourceField hsourceRight
-                        have hruntimeParent : boundary.runtimeType = boundary.parentType := by
-                          exact object_typeIncludesObjectBool_eq_self schema
-                            boundary.parentObject boundary.parentRuntimeApplies
-                        exact hparent'.trans hruntimeParent.symm
+                      have hruntimeParent : boundary.runtimeType = boundary.parentType := by
+                        exact object_typeIncludesObjectBool_eq_self schema
+                          boundary.parentObject boundary.parentRuntimeApplies
                       have hlookup := hlookupAll sourceField hsourceRight
-                      rw [hsourceRuntimeParent, hsourceName] at hlookup
+                      rw [hruntimeParent, ← hsourceName]
                       exact hlookup
                     have htail := executeBundleGroups_equivalent schema resolvers
                       variableValues hschema boundary fuel bundleTail leftTail rightTail
@@ -509,9 +481,11 @@ mutual
                             (responseName := responseName) hhead htail
                         have hcore : SelectionSetResultEquivalent
                             (Execution.executeCollectedFields schema resolvers variableValues 0
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref)
                               ((responseName, headBundle.reducedField :: leftRest) :: leftTail))
                             (Execution.executeCollectedFields schema resolvers variableValues 0
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref)
                               ((responseName, rightHead :: rightRest) :: rightTail)) := by
                           simpa [Execution.executeCollectedFields, Execution.executeField, outOfFuel,
@@ -519,10 +493,12 @@ mutual
                             hleftLookup, hrightLookup] using hcombined
                         have hleftReorder := executeCollectedFields_equivalent_of_perm
                           schema resolvers variableValues 0
+                          boundary.parentType
                           (.object boundary.runtimeType boundary.ref) hleftPerm
                           leftEquivalent.rightKeysNodup
                         have hrightReorder := executeCollectedFields_equivalent_of_perm
                           schema resolvers variableValues 0
+                          boundary.parentType
                           (.object boundary.runtimeType boundary.ref) hrightPerm
                           rightEquivalent.rightKeysNodup
                         exact selectionSetResultEquivalent_trans hleftReorder
@@ -531,13 +507,13 @@ mutual
                     | succ completionFuel =>
                         cases hresolved
                               : coerceAndResolveFieldValue schema resolvers variableValues
-                                  fieldDefinition rightHead.parentType
+                                  fieldDefinition boundary.parentType
                                   rightHead.fieldName rightHead.arguments
                                   (.object boundary.runtimeType boundary.ref) with
                         | none =>
                             have hleftResolved : coerceAndResolveFieldValue schema resolvers
                                 variableValues fieldDefinition
-                                headBundle.reducedField.parentType
+                                boundary.parentType
                                 headBundle.reducedField.fieldName
                                 headBundle.reducedField.arguments
                                 (.object boundary.runtimeType boundary.ref) = none := by
@@ -552,20 +528,24 @@ mutual
                             have hcore : SelectionSetResultEquivalent
                                 (Execution.executeCollectedFields schema resolvers variableValues
                                   (completionFuel + 1)
+                                  boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, headBundle.reducedField :: leftRest) :: leftTail))
                                 (Execution.executeCollectedFields schema resolvers variableValues
                                   (completionFuel + 1)
+                                  boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, rightHead :: rightRest) :: rightTail)) := by
                               simpa [Execution.executeCollectedFields, Execution.executeField, hleftLookup,
                                 hrightLookup, hleftResolved, hresolved] using hcombined
                             have hleftReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref) hleftPerm
                               leftEquivalent.rightKeysNodup
                             have hrightReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref) hrightPerm
                               rightEquivalent.rightKeysNodup
                             exact selectionSetResultEquivalent_trans hleftReorder
@@ -574,7 +554,7 @@ mutual
                         | some resolved =>
                             have hleftResolved : coerceAndResolveFieldValue schema resolvers
                                 variableValues fieldDefinition
-                                headBundle.reducedField.parentType
+                                boundary.parentType
                                 headBundle.reducedField.fieldName
                                 headBundle.reducedField.arguments
                                 (.object boundary.runtimeType boundary.ref) = some resolved := by
@@ -605,20 +585,24 @@ mutual
                             have hcore : SelectionSetResultEquivalent
                                 (Execution.executeCollectedFields schema resolvers variableValues
                                   (completionFuel + 1)
+                                  boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, headBundle.reducedField :: leftRest) :: leftTail))
                                 (Execution.executeCollectedFields schema resolvers variableValues
                                   (completionFuel + 1)
+                                  boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, rightHead :: rightRest) :: rightTail)) := by
                               simpa [Execution.executeCollectedFields, Execution.executeField, hleftLookup,
                                 hrightLookup, hleftResolved, hresolved] using hcombined
                             have hleftReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref) hleftPerm
                               leftEquivalent.rightKeysNodup
                             have hrightReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
+                              boundary.parentType
                               (.object boundary.runtimeType boundary.ref) hrightPerm
                               rightEquivalent.rightKeysNodup
                             exact selectionSetResultEquivalent_trans hleftReorder
@@ -654,7 +638,8 @@ mutual
       (hlookupAll
         : ∀ field,
             field ∈ rightFields
-            -> schema.lookupField field.parentType field.fieldName = some fieldDefinition)
+            -> schema.lookupField boundary.parentType field.fieldName
+                = some fieldDefinition)
       (hnamed : fieldType.namedType = fieldDefinition.outputType.namedType)
       (hbundles : ∀ bundle, bundle ∈ bundles -> bundle.WellFormed schema)
       (hchildren
@@ -754,19 +739,12 @@ mutual
                     exact boundary.fieldChildSemanticsReady hrightGroup hfield
                       fieldDefinition (hlookupAll field hfield) childRuntime
                       (by rw [← hnamed]; exact hinclude)
-                  have hresponses : ∀ field, field ∈ rightFields ->
-                      field.responseName = responseName :=
-                    (collectFields_wellFormed schema variableValues boundary.parentType
-                      (.object boundary.runtimeType boundary.ref) boundary.selectionSet)
-                      (responseName, rightFields) (by
-                        rw [← boundary.allSpecGroups_eq]
-                        exact hrightGroup) |>.2
                   have hchildMerge : FieldMerge.fieldsInSetCanMerge schema childRuntime
                       rightSelectionSet := by
                     apply Algorithms.ExecutionUngroupedUncached.Eager.fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
                       schema boundary.extractionParentType boundary.runtimeType
                       boundary.selectionSet
-                      responseName rightFields boundary.fieldsCanMerge hresponses
+                      responseName rightFields boundary.fieldsCanMerge
                       (boundary.groupRuntimeScoped hrightGroup) childRuntime
                   have hchildObject : schema.objectType childRuntime :=
                     SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
@@ -878,7 +856,8 @@ mutual
       (hlookupAll
         : ∀ field,
             field ∈ rightFields
-            -> schema.lookupField field.parentType field.fieldName = some fieldDefinition)
+            -> schema.lookupField boundary.parentType field.fieldName
+                = some fieldDefinition)
       (hnamed : itemType.namedType = fieldDefinition.outputType.namedType)
       (hbundles : ∀ bundle, bundle ∈ bundles -> bundle.WellFormed schema)
       (hchildren

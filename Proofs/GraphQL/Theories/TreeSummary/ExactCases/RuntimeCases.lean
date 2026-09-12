@@ -427,25 +427,21 @@ theorem summarize_le
     inheritedBooleanCondition [] cursor possibleTypes runtimeType variableValues
     fixedVariableValues hruntime
 
-private def namedFieldToExecutable (parentType : Name) (field : NamedField)
+private def namedFieldToExecutable (_parentType : Name) (field : NamedField)
     : ExecutableField :=
   {
-    parentType
-    responseName := field.responseName
     fieldName := field.field.fieldName
     arguments := field.field.arguments
     selectionSet := field.field.selectionSet
   }
 
-private def fieldGroupToExecutableGroup (parentType : Name) (group : FieldGroup)
+private def fieldGroupToExecutableGroup (_parentType : Name) (group : FieldGroup)
     : Name × List ExecutableField :=
   (
     group.responseName,
     group.fields.map
       fun field =>
         {
-          parentType
-          responseName := group.responseName
           fieldName := field.fieldName
           arguments := field.arguments
           selectionSet := field.selectionSet
@@ -460,8 +456,6 @@ private theorem fieldGroupToExecutableGroup_addFieldWithResponseName
           (
             responseName,
             [{
-              parentType
-              responseName
               fieldName := field.fieldName
               arguments := field.arguments
               selectionSet := field.selectionSet
@@ -487,7 +481,10 @@ private theorem fieldGroupToExecutableGroup_collectFieldGroups
     (parentType : Name) (fields : List NamedField)
     : (ConditionTree.collectFieldGroups fields).map
         (fieldGroupToExecutableGroup parentType)
-      = groupExecutableFields (fields.map (namedFieldToExecutable parentType)) := by
+      = groupExecutableFields
+          (fields.map
+            fun field =>
+              (field.responseName, namedFieldToExecutable parentType field)) := by
   unfold ConditionTree.collectFieldGroups groupExecutableFields
   have hfold : ∀ (rest : List NamedField) (groups : List FieldGroup),
       (rest.foldl
@@ -509,10 +506,10 @@ private theorem fieldGroupToExecutableGroup_collectFieldGroups
   rw [List.foldl_map]
   simpa [namedFieldToExecutable] using hfold fields []
 
-def collectedFieldGroupToExecutableGroup (executionParentType : Name)
+def collectedFieldGroupToExecutableGroup (_executionParentType : Name)
     (group : CollectedFieldGroup)
     : Name × List ExecutableField :=
-  group.toExecutableGroup executionParentType
+  group.toExecutableGroup
 
 theorem collectedFieldGroupToExecutableGroup_keys
     (executionParentType : Name) (groups : List CollectedFieldGroup)
@@ -550,14 +547,27 @@ private def pendingRuntimeNamedFields (variableValues : VariableValues)
 private theorem runtimeNamedFields_map
     (parentType runtimeType : Name) (variableValues : VariableValues) (tree : Tree)
     : (runtimeNamedFields variableValues runtimeType tree).map
-        (namedFieldToExecutable parentType)
+        (fun field => (field.responseName, namedFieldToExecutable parentType field))
       = tree.collectRuntimeFields variableValues parentType runtimeType := by
   unfold runtimeNamedFields Tree.collectRuntimeFields
   induction tree.storedFieldEntries with
   | nil => simp [runtimeFieldsForEntries]
   | cons entry rest ih =>
-      cases hallows : entry.1.allows variableValues runtimeType <;>
-        simp [runtimeFieldsForEntries, hallows, ih, namedFieldToExecutable]
+      cases hallows : entry.1.allows variableValues runtimeType with
+      | false =>
+          simp only [List.filterMap_cons, hallows, Bool.false_eq_true, if_false,
+            runtimeFieldsForEntries, List.flatMap_cons, List.nil_append]
+          change (rest.filterMap fun entry =>
+              if entry.1.allows variableValues runtimeType = true then
+                some entry.2 else none).map
+                (fun field => (field.responseName,
+                  namedFieldToExecutable parentType field))
+            = runtimeFieldsForEntries variableValues parentType runtimeType rest
+          exact ih
+      | true =>
+          simp only [List.filterMap_cons, hallows, if_true, List.map_cons,
+            runtimeFieldsForEntries, List.flatMap_cons, List.singleton_append]
+          congr 1
 
 private theorem possibleTypesSubset_eq_contains_of_constant
     (region allowed : PossibleTypes) (runtimeType : Name)
@@ -635,9 +645,9 @@ private theorem runtimeNamedFields_eq_nil_of_condition_false
   have hsource := tree.runtimeReductionBundles_sourceFields schema variableValues
     parentType parentType runtimeType inheritedBooleanCondition hinherited hcoherent
   rw [Tree.runtimeReductionBundles, if_neg (by simpa using hcondition),
-    RuntimeFieldBundle.allSourceFields] at hsource
+    RuntimeFieldBundle.allSourceEntries] at hsource
   have hexecutable : tree.collectRuntimeFields variableValues parentType runtimeType = [] := by
-    simpa [RuntimeFieldBundle.allSourceFields] using hsource.symm
+    simpa [RuntimeFieldBundle.allSourceEntries] using hsource.symm
   have hmapped := runtimeNamedFields_map parentType runtimeType variableValues tree
   rw [hexecutable] at hmapped
   cases hfields : runtimeNamedFields variableValues runtimeType tree with

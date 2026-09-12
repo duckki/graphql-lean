@@ -17,30 +17,57 @@ open GraphQL.Execution
 theorem collectedExecutableFields_argumentsNodup
     {groups : List (Name × List ExecutableField)}
     (hnodup : ExecutionUngroupedUncached.Eager.CollectedGroupsArgumentsNodup groups)
-    : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup
-        (ExecutionUngroupedUncached.Eager.collectedExecutableFields groups) := by
-  intro field hfield
+    : KeyedExecutableFieldsArgumentsNodup
+        (ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups) := by
+  intro responseName field hfield
   induction groups with
-  | nil => simp [ExecutionUngroupedUncached.Eager.collectedExecutableFields] at hfield
+  | nil => simp [ExecutionUngroupedUncached.Eager.collectedExecutableEntries] at hfield
   | cons group rest ih =>
-      rcases group with ⟨responseName, fields⟩
-      simp only [ExecutionUngroupedUncached.Eager.collectedExecutableFields,
+      rcases group with ⟨groupResponseName, fields⟩
+      simp only [ExecutionUngroupedUncached.Eager.collectedExecutableEntries,
         List.mem_append] at hfield
       rcases hfield with hfield | hfield
-      · exact hnodup responseName fields (by simp) field hfield
+      · rcases List.mem_map.mp hfield with ⟨candidate, hcand, heq⟩
+        cases heq
+        exact hnodup responseName fields (by simp) field hcand
       · apply ih
         · intro restResponseName restFields hrest
           exact hnodup restResponseName restFields (by simp [hrest])
         · exact hfield
 
+theorem collectedExecutableFields_mem_of_entry_mem
+    (groups : List (Name × List ExecutableField))
+    (responseName : Name) (field : ExecutableField)
+    : (responseName, field)
+        ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups
+      -> field ∈ ExecutionUngroupedUncached.Eager.collectedExecutableFields groups := by
+  intro hentry
+  induction groups with
+  | nil =>
+      simp [ExecutionUngroupedUncached.Eager.collectedExecutableEntries] at hentry
+  | cons group rest ih =>
+      rcases group with ⟨groupResponseName, groupFields⟩
+      simp only [ExecutionUngroupedUncached.Eager.collectedExecutableEntries,
+        ExecutionUngroupedUncached.Eager.collectedExecutableFields,
+        List.mem_append] at hentry ⊢
+      rcases hentry with hhead | htail
+      · left
+        rcases List.mem_map.mp hhead with ⟨candidate, hcandidate, heq⟩
+        injection heq with _ hfieldEq
+        simpa [hfieldEq] using hcandidate
+      · exact Or.inr (ih htail)
+
 theorem OutputCacheSoundForFields.merge_depthZero {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef)
+    (fields : List (Name × ExecutableField))
     (output : FieldCacheValue ObjectRef) (responseName : Name)
-    : OutputCacheSoundForFields schema resolvers variableValues source fields output
+    : OutputCacheSoundForFields schema resolvers variableValues parentType source fields
+        output
       -> FieldCacheMergeReady output
-      -> OutputCacheSoundForFields schema resolvers variableValues source fields
+      -> OutputCacheSoundForFields schema resolvers variableValues parentType source
+          fields
           (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
             responseName
             (match objectField? responseName output with
@@ -48,28 +75,28 @@ theorem OutputCacheSoundForFields.merge_depthZero {ObjectRef : Type}
               | none => .null)
             output) := by
   intro hsound hready
-  apply OutputCacheSoundForFields.mergeResponseFieldIntoObject
+  apply OutputCacheSoundForFields.mergeResponseFieldIntoObject schema resolvers
+    variableValues parentType source fields output _ responseName
   · exact hsound
-  · intro field fieldDefinition hfield hresponse hlookup
+  · intro field fieldDefinition hfield hlookup
     cases hprevious : objectField? responseName output with
     | none =>
         exact
-          PreviousCacheSound.null schema resolvers source fieldDefinition field
+          PreviousCacheSound.null (parentType := parentType) schema resolvers source
+            fieldDefinition field
     | some previous =>
         simpa [hprevious] using
-          hsound field fieldDefinition previous hfield
-            (by simpa [hresponse] using hprevious) hlookup
+          hsound responseName field fieldDefinition previous hfield hprevious hlookup
 
 mutual
   def SelectionFieldsWithin {ObjectRef : Type}
       (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (fields : List ExecutableField)
+      (fields : List (Name × ExecutableField))
       : Selection -> Prop
     | .field responseName fieldName arguments directives selectionSet =>
         selectionDirectivesAllowBool variableValues directives = true
-        -> executableField parentType responseName fieldName arguments selectionSet
-            ∈ fields
+        -> (responseName, executableField fieldName arguments selectionSet) ∈ fields
     | .inlineFragment none directives selectionSet =>
         selectionDirectivesAllowBool variableValues directives = true
         -> SelectionSetFieldsWithin schema variableValues parentType source fields
@@ -83,7 +110,7 @@ mutual
   def SelectionSetFieldsWithin {ObjectRef : Type}
       (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (fields : List ExecutableField) (selectionSet : List Selection)
+      (fields : List (Name × ExecutableField)) (selectionSet : List Selection)
       : Prop :=
     ∀ selection,
       selection ∈ selectionSet
@@ -95,28 +122,23 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (fields : List ExecutableField)
+      (fields : List (Name × ExecutableField))
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
-      (hparents
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsParent parentType fields)
-      (hcompatible
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsFieldValidationMergeCompatible
-            fields)
-      (hargumentsNodup
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup fields)
+      (hcompatible : KeyedExecutableFieldsFieldValidationMergeCompatible fields)
+      (hargumentsNodup : KeyedExecutableFieldsArgumentsNodup fields)
       (hlookup
-        : ∀ field,
-            field ∈ fields
+        : ∀ responseName field,
+            (responseName, field) ∈ fields
             -> ∃ fieldDefinition,
-                schema.lookupField field.parentType field.fieldName
-                = some fieldDefinition)
+                schema.lookupField parentType field.fieldName = some fieldDefinition)
       : ∀ selection output,
           SelectionFieldsWithin schema variableValues parentType source fields selection
           -> FieldCacheMergeReady output
           -> ObjectFieldCachesInternallyAligned output
-          -> OutputCacheSoundForFields schema resolvers variableValues source fields
-              output
-          -> OutputCacheSoundForFields schema resolvers variableValues source fields
+          -> OutputCacheSoundForFields schema resolvers variableValues parentType source
+              fields output
+          -> OutputCacheSoundForFields schema resolvers variableValues parentType source
+              fields
               (visitSelection schema resolvers variableValues fuel parentType source
                 selection output).value := by
     intro selection output hwithin hready haligned hsound
@@ -125,8 +147,8 @@ mutual
         by_cases hallows :
             selectionDirectivesAllowBool variableValues directives = true
         · let field :=
-            executableField parentType responseName fieldName arguments selectionSet
-          have hfield : field ∈ fields := by
+            executableField fieldName arguments selectionSet
+          have hfield : (responseName, field) ∈ fields := by
             have hwithin' := hwithin
             simp [SelectionFieldsWithin] at hwithin'
             exact hwithin' hallows
@@ -149,21 +171,24 @@ mutual
                 Eq.mpr
                   (congrArg
                     (fun incoming =>
-                      OutputCacheSoundForFields schema resolvers variableValues source fields
+                      OutputCacheSoundForFields schema resolvers variableValues
+                        parentType source fields
                         (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
                           responseName incoming output))
                     hvalue)
                   (OutputCacheSoundForFields.merge_depthZero schema resolvers
-                    variableValues source fields output responseName hsound hready)
+                    variableValues parentType source fields output responseName hsound
+                    hready)
           | succ completionFuel =>
-              rcases hlookup field hfield with ⟨fieldDefinition, hfieldLookup⟩
+              rcases hlookup responseName field hfield with
+                ⟨fieldDefinition, hfieldLookup⟩
               simp only [visitSelection, hallows, if_true,
                 mergeResponseFieldResult]
               exact
                 OutputCacheSoundForFields.merge_executeField schema resolvers
-                  variableValues completionFuel parentType source fields output field
-                  fieldDefinition hschema hparents hcompatible hargumentsNodup hsound
-                  hready haligned hfield hfieldLookup
+                  variableValues completionFuel parentType responseName source fields
+                  output field fieldDefinition hschema hcompatible hargumentsNodup
+                  hsound hready haligned hfield hfieldLookup
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives
@@ -179,8 +204,8 @@ mutual
               simp [SelectionFieldsWithin] at hwithin'
               simpa [visitSelection, hallows] using
                 visitSubfields_outputCacheSoundForFields schema resolvers
-                  variableValues fuel parentType source fields hschema hparents
-                  hcompatible hargumentsNodup hlookup selectionSet output
+                  variableValues fuel parentType source fields hschema hcompatible
+                  hargumentsNodup hlookup selectionSet output
                   (hwithin' hallows) hready haligned hsound
           | some typeCondition =>
               have hwithin' := hwithin
@@ -190,8 +215,8 @@ mutual
                     true
               · simpa [visitSelection, hallows, happly] using
                   visitSubfields_outputCacheSoundForFields schema resolvers
-                    variableValues fuel parentType source fields hschema hparents
-                    hcompatible hargumentsNodup hlookup selectionSet output
+                    variableValues fuel parentType source fields hschema hcompatible
+                    hargumentsNodup hlookup selectionSet output
                     (hwithin' hallows happly) hready haligned hsound
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType source typeCondition =
@@ -223,29 +248,24 @@ mutual
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (fields : List ExecutableField)
+      (fields : List (Name × ExecutableField))
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
-      (hparents
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsParent parentType fields)
-      (hcompatible
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsFieldValidationMergeCompatible
-            fields)
-      (hargumentsNodup
-        : ExecutionUngroupedUncached.Eager.ExecutableFieldsArgumentsNodup fields)
+      (hcompatible : KeyedExecutableFieldsFieldValidationMergeCompatible fields)
+      (hargumentsNodup : KeyedExecutableFieldsArgumentsNodup fields)
       (hlookup
-        : ∀ field,
-            field ∈ fields
+        : ∀ responseName field,
+            (responseName, field) ∈ fields
             -> ∃ fieldDefinition,
-                schema.lookupField field.parentType field.fieldName
-                = some fieldDefinition)
+                schema.lookupField parentType field.fieldName = some fieldDefinition)
       : ∀ selectionSet output,
           SelectionSetFieldsWithin schema variableValues parentType source fields
             selectionSet
           -> FieldCacheMergeReady output
           -> ObjectFieldCachesInternallyAligned output
-          -> OutputCacheSoundForFields schema resolvers variableValues source fields
-              output
-          -> OutputCacheSoundForFields schema resolvers variableValues source fields
+          -> OutputCacheSoundForFields schema resolvers variableValues parentType source
+              fields output
+          -> OutputCacheSoundForFields schema resolvers variableValues parentType source
+              fields
               (visitSubfields schema resolvers variableValues fuel parentType source
                 selectionSet output).value := by
     intro selectionSet output hwithin hready haligned hsound
@@ -273,9 +293,10 @@ mutual
           visitSelection_objectFieldCachesInternallyAligned schema resolvers
             variableValues fuel parentType source selection output hready haligned
         have hheadSound :
-            OutputCacheSoundForFields schema resolvers variableValues source fields head.value :=
+            OutputCacheSoundForFields schema resolvers variableValues parentType source
+              fields head.value :=
           visitSelection_outputCacheSoundForFields schema resolvers variableValues
-            fuel parentType source fields hschema hparents hcompatible hargumentsNodup
+            fuel parentType source fields hschema hcompatible hargumentsNodup
             hlookup selection output hselectionWithin hready haligned hsound
         cases hstatus : head.status with
         | error errors =>
@@ -283,7 +304,7 @@ mutual
         | ok ok =>
             have htailSound :=
               visitSubfields_outputCacheSoundForFields schema resolvers
-                variableValues fuel parentType source fields hschema hparents hcompatible
+                variableValues fuel parentType source fields hschema hcompatible
                 hargumentsNodup hlookup rest head.value hrestWithin
                 hheadReady hheadAligned hheadSound
             simpa [visitSubfields, head, hstatus] using htailSound
@@ -304,7 +325,7 @@ mutual
   theorem SelectionFieldsWithin.mono {ObjectRef : Type}
       (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (sourceFields targetFields : List ExecutableField)
+      (sourceFields targetFields : List (Name × ExecutableField))
       (hsubset : ∀ field, field ∈ sourceFields -> field ∈ targetFields)
       : ∀ selection,
           SelectionFieldsWithin schema variableValues parentType source sourceFields
@@ -344,7 +365,7 @@ mutual
   theorem SelectionSetFieldsWithin.mono {ObjectRef : Type}
       (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (source : ResolverValue ObjectRef)
-      (sourceFields targetFields : List ExecutableField)
+      (sourceFields targetFields : List (Name × ExecutableField))
       (hsubset : ∀ field, field ∈ sourceFields -> field ∈ targetFields)
       : ∀ selectionSet,
           SelectionSetFieldsWithin schema variableValues parentType source sourceFields
@@ -373,7 +394,7 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       : ∀ selection,
           SelectionFieldsWithin schema variableValues parentType source
-            (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+            (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
               (GraphQL.Execution.collectSelection schema variableValues parentType
                 source selection))
             selection := by
@@ -383,7 +404,7 @@ mutual
         by_cases hallows :
             selectionDirectivesAllowBool variableValues directives = true
         · simp [SelectionFieldsWithin, GraphQL.Execution.collectSelection,
-            hallows, ExecutionUngroupedUncached.Eager.collectedExecutableFields]
+            hallows, ExecutionUngroupedUncached.Eager.collectedExecutableEntries]
           simp [executableField]
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
@@ -442,7 +463,7 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       : ∀ selectionSet,
           SelectionSetFieldsWithin schema variableValues parentType source
-            (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+            (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
               (GraphQL.Execution.collectFields schema variableValues parentType
                 source selectionSet))
             selectionSet := by
@@ -460,14 +481,14 @@ mutual
         · subst candidate
           apply
             SelectionFieldsWithin.mono schema variableValues parentType source
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectSelection schema variableValues
                   parentType source selection))
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source (selection :: rest)))
           · intro field hfield
-            exact (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
+            exact (ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_mergeExecutableGroups
                     (GraphQL.Execution.collectSelection schema variableValues
                       parentType source selection)
                     (GraphQL.Execution.collectFields schema variableValues parentType
@@ -479,14 +500,14 @@ mutual
                 parentType source selection
         · apply
             SelectionFieldsWithin.mono schema variableValues parentType source
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source rest))
-              (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   source (selection :: rest)))
           · intro field hfield
-            exact (ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_mergeExecutableGroups
+            exact (ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_mergeExecutableGroups
                     (GraphQL.Execution.collectSelection schema variableValues
                       parentType source selection)
                     (GraphQL.Execution.collectFields schema variableValues parentType
@@ -552,21 +573,28 @@ theorem collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object
       -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
           runtimeType validParent
       -> NormalForm.selectionSetLookupValid schema validParent selectionSet
-      -> ExecutionUngroupedUncached.Eager.ExecutableFieldsFieldValidationMergeCompatible
-          (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+      -> KeyedExecutableFieldsFieldValidationMergeCompatible
+          (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues collectParent
               (.object runtimeType identity) selectionSet)) := by
   intro hmerge hparentRuntime hlookupValid
-  exact
+  have hscoped :=
+    ExecutionUngroupedUncached.Eager.collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid
+      schema variableValues collectParent validParent runtimeType identity selectionSet
+      hparentRuntime hlookupValid
+  intro responseName first later hfirst hlater
+  have hpair :=
     ExecutionUngroupedUncached.Eager.fieldsInSetCanMerge_executable_runtimeScoped
-      schema validParent runtimeType selectionSet
-      (ExecutionUngroupedUncached.Eager.collectedExecutableFields
-        (GraphQL.Execution.collectFields schema variableValues collectParent
-          (ResolverValue.object runtimeType identity) selectionSet))
-      hmerge
-      (ExecutionUngroupedUncached.Eager.collectFields_runtimeScopedBy_of_selectionSetLookupValid_object
-        schema variableValues collectParent validParent runtimeType identity
-        selectionSet hparentRuntime hlookupValid)
+      schema validParent runtimeType selectionSet responseName [first, later]
+      hmerge (by
+        intro entry hentry
+        exact hscoped entry (by
+          rcases List.mem_map.mp hentry with ⟨candidate, hcand, rfl⟩
+          simp at hcand
+          rcases hcand with rfl | rfl
+          · exact hfirst
+          · exact hlater))
+  exact hpair first later (by simp) (by simp)
 
 theorem collectFields_flat_pair_selectionSets_canMerge_of_canMerge_lookupValid_object
     {ObjectRef : Type}
@@ -579,43 +607,41 @@ theorem collectFields_flat_pair_selectionSets_canMerge_of_canMerge_lookupValid_o
       -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
           runtimeType validParent
       -> NormalForm.selectionSetLookupValid schema validParent selectionSet
-      -> ∀ first,
-          first
-            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableFields
+      -> ∀ responseName first,
+          (responseName, first)
+            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues collectParent
                   (.object runtimeType identity) selectionSet)
           -> ∀ later,
-              later
-                ∈ ExecutionUngroupedUncached.Eager.collectedExecutableFields
+              (responseName, later)
+                ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                     (GraphQL.Execution.collectFields schema variableValues collectParent
                       (.object runtimeType identity) selectionSet)
-              -> first.responseName = later.responseName
               -> ∀ objectType,
                   FieldMerge.fieldsInSetCanMerge schema objectType
                     (first.selectionSet ++ later.selectionSet) := by
-  intro hmerge hparentRuntime hlookupValid first hfirst later hlater
-    hresponse objectType
+  intro hmerge hparentRuntime hlookupValid responseName first hfirst later hlater
+    objectType
   have hscoped :
-      ExecutionUngroupedUncached.Eager.ExecutableFieldsRuntimeScopedBy schema
+      ExecutionUngroupedUncached.Eager.ExecutableEntriesRuntimeScopedBy schema
         runtimeType (FieldMerge.collectFields schema validParent selectionSet)
-        (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+        (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
           (GraphQL.Execution.collectFields schema variableValues collectParent
             (.object runtimeType identity) selectionSet)) :=
-    ExecutionUngroupedUncached.Eager.collectFields_runtimeScopedBy_of_selectionSetLookupValid_object
+    ExecutionUngroupedUncached.Eager.collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid
       schema variableValues collectParent validParent runtimeType identity
       selectionSet hparentRuntime hlookupValid
-  rcases hscoped first hfirst with
-    ⟨firstScoped, hfirstScopedMem, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped later hlater with
-    ⟨laterScoped, hlaterScopedMem, hlaterMatch, hlaterRuntime⟩
+  rcases hscoped (responseName, first) hfirst with
+    ⟨firstScoped, hfirstScopedMem, hfirstResponse, hfirstMatch, hfirstRuntime⟩
+  rcases hscoped (responseName, later) hlater with
+    ⟨laterScoped, hlaterScopedMem, hlaterResponse, hlaterMatch, hlaterRuntime⟩
   rcases hfirstMatch with
-    ⟨hfirstResponse, _hfirstField, _hfirstArguments, hfirstSelectionSet⟩
+    ⟨_firstField, _hfirstArguments, hfirstSelectionSet⟩
   rcases hlaterMatch with
-    ⟨hlaterResponse, _hlaterField, _hlaterArguments, hlaterSelectionSet⟩
+    ⟨_laterField, _hlaterArguments, hlaterSelectionSet⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse]
-    exact hresponse
+    exact hfirstResponse.trans hlaterResponse.symm
   have hparents :
       firstScoped.parentType = laterScoped.parentType
         ∨ ¬schema.objectType firstScoped.parentType
@@ -636,24 +662,20 @@ theorem collectFields_flat_lookupValid_of_selectionSetSemanticsReady_object
       -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
           runtimeType parentType
       -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-      -> ∀ field,
-          field
-            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableFields
+      -> ∀ responseName field,
+          (responseName, field)
+            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   (.object runtimeType identity) selectionSet)
           -> ∃ fieldDefinition,
-              schema.lookupField field.parentType field.fieldName
-              = some fieldDefinition := by
+              schema.lookupField parentType field.fieldName = some fieldDefinition := by
   intro hobject hparentRuntime hready
-  intro field hfield
-  have hlookup :=
+  intro responseName field hfield
+  exact
     ExecutionUngroupedUncached.Eager.collectFields_lookupValid_of_selectionSetSemanticsReady_object
       schema variableValues parentType runtimeType identity selectionSet hobject
-      hparentRuntime hready field hfield
-  have hparent :=
-    collectFields_flat_parent schema variableValues parentType
-      (.object runtimeType identity) selectionSet field hfield
-  simpa [hparent] using hlookup
+      hparentRuntime hready field
+      (collectedExecutableFields_mem_of_entry_mem _ responseName field hfield)
 
 theorem collectFields_flat_childSemanticsReady_of_selectionSetSemanticsReady_object
     {ObjectRef : Type}
@@ -664,13 +686,13 @@ theorem collectFields_flat_childSemanticsReady_of_selectionSetSemanticsReady_obj
       -> ExecutionUngroupedUncached.Eager.ScopedParentRuntimeApplies schema
           runtimeType parentType
       -> NormalForm.selectionSetSemanticsReady schema parentType selectionSet
-      -> ∀ field,
-          field
-            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableFields
+      -> ∀ responseName field,
+          (responseName, field)
+            ∈ ExecutionUngroupedUncached.Eager.collectedExecutableEntries
                 (GraphQL.Execution.collectFields schema variableValues parentType
                   (.object runtimeType identity) selectionSet)
           -> ∀ fieldDefinition,
-              schema.lookupField field.parentType field.fieldName = some fieldDefinition
+              schema.lookupField parentType field.fieldName = some fieldDefinition
               -> ∀ childRuntime,
                   schema.typeIncludesObjectBool
                       fieldDefinition.outputType.namedType childRuntime
@@ -678,10 +700,12 @@ theorem collectFields_flat_childSemanticsReady_of_selectionSetSemanticsReady_obj
                   -> NormalForm.selectionSetSemanticsReady schema childRuntime
                       field.selectionSet := by
   intro hobject hparentRuntime hready
+  intro responseName field hfield
   exact
     ExecutionUngroupedUncached.Eager.collectFields_childSemanticsReady_of_selectionSetSemanticsReady_object
       schema variableValues parentType runtimeType identity selectionSet hobject
-      hparentRuntime hready
+      hparentRuntime hready field
+      (collectedExecutableFields_mem_of_entry_mem _ responseName field hfield)
 
 theorem visitSubfields_outputCacheSoundForCollectedFields_object
     {ObjectRef : Type}
@@ -697,8 +721,8 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
       -> FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
       -> Execution.selectionSetArgumentsNodup selectionSet
       -> OutputCacheSoundForFields schema resolvers variableValues
-          (.object runtimeType identity)
-          (ExecutionUngroupedUncached.Eager.collectedExecutableFields
+          parentType (.object runtimeType identity)
+          (ExecutionUngroupedUncached.Eager.collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               (.object runtimeType identity) selectionSet))
           (visitSubfields schema resolvers variableValues fuel parentType
@@ -707,7 +731,7 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
   intro hschema hobject hparentRuntime hready hmerge hargumentsNodup
   let source : ResolverValue ObjectRef := .object runtimeType identity
   let fields :=
-    ExecutionUngroupedUncached.Eager.collectedExecutableFields
+    ExecutionUngroupedUncached.Eager.collectedExecutableEntries
       (GraphQL.Execution.collectFields schema variableValues parentType source
         selectionSet)
   have hlookupValid :
@@ -717,7 +741,6 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
   apply
     visitSubfields_outputCacheSoundForFields schema resolvers variableValues fuel
       parentType source fields hschema
-      (collectFields_flat_parent schema variableValues parentType source selectionSet)
       (collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object schema
         variableValues parentType parentType runtimeType identity selectionSet
         hmerge hparentRuntime hlookupValid)
@@ -740,7 +763,7 @@ theorem visitSubfields_outputCacheSoundForCollectedFields_object
   · intro responseName previous hprevious
     simp [objectField?, lookupField?] at hprevious
   · exact OutputCacheSoundForFields.empty_object schema resolvers variableValues
-      source source fields
+      parentType source source fields
 
 end ExecutionUngrouped
 end Algorithms

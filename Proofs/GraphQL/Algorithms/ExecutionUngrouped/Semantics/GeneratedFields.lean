@@ -280,8 +280,6 @@ theorem collectFields_responseName_not_mem_of_allFields_responseNameFree
       have hcases :=
         (NormalForm.GroundTypeNormalization.mergeExecutableGroups_mem_responseName
           [(fieldResponseName, [{
-            parentType := parentType,
-            responseName := fieldResponseName,
             fieldName := fieldName,
             arguments := arguments,
             selectionSet := selectionSet
@@ -1454,8 +1452,7 @@ theorem generatedNormalizedFieldChild_of_collectFields_field_layer
               selectionSet
         -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
         -> generatedNormalizedFieldChild schema
-            ((schema.fieldReturnType? field.parentType field.fieldName).getD
-              field.fieldName)
+            ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
             field.selectionSet := by
   intro responseName field fields prefixTail hgroup hprefix
   rcases
@@ -1464,18 +1461,21 @@ theorem generatedNormalizedFieldChild_of_collectFields_field_layer
         hgroup hprefix with
     ⟨hfieldMem, _hfields, _hprefixTail⟩
   rcases List.mem_map.mp hfieldMem with
-    ⟨selection, hselectionMem, hfieldEq⟩
+    ⟨keyedField, hkeyedFieldMem, hfieldEq⟩
+  rcases List.mem_map.mp hkeyedFieldMem with
+    ⟨selection, hselectionMem, hkeyedFieldEq⟩
   have hselectionField : Selection.isField selection :=
     hall selection hselectionMem
   cases selection with
   | field selectionResponseName selectionFieldName selectionArguments
       selectionDirectives selectionSet =>
+      subst keyedField
       have hfieldEq' :
           field =
-            FreshPrefixSelectionDerivation.executableFieldOfSelection
-              parentType
-              (Selection.field selectionResponseName selectionFieldName
-                selectionArguments selectionDirectives selectionSet) :=
+            (FreshPrefixSelectionDerivation.executableFieldOfSelection
+                parentType
+                (Selection.field selectionResponseName selectionFieldName
+                  selectionArguments selectionDirectives selectionSet)).toExecutableField :=
         hfieldEq.symm
       subst field
       exact
@@ -1629,7 +1629,7 @@ theorem generatedNormalizedFieldChild_of_generatedNormalizedFieldChild_collectFi
                 (.object childRuntime ref) childSelectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
           -> generatedNormalizedFieldChild schema
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
+              ((schema.fieldReturnType? childRuntime field.fieldName).getD
                 field.fieldName)
               field.selectionSet := by
   intro hschema hinclude hgenerated responseName field fields prefixTail hgroup
@@ -1871,8 +1871,7 @@ theorem collectFields_fieldNormal_childLocalFacts_object
           ∈ GraphQL.Execution.collectFields schema variableValues parentType
               (.object runtimeType ref) selectionSet
       -> schema.typeIncludesObjectBool
-            ((schema.fieldReturnType? field.parentType field.fieldName).getD
-              field.fieldName)
+            ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
             childRuntime
           = true
       -> NormalForm.selectionSetLookupValid schema childRuntime field.selectionSet
@@ -1895,26 +1894,16 @@ theorem collectFields_fieldNormal_childLocalFacts_object
     have hcandidateEq : candidate = field := by
       simpa using hcandidate
     subst candidate
-    have hparents :
-        CollectedGroupsParent parentType
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            (.object runtimeType ref) selectionSet) :=
-      collectFields_parent schema variableValues parentType
-        (.object runtimeType ref) selectionSet
-    have hfieldParent : field.parentType = parentType :=
-      hparents responseName (field :: fields) hgroup field (by simp)
     have hscopedParent : scopedField.parentType = parentType :=
       FreshPrefixSelectionDerivation.fieldMerge_collectFields_parent_of_allFields
         schema parentType selectionSet scopedField hall hscopedMem
-    have hparent : field.parentType = scopedField.parentType :=
-      hfieldParent.trans hscopedParent.symm
     have houtput :
         scopedField.outputType.namedType =
-          ((schema.fieldReturnType? field.parentType field.fieldName).getD
+          ((schema.fieldReturnType? parentType field.fieldName).getD
             field.fieldName) :=
       FreshPrefixSelectionDerivation.scopedField_outputType_eq_fieldReturnType_of_identity_match
         schema variableDefinitions parentType selectionSet scopedField field
-        hvalid hscopedMem hparent hmatch
+        hvalid hscopedMem hscopedParent hmatch
     simpa [houtput] using hinclude
   rcases
       collectFields_group_prefix_mergedFieldSelectionSet_childLocalFacts_object
@@ -1957,8 +1946,7 @@ theorem collectFields_generatedNormalizedFieldChild_childLocalFacts
           ∈ GraphQL.Execution.collectFields schema variableValues childRuntime
               (.object childRuntime ref) childSelectionSet
       -> schema.typeIncludesObjectBool
-            ((schema.fieldReturnType? field.parentType field.fieldName).getD
-              field.fieldName)
+            ((schema.fieldReturnType? childRuntime field.fieldName).getD field.fieldName)
             grandchildRuntime
           = true
       -> NormalForm.selectionSetLookupValid schema grandchildRuntime field.selectionSet
@@ -2126,7 +2114,7 @@ theorem collectFields_generatedNormalizedFieldChild_childLocalFacts
 theorem executableFieldsFieldValidationMergeCompatible_singleton
     (field : Execution.ExecutableField)
     : ExecutableFieldsFieldValidationMergeCompatible [field] := by
-  intro first later hfirst hlater _hresponse
+  intro first later hfirst hlater
   have hfirstEq : first = field := by
     simpa using hfirst
   have hlaterEq : later = field := by
@@ -2141,7 +2129,7 @@ theorem executableFieldsResolveStable_singleton
     (source : Execution.ResolverValue ObjectRef)
     (field : Execution.ExecutableField)
     : ExecutableFieldsResolveStable schema resolvers variableValues source [field] := by
-  intro first later hfirst hlater _hresponse
+  intro parentType first later hfirst hlater
   have hfirstEq : first = field := by
     simpa using hfirst
   have hlaterEq : later = field := by
@@ -2348,7 +2336,7 @@ theorem collectedFieldGroupLocalAppendInvariant_of_allFieldsNormal
                 ((schema.fieldReturnType? parentType fieldName).getD fieldName)
                 childSelectionSet)
       -> CollectedFieldGroupLocalAppendInvariant schema resolvers variableValues
-          depth
+          depth parentType
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet) := by
   intro hall hfree hnormal hchildren
@@ -2368,18 +2356,21 @@ theorem collectedFieldGroupLocalAppendInvariant_of_allFieldsNormal
     variableValues childDepth runtimeType (.object runtimeType identity)
     (GraphQL.Execution.mergedFieldSelectionSet (field :: []))
   rcases List.mem_map.mp hfieldMem with
-    ⟨selection, hselectionMem, hfieldEq⟩
+    ⟨keyedField, hkeyedFieldMem, hfieldEq⟩
+  rcases List.mem_map.mp hkeyedFieldMem with
+    ⟨selection, hselectionMem, hkeyedFieldEq⟩
   have hselectionField : Selection.isField selection :=
     hall selection hselectionMem
   cases selection with
   | field selectionResponseName selectionFieldName selectionArguments
       selectionDirectives childSelectionSet =>
+      subst keyedField
       have hfieldEq' :
           field =
-            FreshPrefixSelectionDerivation.executableFieldOfSelection
-              parentType
-              (Selection.field selectionResponseName selectionFieldName
-                selectionArguments selectionDirectives childSelectionSet) :=
+            (FreshPrefixSelectionDerivation.executableFieldOfSelection
+                parentType
+                (Selection.field selectionResponseName selectionFieldName
+                  selectionArguments selectionDirectives childSelectionSet)).toExecutableField :=
         hfieldEq.symm
       subst field
       have hready :

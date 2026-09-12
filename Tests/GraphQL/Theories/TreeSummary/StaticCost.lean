@@ -852,8 +852,6 @@ theorem annotatedResponseErasesToExecution
 
 def newestVariableField : Execution.ExecutableField :=
   {
-    parentType := "Query"
-    responseName := "newest"
     fieldName := "newest"
     arguments := [{ name := "limit", value := .variable "limit" }]
     selectionSet := []
@@ -864,7 +862,7 @@ def newestVariableFieldArguments : Option (List Argument) :=
   | none => none
   | some fieldDefinition =>
       match singleAnnotatedResponseFieldResult staticCostSchema [("limit", .int 3)]
-              fieldDefinition "newest" newestVariableField (.ok (.null, 0)) with
+              fieldDefinition "Query" "newest" newestVariableField (.ok (.null, 0)) with
       | .ok ([.resolved _responseName definition _value], _errors) =>
           some (argumentCoercionResultArguments definition.coercedArguments)
       | _ => none

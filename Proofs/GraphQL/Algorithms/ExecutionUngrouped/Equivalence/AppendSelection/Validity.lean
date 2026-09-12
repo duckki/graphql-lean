@@ -154,10 +154,10 @@ theorem
       : FieldMerge.fieldsInSetCanMerge state.window.schema state.window.parentType
           state.window.selectionSet)
     (hruntimeScoped
-      : ExecutableFieldsRuntimeScopedBy state.window.schema runtimeType
+      : ExecutableEntriesRuntimeScopedBy state.window.schema runtimeType
           (FieldMerge.collectFields state.window.schema state.window.parentType
             state.window.selectionSet)
-          (collectedExecutableFields
+          (collectedExecutableEntries
             (GraphQL.Execution.collectFields state.window.schema
               state.window.variableValues state.window.parentType
               state.window.source state.window.selectionSet)))
@@ -184,10 +184,10 @@ theorem
       : FieldMerge.fieldsInSetCanMerge state.window.schema validParent
           state.window.selectionSet)
     (hruntimeScoped
-      : ExecutableFieldsRuntimeScopedBy state.window.schema runtimeType
+      : ExecutableEntriesRuntimeScopedBy state.window.schema runtimeType
           (FieldMerge.collectFields state.window.schema validParent
             state.window.selectionSet)
-          (collectedExecutableFields
+          (collectedExecutableEntries
             (GraphQL.Execution.collectFields state.window.schema
               state.window.variableValues state.window.parentType
               state.window.source state.window.selectionSet)))
@@ -248,9 +248,11 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_selectionSet_c
           selectionSet := selectionSet }
         initial := initial }
       runtimeType variableDefinitions hselectionSet hmerge
-  · exact collectFields_runtimeScopedBy_of_selectionSetValid schema
-      variableDefinitions variableValues parentType parentType runtimeType
-      identity selectionSet hparentRuntime hselectionSet
+  · exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+      variableValues parentType parentType runtimeType identity selectionSet
+      hparentRuntime
+      (NormalForm.selectionSetLookupValid_of_selectionSetValid selectionSet
+        hselectionSet)
   · exact hresolvers
 
 theorem
@@ -292,9 +294,11 @@ theorem
           selectionSet := selectionSet }
         initial := initial }
       runtimeType variableDefinitions hselectionSet hmerge
-  · exact collectFields_runtimeScopedBy_of_selectionSetValid_object schema
-      variableDefinitions variableValues parentType parentType runtimeType
-      identity selectionSet hparentRuntime hselectionSet
+  · exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+      variableValues parentType parentType runtimeType identity selectionSet
+      hparentRuntime
+      (NormalForm.selectionSetLookupValid_of_selectionSetValid selectionSet
+        hselectionSet)
   · exact hresolvers
 
 theorem ExecutionValidFieldSemanticStateInvariant.of_valid_object_operation_canMerge
@@ -426,15 +430,15 @@ theorem
     apply collectFields_fieldCompatible_of_canMerge_runtimeScoped
       schema variableValues collectParent validParent runtimeType
       (.object runtimeType identity) selectionSet hmerge
-    exact collectFields_runtimeScopedBy_of_selectionSetValid schema
-      variableDefinitions variableValues collectParent validParent runtimeType
-      identity selectionSet hparentRuntime hselectionSet
+    exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+      variableValues collectParent validParent runtimeType identity selectionSet
+      hparentRuntime
+      (NormalForm.selectionSetLookupValid_of_selectionSetValid selectionSet
+        hselectionSet)
   have hvalidationCompatible :
       CollectedGroupsValidationMergeCompatible groups := by
-    intro responseName fields hmem first later hfirst hlater hresponse
-      _hparent
+    intro responseName fields hmem first later hfirst hlater
     exact hfieldCompatible responseName fields hmem first later hfirst hlater
-      hresponse
   have hargumentsNodup : CollectedGroupsArgumentsNodup groups := by
     dsimp [groups]
     exact collectFields_argumentsNodup_of_selectionSetValid schema

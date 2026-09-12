@@ -58,9 +58,9 @@ mutual
                 | some previous => .ok (previous, 0)
                 | none => outOfFuel
             | fuel' + 1 =>
-                let field :=
-                  executableField parentType responseName fieldName arguments selectionSet
-                executeField schema resolvers variableValues fuel' source previous? field
+                let field := executableField fieldName arguments selectionSet
+                executeField schema resolvers variableValues fuel' parentType source
+                  previous? field
           mergeResponseFieldResult responseName fieldResult output
         else
           (output, visitOk)
@@ -87,17 +87,18 @@ mutual
   def executeField {ObjectRef : Type}
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (completionFuel : Nat)
-      (source : ResolverValue ObjectRef) (previous? : Option ResponseValue)
+      (parentType : Name) (source : ResolverValue ObjectRef)
+      (previous? : Option ResponseValue)
       (field : ExecutableField)
       : Result ResponseValue :=
-    match schema.lookupField field.parentType field.fieldName with
+    match schema.lookupField parentType field.fieldName with
     | none => .error 1
     | some fieldDefinition =>
         match reusablePreviousValue? schema fieldDefinition.outputType previous? with
         | some previous => .ok (previous, 0)
         | none =>
             match coerceAndResolveFieldValue schema resolvers variableValues
-                    fieldDefinition field.parentType field.fieldName field.arguments
+                    fieldDefinition parentType field.fieldName field.arguments
                     source with
             | none =>
                 handleFieldError fieldDefinition.outputType

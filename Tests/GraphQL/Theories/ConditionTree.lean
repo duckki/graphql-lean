@@ -207,7 +207,7 @@ theorem fieldDirectiveTreeWellFormedSmoke
 def fieldDirectiveRuntimeResponseNames (variableValues : Execution.VariableValues)
     : List Name :=
   (fieldDirectiveTree.collectRuntimeFields variableValues "Animal" "Dog").map
-    fun field => field.responseName
+    fun field => field.1
 
 theorem fieldDirectiveBranchesControlExecutionSmoke
     : fieldDirectiveRuntimeResponseNames [("x", .boolean true), ("y", .boolean false)]

@@ -143,6 +143,7 @@ theorem lookupField?_some_cacheReady {ObjectRef : Type}
 theorem executeField_resultValueOrNull_cacheReady_of_completeValue
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef)
     (previous? : Option (FieldCacheValue ObjectRef)) (field : ExecutableField)
     (hcomplete
@@ -155,11 +156,11 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
     : (∀ previous, previous? = some previous -> FieldCacheMergeReady previous)
       -> FieldCacheMergeReady
           (resultValueOrNull
-            (executeField schema resolvers variableValues completionFuel source
+            (executeField schema resolvers variableValues completionFuel parentType source
               previous? field)) := by
   intro hprevious
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none =>
       simp [resultValueOrNull]
       exact FieldCacheMergeReady.null
@@ -175,7 +176,7 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
                   (ObjectRef := ObjectRef) fieldDefinition.outputType)
           | success coercedArguments =>
               cases hresolve
-                    : resolveFieldValue resolvers field.parentType
+                    : resolveFieldValue resolvers parentType
                         field.fieldName coercedArguments source with
               | none =>
                   simpa [hlookup, hcoerce, hresolve] using
@@ -330,10 +331,9 @@ mutual
               | succ completionFuel =>
                   exact
                     executeField_resultValueOrNull_cacheReady_of_completeValue
-                      schema resolvers variableValues completionFuel source
+                      schema resolvers variableValues completionFuel parentType source
                       (objectField? responseName (.object objectSource fields))
-                      (executableField parentType responseName fieldName arguments
-                        selectionSet)
+                      (executableField fieldName arguments selectionSet)
                       (by
                         intro fieldType childSelectionSet value previous? hprevious'
                         exact
@@ -809,10 +809,9 @@ theorem visitFieldResult_cacheReady {ObjectRef : Type}
                   | some previous => .ok (previous, 0)
                   | none => outOfFuel
               | completionFuel + 1 =>
-                  executeField schema resolvers variableValues completionFuel source
-                    (objectField? responseName output)
-                    (executableField parentType responseName fieldName arguments
-                      selectionSet))) := by
+                  executeField schema resolvers variableValues completionFuel parentType
+                    source (objectField? responseName output)
+                    (executableField fieldName arguments selectionSet))) := by
   intro houtput
   have hprevious :
       ∀ previous,
@@ -838,8 +837,8 @@ theorem visitFieldResult_cacheReady {ObjectRef : Type}
   | succ completionFuel =>
       exact
         executeField_resultValueOrNull_cacheReady_of_completeValue schema resolvers
-          variableValues completionFuel source (objectField? responseName output)
-          (executableField parentType responseName fieldName arguments selectionSet)
+          variableValues completionFuel parentType source (objectField? responseName output)
+          (executableField fieldName arguments selectionSet)
           (by
             intro fieldType childSelectionSet value previous? hprevious'
             exact

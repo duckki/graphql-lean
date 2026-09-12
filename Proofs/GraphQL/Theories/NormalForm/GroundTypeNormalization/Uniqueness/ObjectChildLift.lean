@@ -28,11 +28,9 @@ def selectionSetFieldsExecuteOk {ObjectRef : Type} (schema : Schema)
     Selection.field responseName fieldName arguments directives childSelectionSet
       ∈ selectionSet
     -> ∃ responseValue fieldErrors,
-        Execution.executeField schema resolvers variableValues fuel source
+        Execution.executeField schema resolvers variableValues fuel parentType source
           responseName
           [{
-            parentType := parentType,
-            responseName := responseName,
             fieldName := fieldName,
             arguments := arguments,
             selectionSet := childSelectionSet
@@ -77,11 +75,10 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
                 runtimeType ref fieldDefinition.outputType)
               targetParent targetField targetField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := targetField,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -98,25 +95,21 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
       Execution.executeField schema
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet parentBase
           targetParent targetField targetField leftArguments rightArguments)
-        variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+        variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
         (projectionRootResolverValue
           (.object targetParent (none : Option ObjectRef)))
         responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := targetField,
           arguments := arguments,
           selectionSet := childSelectionSet
         }]
       =
       Execution.executeField schema parentBase variableValues
-        (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+        (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
         (.object targetParent (none : Option ObjectRef))
         responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := targetField,
           arguments := arguments,
           selectionSet := childSelectionSet
@@ -139,7 +132,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
   have hchildResponse :
       Execution.selectionSetResultToResponse
         (Execution.executeCollectedFields schema parentBase variableValues
-          fuel (.object runtimeType (some ref))
+          fuel runtimeType (.object runtimeType (some ref))
           (Execution.collectFields schema variableValues runtimeType
             (.object runtimeType (some ref)) childSelectionSet))
       =
@@ -207,11 +200,10 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
                 runtimeType ref fieldDefinition.outputType)
               targetParent targetField targetField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := targetField,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -228,25 +220,21 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
       Execution.executeField schema
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet parentBase
           targetParent targetField targetField leftArguments rightArguments)
-        variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+        variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
         (projectionRootResolverValue
           (.object targetParent (none : Option ObjectRef)))
         responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := targetField,
           arguments := arguments,
           selectionSet := childSelectionSet
         }]
       =
       Execution.executeField schema parentBase variableValues
-        (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+        (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
         (.object targetParent (none : Option ObjectRef))
         responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := targetField,
           arguments := arguments,
           selectionSet := childSelectionSet
@@ -269,7 +257,7 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
   have hchildResponse :
       Execution.selectionSetResultToResponse
         (Execution.executeCollectedFields schema parentBase variableValues
-          fuel (.object runtimeType (some ref))
+          fuel runtimeType (.object runtimeType (some ref))
           (Execution.collectFields schema variableValues runtimeType
             (.object runtimeType (some ref)) childSelectionSet))
       =
@@ -341,12 +329,10 @@ theorem
               targetParent targetField targetField leftArguments
               rightArguments)
             variableValues
-            (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := targetField,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -397,12 +383,10 @@ theorem
               targetParent targetField targetField leftArguments
               rightArguments)
             variableValues
-            (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+            (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := targetField,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -490,13 +474,11 @@ theorem
                     targetParent targetField targetField leftArguments
                     rightArguments)
                   variableValues
-                  (fuel + leafProbeFuel fieldDefinition.outputType + 1)
+                  (fuel + leafProbeFuel fieldDefinition.outputType + 1) targetParent
                   (projectionRootResolverValue
                     (.object targetParent (none : Option ObjectRef)))
                   responseName
                   [{
-                    parentType := targetParent,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -595,12 +577,10 @@ theorem
       -> Execution.executeField schema
             (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
               (ProjectionResolverRef.filler : ProjectionResolverRef (Option ObjectRef)))
-            variableValues parentFuel
+            variableValues parentFuel targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -611,12 +591,10 @@ theorem
               (parentObjectProbeFieldResolvers base targetParent targetField
                 childRuntimeType ref outputType)
               targetParent targetField targetField leftArguments rightArguments)
-            variableValues parentFuel
+            variableValues parentFuel targetParent
             (projectionRootResolverValue (.object targetParent (none : Option ObjectRef)))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -655,13 +633,11 @@ theorem
             Execution.executeField schema
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 (ProjectionResolverRef.filler : ProjectionResolverRef (Option ObjectRef)))
-              variableValues parentFuel
+              variableValues parentFuel targetParent
               (projectionRootResolverValue
                 (.object targetParent (none : Option ObjectRef)))
               responseName
               [{
-                parentType := targetParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -683,13 +659,11 @@ theorem
                     childRuntimeType ref outputType)
                   targetParent targetField targetField leftArguments
                   rightArguments)
-                variableValues parentFuel
+                variableValues parentFuel targetParent
                 (projectionRootResolverValue
                   (.object targetParent (none : Option ObjectRef)))
                 responseName
                 [{
-                  parentType := targetParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -830,21 +804,17 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
   have hhead :
       Execution.ResponseValue.semanticEquivalent
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
             }])).data
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -861,11 +831,9 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
         hrightTail)
       hparentData
   have hleftField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -890,11 +858,9 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
         hlookup
         hfieldInclude
   have hrightField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -959,11 +925,9 @@ theorem split_context_selectionSets_ok_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ leftPref
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -973,11 +937,9 @@ theorem split_context_selectionSets_ok_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ rightPref
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -987,11 +949,9 @@ theorem split_context_selectionSets_ok_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ leftSuffix
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -1001,11 +961,9 @@ theorem split_context_selectionSets_ok_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ rightSuffix
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -1635,21 +1593,17 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
   have hhead :
       Execution.ResponseValue.semanticEquivalent
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
             }])).data
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -1672,11 +1626,9 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
         hrightSuffix)
       hparentData
   have hleftField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -1701,11 +1653,9 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
         hlookup
         hfieldInclude
   have hrightField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -1935,21 +1885,17 @@ theorem
   have hhead :
       Execution.ResponseValue.semanticEquivalent
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
             }])).data
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -1973,11 +1919,9 @@ theorem
       (by simpa [resolvers, parentBase, parentFuel, parentSource] using
         hparentData)
   have hleftField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -2002,11 +1946,9 @@ theorem
         hlookup
         hfieldInclude
   have hrightField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -2353,21 +2295,17 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
   have hhead :
       Execution.ResponseValue.semanticEquivalent
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
             }])).data
         (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel
+          (Execution.executeField schema resolvers variableValues parentFuel targetParent
             parentSource responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -2390,11 +2328,9 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
         hrightSuffix)
       hparentData
   have hleftField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -2419,11 +2355,9 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
         hlookup
         hfieldInclude
   have hrightField :
-      Execution.executeField schema resolvers variableValues parentFuel
+      Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
         [{
-          parentType := targetParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet

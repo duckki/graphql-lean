@@ -1,4 +1,4 @@
-import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection
+import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection.StateInvariant
 
 /-!
 Collected group-prefix facts for merged field selection sets.
@@ -113,17 +113,9 @@ theorem collectFields_group_prefix_responseName
         ∈ GraphQL.Execution.collectFields schema variableValues collectParent
             (.object runtimeType identity) selectionSet
       -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
-      -> ∀ candidate,
-          candidate ∈ field :: prefixTail -> candidate.responseName = responseName := by
-  intro hgroup hprefix candidate hcandidate
-  apply
-    collectFields_responseName schema variableValues collectParent
-      (.object runtimeType identity) selectionSet responseName
-      (field :: fields) hgroup candidate
-  rcases List.mem_cons.mp hcandidate with hhead | htail
-  · subst candidate
-    simp
-  · exact List.mem_cons_of_mem field (hprefix candidate htail)
+      -> ∀ candidate, candidate ∈ field :: prefixTail -> True := by
+  intro _hgroup _hprefix _candidate _hcandidate
+  trivial
 
 theorem collectFields_group_prefix_childFieldSemanticsReady_of_selectionSetValid
     {ObjectIdentity : Type}
@@ -302,8 +294,6 @@ mutual
         · have hcandidateEq :
               candidate =
                 {
-                  parentType := collectParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
@@ -329,8 +319,6 @@ mutual
           have hmatch :
               ScopedFieldMatchesExecutableIdentity scopedField
                 {
-                  parentType := collectParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
@@ -609,8 +597,6 @@ mutual
         · have hcandidateEq :
               candidate =
                 {
-                  parentType := collectParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
@@ -638,8 +624,6 @@ mutual
               have hmatch :
                   ScopedFieldMatchesExecutableIdentity scopedField
                     {
-                      parentType := collectParent,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := selectionSet
@@ -828,54 +812,23 @@ theorem collectFields_group_fieldParentRuntime
         ∈ GraphQL.Execution.collectFields schema variableValues collectParent
             (.object runtimeType identity) selectionSet
       -> schema.typeIncludesObjectBool collectParent runtimeType = true
-      -> schema.typeIncludesObjectBool field.parentType runtimeType = true := by
-  intro hgroup hparentRuntime
-  have hparents :
-      CollectedGroupsParent collectParent
-        (GraphQL.Execution.collectFields schema variableValues collectParent
-          (.object runtimeType identity) selectionSet) :=
-    collectFields_parent schema variableValues collectParent
-      (.object runtimeType identity) selectionSet
-  have hfieldParent : field.parentType = collectParent :=
-    hparents responseName (field :: fields) hgroup field (by simp)
-  simpa [hfieldParent] using hparentRuntime
+      -> schema.typeIncludesObjectBool collectParent runtimeType = true := by
+  intro _hgroup hparentRuntime
+  exact hparentRuntime
 
 theorem fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped_pairwise
     (schema : Schema) (parentType runtimeType : Name)
     (selectionSet : List Selection) (responseName : Name)
     (fields : List ExecutableField)
     : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> (∀ field, field ∈ fields -> field.responseName = responseName)
-      -> ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema parentType selectionSet) fields
+      -> ExecutableEntriesRuntimeScopedBy schema runtimeType
+          (FieldMerge.collectFields schema parentType selectionSet)
+          (fields.map (fun field => (responseName, field)))
       -> ∀ objectType,
           FieldMerge.fieldsInSetCanMerge schema objectType
             (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hmerge hresponses hscoped objectType
-  apply FieldMerge.fieldsInSetCanMerge_mergedFieldSelectionSet_of_pairwise
-  intro first hfirst later hlater
-  rcases hscoped first hfirst with
-    ⟨firstScoped, hfirstScopedMem, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped later hlater with
-    ⟨laterScoped, hlaterScopedMem, hlaterMatch, hlaterRuntime⟩
-  rcases hfirstMatch with
-    ⟨hfirstResponse, _hfirstField, _hfirstArguments, hfirstSelectionSet⟩
-  rcases hlaterMatch with
-    ⟨hlaterResponse, _hlaterField, _hlaterArguments, hlaterSelectionSet⟩
-  have hscopedResponse :
-      firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse, hresponses first hfirst,
-      hresponses later hlater]
-  have hparents :
-      firstScoped.parentType = laterScoped.parentType
-        ∨ ¬schema.objectType firstScoped.parentType
-        ∨ ¬schema.objectType laterScoped.parentType :=
-    ScopedFieldRuntimeApplies.mergeIdentityCondition schema runtimeType
-      firstScoped laterScoped hfirstRuntime hlaterRuntime
-  simpa [hfirstSelectionSet, hlaterSelectionSet] using
-    FieldMerge.fieldsInSetCanMerge_pair_subfields schema parentType
-      selectionSet firstScoped laterScoped hmerge hfirstScopedMem
-      hlaterScopedMem hscopedResponse hparents objectType
+  exact fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped schema
+    parentType runtimeType selectionSet responseName fields
 
 theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_runtimeScoped
     {ObjectIdentity : Type}
@@ -902,19 +855,18 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_runtimeScope
     fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped_pairwise
       schema validParent runtimeType selectionSet responseName
       (field :: prefixTail) hmerge
-  · exact collectFields_group_prefix_responseName schema variableValues
-      collectParent runtimeType identity selectionSet responseName field
-      fields prefixTail hgroup hprefix
-  · intro candidate hcandidate
-    have hscopedPrefix :
-        ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (field :: prefixTail) :=
-      collectFields_group_prefix_runtimeScopedBy_of_selectionSetValid schema
-        variableDefinitions variableValues collectParent validParent
-        runtimeType identity selectionSet responseName field fields prefixTail
-        hparentRuntime hvalid hgroup hprefix
-    exact hscopedPrefix candidate hcandidate
+  · have hscopedAll :=
+      collectFields_entriesRuntimeScopedBy_of_selectionSetValid schema
+        variableDefinitions variableValues collectParent validParent runtimeType
+        identity selectionSet hparentRuntime hvalid
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨candidate, hcandidate, rfl⟩
+    apply hscopedAll (responseName, candidate)
+    apply collectedExecutableEntries_mem_of_group_mem hgroup
+    rcases List.mem_cons.mp hcandidate with hhead | htail
+    · subst candidate
+      simp
+    · exact List.mem_cons_of_mem field (hprefix candidate htail)
 
 theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_lookupValid
     {ObjectIdentity : Type}
@@ -940,38 +892,18 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_lookupValid
     fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped_pairwise
       schema validParent runtimeType selectionSet responseName
       (field :: prefixTail) hmerge
-  · exact collectFields_group_prefix_responseName schema variableValues
-      collectParent runtimeType identity selectionSet responseName field
-      fields prefixTail hgroup hprefix
-  · intro candidate hcandidate
-    have hscopedPrefix :
-        ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (field :: prefixTail) := by
-      have hscopedAll :
-          ExecutableFieldsRuntimeScopedBy schema runtimeType
-            (FieldMerge.collectFields schema validParent selectionSet)
-            (collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues
-                collectParent (.object runtimeType identity) selectionSet)) :=
-        collectFields_runtimeScopedBy_of_selectionSetLookupValid schema
-          variableValues collectParent validParent runtimeType identity
-          selectionSet hparentRuntime hlookupValid
-      apply
-        ExecutableFieldsRuntimeScopedBy.mono schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues collectParent
-              (.object runtimeType identity) selectionSet))
-          (field :: prefixTail)
-      · intro executable hexecutable
-        apply collectedExecutableFields_mem_of_group_mem hgroup
-        rcases List.mem_cons.mp hexecutable with hhead | htail
-        · subst executable
-          simp
-        · exact List.mem_cons_of_mem field (hprefix executable htail)
-      · exact hscopedAll
-    exact hscopedPrefix candidate hcandidate
+  · have hscopedAll :=
+      collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+        variableValues collectParent validParent runtimeType identity selectionSet
+        hparentRuntime hlookupValid
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨candidate, hcandidate, rfl⟩
+    apply hscopedAll (responseName, candidate)
+    apply collectedExecutableEntries_mem_of_group_mem hgroup
+    rcases List.mem_cons.mp hcandidate with hhead | htail
+    · subst candidate
+      simp
+    · exact List.mem_cons_of_mem field (hprefix candidate htail)
 
 theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_lookupValid_object
     {ObjectIdentity : Type}
@@ -997,44 +929,18 @@ theorem collectFields_group_prefix_mergedFieldSelectionSet_canMerge_lookupValid_
     fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped_pairwise
       schema validParent runtimeType selectionSet responseName
       (field :: prefixTail) hmerge
-  · intro candidate hcandidate
-    apply
-      collectFields_responseName schema variableValues collectParent
-        (.object runtimeType identity) selectionSet responseName
-        (field :: fields) hgroup candidate
+  · have hscopedAll :=
+      collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+        variableValues collectParent validParent runtimeType identity selectionSet
+        hparentRuntime hlookupValid
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨candidate, hcandidate, rfl⟩
+    apply hscopedAll (responseName, candidate)
+    apply collectedExecutableEntries_mem_of_group_mem hgroup
     rcases List.mem_cons.mp hcandidate with hhead | htail
     · subst candidate
       simp
     · exact List.mem_cons_of_mem field (hprefix candidate htail)
-  · intro candidate hcandidate
-    have hscopedPrefix :
-        ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (field :: prefixTail) := by
-      have hscopedAll :
-          ExecutableFieldsRuntimeScopedBy schema runtimeType
-            (FieldMerge.collectFields schema validParent selectionSet)
-            (collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues
-                collectParent (.object runtimeType identity) selectionSet)) :=
-        collectFields_runtimeScopedBy_of_selectionSetLookupValid_object schema
-          variableValues collectParent validParent runtimeType identity
-          selectionSet hparentRuntime hlookupValid
-      apply
-        ExecutableFieldsRuntimeScopedBy.mono schema runtimeType
-          (FieldMerge.collectFields schema validParent selectionSet)
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues collectParent
-              (.object runtimeType identity) selectionSet))
-          (field :: prefixTail)
-      · intro executable hexecutable
-        apply collectedExecutableFields_mem_of_group_mem hgroup
-        rcases List.mem_cons.mp hexecutable with hhead | htail
-        · subst executable
-          simp
-        · exact List.mem_cons_of_mem field (hprefix executable htail)
-      · exact hscopedAll
-    exact hscopedPrefix candidate hcandidate
 
 theorem collectFields_group_prefix_outputCompatible_of_concreteParent
     {ObjectIdentity : Type}
@@ -1057,8 +963,7 @@ theorem collectFields_group_prefix_outputCompatible_of_concreteParent
       -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
       -> ∀ childRuntime,
           schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? validParent field.fieldName).getD field.fieldName)
               childRuntime
             = true
           -> ∀ candidate,
@@ -1076,14 +981,6 @@ theorem collectFields_group_prefix_outputCompatible_of_concreteParent
   subst collectParent
   have hruntimeEq : runtimeType = validParent :=
     object_typeIncludesObjectBool_eq_self schema hvalidObject hparentRuntime
-  have hfieldParent : field.parentType = validParent := by
-    have hparents :
-        CollectedGroupsParent validParent
-          (GraphQL.Execution.collectFields schema variableValues validParent
-            (.object runtimeType identity) selectionSet) :=
-      collectFields_parent schema variableValues validParent
-        (.object runtimeType identity) selectionSet
-    exact hparents responseName (field :: fields) hgroup field (by simp)
   have hscopedAll :
       ExecutableFieldsRuntimeScopedBy schema runtimeType
         (FieldMerge.collectFields schema validParent selectionSet)
@@ -1114,7 +1011,7 @@ theorem collectFields_group_prefix_outputCompatible_of_concreteParent
   rcases hscopedPrefix field (by simp) with
     ⟨headScoped, hheadScopedMem, hheadMatch, hheadRuntime⟩
   rcases hheadMatch with
-    ⟨_hheadResponse, hheadField, _hheadArguments, _hheadSelection⟩
+    ⟨hheadField, _hheadArguments, _hheadSelection⟩
   rcases
       GraphQL.NormalForm.fieldMerge_collectFields_mem_lookupField_outputType
         schema validParent selectionSet headScoped hheadScopedMem with
@@ -1138,60 +1035,40 @@ theorem collectFields_group_prefix_outputCompatible_of_concreteParent
       schema.typeIncludesObjectBool
         headImplementationDefinition.outputType.namedType childRuntime =
         true := by
-    have hlookupAtFieldParent :
-        schema.lookupField field.parentType field.fieldName =
-          some headImplementationDefinition := by
-      simpa [hfieldParent] using hheadImplementationLookupField
-    simpa [Schema.fieldReturnType?, hlookupAtFieldParent] using hinclude
-  have hresponseNames :
-      ∀ candidate, candidate ∈ field :: prefixTail ->
-        candidate.responseName = responseName := by
-    intro executable hexecutable
-    apply
-      collectFields_responseName schema variableValues validParent
-        (.object runtimeType identity) selectionSet responseName
-        (field :: fields) hgroup executable
-    rcases List.mem_cons.mp hexecutable with hhead | htail
-    · subst executable
-      simp
-    · exact List.mem_cons_of_mem field (hprefix executable htail)
+    simpa [Schema.fieldReturnType?, hheadImplementationLookupField] using hinclude
+  have hentriesAll :
+      ExecutableEntriesRuntimeScopedBy schema runtimeType
+        (FieldMerge.collectFields schema validParent selectionSet)
+        (collectedExecutableEntries
+          (GraphQL.Execution.collectFields schema variableValues validParent
+            (.object runtimeType identity) selectionSet)) :=
+    collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
+      variableValues validParent validParent runtimeType identity selectionSet
+      hparentRuntime hlookup
+  have hgroupsCompatible :
+      CollectedGroupsFieldValidationMergeCompatible
+        (GraphQL.Execution.collectFields schema variableValues validParent
+          (.object runtimeType identity) selectionSet) :=
+    collectFields_fieldCompatible_of_canMerge_runtimeScoped schema variableValues
+      validParent validParent runtimeType (.object runtimeType identity)
+      selectionSet hmerge hentriesAll
+  have hgroupCompatible :
+      ExecutableFieldsFieldValidationMergeCompatible (field :: fields) :=
+    hgroupsCompatible responseName (field :: fields) hgroup
   have hexecutableCompatible :
       ExecutableFieldsFieldValidationMergeCompatible (field :: prefixTail) := by
-    intro first later hfirst hlater hresponse
-    rcases hscopedPrefix first hfirst with
-      ⟨firstScoped, hfirstScopedMem, hfirstMatch, hfirstRuntime⟩
-    rcases hscopedPrefix later hlater with
-      ⟨laterScoped, hlaterScopedMem, hlaterMatch, hlaterRuntime⟩
-    rcases hfirstMatch with
-      ⟨hfirstResponse, hfirstField, hfirstArguments, _hfirstSelection⟩
-    rcases hlaterMatch with
-      ⟨hlaterResponse, hlaterField, hlaterArguments, _hlaterSelection⟩
-    have hscopedResponse :
-        firstScoped.responseName = laterScoped.responseName := by
-      rw [hfirstResponse, hlaterResponse]
-      exact hresponse
-    have hfieldMerge :
-        FieldMerge.fieldsForNameCanMerge schema firstScoped laterScoped :=
-      FieldMerge.fieldsInSetCanMerge_pair hmerge hfirstScopedMem
-        hlaterScopedMem hscopedResponse
-    rcases
-        FieldMerge.fieldsForNameCanMerge_identity hfieldMerge
-          (ScopedFieldRuntimeApplies.mergeIdentityCondition schema runtimeType
-            firstScoped laterScoped hfirstRuntime hlaterRuntime) with
-      ⟨hfield, hargumentsEquivalent⟩
-    constructor
-    · rw [← hfirstField, ← hlaterField]
-      exact hfield
-    · rw [← hfirstArguments, ← hlaterArguments]
-      exact hargumentsEquivalent
+    apply ExecutableFieldsFieldValidationMergeCompatible.mono
+      (field :: fields) (field :: prefixTail)
+    · intro executable hexecutable
+      rcases List.mem_cons.mp hexecutable with hhead | htail
+      · subst executable
+        simp
+      · exact List.mem_cons_of_mem field (hprefix executable htail)
+    · exact hgroupCompatible
   have hfieldEq : field.fieldName = candidate.fieldName := by
-    exact (hexecutableCompatible field candidate (by simp) hcandidate
-            (by
-              rw [hresponseNames field (by simp),
-                hresponseNames candidate hcandidate])).1
+    exact (hexecutableCompatible field candidate (by simp) hcandidate).1
   rcases hmatch with
-    ⟨_hscopedResponse, hscopedFieldName, _hscopedArguments,
-      _hscopedSelection⟩
+    ⟨hscopedFieldName, _hscopedArguments, _hscopedSelection⟩
   have hscopedFieldEq : scopedField.fieldName = field.fieldName :=
     hscopedFieldName.trans hfieldEq.symm
   rcases

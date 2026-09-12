@@ -247,11 +247,12 @@ def executionVariableValuesIndependentAtFuel
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (leftValues rightValues : Execution.VariableValues) (fuel : Nat)
     : Prop :=
-  (∀ source groups,
+  (∀ parentType source groups,
     executableGroupsDirectiveFree groups
-    -> Execution.executeCollectedFields schema resolvers leftValues fuel source groups
-        = Execution.executeCollectedFields schema resolvers rightValues fuel source
-            groups)
+    -> Execution.executeCollectedFields schema resolvers leftValues fuel parentType
+          source groups
+        = Execution.executeCollectedFields schema resolvers rightValues fuel parentType
+            source groups)
   ∧ (∀ fieldType fields value,
       executableFieldListDirectiveFree fields
       -> Execution.completeValue schema resolvers leftValues fuel fieldType fields value
@@ -280,7 +281,7 @@ theorem executionVariableValuesIndependentAtFuel_all
   induction fuel with
   | zero =>
       refine ⟨?_, ?_, ?_⟩
-      · intro source groups hfree
+      · intro parentType source groups hfree
         induction groups with
         | nil => simp [Execution.executeCollectedFields]
         | cons group rest ih =>
@@ -346,17 +347,17 @@ theorem executionVariableValuesIndependentAtFuel_all
                   change Execution.catchBubbleAsNull
                       Execution.ResponseValue.object
                         (Execution.executeCollectedFields schema resolvers
-                          leftValues fuel source
+                          leftValues fuel runtimeType source
                           (Execution.collectSubfields schema leftValues
                             runtimeType source fields))
                     =
                     Execution.catchBubbleAsNull Execution.ResponseValue.object
                       (Execution.executeCollectedFields schema resolvers
-                        rightValues fuel source
+                        rightValues fuel runtimeType source
                         (Execution.collectSubfields schema rightValues
                           runtimeType source fields))
                   rw [← hcollect]
-                  rw [hexecute source _ hgroupsFree]
+                  rw [hexecute runtimeType source _ hgroupsFree]
         | list inner =>
             intro fields value hfieldsFree
             cases value with
@@ -384,14 +385,14 @@ theorem executionVariableValuesIndependentAtFuel_all
             simp only [Execution.completeValueList]
             rw [hcompleteCurrent itemType fields value hfieldsFree]
             rw [ihValues]
-      have hexecuteCurrent : ∀ source groups,
+      have hexecuteCurrent : ∀ parentType source groups,
           executableGroupsDirectiveFree groups ->
             Execution.executeCollectedFields schema resolvers leftValues
-                (fuel + 1) source groups
+                (fuel + 1) parentType source groups
               =
             Execution.executeCollectedFields schema resolvers rightValues
-                (fuel + 1) source groups := by
-        intro source groups hgroupsFree
+                (fuel + 1) parentType source groups := by
+        intro parentType source groups hgroupsFree
         induction groups with
         | nil => simp [Execution.executeCollectedFields]
         | cons group rest ihGroups =>
@@ -403,27 +404,27 @@ theorem executionVariableValuesIndependentAtFuel_all
               exact hgroupsFree candidate (by simp [hmem])
             have hfield :
                 Execution.executeField schema resolvers leftValues (fuel + 1)
-                    source responseName fields
+                    parentType source responseName fields
                   =
                 Execution.executeField schema resolvers rightValues (fuel + 1)
-                    source responseName fields := by
+                    parentType source responseName fields := by
               cases fields with
               | nil => simp [Execution.executeField]
               | cons field restFields =>
                   cases hlookup :
-                      schema.lookupField field.parentType field.fieldName
+                      schema.lookupField parentType field.fieldName
                   · simp [Execution.executeField, hlookup]
                   · rename_i fieldDefinition
                     rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
-                      schema resolvers leftValues fuel source responseName field
+                      schema resolvers leftValues fuel parentType source responseName field
                       restFields fieldDefinition hlookup]
                     rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
-                      schema resolvers rightValues fuel source responseName field
+                      schema resolvers rightValues fuel parentType source responseName field
                       restFields fieldDefinition hlookup]
-                    rw [hresolve fieldDefinition field.parentType field.fieldName
+                    rw [hresolve fieldDefinition parentType field.fieldName
                       field.arguments source]
                     cases hresolved : Execution.coerceAndResolveFieldValue schema resolvers
-                        rightValues fieldDefinition field.parentType field.fieldName
+                        rightValues fieldDefinition parentType field.fieldName
                         field.arguments source
                     · simp
                     · rename_i resolved
@@ -458,7 +459,7 @@ theorem executeSelectionSet_eq_of_directiveFree_variableValues
     leftValues parentType source selectionSet hfree
   have hexecute :=
     (executionVariableValuesIndependentAtFuel_all schema resolvers leftValues
-      rightValues hresolve fuel).1 source
+      rightValues hresolve fuel).1 parentType source
       (Execution.collectFields schema leftValues parentType source selectionSet)
       hgroupsFree
   simp only [Execution.executeSelectionSet, Execution.executeRootSelectionSet]
@@ -590,9 +591,11 @@ def executionVariableValuesEquivalentAtFuel
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
     (leftValues rightValues : Execution.VariableValues) (fuel : Nat)
     : Prop :=
-  (∀ source groups,
-    Execution.executeCollectedFields schema resolvers leftValues fuel source groups
-    = Execution.executeCollectedFields schema resolvers rightValues fuel source groups)
+  (∀ parentType source groups,
+    Execution.executeCollectedFields schema resolvers leftValues fuel parentType
+      source groups
+    = Execution.executeCollectedFields schema resolvers rightValues fuel parentType
+        source groups)
   ∧ (∀ fieldType fields value,
       Execution.completeValue schema resolvers leftValues fuel fieldType fields value
       = Execution.completeValue schema resolvers rightValues fuel fieldType fields value)
@@ -622,7 +625,7 @@ theorem executionVariableValuesEquivalentAtFuel_all
   induction fuel with
   | zero =>
       refine ⟨?_, ?_, ?_⟩
-      · intro source groups
+      · intro parentType source groups
         induction groups with
         | nil => simp [Execution.executeCollectedFields]
         | cons group rest ih =>
@@ -671,16 +674,16 @@ theorem executionVariableValuesEquivalentAtFuel_all
                   change Execution.catchBubbleAsNull
                       Execution.ResponseValue.object
                         (Execution.executeCollectedFields schema resolvers
-                          leftValues fuel source
+                          leftValues fuel runtimeType source
                           (Execution.collectSubfields schema leftValues
                             runtimeType source fields)) =
                     Execution.catchBubbleAsNull Execution.ResponseValue.object
                       (Execution.executeCollectedFields schema resolvers
-                        rightValues fuel source
+                        rightValues fuel runtimeType source
                         (Execution.collectSubfields schema rightValues
                           runtimeType source fields))
                   rw [← hcollect]
-                  rw [hexecute source]
+                  rw [hexecute runtimeType source]
         | list inner =>
             intro fields value
             cases value with
@@ -706,38 +709,38 @@ theorem executionVariableValuesEquivalentAtFuel_all
             simp only [Execution.completeValueList]
             rw [hcompleteCurrent itemType fields value]
             rw [ihValues]
-      have hexecuteCurrent : ∀ source groups,
+      have hexecuteCurrent : ∀ parentType source groups,
           Execution.executeCollectedFields schema resolvers leftValues
-              (fuel + 1) source groups =
+              (fuel + 1) parentType source groups =
             Execution.executeCollectedFields schema resolvers rightValues
-              (fuel + 1) source groups := by
-        intro source groups
+              (fuel + 1) parentType source groups := by
+        intro parentType source groups
         induction groups with
         | nil => simp [Execution.executeCollectedFields]
         | cons group rest ihGroups =>
             rcases group with ⟨responseName, fields⟩
             have hfield :
                 Execution.executeField schema resolvers leftValues (fuel + 1)
-                    source responseName fields =
+                    parentType source responseName fields =
                   Execution.executeField schema resolvers rightValues (fuel + 1)
-                    source responseName fields := by
+                    parentType source responseName fields := by
               cases fields with
               | nil => simp [Execution.executeField]
               | cons field restFields =>
                   cases hlookup :
-                      schema.lookupField field.parentType field.fieldName
+                      schema.lookupField parentType field.fieldName
                   · simp [Execution.executeField, hlookup]
                   · rename_i fieldDefinition
                     rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
-                      schema resolvers leftValues fuel source responseName field
+                      schema resolvers leftValues fuel parentType source responseName field
                       restFields fieldDefinition hlookup]
                     rw [Execution.executeField_succ_eq_coerceAndResolveFieldValue
-                      schema resolvers rightValues fuel source responseName field
+                      schema resolvers rightValues fuel parentType source responseName field
                       restFields fieldDefinition hlookup]
-                    rw [hresolve fieldDefinition field.parentType field.fieldName
+                    rw [hresolve fieldDefinition parentType field.fieldName
                       field.arguments source]
                     cases hresolved : Execution.coerceAndResolveFieldValue schema resolvers
-                        rightValues fieldDefinition field.parentType field.fieldName
+                        rightValues fieldDefinition parentType field.fieldName
                         field.arguments source
                     · simp
                     · rename_i resolved
@@ -764,7 +767,8 @@ theorem executeSelectionSet_eq_of_variableValuesCoercionEquivalent
     hequivalent parentType source selectionSet
   have hexecute :=
     (executionVariableValuesEquivalentAtFuel_all schema resolvers hequivalent fuel).1
-      source (Execution.collectFields schema leftValues parentType source selectionSet)
+      parentType source
+      (Execution.collectFields schema leftValues parentType source selectionSet)
   simp only [Execution.executeSelectionSet, Execution.executeRootSelectionSet]
   rw [← hcollect]
   exact hexecute

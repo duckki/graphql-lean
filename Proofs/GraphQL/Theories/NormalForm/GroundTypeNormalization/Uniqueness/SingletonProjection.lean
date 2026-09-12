@@ -20,11 +20,12 @@ theorem executeField_ok_responseFields_singleton
     {ObjectRef : Type} (schema : Schema)
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
-    (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+    (fuel : Nat) (parentType : Name)
+    (source : Execution.ResolverValue ObjectRef)
     (responseName : Name) (fields : List Execution.ExecutableField)
     (responseFields : List (Name × Execution.ResponseValue))
     (errors : Nat)
-    : Execution.executeField schema resolvers variableValues fuel source
+    : Execution.executeField schema resolvers variableValues fuel parentType source
           responseName fields
         = .ok (responseFields, errors)
       -> ∃ responseValue, responseFields = [(responseName, responseValue)] := by
@@ -37,13 +38,13 @@ theorem executeField_ok_responseFields_singleton
       | zero =>
           simp [Execution.executeField, Execution.outOfFuel] at hok
       | succ fuel =>
-          cases hlookup : schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField parentType field.fieldName with
           | none =>
               simp [Execution.executeField, hlookup] at hok
           | some fieldDefinition =>
               cases hresolve
                     : Execution.coerceAndResolveFieldValue schema resolvers variableValues
-                        fieldDefinition field.parentType field.fieldName
+                        fieldDefinition parentType field.fieldName
                         field.arguments source with
               | none =>
                   cases hhandled
@@ -82,21 +83,17 @@ theorem executeSelectionSetAsResponse_singleton_field_eq_executeField
         parentType source
         [Selection.field responseName fieldName arguments [] childSelectionSet]
       = Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues fuel source
+          (Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
             }]) := by
   cases hfield
-        : Execution.executeField schema resolvers variableValues fuel source
+        : Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -135,11 +132,9 @@ theorem executeSelectionSet_normal_object_field_head_eq_combine
             (Selection.field responseName fieldName arguments [] childSelectionSet
               :: rest)
           = Execution.Result.combine List.append
-              (Execution.executeField schema resolvers variableValues fuel source
-                responseName
+              (Execution.executeField schema resolvers variableValues fuel parentType
+                source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -153,8 +148,6 @@ theorem executeSelectionSet_normal_object_field_head_eq_combine
           :: rest)
       =
       (responseName, [{
-        parentType := parentType,
-        responseName := responseName,
         fieldName := fieldName,
         arguments := arguments,
         selectionSet := childSelectionSet
@@ -248,11 +241,9 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
               (Execution.executeSelectionSet schema resolvers variableValues fuel
                 parentType source pref)
               (Execution.Result.combine List.append
-                (Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                (Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -268,11 +259,9 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
           fieldName arguments childSelectionSet suffix hfree hnormal hobject
       let targetAndSuffix :=
         Execution.Result.combine List.append
-          (Execution.executeField schema resolvers variableValues fuel source
+          (Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -369,10 +358,8 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                         :: suffix)
                 = Execution.Result.combine List.append
                     (Execution.executeField schema resolvers variableValues fuel
-                      source headResponseName
+                      parentType source headResponseName
                       [{
-                        parentType := parentType,
-                        responseName := headResponseName,
                         fieldName := headFieldName,
                         arguments := headArguments,
                         selectionSet := headChildSelectionSet
@@ -385,11 +372,9 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                             :: suffix)) :=
               hfullHead
             _ = Execution.Result.combine List.append
-                  (Execution.executeField schema resolvers variableValues fuel
+                  (Execution.executeField schema resolvers variableValues fuel parentType
                     source headResponseName
                     [{
-                      parentType := parentType,
-                      responseName := headResponseName,
                       fieldName := headFieldName,
                       arguments := headArguments,
                       selectionSet := headChildSelectionSet
@@ -399,10 +384,8 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                       variableValues fuel parentType source rest)
                     (Execution.Result.combine List.append
                       (Execution.executeField schema resolvers variableValues
-                        fuel source responseName
+                        fuel parentType source responseName
                         [{
-                          parentType := parentType,
-                          responseName := responseName,
                           fieldName := fieldName,
                           arguments := arguments,
                           selectionSet := childSelectionSet
@@ -413,10 +396,8 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
             _ = Execution.Result.combine List.append
                   (Execution.Result.combine List.append
                     (Execution.executeField schema resolvers variableValues fuel
-                      source headResponseName
+                      parentType source headResponseName
                       [{
-                        parentType := parentType,
-                        responseName := headResponseName,
                         fieldName := headFieldName,
                         arguments := headArguments,
                         selectionSet := headChildSelectionSet
@@ -425,10 +406,8 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                       variableValues fuel parentType source rest))
                   (Execution.Result.combine List.append
                     (Execution.executeField schema resolvers variableValues fuel
-                      source responseName
+                      parentType source responseName
                       [{
-                        parentType := parentType,
-                        responseName := responseName,
                         fieldName := fieldName,
                         arguments := arguments,
                         selectionSet := childSelectionSet
@@ -444,10 +423,8 @@ theorem executeSelectionSet_normal_object_field_split_eq_context_combine
                       :: rest))
                   (Execution.Result.combine List.append
                     (Execution.executeField schema resolvers variableValues fuel
-                      source responseName
+                      parentType source responseName
                       [{
-                        parentType := parentType,
-                        responseName := responseName,
                         fieldName := fieldName,
                         arguments := arguments,
                         selectionSet := childSelectionSet
@@ -487,8 +464,7 @@ theorem executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_obj
         (Execution.collectFields schema variableValues parentType source
           rest).map Prod.fst := by
     have htailCollected :
-        Execution.executeCollectedFields schema resolvers variableValues fuel
-          source
+        Execution.executeCollectedFields schema resolvers variableValues fuel parentType source
           (Execution.collectFields schema variableValues parentType source
             rest)
         =
@@ -497,7 +473,7 @@ theorem executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_obj
         using htail
     exact
       ExecutionResponseKeys.executeCollectedFields_ok_keys schema resolvers
-        variableValues fuel source
+        variableValues fuel parentType source
         (Execution.collectFields schema variableValues parentType source rest)
         tailFields tailErrors htailCollected
   have hrestKeys :
@@ -548,11 +524,9 @@ theorem executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
       -> Execution.executeSelectionSet schema resolvers variableValues fuel
             parentType source pref
           = .ok (prefixFields, prefixErrors)
-      -> Execution.executeField schema resolvers variableValues fuel source
+      -> Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -579,8 +553,7 @@ theorem executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
     rw [hsplit, hprefix, hhead, hsuffix]
     simp [Execution.Result.combine, List.append_assoc]
   have hcollected :
-      Execution.executeCollectedFields schema resolvers variableValues fuel
-        source
+      Execution.executeCollectedFields schema resolvers variableValues fuel parentType source
         (Execution.collectFields schema variableValues parentType source
           fullSelectionSet)
       =
@@ -595,7 +568,7 @@ theorem executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
         (Execution.collectFields schema variableValues parentType source
           fullSelectionSet).map Prod.fst :=
     ExecutionResponseKeys.executeCollectedFields_ok_keys schema resolvers
-      variableValues fuel source
+      variableValues fuel parentType source
       (Execution.collectFields schema variableValues parentType source
         fullSelectionSet)
       (prefixFields ++ [(responseName, headValue)] ++ suffixFields)
@@ -950,21 +923,17 @@ theorem
                 :: rightSuffix)
       -> Execution.ResponseValue.semanticEquivalent
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := leftField,
                 arguments := leftArguments,
                 selectionSet := leftChildSelectionSet
               }])).data
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := rightField,
                 arguments := rightArguments,
                 selectionSet := rightChildSelectionSet
@@ -972,21 +941,17 @@ theorem
   intro hsource hleftFree hrightFree hleftNormal hrightNormal hobject
     hleftPrefix hrightPrefix hleftSuffix hrightSuffix hdata
   let leftHead :=
-    Execution.executeField schema resolvers variableValues fuel source
+    Execution.executeField schema resolvers variableValues fuel parentType source
       responseName
       [{
-        parentType := parentType,
-        responseName := responseName,
         fieldName := leftField,
         arguments := leftArguments,
         selectionSet := leftChildSelectionSet
       }]
   let rightHead :=
-    Execution.executeField schema resolvers variableValues fuel source
+    Execution.executeField schema resolvers variableValues fuel parentType source
       responseName
       [{
-        parentType := parentType,
-        responseName := responseName,
         fieldName := rightField,
         arguments := rightArguments,
         selectionSet := rightChildSelectionSet
@@ -1027,10 +992,8 @@ theorem
         intro fields errors hok
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := leftField,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
@@ -1040,10 +1003,8 @@ theorem
         intro fields errors hok
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := rightField,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -1134,21 +1095,17 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
                   :: rightSuffix)).data
       -> Execution.ResponseValue.semanticEquivalent
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := leftField,
                 arguments := leftArguments,
                 selectionSet := leftChildSelectionSet
               }])).data
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := rightField,
                 arguments := rightArguments,
                 selectionSet := rightChildSelectionSet
@@ -1156,21 +1113,17 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
   intro hsource hleftFree hrightFree hleftNormal hrightNormal hobject
     hleftPrefix hrightPrefix hleftSuffix hrightSuffix hdata
   let leftHead :=
-    Execution.executeField schema resolvers variableValues fuel source
+    Execution.executeField schema resolvers variableValues fuel parentType source
       responseName
       [{
-        parentType := parentType,
-        responseName := responseName,
         fieldName := leftField,
         arguments := leftArguments,
         selectionSet := leftChildSelectionSet
       }]
   let rightHead :=
-    Execution.executeField schema resolvers variableValues fuel source
+    Execution.executeField schema resolvers variableValues fuel parentType source
       responseName
       [{
-        parentType := parentType,
-        responseName := responseName,
         fieldName := rightField,
         arguments := rightArguments,
         selectionSet := rightChildSelectionSet
@@ -1209,10 +1162,8 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
         intro fields errors hok
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := leftField,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
@@ -1222,10 +1173,8 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
         intro fields errors hok
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := rightField,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -1293,21 +1242,17 @@ theorem
             :: rightRest)
       -> Execution.ResponseValue.semanticEquivalent
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := leftField,
                 arguments := leftArguments,
                 selectionSet := leftChildSelectionSet
               }])).data
           (Execution.selectionSetResultToResponse
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := rightField,
                 arguments := rightArguments,
                 selectionSet := rightChildSelectionSet
@@ -1339,11 +1284,9 @@ theorem
       Execution.ResponseValue.semanticEquivalent
         (Execution.selectionSetResultToResponse
           (Execution.Result.combine List.append
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := leftField,
                 arguments := leftArguments,
                 selectionSet := leftChildSelectionSet
@@ -1351,11 +1294,9 @@ theorem
             (.ok (leftTailFields, leftTailErrors)))).data
         (Execution.selectionSetResultToResponse
           (Execution.Result.combine List.append
-            (Execution.executeField schema resolvers variableValues fuel source
+            (Execution.executeField schema resolvers variableValues fuel parentType source
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := rightField,
                 arguments := rightArguments,
                 selectionSet := rightChildSelectionSet
@@ -1365,20 +1306,16 @@ theorem
       hleftTail, hrightTail] using hwhole
   exact
     dataEquivalent_singleton_response_of_combine_ok_tail responseName
-      (Execution.executeField schema resolvers variableValues fuel source
+      (Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := leftField,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
         }])
-      (Execution.executeField schema resolvers variableValues fuel source
+      (Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := rightField,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -1388,10 +1325,8 @@ theorem
         intro fields errors hhead
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := leftField,
               arguments := leftArguments,
               selectionSet := leftChildSelectionSet
@@ -1400,10 +1335,8 @@ theorem
         intro fields errors hhead
         exact
           executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel source responseName
+            variableValues fuel parentType source responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := rightField,
               arguments := rightArguments,
               selectionSet := rightChildSelectionSet
@@ -1444,11 +1377,9 @@ theorem executeSelectionSetAsResponse_normal_object_field_split_error_data_null
             ++ Selection.field responseName fieldName arguments [] childSelectionSet
                 :: suffix)
       -> objectTypeNameBool schema parentType = true
-      -> Execution.executeField schema resolvers variableValues fuel source
+      -> Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -1489,11 +1420,9 @@ theorem executeSelectionSetAsResponse_normal_object_field_mem_error_data_null
       -> objectTypeNameBool schema parentType = true
       -> Selection.field responseName fieldName arguments directives childSelectionSet
           ∈ selectionSet
-      -> Execution.executeField schema resolvers variableValues fuel source
+      -> Execution.executeField schema resolvers variableValues fuel parentType source
             responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet

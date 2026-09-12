@@ -273,8 +273,7 @@ theorem selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement
           cases rightFields with
           | nil => rfl
           | cons rightField rightRest =>
-              cases hlookup
-                    : schema.lookupField rightField.parentType rightField.fieldName with
+              cases hlookup : schema.lookupField parentType rightField.fieldName with
               | none => simp [hlookup]
               | some definition =>
                   by_cases hcomposite : definition.outputType.isCompositeBool schema = true

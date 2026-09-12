@@ -8,13 +8,6 @@ namespace ConditionTree
 
 open Execution
 
-theorem flattenCollectedFields_eq_fieldGroups
-    (groups : List (Name × List ExecutableField))
-    : flattenCollectedFields groups
-      = Execution.FieldGroups.flattenCollectedFields groups := by
-  simpa [GraphQL.ConditionTree.flattenCollectedFields] using
-    (Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd groups).symm
-
 mutual
   theorem collectFlatFields_eq_fieldGroups
       {ObjectRef : Type}
@@ -60,22 +53,23 @@ mutual
             · rfl
 end
 
-theorem groupExecutableFields_exact (fields : List ExecutableField)
+theorem groupExecutableFields_exact (fields : List (Name × ExecutableField))
     : RuntimeFieldGroupsExact fields (groupExecutableFields fields) := by
   have hexact := Execution.FieldGroups.groupExecutableFields_exact fields
   constructor
   · simpa [groupExecutableFields, Execution.FieldGroups.groupExecutableFields]
       using hexact.1
-  · simpa [groupExecutableFields, Execution.FieldGroups.groupExecutableFields,
-      flattenCollectedFields_eq_fieldGroups] using hexact.2
+  · simpa [groupExecutableFields, Execution.FieldGroups.groupExecutableFields]
+      using hexact.2
 
-theorem mem_groupExecutableFields_key_iff (fields : List ExecutableField) (name : Name)
+theorem mem_groupExecutableFields_key_iff
+    (fields : List (Name × ExecutableField)) (name : Name)
     : name ∈ (groupExecutableFields fields).map Prod.fst
-      ↔ ∃ field, field ∈ fields ∧ name = field.responseName := by
+      ↔ ∃ field, field ∈ fields ∧ name = field.1 := by
   simpa [groupExecutableFields, Execution.FieldGroups.groupExecutableFields] using
     Execution.FieldGroups.mem_groupExecutableFields_key_iff fields name
 
-theorem groupExecutableFields_wellFormed (fields : List ExecutableField)
+theorem groupExecutableFields_wellFormed (fields : List (Name × ExecutableField))
     : NormalForm.executableGroupsWellFormed (groupExecutableFields fields) := by
   simpa [groupExecutableFields, Execution.FieldGroups.groupExecutableFields] using
     Execution.FieldGroups.groupExecutableFields_wellFormed fields

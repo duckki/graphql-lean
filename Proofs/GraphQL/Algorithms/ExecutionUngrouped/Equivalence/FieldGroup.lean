@@ -173,11 +173,11 @@ def ExecutableFieldsMergedRaw
     (_resolved : Option (ResolverValue ObjectIdentity))
     : Prop :=
   visitSubfields schema resolvers variableValues (depth + 1)
-    parentType source (executableFieldSelections (field :: fields))
+    parentType source (executableFieldSelections responseName (field :: fields))
     (.object [])
   = groupedFieldVisitResult responseName
       (GraphQL.Execution.executeField schema resolvers variableValues
-        (depth + 1) source responseName (field :: fields))
+        (depth + 1) parentType source responseName (field :: fields))
 
 theorem ExecutableFieldsMergedResponse_of_raw
     {ObjectIdentity : Type}
@@ -197,7 +197,7 @@ theorem ExecutableFieldsMergedResponse_of_raw
   rw [hraw]
   cases hspec
         : GraphQL.Execution.executeField schema resolvers variableValues
-            (depth + 1) source responseName (field :: fields) with
+            (depth + 1) parentType source responseName (field :: fields) with
   | error errors =>
       simp [groupedFieldVisitResult]
   | ok result =>

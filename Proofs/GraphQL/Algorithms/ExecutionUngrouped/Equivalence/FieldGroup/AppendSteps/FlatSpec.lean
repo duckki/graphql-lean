@@ -25,12 +25,8 @@ structure ExecutedFieldGroup
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) where
   resolved : Option (ResolverValue ObjectIdentity)
-  responseName_eq
-    : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName
-  parent_eq
-    : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType
   resolved_eq
-    : resolveFieldValueByName schema resolvers variableValues field.parentType
+    : resolveFieldValueByName schema resolvers variableValues parentType
         field.fieldName field.arguments source
       = resolved
   headLookup
@@ -40,8 +36,7 @@ structure ExecutedFieldGroup
     : ∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -69,10 +64,8 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps_from_prefix
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hfieldParent : field.parentType = parentType)
-    (hfieldResponse : field.responseName = responseName)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     : (hfieldLookup
@@ -87,8 +80,6 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps_from_prefix
               depth parentType source responseName field resolved prefixTail
               remaining
           -> (∀ candidate,
-                candidate ∈ field :: prefixTail -> candidate.responseName = responseName)
-          -> (∀ candidate,
                 candidate ∈ prefixTail
                 -> ∃ fieldDefinition,
                     schema.lookupField parentType candidate.fieldName
@@ -97,13 +88,13 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps_from_prefix
               parentType source responseName field (prefixTail ++ remaining)
               resolved
   | _hfieldLookup, prefixTail, [], _hprefixRaw, hprefix, _hsteps,
-      _hprefixResponses, _hprefixLookups => by
+      _hprefixLookups => by
       simpa using hprefix
   | hfieldLookup, prefixTail, later :: rest, hprefixRaw, hprefix, hsteps,
-      hprefixResponses, hprefixLookups => by
+      hprefixLookups => by
       simp [ExecutableFieldsMergedCompleteAppendSteps] at hsteps
       rcases hsteps with
-        ⟨hlaterResponse, hlaterParent, hfieldName, hresolveLater,
+        ⟨hfieldName, hresolveLater,
           hprefixChildren, hobjects, herrors, hchildren, hrest⟩
       have htailLookups :
           ∀ candidate, candidate ∈ prefixTail ++ [later] ->
@@ -116,27 +107,14 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps_from_prefix
         · subst candidate
           rcases hfieldLookup with ⟨fieldDefinition, hlookup⟩
           exact ⟨fieldDefinition, by simpa [hfieldName] using hlookup⟩
-      have hnextResponses :
-          ∀ candidate, candidate ∈ field :: (prefixTail ++ [later]) ->
-            candidate.responseName = responseName := by
-        intro candidate hmem
-        simp at hmem
-        rcases hmem with hhead | htail
-        · subst candidate
-          exact hfieldResponse
-        · rcases htail with hprefixTail | hlater
-          · exact hprefixResponses candidate (by simp [hprefixTail])
-          · subst candidate
-            exact hlaterResponse
       have hnextRaw :
           ExecutableFieldsMergedRaw schema resolvers variableValues depth
             parentType source responseName field (prefixTail ++ [later])
             resolved :=
         ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
           variableValues depth parentType source responseName field prefixTail
-          later resolved hprefixRaw hprefixResponses hfieldResponse
-          hlaterResponse hfieldParent hlaterParent hfieldName htailLookups
-          hresolveFirst hresolveLater
+          later resolved hprefixRaw hfieldName htailLookups hresolveFirst
+          hresolveLater
           (by
             intro childDepth runtimeType identity hlt _hcontains hincludes
             exact hprefixChildren childDepth runtimeType identity hlt hincludes)
@@ -155,16 +133,14 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps_from_prefix
             resolved :=
         ExecutableFieldsMergedComplete_append_one_of_prefix schema resolvers
           variableValues depth parentType source responseName field prefixTail
-          later resolved hprefixRaw hprefixResponses hfieldResponse
-          hlaterResponse hfieldParent hlaterParent hfieldName htailLookups
-          hresolveFirst hresolveLater hprefixChildren hobjects herrors
-          hchildren
+          later resolved hprefixRaw hfieldName htailLookups hresolveFirst
+          hresolveLater hprefixChildren hobjects herrors hchildren
       have htail :=
         ExecutableFieldsMergedComplete_of_appendSteps_from_prefix schema
           resolvers variableValues depth parentType source responseName field
-          resolved hfieldParent hfieldResponse hresolveFirst hfieldLookup
+          resolved hresolveFirst hfieldLookup
           (prefixTail ++ [later]) rest hnextRaw hnext hrest
-          hnextResponses htailLookups
+          htailLookups
       simpa [List.append_assoc] using htail
 
 theorem ExecutableFieldsMergedComplete_of_appendSteps
@@ -174,10 +150,8 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hfieldResponse : field.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -187,7 +161,7 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -215,24 +189,17 @@ theorem ExecutableFieldsMergedComplete_of_appendSteps
         parentType source responseName field [] resolved :=
     ExecutableFieldsMergedComplete_single_of_guarded_child_states schema resolvers
       variableValues depth parentType source responseName field resolved
-      hfieldResponse hfieldParent hresolve hfieldChildren
+      hresolve hfieldChildren
   have hbaseRaw :
       ExecutableFieldsMergedRaw schema resolvers variableValues depth
         parentType source responseName field [] resolved :=
     ExecutableFieldsMergedRaw_single_of_guarded_child_states schema resolvers
       variableValues depth parentType source responseName field resolved
-      hfieldResponse hfieldParent hresolve hfieldChildren
+      hresolve hfieldChildren
   simpa using
     ExecutableFieldsMergedComplete_of_appendSteps_from_prefix schema resolvers
       variableValues depth parentType source responseName field resolved
-      hfieldParent hfieldResponse hresolve hfieldLookup [] fields hbaseRaw hbase
-      hsteps
-      (by
-        intro candidate hmem
-        simp at hmem
-        subst candidate
-        exact hfieldResponse)
-      (by simp)
+      hresolve hfieldLookup [] fields hbaseRaw hbase hsteps (by simp)
 
 theorem ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
     {ObjectIdentity : Type}
@@ -241,10 +208,8 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hfieldParent : field.parentType = parentType)
-    (hfieldResponse : field.responseName = responseName)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     : (hfieldLookup
@@ -259,8 +224,6 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
               variableValues depth parentType source responseName field resolved
               prefixTail remaining
           -> (∀ candidate,
-                candidate ∈ field :: prefixTail -> candidate.responseName = responseName)
-          -> (∀ candidate,
                 candidate ∈ prefixTail
                 -> ∃ fieldDefinition,
                     schema.lookupField parentType candidate.fieldName
@@ -269,13 +232,13 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
               parentType source responseName field (prefixTail ++ remaining)
               resolved
   | _hfieldLookup, prefixTail, [], _hprefixRaw, hprefix, _hsteps,
-      _hprefixResponses, _hprefixLookups => by
+      _hprefixLookups => by
       simpa using hprefix
   | hfieldLookup, prefixTail, later :: rest, hprefixRaw, hprefix, hsteps,
-      hprefixResponses, hprefixLookups => by
+      hprefixLookups => by
       simp [ExecutableFieldsMergedCompleteContainedAppendSteps] at hsteps
       rcases hsteps with
-        ⟨hlaterResponse, hlaterParent, hfieldName, hresolveLater,
+        ⟨hfieldName, hresolveLater,
           hprefixChildren, hobjects, herrors, hchildren, hrest⟩
       have htailLookups :
           ∀ candidate, candidate ∈ prefixTail ++ [later] ->
@@ -288,44 +251,28 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
         · subst candidate
           rcases hfieldLookup with ⟨fieldDefinition, hlookup⟩
           exact ⟨fieldDefinition, by simpa [hfieldName] using hlookup⟩
-      have hnextResponses :
-          ∀ candidate, candidate ∈ field :: (prefixTail ++ [later]) ->
-            candidate.responseName = responseName := by
-        intro candidate hmem
-        simp at hmem
-        rcases hmem with hhead | htail
-        · subst candidate
-          exact hfieldResponse
-        · rcases htail with hprefixTail | hlater
-          · exact hprefixResponses candidate (by simp [hprefixTail])
-          · subst candidate
-            exact hlaterResponse
       have hnextRaw :
           ExecutableFieldsMergedRaw schema resolvers variableValues depth
             parentType source responseName field (prefixTail ++ [later])
             resolved :=
         ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
           variableValues depth parentType source responseName field prefixTail
-          later resolved hprefixRaw hprefixResponses hfieldResponse
-          hlaterResponse hfieldParent hlaterParent hfieldName htailLookups
-          hresolveFirst hresolveLater hprefixChildren hobjects herrors
-          hchildren
+          later resolved hprefixRaw hfieldName htailLookups hresolveFirst
+          hresolveLater hprefixChildren hobjects herrors hchildren
       have hnext :
           ExecutableFieldsMergedComplete schema resolvers variableValues depth
             parentType source responseName field (prefixTail ++ [later])
             resolved :=
         ExecutableFieldsMergedComplete_append_one_of_prefix_contained schema
           resolvers variableValues depth parentType source responseName field
-          prefixTail later resolved hprefixRaw hprefixResponses hfieldResponse
-          hlaterResponse hfieldParent hlaterParent hfieldName htailLookups
-          hresolveFirst hresolveLater hprefixChildren hobjects herrors
-          hchildren
+          prefixTail later resolved hprefixRaw hfieldName htailLookups
+          hresolveFirst hresolveLater hprefixChildren hobjects herrors hchildren
       have htail :=
         ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix
           schema resolvers variableValues depth parentType source responseName
-          field resolved hfieldParent hfieldResponse hresolveFirst hfieldLookup
+          field resolved hresolveFirst hfieldLookup
           (prefixTail ++ [later]) rest hnextRaw hnext hrest
-          hnextResponses htailLookups
+          htailLookups
       simpa [List.append_assoc] using htail
 
 theorem ExecutableFieldsMergedComplete_of_contained_appendSteps
@@ -335,10 +282,8 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hfieldResponse : field.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -349,7 +294,7 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -378,24 +323,17 @@ theorem ExecutableFieldsMergedComplete_of_contained_appendSteps
         parentType source responseName field [] resolved :=
     ExecutableFieldsMergedComplete_single_of_contained_child_states schema
       resolvers variableValues depth parentType source responseName field
-      resolved hfieldResponse hfieldParent hresolve hfieldChildren
+      resolved hresolve hfieldChildren
   have hbaseRaw :
       ExecutableFieldsMergedRaw schema resolvers variableValues depth
         parentType source responseName field [] resolved :=
     ExecutableFieldsMergedRaw_single_of_contained_child_states schema
       resolvers variableValues depth parentType source responseName field
-      resolved hfieldResponse hfieldParent hresolve hfieldChildren
+      resolved hresolve hfieldChildren
   simpa using
     ExecutableFieldsMergedComplete_of_contained_appendSteps_from_prefix schema
       resolvers variableValues depth parentType source responseName field
-      resolved hfieldParent hfieldResponse hresolve hfieldLookup [] fields
-      hbaseRaw hbase
-      hsteps (by
-        intro candidate hmem
-        simp at hmem
-        subst candidate
-        exact hfieldResponse)
-      (by simp)
+      resolved hresolve hfieldLookup [] fields hbaseRaw hbase hsteps (by simp)
 
 namespace ExecutedFieldGroup
 
@@ -406,12 +344,8 @@ def of_appendPlan
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -421,7 +355,7 @@ def of_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -445,40 +379,12 @@ def of_appendPlan
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields where
   resolved := resolved
-  responseName_eq := hresponse
-  parent_eq := hparent
   resolved_eq := hresolve
   headLookup := hfieldLookup
   headChildren := hfieldChildren
   appendSteps :=
     ExecutedFieldAppendPlan.toAppendSteps schema resolvers variableValues
       depth parentType source responseName field resolved [] fields plan
-
-theorem field_responseName
-    {ObjectIdentity : Type}
-    {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
-    {parentType : Name} {source : ResolverValue ObjectIdentity}
-    {responseName : Name} {field : ExecutableField}
-    {fields : List ExecutableField}
-    (group
-      : ExecutedFieldGroup schema resolvers variableValues depth parentType
-          source responseName field fields)
-    : field.responseName = responseName :=
-  group.responseName_eq field (by simp)
-
-theorem field_parent
-    {ObjectIdentity : Type}
-    {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
-    {parentType : Name} {source : ResolverValue ObjectIdentity}
-    {responseName : Name} {field : ExecutableField}
-    {fields : List ExecutableField}
-    (group
-      : ExecutedFieldGroup schema resolvers variableValues depth parentType
-          source responseName field fields)
-    : field.parentType = parentType :=
-  group.parent_eq field (by simp)
 
 theorem mergedComplete
     {ObjectIdentity : Type}
@@ -494,8 +400,7 @@ theorem mergedComplete
         parentType source responseName field fields group.resolved :=
   ExecutableFieldsMergedComplete_of_appendSteps schema resolvers variableValues
     depth parentType source responseName field fields group.resolved
-    group.field_responseName group.field_parent group.resolved_eq
-    group.headLookup group.headChildren group.appendSteps
+    group.resolved_eq group.headLookup group.headChildren group.appendSteps
 
 theorem mergedComplete_resolved
     {ObjectIdentity : Type}
@@ -509,7 +414,7 @@ theorem mergedComplete_resolved
           source responseName field fields)
     : ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source) := by
   rw [group.resolved_eq]
   exact group.mergedComplete
@@ -525,11 +430,10 @@ theorem flatSpecEquivalent
       : ExecutedFieldGroup schema resolvers variableValues depth parentType
           source responseName field fields)
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues
-        (depth + 1) parentType source (field :: fields) :=
+        (depth + 1) parentType source responseName (field :: fields) :=
   ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_mergedComplete schema
     resolvers variableValues depth parentType source responseName field fields
-    group.resolved group.responseName_eq group.parent_eq group.resolved_eq
-    group.mergedComplete
+    group.resolved group.resolved_eq group.mergedComplete
 
 theorem groupFlatSpecEquivalent
     {ObjectIdentity : Type}
@@ -544,7 +448,7 @@ theorem groupFlatSpecEquivalent
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
         (depth + 1) parentType source [(responseName, field :: fields)] := by
   unfold ExecutableGroupsFlatSpecEquivalent
-  simp [collectedExecutableFields]
+  simp [collectedExecutableSelections]
   exact group.flatSpecEquivalent
 
 end ExecutedFieldGroup
@@ -684,7 +588,7 @@ def ExecutedFieldGroup.of_collected_appendSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -705,18 +609,14 @@ def ExecutedFieldGroup.of_collected_appendSteps
     (hsteps
       : ExecutableFieldsMergedCompleteAppendSteps schema resolvers variableValues
           depth parentType source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields where
   resolved :=
-    resolveFieldValueByName schema resolvers variableValues field.parentType
+    resolveFieldValueByName schema resolvers variableValues parentType
       field.fieldName field.arguments source
-  responseName_eq :=
-    hresponses responseName (field :: fields) hgroup
-  parent_eq :=
-    hparents responseName (field :: fields) hgroup
   resolved_eq := rfl
   headLookup := hfieldLookup
   headChildren := hfieldChildren
@@ -740,7 +640,7 @@ def ExecutedFieldGroup.of_collected_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -761,7 +661,7 @@ def ExecutedFieldGroup.of_collected_appendPlan
     (plan
       : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
           source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
@@ -771,7 +671,7 @@ def ExecutedFieldGroup.of_collected_appendPlan
     hresponses hparents hfieldLookup hfieldChildren
     (ExecutedFieldAppendPlan.toAppendSteps schema resolvers variableValues
       depth parentType source responseName field
-      (resolveFieldValueByName schema resolvers variableValues field.parentType
+      (resolveFieldValueByName schema resolvers variableValues parentType
         field.fieldName field.arguments source)
       [] fields plan)
 
@@ -782,12 +682,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_appendSteps
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -797,7 +693,7 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_appendSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -819,23 +715,17 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_appendSteps
       : ExecutableFieldsMergedCompleteAppendSteps schema resolvers variableValues
           depth parentType source responseName field resolved [] fields)
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues
-        (depth + 1) parentType source (field :: fields) := by
-  have hfieldResponse : field.responseName = responseName :=
-    hresponse field (by simp)
-  have hfieldParent : field.parentType = parentType :=
-    hparent field (by simp)
+        (depth + 1) parentType source responseName (field :: fields) := by
   have hmerged :
       ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields resolved :=
     ExecutableFieldsMergedComplete_of_appendSteps schema resolvers
       variableValues depth parentType source responseName field fields resolved
-      hfieldResponse hfieldParent hresolve
-      hfieldLookup hfieldChildren
-      hsteps
+      hresolve hfieldLookup hfieldChildren hsteps
   exact
     ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_mergedComplete
       schema resolvers variableValues depth parentType source responseName
-      field fields resolved hresponse hparent hresolve hmerged
+      field fields resolved hresolve hmerged
 
 theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
     {ObjectIdentity : Type}
@@ -844,12 +734,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -859,7 +745,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -883,12 +769,11 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
         (depth + 1) parentType source [(responseName, field :: fields)] := by
   unfold ExecutableGroupsFlatSpecEquivalent
-  simp [collectedExecutableFields]
+  simp [collectedExecutableSelections]
   exact
     ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_appendSteps
       schema resolvers variableValues depth parentType source responseName
-      field fields resolved hresponse hparent hresolve hfieldLookup
-      hfieldChildren hsteps
+      field fields resolved hresolve hfieldLookup hfieldChildren hsteps
 
 theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_appendSteps
     {ObjectIdentity : Type}
@@ -924,24 +809,18 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_appendSte
     (hsteps
       : ExecutableFieldsMergedCompleteAppendSteps schema resolvers variableValues
           depth parentType source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
         (depth + 1) parentType source [(responseName, field :: fields)] := by
-  have hgroupResponses :
-      ExecutableFieldsResponseName responseName (field :: fields) :=
-    hresponses responseName (field :: fields) hgroup
-  have hgroupParents :
-      ExecutableFieldsParent parentType (field :: fields) :=
-    hparents responseName (field :: fields) hgroup
   exact
     ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
       schema resolvers variableValues depth parentType source responseName
       field fields
-      (resolveFieldValueByName schema resolvers variableValues field.parentType
+      (resolveFieldValueByName schema resolvers variableValues parentType
         field.fieldName field.arguments source)
-      hgroupResponses hgroupParents rfl hfieldLookup
+      rfl hfieldLookup
       (by
         intro childDepth runtimeType identity hlt _hincludes
         exact hfieldChildren childDepth runtimeType identity hlt)
@@ -954,12 +833,8 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_contained_appendSte
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField) (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -970,7 +845,7 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_contained_appendSte
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -993,21 +868,17 @@ theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_contained_appendSte
           variableValues depth parentType source responseName field resolved []
           fields)
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues
-        (depth + 1) parentType source (field :: fields) := by
-  have hfieldResponse : field.responseName = responseName :=
-    hresponse field (by simp)
-  have hfieldParent : field.parentType = parentType :=
-    hparent field (by simp)
+        (depth + 1) parentType source responseName (field :: fields) := by
   have hmerged :
       ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields resolved :=
     ExecutableFieldsMergedComplete_of_contained_appendSteps schema resolvers
       variableValues depth parentType source responseName field fields resolved
-      hfieldResponse hfieldParent hresolve hfieldLookup hfieldChildren hsteps
+      hresolve hfieldLookup hfieldChildren hsteps
   exact
     ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_mergedComplete
       schema resolvers variableValues depth parentType source responseName
-      field fields resolved hresponse hparent hresolve hmerged
+      field fields resolved hresolve hmerged
 
 theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_appendSteps
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
@@ -1015,12 +886,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_ap
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (field : ExecutableField) (fields : List ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -1031,7 +898,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_ap
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1056,12 +923,11 @@ theorem ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_contained_ap
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
         (depth + 1) parentType source [(responseName, field :: fields)] := by
   unfold ExecutableGroupsFlatSpecEquivalent
-  simp [collectedExecutableFields]
+  simp [collectedExecutableSelections]
   exact
     ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_contained_appendSteps
       schema resolvers variableValues depth parentType source responseName
-      field fields resolved hresponse hparent hresolve hfieldLookup
-      hfieldChildren hsteps
+      field fields resolved hresolve hfieldLookup hfieldChildren hsteps
 
 end Eager
 end ExecutionUngroupedUncached

@@ -15,14 +15,6 @@ open GraphQL.Execution
 
 variable {ObjectRef : Type}
 
-def collectedGroupsResponseName (groups : List (Name × List ExecutableField)) : Prop :=
-  ∀ (responseName : Name) (fields : List ExecutableField) (field : ExecutableField),
-    (responseName, fields) ∈ groups -> field ∈ fields -> field.responseName = responseName
-
-def executableFieldsResponseName (responseName : Name) (fields : List ExecutableField)
-    : Prop :=
-  ∀ (field : ExecutableField), field ∈ fields -> field.responseName = responseName
-
 def collectedGroupsNonempty (groups : List (Name × List ExecutableField)) : Prop :=
   ∀ (responseName : Name) (fields : List ExecutableField),
     (responseName, fields) ∈ groups -> fields ≠ []
@@ -226,105 +218,6 @@ theorem executableFieldsSize_le_executableGroupsSize_of_mem
       · have htailLe := ih htail
         simp [executableGroupsSize]
         omega
-
-theorem executableFieldsResponseName_append
-    (responseName : Name) (left right : List ExecutableField)
-    : executableFieldsResponseName responseName left
-      -> executableFieldsResponseName responseName right
-      -> executableFieldsResponseName responseName (left ++ right) := by
-  intro hleft hright field hmem
-  simp at hmem
-  rcases hmem with hmem | hmem
-  · exact hleft field hmem
-  · exact hright field hmem
-
-theorem collectedGroupsResponseName_tail
-    (responseName : Name) (fields : List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    : collectedGroupsResponseName ((responseName, fields) :: groups)
-      -> collectedGroupsResponseName groups := by
-  intro hgroups groupResponseName groupFields field groupMem fieldMem
-  exact hgroups groupResponseName groupFields field (by simp [groupMem])
-    fieldMem
-
-theorem collectedGroupsResponseName_addExecutableGroup
-    (group : Name × List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    : executableFieldsResponseName group.fst group.snd
-      -> collectedGroupsResponseName groups
-      -> collectedGroupsResponseName (addExecutableGroup group groups) := by
-  rcases group with ⟨groupResponseName, groupFields⟩
-  intro hgroup hgroups
-  induction groups with
-  | nil =>
-      intro responseName fields field hmem hfield
-      simp [addExecutableGroup] at hmem
-      rcases hmem with ⟨hresponse, hfields⟩
-      subst responseName
-      subst fields
-      exact hgroup field hfield
-  | cons current rest ih =>
-      rcases current with ⟨currentResponseName, currentFields⟩
-      by_cases hsame : currentResponseName == groupResponseName
-      · have hresponse : currentResponseName = groupResponseName := by
-          simpa using hsame
-        intro responseName fields field hmem hfield
-        simp [addExecutableGroup, hsame] at hmem
-        rcases hmem with hhead | htail
-        · rcases hhead with ⟨hresponseName, hfields⟩
-          subst responseName
-          subst fields
-          have happ :
-              executableFieldsResponseName currentResponseName
-                (currentFields ++ groupFields) :=
-            executableFieldsResponseName_append currentResponseName
-              currentFields groupFields
-              (by
-                intro field hmem
-                exact hgroups _ _ _ (by simp) hmem)
-              (by
-                intro field hmem
-                simpa [hresponse] using hgroup field hmem)
-          exact happ field hfield
-        · exact hgroups _ _ _ (by simp [htail]) hfield
-      · have hrest : collectedGroupsResponseName rest :=
-          collectedGroupsResponseName_tail currentResponseName currentFields rest
-            hgroups
-        have haddRest :
-            collectedGroupsResponseName
-              (addExecutableGroup (groupResponseName, groupFields) rest) :=
-          ih hrest
-        intro responseName fields field hmem hfield
-        simp [addExecutableGroup, hsame] at hmem
-        rcases hmem with hhead | htail
-        · rcases hhead with ⟨hresponseName, hfields⟩
-          subst responseName
-          subst fields
-          exact hgroups _ _ _ (by simp) hfield
-        · exact haddRest _ _ _ htail hfield
-
-theorem collectedGroupsResponseName_mergeExecutableGroups
-    (left right : List (Name × List ExecutableField))
-    : collectedGroupsResponseName left
-      -> collectedGroupsResponseName right
-      -> collectedGroupsResponseName (mergeExecutableGroups left right) := by
-  intro hleft hright
-  induction right generalizing left with
-  | nil =>
-      simpa [mergeExecutableGroups]
-  | cons group rest ih =>
-      have hgroupFields : executableFieldsResponseName group.fst group.snd := by
-        intro field hfield
-        exact hright _ _ _ (by simp) hfield
-      have hrest : collectedGroupsResponseName rest := by
-        cases group with
-        | mk responseName fields =>
-            exact collectedGroupsResponseName_tail responseName fields rest hright
-      simpa [mergeExecutableGroups, List.foldl]
-        using ih (addExecutableGroup group left)
-          (collectedGroupsResponseName_addExecutableGroup group left
-            hgroupFields hleft)
-          hrest
 
 theorem collectedGroupsNonempty_tail
     (responseName : Name) (fields : List ExecutableField)
@@ -889,65 +782,6 @@ theorem collectFieldsByKey_eq_collectFields_root_source
       simp [rootSourceAppliesBool, runtimeObjectType?] at hroot
 
 mutual
-  theorem collectSelectionByKey_collectedGroupsResponseName
-      (schema : Schema) (variableValues : VariableValues)
-      (parentType : Name) (selection : Selection)
-      : collectedGroupsResponseName
-          (collectSelectionByKey schema variableValues parentType selection) := by
-    cases selection with
-    | field responseName fieldName arguments directives selectionSet =>
-        by_cases hdirectives :
-            selectionDirectivesAllowBool variableValues directives = true
-        · intro groupResponse fields field hmem hfield
-          simp [collectSelectionByKey, hdirectives, buildExecutionField] at hmem
-          rcases hmem with ⟨hgroupResponse, hfields⟩
-          subst groupResponse
-          subst fields
-          simp at hfield
-          subst field
-          rfl
-        · simp [collectSelectionByKey, hdirectives, collectedGroupsResponseName]
-    | inlineFragment typeCondition directives selectionSet =>
-        cases typeCondition with
-        | none =>
-            by_cases hdirectives :
-                selectionDirectivesAllowBool variableValues directives = true
-            · simpa [collectSelectionByKey, hdirectives] using
-                collectFieldsByKey_collectedGroupsResponseName schema
-                  variableValues parentType selectionSet
-            · simp [collectSelectionByKey, hdirectives, collectedGroupsResponseName]
-        | some typeCondition =>
-            by_cases hdirectives :
-                selectionDirectivesAllowBool variableValues directives = true
-            · by_cases hpossible :
-                  parentTypeIsPossible schema parentType typeCondition = true
-              · simpa [collectSelectionByKey, hdirectives, hpossible] using
-                  collectFieldsByKey_collectedGroupsResponseName schema
-                    variableValues parentType selectionSet
-              · simp [collectSelectionByKey, hdirectives, hpossible,
-                  collectedGroupsResponseName]
-            · simp [collectSelectionByKey, hdirectives, collectedGroupsResponseName]
-
-  theorem collectFieldsByKey_collectedGroupsResponseName
-      (schema : Schema) (variableValues : VariableValues)
-      (parentType : Name) (selectionSet : List Selection)
-      : collectedGroupsResponseName
-          (collectFieldsByKey schema variableValues parentType selectionSet) := by
-    cases selectionSet with
-    | nil =>
-        simp [collectFieldsByKey, collectedGroupsResponseName]
-    | cons selection rest =>
-        exact
-          collectedGroupsResponseName_mergeExecutableGroups
-            (collectSelectionByKey schema variableValues parentType selection)
-            (collectFieldsByKey schema variableValues parentType rest)
-            (collectSelectionByKey_collectedGroupsResponseName schema
-              variableValues parentType selection)
-            (collectFieldsByKey_collectedGroupsResponseName schema
-              variableValues parentType rest)
-end
-
-mutual
   theorem collectSelectionByKey_collectedGroupsNonempty
       (schema : Schema) (variableValues : VariableValues)
       (parentType : Name) (selection : Selection)
@@ -1003,19 +837,6 @@ mutual
             (collectFieldsByKey_collectedGroupsNonempty schema
               variableValues parentType rest)
 end
-
-theorem collectFieldsByKey_singleton_field_responseName
-    (schema : Schema) (variableValues : VariableValues)
-    (parentType : Name) (selectionSet : List Selection)
-    (responseName : Name) (field : ExecutableField)
-    : collectFieldsByKey schema variableValues parentType selectionSet
-        = [(responseName, [field])]
-      -> field.responseName = responseName := by
-  intro hcollect
-  have hgroups :=
-    collectFieldsByKey_collectedGroupsResponseName schema variableValues
-      parentType selectionSet
-  exact hgroups responseName [field] field (by simp [hcollect]) (by simp)
 
 theorem childSelectionSetForFields_nil
     : childSelectionSetForFields ([] : List ExecutableField) = [] := by
@@ -1147,21 +968,20 @@ theorem completeValue_singleton_executableField_childSelectionSetForFields_eq
 theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_eq
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (fuel : Nat) (source : ResolverValue ObjectRef)
+    (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
     (responseName : Name)
     (field : ExecutableField) (fields : List ExecutableField)
-    : GraphQL.Execution.executeField schema resolvers variableValues fuel source
-        responseName
-        [(scheduleKeyForFields field.parentType responseName
-            (field :: fields)).executableField
+    : GraphQL.Execution.executeField schema resolvers variableValues fuel parentType
+        source responseName
+        [(scheduleKeyForFields parentType responseName (field :: fields)).executableField
           (childSelectionSetForFields (field :: fields))]
-      = GraphQL.Execution.executeField schema resolvers variableValues fuel source
-          responseName (field :: fields) := by
+      = GraphQL.Execution.executeField schema resolvers variableValues fuel parentType
+          source responseName (field :: fields) := by
   cases fuel with
   | zero =>
       simp [GraphQL.Execution.executeField]
   | succ fuel =>
-      cases hlookup : schema.lookupField field.parentType field.fieldName with
+      cases hlookup : schema.lookupField parentType field.fieldName with
       | none =>
           simp [GraphQL.Execution.executeField, hlookup, scheduleKeyForFields,
             ScheduleKey.executableField]
@@ -1175,7 +995,7 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
                 scheduleKeyForFields, ScheduleKey.executableField]
           | success coercedArguments =>
               cases hresolve
-                    : resolvers.resolve field.parentType field.fieldName
+                    : resolvers.resolve parentType field.fieldName
                         coercedArguments source with
               | none =>
                   simp [GraphQL.Execution.executeField,
@@ -1191,7 +1011,7 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
                     (completeValue_singleton_executableField_childSelectionSetForFields_eq
                       (ObjectRef := ObjectRef) schema resolvers variableValues fuel
                       fieldDefinition.outputType
-                      (scheduleKeyForFields field.parentType responseName
+                      (scheduleKeyForFields parentType responseName
                         (field :: fields))
                       (field :: fields) resolved)
 

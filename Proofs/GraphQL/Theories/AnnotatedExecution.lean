@@ -71,12 +71,12 @@ private theorem combineAnnotatedResponseValues_toResponse
 
 private theorem singleAnnotatedResponseFieldResult_toResponse
     (schema : Schema) (variableValues : VariableValues)
-    (definition : FieldDefinition) (responseName : Name)
+    (definition : FieldDefinition) (parentType responseName : Name)
     (field : ExecutableField)
     (completed : Result AnnotatedResponseValue)
     : annotatedResponseFieldsResultToResponse
-        (singleAnnotatedResponseFieldResult schema variableValues definition responseName
-          field completed)
+        (singleAnnotatedResponseFieldResult schema variableValues definition parentType
+          responseName field completed)
       = singleFieldResult responseName
           (annotatedResponseValueResultToResponse completed) := by
   cases completed with
@@ -139,17 +139,18 @@ private theorem catchAnnotatedResponseBubbleList_toResponse
 private theorem annotatedResponseExecution_toResponse_all
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    : (∀ fuel source groups,
+    : (∀ fuel parentType source groups,
         annotatedResponseFieldsResultToResponse
           (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-            source groups)
-        = executeCollectedFields schema resolvers variableValues fuel source groups)
-      ∧ (∀ fuel source responseName fields,
+            parentType source groups)
+        = executeCollectedFields schema resolvers variableValues fuel parentType source
+            groups)
+      ∧ (∀ fuel parentType source responseName fields,
           annotatedResponseFieldsResultToResponse
-            (executeQueryAnnotatedField schema resolvers variableValues fuel source
-              responseName fields)
-          = GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              responseName fields)
+            (executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+              source responseName fields)
+          = GraphQL.Execution.executeField schema resolvers variableValues fuel parentType
+              source responseName fields)
       ∧ (∀ fuel fieldType fields value,
           annotatedResponseValueResultToResponse
             (completeAnnotatedResponseValue schema resolvers variableValues fuel fieldType
@@ -179,25 +180,27 @@ private theorem annotatedResponseExecution_toResponse_all
       annotatedResponseValuesResultToResponse, AnnotatedResponseValue.toResponseValue,
       annotatedResponseFieldsToResponseFields, annotatedResponseValuesToResponseValues]
   case case6 =>
-    intro source responseName field definition hlookup hresolve
+    intro parentType source responseName field definition hlookup hresolve
     cases definition.outputType <;>
       simp [AnnotatedResponseValue.toResponseValue]
   case case7 =>
-    intro source responseName field definition hlookup coercedArguments hcoerce hresolve
+    intro parentType source responseName field definition hlookup coercedArguments hcoerce
+      hresolve
     cases definition.outputType <;>
       simp [AnnotatedResponseValue.toResponseValue]
 
 private theorem executeQueryAnnotatedCollectedFields_toResponse
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     : annotatedResponseFieldsResultToResponse
-        (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel source
-          groups)
-      = executeCollectedFields schema resolvers variableValues fuel source groups :=
+        (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
+          parentType source groups)
+      = executeCollectedFields schema resolvers variableValues fuel parentType source
+          groups :=
   (annotatedResponseExecution_toResponse_all schema resolvers variableValues).1 fuel
-    source groups
+    parentType source groups
 
 -- Removing resolver-call annotations from an annotated response gives exactly
 -- specification execution at the same fuel.
@@ -216,7 +219,7 @@ theorem executeQueryAnnotatedWithFuel_toResponse
       operation.selectionSet
   have hresponse :=
     executeQueryAnnotatedCollectedFields_toResponse schema resolvers
-      coercedVariableValues fuel source groups
+      coercedVariableValues fuel (operation.rootType schema) source groups
   cases hroot : rootSourceAppliesBool schema operation source with
   | false =>
       simp [AnnotatedResponse.toResponse, AnnotatedResponseValue.toResponseValue]
@@ -224,7 +227,7 @@ theorem executeQueryAnnotatedWithFuel_toResponse
       simp only [if_true]
       cases hannotated
             : executeQueryAnnotatedCollectedFields schema resolvers
-                coercedVariableValues fuel source groups with
+                coercedVariableValues fuel (operation.rootType schema) source groups with
       | error errors =>
           rw [hannotated] at hresponse
           simp [annotatedResponseFieldsResultToResponse] at hresponse

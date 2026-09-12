@@ -540,7 +540,7 @@ def recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
     grandchildRuntime grandchildRef hlt hgrandchildInclude
   have hgrandchildGenerated :
       generatedNormalizedFieldChild schema
-        ((schema.fieldReturnType? field.parentType field.fieldName).getD
+        ((schema.fieldReturnType? childRuntime field.fieldName).getD
           field.fieldName)
         field.selectionSet :=
     generatedNormalizedFieldChild_of_generatedNormalizedFieldChild_collectFields
@@ -554,7 +554,7 @@ def recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
   simpa [GraphQL.Execution.mergedFieldSelectionSet] using
     recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild schema
       resolvers variableValues childDepth
-      ((schema.fieldReturnType? field.parentType field.fieldName).getD
+      ((schema.fieldReturnType? childRuntime field.fieldName).getD
         field.fieldName)
       grandchildRuntime grandchildRef field.selectionSet hschema
       hgrandchildInclude hgrandchildGenerated
@@ -562,7 +562,7 @@ def recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
       grandchildRuntime grandchildRef _hlt hgrandchildInclude
     have hgrandchildGenerated :
         generatedNormalizedFieldChild schema
-          ((schema.fieldReturnType? field.parentType field.fieldName).getD
+          ((schema.fieldReturnType? childRuntime field.fieldName).getD
             field.fieldName)
           field.selectionSet :=
       generatedNormalizedFieldChild_of_generatedNormalizedFieldChild_collectFields
@@ -576,7 +576,7 @@ def recursiveGroupedSelectionSetState_of_generatedNormalizedFieldChild
     simpa [GraphQL.Execution.mergedFieldSelectionSet] using
       collectedSelectionSetGroupsSingleton_of_generatedNormalizedFieldChild
         schema variableValues
-        ((schema.fieldReturnType? field.parentType field.fieldName).getD
+        ((schema.fieldReturnType? childRuntime field.fieldName).getD
           field.fieldName)
         grandchildRuntime grandchildRef field.selectionSet hschema
         hgrandchildInclude hgrandchildGenerated
@@ -1705,7 +1705,8 @@ theorem
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (happend
       : CollectedFieldGroupRecursiveAppendState schema resolvers
-          (Execution.coerceVariableValues operation variableValues) depth groups)
+          (Execution.coerceVariableValues operation variableValues) depth
+          (operation.rootType schema) groups)
     : SchemaWellFormedness.schemaWellFormed schema
       -> Validation.operationDefinitionValid schema operation
       -> operationBoolVarsComplete operation

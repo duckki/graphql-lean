@@ -91,19 +91,18 @@ mutual
                     mergeResponseFieldResult, resultStatus, visitOk] at h
           | succ fuel' =>
               cases hfield :
-                  executeField schema resolvers variableValues fuel' source
+                  executeField schema resolvers variableValues fuel' parentType source
                     (responseObjectField? responseName output)
-                    (executableField parentType responseName fieldName arguments
-                      selectionSet) with
+                    (executableField fieldName arguments selectionSet) with
               | error fieldErrors =>
                   simp [visitSelection, hallows, mergeResponseFieldResult,
                     hfield, resultStatus] at h
                   subst errors
                   exact
                     executeField_error_positive schema resolvers variableValues
-                      fuel' source (responseObjectField? responseName output)
-                      (executableField parentType responseName fieldName
-                        arguments selectionSet)
+                      fuel' parentType source
+                      (responseObjectField? responseName output)
+                      (executableField fieldName arguments selectionSet)
                       fieldErrors hfield
               | ok fieldResult =>
                   rcases fieldResult with ⟨fieldValue, fieldErrors⟩
@@ -158,13 +157,15 @@ mutual
   theorem executeField_error_positive
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (completionFuel : Nat)
-      (source : ResolverValue ObjectRef) (previous? : Option ResponseValue)
+      (parentType : Name) (source : ResolverValue ObjectRef)
+      (previous? : Option ResponseValue)
       (field : ExecutableField) errors
-      : executeField schema resolvers variableValues completionFuel source previous? field
+      : executeField schema resolvers variableValues completionFuel parentType source
+            previous? field
           = .error errors
         -> 0 < errors := by
     intro h
-    cases hlookup : schema.lookupField field.parentType field.fieldName with
+    cases hlookup : schema.lookupField parentType field.fieldName with
     | none =>
         simp [executeField, hlookup] at h
         omega
@@ -181,7 +182,7 @@ mutual
                         outputType := outputType,
                         arguments := fieldArguments
                       }
-                      field.parentType field.fieldName field.arguments source with
+                      parentType field.fieldName field.arguments source with
             | none =>
                 cases outputType with
                 | named typeName =>
@@ -681,7 +682,7 @@ mutual
                     catchBubbleAsNull] at h
                   cases hcompleted :
                       GraphQL.Execution.executeCollectedFields schema resolvers
-                        variableValues fuel (.object runtimeType ref)
+                        variableValues fuel runtimeType (.object runtimeType ref)
                         (GraphQL.Execution.collectFields schema variableValues
                           runtimeType (.object runtimeType ref)
                           (GraphQL.Execution.mergedFieldSelectionSet

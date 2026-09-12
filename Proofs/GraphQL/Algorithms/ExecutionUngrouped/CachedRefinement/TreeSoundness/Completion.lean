@@ -20,13 +20,12 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
     (variableValues : VariableValues) (completionFuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (responseName fieldName : Name)
     (arguments : List Argument) (directives : List DirectiveApplication)
-    (selectionSet : List Selection) (fields : List ExecutableField)
+    (selectionSet : List Selection) (fields : List (Name × ExecutableField))
     (output : FieldCacheValue ObjectRef)
-    (hfield
-      : executableField parentType responseName fieldName arguments selectionSet ∈ fields)
+    (hfield : (responseName, executableField fieldName arguments selectionSet) ∈ fields)
     (hsound
       : OutputCacheContinuationSoundForFields schema resolvers variableValues
-          completionFuel source fields output)
+          completionFuel parentType source fields output)
     (hfresh
       : ∀ fieldDefinition resolved,
           schema.lookupField parentType fieldName = some fieldDefinition
@@ -46,10 +45,10 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
   by_cases hallows :
       selectionDirectivesAllowBool variableValues directives = true
   · let field :=
-      executableField parentType responseName fieldName arguments selectionSet
+      executableField fieldName arguments selectionSet
     have hexec :=
       executeField_output_of_completionCacheSound schema resolvers variableValues
-        completionFuel source (objectField? responseName output) field
+        completionFuel parentType source (objectField? responseName output) field
         (by
           intro fieldDefinition resolved hlookup hresolve
           change (schema.lookupField parentType fieldName = some fieldDefinition) at hlookup
@@ -58,9 +57,9 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
           intro fieldDefinition previous hlookup hprevious
           change (schema.lookupField parentType fieldName = some fieldDefinition) at hlookup
           change (objectField? responseName output = some previous) at hprevious
-          have hfield' : field ∈ fields := by
+          have hfield' : (responseName, field) ∈ fields := by
             simpa [field] using hfield
-          exact hsound field fieldDefinition previous hfield' hprevious hlookup)
+          exact hsound responseName field fieldDefinition previous hfield' hprevious hlookup)
     dsimp [field, executableField,
       ExecutionUngroupedUncached.executableField] at hexec
     have hpreviousOut := objectField?_output (ObjectRef := ObjectRef)
@@ -539,6 +538,7 @@ theorem CompletionCacheSound.of_treeSound_and_visit {ObjectRef : Type}
           visitFuel < maxFuel
           -> schema.typeIncludesObjectBool expectedName runtimeType = true
           -> OutputCacheTreeSoundForGroups schema resolvers variableValues visitFuel
+              runtimeType
               (.object runtimeType ref)
               (GraphQL.Execution.collectFields schema variableValues runtimeType
                 (.object runtimeType ref) universeSet)
@@ -605,7 +605,8 @@ theorem CompletionCacheSound.of_treeSound_and_visit {ObjectRef : Type}
                       hvisit completionFuel runtimeType ref
                         [] (by omega) (by rw [← hnamed]; exact hinclude)
                         (OutputCacheTreeSoundForGroups.empty_object schema resolvers
-                          variableValues completionFuel (.object runtimeType ref)
+                          variableValues completionFuel runtimeType
+                          (.object runtimeType ref)
                           (.object runtimeType ref)
                           (GraphQL.Execution.collectFields schema variableValues
                             runtimeType (.object runtimeType ref) universeSet))
@@ -783,11 +784,13 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
           visitFuel < maxFuel
           -> schema.typeIncludesObjectBool expectedName runtimeType = true
           -> OutputCacheTreeSoundForGroups schema resolvers variableValues visitFuel
+              runtimeType
               (.object runtimeType ref)
               (GraphQL.Execution.collectFields schema variableValues runtimeType
                 (.object runtimeType ref) universeSet)
               (.object (.object runtimeType ref) cachedFields)
           -> OutputCacheTreeSoundForGroups schema resolvers variableValues visitFuel
+              runtimeType
               (.object runtimeType ref)
               (GraphQL.Execution.collectFields schema variableValues runtimeType
                 (.object runtimeType ref) universeSet)
@@ -898,12 +901,13 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                       .object (.object runtimeType ref) []
                     have hinitial :
                         OutputCacheTreeSoundForGroups schema resolvers variableValues
-                          completionFuel (.object runtimeType ref)
+                          completionFuel runtimeType (.object runtimeType ref)
                           (GraphQL.Execution.collectFields schema variableValues
                             runtimeType (.object runtimeType ref) universeSet)
                           initial :=
                       OutputCacheTreeSoundForGroups.empty_object schema resolvers
-                        variableValues completionFuel (.object runtimeType ref)
+                        variableValues completionFuel runtimeType
+                        (.object runtimeType ref)
                         (.object runtimeType ref)
                         (GraphQL.Execution.collectFields schema variableValues
                           runtimeType (.object runtimeType ref) universeSet)
@@ -1193,12 +1197,13 @@ decreasing_by
 theorem executeField_result_continuationTreeSound
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef) (field : ExecutableField)
     (previous? : Option (FieldCacheValue ObjectRef))
     (universeSet : List Selection)
     (hcomplete
       : ∀ fieldDefinition resolved completionPrevious?,
-          schema.lookupField field.parentType field.fieldName = some fieldDefinition
+          schema.lookupField parentType field.fieldName = some fieldDefinition
           -> (∀ previous,
                 completionPrevious? = some previous
                 -> FieldCacheTreeSound schema resolvers variableValues completionFuel
@@ -1211,17 +1216,17 @@ theorem executeField_result_continuationTreeSound
                   completionPrevious?)))
     (hprevious
       : ∀ fieldDefinition previous,
-          schema.lookupField field.parentType field.fieldName = some fieldDefinition
+          schema.lookupField parentType field.fieldName = some fieldDefinition
           -> previous? = some previous
           -> FieldCacheContinuationTreeSound schema resolvers variableValues
               completionFuel universeSet previous)
     : FieldCacheContinuationTreeSound schema resolvers variableValues completionFuel
         universeSet
         (resultValueOrNull
-          (executeField schema resolvers variableValues completionFuel source
+          (executeField schema resolvers variableValues completionFuel parentType source
             previous? field)) := by
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none => simp [resultValueOrNull, FieldCacheContinuationTreeSound]
   | some fieldDefinition =>
       cases previous? with
@@ -1241,7 +1246,7 @@ theorem executeField_result_continuationTreeSound
                   FieldCacheContinuationTreeSound]
           | success coercedArguments =>
               cases hresolve
-                    : resolveFieldValue resolvers field.parentType field.fieldName
+                    : resolveFieldValue resolvers parentType field.fieldName
                         coercedArguments source with
               | none =>
                   simp only [hcoerce, hresolve]

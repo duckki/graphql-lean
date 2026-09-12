@@ -393,8 +393,6 @@ private def fieldGroupOfSelection (executionParentType : Name)
       (
         responseName,
         [{
-          parentType := executionParentType
-          responseName := responseName
           fieldName := fieldName
           arguments := arguments
           selectionSet := childSelectionSet
@@ -573,34 +571,38 @@ private theorem executeCollectedFields_cons_equivalent
     {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef)
     (responseName : Name)
     (leftFields rightFields : List ExecutableField)
     (leftTail rightTail : List (Name × List ExecutableField))
     : SelectionSetResultEquivalent
-        (executeField schema resolvers variableValues fuel source responseName leftFields)
-        (executeField schema resolvers variableValues fuel source responseName
+        (executeField schema resolvers variableValues fuel parentType source responseName
+          leftFields)
+        (executeField schema resolvers variableValues fuel parentType source responseName
           rightFields)
       -> SelectionSetResultEquivalent
-          (executeCollectedFields schema resolvers variableValues fuel source leftTail)
-          (executeCollectedFields schema resolvers variableValues fuel source rightTail)
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
+            leftTail)
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
+            rightTail)
       -> SelectionSetResultEquivalent
-          (executeCollectedFields schema resolvers variableValues fuel source
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
             ((responseName, leftFields) :: leftTail))
-          (executeCollectedFields schema resolvers variableValues fuel source
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
             ((responseName, rightFields) :: rightTail)) := by
   intro hhead htail
   cases hleftHead :
-      executeField schema resolvers variableValues fuel source responseName
+      executeField schema resolvers variableValues fuel parentType source responseName
         leftFields <;>
     cases hrightHead :
-      executeField schema resolvers variableValues fuel source responseName
+      executeField schema resolvers variableValues fuel parentType source responseName
         rightFields <;>
     cases hleftTail :
-      executeCollectedFields schema resolvers variableValues fuel source
+      executeCollectedFields schema resolvers variableValues fuel parentType source
         leftTail <;>
     cases hrightTail :
-      executeCollectedFields schema resolvers variableValues fuel source
+      executeCollectedFields schema resolvers variableValues fuel parentType source
         rightTail <;>
     simp [executeCollectedFields, hleftHead, hrightHead, hleftTail,
       hrightTail, Result.combine, SelectionSetResultEquivalent] at hhead htail ⊢
@@ -612,11 +614,11 @@ private theorem executeCollectedFields_cons_equivalent
   rcases rightTailResult with ⟨rightTailOutput, rightTailErrors⟩
   rcases fields_eq_singleton_of_map_fst_eq_singleton
       (ExecutionResponseKeys.executeField_ok_keys schema resolvers
-        variableValues fuel source responseName leftFields hleftHead) with
+        variableValues fuel parentType source responseName leftFields hleftHead) with
     ⟨leftValue, hleftOutput⟩
   rcases fields_eq_singleton_of_map_fst_eq_singleton
       (ExecutionResponseKeys.executeField_ok_keys schema resolvers
-        variableValues fuel source responseName rightFields hrightHead) with
+        variableValues fuel parentType source responseName rightFields hrightHead) with
     ⟨rightValue, hrightOutput⟩
   subst leftHeadOutput
   subst rightHeadOutput
@@ -637,13 +639,16 @@ theorem executeCollectedFields_equivalent_of_perm
     {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef)
     {left right : List (Name × List ExecutableField)}
     : left.Perm right
       -> (left.map Prod.fst).Nodup
       -> SelectionSetResultEquivalent
-          (executeCollectedFields schema resolvers variableValues fuel source left)
-          (executeCollectedFields schema resolvers variableValues fuel source right) := by
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
+            left)
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
+            right) := by
   intro hperm
   induction hperm with
   | nil =>
@@ -652,7 +657,7 @@ theorem executeCollectedFields_equivalent_of_perm
   | cons group hperm ih =>
       intro hnodup
       apply executeCollectedFields_cons_equivalent schema resolvers
-        variableValues fuel source group.1 group.2 group.2 _ _
+        variableValues fuel parentType source group.1 group.2 group.2 _ _
       · exact selectionSetResultEquivalent_of_eq rfl
       · exact ih (List.nodup_cons.mp hnodup).2
   | swap first second rest =>
@@ -661,13 +666,13 @@ theorem executeCollectedFields_equivalent_of_perm
       rcases second with ⟨secondName, secondFields⟩
       simp only [executeCollectedFields]
       cases hfirst :
-          executeField schema resolvers variableValues fuel source firstName
+          executeField schema resolvers variableValues fuel parentType source firstName
             firstFields <;>
         cases hsecond :
-          executeField schema resolvers variableValues fuel source secondName
+          executeField schema resolvers variableValues fuel parentType source secondName
             secondFields <;>
         cases htail :
-          executeCollectedFields schema resolvers variableValues fuel source
+          executeCollectedFields schema resolvers variableValues fuel parentType source
             rest <;>
         simp [Result.combine, SelectionSetResultEquivalent]
       all_goals try omega
@@ -690,13 +695,13 @@ theorem executeCollectedFields_equivalent_of_perm
         canonicalObjectFields_perm houtputPerm
       have hfirstKeys :=
         ExecutionResponseKeys.executeField_ok_keys schema resolvers
-          variableValues fuel source firstName firstFields hfirst
+          variableValues fuel parentType source firstName firstFields hfirst
       have hsecondKeys :=
         ExecutionResponseKeys.executeField_ok_keys schema resolvers
-          variableValues fuel source secondName secondFields hsecond
+          variableValues fuel parentType source secondName secondFields hsecond
       have htailKeys :=
         ExecutionResponseKeys.executeCollectedFields_ok_keys schema resolvers
-          variableValues fuel source rest tailOutput tailErrors htail
+          variableValues fuel parentType source rest tailOutput tailErrors htail
       have houtputKeys :
           (secondOutput ++ (firstOutput ++ tailOutput)).map Prod.fst =
             ((secondName, secondFields) ::
@@ -738,16 +743,12 @@ def CompleteValueSoundAtFuel (fuel : Nat) : Prop :=
     -> ResponseValueResultEquivalent
         (completeValue schema resolvers variableValues fuel fieldType
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := leftArguments
             selectionSet := leftChild
           }] value)
         (completeValue schema resolvers variableValues fuel fieldType
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := rightArguments
             selectionSet := rightChild
@@ -805,18 +806,16 @@ def SingletonFieldSoundAtFuel (fuel : Nat) : Prop :=
         -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues
             variableValues fieldDefinition.outputType.namedType leftChild rightChild)
     -> SelectionSetResultEquivalent
-        (executeField schema resolvers variableValues fuel source responseName
+        (executeField schema resolvers variableValues fuel executionParentType source
+          responseName
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := leftArguments
             selectionSet := leftChild
           }])
-        (executeField schema resolvers variableValues fuel source responseName
+        (executeField schema resolvers variableValues fuel executionParentType source
+          responseName
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := rightArguments
             selectionSet := rightChild
@@ -860,18 +859,16 @@ theorem executeField_singleton_equivalent_zero
     (leftArguments rightArguments : List Argument)
     (leftChild rightChild : List Selection)
     : SelectionSetResultEquivalent
-        (executeField schema resolvers variableValues 0 source responseName
+        (executeField schema resolvers variableValues 0 executionParentType source
+          responseName
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := leftArguments
             selectionSet := leftChild
           }])
-        (executeField schema resolvers variableValues 0 source responseName
+        (executeField schema resolvers variableValues 0 executionParentType source
+          responseName
           [{
-            parentType := executionParentType
-            responseName := responseName
             fieldName := fieldName
             arguments := rightArguments
             selectionSet := rightChild
@@ -908,20 +905,16 @@ theorem executeField_singleton_equivalent_succ
           -> SelectionSetEqualUpToReorderingWithCoercion schema variableValues
               variableValues fieldDefinition.outputType.namedType leftChild rightChild)
       -> SelectionSetResultEquivalent
-          (executeField schema resolvers variableValues (fuel + 1) source
-            responseName
+          (executeField schema resolvers variableValues (fuel + 1) executionParentType
+            source responseName
             [{
-              parentType := executionParentType
-              responseName := responseName
               fieldName := fieldName
               arguments := leftArguments
               selectionSet := leftChild
             }])
-          (executeField schema resolvers variableValues (fuel + 1) source
-            responseName
+          (executeField schema resolvers variableValues (fuel + 1) executionParentType
+            source responseName
             [{
-              parentType := executionParentType
-              responseName := responseName
               fieldName := fieldName
               arguments := rightArguments
               selectionSet := rightChild
@@ -1038,9 +1031,11 @@ private theorem execute_paired_normal_field_groups_equivalent
               ∧ SelectionEqualUpToReorderingWithCoercion schema variableValues
                   variableValues normalParentType pair.1 pair.2)
         -> SelectionSetResultEquivalent
-            (executeCollectedFields schema resolvers variableValues fuel source
+            (executeCollectedFields schema resolvers variableValues fuel
+              executionParentType source
               (pairs.map (fun pair => fieldGroupOfSelection executionParentType pair.1)))
-            (executeCollectedFields schema resolvers variableValues fuel source
+            (executeCollectedFields schema resolvers variableValues fuel
+              executionParentType source
               (pairs.map (fun pair => fieldGroupOfSelection executionParentType pair.2)))
   | [], _hpairs => selectionSetResultEquivalent_of_eq rfl
   | pair :: rest, hpairs => by
@@ -1089,7 +1084,7 @@ private theorem execute_paired_normal_field_groups_equivalent
                 simp [Schema.fieldReturnType?, hlookup] at hreturnType
                 exact hreturnType
               apply executeCollectedFields_cons_equivalent schema
-                resolvers variableValues fuel source responseName _ _ _ _
+                resolvers variableValues fuel executionParentType source responseName _ _ _ _
               · exact hfieldSound schema resolvers variableValues source
                   responseName executionParentType fieldName leftArguments
                   rightArguments leftChild rightChild fieldDefinition
@@ -1195,9 +1190,9 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
   have hpairsEquivalent :
       SelectionSetResultEquivalent
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref) leftPairGroups)
+          executionParentType (.object runtimeType ref) leftPairGroups)
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref) rightPairGroups) := by
+          executionParentType (.object runtimeType ref) rightPairGroups) := by
     apply execute_paired_normal_field_groups_equivalent hfieldSound schema
       resolvers variableValues normalParentType executionParentType
       (.object runtimeType ref) left right hleftArgumentsNodup hrightArgumentsNodup
@@ -1216,22 +1211,22 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
   have hleftReorder :
       SelectionSetResultEquivalent
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref)
+          executionParentType (.object runtimeType ref)
           (left.map (fieldGroupOfSelection executionParentType)))
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref) leftPairGroups) :=
+          executionParentType (.object runtimeType ref) leftPairGroups) :=
     executeCollectedFields_equivalent_of_perm schema resolvers
-      variableValues fuel (.object runtimeType ref) hleftGroupPerm.symm
+      variableValues fuel executionParentType (.object runtimeType ref) hleftGroupPerm.symm
       hleftCollectNodup
   have hrightReorder :
       SelectionSetResultEquivalent
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref) rightPairGroups)
+          executionParentType (.object runtimeType ref) rightPairGroups)
         (executeCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref)
+          executionParentType (.object runtimeType ref)
           (right.map (fieldGroupOfSelection executionParentType))) :=
     executeCollectedFields_equivalent_of_perm schema resolvers
-      variableValues fuel (.object runtimeType ref) hrightGroupPerm
+      variableValues fuel executionParentType (.object runtimeType ref) hrightGroupPerm
       ((hrightGroupPerm.map Prod.fst).nodup_iff.mpr hrightCollectNodup)
   simpa [executeSelectionSet, executeRootSelectionSet, hleftCollect,
     hrightCollect] using
@@ -1512,16 +1507,12 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
               ListResponseValueResultEquivalent
                 (completeValueList schema resolvers variableValues fuel inner
                   [{
-                    parentType := executionParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := leftArguments
                     selectionSet := leftChild
                   }] values)
                 (completeValueList schema resolvers variableValues fuel inner
                   [{
-                    parentType := executionParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := rightArguments
                     selectionSet := rightChild

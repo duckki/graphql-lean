@@ -126,8 +126,9 @@ def scheduleSegmentSpecFieldResults
   segment.sources.map
     (fun source =>
       singleFieldResultValue key.responseName
-        (GraphQL.Execution.executeField schema resolvers variableValues fuel source
-          key.responseName [key.executableField segment.childSelectionSet]))
+        (GraphQL.Execution.executeField schema resolvers variableValues fuel
+          key.parentType source key.responseName
+          [key.executableField segment.childSelectionSet]))
 
 def scheduleItemSpecFieldSegments
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -3271,8 +3272,8 @@ def expectedScheduleSegmentSpecFieldResultsWithFuels
   | _source :: _sources, [] => []
   | source :: sources, fuel :: fuels =>
       singleFieldResultValue key.responseName
-        (GraphQL.Execution.executeField schema resolvers variableValues fuel source
-          key.responseName [key.executableField childSelectionSet])
+        (GraphQL.Execution.executeField schema resolvers variableValues fuel
+          key.parentType source key.responseName [key.executableField childSelectionSet])
       :: expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
           variableValues key childSelectionSet sources fuels
 
@@ -3298,7 +3299,8 @@ theorem expectedScheduleSegmentSpecFieldResultsWithFuels_replicate
           (fun source =>
             singleFieldResultValue key.responseName
               (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                source key.responseName [key.executableField childSelectionSet])) := by
+                key.parentType source key.responseName
+                [key.executableField childSelectionSet])) := by
   induction sources with
   | nil =>
       rfl
@@ -3308,12 +3310,12 @@ theorem expectedScheduleSegmentSpecFieldResultsWithFuels_replicate
             variableValues key childSelectionSet (source :: sources)
             (List.replicate (sources.length + 1) fuel) =
           singleFieldResultValue key.responseName
-            (GraphQL.Execution.executeField schema resolvers variableValues fuel source
-                key.responseName [key.executableField childSelectionSet]) ::
+            (GraphQL.Execution.executeField schema resolvers variableValues fuel
+                key.parentType source key.responseName [key.executableField childSelectionSet]) ::
             sources.map (fun source =>
               singleFieldResultValue key.responseName
                 (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                  source key.responseName [key.executableField childSelectionSet]))
+                  key.parentType source key.responseName [key.executableField childSelectionSet]))
       rw [show List.replicate (sources.length + 1) fuel =
           fuel :: List.replicate sources.length fuel by
         rw [show sources.length + 1 = Nat.succ sources.length by omega]
@@ -4364,7 +4366,7 @@ def expectedPendingChildWorkSpecResult
     : Result ResponseValue :=
   objectResultFromFields
     (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-      work.specFuel work.work.source
+      work.specFuel work.work.runtimeType work.work.source
       (collectFieldsByKey schema variableValues
         work.work.runtimeType work.work.selectionSet))
 

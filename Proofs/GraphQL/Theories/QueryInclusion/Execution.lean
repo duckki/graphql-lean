@@ -536,16 +536,16 @@ private theorem executableFieldsMergedSelectionVariables_exists {variableName : 
         exact ⟨candidate, by simp [hcandidate], hcandidateVariable⟩
 
 def executableFieldListsIncludeWithFuel (schema : Schema) (fuel : Nat)
+    (parentType : Name)
     (conditionValues leftValues rightValues : VariableValues)
     (leftFields rightFields : List ExecutableField)
     : Prop :=
   match leftFields, rightFields with
   | leftField :: _leftRest, rightField :: _rightRest =>
-      leftField.parentType = rightField.parentType
-      ∧ leftField.fieldName = rightField.fieldName
+      leftField.fieldName = rightField.fieldName
       ∧ Argument.argumentsEquivalent leftField.arguments rightField.arguments
       ∧ (∃ definition,
-          schema.lookupField rightField.parentType rightField.fieldName = some definition
+          schema.lookupField parentType rightField.fieldName = some definition
           ∧ ArgumentCoercionResult.equivalent
               (coerceArgumentValues schema leftValues definition.arguments
                 leftField.arguments)
@@ -595,6 +595,7 @@ def executableFieldListsIncludeWithFuel (schema : Schema) (fuel : Nat)
   | _, _ => False
 
 def executableGroupsIncludeWithFuel (schema : Schema) (fuel : Nat)
+    (parentType : Name)
     (conditionValues leftValues rightValues : VariableValues)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     : Prop :=
@@ -602,18 +603,19 @@ def executableGroupsIncludeWithFuel (schema : Schema) (fuel : Nat)
     (rightName, rightFields) ∈ rightGroups
     -> ∃ leftFields,
         (rightName, leftFields) ∈ leftGroups
-        ∧ executableFieldListsIncludeWithFuel schema fuel conditionValues leftValues
-            rightValues leftFields rightFields
+        ∧ executableFieldListsIncludeWithFuel schema fuel parentType conditionValues
+            leftValues rightValues leftFields rightFields
 
 def completionFieldsIncludeWithFuel (schema : Schema) (fuel : Nat)
-    (conditionValues leftValues rightValues : VariableValues) (fieldType : TypeRef)
+    (parentType : Name) (conditionValues leftValues rightValues : VariableValues)
+    (fieldType : TypeRef)
     (leftFields rightFields : List ExecutableField)
     : Prop :=
-  executableFieldListsIncludeWithFuel schema fuel conditionValues leftValues rightValues
-    leftFields rightFields
+  executableFieldListsIncludeWithFuel schema fuel parentType conditionValues leftValues
+    rightValues leftFields rightFields
   ∧ (∃ rightField definition rightRest,
       rightFields = rightField :: rightRest
-      ∧ schema.lookupField rightField.parentType rightField.fieldName = some definition
+      ∧ schema.lookupField parentType rightField.fieldName = some definition
       ∧ definition.outputType.namedType = fieldType.namedType)
 
 theorem selectionSetIncludesBoolWithFuel_groups
@@ -646,7 +648,8 @@ theorem selectionSetIncludesBoolWithFuel_groups
           conditionValues leftSelectionSet rightSelectionSet
         = true)
     (runtimeType : Name) (hruntime : runtimeType ∈ schema.getPossibleTypes parentType)
-    : executableGroupsIncludeWithFuel schema fuel conditionValues leftValues rightValues
+    : executableGroupsIncludeWithFuel schema fuel parentType conditionValues leftValues
+        rightValues
         (collectRuntimeFieldGroups schema leftValues parentType runtimeType
           leftSelectionSet)
         (collectRuntimeFieldGroups schema rightValues parentType runtimeType
@@ -705,16 +708,13 @@ theorem selectionSetIncludesBoolWithFuel_groups
           simp only [Bool.and_eq_true] at hfieldMatching
           have hprefix := hfieldMatching.1
           have hdefinition := hfieldMatching.2
-          have hparentField := hprefix.1
-          have hparent := hparentField.1
-          have hfield := hparentField.2
+          have hfield := hprefix.1
           have harguments := hprefix.2
           have hargumentsEquivalent :=
             (argumentsSyntacticallyEquivalentBool_iff _ _).mp harguments
-          refine ⟨beq_iff_eq.mp hparent, beq_iff_eq.mp hfield,
-            hargumentsEquivalent, ?_⟩
+          refine ⟨beq_iff_eq.mp hfield, hargumentsEquivalent, ?_⟩
           generalize hlookup :
-              schema.lookupField rightField.parentType rightField.fieldName = lookup
+              schema.lookupField parentType rightField.fieldName = lookup
             at hdefinition
           cases lookup with
           | none => simp at hdefinition
@@ -871,19 +871,19 @@ theorem resultCombine_eq_ok_zero
 
 theorem executeAnnotatedCollectedFields_group_result
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (responseFields : List AnnotatedResponseField)
     (hresult
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          source groups
+          parentType source groups
         = .ok (responseFields, 0))
     {responseName : Name} {fields : List ExecutableField}
     (hgroup : (responseName, fields) ∈ groups)
     : ∃ groupResponseFields,
-        executeQueryAnnotatedField schema resolvers variableValues fuel source
-            responseName fields
+        executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+            source responseName fields
           = .ok (groupResponseFields, 0)
         ∧ ∀ field, field ∈ groupResponseFields -> field ∈ responseFields := by
   induction groups generalizing responseFields with
@@ -910,19 +910,19 @@ theorem executeAnnotatedCollectedFields_group_result
 
 theorem executeAnnotatedCollectedFields_field_origin
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (responseFields : List AnnotatedResponseField)
     (hresult
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          source groups
+          parentType source groups
         = .ok (responseFields, 0))
     {responseField : AnnotatedResponseField} (hfield : responseField ∈ responseFields)
     : ∃ responseName fields groupResponseFields,
         (responseName, fields) ∈ groups
-        ∧ executeQueryAnnotatedField schema resolvers variableValues fuel source
-            responseName fields
+        ∧ executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+            source responseName fields
           = .ok (groupResponseFields, 0)
         ∧ responseField ∈ groupResponseFields := by
   induction groups generalizing responseFields with
@@ -950,14 +950,14 @@ def resultErrorPositive (result : Result α) : Prop :=
 theorem annotatedExecution_error_positive_all
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    : (∀ fuel source groups,
+    : (∀ fuel parentType source groups,
         resultErrorPositive
           (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-            source groups))
-      ∧ (∀ fuel source responseName fields,
+            parentType source groups))
+      ∧ (∀ fuel parentType source responseName fields,
           resultErrorPositive
-            (executeQueryAnnotatedField schema resolvers variableValues fuel source
-              responseName fields))
+            (executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+              source responseName fields))
       ∧ (∀ fuel fieldType fields value,
           resultErrorPositive
             (completeAnnotatedResponseValue schema resolvers variableValues fuel fieldType
@@ -973,24 +973,24 @@ theorem annotatedExecution_error_positive_all
       completeAnnotatedResponseValueList, completeNonNullAnnotatedResponseValue,
       singleAnnotatedResponseFieldResult, catchAnnotatedResponseBubbleAsNull]
   case case2 =>
-    intro fuel source responseName fields rest hhead htail errors herror
+    intro fuel parentType source responseName fields rest hhead htail errors herror
     cases hheadResult : executeQueryAnnotatedField schema resolvers variableValues fuel
-        source responseName fields <;>
+        parentType source responseName fields <;>
       cases htailResult : executeQueryAnnotatedCollectedFields schema resolvers
-        variableValues fuel source rest <;>
+        variableValues fuel parentType source rest <;>
       simp_all [Result.combine] <;> omega
   case case6 =>
-    intro source responseName field definition hlookup hcoerce errors herror
+    intro parentType source responseName field definition hlookup hcoerce errors herror
     generalize htype : definition.outputType = outputType at herror
     cases outputType <;> simp at herror <;> omega
   case case7 =>
-    intro source responseName field definition hlookup coercedArguments hcoerce hresolve
-      errors herror
+    intro parentType source responseName field definition hlookup coercedArguments
+      hcoerce hresolve errors herror
     generalize htype : definition.outputType = outputType at herror
     cases outputType <;> simp at herror <;> omega
   case case8 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
-      resolved hresolve hcomplete errors herror
+    intro parentType source responseName field rest fuel definition hlookup
+      coercedArguments hcoerce resolved hresolve hcomplete errors herror
     cases hcompleted : completeAnnotatedResponseValue schema resolvers variableValues fuel
         definition.outputType (field :: rest) resolved <;>
       simp_all
@@ -1018,7 +1018,7 @@ theorem annotatedExecution_error_positive_all
   case case14 =>
     intro fuel parentType fields runtimeType ref hincludes hchild errors herror
     cases hcompleted : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-        fuel (.object runtimeType ref)
+        fuel runtimeType (.object runtimeType ref)
         (collectSubfields schema variableValues runtimeType (.object runtimeType ref) fields) <;>
       simp_all
   case case16 =>
@@ -1036,27 +1036,27 @@ theorem annotatedExecution_error_positive_all
 
 private theorem executeAnnotatedCollectedFields_error_positive
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     : resultErrorPositive
-        (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel source
-          groups) :=
-  (annotatedExecution_error_positive_all schema resolvers variableValues).1 fuel source
-    groups
+        (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
+          parentType source groups) :=
+  (annotatedExecution_error_positive_all schema resolvers variableValues).1 fuel
+    parentType source groups
 
 theorem executeQueryAnnotatedCollectedFields_error_positive
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField)) (errors : Nat)
     (hresult
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          source groups
+          parentType source groups
         = .error errors)
     : 0 < errors :=
   executeAnnotatedCollectedFields_error_positive schema resolvers variableValues fuel
-    source groups errors hresult
+    parentType source groups errors hresult
 
 theorem completeNonNull_eq_ok_zero
     {completed : Result AnnotatedResponseValue} {value : AnnotatedResponseValue}
@@ -1108,26 +1108,26 @@ theorem catchAnnotated_eq_ok_zero_of_error_positive
 
 theorem executeAnnotatedField_ok_zero_decompose
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (responseName : Name)
     (fields : List ExecutableField) (responseFields : List AnnotatedResponseField)
     (hresult
-      : executeQueryAnnotatedField schema resolvers variableValues fuel source
-          responseName fields
+      : executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+          source responseName fields
         = .ok (responseFields, 0))
     : ∃ completionFuel field rest definition resolved responseValue,
         fuel = completionFuel + 1
         ∧ fields = field :: rest
-        ∧ schema.lookupField field.parentType field.fieldName = some definition
+        ∧ schema.lookupField parentType field.fieldName = some definition
         ∧ coerceAndResolveFieldValue schema resolvers variableValues definition
-            field.parentType field.fieldName field.arguments source
+            parentType field.fieldName field.arguments source
           = some resolved
         ∧ completeAnnotatedResponseValue schema resolvers variableValues
             completionFuel definition.outputType (field :: rest) resolved
           = .ok (responseValue, 0)
         ∧ responseFields
           = [.resolved responseName
-              (resolvedFieldProvenance schema variableValues definition field)
+              (resolvedFieldProvenance schema variableValues parentType definition field)
               responseValue] := by
   cases fields with
   | nil => simp [executeQueryAnnotatedField] at hresult
@@ -1135,7 +1135,7 @@ theorem executeAnnotatedField_ok_zero_decompose
       cases fuel with
       | zero => simp [executeQueryAnnotatedField] at hresult
       | succ completionFuel =>
-          cases hlookup : schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField parentType field.fieldName with
           | none => simp [executeQueryAnnotatedField, hlookup] at hresult
           | some definition =>
               cases hcoerce
@@ -1148,7 +1148,7 @@ theorem executeAnnotatedField_ok_zero_decompose
                       singleAnnotatedResponseFieldResult] at hresult
               | success coercedArguments =>
                   cases hresolve
-                        : resolveFieldValue resolvers field.parentType
+                        : resolveFieldValue resolvers parentType
                             field.fieldName coercedArguments source with
                   | none =>
                       generalize htype : definition.outputType = outputType at hresult
@@ -1204,13 +1204,13 @@ private def recursiveChildExecutionSound
     -> selectionSetArgumentsNodup leftSelectionSet
     -> selectionSetArgumentsNodup rightSelectionSet
     -> executeQueryAnnotatedCollectedFields schema resolvers leftValues
-          executionFuel
+          executionFuel parentType
           (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet)
         = .ok (leftResponseFields, 0)
     -> executeQueryAnnotatedCollectedFields schema resolvers rightValues
-          executionFuel
+          executionFuel parentType
           (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet)
@@ -1227,25 +1227,26 @@ private theorem annotatedExecution_inclusion_all
       : ∀ rightValues,
           recursiveChildExecutionSound schema resolvers inclusionFuel conditionValues
             leftValues rightValues)
-    : (∀ (_executionFuel : Nat) (_source : ResolverValue ObjectRef)
+    : (∀ (_executionFuel : Nat) (_parentType : Name)
+          (_source : ResolverValue ObjectRef)
           (_groups : List (Name × List ExecutableField)),
         True)
-      ∧ (∀ executionFuel source responseName leftFields,
+      ∧ (∀ executionFuel parentType source responseName leftFields,
           ∀ rightValues rightFields leftResponseFields rightResponseFields,
-            executableFieldListsIncludeWithFuel schema inclusionFuel
+            executableFieldListsIncludeWithFuel schema inclusionFuel parentType
               conditionValues leftValues rightValues leftFields rightFields
             -> executeQueryAnnotatedField schema resolvers leftValues executionFuel
-                  source responseName leftFields
+                  parentType source responseName leftFields
                 = .ok (leftResponseFields, 0)
             -> executeQueryAnnotatedField schema resolvers rightValues executionFuel
-                  source responseName rightFields
+                  parentType source responseName rightFields
                 = .ok (rightResponseFields, 0)
             -> annotatedResponseValueIncludes (.object "" leftResponseFields)
                 (.object "" rightResponseFields))
       ∧ (∀ executionFuel fieldType leftFields value,
-          ∀ rightValues rightFields leftResponseValue rightResponseValue,
-            completionFieldsIncludeWithFuel schema inclusionFuel conditionValues
-              leftValues rightValues fieldType leftFields rightFields
+          ∀ parentType rightValues rightFields leftResponseValue rightResponseValue,
+            completionFieldsIncludeWithFuel schema inclusionFuel parentType
+              conditionValues leftValues rightValues fieldType leftFields rightFields
             -> completeAnnotatedResponseValue schema resolvers leftValues executionFuel
                   fieldType leftFields value
                 = .ok (leftResponseValue, 0)
@@ -1254,9 +1255,9 @@ private theorem annotatedExecution_inclusion_all
                 = .ok (rightResponseValue, 0)
             -> annotatedResponseValueIncludes leftResponseValue rightResponseValue)
       ∧ (∀ executionFuel itemType leftFields values,
-          ∀ rightValues rightFields leftResponseValues rightResponseValues,
-            completionFieldsIncludeWithFuel schema inclusionFuel conditionValues
-              leftValues rightValues itemType leftFields rightFields
+          ∀ parentType rightValues rightFields leftResponseValues rightResponseValues,
+            completionFieldsIncludeWithFuel schema inclusionFuel parentType
+              conditionValues leftValues rightValues itemType leftFields rightFields
             -> completeAnnotatedResponseValueList schema resolvers leftValues
                   executionFuel itemType leftFields values
                 = .ok (leftResponseValues, 0)
@@ -1273,8 +1274,8 @@ private theorem annotatedExecution_inclusion_all
       completeNonNullAnnotatedResponseValue, singleAnnotatedResponseFieldResult,
       catchAnnotatedResponseBubbleAsNull, Result.combine]
   case case6 =>
-    intro source responseName field rest errors definition hlookup hresolve rightValues
-      rightFields leftResponseFields rightResponseFields hfields hleft hright
+    intro parentType source responseName field rest errors definition hlookup hresolve
+      rightValues rightFields leftResponseFields rightResponseFields hfields hleft hright
     generalize htype : definition.outputType = outputType at hleft
     cases outputType <;> simp at hleft <;> omega
   case case11 =>
@@ -1286,27 +1287,27 @@ private theorem annotatedExecution_inclusion_all
     subst_vars
     exact annotatedResponseValueIncludes_refl _
   case case7 =>
-    intro source responseName field rest errors definition hlookup coercedArguments
-      hcoerce hresolve rightValues rightFields leftResponseFields rightResponseFields
-      hfields hleft hright
+    intro parentType source responseName field rest errors definition hlookup
+      coercedArguments hcoerce hresolve rightValues rightFields leftResponseFields
+      rightResponseFields hfields hleft hright
     generalize htype : definition.outputType = outputType at hleft
     cases outputType <;> simp at hleft <;> omega
   case case8 =>
-    intro source responseName field rest executionFuel definition hlookup coercedArguments
-      hcoerce resolved hresolve completeIH rightValues rightFields leftResponseFields
-      rightResponseFields hfields hleft hright
+    intro parentType source responseName field rest executionFuel definition hlookup
+      coercedArguments hcoerce resolved hresolve completeIH rightValues rightFields
+      leftResponseFields rightResponseFields hfields hleft hright
     cases rightFields with
     | nil => simp at hfields
     | cons rightField rightRest =>
         simp only at hfields
-        rcases hfields with ⟨hparent, hfield, harguments,
+        rcases hfields with ⟨hfield, harguments,
           ⟨rightDefinition, hrightLookup, hcoerced, hchildren⟩, hleftArguments,
           hrightArguments, hleftChildren, hrightChildren, hleftBooleanChild,
           hrightBooleanChild, hcommonChild⟩
         have hrightLookup' :
-            schema.lookupField rightField.parentType rightField.fieldName
+            schema.lookupField parentType rightField.fieldName
               = some definition := by
-          simpa [← hparent, ← hfield] using hlookup
+          simpa [← hfield] using hlookup
         have hdefinition : rightDefinition = definition := by
           rw [hrightLookup'] at hrightLookup
           exact (Option.some.inj hrightLookup).symm
@@ -1329,23 +1330,23 @@ private theorem annotatedExecution_inclusion_all
             hrightCoercion] using hcoerced
         have hrightResolve :
             coerceAndResolveFieldValue schema resolvers rightValues definition
-                rightField.parentType rightField.fieldName rightField.arguments source
+                parentType rightField.fieldName rightField.arguments source
               = some resolved := by
           unfold coerceAndResolveFieldValue
           simp only [hrightCoercion]
           unfold resolveFieldValue at hresolve ⊢
           calc
-            resolvers.resolve rightField.parentType rightField.fieldName
+            resolvers.resolve parentType rightField.fieldName
                 rightCoercedArguments source =
-                resolvers.resolve field.parentType field.fieldName
-                  rightCoercedArguments source := by rw [hparent, hfield]
-            _ = resolvers.resolve field.parentType field.fieldName
+                resolvers.resolve parentType field.fieldName
+                  rightCoercedArguments source := by rw [hfield]
+            _ = resolvers.resolve parentType field.fieldName
                 coercedArguments source :=
-              (resolvers.resolve_argumentsEquivalent field.parentType field.fieldName
+              (resolvers.resolve_argumentsEquivalent parentType field.fieldName
                 _ _ source hcoercedArguments).symm
             _ = some resolved := hresolve
         have hrightResolved :
-            resolveFieldValue resolvers rightField.parentType rightField.fieldName
+            resolveFieldValue resolvers parentType rightField.fieldName
                 rightCoercedArguments source = some resolved := by
           simpa [coerceAndResolveFieldValue, hrightCoercion] using hrightResolve
         generalize hleftCompleted :
@@ -1370,9 +1371,9 @@ private theorem annotatedExecution_inclusion_all
             | ok rightResult =>
                 rcases rightResult with ⟨rightValue, rightErrors⟩
                 rcases hright with ⟨hrightFields, hrightErrors⟩
-                have hvalueIncludes := completeIH rightValues
+                have hvalueIncludes := completeIH parentType rightValues
                   (rightField :: rightRest) leftValue rightValue
-                  ⟨hparent, hfield, harguments,
+                  ⟨hfield, harguments,
                     ⟨definition, hrightLookup', hcoerced, hchildren⟩, hleftArguments,
                     hrightArguments, hleftChildren, hrightChildren,
                     hleftBooleanChild, hrightBooleanChild, hcommonChild⟩
@@ -1385,24 +1386,25 @@ private theorem annotatedExecution_inclusion_all
                 subst rightCall
                 subst requestedValue
                 refine ⟨responseName,
-                  resolvedFieldProvenance schema leftValues definition field, leftValue,
+                  resolvedFieldProvenance schema leftValues parentType definition field,
+                  leftValue,
                   by simp, rfl, ?_, hvalueIncludes⟩
                 exact (sameFieldProvenance_iff _ _).mpr
-                  ⟨hparent, hfield, harguments⟩
+                  ⟨rfl, hfield, harguments⟩
   case case10 =>
-    intro executionFuel inner fields value hfuel innerIH rightValues rightFields
+    intro executionFuel inner fields value hfuel innerIH parentType rightValues rightFields
       leftResponseValue rightResponseValue hfields rightField rightRest
       hrightFields definition hlookup hnamed hleft hright
     subst rightFields
     have hleftInner := completeNonNull_eq_ok_zero hleft
     have hrightInner := completeNonNull_eq_ok_zero hright
-    exact innerIH rightValues (rightField :: rightRest) leftResponseValue
+    exact innerIH parentType rightValues (rightField :: rightRest) leftResponseValue
       rightResponseValue hfields rightField rightRest rfl definition hlookup
       (by simpa [TypeRef.namedType] using hnamed) hleftInner.1 hrightInner.1
   case case14 =>
-    intro executionFuel parentType fields runtimeType ref hincludes rightValues rightFields
-      leftResponseValue rightResponseValue hfields rightField rightRest
-      hrightFields definition hlookup hnamed hleft hright
+    intro executionFuel parentType fields runtimeType ref hincludes
+      executionParentType rightValues rightFields leftResponseValue rightResponseValue
+      hfields rightField rightRest hrightFields definition hlookup hnamed hleft hright
     subst rightFields
     have hruntime : runtimeType ∈ schema.getPossibleTypes parentType :=
       List.contains_iff_mem.mp hincludes
@@ -1413,7 +1415,7 @@ private theorem annotatedExecution_inclusion_all
     | nil => simp at hfields
     | cons leftField leftRest =>
       simp only at hfields
-      rcases hfields with ⟨hleftParent, hleftField, harguments,
+      rcases hfields with ⟨hleftField, harguments,
         ⟨checkerDefinition, hcheckerLookup, hcoerced, hcheck⟩, hleftArguments,
         hrightArguments, hleftChildren, hrightChildren, hleftBooleanChild,
         hrightBooleanChild, hcommonChild⟩
@@ -1427,12 +1429,12 @@ private theorem annotatedExecution_inclusion_all
       have hselection := hcheck hcomposite runtimeType hruntime
       have hleftCompleted := catchAnnotated_eq_ok_zero_of_error_positive
         (executeAnnotatedCollectedFields_error_positive schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel runtimeType (.object runtimeType ref)
           (collectFields schema leftValues runtimeType (.object runtimeType ref)
             (mergedFieldSelectionSet (leftField :: leftRest)))) hleft
       have hrightCompleted := catchAnnotated_eq_ok_zero_of_error_positive
         (executeAnnotatedCollectedFields_error_positive schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel runtimeType (.object runtimeType ref)
           (collectFields schema rightValues runtimeType (.object runtimeType ref)
             (mergedFieldSelectionSet (rightField :: rightRest)))) hright
       rcases hleftCompleted with ⟨leftFields, hleftFields, rfl⟩
@@ -1480,7 +1482,7 @@ private theorem annotatedExecution_inclusion_all
       · simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
           using hrightFields
   case case16 =>
-    intro executionFuel inner fields values listIH rightValues rightFields
+    intro executionFuel inner fields values listIH parentType rightValues rightFields
       leftResponseValue rightResponseValue hfields rightField rightRest
       hrightFields definition hlookup hnamed hleft hright
     subst rightFields
@@ -1493,22 +1495,22 @@ private theorem annotatedExecution_inclusion_all
     rcases hleftCompleted with ⟨leftValuesResult, hleftValues, rfl⟩
     rcases hrightCompleted with ⟨rightValuesResult, hrightValues, rfl⟩
     simpa [annotatedResponseValueIncludes] using
-      listIH rightValues (rightField :: rightRest) leftValuesResult
+      listIH parentType rightValues (rightField :: rightRest) leftValuesResult
         rightValuesResult hfields rightField rightRest rfl definition hlookup
         (by simpa [TypeRef.namedType] using hnamed) hleftValues hrightValues
   case case20 =>
-    intro executionFuel itemType fields value values headIH tailIH rightValues
-      rightFields leftResponseValues rightResponseValues hfields rightField
+    intro executionFuel itemType fields value values headIH tailIH parentType
+      rightValues rightFields leftResponseValues rightResponseValues hfields rightField
       rightRest hrightFields definition hlookup hnamed hleft hright
     subst rightFields
     rcases resultCombine_eq_ok_zero hleft with
       ⟨leftHead, leftTail, hleftHead, hleftTail, hleftCons⟩
     rcases resultCombine_eq_ok_zero hright with
       ⟨rightHead, rightTail, hrightHead, hrightTail, hrightCons⟩
-    have hheadIncludes := headIH rightValues (rightField :: rightRest) leftHead
+    have hheadIncludes := headIH parentType rightValues (rightField :: rightRest) leftHead
       rightHead hfields rightField rightRest rfl definition hlookup hnamed
       hleftHead hrightHead
-    have htailIncludes := tailIH rightValues (rightField :: rightRest) leftTail
+    have htailIncludes := tailIH parentType rightValues (rightField :: rightRest) leftTail
       rightTail hfields rightField rightRest rfl definition hlookup hnamed
       hleftTail hrightTail
     rw [← hleftCons, ← hrightCons]
@@ -1567,8 +1569,8 @@ private theorem recursiveChildExecutionSound_proved
         rightSelectionSet executionFuel leftResponseFields rightResponseFields hruntime
         hcheck hleftBoolean hrightBoolean hcommonLookups hleftNodup hrightNodup hleft
         hright
-      have hgroups : executableGroupsIncludeWithFuel schema inclusionFuel conditionValues
-          leftValues rightValues
+      have hgroups : executableGroupsIncludeWithFuel schema inclusionFuel parentType
+          conditionValues leftValues rightValues
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet)
           (collectFields schema rightValues parentType (.object runtimeType ref)
@@ -1591,7 +1593,7 @@ private theorem recursiveChildExecutionSound_proved
       simp only [annotatedResponseValueIncludes]
       intro rightName rightCall rightValue hrightMember
       rcases executeAnnotatedCollectedFields_field_origin schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet) rightResponseFields hright hrightMember with
         ⟨responseName, rightFields, rightGroupResponseFields, hrightGroup,
@@ -1599,11 +1601,12 @@ private theorem recursiveChildExecutionSound_proved
       rcases hgroups responseName rightFields hrightGroup with
         ⟨leftFields, hleftGroup, hfieldIncludes⟩
       rcases executeAnnotatedCollectedFields_group_result schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet) leftResponseFields hleft hleftGroup with
         ⟨leftGroupResponseFields, hleftGroupResult, hleftGroupMembers⟩
-      have hgroupIncludes := hfieldSound executionFuel (.object runtimeType ref)
+      have hgroupIncludes := hfieldSound executionFuel parentType
+        (.object runtimeType ref)
         responseName leftFields rightValues rightFields leftGroupResponseFields
         rightGroupResponseFields hfieldIncludes hleftGroupResult
         hrightGroupResult
@@ -1649,13 +1652,13 @@ theorem selectionSetIncludesBoolWithFuel_annotated_execution
     (hrightNodup : selectionSetArgumentsNodup rightSelectionSet)
     (hleft
       : executeQueryAnnotatedCollectedFields schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet)
         = .ok (leftResponseFields, 0))
     (hright
       : executeQueryAnnotatedCollectedFields schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet)
         = .ok (rightResponseFields, 0))
@@ -1669,21 +1672,21 @@ theorem selectionSetIncludesBoolWithFuel_annotated_execution
 private theorem annotatedExecution_success_mono_all
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    : (∀ fuel source groups value,
-        executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel source
-            groups
+    : (∀ fuel parentType source groups value,
+        executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
+            parentType source groups
           = .ok (value, 0)
         -> ∀ extra,
             executeQueryAnnotatedCollectedFields schema resolvers variableValues
-              (fuel + extra) source groups
+              (fuel + extra) parentType source groups
             = .ok (value, 0))
-      ∧ (∀ fuel source responseName fields value,
-          executeQueryAnnotatedField schema resolvers variableValues fuel source
-              responseName fields
+      ∧ (∀ fuel parentType source responseName fields value,
+          executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+              source responseName fields
             = .ok (value, 0)
           -> ∀ extra,
               executeQueryAnnotatedField schema resolvers variableValues (fuel + extra)
-                source responseName fields
+                parentType source responseName fields
               = .ok (value, 0))
       ∧ (∀ fuel fieldType fields source value,
           completeAnnotatedResponseValue schema resolvers variableValues fuel fieldType
@@ -1708,24 +1711,24 @@ private theorem annotatedExecution_success_mono_all
       completeNonNullAnnotatedResponseValue, singleAnnotatedResponseFieldResult,
       catchAnnotatedResponseBubbleAsNull, Result.combine, Nat.add_assoc]
   case case2 =>
-    intro fuel source responseName fields rest headIH tailIH value hresult extra
-    cases hhead : executeQueryAnnotatedField schema resolvers variableValues fuel source
-        responseName fields with
+    intro fuel parentType source responseName fields rest headIH tailIH value hresult extra
+    cases hhead : executeQueryAnnotatedField schema resolvers variableValues fuel
+        parentType source responseName fields with
     | error headErrors =>
         cases htail : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-          fuel source rest <;> simp_all
+          fuel parentType source rest <;> simp_all
     | ok headResult =>
         rcases headResult with ⟨headFields, headErrors⟩
         cases htail : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-            fuel source rest with
+            fuel parentType source rest with
         | error tailErrors => simp [hhead, htail] at hresult
         | ok tailResult =>
             rcases tailResult with ⟨tailFields, tailErrors⟩
             change Result.combine List.append
-              (executeQueryAnnotatedField schema resolvers variableValues fuel source
-                responseName fields)
+              (executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+                source responseName fields)
               (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-                source rest) = .ok (value, 0) at hresult
+                parentType source rest) = .ok (value, 0) at hresult
             rw [hhead, htail] at hresult
             simp only [Result.combine, Except.ok.injEq, Prod.mk.injEq] at hresult
             have hheadErrors : headErrors = 0 := by omega
@@ -1736,24 +1739,24 @@ private theorem annotatedExecution_success_mono_all
             rw [headIH headFields hhead extra, tailIH tailFields htail extra]
             rfl
   case case6 =>
-    intro source responseName field rest fuel definition hlookup hcoerce value hresult
-      extra
+    intro parentType source responseName field rest fuel definition hlookup hcoerce value
+      hresult extra
     generalize htype : definition.outputType = outputType at hresult
     cases outputType <;> simp at hresult
     all_goals
       subst_vars
       simp [executeQueryAnnotatedField, hlookup, hcoerce, htype]
   case case7 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
-      hresolve value hresult extra
+    intro parentType source responseName field rest fuel definition hlookup
+      coercedArguments hcoerce hresolve value hresult extra
     generalize htype : definition.outputType = outputType at hresult
     cases outputType <;> simp at hresult
     all_goals
       subst_vars
       simp [executeQueryAnnotatedField, hlookup, hcoerce, hresolve, htype]
   case case8 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
-      resolved hresolve completeIH value hresult extra
+    intro parentType source responseName field rest fuel definition hlookup
+      coercedArguments hcoerce resolved hresolve completeIH value hresult extra
     generalize hcompleted :
         completeAnnotatedResponseValue schema resolvers variableValues fuel
           definition.outputType (field :: rest) resolved = completed at hresult
@@ -1793,7 +1796,7 @@ private theorem annotatedExecution_success_mono_all
       extra
     have hcompleted := catchAnnotated_eq_ok_zero_of_error_positive
       (executeAnnotatedCollectedFields_error_positive schema resolvers variableValues fuel
-        (.object runtimeType ref)
+        runtimeType (.object runtimeType ref)
         (collectFields schema variableValues runtimeType (.object runtimeType ref)
           (mergedFieldSelectionSet fields))) hresult
     rcases hcompleted with ⟨completedFields, hcompleted, rfl⟩
@@ -1850,20 +1853,20 @@ private theorem annotatedExecution_success_mono_all
 
 theorem executeQueryAnnotatedCollectedFields_success_mono
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (fuel : Nat)
+    (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (value : List AnnotatedResponseField)
     (hresult
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          source groups
+          parentType source groups
         = .ok (value, 0))
     (extra : Nat)
     : executeQueryAnnotatedCollectedFields schema resolvers variableValues (fuel + extra)
-        source groups
+        parentType source groups
       = .ok (value, 0) :=
-  (annotatedExecution_success_mono_all schema resolvers variableValues).1 fuel source
-    groups value hresult extra
+  (annotatedExecution_success_mono_all schema resolvers variableValues).1 fuel
+    parentType source groups value hresult extra
 
 -----------------------------------------------------------------------------------------
 -- Spec-level projections of annotated responses
@@ -1986,12 +1989,12 @@ private def recursiveChildTransfer (schema : Schema) (resolvers : Resolvers Obje
               (lookupVariableValue? leftValues variableName)
               (lookupVariableValue? rightValues variableName))
     -> executeQueryAnnotatedCollectedFields schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet)
         = .ok (leftResponseFields, 0)
     -> executeQueryAnnotatedCollectedFields schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet)
         = .ok (rightResponseFields, 0)
@@ -2010,10 +2013,12 @@ private theorem annotatedExecutionTransfer_all
     (childSound
       : ∀ rightValues,
           recursiveChildTransfer schema resolvers leftValues rightValues sizeBound)
-    : (∀ (_executionFuel : Nat) (_source : ResolverValue ObjectRef)
+    : (∀ (_executionFuel : Nat) (_parentType : Name)
+          (_source : ResolverValue ObjectRef)
           (_groups : List (Name × List ExecutableField)),
         True)
-      ∧ (∀ (_executionFuel : Nat) (_source : ResolverValue ObjectRef)
+      ∧ (∀ (_executionFuel : Nat) (_parentType : Name)
+            (_source : ResolverValue ObjectRef)
             (_responseName : Name) (_fields : List ExecutableField),
           True)
       ∧ (∀ executionFuel fieldType leftFields value,
@@ -2072,12 +2077,12 @@ private theorem annotatedExecutionTransfer_all
       hguide
     have hleftCompleted := catchAnnotated_eq_ok_zero_of_error_positive
       (executeAnnotatedCollectedFields_error_positive schema resolvers leftValues
-        executionFuel (.object runtimeType ref)
+        executionFuel runtimeType (.object runtimeType ref)
         (collectFields schema leftValues runtimeType (.object runtimeType ref)
           (mergedFieldSelectionSet fields))) hleft
     have hrightCompleted := catchAnnotated_eq_ok_zero_of_error_positive
       (executeAnnotatedCollectedFields_error_positive schema resolvers rightValues
-        executionFuel (.object runtimeType ref)
+        executionFuel runtimeType (.object runtimeType ref)
         (collectFields schema rightValues runtimeType (.object runtimeType ref)
           (mergedFieldSelectionSet rightFields))) hright
     rcases hleftCompleted with ⟨leftChildFields, hleftChildren, rfl⟩
@@ -2216,13 +2221,14 @@ private theorem recursiveChildTransfer_proved
         ⟨leftName, leftCall, leftAnnotated, hleftAnnotatedMember, hnameEq, hprovenance,
           hchildGuide⟩
       rcases executeAnnotatedCollectedFields_field_origin schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet) rightResponseFields hright hrightAnnotatedMember with
         ⟨rightGroupName, rightGroupFields, rightGroupResponseFields, hrightGroup,
           hrightGroupExec, hrightInGroup⟩
       rcases executeAnnotatedField_ok_zero_decompose schema resolvers rightValues
-          executionFuel (.object runtimeType ref) rightGroupName rightGroupFields
+          executionFuel parentType (.object runtimeType ref) rightGroupName
+          rightGroupFields
           rightGroupResponseFields hrightGroupExec with
         ⟨rightCompletionFuel, rightHeadField, rightRestFields, rightDefinition,
           rightResolved, rightValue0, hrightFuel, hrightFieldsEq, hrightLookup,
@@ -2233,13 +2239,14 @@ private theorem recursiveChildTransfer_proved
       rw [← hrightValueEq] at hrightCompletion
       rw [hrightCallEq] at hprovenance
       rcases executeAnnotatedCollectedFields_field_origin schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet) leftResponseFields hleft hleftAnnotatedMember with
         ⟨leftGroupName, leftGroupFields, leftGroupResponseFields, hleftGroup,
           hleftGroupExec, hleftInGroup⟩
       rcases executeAnnotatedField_ok_zero_decompose schema resolvers leftValues
-          executionFuel (.object runtimeType ref) leftGroupName leftGroupFields
+          executionFuel parentType (.object runtimeType ref) leftGroupName
+          leftGroupFields
           leftGroupResponseFields hleftGroupExec with
         ⟨leftCompletionFuel, leftHeadField, leftRestFields, leftDefinition,
           leftResolved, leftValue0, hleftFuel, hleftFieldsEq, hleftLookup,
@@ -2254,7 +2261,7 @@ private theorem recursiveChildTransfer_proved
       simp only [resolvedFieldProvenance] at hparentEq hfieldEq hargumentsEquiv
       have hdefinitionEq : leftDefinition = rightDefinition := by
         have h := hleftLookup
-        rw [hparentEq, hfieldEq, hrightLookup] at h
+        rw [hfieldEq, hrightLookup] at h
         exact (Option.some.inj h).symm
       subst hdefinitionEq
       have hfuelEq : leftCompletionFuel = rightCompletionFuel := by
@@ -2334,19 +2341,19 @@ private theorem recursiveChildTransfer_proved
                   hcoerced
               have hsameResolved : rightResolved = leftResolved := by
                 unfold resolveFieldValue at hleftResolve hrightResolve
-                have h : resolvers.resolve rightHeadField.parentType rightHeadField.fieldName
+                have h : resolvers.resolve parentType rightHeadField.fieldName
                     rightCoerced (.object runtimeType ref)
                     = some leftResolved := by
                   calc
-                    resolvers.resolve rightHeadField.parentType rightHeadField.fieldName
+                    resolvers.resolve parentType rightHeadField.fieldName
                           rightCoerced (.object runtimeType ref)
-                        = resolvers.resolve leftHeadField.parentType
+                        = resolvers.resolve parentType
                             leftHeadField.fieldName rightCoerced
                             (.object runtimeType ref) := by
-                      rw [hparentEq, hfieldEq]
-                    _ = resolvers.resolve leftHeadField.parentType leftHeadField.fieldName
+                      rw [hfieldEq]
+                    _ = resolvers.resolve parentType leftHeadField.fieldName
                           leftCoerced (.object runtimeType ref) :=
-                      (resolvers.resolve_argumentsEquivalent leftHeadField.parentType
+                      (resolvers.resolve_argumentsEquivalent parentType
                         leftHeadField.fieldName _ _ (.object runtimeType ref)
                         hcoercedArguments).symm
                     _ = some leftResolved := hleftResolve
@@ -2416,13 +2423,13 @@ theorem annotatedIncludes_unannotated_execution
               (lookupVariableValue? rightValues variableName))
     (hleft
       : executeQueryAnnotatedCollectedFields schema resolvers leftValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema leftValues parentType (.object runtimeType ref)
             leftSelectionSet)
         = .ok (leftResponseFields, 0))
     (hright
       : executeQueryAnnotatedCollectedFields schema resolvers rightValues
-          executionFuel (.object runtimeType ref)
+          executionFuel parentType (.object runtimeType ref)
           (collectFields schema rightValues parentType (.object runtimeType ref)
             rightSelectionSet)
         = .ok (rightResponseFields, 0))

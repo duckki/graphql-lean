@@ -95,11 +95,9 @@ theorem executeField_fieldPairProbe_tagged_object_field_ok_of_field_children
               Execution.executeField schema
                 (fieldPairProbeResolvers schema rootSelectionSet targetParent
                   leftField rightField leftArguments rightArguments)
-                variableValues (fuel + 1)
+                variableValues (fuel + 1) parentType
                 (.object sourceRuntimeType (some tag)) responseName
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet
@@ -202,10 +200,8 @@ theorem executeSelectionSetAsResponse_fieldPairProbe_tagged_object_of_field_chil
             childSelectionSet ∈ selectionSet ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues (fuel + 1)
-              (.object sourceRuntimeType (some tag)) responseName
+              parentType (.object sourceRuntimeType (some tag)) responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1144,11 +1140,9 @@ theorem
                     (fieldPairProbeResolvers schema rootSelectionSet targetParent
                       leftField rightField leftArguments rightArguments)
                     variableValues
-                    (fuel + 1)
+                    (fuel + 1) parentType
                     (.object sourceRuntimeType (some tag)) responseName
                     [{
-                      parentType := parentType,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := childSelectionSet
@@ -1414,10 +1408,9 @@ theorem
                       leftField rightField leftArguments rightArguments)
                     variableValues
                     (selectionSetDeepProbeFuel schema parentType selectionSet + 1)
+                    parentType
                     (.object sourceRuntimeType (some tag)) responseName
                     [{
-                      parentType := parentType,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := childSelectionSet

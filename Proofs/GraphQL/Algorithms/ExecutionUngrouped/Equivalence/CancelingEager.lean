@@ -217,10 +217,10 @@ mutual
         : ∀ completionFuel previous field,
             fuel = completionFuel + 1
             -> StrongResultAligned
-                (executeField schema resolvers variableValues completionFuel source
-                  previous field)
+                (executeField schema resolvers variableValues completionFuel parentType
+                  source previous field)
                 (Eager.executeField schema resolvers variableValues completionFuel
-                  source previous field))
+                  parentType source previous field))
       : ∀ selection output,
           VisitResultAligned
             (visitSelection schema resolvers variableValues fuel parentType source
@@ -262,8 +262,7 @@ mutual
                 have hfield :=
                   hexecute completionFuel
                     (responseObjectField? responseName output)
-                    (executableField parentType responseName fieldName arguments
-                      selectionSet)
+                    (executableField fieldName arguments selectionSet)
                     rfl
                 simpa [visitSelection, Eager.visitSelection, hallows] using
                   StrongResultAligned.mergeResponseFieldResult responseName output
@@ -312,10 +311,10 @@ mutual
         : ∀ completionFuel previous field,
             fuel = completionFuel + 1
             -> StrongResultAligned
-                (executeField schema resolvers variableValues completionFuel source
-                  previous field)
+                (executeField schema resolvers variableValues completionFuel parentType
+                  source previous field)
                 (Eager.executeField schema resolvers variableValues completionFuel
-                  source previous field))
+                  parentType source previous field))
       : ∀ selectionSet output,
           VisitResultAligned
             (visitSubfields schema resolvers variableValues fuel parentType source
@@ -484,10 +483,12 @@ private structure FuelImplementationsAligned
           (Eager.completeValueList schema resolvers variableValues fuel itemType
             selectionSet values previousValues)
   executeField
-    : ∀ source previous field,
+    : ∀ parentType source previous field,
         StrongResultAligned
-          (executeField schema resolvers variableValues fuel source previous field)
-          (Eager.executeField schema resolvers variableValues fuel source previous field)
+          (executeField schema resolvers variableValues fuel parentType source previous
+            field)
+          (Eager.executeField schema resolvers variableValues fuel parentType source
+            previous field)
   visitSubfields
     : ∀ parentType source selectionSet output,
         VisitResultAligned
@@ -577,12 +578,12 @@ private theorem fuelImplementations_canceling_eager_aligned
         completeValueList_canceling_eager_aligned schema resolvers variableValues 0
           hcomplete
       have hfield :
-          ∀ source previous field,
+          ∀ parentType source previous field,
             StrongResultAligned
-              (executeField schema resolvers variableValues 0 source previous field)
-              (Eager.executeField schema resolvers variableValues 0 source previous
+              (executeField schema resolvers variableValues 0 parentType source previous field)
+              (Eager.executeField schema resolvers variableValues 0 parentType source previous
                 field) := by
-        intro source previous field
+        intro parentType source previous field
         unfold executeField Eager.executeField
         split <;> rename_i hlookup
         · rw [hlookup]
@@ -604,7 +605,7 @@ private theorem fuelImplementations_canceling_eager_aligned
                   handleFieldError_strongResultAligned fieldDefinition.outputType
             | success coercedArguments =>
                 cases hresolved
-                      : resolveFieldValue resolvers field.parentType
+                      : resolveFieldValue resolvers parentType
                           field.fieldName coercedArguments source with
                 | none =>
                     simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
@@ -783,13 +784,13 @@ private theorem fuelImplementations_canceling_eager_aligned
         completeValueList_canceling_eager_aligned schema resolvers variableValues
           (fuel + 1) hcomplete
       have hfield :
-          ∀ source previous field,
+          ∀ parentType source previous field,
             StrongResultAligned
-              (executeField schema resolvers variableValues (fuel + 1) source
+              (executeField schema resolvers variableValues (fuel + 1) parentType source
                 previous field)
-              (Eager.executeField schema resolvers variableValues (fuel + 1) source
+              (Eager.executeField schema resolvers variableValues (fuel + 1) parentType source
                 previous field) := by
-        intro source previous field
+        intro parentType source previous field
         unfold executeField Eager.executeField
         split <;> rename_i hlookup
         · rw [hlookup]
@@ -811,7 +812,7 @@ private theorem fuelImplementations_canceling_eager_aligned
                   handleFieldError_strongResultAligned fieldDefinition.outputType
             | success coercedArguments =>
                 cases hresolved
-                      : resolveFieldValue resolvers field.parentType
+                      : resolveFieldValue resolvers parentType
                           field.fieldName coercedArguments source with
                 | none =>
                     simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
@@ -833,7 +834,7 @@ private theorem fuelImplementations_canceling_eager_aligned
       intro completionFuel previous field heq
       have hcompletionFuel : completionFuel = fuel := by omega
       subst completionFuel
-      exact ih.executeField source previous field
+      exact ih.executeField parentType source previous field
 
 theorem executeRootSelectionSet_canceling_eager_aligned
     {ObjectIdentity : Type}

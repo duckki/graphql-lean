@@ -88,12 +88,10 @@ def objectField? {ObjectRef : Type} (responseName : Name)
   | .object _source fields => lookupField? responseName fields
   | _ => none
 
-def executableField (parentType responseName fieldName : Name)
+def executableField (fieldName : Name)
     (arguments : List Argument) (selectionSet : List Selection)
     : ExecutableField :=
   {
-    parentType := parentType
-    responseName := responseName
     fieldName := fieldName
     arguments := arguments
     selectionSet := selectionSet
@@ -289,9 +287,9 @@ mutual
                 | some previous => .ok (previous, 0)
                 | none => outOfFuel
             | fuel' + 1 =>
-                let field :=
-                  executableField parentType responseName fieldName arguments selectionSet
-                executeField schema resolvers variableValues fuel' source previous? field
+                let field := executableField fieldName arguments selectionSet
+                executeField schema resolvers variableValues fuel' parentType source
+                  previous? field
           mergeResponseFieldResult responseName fieldResult output
         else
           {
@@ -327,11 +325,11 @@ mutual
   -- completed value through recursive completion.
   def executeField {ObjectRef : Type}
       (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (completionFuel : Nat)
+      (variableValues : VariableValues) (completionFuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (previous? : Option (FieldCacheValue ObjectRef))
       (field : ExecutableField)
       : Result (FieldCacheValue ObjectRef) :=
-    match schema.lookupField field.parentType field.fieldName with
+    match schema.lookupField parentType field.fieldName with
     | none => .error 1
     | some fieldDefinition =>
         match previous? with
@@ -355,7 +353,7 @@ mutual
             | .error =>
                 handleFieldError fieldDefinition.outputType
             | .success coercedArguments =>
-                match resolveFieldValue resolvers field.parentType field.fieldName
+                match resolveFieldValue resolvers parentType field.fieldName
                         coercedArguments source with
                 | none =>
                     handleFieldError fieldDefinition.outputType

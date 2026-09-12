@@ -1724,10 +1724,8 @@ theorem selectionSet_deepSuccessFieldOk_framed_of_valid_normal_members
                 (deepSelectionSetSuccessResolversWithRef schema
                   [Selection.inlineFragment (some parentType) [] (List.flatten members)]
                   objectRef)
-                variableValues (fuel + 1) source responseName
+                variableValues (fuel + 1) parentType source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1820,10 +1818,8 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_
                 (deepSelectionSetSuccessResolversWithRef schema
                   [Selection.inlineFragment (some parentType) [] (left ++ right)]
                   objectRef)
-                variableValues (fuel + 1) source responseName
+                variableValues (fuel + 1) parentType source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1912,10 +1908,8 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel
                 (deepSelectionSetSuccessResolversWithRef schema
                   [Selection.inlineFragment (some parentType) [] (left ++ right)]
                   objectRef)
-                variableValues (fuel + 1) source responseName
+                variableValues (fuel + 1) parentType source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -2005,10 +1999,8 @@ theorem left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
                   objectRef)
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                source responseName
+                parentType source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -2059,10 +2051,8 @@ theorem right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal
                   objectRef)
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
-                source responseName
+                parentType source responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -2140,12 +2130,11 @@ theorem left_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_tar
                     parentType rightField rightArguments))
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                parentType
                 (projectionRootResolverValue
                   (.object parentType (none : Option FieldPairProbeTag)))
                 responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -2394,12 +2383,11 @@ theorem right_selectionSet_fieldPairProbeProjectionFieldOk_append_framed_leaf_ta
                     parentType rightField rightArguments))
                 variableValues
                 (selectionSetDeepProbeFuel schema parentType (left ++ right) + 1)
+                parentType
                 (projectionRootResolverValue
                   (.object parentType (none : Option FieldPairProbeTag)))
                 responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -2713,11 +2701,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
       typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
     ⟩
   have hleftTarget :
-      Execution.executeField schema resolvers variableValues fuel source
+      Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -2763,11 +2749,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_le
           exact Execution.CoercedArgument.argumentsEquivalent_refl _)
         hlookup hleftFieldCoercion hleftFuel hleaf
   have hrightTarget :
-      Execution.executeField schema resolvers variableValues fuel source
+      Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -2943,11 +2927,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
       typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
     ⟩
   have hleftTarget :
-      Execution.executeField schema resolvers variableValues fuel source
+      Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := leftFieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -2984,11 +2966,9 @@ theorem not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_le
           exact Execution.CoercedArgument.argumentsEquivalent_refl _)
         hleftLookup hleftFieldCoercion hleftFuel hleftLeaf
   have hrightTarget :
-      Execution.executeField schema resolvers variableValues fuel source
+      Execution.executeField schema resolvers variableValues fuel parentType source
         responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := rightFieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet

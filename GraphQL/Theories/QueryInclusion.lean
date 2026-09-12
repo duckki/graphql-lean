@@ -165,6 +165,7 @@ def collectRuntimeFieldGroups (schema : Schema) (variableValues : VariableValues
     (.object runtimeType PUnit.unit) selectionSet
 
 def executableGroupIncludedBool (schema : Schema)
+    (parentType : Name)
     (childIncludes : TypeRef -> List Selection -> List Selection -> Bool)
     (leftGroups : List (Name × List ExecutableField))
     (rightGroup : Name × List ExecutableField)
@@ -174,11 +175,10 @@ def executableGroupIncludedBool (schema : Schema)
       leftGroup.1 == rightGroup.1
       && match leftGroup.2, rightGroup.2 with
           | leftField :: _leftRest, rightField :: _rightRest =>
-              leftField.parentType == rightField.parentType
-              && leftField.fieldName == rightField.fieldName
+              leftField.fieldName == rightField.fieldName
               && Argument.argumentsSyntacticallyEquivalentBool leftField.arguments
                   rightField.arguments
-              && match schema.lookupField rightField.parentType rightField.fieldName with
+              && match schema.lookupField parentType rightField.fieldName with
                   | none => false
                   | some definition =>
                       if definition.outputType.isCompositeBool schema then
@@ -190,12 +190,13 @@ def executableGroupIncludedBool (schema : Schema)
           | _, _ => false
 
 def executableGroupsIncludeBool (schema : Schema)
+    (parentType : Name)
     (childIncludes : TypeRef -> List Selection -> List Selection -> Bool)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     : Bool :=
   rightGroups.all
     fun rightGroup =>
-      executableGroupIncludedBool schema childIncludes leftGroups rightGroup
+      executableGroupIncludedBool schema parentType childIncludes leftGroups rightGroup
 
 mutual
   -- Compares one concrete runtime-object case.
@@ -215,7 +216,7 @@ mutual
         let rightGroups :=
           collectRuntimeFieldGroups schema variableValues parentType runtimeType
             rightSelectionSet
-        executableGroupsIncludeBool schema
+        executableGroupsIncludeBool schema parentType
           (fun outputType leftSelectionSet rightSelectionSet =>
             (schema.getPossibleTypes outputType.namedType).all
               fun childRuntimeType =>
@@ -331,18 +332,18 @@ inductive InclusionChildMatch where
   | composite (task : InclusionChildTask)
 deriving Repr
 
-def matchInclusionChildTask? (schema : Schema) (rightGroup : Name × List ExecutableField)
+def matchInclusionChildTask? (schema : Schema) (parentType : Name)
+    (rightGroup : Name × List ExecutableField)
     : List (Name × List ExecutableField) -> Option InclusionChildMatch
   | [] => none
   | leftGroup :: rest =>
       if leftGroup.1 == rightGroup.1 then
         match leftGroup.2, rightGroup.2 with
         | leftField :: _leftRest, rightField :: _rightRest =>
-            if leftField.parentType == rightField.parentType
-                && leftField.fieldName == rightField.fieldName
+            if leftField.fieldName == rightField.fieldName
                 && Argument.argumentsSyntacticallyEquivalentBool leftField.arguments
                     rightField.arguments then
-              match schema.lookupField rightField.parentType rightField.fieldName with
+              match schema.lookupField parentType rightField.fieldName with
               | none => none
               | some definition =>
                   if definition.outputType.isCompositeBool schema then
@@ -359,35 +360,21 @@ def matchInclusionChildTask? (schema : Schema) (rightGroup : Name × List Execut
                   else
                     some .leaf
             else
-              matchInclusionChildTask? schema rightGroup rest
-        | _, _ => matchInclusionChildTask? schema rightGroup rest
+              matchInclusionChildTask? schema parentType rightGroup rest
+        | _, _ => matchInclusionChildTask? schema parentType rightGroup rest
       else
-        matchInclusionChildTask? schema rightGroup rest
+        matchInclusionChildTask? schema parentType rightGroup rest
 
-def inclusionChildTasks? (schema : Schema)
+def inclusionChildTasks? (schema : Schema) (parentType : Name)
     (leftGroups : List (Name × List ExecutableField))
     : List (Name × List ExecutableField) -> Option (List InclusionChildTask)
   | [] => some []
   | rightGroup :: rest => do
-      let childMatch ← matchInclusionChildTask? schema rightGroup leftGroups
-      let tasks ← inclusionChildTasks? schema leftGroups rest
+      let childMatch ← matchInclusionChildTask? schema parentType rightGroup leftGroups
+      let tasks ← inclusionChildTasks? schema parentType leftGroups rest
       match childMatch with
       | .leaf => pure tasks
       | .composite task => pure (task :: tasks)
-
-def executableFieldWithParentType (parentType : Name) (field : ExecutableField)
-    : ExecutableField :=
-  { field with parentType }
-
-def executableGroupWithParentType (parentType : Name)
-    (group : Name × List ExecutableField)
-    : Name × List ExecutableField :=
-  (group.1, group.2.map (executableFieldWithParentType parentType))
-
-def executableGroupsWithParentType (parentType : Name)
-    (groups : List (Name × List ExecutableField))
-    : List (Name × List ExecutableField) :=
-  groups.map (executableGroupWithParentType parentType)
 
 def inclusionChildTaskEqBool (left right : InclusionChildTask) : Bool :=
   left.possibleTypes == right.possibleTypes
@@ -416,10 +403,7 @@ def inclusionChildTasksForParentTypes? (schema : Schema)
     : List Name -> Option (List InclusionChildTask)
   | [] => some []
   | parentType :: rest => do
-      let tasks ←
-        inclusionChildTasks? schema
-          (executableGroupsWithParentType parentType leftGroups)
-          (executableGroupsWithParentType parentType rightGroups)
+      let tasks ← inclusionChildTasks? schema parentType leftGroups rightGroups
       let restTasks ←
         inclusionChildTasksForParentTypes? schema leftGroups rightGroups rest
       pure <| deduplicateInclusionChildTasks (tasks ++ restTasks)
@@ -487,8 +471,6 @@ def guardedFieldExecutableFields (variableValues : VariableValues)
     fun entry =>
       if entry.condition.allows variableValues runtimeType then
         [{
-          parentType := executionParentType
-          responseName
           fieldName := entry.field.fieldName
           arguments := entry.field.arguments
           selectionSet := entry.field.selectionSet

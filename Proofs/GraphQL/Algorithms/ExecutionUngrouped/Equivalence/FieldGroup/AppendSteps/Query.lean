@@ -32,10 +32,6 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendSteps
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -43,7 +39,7 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendSteps
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -64,33 +60,27 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendSteps
     (hsteps
       : ExecutableFieldsMergedCompleteAppendSteps schema resolvers variableValues
           depth parentType source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (depth + 1) parentType source selectionSet := by
-  have hfieldResponse : field.responseName = responseName :=
-    hresponse field (by simp)
-  have hfieldParent : field.parentType = parentType :=
-    hparent field (by simp)
   have hmerged :
       ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source) :=
     ExecutableFieldsMergedComplete_of_appendSteps schema resolvers
       variableValues depth parentType source responseName field fields
-      (resolveFieldValueByName schema resolvers variableValues field.parentType
+      (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
-      hfieldResponse hfieldParent rfl hfieldLookup
-      hfieldChildren
-      hsteps
+      rfl hfieldLookup hfieldChildren hsteps
   exact
     executeRootSelectionSet_eq_spec_of_exact_nonempty_group_mergedComplete
       schema resolvers variableValues depth parentType source selectionSet
-      responseName field fields hcollect hdirect hresponse hparent hmerged
+      responseName field fields hcollect hdirect hmerged
 
 theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_contained_appendSteps
     {ObjectIdentity : Type}
@@ -107,10 +97,6 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_contained_append
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -118,11 +104,11 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_contained_append
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject
-              (resolveFieldValueByName schema resolvers variableValues field.parentType
+              (resolveFieldValueByName schema resolvers variableValues parentType
                 field.fieldName field.arguments source)
               runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -143,31 +129,27 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_contained_append
     (hsteps
       : ExecutableFieldsMergedCompleteContainedAppendSteps schema resolvers
           variableValues depth parentType source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (depth + 1) parentType source selectionSet := by
-  have hfieldResponse : field.responseName = responseName :=
-    hresponse field (by simp)
-  have hfieldParent : field.parentType = parentType :=
-    hparent field (by simp)
   have hmerged :
       ExecutableFieldsMergedComplete schema resolvers variableValues depth
         parentType source responseName field fields
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source) :=
     ExecutableFieldsMergedComplete_of_contained_appendSteps schema resolvers
       variableValues depth parentType source responseName field fields
-      (resolveFieldValueByName schema resolvers variableValues field.parentType
+      (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
-      hfieldResponse hfieldParent rfl hfieldLookup hfieldChildren hsteps
+      rfl hfieldLookup hfieldChildren hsteps
   exact
     executeRootSelectionSet_eq_spec_of_exact_nonempty_group_mergedComplete
       schema resolvers variableValues depth parentType source selectionSet
-      responseName field fields hcollect hdirect hresponse hparent hmerged
+      responseName field fields hcollect hdirect hmerged
 
 theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendSteps
     {ObjectIdentity : Type}
@@ -187,12 +169,6 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendSteps
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -221,7 +197,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendSteps
           depth (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -234,8 +210,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendSteps
       (GraphQL.Execution.coerceVariableValues operation variableValues)
       depth (operation.rootType schema) source
       operation.selectionSet responseName field fields hcollect hdirect
-      hresponse hparent hfieldLookup
-      (by
+      hfieldLookup (by
         intro childDepth runtimeType identity hlt _hincludes
         exact hfieldChildren childDepth runtimeType identity hlt)
       hsteps
@@ -258,12 +233,6 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_contained_appendSte
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -274,10 +243,11 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_contained_appendSte
           -> ValueContainsObject
               (resolveFieldValueByName schema resolvers
                 (GraphQL.Execution.coerceVariableValues operation variableValues)
-                field.parentType field.fieldName field.arguments source)
+                (operation.rootType schema) field.fieldName field.arguments source)
               runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? (operation.rootType schema)
+                    field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -302,7 +272,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_contained_appendSte
           depth (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -315,7 +285,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_contained_appendSte
       (GraphQL.Execution.coerceVariableValues operation variableValues)
       depth (operation.rootType schema) source
       operation.selectionSet responseName field fields hcollect hdirect
-      hresponse hparent hfieldLookup hfieldChildren hsteps
+      hfieldLookup hfieldChildren hsteps
 
 theorem executeQuery_eq_spec_of_exact_nonempty_group_appendSteps
     {ObjectIdentity : Type}
@@ -336,12 +306,6 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendSteps
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -370,7 +334,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendSteps
           depth (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -380,8 +344,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendSteps
   exact
     executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendSteps schema
       resolvers variableValues operation depth source responseName field fields
-      hroot hcollect hdirect hresponse hparent hfieldLookup hfieldChildren
-      hsteps
+      hroot hcollect hdirect hfieldLookup hfieldChildren hsteps
 
 theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
     {ObjectIdentity : Type}
@@ -402,12 +365,6 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -418,7 +375,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
           -> ValueContainsObject
               (resolveFieldValueByName schema resolvers
                 (GraphQL.Execution.coerceVariableValues operation variableValues)
-                field.parentType field.fieldName field.arguments source)
+                (operation.rootType schema) field.fieldName field.arguments source)
               runtimeType identity
           -> ExecutionStateEquivalent
               {
@@ -441,7 +398,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
           depth (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -451,7 +408,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_contained_appendSteps
   exact
     executeQueryWithFuel_eq_spec_of_exact_nonempty_group_contained_appendSteps
       schema resolvers variableValues operation depth source responseName field
-      fields hroot hcollect hdirect hresponse hparent hfieldLookup
+      fields hroot hcollect hdirect hfieldLookup
       (by
         intro childDepth runtimeType identity hlt hcontains _hincludes
         exact hfieldChildren childDepth runtimeType identity hlt hcontains)
@@ -482,8 +439,7 @@ theorem executeRootSelectionSet_eq_spec_of_executedFieldGroup
   exact
     executeRootSelectionSet_eq_spec_of_exact_nonempty_group_mergedComplete
       schema resolvers variableValues depth parentType source selectionSet
-      responseName field fields hcollect hdirect group.responseName_eq
-      group.parent_eq group.mergedComplete_resolved
+      responseName field fields hcollect hdirect group.mergedComplete_resolved
 
 theorem executeQueryWithFuel_eq_spec_of_executedFieldGroup
     {ObjectIdentity : Type}
@@ -568,10 +524,6 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendPlan
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -579,7 +531,7 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -600,7 +552,7 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendPlan
     (plan
       : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
           source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
@@ -613,11 +565,9 @@ theorem executeRootSelectionSet_eq_spec_of_exact_nonempty_group_appendPlan
       fields hcollect hdirect
       (ExecutedFieldGroup.of_appendPlan schema resolvers variableValues depth
         parentType source responseName field fields
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
-        hresponse hparent rfl hfieldLookup
-        hfieldChildren
-        plan)
+        rfl hfieldLookup hfieldChildren plan)
 
 theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan
     {ObjectIdentity : Type}
@@ -637,12 +587,6 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -651,7 +595,8 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? (operation.rootType schema)
+                    field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -676,7 +621,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan
           (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
@@ -688,7 +633,7 @@ theorem executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan
       resolvers (GraphQL.Execution.coerceVariableValues operation variableValues)
       depth (operation.rootType schema) source
       operation.selectionSet responseName field fields hcollect hdirect
-      hresponse hparent hfieldLookup hfieldChildren plan
+      hfieldLookup hfieldChildren plan
 
 theorem executeQuery_eq_spec_of_exact_nonempty_group_appendPlan
     {ObjectIdentity : Type}
@@ -709,12 +654,6 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendPlan
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate,
-          candidate ∈ field :: fields
-          -> candidate.parentType = (operation.rootType schema))
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -743,7 +682,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendPlan
           (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
@@ -753,7 +692,7 @@ theorem executeQuery_eq_spec_of_exact_nonempty_group_appendPlan
   exact
     executeQueryWithFuel_eq_spec_of_exact_nonempty_group_appendPlan schema
       resolvers variableValues operation depth source responseName field fields
-      hroot hcollect hdirect hresponse hparent hfieldLookup
+      hroot hcollect hdirect hfieldLookup
       (by
         intro childDepth runtimeType identity hlt _hincludes
         exact hfieldChildren childDepth runtimeType identity hlt)
@@ -801,7 +740,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendSteps
     (hsteps
       : ExecutableFieldsMergedCompleteAppendSteps schema resolvers variableValues
           depth parentType source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     (hexact : groups = [(responseName, field :: fields)])
@@ -873,7 +812,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendSteps
           depth (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     (hexact : groups = [(responseName, field :: fields)])
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
@@ -915,7 +854,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -936,7 +875,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendPlan
     (plan
       : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
           source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     (hexact : groups = [(responseName, field :: fields)])
@@ -1006,7 +945,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendPlan
           (operation.rootType schema) source responseName field
           (resolveFieldValueByName schema resolvers
             (GraphQL.Execution.coerceVariableValues operation variableValues)
-            field.parentType field.fieldName field.arguments source)
+            (operation.rootType schema) field.fieldName field.arguments source)
           [] fields)
     (hexact : groups = [(responseName, field :: fields)])
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source

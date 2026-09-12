@@ -9,8 +9,6 @@ open Execution
 open Execution.FieldGroups
 
 structure ExecutableFieldSyntacticallyIncludes (left right : ExecutableField) : Prop where
-  parentType : left.parentType = right.parentType
-  responseName : left.responseName = right.responseName
   fieldName : left.fieldName = right.fieldName
   arguments : Argument.argumentsEquivalent left.arguments right.arguments
   selectionSet
@@ -94,12 +92,13 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       (left right : Selection)
       (hsyntax : selectionSyntacticallyIncludesBool left right = true)
-      : ∀ rightField,
-          rightField ∈ collectFlatSelection schema variableValues parentType source right
-          -> ∃ leftField,
-              leftField
+      : ∀ rightEntry,
+          rightEntry ∈ collectFlatSelection schema variableValues parentType source right
+          -> ∃ leftEntry,
+              leftEntry
                 ∈ collectFlatSelection schema variableValues parentType source left
-              ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
+              ∧ leftEntry.1 = rightEntry.1
+              ∧ ExecutableFieldSyntacticallyIncludes leftEntry.2 rightEntry.2 := by
     cases left with
     | field leftResponseName leftFieldName leftArguments leftDirectives
         leftSelectionSet =>
@@ -122,19 +121,17 @@ mutual
             subst rightResponseName
             subst rightFieldName
             subst rightDirectives
-            intro rightField hrightField
+            intro rightEntry hrightEntry
             cases hallows
                   : selectionDirectivesAllowBool variableValues leftDirectives with
             | false =>
-                simp [collectFlatSelection, hallows] at hrightField
+                simp [collectFlatSelection, hallows] at hrightEntry
             | true =>
                 simp only [collectFlatSelection, hallows, if_true, List.mem_singleton]
-                  at hrightField ⊢
-                subst rightField
-                refine ⟨_, rfl, ?_⟩
+                  at hrightEntry ⊢
+                subst rightEntry
+                refine ⟨_, rfl, rfl, ?_⟩
                 exact {
-                  parentType := rfl
-                  responseName := rfl
                   fieldName := rfl
                   arguments :=
                     (argumentsSyntacticallyEquivalentBool_iff _ _).mp harguments
@@ -195,23 +192,24 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       (left right : List Selection)
       (hsyntax : selectionSetSyntacticallyIncludesBool left right = true)
-      : ∀ rightField,
-          rightField ∈ collectFlatFields schema variableValues parentType source right
-          -> ∃ leftField,
-              leftField ∈ collectFlatFields schema variableValues parentType source left
-              ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
-    intro rightField hrightField
-    rw [collectFlatFields_eq_flatMap_collectFlatSelection] at hrightField ⊢
-    rcases List.mem_flatMap.mp hrightField with
-      ⟨rightSelection, hrightSelection, hrightField⟩
+      : ∀ rightEntry,
+          rightEntry ∈ collectFlatFields schema variableValues parentType source right
+          -> ∃ leftEntry,
+              leftEntry ∈ collectFlatFields schema variableValues parentType source left
+              ∧ leftEntry.1 = rightEntry.1
+              ∧ ExecutableFieldSyntacticallyIncludes leftEntry.2 rightEntry.2 := by
+    intro rightEntry hrightEntry
+    rw [collectFlatFields_eq_flatMap_collectFlatSelection] at hrightEntry ⊢
+    rcases List.mem_flatMap.mp hrightEntry with
+      ⟨rightSelection, hrightSelection, hrightEntry⟩
     rcases (selectionSetSyntacticallyIncludesBool_iff left right).mp hsyntax
         rightSelection hrightSelection with
       ⟨leftSelection, hleftSelection, hselection⟩
     rcases collectFlatSelection_syntactically_includes schema variableValues
-        parentType source leftSelection rightSelection hselection rightField hrightField with
-      ⟨leftField, hleftField, hincludes⟩
-    exact ⟨leftField, List.mem_flatMap.mpr
-      ⟨leftSelection, hleftSelection, hleftField⟩, hincludes⟩
+        parentType source leftSelection rightSelection hselection rightEntry hrightEntry with
+      ⟨leftEntry, hleftEntry, hname, hincludes⟩
+    exact ⟨leftEntry, List.mem_flatMap.mpr
+      ⟨leftSelection, hleftSelection, hleftEntry⟩, hname, hincludes⟩
   termination_by 2 * SelectionSet.size right + 1
   decreasing_by
     all_goals
@@ -224,27 +222,28 @@ theorem collectFields_syntactically_includes
     (parentType : Name) (source : ResolverValue ObjectRef)
     (left right : List Selection)
     (hsyntax : selectionSetSyntacticallyIncludesBool left right = true)
-    : ∀ rightField,
-        rightField
-          ∈ flattenCollectedFields
+    : ∀ rightEntry,
+        rightEntry
+          ∈ ConditionTree.flattenExecutableFieldGroups
               (collectFields schema variableValues parentType source right)
-        -> ∃ leftField,
-            leftField
-              ∈ flattenCollectedFields
+        -> ∃ leftEntry,
+            leftEntry
+              ∈ ConditionTree.flattenExecutableFieldGroups
                   (collectFields schema variableValues parentType source left)
-            ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
-  intro rightField hrightField
-  have hrightFlat : rightField ∈
+            ∧ leftEntry.1 = rightEntry.1
+            ∧ ExecutableFieldSyntacticallyIncludes leftEntry.2 rightEntry.2 := by
+  intro rightEntry hrightEntry
+  have hrightFlat : rightEntry ∈
       collectFlatFields schema variableValues parentType source right :=
     (collectFlatFields_perm_flatten_collectFields schema variableValues parentType
-      source right).mem_iff.mpr hrightField
+      source right).mem_iff.mpr hrightEntry
   rcases collectFlatFields_syntactically_includes schema variableValues parentType
-      source left right hsyntax rightField hrightFlat with
-    ⟨leftField, hleftFlat, hincludes⟩
-  exact ⟨leftField,
+      source left right hsyntax rightEntry hrightFlat with
+    ⟨leftEntry, hleftFlat, hname, hincludes⟩
+  exact ⟨leftEntry,
     (collectFlatFields_perm_flatten_collectFields schema variableValues parentType
       source left).mem_iff.mp hleftFlat,
-    hincludes⟩
+    hname, hincludes⟩
 
 theorem syntacticallyIncludedMergedSelectionSets
     {leftFields rightFields : List ExecutableField}
@@ -290,9 +289,6 @@ theorem collectFields_syntactically_included_group
                 ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
   let leftGroups := collectFields schema variableValues parentType source left
   let rightGroups := collectFields schema variableValues parentType source right
-  have hleftWellFormed :=
-    NormalForm.GroundTypeNormalization.collectFields_wellFormed schema variableValues
-      parentType source left
   have hrightWellFormed :=
     NormalForm.GroundTypeNormalization.collectFields_wellFormed schema variableValues
       parentType source right
@@ -301,52 +297,44 @@ theorem collectFields_syntactically_included_group
       (NormalForm.collectFields_namesNodup schema variableValues parentType source left)
   have hcover := collectFields_syntactically_includes schema variableValues parentType
     source left right hsyntax
-  have hrightNonempty := (hrightWellFormed (rightName, rightFields) hrightGroup).1
+  have hrightNonempty := hrightWellFormed (rightName, rightFields) hrightGroup
   cases hrightFieldsEq : rightFields with
   | nil => exact False.elim (hrightNonempty hrightFieldsEq)
   | cons rightHead rightRest =>
       have hrightHead : rightHead ∈ rightFields := by simp [hrightFieldsEq]
-      have hrightHeadFlat : rightHead ∈ flattenCollectedFields rightGroups :=
-        (mem_flattenCollectedFields_iff rightGroups rightHead).mpr
-          ⟨rightName, rightFields, hrightGroup, hrightHead⟩
-      rcases hcover rightHead hrightHeadFlat with
-        ⟨leftWitness, hleftWitnessFlat, hwitness⟩
-      rcases (mem_flattenCollectedFields_iff leftGroups leftWitness).mp
+      have hrightHeadFlat : (rightName, rightHead) ∈
+          ConditionTree.flattenExecutableFieldGroups rightGroups :=
+        (mem_flattenExecutableFieldGroups_iff rightGroups
+          (rightName, rightHead)).mpr ⟨rightFields, hrightGroup, hrightHead⟩
+      rcases hcover (rightName, rightHead) hrightHeadFlat with
+        ⟨⟨leftName, leftWitness⟩, hleftWitnessFlat, hleftName, hwitness⟩
+      rcases (mem_flattenExecutableFieldGroups_iff leftGroups
+          (leftName, leftWitness)).mp
           hleftWitnessFlat with
-        ⟨leftName, leftFields, hleftGroup, hleftWitness⟩
-      have hleftWitnessName : leftWitness.responseName = leftName :=
-        (hleftWellFormed (leftName, leftFields) hleftGroup).2 leftWitness
-          hleftWitness
-      have hrightHeadName : rightHead.responseName = rightName :=
-        (hrightWellFormed (rightName, rightFields) hrightGroup).2 rightHead
-          hrightHead
-      have hleftName : leftName = rightName := by
-        rw [← hleftWitnessName, hwitness.responseName, hrightHeadName]
+        ⟨leftFields, hleftGroup, hleftWitness⟩
       refine ⟨leftFields, ?_, ?_⟩
-      · simpa [leftGroups, hleftName] using hleftGroup
+      · rw [hleftName] at hleftGroup
+        simpa [leftGroups] using hleftGroup
       intro rightField hrightField
       have hrightFieldOriginal : rightField ∈ rightFields := by
         simpa [hrightFieldsEq] using hrightField
-      have hrightFieldFlat : rightField ∈ flattenCollectedFields rightGroups :=
-        (mem_flattenCollectedFields_iff rightGroups rightField).mpr
-          ⟨rightName, rightFields, hrightGroup, hrightFieldOriginal⟩
-      rcases hcover rightField hrightFieldFlat with
-        ⟨leftField, hleftFieldFlat, hincludes⟩
-      rcases (mem_flattenCollectedFields_iff leftGroups leftField).mp
+      have hrightFieldFlat : (rightName, rightField) ∈
+          ConditionTree.flattenExecutableFieldGroups rightGroups :=
+        (mem_flattenExecutableFieldGroups_iff rightGroups
+          (rightName, rightField)).mpr
+          ⟨rightFields, hrightGroup, hrightFieldOriginal⟩
+      rcases hcover (rightName, rightField) hrightFieldFlat with
+        ⟨⟨candidateName, leftField⟩, hleftFieldFlat, hcandidateName,
+          hincludes⟩
+      rcases (mem_flattenExecutableFieldGroups_iff leftGroups
+          (candidateName, leftField)).mp
           hleftFieldFlat with
-        ⟨candidateName, candidateFields, hcandidateGroup, hcandidateField⟩
-      have hcandidateFieldName : leftField.responseName = candidateName :=
-        (hleftWellFormed (candidateName, candidateFields) hcandidateGroup).2
-          leftField hcandidateField
-      have hrightFieldName : rightField.responseName = rightName :=
-        (hrightWellFormed (rightName, rightFields) hrightGroup).2 rightField
-          hrightFieldOriginal
-      have hcandidateName : candidateName = leftName := by
-        rw [← hcandidateFieldName, hincludes.responseName, hrightFieldName,
-          ← hleftName]
+        ⟨candidateFields, hcandidateGroup, hcandidateField⟩
+      have hcandidateName' : candidateName = leftName :=
+        hcandidateName.trans hleftName.symm
       have hgroupEq : (candidateName, candidateFields) = (leftName, leftFields) :=
         pair_eq_of_map_fst_nodup hleftKeysNodup hcandidateGroup hleftGroup
-          hcandidateName
+          hcandidateName'
       injection hgroupEq with _ hfieldsEq
       subst candidateFields
       exact ⟨leftField, hcandidateField, hincludes⟩
@@ -453,16 +441,14 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                 simpa [source] using hrightGroup')
               rcases hleftGroupReady.2.2.1 leftHead leftWitness hleftHead
                   hleftWitness with
-                ⟨hleftParent, hleftFieldName, hleftArguments⟩
-              have hparent : leftHead.parentType = rightHead.parentType :=
-                hleftParent.trans hwitness.parentType
+                ⟨hleftFieldName, hleftArguments⟩
               have hfieldName : leftHead.fieldName = rightHead.fieldName :=
                 hleftFieldName.trans hwitness.fieldName
               have harguments : Argument.argumentsEquivalent leftHead.arguments
                   rightHead.arguments :=
                 argumentsEquivalent_trans hleftArguments hwitness.arguments
               simp only [beq_self_eq_true, Bool.true_and, Bool.and_eq_true]
-              refine ⟨⟨⟨beq_iff_eq.mpr hparent, beq_iff_eq.mpr hfieldName⟩,
+              refine ⟨⟨beq_iff_eq.mpr hfieldName,
                 (argumentsSyntacticallyEquivalentBool_iff _ _).mpr harguments⟩, ?_⟩
               rcases hrightGroupReady.2.1 rightHead hrightHead with
                 ⟨definition, hlookup, _hchildReady⟩
@@ -478,15 +464,15 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                   have hincludes : schema.typeIncludesObjectBool
                       definition.outputType.namedType childRuntimeType = true :=
                     List.contains_iff_mem.mpr hchildRuntime
-                  have hleftWitnessLookup : schema.lookupField leftWitness.parentType
+                  have hleftWitnessLookup : schema.lookupField parentType
                       leftWitness.fieldName = some definition := by
-                    simpa [hwitness.parentType, hwitness.fieldName] using hlookup
+                    simpa [hwitness.fieldName] using hlookup
                   have hleftCompletion : completionFieldsSemanticsReady schema
-                      definition.outputType leftFields :=
+                      parentType definition.outputType leftFields :=
                     ⟨hleftGroupReady, leftWitness, definition, hleftWitness,
                       hleftWitnessLookup, rfl⟩
                   have hrightCompletion : completionFieldsSemanticsReady schema
-                      definition.outputType rightFields :=
+                      parentType definition.outputType rightFields :=
                     ⟨hrightGroupReady, rightHead, definition, hrightHead, hlookup, rfl⟩
                   have hleftChildReady :=
                     completionFieldsSemanticsReady_merged_semantics hleftCompletion

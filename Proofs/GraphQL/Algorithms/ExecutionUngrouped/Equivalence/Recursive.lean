@@ -65,7 +65,7 @@ structure RecursiveSelectionSetGlobalInvariants
         -> ∀ runtimeType (identity : ObjectIdentity),
             0 < depth
             -> schema.typeIncludesObjectBool
-                  ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                  ((schema.fieldReturnType? parentType field.fieldName).getD
                     field.fieldName)
                   runtimeType
                 = true
@@ -140,7 +140,7 @@ structure RecursiveSelectionSetGlobalFreshPrefixInvariants
         -> ∀ runtimeType (identity : ObjectIdentity),
             0 < depth
             -> schema.typeIncludesObjectBool
-                  ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                  ((schema.fieldReturnType? parentType field.fieldName).getD
                     field.fieldName)
                   runtimeType
                 = true
@@ -441,7 +441,7 @@ def of_localInvariants
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -457,7 +457,7 @@ def of_localInvariants
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -497,7 +497,7 @@ def of_localFreshPrefixInvariants
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -513,7 +513,7 @@ def of_localFreshPrefixInvariants
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -658,7 +658,8 @@ def of_localInvariants
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? (operation.rootType schema)
+                        field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -674,7 +675,8 @@ def of_localInvariants
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? (operation.rootType schema)
+                        field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -708,7 +710,8 @@ def of_localFreshPrefixInvariants
           -> ∀ childDepth runtimeType (identity : ObjectIdentity),
               childDepth + 1 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? (operation.rootType schema)
+                        field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -724,7 +727,8 @@ def of_localFreshPrefixInvariants
           -> ∀ runtimeType (identity : ObjectIdentity),
               0 < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? (operation.rootType schema)
+                        field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true

@@ -514,19 +514,18 @@ def OutcomeSemantics.boundaryFieldGroups : OutcomeSemantics :=
 
 /-- A statically collected group list and a runtime group list contain the same response
 names and executable field occurrences, up to the order intentionally ignored by field
-collection. The runtime parent type is inserted into the static fields during conversion.
-Executable fields retain their response name, so flattened-field agreement also retains
-each occurrence's response-name association. This is a heterogeneous matching relation,
-not a homogeneous equivalence relation. -/
+collection. Flattened-field agreement retains each occurrence's response-name association
+in the surrounding keyed pair. This is a heterogeneous matching relation, not a
+homogeneous equivalence relation. -/
 structure CollectedGroupsMatchRuntimeGroups
     (runtimeType : Name) (collected : List CollectedFieldGroup)
     (runtime : List (Name × List ExecutableField))
     : Prop where
   keysPerm : (collected.map CollectedFieldGroup.responseName).Perm (runtime.map Prod.fst)
   fieldsPerm
-    : ((collected.map fun group => group.toExecutableGroup runtimeType).flatMap
-        Prod.snd).Perm
-        (runtime.flatMap Prod.snd)
+    : ((collected.map fun group => group.toExecutableGroup).flatMap
+        fun group => group.2.map fun field => (group.1, field)).Perm
+        (runtime.flatMap fun group => group.2.map fun field => (group.1, field))
 
 /-- At one complete request context, the feasible exact cases collect exactly the
 response-name groups selected by runtime `collectFields`. The forward direction

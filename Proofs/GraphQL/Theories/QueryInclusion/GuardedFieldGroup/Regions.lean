@@ -187,77 +187,24 @@ theorem guardedFieldExecutableFields_eq_of_region_and_variables
 theorem guardedFieldExecutableFields_withParentType (variableValues : VariableValues)
     (sourceParentType targetParentType runtimeType : Name) (responseName : Name)
     (entries : List SelectionConditions.ConditionedField)
-    : (guardedFieldExecutableFields variableValues sourceParentType runtimeType
-        responseName entries).map
-        (executableFieldWithParentType targetParentType)
+    : guardedFieldExecutableFields variableValues sourceParentType runtimeType
+        responseName entries
       = guardedFieldExecutableFields variableValues targetParentType runtimeType
           responseName entries := by
-  induction entries with
-  | nil => rfl
-  | cons entry rest ih =>
-      change ((if entry.condition.allows variableValues runtimeType then
-                  [({
-                      parentType := sourceParentType
-                      responseName
-                      fieldName := entry.field.fieldName
-                      arguments := entry.field.arguments
-                      selectionSet := entry.field.selectionSet
-                    }
-                    : ExecutableField)]
-                else
-                  [])
-                ++ guardedFieldExecutableFields variableValues sourceParentType
-                    runtimeType responseName rest).map
-                (executableFieldWithParentType targetParentType)
-              = (if entry.condition.allows variableValues runtimeType then
-                    [({
-                        parentType := targetParentType
-                        responseName
-                        fieldName := entry.field.fieldName
-                        arguments := entry.field.arguments
-                        selectionSet := entry.field.selectionSet
-                      }
-                      : ExecutableField)]
-                  else
-                    [])
-                ++ guardedFieldExecutableFields variableValues targetParentType
-                    runtimeType responseName rest
-      rw [List.map_append, ih]
-      cases hcondition : entry.condition.allows variableValues runtimeType <;>
-        simp [executableFieldWithParentType]
+  rfl
 
 theorem executableFieldsAsGroup_withParentType
     (sourceParentType targetParentType runtimeType responseName : Name)
     (variableValues : VariableValues)
     (entries : List SelectionConditions.ConditionedField)
-    : executableGroupsWithParentType targetParentType
-        (executableFieldsAsGroup responseName
-          (guardedFieldExecutableFields variableValues sourceParentType runtimeType
-            responseName entries))
+    : executableFieldsAsGroup responseName
+        (guardedFieldExecutableFields variableValues sourceParentType runtimeType
+          responseName entries)
       = executableFieldsAsGroup responseName
           (guardedFieldExecutableFields variableValues targetParentType runtimeType
             responseName entries) := by
-  unfold executableGroupsWithParentType
-  cases hfields
-        : guardedFieldExecutableFields variableValues sourceParentType
-            runtimeType responseName entries with
-  | nil =>
-      have htarget : guardedFieldExecutableFields variableValues targetParentType
-          runtimeType responseName entries = [] := by
-        have hmap := guardedFieldExecutableFields_withParentType variableValues
-          sourceParentType targetParentType runtimeType responseName entries
-        rw [hfields] at hmap
-        simpa using hmap.symm
-      simp [executableFieldsAsGroup, htarget]
-  | cons field rest =>
-      have htarget : guardedFieldExecutableFields variableValues targetParentType
-          runtimeType responseName entries
-        = (field :: rest).map (executableFieldWithParentType targetParentType) := by
-        have hmap := guardedFieldExecutableFields_withParentType variableValues
-          sourceParentType targetParentType runtimeType responseName entries
-        rw [hfields] at hmap
-        exact hmap.symm
-      simp [executableFieldsAsGroup, htarget, executableGroupWithParentType]
+  rw [guardedFieldExecutableFields_withParentType variableValues sourceParentType
+    targetParentType runtimeType responseName entries]
 
 end QueryInclusion
 end GraphQL

@@ -143,7 +143,7 @@ def scheduleKeyForFields (parentType responseName : Name)
       }
   | field :: _fields =>
       {
-        parentType := field.parentType
+        parentType := parentType
         responseName := responseName
         fieldName := field.fieldName
         arguments := field.arguments
@@ -152,8 +152,6 @@ def scheduleKeyForFields (parentType responseName : Name)
 def ScheduleKey.executableField (key : ScheduleKey) (selectionSet : List Selection)
     : ExecutableField :=
   {
-    parentType := key.parentType
-    responseName := key.responseName
     fieldName := key.fieldName
     arguments := key.arguments
     selectionSet := selectionSet
@@ -372,12 +370,10 @@ and enqueue child work discovered from composite results.
 -/
 
 -- Spec 6.3.2 collected field entry constructor for concrete breadth scopes.
-def buildExecutionField (parentType responseName fieldName : Name)
+def buildExecutionField (fieldName : Name)
     (arguments : List Argument) (selectionSet : List Selection)
     : ExecutableField :=
   {
-    parentType := parentType
-    responseName := responseName
     fieldName := fieldName
     arguments := arguments
     selectionSet := selectionSet
@@ -393,12 +389,9 @@ def parentTypeIsPossible (schema : Schema) (parentType typeCondition : Name) : B
 mutual
   def collectSelectionByKey (schema : Schema) (variableValues : VariableValues)
       : Name -> Selection -> List (Name × List ExecutableField)
-    | parentType, .field responseName fieldName arguments directives selectionSet =>
+    | _parentType, .field responseName fieldName arguments directives selectionSet =>
         if selectionDirectivesAllowBool variableValues directives then
-          [(
-            responseName,
-            [buildExecutionField parentType responseName fieldName arguments selectionSet]
-          )]
+          [(responseName, [buildExecutionField fieldName arguments selectionSet])]
         else
           []
     | parentType, .inlineFragment none directives selectionSet =>

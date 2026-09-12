@@ -55,9 +55,10 @@ def ResolversSupported (schema : Schema) (resolvers : Resolvers ObjectRef) : Pro
         resolvers.resolve parentType fieldName arguments source = some value
         ∧ resolverValueSupported schema definition.outputType value
 
-def executableFieldReady (schema : Schema) (field : ExecutableField) : Prop :=
+def executableFieldReady (schema : Schema) (parentType : Name) (field : ExecutableField)
+    : Prop :=
   ∃ definition,
-    schema.lookupField field.parentType field.fieldName = some definition
+    schema.lookupField parentType field.fieldName = some definition
     ∧ (∀ runtimeType,
         schema.typeIncludesObjectBool definition.outputType.namedType runtimeType = true
         -> NormalForm.selectionSetSemanticsReady schema runtimeType field.selectionSet)
@@ -73,36 +74,38 @@ def executableFieldsSameResolver (fields : List ExecutableField) : Prop :=
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.parentType = later.parentType
-        ∧ first.fieldName = later.fieldName
+    -> first.fieldName = later.fieldName
         ∧ Argument.argumentsEquivalent first.arguments later.arguments
 
-def executableFieldsReady (schema : Schema) (fields : List ExecutableField) : Prop :=
+def executableFieldsReady (schema : Schema) (parentType : Name)
+    (fields : List ExecutableField)
+    : Prop :=
   fields ≠ []
-  ∧ (∀ field, field ∈ fields -> executableFieldReady schema field)
+  ∧ (∀ field, field ∈ fields -> executableFieldReady schema parentType field)
   ∧ executableFieldsSameResolver fields
   ∧ ∀ objectType,
       FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields)
 
-def completionFieldsReady (schema : Schema) (fieldType : TypeRef)
+def completionFieldsReady (schema : Schema) (parentType : Name) (fieldType : TypeRef)
     (fields : List ExecutableField)
     : Prop :=
-  executableFieldsReady schema fields
+  executableFieldsReady schema parentType fields
   ∧ ∃ field definition,
       field ∈ fields
-      ∧ schema.lookupField field.parentType field.fieldName = some definition
+      ∧ schema.lookupField parentType field.fieldName = some definition
       ∧ fieldType.namedType = definition.outputType.namedType
 
-def executableGroupsReady (schema : Schema) (groups : List (Name × List ExecutableField))
+def executableGroupsReady (schema : Schema) (parentType : Name)
+    (groups : List (Name × List ExecutableField))
     : Prop :=
   ∀ responseName fields,
-    (responseName, fields) ∈ groups -> executableFieldsReady schema fields
+    (responseName, fields) ∈ groups -> executableFieldsReady schema parentType fields
 
 def executableFieldArgumentCoercionReady (schema : Schema)
-    (variableValues : VariableValues) (field : ExecutableField)
+    (variableValues : VariableValues) (parentType : Name) (field : ExecutableField)
     : Prop :=
   ∃ definition,
-    schema.lookupField field.parentType field.fieldName = some definition
+    schema.lookupField parentType field.fieldName = some definition
     ∧ (coerceArgumentValues schema variableValues definition.arguments
         field.arguments).isSuccess
       = true
@@ -112,38 +115,41 @@ def executableFieldArgumentCoercionReady (schema : Schema)
             field.selectionSet
 
 def executableFieldsArgumentCoercionReady (schema : Schema)
-    (variableValues : VariableValues) (fields : List ExecutableField)
+    (variableValues : VariableValues) (parentType : Name)
+    (fields : List ExecutableField)
     : Prop :=
   ∀ field,
-    field ∈ fields -> executableFieldArgumentCoercionReady schema variableValues field
+    field ∈ fields
+    -> executableFieldArgumentCoercionReady schema variableValues parentType field
 
 def executableGroupsArgumentCoercionReady (schema : Schema)
-    (variableValues : VariableValues)
+    (variableValues : VariableValues) (parentType : Name)
     (groups : List (Name × List ExecutableField))
     : Prop :=
   ∀ responseName fields,
     (responseName, fields) ∈ groups
-    -> executableFieldsArgumentCoercionReady schema variableValues fields
+    -> executableFieldsArgumentCoercionReady schema variableValues parentType fields
 
 def executableFieldsExecutionReady (schema : Schema)
-    (variableValues : VariableValues) (fields : List ExecutableField)
-    : Prop :=
-  executableFieldsReady schema fields
-  ∧ executableFieldsArgumentCoercionReady schema variableValues fields
-
-def completionFieldsExecutionReady (schema : Schema)
-    (variableValues : VariableValues) (fieldType : TypeRef)
+    (variableValues : VariableValues) (parentType : Name)
     (fields : List ExecutableField)
     : Prop :=
-  completionFieldsReady schema fieldType fields
-  ∧ executableFieldsArgumentCoercionReady schema variableValues fields
+  executableFieldsReady schema parentType fields
+  ∧ executableFieldsArgumentCoercionReady schema variableValues parentType fields
+
+def completionFieldsExecutionReady (schema : Schema)
+    (variableValues : VariableValues) (parentType : Name) (fieldType : TypeRef)
+    (fields : List ExecutableField)
+    : Prop :=
+  completionFieldsReady schema parentType fieldType fields
+  ∧ executableFieldsArgumentCoercionReady schema variableValues parentType fields
 
 def executableGroupsExecutionReady (schema : Schema)
-    (variableValues : VariableValues)
+    (variableValues : VariableValues) (parentType : Name)
     (groups : List (Name × List ExecutableField))
     : Prop :=
-  executableGroupsReady schema groups
-  ∧ executableGroupsArgumentCoercionReady schema variableValues groups
+  executableGroupsReady schema parentType groups
+  ∧ executableGroupsArgumentCoercionReady schema variableValues parentType groups
 
 def executableGroupsDepthBound (groups : List (Name × List ExecutableField)) (depth : Nat)
     : Prop :=
@@ -157,28 +163,28 @@ private theorem executableGroupsDepthBound_of_runtime
     : executableGroupsDepthBound groups depth := by
   intro responseName fields hgroup field hfield
   apply hdepth field
-  rw [← Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd]
-  exact (mem_flattenCollectedFields_iff groups field).mpr
+  rw [← Execution.FieldGroups.flattenExecutableFieldGroups_map_snd]
+  exact (mem_map_snd_flattenExecutableFieldGroups_iff groups field).mpr
     ⟨responseName, fields, hgroup, hfield⟩
 
 private theorem collectFlatFields_field_compositeType_inhabited
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (ref : ObjectRef) (selectionSet : List Selection)
     (hinhabited : selectionSetCompositeFieldTypesInhabited schema parentType selectionSet)
-    (field : ExecutableField)
+    (entry : Name × ExecutableField)
     (hfield
-      : field
+      : entry
         ∈ collectFlatFields schema variableValues parentType
             (.object parentType ref) selectionSet)
     : ∀ definition,
-        schema.lookupField field.parentType field.fieldName = some definition
+        schema.lookupField parentType entry.2.fieldName = some definition
         -> definition.outputType.isCompositeBool schema = true
         -> schema.getPossibleTypes definition.outputType.namedType ≠ []
             ∧ ∀ runtimeType,
                 schema.typeIncludesObjectBool definition.outputType.namedType runtimeType
                   = true
                 -> selectionSetCompositeFieldTypesInhabited schema runtimeType
-                    field.selectionSet := by
+                    entry.2.selectionSet := by
   unfold selectionSetCompositeFieldTypesInhabited at hinhabited
   cases selectionSet with
   | nil => simp [collectFlatFields] at hfield
@@ -196,7 +202,7 @@ private theorem collectFlatFields_field_compositeType_inhabited
             cases hdirectives :
                 selectionDirectivesAllowBool variableValues directives <;>
               simp [collectFlatSelection, hdirectives] at hhead
-            subst field
+            subst entry
             simpa [selectionCompositeFieldTypesInhabited] using hselection
         | inlineFragment typeCondition directives childSelectionSet =>
             cases typeCondition with
@@ -206,7 +212,7 @@ private theorem collectFlatFields_field_compositeType_inhabited
                   simp [collectFlatSelection, hdirectives] at hhead
                 simp only [selectionCompositeFieldTypesInhabited] at hselection
                 exact collectFlatFields_field_compositeType_inhabited schema
-                  variableValues parentType ref childSelectionSet hselection field hhead
+                  variableValues parentType ref childSelectionSet hselection entry hhead
             | some typeName =>
                 cases hdirectives :
                     selectionDirectivesAllowBool variableValues directives <;>
@@ -218,9 +224,9 @@ private theorem collectFlatFields_field_compositeType_inhabited
                 simp only [selectionCompositeFieldTypesInhabited] at hselection
                 exact collectFlatFields_field_compositeType_inhabited schema
                   variableValues parentType ref childSelectionSet
-                  (hselection happly) field hhead'
+                  (hselection happly) entry hhead'
       · exact collectFlatFields_field_compositeType_inhabited schema variableValues
-          parentType ref rest hrestInhabited field hrest
+          parentType ref rest hrestInhabited entry hrest
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -239,21 +245,21 @@ private theorem collectFlatFields_field_argumentCoercionReady
     (hsourceType : sourceRuntimeType = parentType)
     (hready
       : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
-    (field : ExecutableField)
+    (entry : Name × ExecutableField)
     (hfield
-      : field
+      : entry
         ∈ collectFlatFields schema variableValues parentType
             (.object sourceRuntimeType ref) selectionSet)
     : ∀ definition,
-        schema.lookupField field.parentType field.fieldName = some definition
+        schema.lookupField parentType entry.2.fieldName = some definition
         -> (coerceArgumentValues schema variableValues definition.arguments
-                field.arguments).isSuccess
+                entry.2.arguments).isSuccess
               = true
             ∧ ∀ runtimeType,
                 schema.typeIncludesObjectBool definition.outputType.namedType runtimeType
                   = true
                 -> selectionSetArgumentsCoercible schema variableValues runtimeType
-                    field.selectionSet := by
+                    entry.2.selectionSet := by
   cases selectionSet with
   | nil => simp [collectFlatFields] at hfield
   | cons selection rest =>
@@ -266,7 +272,7 @@ private theorem collectFlatFields_field_argumentCoercionReady
             cases hdirectives :
                 selectionDirectivesAllowBool variableValues directives <;>
               simp [collectFlatSelection, hdirectives] at hhead
-            subst field
+            subst entry
             exact hheadReady hdirectives
         | inlineFragment typeCondition directives childSelectionSet =>
             cases typeCondition with
@@ -276,7 +282,7 @@ private theorem collectFlatFields_field_argumentCoercionReady
                   simp [collectFlatSelection, hdirectives] at hhead
                 exact collectFlatFields_field_argumentCoercionReady schema
                   variableValues sourceRuntimeType parentType ref childSelectionSet
-                  hsourceType (hheadReady hdirectives trivial) field hhead
+                  hsourceType (hheadReady hdirectives trivial) entry hhead
             | some typeName =>
                 cases hdirectives :
                     selectionDirectivesAllowBool variableValues directives <;>
@@ -287,9 +293,9 @@ private theorem collectFlatFields_field_argumentCoercionReady
                   (hheadReady hdirectives (by
                     simpa [hsourceType, doesFragmentTypeApplyBool,
                       runtimeObjectType?] using hhead.1))
-                  field hhead.2
+                  entry hhead.2
       · exact collectFlatFields_field_argumentCoercionReady schema variableValues
-          sourceRuntimeType parentType ref rest hsourceType hrestReady field hrest
+          sourceRuntimeType parentType ref rest hsourceType hrestReady entry hrest
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -306,7 +312,7 @@ theorem executableGroupsReady_collectFields
     (hready : NormalForm.selectionSetSemanticsReady schema parentType selectionSet)
     (hinhabited : selectionSetCompositeFieldTypesInhabited schema parentType selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
-    : executableGroupsReady schema
+    : executableGroupsReady schema parentType
         (collectFields schema variableValues parentType (.object parentType ref)
           selectionSet) := by
   let groups :=
@@ -315,9 +321,6 @@ theorem executableGroupsReady_collectFields
     NormalForm.object_typeIncludesObjectBool_self schema hobject
   have hnonempty : CollectedGroupsFieldsNonempty groups := by
     exact collectFields_fieldsNonempty schema variableValues parentType
-      (.object parentType ref) selectionSet
-  have hparents : CollectedGroupsParent parentType groups := by
-    exact collectFields_parent schema variableValues parentType
       (.object parentType ref) selectionSet
   have hlookup :=
     collectFields_lookupValid_of_selectionSetSemanticsReady_object schema
@@ -335,11 +338,11 @@ theorem executableGroupsReady_collectFields
       (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
         hready)
   have hscoped :
-      ExecutableFieldsRuntimeScopedBy schema parentType
+      ExecutableEntriesRuntimeScopedBy schema parentType
         (FieldMerge.collectFields schema parentType selectionSet)
-        (collectedExecutableFields groups) := by
+        (collectedExecutableEntries groups) := by
     dsimp only [groups]
-    exact collectFields_runtimeScopedBy_of_selectionSetLookupValid_object schema
+    exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
       variableValues parentType parentType parentType ref selectionSet hself
       (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
         hready)
@@ -347,42 +350,33 @@ theorem executableGroupsReady_collectFields
   refine ⟨?_, ?_, ?_, ?_⟩
   · exact hnonempty responseName fields hgroup
   · intro field hfield
-    have hparent : field.parentType = parentType :=
-      hparents responseName fields hgroup field hfield
     have hflat : field ∈ collectedExecutableFields groups :=
       collectedExecutableFields_mem_of_group_mem hgroup hfield
     rcases hlookup field hflat with ⟨definition, hdefinition⟩
     have hfieldFlat :
-        field ∈ collectFlatFields schema variableValues parentType
+        (responseName, field) ∈ collectFlatFields schema variableValues parentType
           (.object parentType ref) selectionSet :=
       (collectFlatFields_mem_collectFields schema variableValues parentType
-        (.object parentType ref) selectionSet field).mpr (by
-          rw [flattenCollectedFields_eq_collectedExecutableFields]
-          exact hflat)
+        (.object parentType ref) selectionSet (responseName, field)).mpr
+        ((mem_flattenExecutableFieldGroups_iff groups (responseName, field)).mpr
+          ⟨fields, hgroup, hfield⟩)
     refine ⟨definition, ?_, ?_, ?_⟩
-    · simpa [hparent] using hdefinition
+    · exact hdefinition
     · intro runtimeType hincludes
-      exact hchild field hflat definition (by simpa [hparent] using hdefinition)
+      exact hchild field hflat definition hdefinition
         runtimeType hincludes
     · exact collectFlatFields_field_compositeType_inhabited schema variableValues
-        parentType ref selectionSet hinhabited field hfieldFlat definition
-        (by simpa [hparent] using hdefinition)
+        parentType ref selectionSet hinhabited (responseName, field) hfieldFlat
+        definition hdefinition
   · intro first later hfirst hlater
-    have hparent : first.parentType = later.parentType := by
-      rw [hparents responseName fields hgroup first hfirst,
-        hparents responseName fields hgroup later hlater]
-    have hresponse : first.responseName = later.responseName := by
-      rw [hresponses responseName fields hgroup first hfirst,
-        hresponses responseName fields hgroup later hlater]
-    exact ⟨hparent,
-      hcompatible responseName fields hgroup first later hfirst hlater hresponse⟩
+    exact hcompatible responseName fields hgroup first later hfirst hlater
   · intro objectType
     apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped schema
       parentType parentType selectionSet responseName fields hmerge
-    · exact hresponses responseName fields hgroup
-    · intro field hfield
-      exact hscoped field
-        (collectedExecutableFields_mem_of_group_mem hgroup hfield)
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
+    exact hscoped (responseName, field)
+      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem executableGroupsArgumentCoercionReady_collectFields
     (schema : Schema) (variableValues : VariableValues)
@@ -391,52 +385,49 @@ theorem executableGroupsArgumentCoercionReady_collectFields
     (hready : NormalForm.selectionSetSemanticsReady schema parentType selectionSet)
     (hcoercion
       : selectionSetArgumentsCoercible schema variableValues parentType selectionSet)
-    : executableGroupsArgumentCoercionReady schema variableValues
+    : executableGroupsArgumentCoercionReady schema variableValues parentType
         (collectFields schema variableValues parentType (.object parentType ref)
           selectionSet) := by
   let groups :=
     collectFields schema variableValues parentType (.object parentType ref) selectionSet
   have hself : ScopedParentRuntimeApplies schema parentType parentType :=
     NormalForm.object_typeIncludesObjectBool_self schema hobject
-  have hparents : CollectedGroupsParent parentType groups :=
-    collectFields_parent schema variableValues parentType
-      (.object parentType ref) selectionSet
   have hlookup :=
     collectFields_lookupValid_of_selectionSetSemanticsReady_object schema
       variableValues parentType parentType ref selectionSet hobject hself hready
   intro responseName fields hgroup field hfield
-  have hparent : field.parentType = parentType :=
-    hparents responseName fields hgroup field hfield
   have hflat : field ∈ collectedExecutableFields groups :=
     collectedExecutableFields_mem_of_group_mem hgroup hfield
   rcases hlookup field hflat with ⟨definition, hdefinition⟩
   have hfieldFlat :
-      field ∈ collectFlatFields schema variableValues parentType
+      (responseName, field) ∈ collectFlatFields schema variableValues parentType
         (.object parentType ref) selectionSet :=
     (collectFlatFields_mem_collectFields schema variableValues parentType
-      (.object parentType ref) selectionSet field).mpr (by
-        rw [flattenCollectedFields_eq_collectedExecutableFields]
-        exact hflat)
+      (.object parentType ref) selectionSet (responseName, field)).mpr
+      ((mem_flattenExecutableFieldGroups_iff groups (responseName, field)).mpr
+        ⟨fields, hgroup, hfield⟩)
   have hfieldCoercion :=
     collectFlatFields_field_argumentCoercionReady schema variableValues
-      parentType parentType ref selectionSet rfl hcoercion field hfieldFlat definition
-      (by simpa [hparent] using hdefinition)
-  exact ⟨definition, by simpa [hparent] using hdefinition,
+      parentType parentType ref selectionSet rfl hcoercion (responseName, field)
+      hfieldFlat definition hdefinition
+  exact ⟨definition, hdefinition,
     hfieldCoercion.1, hfieldCoercion.2⟩
 
 private theorem executableFieldsReady_tail
-    {schema : Schema} {field : ExecutableField} {fields : List ExecutableField}
-    (hready : executableFieldsReady schema (field :: fields))
-    : ∀ candidate, candidate ∈ fields -> executableFieldReady schema candidate := by
+    {schema : Schema} {parentType : Name}
+    {field : ExecutableField} {fields : List ExecutableField}
+    (hready : executableFieldsReady schema parentType (field :: fields))
+    : ∀ candidate,
+        candidate ∈ fields -> executableFieldReady schema parentType candidate := by
   intro candidate hcandidate
   exact hready.2.1 candidate (by simp [hcandidate])
 
 private theorem executableFieldsReady_composite_inhabited
-    {schema : Schema} {fields : List ExecutableField}
-    (hready : executableFieldsReady schema fields)
+    {schema : Schema} {parentType : Name} {fields : List ExecutableField}
+    (hready : executableFieldsReady schema parentType fields)
     (field : ExecutableField) (hfield : field ∈ fields)
     (definition : FieldDefinition)
-    (hlookup : schema.lookupField field.parentType field.fieldName = some definition)
+    (hlookup : schema.lookupField parentType field.fieldName = some definition)
     : definition.outputType.isCompositeBool schema = true
       -> schema.getPossibleTypes definition.outputType.namedType ≠ [] := by
   rcases hready.2.1 field hfield with
@@ -448,30 +439,32 @@ private theorem executableFieldsReady_composite_inhabited
   exact (hinhabited hcomposite).1
 
 private theorem executableGroupsReady_tail
-    {schema : Schema}
+    {schema : Schema} {parentType : Name}
     {group : Name × List ExecutableField}
     {groups : List (Name × List ExecutableField)}
-    (hready : executableGroupsReady schema (group :: groups))
-    : executableGroupsReady schema groups := by
+    (hready : executableGroupsReady schema parentType (group :: groups))
+    : executableGroupsReady schema parentType groups := by
   intro responseName fields hgroup
   exact hready responseName fields (by simp [hgroup])
 
 private theorem executableFieldsArgumentCoercionReady_tail
-    {schema : Schema} {variableValues : VariableValues}
+    {schema : Schema} {variableValues : VariableValues} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hready
-      : executableFieldsArgumentCoercionReady schema variableValues (field :: fields))
-    : executableFieldsArgumentCoercionReady schema variableValues fields := by
+      : executableFieldsArgumentCoercionReady schema variableValues parentType
+          (field :: fields))
+    : executableFieldsArgumentCoercionReady schema variableValues parentType fields := by
   intro candidate hcandidate
   exact hready candidate (by simp [hcandidate])
 
 private theorem executableGroupsArgumentCoercionReady_tail
-    {schema : Schema} {variableValues : VariableValues}
+    {schema : Schema} {variableValues : VariableValues} {parentType : Name}
     {group : Name × List ExecutableField}
     {groups : List (Name × List ExecutableField)}
     (hready
-      : executableGroupsArgumentCoercionReady schema variableValues (group :: groups))
-    : executableGroupsArgumentCoercionReady schema variableValues groups := by
+      : executableGroupsArgumentCoercionReady schema variableValues parentType
+          (group :: groups))
+    : executableGroupsArgumentCoercionReady schema variableValues parentType groups := by
   intro responseName fields hgroup
   exact hready responseName fields (by simp [hgroup])
 
@@ -485,9 +478,9 @@ private theorem executableGroupsDepthBound_tail
 
 theorem completionFieldsReady_merged_semantics
     {schema : Schema}
-    {fieldType : TypeRef} {fields : List ExecutableField}
+    {parentType : Name} {fieldType : TypeRef} {fields : List ExecutableField}
     {runtimeType : Name}
-    (hready : completionFieldsReady schema fieldType fields)
+    (hready : completionFieldsReady schema parentType fieldType fields)
     (hincludes : schema.typeIncludesObjectBool fieldType.namedType runtimeType = true)
     : NormalForm.selectionSetSemanticsReady schema runtimeType
         (mergedFieldSelectionSet fields) := by
@@ -499,11 +492,11 @@ theorem completionFieldsReady_merged_semantics
     rcases hfieldsReady.2.1 field hfield with
       ⟨fieldDefinition, hfieldLookup, hchild, _hinhabited⟩
     rcases hfieldsReady.2.2.1 sourceField field hsource hfield with
-      ⟨hparent, hfieldName, _harguments⟩
+      ⟨hfieldName, _harguments⟩
     have hfieldLookup' :
-        schema.lookupField sourceField.parentType sourceField.fieldName
+        schema.lookupField parentType sourceField.fieldName
           = some fieldDefinition := by
-      simpa [hparent, hfieldName] using hfieldLookup
+      simpa [hfieldName] using hfieldLookup
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
@@ -533,10 +526,11 @@ theorem completionFieldsReady_merged_semantics
 
 theorem completionFieldsReady_merged_argumentCoercion
     {schema : Schema} {variableValues : VariableValues}
-    {fieldType : TypeRef} {fields : List ExecutableField}
+    {parentType : Name} {fieldType : TypeRef} {fields : List ExecutableField}
     {runtimeType : Name}
-    (hready : completionFieldsReady schema fieldType fields)
-    (hcoercion : executableFieldsArgumentCoercionReady schema variableValues fields)
+    (hready : completionFieldsReady schema parentType fieldType fields)
+    (hcoercion
+      : executableFieldsArgumentCoercionReady schema variableValues parentType fields)
     (hincludes : schema.typeIncludesObjectBool fieldType.namedType runtimeType = true)
     : selectionSetArgumentsCoercible schema variableValues runtimeType
         (mergedFieldSelectionSet fields) := by
@@ -549,11 +543,11 @@ theorem completionFieldsReady_merged_argumentCoercion
     rcases hcoercion field hfield with
       ⟨fieldDefinition, hfieldLookup, _hfieldCoercion, hchild⟩
     rcases hfieldsReady.2.2.1 sourceField field hsource hfield with
-      ⟨hparent, hfieldName, _harguments⟩
+      ⟨hfieldName, _harguments⟩
     have hfieldLookup' :
-        schema.lookupField sourceField.parentType sourceField.fieldName
+        schema.lookupField parentType sourceField.fieldName
           = some fieldDefinition := by
-      simpa [hparent, hfieldName] using hfieldLookup
+      simpa [hfieldName] using hfieldLookup
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
@@ -583,9 +577,9 @@ theorem completionFieldsReady_merged_argumentCoercion
 
 theorem completionFieldsReady_merged_inhabited
     {schema : Schema}
-    {fieldType : TypeRef} {fields : List ExecutableField}
+    {parentType : Name} {fieldType : TypeRef} {fields : List ExecutableField}
     {runtimeType : Name}
-    (hready : completionFieldsReady schema fieldType fields)
+    (hready : completionFieldsReady schema parentType fieldType fields)
     (hincludes : schema.typeIncludesObjectBool fieldType.namedType runtimeType = true)
     : selectionSetCompositeFieldTypesInhabited schema runtimeType
         (mergedFieldSelectionSet fields) := by
@@ -604,11 +598,11 @@ theorem completionFieldsReady_merged_inhabited
     rcases hfieldsReady.2.1 field hfield with
       ⟨fieldDefinition, hfieldLookup, _hchild, hfieldInhabited⟩
     rcases hfieldsReady.2.2.1 sourceField field hsource hfield with
-      ⟨hparent, hfieldName, _harguments⟩
+      ⟨hfieldName, _harguments⟩
     have hfieldLookup' :
-        schema.lookupField sourceField.parentType sourceField.fieldName
+        schema.lookupField parentType sourceField.fieldName
           = some fieldDefinition := by
-      simpa [hparent, hfieldName] using hfieldLookup
+      simpa [hfieldName] using hfieldLookup
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
@@ -626,8 +620,8 @@ theorem completionFieldsReady_merged_inhabited
 
 theorem completionFieldsReady_merged_canMerge
     {schema : Schema}
-    {fieldType : TypeRef} {fields : List ExecutableField}
-    (hready : completionFieldsReady schema fieldType fields)
+    {parentType : Name} {fieldType : TypeRef} {fields : List ExecutableField}
+    (hready : completionFieldsReady schema parentType fieldType fields)
     (objectType : Name)
     : FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields) :=
   hready.1.2.2.2 objectType
@@ -638,26 +632,26 @@ private theorem supportedAnnotatedExecution_all
     (variableValues : VariableValues)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hresolvers : ResolversSupported schema resolvers)
-    : (∀ fuel source groups depth,
-        executableGroupsExecutionReady schema variableValues groups
+    : (∀ fuel parentType source groups depth,
+        executableGroupsExecutionReady schema variableValues parentType groups
         -> executableGroupsDepthBound groups depth
         -> responseDepthFuelBound schema depth ≤ fuel
         -> ∃ fields,
             executeQueryAnnotatedCollectedFields schema resolvers variableValues
-              fuel source groups
+              fuel parentType source groups
             = .ok (fields, 0))
-      ∧ (∀ fuel source responseName fields depth,
-          executableFieldsExecutionReady schema variableValues fields
+      ∧ (∀ fuel parentType source responseName fields depth,
+          executableFieldsExecutionReady schema variableValues parentType fields
           -> (∀ field,
                 field ∈ fields
                 -> selectionSetResponseDepth field.selectionSet + 1 ≤ depth)
           -> responseDepthFuelBound schema depth ≤ fuel
           -> ∃ result,
-              executeQueryAnnotatedField schema resolvers variableValues fuel source
-                responseName fields
+              executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+                source responseName fields
               = .ok (result, 0))
-      ∧ (∀ fuel fieldType fields value depth,
-          completionFieldsExecutionReady schema variableValues fieldType fields
+      ∧ (∀ fuel fieldType fields value parentType depth,
+          completionFieldsExecutionReady schema variableValues parentType fieldType fields
           -> (∀ field,
                 field ∈ fields
                 -> selectionSetResponseDepth field.selectionSet + 1 ≤ depth)
@@ -668,8 +662,8 @@ private theorem supportedAnnotatedExecution_all
                   fieldType fields value
                 = .ok (result, 0)
               ∧ result ≠ .null)
-      ∧ (∀ fuel itemType fields values depth,
-          completionFieldsExecutionReady schema variableValues itemType fields
+      ∧ (∀ fuel itemType fields values parentType depth,
+          completionFieldsExecutionReady schema variableValues parentType itemType fields
           -> (∀ field,
                 field ∈ fields
                 -> selectionSetResponseDepth field.selectionSet + 1 ≤ depth)
@@ -681,13 +675,15 @@ private theorem supportedAnnotatedExecution_all
               = .ok (result, 0)) := by
   apply executeQueryAnnotatedCollectedFields.mutual_induct schema resolvers variableValues
   case case1 =>
-    intro fuel source depth _hready _hdepth _hfuel
+    intro fuel parentType source depth _hready _hdepth _hfuel
     exact ⟨[], by simp [executeQueryAnnotatedCollectedFields]⟩
   case case2 =>
-    intro fuel source responseName fields rest headIH tailIH depth hready hdepth hfuel
-    have hheadReady : executableFieldsExecutionReady schema variableValues fields :=
+    intro fuel parentType source responseName fields rest headIH tailIH depth hready hdepth hfuel
+    have hheadReady :
+        executableFieldsExecutionReady schema variableValues parentType fields :=
       ⟨hready.1 responseName fields (by simp), hready.2 responseName fields (by simp)⟩
-    have htailReady : executableGroupsExecutionReady schema variableValues rest :=
+    have htailReady :
+        executableGroupsExecutionReady schema variableValues parentType rest :=
       ⟨executableGroupsReady_tail hready.1,
         executableGroupsArgumentCoercionReady_tail hready.2⟩
     have hheadDepth : ∀ field, field ∈ fields
@@ -701,22 +697,22 @@ private theorem supportedAnnotatedExecution_all
     exact ⟨head ++ tail, by
       simp [executeQueryAnnotatedCollectedFields, hhead, htail, Result.combine]⟩
   case case3 =>
-    intro fuel source responseName depth hready _hdepth _hfuel
+    intro fuel parentType source responseName depth hready _hdepth _hfuel
     exact False.elim (hready.1.1 rfl)
   case case4 =>
-    intro source responseName field rest depth hready hdepth hfuel
+    intro parentType source responseName field rest depth hready hdepth hfuel
     have hpositive : 0 < responseDepthFuelBound schema depth := by
       unfold responseDepthFuelBound
       omega
     omega
   case case5 =>
-    intro source responseName field rest fuel hlookup depth hready _hdepth _hfuel
+    intro parentType source responseName field rest fuel hlookup depth hready _hdepth _hfuel
     rcases hready.1.2.1 field (by simp) with
       ⟨definition, hdefinition, _hchild, _hinhabited⟩
     rw [hlookup] at hdefinition
     cases hdefinition
   case case6 =>
-    intro source responseName field rest fuel definition hlookup hcoerce depth
+    intro parentType source responseName field rest fuel definition hlookup hcoerce depth
       hready _hdepth _hfuel
     rcases hready.2 field (by simp) with
       ⟨readyDefinition, hreadyLookup, hcoercion, _hchild⟩
@@ -726,18 +722,18 @@ private theorem supportedAnnotatedExecution_all
     rw [hcoerce] at hcoercion
     simp at hcoercion
   case case7 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments
+    intro parentType source responseName field rest fuel definition hlookup coercedArguments
       _hcoerce hresolve depth hready _hdepth _hfuel
-    rcases hresolvers field.parentType field.fieldName coercedArguments source
+    rcases hresolvers parentType field.fieldName coercedArguments source
         definition hlookup
         (executableFieldsReady_composite_inhabited hready.1 field (by simp)
           definition hlookup) with ⟨value, hvalue, _hsupported⟩
-    change resolvers.resolve field.parentType field.fieldName coercedArguments source
+    change resolvers.resolve parentType field.fieldName coercedArguments source
       = none at hresolve
     rw [hresolve] at hvalue
     cases hvalue
   case case8 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments
+    intro parentType source responseName field rest fuel definition hlookup coercedArguments
       _hcoerce resolved hresolve completeIH depth hready hdepth hfuel
     rcases hready.2 field (by simp) with
       ⟨readyDefinition, hreadyLookup, _hcoercion, _hchild⟩
@@ -756,39 +752,41 @@ private theorem supportedAnnotatedExecution_all
       valueCompletionFuelBound_le_after_field schema depth fuel
         definition.outputType hdepthPositive htypeFuel hfuel
     have hcompletionReady :
-        completionFieldsExecutionReady schema variableValues definition.outputType
-          (field :: rest) := by
+        completionFieldsExecutionReady schema variableValues parentType
+          definition.outputType (field :: rest) := by
       exact ⟨⟨hready.1, field, definition, by simp, hlookup, rfl⟩, hready.2⟩
-    rcases hresolvers field.parentType field.fieldName coercedArguments source
+    rcases hresolvers parentType field.fieldName coercedArguments source
         definition hlookup
         (executableFieldsReady_composite_inhabited hready.1 field (by simp)
           definition hlookup) with ⟨value, hvalue, hsupported⟩
-    change resolvers.resolve field.parentType field.fieldName coercedArguments source
+    change resolvers.resolve parentType field.fieldName coercedArguments source
       = some resolved at hresolve
     rw [hresolve] at hvalue
     injection hvalue with hvalue
     subst value
-    rcases completeIH depth hcompletionReady hdepth hsupported hvalueFuel with
+    rcases completeIH parentType depth hcompletionReady hdepth hsupported hvalueFuel with
       ⟨completed, hcompleted, _hnonnull⟩
     exact ⟨[.resolved responseName
-        (resolvedFieldProvenance schema variableValues definition field) completed], by
+        (resolvedFieldProvenance schema variableValues parentType definition field)
+          completed], by
       simp [executeQueryAnnotatedField, hlookup, _hcoerce, resolveFieldValue,
         hresolve, hcompleted, singleAnnotatedResponseFieldResult]⟩
   case case9 =>
-    intro fieldType fields value depth _hready _hdepth _hsupported hfuel
+    intro fieldType fields value fieldParentType depth _hready _hdepth _hsupported hfuel
     unfold valueCompletionFuelBound at hfuel
     omega
   case case10 =>
-    intro fuel inner fields value hfuelPositive completeIH depth hready hdepth
+    intro fuel inner fields value hfuelPositive completeIH fieldParentType depth hready hdepth
       hsupported hfuel
-    have hinnerReady : completionFieldsExecutionReady schema variableValues inner fields := by
+    have hinnerReady :
+        completionFieldsExecutionReady schema variableValues fieldParentType inner fields := by
       simpa [completionFieldsExecutionReady, completionFieldsReady,
         TypeRef.namedType] using hready
     have hinnerSupported : resolverValueSupported schema inner value := by
       simpa [resolverValueSupported] using hsupported
     have hinnerFuel : valueCompletionFuelBound schema depth inner ≤ fuel := by
       simpa [valueCompletionFuelBound_inner_nonNull] using hfuel
-    rcases completeIH depth hinnerReady hdepth hinnerSupported hinnerFuel with
+    rcases completeIH fieldParentType depth hinnerReady hdepth hinnerSupported hinnerFuel with
       ⟨result, hresult, hnonnull⟩
     cases fuel with
     | zero => exact False.elim (hfuelPositive rfl)
@@ -797,25 +795,26 @@ private theorem supportedAnnotatedExecution_all
           simp [completeAnnotatedResponseValue, hresult,
             completeNonNullAnnotatedResponseValue], hnonnull⟩
   case case11 =>
-    intro fuel fieldType fields hnotNonNull depth _hready _hdepth hsupported _hfuel
+    intro fuel fieldType fields hnotNonNull fieldParentType depth _hready _hdepth
+      hsupported _hfuel
     cases fieldType with
     | named typeName => simp [resolverValueSupported] at hsupported
     | list inner => simp [resolverValueSupported] at hsupported
     | nonNull inner => exact False.elim (hnotNonNull inner rfl)
   case case12 =>
-    intro fuel typeName fields value hcomposite depth _hready _hdepth hsupported
-      _hfuel
+    intro fuel typeName fields value hcomposite fieldParentType depth _hready _hdepth
+      hsupported _hfuel
     simp [resolverValueSupported, hcomposite] at hsupported
   case case13 =>
-    intro fuel typeName fields value hnotComposite depth _hready _hdepth
-      _hsupported _hfuel
+    intro fuel typeName fields value hnotComposite fieldParentType depth _hready
+      _hdepth _hsupported _hfuel
     have hleaf : (TypeRef.named typeName).isCompositeBool schema = false := by
       simpa using hnotComposite
     exact ⟨.scalar value, by
       simp [completeAnnotatedResponseValue, hleaf], by simp⟩
   case case14 =>
-    intro fuel parentType fields runtimeType ref hincludes childGroups childIH depth
-      hready hdepth _hsupported hfuel
+    intro fuel parentType fields runtimeType ref hincludes childGroups childIH
+      fieldParentType depth hready hdepth _hsupported hfuel
     have hchildSemantics :
         NormalForm.selectionSetSemanticsReady schema runtimeType
           (mergedFieldSelectionSet fields) :=
@@ -836,7 +835,8 @@ private theorem supportedAnnotatedExecution_all
       apply SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
         parentType runtimeType
       exact List.contains_iff_mem.mp hincludes
-    have hchildReady : executableGroupsExecutionReady schema variableValues childGroups := by
+    have hchildReady :
+        executableGroupsExecutionReady schema variableValues runtimeType childGroups := by
       dsimp only [childGroups]
       rw [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
       exact ⟨
@@ -876,7 +876,7 @@ private theorem supportedAnnotatedExecution_all
       ⟨responseFields, hresponse⟩
     have hresponse' :
         executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-            (.object runtimeType ref)
+            runtimeType (.object runtimeType ref)
             (collectFields schema variableValues runtimeType
               (.object runtimeType ref) (mergedFieldSelectionSet fields))
           = .ok (responseFields, 0) := by
@@ -887,47 +887,51 @@ private theorem supportedAnnotatedExecution_all
       simp [completeAnnotatedResponseValue, hincludes, hresponse',
         catchAnnotatedResponseBubbleAsNull], by simp⟩
   case case15 =>
-    intro fuel parentType fields runtimeType ref hnotIncludes depth _hready _hdepth
-      hsupported _hfuel
+    intro fuel parentType fields runtimeType ref hnotIncludes fieldParentType depth
+      _hready _hdepth hsupported _hfuel
     exact False.elim (hnotIncludes (by
       simpa [resolverValueSupported] using hsupported))
   case case16 =>
-    intro fuel inner fields values completeListIH depth hready hdepth hsupported
-      hfuel
-    have hinnerReady : completionFieldsExecutionReady schema variableValues inner fields := by
+    intro fuel inner fields values completeListIH fieldParentType depth hready hdepth
+      hsupported hfuel
+    have hinnerReady :
+        completionFieldsExecutionReady schema variableValues fieldParentType inner fields := by
       simpa [completionFieldsExecutionReady, completionFieldsReady,
         TypeRef.namedType] using hready
     have hvaluesSupported : resolverValuesSupported schema inner values := by
       simpa [resolverValueSupported] using hsupported
     have hinnerFuel : valueCompletionFuelBound schema depth inner ≤ fuel :=
       valueCompletionFuelBound_inner_list schema depth fuel inner hfuel
-    rcases completeListIH depth hinnerReady hdepth hvaluesSupported hinnerFuel with
+    rcases completeListIH fieldParentType depth hinnerReady hdepth hvaluesSupported
+      hinnerFuel with
       ⟨result, hresult⟩
     exact ⟨.list result, by
       simp [completeAnnotatedResponseValue, hresult,
         catchAnnotatedResponseBubbleAsNull], by simp⟩
   case case17 =>
-    intro fuel typeName fields values depth _hready _hdepth hsupported _hfuel
+    intro fuel typeName fields values fieldParentType depth _hready _hdepth
+      hsupported _hfuel
     simp [resolverValueSupported] at hsupported
   case case18 =>
-    intro fuel inner fields value hnotNull hnotList depth _hready _hdepth
-      hsupported _hfuel
+    intro fuel inner fields value hnotNull hnotList fieldParentType depth _hready
+      _hdepth hsupported _hfuel
     cases value with
     | null => exact False.elim (hnotNull rfl)
     | scalar scalarValue => simp [resolverValueSupported] at hsupported
     | object runtimeType ref => simp [resolverValueSupported] at hsupported
     | list values => exact False.elim (hnotList values rfl)
   case case19 =>
-    intro fuel itemType fields depth _hready _hdepth _hsupported _hfuel
+    intro fuel itemType fields fieldParentType depth _hready _hdepth _hsupported _hfuel
     exact ⟨[], by simp [completeAnnotatedResponseValueList]⟩
   case case20 =>
-    intro fuel itemType fields value values tailIH headIH depth hready hdepth
-      hsupported hfuel
+    intro fuel itemType fields value values tailIH headIH fieldParentType depth hready
+      hdepth hsupported hfuel
     simp only [resolverValuesSupported] at hsupported
     rcases hsupported with ⟨hheadSupported, htailSupported⟩
-    rcases tailIH depth hready hdepth hheadSupported hfuel with
+    rcases tailIH fieldParentType depth hready hdepth hheadSupported hfuel with
       ⟨head, hhead, _hheadNonnull⟩
-    rcases headIH depth hready hdepth htailSupported hfuel with ⟨tail, htail⟩
+    rcases headIH fieldParentType depth hready hdepth htailSupported hfuel with
+      ⟨tail, htail⟩
     exact ⟨head :: tail, by
       simp [completeAnnotatedResponseValueList, hhead, htail, Result.combine]⟩
 
@@ -949,12 +953,12 @@ theorem executeQueryAnnotatedCollectedFields_supported
       : responseDepthFuelBound schema (selectionSetResponseDepth selectionSet) ≤ fuel)
     : ∃ fields,
         executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          (.object runtimeType ref)
+          runtimeType (.object runtimeType ref)
           (collectFields schema variableValues runtimeType
             (.object runtimeType ref) selectionSet)
         = .ok (fields, 0) := by
   apply (supportedAnnotatedExecution_all schema resolvers variableValues hschema
-    hresolvers).1 fuel (.object runtimeType ref)
+    hresolvers).1 fuel runtimeType (.object runtimeType ref)
     (collectFields schema variableValues runtimeType (.object runtimeType ref)
       selectionSet)
     (selectionSetResponseDepth selectionSet)

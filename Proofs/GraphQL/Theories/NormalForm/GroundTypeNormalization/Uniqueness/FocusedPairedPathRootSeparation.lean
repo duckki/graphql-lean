@@ -501,11 +501,10 @@ theorem
         rightFieldDefinition.outputType rightChildFields rightChildErrors with
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
-      Execution.executeField schema resolvers variableValues (parentFuel + 1) source
+      Execution.executeField schema resolvers variableValues (parentFuel + 1)
+        parentType source
         responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := leftFieldName
           arguments := leftFieldArguments
           selectionSet := leftChildSelectionSet
@@ -523,6 +522,7 @@ theorem
               parentType leftFieldName rightFieldName leftArguments
               rightArguments)
             variableValues (parentFuel - leafProbeFuel leftFieldDefinition.outputType)
+            leftRuntime
             (projectionTargetResolverValue
               (.object leftRuntime
                 (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
@@ -555,11 +555,10 @@ theorem
     simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
       hfuelEq] using hfield
   have hrightTarget :
-      Execution.executeField schema resolvers variableValues (parentFuel + 1) source
+      Execution.executeField schema resolvers variableValues (parentFuel + 1)
+        parentType source
         responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := rightFieldName
           arguments := rightFieldArguments
           selectionSet := rightChildSelectionSet
@@ -577,6 +576,7 @@ theorem
               parentType leftFieldName rightFieldName leftArguments
               rightArguments)
             variableValues (parentFuel - leafProbeFuel rightFieldDefinition.outputType)
+            rightRuntime
             (projectionTargetResolverValue
               (.object rightRuntime
                 (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
@@ -1671,13 +1671,11 @@ theorem
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairSelectedPathProbeRef))
-              variableValues (parentFuel + 1)
+              variableValues (parentFuel + 1) parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairSelectedPathProbeRef.root))
               currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1710,13 +1708,11 @@ theorem
               (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairSelectedPathProbeRef))
-              variableValues (parentFuel + 1)
+              variableValues (parentFuel + 1) parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairSelectedPathProbeRef.root))
               currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet

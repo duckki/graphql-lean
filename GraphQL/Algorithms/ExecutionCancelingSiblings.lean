@@ -25,24 +25,26 @@ variable {ObjectRef : Type}
 mutual
   def executeCollectedFields
       (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (fuel : Nat)
+      (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       : List (Name × List ExecutableField) -> Result (List (Name × ResponseValue))
     | [] => .ok ([], 0)
     | (responseName, fields) :: rest =>
         let head :=
-          executeField schema resolvers variableValues fuel source responseName fields
+          executeField schema resolvers variableValues fuel parentType source responseName
+            fields
         match head with
         | .error errors => .error errors
         | .ok _result =>
             let tail :=
-              executeCollectedFields schema resolvers variableValues fuel source rest
+              executeCollectedFields schema resolvers variableValues fuel parentType
+                source rest
             Result.combine List.append head tail
 
   -- Spec 6.4 `ExecuteField`, using sibling-canceling completion recursively.
   def executeField
       (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (fuel : Nat)
+      (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (responseName : Name)
       : List ExecutableField -> Result (List (Name × ResponseValue))
@@ -51,7 +53,7 @@ mutual
         match fuel with
         | 0 => outOfFuel
         | fuel' + 1 =>
-            match schema.lookupField field.parentType field.fieldName with
+            match schema.lookupField parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
                 match coerceArgumentValues schema variableValues
@@ -60,7 +62,7 @@ mutual
                     singleFieldResult responseName
                       (handleFieldError fieldDefinition.outputType)
                 | .success coercedArguments =>
-                    match resolveFieldValue resolvers field.parentType field.fieldName
+                    match resolveFieldValue resolvers parentType field.fieldName
                             coercedArguments source with
                     | none =>
                         singleFieldResult responseName
@@ -93,7 +95,7 @@ mutual
     | fuel + 1, .named parentType, fields, source@(.object runtimeType _ref) =>
         if schema.typeIncludesObjectBool parentType runtimeType then
           let completed :=
-            executeCollectedFields schema resolvers variableValues fuel source
+            executeCollectedFields schema resolvers variableValues fuel runtimeType source
               (collectSubfields schema variableValues runtimeType source fields)
           catchBubbleAsNull ResponseValue.object completed
         else
@@ -130,8 +132,7 @@ def executeRootSelectionSet
     (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
     : List Selection -> Result (List (Name × ResponseValue))
   | selectionSet =>
-      executeCollectedFields schema resolvers variableValues
-        fuel source
+      executeCollectedFields schema resolvers variableValues fuel parentType source
         (collectFields schema variableValues parentType source selectionSet)
 
 def executeSelectionSet

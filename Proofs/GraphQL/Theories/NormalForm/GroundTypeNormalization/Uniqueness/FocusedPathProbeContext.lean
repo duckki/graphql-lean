@@ -1879,13 +1879,12 @@ theorem
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues (fuel + 1)
+            parentType
             (projectionTargetResolverValue
               (.object sourceRuntimeType
                 (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1982,13 +1981,12 @@ theorem
                   leftArguments rightArguments leftRuntime rightRuntime)
                 targetParent leftField rightField leftArguments rightArguments)
               variableValues (fuel + 1)
+              parentType
               (projectionTargetResolverValue
                 (.object sourceRuntimeType
                   (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -2089,13 +2087,12 @@ theorem
                   targetParent leftField rightField leftArguments
                   rightArguments)
                 variableValues (fuel + 1)
+                parentType
                 (projectionTargetResolverValue
                   (.object sourceRuntimeType
                     (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
                 responseName
                 [{
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := childSelectionSet

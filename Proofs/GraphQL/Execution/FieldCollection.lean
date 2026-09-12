@@ -42,17 +42,20 @@ theorem executeCollectedFields_cons_eq_of_parts
     (schema : Schema)
     (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (depth : Nat) (source : ResolverValue ObjectRef)
+    (depth : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
     (leftHead rightHead : Name × List ExecutableField)
     (leftTail rightTail : List (Name × List ExecutableField))
-    : executeField schema resolvers variableValues depth source leftHead.fst leftHead.snd
-        = executeField schema resolvers variableValues depth source
+    : executeField schema resolvers variableValues depth parentType source leftHead.fst
+          leftHead.snd
+        = executeField schema resolvers variableValues depth parentType source
             rightHead.fst rightHead.snd
-      -> executeCollectedFields schema resolvers variableValues depth source leftTail
-          = executeCollectedFields schema resolvers variableValues depth source rightTail
-      -> executeCollectedFields schema resolvers variableValues depth source
+      -> executeCollectedFields schema resolvers variableValues depth parentType source
+            leftTail
+          = executeCollectedFields schema resolvers variableValues depth parentType source
+              rightTail
+      -> executeCollectedFields schema resolvers variableValues depth parentType source
             (leftHead :: leftTail)
-          = executeCollectedFields schema resolvers variableValues depth source
+          = executeCollectedFields schema resolvers variableValues depth parentType source
               (rightHead :: rightTail) := by
   intro hhead htail
   cases leftHead with
@@ -73,12 +76,14 @@ theorem executeSelectionSet_eq_of_collectFields_head_parts
     : collectFields schema variableValues parentType source left = leftGroup :: leftRest
       -> collectFields schema variableValues parentType source right
           = rightGroup :: rightRest
-      -> executeField schema resolvers variableValues depth source
+      -> executeField schema resolvers variableValues depth parentType source
             leftGroup.fst leftGroup.snd
-          = executeField schema resolvers variableValues depth source
+          = executeField schema resolvers variableValues depth parentType source
               rightGroup.fst rightGroup.snd
-      -> executeCollectedFields schema resolvers variableValues depth source leftRest
-          = executeCollectedFields schema resolvers variableValues depth source rightRest
+      -> executeCollectedFields schema resolvers variableValues depth parentType source
+            leftRest
+          = executeCollectedFields schema resolvers variableValues depth parentType source
+              rightRest
       -> executeSelectionSet schema resolvers variableValues depth parentType source left
           = executeSelectionSet schema resolvers variableValues depth
               parentType source right := by
@@ -86,7 +91,7 @@ theorem executeSelectionSet_eq_of_collectFields_head_parts
   simp [executeSelectionSet, executeRootSelectionSet, hleftCollect,
     hrightCollect]
   exact executeCollectedFields_cons_eq_of_parts schema resolvers
-    variableValues depth source leftGroup rightGroup leftRest rightRest
+    variableValues depth parentType source leftGroup rightGroup leftRest rightRest
     hhead htail
 
 theorem executeField_same_head_eq_of_completeValue
@@ -99,16 +104,10 @@ theorem executeField_same_head_eq_of_completeValue
     (leftFields rightFields : List ExecutableField)
     : let leftField : ExecutableField :=
         {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := leftSelectionSet
+          fieldName := fieldName, arguments := arguments, selectionSet := leftSelectionSet
         }
       let rightField : ExecutableField :=
         {
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := rightSelectionSet
@@ -129,9 +128,9 @@ theorem executeField_same_head_eq_of_completeValue
                 | none => True
         | none => True)
       -> executeField schema resolvers variableValues (depth + 1)
-            source responseName (leftField :: leftFields)
+            parentType source responseName (leftField :: leftFields)
           = executeField schema resolvers variableValues (depth + 1)
-              source responseName (rightField :: rightFields) := by
+              parentType source responseName (rightField :: rightFields) := by
   intro leftField rightField fieldDefinition? hcomplete
   simp only [executeField, leftField, rightField]
   cases hlookup : schema.lookupField parentType fieldName with
@@ -171,16 +170,10 @@ theorem executeSelectionSet_field_head_same_group_eq_of_completeValue
     (leftRest rightRest : List (Name × List ExecutableField))
     : let leftField : ExecutableField :=
         {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := leftSelectionSet
+          fieldName := fieldName, arguments := arguments, selectionSet := leftSelectionSet
         }
       let rightField : ExecutableField :=
         {
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := rightSelectionSet
@@ -205,9 +198,9 @@ theorem executeSelectionSet_field_head_same_group_eq_of_completeValue
                   | none => True
           | none => True)
       -> executeCollectedFields schema resolvers variableValues
-            (fieldDepth + 1) source leftRest
+            (fieldDepth + 1) parentType source leftRest
           = executeCollectedFields schema resolvers variableValues
-              (fieldDepth + 1) source rightRest
+              (fieldDepth + 1) parentType source rightRest
       -> executeSelectionSet schema resolvers variableValues
             (fieldDepth + 1) parentType source left
           = executeSelectionSet schema resolvers variableValues

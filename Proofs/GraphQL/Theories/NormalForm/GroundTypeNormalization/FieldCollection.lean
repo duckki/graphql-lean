@@ -19,96 +19,6 @@ namespace GroundTypeNormalization
 
 variable {ObjectRef : Type}
 
-def executableFieldScoped? (schema : Schema) (field : Execution.ExecutableField)
-    : Option FieldMerge.ScopedField := do
-  let fieldDefinition <- schema.lookupField field.parentType field.fieldName
-  some
-    {
-      parentType := field.parentType,
-      responseName := field.responseName,
-      fieldName := field.fieldName,
-      arguments := field.arguments,
-      outputType := fieldDefinition.outputType,
-      selectionSet := field.selectionSet
-    }
-
-theorem executableFieldScoped?_some
-    {schema : Schema} {field : Execution.ExecutableField}
-    {scopedField : FieldMerge.ScopedField}
-    : executableFieldScoped? schema field = some scopedField
-      -> ∃ fieldDefinition,
-          schema.lookupField field.parentType field.fieldName = some fieldDefinition
-          ∧ scopedField
-            = {
-              parentType := field.parentType,
-              responseName := field.responseName,
-              fieldName := field.fieldName,
-              arguments := field.arguments,
-              outputType := fieldDefinition.outputType,
-              selectionSet := field.selectionSet
-            } := by
-  intro hscoped
-  unfold executableFieldScoped? at hscoped
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
-  | none =>
-      simp [hlookup] at hscoped
-  | some fieldDefinition =>
-      simp [hlookup] at hscoped
-      subst scopedField
-      exact ⟨fieldDefinition, rfl, rfl⟩
-
-theorem executableFieldScoped?_sameSelection
-    {schema : Schema} {field : Execution.ExecutableField}
-    {scopedField : FieldMerge.ScopedField}
-    : executableFieldScoped? schema field = some scopedField
-      -> scopedField.parentType = field.parentType
-          ∧ scopedField.responseName = field.responseName
-          ∧ scopedField.fieldName = field.fieldName
-          ∧ scopedField.arguments = field.arguments
-          ∧ scopedField.selectionSet = field.selectionSet := by
-  intro hscoped
-  rcases executableFieldScoped?_some hscoped with
-    ⟨_fieldDefinition, _hlookup, hshape⟩
-  subst scopedField
-  simp
-
-theorem executableGroupWellFormed_field_responseName
-    {group : Name × List Execution.ExecutableField}
-    {field : Execution.ExecutableField}
-    : executableGroupWellFormed group
-      -> field ∈ group.snd
-      -> field.responseName = group.fst := by
-  intro hgroup hfield
-  exact hgroup.2 field hfield
-
-theorem executableFields_same_parent_identity_of_scoped_merge
-    {schema : Schema}
-    {left right : Execution.ExecutableField}
-    {leftScoped rightScoped : FieldMerge.ScopedField}
-    : executableFieldScoped? schema left = some leftScoped
-      -> executableFieldScoped? schema right = some rightScoped
-      -> FieldMerge.fieldsForNameCanMerge schema leftScoped rightScoped
-      -> left.parentType = right.parentType
-      -> left.fieldName = right.fieldName
-          ∧ Argument.argumentsEquivalent left.arguments right.arguments := by
-  intro hleftScoped hrightScoped hmerge hparent
-  have hleftShape :=
-    executableFieldScoped?_sameSelection hleftScoped
-  have hrightShape :=
-    executableFieldScoped?_sameSelection hrightScoped
-  have hscopedParent :
-      leftScoped.parentType = rightScoped.parentType := by
-    exact hleftShape.1.trans (hparent.trans hrightShape.1.symm)
-  have hidentity :=
-    FieldMerge.fieldsForNameCanMerge_same_parent_identity hmerge
-      hscopedParent
-  exact ⟨
-    hleftShape.2.2.1.symm.trans
-      (hidentity.1.trans hrightShape.2.2.1),
-    by
-      simpa [hleftShape.2.2.2.1, hrightShape.2.2.2.1]
-        using hidentity.2⟩
-
 theorem lookupType_name_eq_for_collection
     (schema : Schema) {typeName : Name}
     {typeDefinition : TypeDefinition}
@@ -307,14 +217,10 @@ theorem collectedResponseSelectionSet_mergeExecutableGroups (responseName : Name
             (groupResponseName, fields) left]
         simp [collectedResponseSelectionSet, hresponseFalse]
 
-theorem executableGroupWellFormed_singleton_field (field : Execution.ExecutableField)
-    : executableGroupWellFormed (field.responseName, [field]) := by
-  constructor
-  · simp
-  · intro candidate hcandidate
-    simp at hcandidate
-    subst candidate
-    rfl
+theorem executableGroupWellFormed_singleton (responseName : Name)
+    (field : Execution.ExecutableField)
+    : executableGroupWellFormed (responseName, [field]) := by
+  simp [executableGroupWellFormed]
 
 theorem executableGroupsWellFormed_nil : executableGroupsWellFormed [] := by
   intro group hgroup
@@ -352,14 +258,9 @@ theorem addExecutableGroup_wellFormed
           have hcurrent :
               executableGroupWellFormed (currentName, currentFields) :=
             hgroups (currentName, currentFields) (by simp)
-          constructor
-          · intro hnil
-            simp at hnil
-            exact hcurrent.1 hnil.1
-          · intro field hfield
-            rcases List.mem_append.mp hfield with hfieldCurrent | hfieldGroup
-            · exact hcurrent.2 field hfieldCurrent
-            · exact (hgroup.2 field hfieldGroup).trans hcurrentName.symm
+          intro hnil
+          simp at hnil
+          exact hcurrent hnil.1
         · exact hgroups candidate (by simp [htail])
       · have hfalse : (currentName == group.fst) = false := by
           cases hmatch : currentName == group.fst
@@ -679,11 +580,7 @@ theorem collectFields_field_noDirectives
           [(
             responseName,
             [{
-              parentType := parentType,
-              responseName := responseName,
-              fieldName := fieldName,
-              arguments := arguments,
-              selectionSet := selectionSet
+              fieldName := fieldName, arguments := arguments, selectionSet := selectionSet
             }]
           )]
           (Execution.collectFields schema variableValues parentType source rest) := by
@@ -748,9 +645,7 @@ mutual
           intro group hgroup
           simp at hgroup
           subst group
-          exact executableGroupWellFormed_singleton_field {
-            parentType := parentType,
-            responseName := responseName,
+          exact executableGroupWellFormed_singleton responseName {
             fieldName := fieldName,
             arguments := arguments,
             selectionSet := selectionSet
@@ -901,8 +796,6 @@ theorem collectFields_responseName_not_mem_of_responseNameFree
       have hcases :=
         (mergeExecutableGroups_mem_responseName
           [(fieldResponseName, [{
-            parentType := parentType,
-            responseName := fieldResponseName,
             fieldName := fieldName,
             arguments := arguments,
             selectionSet := selectionSet
@@ -1032,8 +925,6 @@ theorem collectFields_field_noDirectives_cons_of_responseName_not_mem
           = (
               responseName,
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -1062,19 +953,13 @@ theorem collectFields_field_head_exists
         = (
             responseName,
             {
-              parentType := parentType,
-              responseName := responseName,
-              fieldName := fieldName,
-              arguments := arguments,
-              selectionSet := selectionSet
+              fieldName := fieldName, arguments := arguments, selectionSet := selectionSet
             }
             :: sourceFields
           )
           :: sourceRest := by
   let sourceField : Execution.ExecutableField :=
     {
-      parentType := parentType,
-      responseName := responseName,
       fieldName := fieldName,
       arguments := arguments,
       selectionSet := selectionSet
@@ -1124,8 +1009,6 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_directiveFree
         have hsingleton :
             withoutExecutableGroupsWithResponseName responseName
               [(fieldResponseName, [{
-                parentType := parentType,
-                responseName := fieldResponseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -1159,16 +1042,12 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_directiveFree
         have hsingleton :
             withoutExecutableGroupsWithResponseName responseName
               [(fieldResponseName, [{
-                parentType := parentType,
-                responseName := fieldResponseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
               }])]
             =
             [(fieldResponseName, [{
-              parentType := parentType,
-              responseName := fieldResponseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := selectionSet
@@ -1293,13 +1172,7 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_fieldHead_rest_eq_s
     (sourceFields : List Execution.ExecutableField)
     (sourceRest : List (Name × List Execution.ExecutableField))
     : let sourceField : Execution.ExecutableField :=
-        {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := subselections
-        }
+        { fieldName := fieldName, arguments := arguments, selectionSet := subselections }
       objectTypeNameBool schema parentType = true
       -> (∃ runtimeType ref,
             source = .object runtimeType ref
@@ -1372,8 +1245,6 @@ theorem collectFields_fieldSelectionsWithResponseNameInScope_responseSelection
       have hsingleton :
           collectedResponseSelectionSet responseName
             [(selectionResponseName, [{
-              parentType := parentType,
-              responseName := selectionResponseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := fieldSelectionSet
@@ -1402,8 +1273,6 @@ theorem collectFields_fieldSelectionsWithResponseNameInScope_responseSelection
       have hsingleton :
           collectedResponseSelectionSet responseName
             [(selectionResponseName, [{
-              parentType := parentType,
-              responseName := selectionResponseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := fieldSelectionSet

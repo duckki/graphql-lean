@@ -54,24 +54,25 @@ end
 def runtimeFieldsForEntries
     (variableValues : VariableValues) (executionParentType runtimeType : Name)
     (entries : List (Condition × NamedField))
-    : List ExecutableField :=
+    : List (Name × ExecutableField) :=
   entries.flatMap
     fun entry =>
       if entry.1.allows variableValues runtimeType then
-        [{
-          parentType := executionParentType
-          responseName := entry.2.responseName
-          fieldName := entry.2.field.fieldName
-          arguments := entry.2.field.arguments
-          selectionSet := entry.2.field.selectionSet
-        }]
+        [(
+          entry.2.responseName,
+          {
+            fieldName := entry.2.field.fieldName
+            arguments := entry.2.field.arguments
+            selectionSet := entry.2.field.selectionSet
+          }
+        )]
       else
         []
 
 def Tree.collectRuntimeFields
     (variableValues : VariableValues) (executionParentType runtimeType : Name)
     (tree : Tree)
-    : List ExecutableField :=
+    : List (Name × ExecutableField) :=
   runtimeFieldsForEntries variableValues executionParentType runtimeType
     tree.storedFieldEntries
 
@@ -98,10 +99,9 @@ private def executableFieldsResponseDepth : List ExecutableField -> Nat
   | field :: rest =>
       max (executableFieldResponseDepth field) (executableFieldsResponseDepth rest)
 
-private def executableGroupsResponseDepth : List (Name × List ExecutableField) -> Nat
-  | [] => 0
-  | group :: rest =>
-      max (executableFieldsResponseDepth group.2) (executableGroupsResponseDepth rest)
+private def executableGroupsResponseDepth (groups : List (Name × List ExecutableField))
+    : Nat :=
+  executableFieldsResponseDepth (groups.flatMap Prod.snd)
 
 private theorem executableFieldsResponseDepth_append (left right : List ExecutableField)
     : executableFieldsResponseDepth (left ++ right)
@@ -116,18 +116,34 @@ private theorem executableFieldsResponseDepth_singleton (field : ExecutableField
     : executableFieldsResponseDepth [field] = executableFieldResponseDepth field := by
   simp [executableFieldsResponseDepth]
 
+@[simp]
+private theorem executableGroupsResponseDepth_nil
+    : executableGroupsResponseDepth [] = 0 := by
+  rfl
+
+@[simp]
+private theorem executableGroupsResponseDepth_cons
+    (group : Name × List ExecutableField)
+    (rest : List (Name × List ExecutableField))
+    : executableGroupsResponseDepth (group :: rest)
+      = max (executableFieldsResponseDepth group.2)
+          (executableGroupsResponseDepth rest) := by
+  simp [executableGroupsResponseDepth, executableFieldsResponseDepth_append]
+
 private theorem collectFlatFields_responseDepth_le
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType : Name) (source : ResolverValue ObjectRef)
     (selectionSet : List Selection)
     : executableFieldsResponseDepth
-        (collectFlatFields schema variableValues executionParentType source selectionSet)
+        ((collectFlatFields schema variableValues executionParentType source
+            selectionSet).map
+          Prod.snd)
       ≤ selectionSetResponseDepth selectionSet := by
   cases selectionSet with
   | nil => simp [collectFlatFields, executableFieldsResponseDepth,
       selectionSetResponseDepth]
   | cons selection rest =>
-      rw [collectFlatFields, executableFieldsResponseDepth_append,
+      rw [collectFlatFields, List.map_append, executableFieldsResponseDepth_append,
         selectionSetResponseDepth]
       apply Nat.max_le.mpr
       constructor
@@ -276,14 +292,17 @@ private theorem runtimeFieldsForEntries_responseDepth_le
     (executionParentType runtimeType : Name)
     (entries : List (Condition × NamedField))
     : executableFieldsResponseDepth
-        (runtimeFieldsForEntries variableValues executionParentType runtimeType entries)
+        ((runtimeFieldsForEntries variableValues executionParentType runtimeType
+            entries).map
+          Prod.snd)
       ≤ conditionEntriesResponseDepth entries := by
   induction entries with
   | nil => simp [runtimeFieldsForEntries, executableFieldsResponseDepth,
       conditionEntriesResponseDepth]
   | cons entry rest ih =>
       rw [runtimeFieldsForEntries, List.flatMap_cons,
-        executableFieldsResponseDepth_append, conditionEntriesResponseDepth]
+        List.map_append, executableFieldsResponseDepth_append,
+        conditionEntriesResponseDepth]
       apply Nat.max_le.mpr
       constructor
       · split
@@ -299,11 +318,12 @@ private theorem Tree.collectRuntimeFields_responseDepth_le
     (tree : Tree) (variableValues : VariableValues)
     (executionParentType runtimeType : Name)
     : executableFieldsResponseDepth
-        (tree.collectRuntimeFields variableValues executionParentType runtimeType)
+        ((tree.collectRuntimeFields variableValues executionParentType runtimeType).map
+          Prod.snd)
       ≤ conditionTreeResponseDepth tree := by
   change executableFieldsResponseDepth
-      (runtimeFieldsForEntries variableValues executionParentType runtimeType
-        tree.storedFieldEntries) ≤ conditionTreeResponseDepth tree
+      ((runtimeFieldsForEntries variableValues executionParentType runtimeType
+        tree.storedFieldEntries).map Prod.snd) ≤ conditionTreeResponseDepth tree
   exact Nat.le_trans
     (runtimeFieldsForEntries_responseDepth_le variableValues executionParentType
       runtimeType tree.storedFieldEntries)
@@ -317,16 +337,16 @@ private theorem executableGroupsResponseDepth_addExecutableGroup
           (executableFieldsResponseDepth group.2) := by
   induction groups with
   | nil =>
-      simp [addExecutableGroup, executableGroupsResponseDepth]
+      simp [addExecutableGroup]
   | cons current rest ih =>
       rcases current with ⟨currentName, currentFields⟩
       rcases group with ⟨groupName, groupFields⟩
       simp only [addExecutableGroup]
       split
-      · simp only [executableGroupsResponseDepth,
+      · simp only [executableGroupsResponseDepth_cons,
           executableFieldsResponseDepth_append]
         exact Nat.le_of_eq (by ac_rfl)
-      · simp only [executableGroupsResponseDepth]
+      · simp only [executableGroupsResponseDepth_cons]
         apply Nat.max_le.mpr
         constructor
         · exact Nat.le_trans (Nat.le_max_left _ _) (Nat.le_max_left _ _)
@@ -335,51 +355,53 @@ private theorem executableGroupsResponseDepth_addExecutableGroup
               Nat.le_max_right _ _⟩
 
 private theorem executableGroupsResponseDepth_foldFields
-    (fields : List ExecutableField)
+    (fields : List (Name × ExecutableField))
     (groups : List (Name × List ExecutableField))
     : executableGroupsResponseDepth
         (fields.foldl
           (fun result field =>
-            addExecutableGroup (field.responseName, [field]) result)
+            addExecutableGroup (field.1, [field.2]) result)
           groups)
       ≤ max (executableGroupsResponseDepth groups)
-          (executableFieldsResponseDepth fields) := by
+          (executableFieldsResponseDepth (fields.map Prod.snd)) := by
   induction fields generalizing groups with
   | nil => simp [executableFieldsResponseDepth]
-  | cons field rest ih =>
-      simp only [List.foldl_cons, executableFieldsResponseDepth]
+  | cons entry rest ih =>
+      rcases entry with ⟨responseName, field⟩
+      simp only [List.foldl_cons, List.map, executableFieldsResponseDepth]
       have hadded :=
         executableGroupsResponseDepth_addExecutableGroup
-          (field.responseName, [field]) groups
+          (responseName, [field]) groups
       have hadded' :
           executableGroupsResponseDepth
-              (addExecutableGroup (field.responseName, [field]) groups)
+              (addExecutableGroup (responseName, [field]) groups)
             ≤ max (executableGroupsResponseDepth groups)
                 (executableFieldResponseDepth field) := by
         simpa [executableFieldsResponseDepth_singleton] using hadded
-      have hrest := ih (addExecutableGroup (field.responseName, [field]) groups)
+      have hrest := ih (addExecutableGroup (responseName, [field]) groups)
       exact Nat.le_trans hrest <| calc
         max
               (executableGroupsResponseDepth
-                (addExecutableGroup (field.responseName, [field]) groups))
-              (executableFieldsResponseDepth rest)
+                (addExecutableGroup (responseName, [field]) groups))
+              (executableFieldsResponseDepth (rest.map Prod.snd))
             ≤ max
                 (max (executableGroupsResponseDepth groups)
                   (executableFieldResponseDepth field))
-                (executableFieldsResponseDepth rest) :=
+                (executableFieldsResponseDepth (rest.map Prod.snd)) :=
           Nat.max_le.mpr
             ⟨Nat.le_trans hadded' (Nat.le_max_left _ _),
               Nat.le_max_right _ _⟩
         _ = max (executableGroupsResponseDepth groups)
               (max (executableFieldResponseDepth field)
-                (executableFieldsResponseDepth rest)) := by
+                (executableFieldsResponseDepth (rest.map Prod.snd))) := by
           ac_rfl
 
-private theorem groupExecutableFields_responseDepth_le (fields : List ExecutableField)
+private theorem groupExecutableFields_responseDepth_le
+    (fields : List (Name × ExecutableField))
     : executableGroupsResponseDepth (groupExecutableFields fields)
-      ≤ executableFieldsResponseDepth fields := by
+      ≤ executableFieldsResponseDepth (fields.map Prod.snd) := by
   unfold groupExecutableFields
-  simpa [executableGroupsResponseDepth] using
+  simpa using
     executableGroupsResponseDepth_foldFields fields []
 
 private theorem Tree.collectRuntimeFieldGroups_responseDepth_le
@@ -458,7 +480,7 @@ mutual
       (source : ResolverValue ObjectRef) (selectionSet : List Selection)
       : Result (List (Name × ResponseValue)) :=
     let tree := ofSelectionSet schema parentType selectionSet
-    executeCollectedFields schema resolvers variableValues source
+    executeCollectedFields schema resolvers variableValues executionParentType source
       (tree.collectRuntimeFieldGroups variableValues executionParentType runtimeType)
   termination_by (selectionSetResponseDepth selectionSet, 5, 0)
   decreasing_by
@@ -472,32 +494,38 @@ mutual
 
   def executeCollectedFields
       (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (source : ResolverValue ObjectRef)
+      (variableValues : VariableValues) (parentType : Name)
+      (source : ResolverValue ObjectRef)
       : List (Name × List ExecutableField) -> Result (List (Name × ResponseValue))
     | [] => .ok ([], 0)
     | (responseName, fields) :: rest =>
         let head :=
-          executeField schema resolvers variableValues source responseName fields
-        let tail := executeCollectedFields schema resolvers variableValues source rest
+          executeField schema resolvers variableValues parentType source responseName
+            fields
+        let tail :=
+          executeCollectedFields schema resolvers variableValues parentType source rest
         Result.combine List.append head tail
   termination_by groups => (executableGroupsResponseDepth groups, 4, sizeOf groups)
   decreasing_by
     · apply executionMeasure_lt_of_le_of_control_lt
-      · exact Nat.le_max_left _ _
+      · rw [executableGroupsResponseDepth_cons]
+        exact Nat.le_max_left _ _
       · omega
     · apply triple_lt_of_depth_le_of_tail_lt
-      · exact Nat.le_max_right _ _
+      · rw [executableGroupsResponseDepth_cons]
+        exact Nat.le_max_right _ _
       · simp_wf
         omega
 
   def executeField
       (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (source : ResolverValue ObjectRef)
+      (variableValues : VariableValues) (parentType : Name)
+      (source : ResolverValue ObjectRef)
       (responseName : Name)
       : List ExecutableField -> Result (List (Name × ResponseValue))
     | [] => .error 1
     | field :: rest =>
-        match schema.lookupField field.parentType field.fieldName with
+        match schema.lookupField parentType field.fieldName with
         | none => .error 1
         | some fieldDefinition =>
             match coerceArgumentValues schema variableValues fieldDefinition.arguments
@@ -506,7 +534,7 @@ mutual
                 singleFieldResult responseName
                   (handleFieldError fieldDefinition.outputType)
             | .success coercedArguments =>
-                match resolveFieldValue resolvers field.parentType field.fieldName
+                match resolveFieldValue resolvers parentType field.fieldName
                         coercedArguments source with
                 | none =>
                     singleFieldResult responseName
@@ -620,14 +648,14 @@ def executeQuery
 
 -- Runtime field-group equivalence ignores response-name order and duplicate field
 -- occurrences. This is the public extensional coverage relation; the recursive
--- execution proof strengthens it internally to a permutation of all executable field
--- occurrences. Executable fields carry their response name, so preserving both keys
--- and flattened membership also preserves membership in each generated response-name
--- group.
+-- execution proof strengthens it internally to a permutation of all named executable
+-- field occurrences.
 def RuntimeFieldGroupsEquivalent (left right : List (Name × List ExecutableField))
     : Prop :=
   (∀ responseName, responseName ∈ left.map Prod.fst ↔ responseName ∈ right.map Prod.fst)
-  ∧ ∀ field, field ∈ flattenCollectedFields left ↔ field ∈ flattenCollectedFields right
+  ∧ ∀ entry,
+      entry ∈ flattenExecutableFieldGroups left
+      ↔ entry ∈ flattenExecutableFieldGroups right
 
 -- Extracted runtime groups preserve the source selection set's executable response
 -- names and fields. Its theorem witness is `ConditionTree.extraction_groups_equivalent`
@@ -667,7 +695,7 @@ def ExtractionSound (schema : Schema) (parentType : Name)
               selectionSet).collectRuntimeFields
               variableValues executionParentType runtimeType
         ↔ field
-          ∈ flattenCollectedFields
+          ∈ flattenExecutableFieldGroups
               (Execution.collectFields schema variableValues executionParentType
                 (.object runtimeType ref) selectionSet)
 

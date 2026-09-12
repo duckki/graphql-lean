@@ -39,7 +39,7 @@ def guardedFieldGroupCaseIncludesBool (schema : Schema) (responseFuel : Nat)
   match responseFuel with
   | 0 => rightFields.isEmpty
   | _responseFuel + 1 =>
-      executableGroupsIncludeBool schema
+      executableGroupsIncludeBool schema executionParentType
         (fun outputType leftSelectionSet rightSelectionSet =>
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)
@@ -58,8 +58,6 @@ theorem guardedFieldExecutableFields_origin (variableValues : VariableValues)
         ∧ entry.condition.allows variableValues runtimeType = true
         ∧ field
           = {
-            parentType := executionParentType
-            responseName
             fieldName := entry.field.fieldName
             arguments := entry.field.arguments
             selectionSet := entry.field.selectionSet
@@ -114,8 +112,6 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
         simp only [hcontains, if_true]
         change (if entry.condition.allows variableValues runtimeType then
                     [{
-                      parentType := executionParentType
-                      responseName
                       fieldName := entry.field.fieldName
                       arguments := entry.field.arguments
                       selectionSet := entry.field.selectionSet
@@ -126,8 +122,6 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
                       runtimeType responseName rest
                 = (if entry.condition.allows variableValues runtimeType then
                       [{
-                        parentType := executionParentType
-                        responseName
                         fieldName := entry.field.fieldName
                         arguments := entry.field.arguments
                         selectionSet := entry.field.selectionSet
@@ -267,8 +261,6 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
                   = true := by
                 simp [Condition.allows, hleftPossible', hcoverAllows]
               let leftField : ExecutableField := {
-                parentType := executionParentType
-                responseName := left.responseName
                 fieldName := leftEntry.field.fieldName
                 arguments := leftEntry.field.arguments
                 selectionSet := leftEntry.field.selectionSet
@@ -473,8 +465,6 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                               variableValues executionParentType runtimeType
                               left.responseName left.entries =
                                 [{
-                                  parentType := executionParentType
-                                  responseName := left.responseName
                                   fieldName := leftEntry.field.fieldName
                                   arguments := leftEntry.field.arguments
                                   selectionSet := leftEntry.field.selectionSet
@@ -486,8 +476,6 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                               variableValues executionParentType runtimeType
                               right.responseName right.entries =
                                 [{
-                                  parentType := executionParentType
-                                  responseName := right.responseName
                                   fieldName := rightEntry.field.fieldName
                                   arguments := rightEntry.field.arguments
                                   selectionSet := rightEntry.field.selectionSet
@@ -511,6 +499,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
 
 theorem executableGroupIncludedBool_mono_child
     (schema : Schema)
+    (parentType : Name)
     (sourceChildIncludes targetChildIncludes
       : TypeRef -> List Selection -> List Selection -> Bool)
     (hmono
@@ -520,9 +509,11 @@ theorem executableGroupIncludedBool_mono_child
     (leftGroups : List (Name × List ExecutableField))
     (rightGroup : Name × List ExecutableField)
     (hcheck
-      : executableGroupIncludedBool schema sourceChildIncludes leftGroups rightGroup
+      : executableGroupIncludedBool schema parentType sourceChildIncludes leftGroups
+          rightGroup
         = true)
-    : executableGroupIncludedBool schema targetChildIncludes leftGroups rightGroup
+    : executableGroupIncludedBool schema parentType targetChildIncludes leftGroups
+        rightGroup
       = true := by
   unfold executableGroupIncludedBool at hcheck ⊢
   rcases List.any_eq_true.mp hcheck with ⟨leftGroup, hleftGroup, hmatch⟩
@@ -540,8 +531,7 @@ theorem executableGroupIncludedBool_mono_child
       | cons rightField rightRest =>
           simp only [Bool.and_eq_true] at hmatch ⊢
           refine ⟨hmatch.2.1, ?_⟩
-          cases hdefinition
-                : schema.lookupField rightField.parentType rightField.fieldName with
+          cases hdefinition : schema.lookupField parentType rightField.fieldName with
           | none => simp [hdefinition] at hmatch
           | some definition =>
               cases hcomposite : definition.outputType.isCompositeBool schema with
@@ -555,6 +545,7 @@ theorem executableGroupIncludedBool_mono_child
 
 theorem executableGroupsIncludeBool_mono_child
     (schema : Schema)
+    (parentType : Name)
     (sourceChildIncludes targetChildIncludes
       : TypeRef -> List Selection -> List Selection -> Bool)
     (hmono
@@ -563,13 +554,15 @@ theorem executableGroupsIncludeBool_mono_child
           -> targetChildIncludes outputType leftSelectionSet rightSelectionSet = true)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (hcheck
-      : executableGroupsIncludeBool schema sourceChildIncludes leftGroups rightGroups
+      : executableGroupsIncludeBool schema parentType sourceChildIncludes leftGroups
+          rightGroups
         = true)
-    : executableGroupsIncludeBool schema targetChildIncludes leftGroups rightGroups
+    : executableGroupsIncludeBool schema parentType targetChildIncludes leftGroups
+        rightGroups
       = true := by
   apply List.all_eq_true.mpr
   intro rightGroup hrightGroup
-  exact executableGroupIncludedBool_mono_child schema sourceChildIncludes
+  exact executableGroupIncludedBool_mono_child schema parentType sourceChildIncludes
     targetChildIncludes hmono leftGroups rightGroup
     (List.all_eq_true.mp hcheck rightGroup hrightGroup)
 
@@ -713,9 +706,7 @@ theorem guardedFieldGroupIncludesWithFuel_sound
             · simp at hremaining
             · rcases hknown with ⟨value, hvalue⟩
               exact hvalue.trans (hagrees variableName value hvalue).symm
-          have hleftGroups : executableGroupsWithParentType targetExecutionParentType
-                baseLeftGroups
-              = targetLeftGroups := by
+          have hleftGroups : baseLeftGroups = targetLeftGroups := by
             rw [show baseLeftGroups = executableFieldsAsGroup left.responseName
                 (guardedFieldExecutableFields checkValues
                   representativeExecutionParentType representativeRuntimeType
@@ -727,9 +718,7 @@ theorem guardedFieldGroupIncludesWithFuel_sound
             rw [guardedFieldExecutableFields_eq_of_region_and_variables
               parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
               hvariableAgreement targetExecutionParentType]
-          have hrightGroups : executableGroupsWithParentType targetExecutionParentType
-                baseRightGroups
-              = targetRightGroups := by
+          have hrightGroups : baseRightGroups = targetRightGroups := by
             rw [show baseRightGroups = executableFieldsAsGroup right.responseName
                 (guardedFieldExecutableFields checkValues
                   representativeExecutionParentType representativeRuntimeType
@@ -752,8 +741,7 @@ theorem guardedFieldGroupIncludesWithFuel_sound
                   | cons field fields =>
                       have hgroupEq := hrightGroups
                       unfold baseRightGroups targetRightGroups at hgroupEq
-                      simp [executableGroupsWithParentType, executableFieldsAsGroup,
-                        hbase, htarget] at hgroupEq
+                      simp [executableFieldsAsGroup, hbase, htarget] at hgroupEq
               | cons field fields => simp [hbase] at hregionCheck
           | succ responseFuel =>
               let parentTypes :=
@@ -803,11 +791,8 @@ theorem guardedFieldGroupIncludesWithFuel_sound
                       task.possibleTypes task.leftSelectionSet task.rightSelectionSet
                       (List.all_eq_true.mp htargetChecks task htask)
                   have hinclude := inclusionChildTasks?_sound schema
-                    childIncludes
-                    (executableGroupsWithParentType targetExecutionParentType
-                      baseLeftGroups)
-                    (executableGroupsWithParentType targetExecutionParentType
-                      baseRightGroups)
+                    targetExecutionParentType childIncludes baseLeftGroups
+                    baseRightGroups
                     targetTasks htargetTasks hchildChecks
                   rw [hleftGroups, hrightGroups] at hinclude
                   exact hinclude
@@ -1017,25 +1002,17 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                                 checkValues task.possibleTypes task.leftSelectionSet
                                 task.rightSelectionSet)
                       = true
-              have hnodup : ∀ parentType,
-                  parentType ∈ parentTypes
-                  -> ((executableGroupsWithParentType parentType baseLeftGroups).map
-                      Prod.fst).Nodup := by
-                intro parentType _hparent
-                unfold baseLeftGroups
-                rw [executableFieldsAsGroup_withParentType
-                  representativeExecutionParentType parentType representativeRuntimeType
-                  left.responseName checkValues left.entries]
+              have hnodup : (baseLeftGroups.map Prod.fst).Nodup := by
                 exact executableFieldsAsGroup_keysNodup _ _
               have hinclude : ∀ parentType,
                   parentType ∈ parentTypes
                   -> executableGroupsIncludeBool schema
+                      parentType
                       (fun outputType leftSelectionSet rightSelectionSet =>
                         guardedFieldChildIncludesBool schema responseFuel checkValues
                           (schema.getPossibleTypes outputType.namedType)
                           leftSelectionSet rightSelectionSet)
-                      (executableGroupsWithParentType parentType baseLeftGroups)
-                      (executableGroupsWithParentType parentType baseRightGroups)
+                      baseLeftGroups baseRightGroups
                     = true := by
                 intro parentType hparent
                 obtain ⟨runtimeType, hruntime, hexecutionParent⟩ :
@@ -1061,9 +1038,7 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                   executableFieldsAsGroup left.responseName targetLeftFields
                 let targetRightGroups :=
                   executableFieldsAsGroup right.responseName targetRightFields
-                have hleftGroups : executableGroupsWithParentType parentType
-                      baseLeftGroups
-                    = targetLeftGroups := by
+                have hleftGroups : baseLeftGroups = targetLeftGroups := by
                   rw [show baseLeftGroups = executableFieldsAsGroup left.responseName
                       (guardedFieldExecutableFields checkValues
                         representativeExecutionParentType representativeRuntimeType
@@ -1075,9 +1050,7 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                   rw [guardedFieldExecutableFields_eq_of_region_and_variables
                     parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
                     hvariableAgreement parentType]
-                have hrightGroups : executableGroupsWithParentType parentType
-                      baseRightGroups
-                    = targetRightGroups := by
+                have hrightGroups : baseRightGroups = targetRightGroups := by
                   rw [show baseRightGroups = executableFieldsAsGroup right.responseName
                       (guardedFieldExecutableFields checkValues
                         representativeExecutionParentType representativeRuntimeType
@@ -1093,12 +1066,13 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                 simp only [guardedFieldGroupCaseIncludesBool] at htargetCase
                 rw [hexecutionParent] at htargetCase
                 change executableGroupsIncludeBool schema
+                  parentType
                   (fun outputType leftSelectionSet rightSelectionSet =>
                     childIncludes checkValues
                       (schema.getPossibleTypes outputType.namedType) leftSelectionSet
                       rightSelectionSet)
                   targetLeftGroups targetRightGroups = true at htargetCase
-                have hconverted := executableGroupsIncludeBool_mono_child schema
+                have hconverted := executableGroupsIncludeBool_mono_child schema parentType
                   (fun outputType leftSelectionSet rightSelectionSet =>
                     childIncludes checkValues
                       (schema.getPossibleTypes outputType.namedType) leftSelectionSet
@@ -1234,14 +1208,17 @@ theorem guardedFieldGroupFor_parentRegion_subset
 
 theorem executableGroupIncludedBool_mono_left
     (schema : Schema)
+    (parentType : Name)
     (childIncludes : TypeRef -> List Selection -> List Selection -> Bool)
     (sourceLeftGroups targetLeftGroups : List (Name × List ExecutableField))
     (rightGroup : Name × List ExecutableField)
     (hsubset : ∀ group, group ∈ sourceLeftGroups -> group ∈ targetLeftGroups)
     (hcheck
-      : executableGroupIncludedBool schema childIncludes sourceLeftGroups rightGroup
+      : executableGroupIncludedBool schema parentType childIncludes sourceLeftGroups
+          rightGroup
         = true)
-    : executableGroupIncludedBool schema childIncludes targetLeftGroups rightGroup
+    : executableGroupIncludedBool schema parentType childIncludes targetLeftGroups
+        rightGroup
       = true := by
   unfold executableGroupIncludedBool at hcheck ⊢
   rcases List.any_eq_true.mp hcheck with ⟨leftGroup, hleftGroup, hmatch⟩
@@ -1303,6 +1280,7 @@ theorem guardedFieldGroupFor_runtimeGroup_mem
 
 theorem executableGroupIncludedBool_restrict_left
     (schema : Schema)
+    (parentType : Name)
     (childIncludes : TypeRef -> List Selection -> List Selection -> Bool)
     (sourceLeftGroups targetLeftGroups : List (Name × List ExecutableField))
     (rightGroup : Name × List ExecutableField)
@@ -1312,9 +1290,11 @@ theorem executableGroupIncludedBool_restrict_left
           -> leftGroup.1 = rightGroup.1
           -> leftGroup ∈ targetLeftGroups)
     (hcheck
-      : executableGroupIncludedBool schema childIncludes sourceLeftGroups rightGroup
+      : executableGroupIncludedBool schema parentType childIncludes sourceLeftGroups
+          rightGroup
         = true)
-    : executableGroupIncludedBool schema childIncludes targetLeftGroups rightGroup
+    : executableGroupIncludedBool schema parentType childIncludes targetLeftGroups
+        rightGroup
       = true := by
   unfold executableGroupIncludedBool at hcheck ⊢
   rcases List.any_eq_true.mp hcheck with ⟨leftGroup, hleftGroup, hmatch⟩
@@ -1357,7 +1337,7 @@ def guardedFieldRuntimeGroupsIncludeBool
   match responseFuel with
   | 0 => rightRuntimeGroups.isEmpty
   | _responseFuel + 1 =>
-      executableGroupsIncludeBool schema
+      executableGroupsIncludeBool schema executionParentType
         (fun outputType leftSelectionSet rightSelectionSet =>
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)
@@ -1408,6 +1388,7 @@ theorem guardedFieldGroupCases_sound_runtime
       simp only at hcase
       have hlocalIncluded := List.all_eq_true.mp hcase rightRuntimeGroup hrightLocal
       exact executableGroupIncludedBool_mono_left schema
+        (fixedExecutionParentType.getD runtimeType)
         (fun outputType leftSelectionSet rightSelectionSet =>
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)
@@ -1493,6 +1474,7 @@ theorem guardedFieldGroupCases_complete_runtime
             subst rightRuntimeGroup
             rfl
       exact executableGroupIncludedBool_restrict_left schema
+        (fixedExecutionParentType.getD runtimeType)
         (fun outputType leftSelectionSet rightSelectionSet =>
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)

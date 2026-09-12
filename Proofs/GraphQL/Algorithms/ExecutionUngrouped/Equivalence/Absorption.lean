@@ -149,10 +149,10 @@ theorem VisitSubfieldsAbsorbsFrom_single_field_allowed_succ
             -> ResponseAbsorbs existing
                 (mergeResponse existing
                   (resultValueOrNull
-                    (executeField schema resolvers variableValues depth source
+                    (executeField schema resolvers variableValues depth parentType
+                      source
                       (responseObjectField? responseName (.object fields))
-                      (executableField parentType responseName fieldName arguments
-                        selectionSet)))))
+                      (executableField fieldName arguments selectionSet)))))
       -> VisitSubfieldsAbsorbsFrom schema resolvers variableValues (depth + 1)
           parentType source (.object fields)
           [.field responseName fieldName arguments directives selectionSet]
@@ -449,10 +449,9 @@ mutual
                 mergeResponseField_pairKeysNodup responseName
                   (resultValueOrNull
                     (executeField schema resolvers variableValues depth'
-                      source
+                      parentType source
                       (responseObjectField? responseName (.object fields))
-                      (executableField parentType responseName fieldName
-                        arguments selectionSet)))
+                      (executableField fieldName arguments selectionSet)))
                   fields hnodup
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
@@ -638,14 +637,13 @@ mutual
                   ResponseMergeReady
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
-                        source (responseObjectField? responseName (.object fields))
-                        (executableField parentType responseName fieldName
-                          arguments selectionSet))) :=
+                        parentType source
+                        (responseObjectField? responseName (.object fields))
+                        (executableField fieldName arguments selectionSet))) :=
                 executeField_response_ready_of_previous schema resolvers
-                  variableValues depth' source
+                  variableValues depth' parentType source
                   (responseObjectField? responseName (.object fields))
-                  (executableField parentType responseName fieldName arguments
-                    selectionSet)
+                  (executableField fieldName arguments selectionSet)
                   hpreviousReady
               exact
                 visitSelection_field_allowed_succ_ready schema resolvers
@@ -1289,17 +1287,18 @@ mutual
       {ObjectIdentity : Type}
       (schema : Schema) (resolvers : Resolvers ObjectIdentity)
       (variableValues : VariableValues) (depth : Nat)
-      (source : ResolverValue ObjectIdentity) (previous? : Option ResponseValue)
+      (parentType : Name) (source : ResolverValue ObjectIdentity)
+      (previous? : Option ResponseValue)
       (field : ExecutableField)
       : (∀ previous, previous? = some previous -> ResponseMergeReady previous)
         -> ResponseMergeReady
             (resultValueOrNull
-              (executeField schema resolvers variableValues depth source previous?
-                field)) := by
+              (executeField schema resolvers variableValues depth parentType source
+                previous? field)) := by
     intro hprevious
     cases previous? with
     | none =>
-        cases hlookup : schema.lookupField field.parentType field.fieldName with
+        cases hlookup : schema.lookupField parentType field.fieldName with
         | none =>
             simp [executeField, hlookup, resultValueOrNull]
             exact ResponseMergeReady.null
@@ -1310,7 +1309,7 @@ mutual
               reusablePreviousValue?_none schema fieldDefinition.outputType
             cases hresolve
                   : coerceAndResolveFieldValue schema resolvers variableValues
-                      fieldDefinition field.parentType field.fieldName field.arguments
+                      fieldDefinition parentType field.fieldName field.arguments
                       source with
             | none =>
                 simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1324,7 +1323,7 @@ mutual
     | some previous =>
         cases previous with
         | null =>
-            cases hlookup : schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField parentType field.fieldName with
             | none =>
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
@@ -1333,7 +1332,7 @@ mutual
                   resultValueOrNull]
                 exact ResponseMergeReady.null
         | scalar value =>
-            cases hlookup : schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField parentType field.fieldName with
             | none =>
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
@@ -1352,7 +1351,7 @@ mutual
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
-                              fieldDefinition field.parentType field.fieldName
+                              fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1365,7 +1364,7 @@ mutual
                             field.selectionSet resolved (some (.scalar value))
                             hprevious
         | object fields =>
-            cases hlookup : schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField parentType field.fieldName with
             | none =>
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
@@ -1384,7 +1383,7 @@ mutual
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
-                              fieldDefinition field.parentType field.fieldName
+                              fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1397,7 +1396,7 @@ mutual
                             field.selectionSet resolved (some (.object fields))
                             hprevious
         | list values =>
-            cases hlookup : schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField parentType field.fieldName with
             | none =>
                 simp [executeField, hlookup, resultValueOrNull]
                 exact ResponseMergeReady.null
@@ -1416,7 +1415,7 @@ mutual
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
-                              fieldDefinition field.parentType field.fieldName
+                              fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
                         simpa [executeField, hlookup, hreuse, hresolve] using
@@ -1445,16 +1444,17 @@ theorem executeField_response_ready
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (fields : List (Name × ResponseValue))
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (fields : List (Name × ResponseValue))
     (field : ExecutableField)
     : ResponseMergeReady (.object fields)
       -> ResponseMergeReady
           (resultValueOrNull
-            (executeField schema resolvers variableValues depth source
+            (executeField schema resolvers variableValues depth parentType source
               (some (.object fields)) field)) := by
     intro hfieldsReady
     exact executeField_response_ready_of_previous schema resolvers variableValues
-      depth source (some (.object fields)) field
+      depth parentType source (some (.object fields)) field
       (by intro previous h; cases h; exact hfieldsReady)
 
 mutual
@@ -1503,15 +1503,13 @@ mutual
                   ResponseMergeReady
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
-                        source
+                        parentType source
                         (responseObjectField? responseName (.object fields))
-                        (executableField parentType responseName fieldName
-                          arguments selectionSet))) :=
+                        (executableField fieldName arguments selectionSet))) :=
                 executeField_response_ready_of_previous schema resolvers
-                  variableValues depth' source
+                  variableValues depth' parentType source
                   (responseObjectField? responseName (.object fields))
-                  (executableField parentType responseName fieldName arguments
-                    selectionSet)
+                  (executableField fieldName arguments selectionSet)
                   hpreviousReady
               exact
                 visitSelection_field_allowed_succ_absorbs schema resolvers
@@ -1524,10 +1522,9 @@ mutual
                       ResponseAbsorbs_merge_of_ready existing
                         (resultValueOrNull
                           (executeField schema resolvers variableValues depth'
-                            source
+                            parentType source
                             (responseObjectField? responseName (.object fields))
-                            (executableField parentType responseName fieldName
-                              arguments selectionSet)))
+                            (executableField fieldName arguments selectionSet)))
                         (ResponseMergeReady_object_field fields responseName
                           existing hfieldsReady hmem)
                         hfieldReady)

@@ -242,14 +242,14 @@ private theorem annotatedExecution_admissible
     (schema : Schema) (listSize : Nat) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
     (hresolvers : ResolversRespectListSize listSize resolvers)
-    : (∀ fuel source groups,
+    : (∀ fuel parentType source groups,
         annotatedFieldsResultAdmissible schema listSize
           (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-            source groups))
-      ∧ (∀ fuel source responseName fields,
+            parentType source groups))
+      ∧ (∀ fuel parentType source responseName fields,
           annotatedFieldsResultAdmissible schema listSize
-            (executeQueryAnnotatedField schema resolvers variableValues fuel source
-              responseName fields))
+            (executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+              source responseName fields))
       ∧ (∀ fuel fieldType fields value,
           resolverValueListsBounded listSize value
           -> annotatedValueResultAdmissible schema listSize fieldType
@@ -265,18 +265,18 @@ private theorem annotatedExecution_admissible
     simp [executeQueryAnnotatedCollectedFields, annotatedFieldsResultAdmissible,
       foldAnnotatedResponseFields, ResponseObservation.empty]
   case case2 =>
-    intro fuel source responseName fields rest field_ih rest_ih
-    cases hfield : executeQueryAnnotatedField schema resolvers variableValues fuel source
-        responseName fields with
+    intro fuel parentType source responseName fields rest field_ih rest_ih
+    cases hfield : executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+        source responseName fields with
     | error fieldErrors =>
         cases hrest : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-            fuel source rest <;>
+            fuel parentType source rest <;>
           simp_all [executeQueryAnnotatedCollectedFields, annotatedFieldsResultAdmissible,
             Result.combine]
     | ok fieldResult =>
         rcases fieldResult with ⟨fieldValues, fieldErrors⟩
         cases hrest : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-            fuel source rest with
+            fuel parentType source rest with
         | error restErrors =>
             simp_all [executeQueryAnnotatedCollectedFields,
               annotatedFieldsResultAdmissible, Result.combine]
@@ -290,10 +290,10 @@ private theorem annotatedExecution_admissible
   case case4 =>
     simp [executeQueryAnnotatedField, annotatedFieldsResultAdmissible]
   case case5 =>
-    intro source responseName field rest fuel hlookup
+    intro parentType source responseName field rest fuel hlookup
     simp [executeQueryAnnotatedField, hlookup, annotatedFieldsResultAdmissible]
   case case6 =>
-    intro source responseName field rest fuel definition hlookup hcoerce
+    intro parentType source responseName field rest fuel definition hlookup hcoerce
     cases htype : definition.outputType <;>
       simp [executeQueryAnnotatedField, hlookup, hcoerce, htype,
         singleAnnotatedResponseFieldResult, resolvedFieldProvenance,
@@ -302,7 +302,7 @@ private theorem annotatedExecution_admissible
         ResponseObservation.combine, ResponseObservation.empty,
         foldAnnotatedResponseValue, responseValueChildMultiplicity]
   case case7 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
+    intro parentType source responseName field rest fuel definition hlookup coercedArguments hcoerce
       hresolve
     cases htype : definition.outputType <;>
       simp [executeQueryAnnotatedField, hlookup, hcoerce, hresolve, htype,
@@ -312,7 +312,7 @@ private theorem annotatedExecution_admissible
         ResponseObservation.combine, ResponseObservation.empty,
         foldAnnotatedResponseValue, responseValueChildMultiplicity]
   case case8 =>
-    intro source responseName field rest fuel definition hlookup coercedArguments hcoerce
+    intro parentType source responseName field rest fuel definition hlookup coercedArguments hcoerce
       resolved hresolve complete_ih
     have hcomplete := complete_ih (hresolvers _ _ _ _ _ hresolve)
     cases hcompleted : completeAnnotatedResponseValue schema resolvers variableValues fuel
@@ -364,11 +364,11 @@ private theorem annotatedExecution_admissible
   case case14 =>
     intro fuel parentType fields runtimeType ref hinclude childGroups child_ih _hsafe
     cases hcompleted : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-        fuel (.object runtimeType ref) childGroups with
+        fuel runtimeType (.object runtimeType ref) childGroups with
     | error errors =>
         have hcompleted' :
             executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-                (.object runtimeType ref)
+                runtimeType (.object runtimeType ref)
                 (collectFields schema variableValues runtimeType
                   (.object runtimeType ref) (mergedFieldSelectionSet fields))
               = .error errors := by
@@ -383,7 +383,7 @@ private theorem annotatedExecution_admissible
         rcases completed with ⟨childFields, errors⟩
         have hcompleted' :
             executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-                (.object runtimeType ref)
+                runtimeType (.object runtimeType ref)
                 (collectFields schema variableValues runtimeType
                   (.object runtimeType ref) (mergedFieldSelectionSet fields))
               = .ok (childFields, errors) := by
@@ -722,7 +722,7 @@ def soundness (schema : Schema) (listSize : Nat)
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
-      intro group _field schemaDefinition value children abstractChildren
+      intro group parentType _field schemaDefinition value children abstractChildren
         _hrepresentative _hparent _harguments hlookup houtput hchildren
       intro hadmissible
       have hadmissible' :
@@ -807,7 +807,7 @@ def soundness (schema : Schema) (listSize : Nat)
       intro concreteValue abstractLower abstractUpper hlower hle hadmissible
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
-      intro field definition value children groups abstractChildren hnonempty hmatch
+      intro parentType field definition value children groups abstractChildren hnonempty hmatch
         hconditions _harguments hlookup hchildren
       intro hadmissible
       have hadmissible' :
@@ -827,13 +827,13 @@ def soundness (schema : Schema) (listSize : Nat)
         have hrepresentative :=
           representativeMatches_of_groupsRepresentField groups field hmatch group hgroup
         have hlookupRepresentative :
-            schema.lookupField field.parentType group.representativeField.fieldName
+            schema.lookupField parentType group.representativeField.fieldName
               = some definition := by
           rw [hrepresentative.1]
           exact hlookup
         have houtput :=
           CollectedFieldGroup.representativeOutputType_mem_fieldOutputTypes schema
-            variableValues field.parentType group definition (hconditions group hgroup)
+            variableValues parentType group definition (hconditions group hgroup)
             hlookupRepresentative
         exact Nat.le_trans hadmissible'.1
           (max_one_listMultiplier_le_fieldListMultiplier schema listSize group
@@ -870,7 +870,7 @@ theorem executeQueryAnnotatedWithFuel_responseWithinListSize
       operation.selectionSet
   have hfields :=
     (annotatedExecution_admissible schema listSize resolvers coercedVariableValues
-      hresolvers).1 fuel source groups
+      hresolvers).1 fuel (operation.rootType schema) source groups
   cases hroot : rootSourceAppliesBool schema operation source with
   | false =>
       simp [ResponseWithinListSize, MaxResponseSize.foldAnnotatedResponse,
@@ -879,7 +879,7 @@ theorem executeQueryAnnotatedWithFuel_responseWithinListSize
   | true =>
       cases hresult
             : executeQueryAnnotatedCollectedFields schema resolvers
-                coercedVariableValues fuel source groups with
+                coercedVariableValues fuel (operation.rootType schema) source groups with
       | error errors =>
           simp [ResponseWithinListSize, MaxResponseSize.foldAnnotatedResponse,
             TreeSummary.foldAnnotatedResponse, executeQueryAnnotatedWithFuel, hroot,

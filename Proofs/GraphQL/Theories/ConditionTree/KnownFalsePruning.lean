@@ -37,7 +37,7 @@ def KnownFalsePruningSound (schema : Schema) (parentType : Name)
                 selectionSet).collectRuntimeFields
                 runtimeValues executionParentType runtimeType
           ↔ field
-            ∈ flattenCollectedFields
+            ∈ flattenExecutableFieldGroups
                 (Execution.collectFields schema runtimeValues executionParentType
                   (.object runtimeType ref) selectionSet)
 
@@ -261,12 +261,12 @@ theorem knownFalsePruning_runtimeGroups_occurrence_equivalent
     {ObjectRef : Type} (executionParentType runtimeType : Name) (ref : ObjectRef)
     (hinherited : booleanConditionAllows runtimeValues inheritedBooleanCondition = true)
     (hpossible : (schema.getPossibleTypes parentType).contains runtimeType = true)
-    : (flattenCollectedFields
+    : (flattenExecutableFieldGroups
         ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
             inheritedBooleanCondition pruningValues
             selectionSet).collectRuntimeFieldGroups
           runtimeValues executionParentType runtimeType)).Perm
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema runtimeValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
   let pruned := pruneKnownFalseSelections pruningValues selectionSet
@@ -309,9 +309,11 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent
   · exact (executableGroupNamesNodup_iff_map_fst_nodup _).mp
             (NormalForm.collectFields_namesNodup schema runtimeValues executionParentType
               (.object runtimeType ref) selectionSet)
-  · exact knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
-      inheritedBooleanCondition runtimeValues pruningValues selectionSet hmatch
-      executionParentType runtimeType ref hinherited hpossible
+  · simpa [ConditionTree.flattenExecutableFieldGroups,
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
+      knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
+        inheritedBooleanCondition runtimeValues pruningValues selectionSet hmatch
+        executionParentType runtimeType ref hinherited hpossible
 
 theorem knownFalsePruning_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
     (schema : Schema) (parentType : Name)
@@ -340,16 +342,27 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent_toPermutedSelectio
   · exact (executableGroupNamesNodup_iff_map_fst_nodup _).mp
             (NormalForm.collectFields_namesNodup schema runtimeValues executionParentType
               (.object runtimeType ref) rightSelectionSet)
-  · apply (knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
-      inheritedBooleanCondition runtimeValues pruningValues leftSelectionSet hmatch
-      executionParentType runtimeType ref hinherited hpossible).trans
-    apply (RuntimeExtraction.collectFlatFields_perm_flatten_collectFields schema
-      runtimeValues executionParentType (.object runtimeType ref)
-      leftSelectionSet).symm.trans
-    apply (RuntimeExtraction.collectFlatFields_perm_of_selectionSet_perm schema
-      runtimeValues executionParentType (.object runtimeType ref) hselectionSet).trans
-    exact RuntimeExtraction.collectFlatFields_perm_flatten_collectFields schema
-      runtimeValues executionParentType (.object runtimeType ref) rightSelectionSet
+  · have hentries :
+        (ConditionTree.flattenExecutableFieldGroups
+          ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+              inheritedBooleanCondition pruningValues
+              leftSelectionSet).collectRuntimeFieldGroups
+            runtimeValues executionParentType runtimeType)).Perm
+          (ConditionTree.flattenExecutableFieldGroups
+            (collectFields schema runtimeValues executionParentType
+              (.object runtimeType ref) rightSelectionSet)) := by
+      apply (knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
+        inheritedBooleanCondition runtimeValues pruningValues leftSelectionSet hmatch
+        executionParentType runtimeType ref hinherited hpossible).trans
+      apply (RuntimeExtraction.collectFlatFields_perm_flatten_collectFields schema
+        runtimeValues executionParentType (.object runtimeType ref)
+        leftSelectionSet).symm.trans
+      apply (RuntimeExtraction.collectFlatFields_perm_of_selectionSet_perm schema
+        runtimeValues executionParentType (.object runtimeType ref) hselectionSet).trans
+      exact RuntimeExtraction.collectFlatFields_perm_flatten_collectFields schema
+        runtimeValues executionParentType (.object runtimeType ref) rightSelectionSet
+    simpa [ConditionTree.flattenExecutableFieldGroups,
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using hentries
 
 end ConditionTree
 end GraphQL

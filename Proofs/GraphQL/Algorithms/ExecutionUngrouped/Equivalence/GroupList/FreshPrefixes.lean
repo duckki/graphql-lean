@@ -24,14 +24,48 @@ def VisitSubfieldsFlatCollectsFreshPrefixes
     (selectionSet : List Selection)
     : Prop :=
   ∀ fields,
-    (∀ field,
-      field
-        ∈ collectedExecutableFields
+    (∀ entry,
+      entry
+        ∈ collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source selectionSet)
-      -> field.responseName ∉ fields.map Prod.fst)
+      -> entry.1 ∉ fields.map Prod.fst)
     -> VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source selectionSet (.object fields)
+
+theorem collectedExecutableEntries_exists_of_key_mem
+    (groups : List (Name × List ExecutableField))
+    (hnonempty : CollectedGroupsFieldsNonempty groups)
+    (responseName : Name)
+    : responseName ∈ groups.map Prod.fst
+      -> ∃ field, (responseName, field) ∈ collectedExecutableEntries groups := by
+  intro hmem
+  rcases List.mem_map.mp hmem with ⟨group, hgroup, hname⟩
+  rcases group with ⟨groupResponseName, fields⟩
+  dsimp at hname
+  subst groupResponseName
+  cases fields with
+  | nil =>
+      exact False.elim (hnonempty responseName [] hgroup rfl)
+  | cons field rest =>
+      exact ⟨field,
+        collectedExecutableEntries_mem_of_group_mem hgroup (by simp)⟩
+
+theorem collectedKeyFresh_of_collectedEntryFresh
+    (groups : List (Name × List ExecutableField))
+    (hnonempty : CollectedGroupsFieldsNonempty groups)
+    (outputFields : List (Name × ResponseValue))
+    (hfresh
+      : ∀ entry,
+          entry ∈ collectedExecutableEntries groups
+          -> entry.1 ∉ outputFields.map Prod.fst)
+    : ∀ responseName,
+        responseName ∈ groups.map Prod.fst
+        -> responseName ∉ outputFields.map Prod.fst := by
+  intro responseName hmem
+  rcases collectedExecutableEntries_exists_of_key_mem groups hnonempty
+      responseName hmem with ⟨field, hentry⟩
+  exact hfresh (responseName, field) hentry
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes.empty
     {ObjectIdentity : Type}
@@ -77,10 +111,9 @@ theorem
     (source : ResolverValue ObjectIdentity) (selectionSet : List Selection)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
         depth parentType source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source selectionSet))) := by
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source selectionSet)) := by
   intro fields _hfresh
   exact
     VisitSubfieldsFlatCollects_executableFieldSelections_collectedCollectFields
@@ -93,17 +126,17 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_executableFieldSelections_same_g
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (fields : List ExecutableField)
-    (hresponse : ∀ field, field ∈ fields -> field.responseName = responseName)
-    (hparent : ∀ field, field ∈ fields -> field.parentType = parentType)
     : VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
-        depth parentType source (executableFieldSelections fields) :=
+        depth parentType source
+        (executableFieldSelections responseName fields) :=
   VisitSubfieldsFlatCollectsFreshPrefixes.of_allOutputs schema resolvers
-    variableValues depth parentType source (executableFieldSelections fields)
+    variableValues depth parentType source
+    (executableFieldSelections responseName fields)
     (by
       intro output
       exact VisitSubfieldsFlatCollects_executableFieldSelections_same_group
         schema resolvers variableValues depth parentType source responseName
-        fields output hresponse hparent)
+        fields output)
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_single
     {ObjectIdentity : Type}
@@ -216,10 +249,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_allowed
   have hflatFields :
       ∀ field,
         field ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source (selectionSet ++ rest)) ->
-        field.responseName ∉ fields.map Prod.fst := by
+        field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
     simpa [GraphQL.Execution.collectFields,
@@ -262,10 +295,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_skipped
   have hflatFields :
       ∀ field,
         field ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source rest) ->
-        field.responseName ∉ fields.map Prod.fst := by
+        field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
     simpa [GraphQL.Execution.collectFields,
@@ -326,10 +359,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_allowed_apply
   have hflatFields :
       ∀ field,
         field ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source (selectionSet ++ rest)) ->
-        field.responseName ∉ fields.map Prod.fst := by
+        field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
     simpa [GraphQL.Execution.collectFields,
@@ -373,10 +406,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_skipped
   have hflatFields :
       ∀ field,
         field ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source rest) ->
-        field.responseName ∉ fields.map Prod.fst := by
+        field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
     simpa [GraphQL.Execution.collectFields,
@@ -417,10 +450,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_not_apply
   have hflatFields :
       ∀ field,
         field ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source rest) ->
-        field.responseName ∉ fields.map Prod.fst := by
+        field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
     simpa [GraphQL.Execution.collectFields,
@@ -510,13 +543,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_none_cons_allowed
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
               (Selection.field responseName fieldName arguments
                   fieldDirectives fieldSelectionSet ::
                 inlineSelectionSet ++ rest)) ->
-        executable.responseName ∉ prefixFields.map Prod.fst := by
+        executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -569,12 +602,12 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_none_cons_skipped
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
               (Selection.field responseName fieldName arguments
                   fieldDirectives fieldSelectionSet :: rest)) ->
-        executable.responseName ∉ prefixFields.map Prod.fst := by
+        executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -611,13 +644,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_allowed_a
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
               (Selection.field responseName fieldName arguments
                   fieldDirectives fieldSelectionSet ::
                 inlineSelectionSet ++ rest)) ->
-        executable.responseName ∉ prefixFields.map Prod.fst := by
+        executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -671,12 +704,12 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_skipped
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
               (Selection.field responseName fieldName arguments
                   fieldDirectives fieldSelectionSet :: rest)) ->
-        executable.responseName ∉ prefixFields.map Prod.fst := by
+        executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -724,12 +757,12 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_not_apply
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
               (Selection.field responseName fieldName arguments
                   fieldDirectives fieldSelectionSet :: rest)) ->
-        executable.responseName ∉ prefixFields.map Prod.fst := by
+        executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -746,34 +779,34 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_allowed
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (responseName fieldName : Name) (arguments : List Argument)
     (directives : List DirectiveApplication) (selectionSet rest : List Selection)
     : selectionDirectivesAllowBool variableValues directives = true
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
-            ++ executableFieldSelections
-                [executableField parentType responseName fieldName arguments selectionSet]
+          (prefixSelections
+            ++ executableFieldSelections responseName
+                [executableField fieldName arguments selectionSet]
             ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.field responseName fieldName arguments directives selectionSet
                 :: rest) := by
   intro hallows hflat prefixOutput hfresh
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
-              (executableFieldSelections prefixFields ++
-                executableFieldSelections
-                  [executableField parentType responseName fieldName
+              (prefixSelections ++
+                executableFieldSelections responseName
+                  [executableField fieldName
                     arguments selectionSet] ++
                 rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -785,19 +818,19 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_allowed
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
     parentType source
-    (executableFieldSelections prefixFields ++
-      executableFieldSelections
-        [executableField parentType responseName fieldName arguments
+    (prefixSelections ++
+      executableFieldSelections responseName
+        [executableField fieldName arguments
           selectionSet])
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
-    (executableFieldSelections
-      [executableField parentType responseName fieldName arguments
+    parentType source prefixSelections
+    (executableFieldSelections responseName
+      [executableField fieldName arguments
         selectionSet])
     (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.field responseName fieldName arguments directives selectionSet ::
       rest) (ResponseValue.object prefixOutput)]
   cases depth with
@@ -820,16 +853,16 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_skipped
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (responseName fieldName : Name) (arguments : List Argument)
     (directives : List DirectiveApplication) (selectionSet rest : List Selection)
     : selectionDirectivesAllowBool variableValues directives = false
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ rest)
+          (prefixSelections ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.field responseName fieldName arguments directives selectionSet
                 :: rest) := by
   intro hskip hflat prefixOutput hfresh
@@ -848,10 +881,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_skipped
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
-              source (executableFieldSelections prefixFields ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+              source (prefixSelections ++ rest)) ->
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -860,10 +893,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_skipped
   have hbody := hflat prefixOutput hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.field responseName fieldName arguments directives selectionSet ::
       rest) (ResponseValue.object prefixOutput)]
   cases depth <;>
@@ -876,28 +909,28 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_allowed
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (inlineDirectives : List DirectiveApplication)
     (inlineSelectionSet rest : List Selection)
     : selectionDirectivesAllowBool variableValues inlineDirectives = true
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ inlineSelectionSet ++ rest)
+          (prefixSelections ++ inlineSelectionSet ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.inlineFragment none inlineDirectives inlineSelectionSet
                 :: rest) := by
   intro hallows hflat prefixOutput hfresh
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
-              (executableFieldSelections prefixFields ++
+              (prefixSelections ++
                 inlineSelectionSet ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -907,13 +940,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_allowed
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
     parentType source
-    (executableFieldSelections prefixFields ++ inlineSelectionSet)
+    (prefixSelections ++ inlineSelectionSet)
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     inlineSelectionSet (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.inlineFragment none inlineDirectives inlineSelectionSet ::
       rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
@@ -925,16 +958,16 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (inlineDirectives : List DirectiveApplication)
     (inlineSelectionSet rest : List Selection)
     : selectionDirectivesAllowBool variableValues inlineDirectives = false
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ rest)
+          (prefixSelections ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.inlineFragment none inlineDirectives inlineSelectionSet
                 :: rest) := by
   intro hskip hflat prefixOutput hfresh
@@ -953,10 +986,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
-              source (executableFieldSelections prefixFields ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+              source (prefixSelections ++ rest)) ->
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -965,10 +998,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
   have hbody := hflat prefixOutput hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.inlineFragment none inlineDirectives inlineSelectionSet ::
       rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
@@ -980,7 +1013,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (typeCondition : Name)
     (inlineDirectives : List DirectiveApplication)
     (inlineSelectionSet rest : List Selection)
@@ -988,10 +1021,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_
       -> doesFragmentTypeApplyBool schema parentType source typeCondition = true
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ inlineSelectionSet ++ rest)
+          (prefixSelections ++ inlineSelectionSet ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.inlineFragment (some typeCondition) inlineDirectives
                   inlineSelectionSet
                 :: rest) := by
@@ -999,12 +1032,12 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source
-              (executableFieldSelections prefixFields ++
+              (prefixSelections ++
                 inlineSelectionSet ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -1014,13 +1047,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
     parentType source
-    (executableFieldSelections prefixFields ++ inlineSelectionSet)
+    (prefixSelections ++ inlineSelectionSet)
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     inlineSelectionSet (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.inlineFragment (some typeCondition) inlineDirectives
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
@@ -1032,17 +1065,17 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_skipped
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (typeCondition : Name)
     (inlineDirectives : List DirectiveApplication)
     (inlineSelectionSet rest : List Selection)
     : selectionDirectivesAllowBool variableValues inlineDirectives = false
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ rest)
+          (prefixSelections ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.inlineFragment (some typeCondition) inlineDirectives
                   inlineSelectionSet
                 :: rest) := by
@@ -1062,10 +1095,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_skipped
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
-              source (executableFieldSelections prefixFields ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+              source (prefixSelections ++ rest)) ->
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -1074,10 +1107,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_skipped
   have hbody := hflat prefixOutput hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.inlineFragment (some typeCondition) inlineDirectives
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
@@ -1089,7 +1122,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_appl
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (prefixFields : List ExecutableField)
+    (prefixSelections : List Selection)
     (typeCondition : Name)
     (inlineDirectives : List DirectiveApplication)
     (inlineSelectionSet rest : List Selection)
@@ -1097,10 +1130,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_appl
       -> doesFragmentTypeApplyBool schema parentType source typeCondition = false
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields ++ rest)
+          (prefixSelections ++ rest)
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           depth parentType source
-          (executableFieldSelections prefixFields
+          (prefixSelections
             ++ Selection.inlineFragment (some typeCondition) inlineDirectives
                   inlineSelectionSet
                 :: rest) := by
@@ -1120,10 +1153,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_appl
   have hflatFields :
       ∀ executable,
         executable ∈
-          collectedExecutableFields
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
-              source (executableFieldSelections prefixFields ++ rest)) ->
-        executable.responseName ∉ prefixOutput.map Prod.fst := by
+              source (prefixSelections ++ rest)) ->
+        executable.1 ∉ prefixOutput.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
     simpa [GraphQL.Execution.collectFields,
@@ -1132,10 +1165,10 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_appl
   have hbody := hflat prefixOutput hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     rest (ResponseValue.object prefixOutput)] at hbody
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
-    parentType source (executableFieldSelections prefixFields)
+    parentType source prefixSelections
     (Selection.inlineFragment (some typeCondition) inlineDirectives
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
@@ -1167,40 +1200,25 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
           source right) :=
     GraphQL.NormalForm.collectFields_namesNodup schema variableValues
       parentType source right
-  have hflatAppend :
-      collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source (left ++ right)) =
-        collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source left) ++
-        collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source right) := by
-    rw [GraphQL.NormalForm.collectFields_append]
-    exact
-      collectedExecutableFields_mergeExecutableGroups_eq_append_of_namesDisjoint
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source left)
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source right)
-        hdisjoint hrightNodup
   have hleftFresh :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source left) ->
-        field.responseName ∉ prefixFields.map Prod.fst := by
-    intro field hmem
-    apply hfresh field
-    rw [hflatAppend]
-    exact List.mem_append_left _ hmem
+        entry.1 ∉ prefixFields.map Prod.fst := by
+    intro entry hmem
+    apply hfresh entry
+    rw [GraphQL.NormalForm.collectFields_append]
+    exact (collectedExecutableEntries_mem_mergeExecutableGroups
+            (GraphQL.Execution.collectFields schema variableValues parentType source left)
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source right) entry).mpr
+            (Or.inl hmem)
   let leftFlatSelections :=
-    executableFieldSelections
-      (collectedExecutableFields
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source left))
+    collectedExecutableSelections
+      (GraphQL.Execution.collectFields schema variableValues parentType
+        source left)
   obtain ⟨suffixFields, hsuffixFields⟩ :=
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source leftFlatSelections []
@@ -1216,54 +1234,73 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
       visitSubfields schema resolvers variableValues depth parentType source
         leftFlatSelections (.object prefixFields) =
       (.object (prefixFields ++ suffixFields), suffixStatus) := by
-    simpa [leftFlatSelections] using
-      visitSubfields_executableFieldSelections_prefix_fresh schema resolvers
-        variableValues depth parentType source
-        (collectedExecutableFields
+    have hleftKeyFresh :
+        ∀ responseName,
+          responseName ∈
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source leftFlatSelections).map Prod.fst ->
+            responseName ∉ prefixFields.map Prod.fst := by
+      intro responseName hmem
+      rw [show leftFlatSelections =
+          collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source left) by rfl] at hmem
+      rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+        at hmem
+      rcases collectedExecutableEntries_exists_of_key_mem
           (GraphQL.Execution.collectFields schema variableValues parentType
-            source left))
-        prefixFields [] suffixFields suffixStatus hleftFresh
+            source left)
+          (collectFields_fieldsNonempty schema variableValues parentType source left)
+          responseName hmem with ⟨field, hentry⟩
+      exact hleftFresh (responseName, field) hentry
+    simpa [leftFlatSelections] using
+      visitSubfields_prefix_fresh schema resolvers variableValues depth
+        parentType source leftFlatSelections
+        prefixFields [] suffixFields suffixStatus hleftKeyFresh
         (by simpa [leftFlatSelections] using hsuffix)
   have hrightFresh :
-      ∀ field,
-        field ∈
-          collectedExecutableFields
+      ∀ entry,
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source right) ->
-        field.responseName ∉ (prefixFields ++ suffixFields).map Prod.fst := by
-    intro field hmem hname
+        entry.1 ∉ (prefixFields ++ suffixFields).map Prod.fst := by
+    intro entry hmem hname
     have hrightName :
-        field.responseName ∈
+        entry.1 ∈
           (GraphQL.Execution.collectFields schema variableValues parentType
             source right).map Prod.fst :=
-      collectedExecutableFields_responseName_mem
+      collectedExecutableEntries_responseName_mem
         (GraphQL.Execution.collectFields schema variableValues parentType
           source right)
-        (collectFields_responseName schema variableValues parentType source
-          right)
-        field hmem
+        entry.1 entry.2 hmem
     have hcombined :
-        field ∈
-          collectedExecutableFields
+        entry ∈
+          collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues parentType
               source (left ++ right)) := by
-      rw [hflatAppend]
-      exact List.mem_append_right _ hmem
+      rw [GraphQL.NormalForm.collectFields_append]
+      exact (collectedExecutableEntries_mem_mergeExecutableGroups
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source left)
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source right) entry).mpr
+              (Or.inr hmem)
     simp [List.map_append] at hname
     rcases hname with hprefix | hsuffixMem
-    · have hprefixName : field.responseName ∈ prefixFields.map Prod.fst := by
+    · have hprefixName : entry.1 ∈ prefixFields.map Prod.fst := by
         simpa [List.mem_map] using hprefix
-      exact hfresh field hcombined hprefixName
+      exact hfresh entry hcombined hprefixName
     · have hleftName :
-          field.responseName ∈
+          entry.1 ∈
             (GraphQL.Execution.collectFields schema variableValues parentType
               source left).map Prod.fst :=
         visitSubfields_flattened_empty_key_mem_collectFields schema resolvers
           variableValues depth parentType source left suffixFields
-          field.responseName
+          entry.1
           (by simpa [leftFlatSelections] using hsuffixFields)
           (by simpa [List.mem_map] using hsuffixMem)
-      exact hdisjoint field.responseName hleftName hrightName
+      exact hdisjoint entry.1 hleftName hrightName
   apply VisitSubfieldsFlatCollects_append_of_namesDisjoint schema resolvers
     variableValues depth parentType source left right (.object prefixFields)
     hdisjoint hrightNodup

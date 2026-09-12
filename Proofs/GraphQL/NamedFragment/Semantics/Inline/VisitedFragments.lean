@@ -20,8 +20,6 @@ def expandedExecutableFieldToSpec (fragments : List FragmentDefinition)
     (field : Execution.ExecutableField)
     : GraphQL.Execution.ExecutableField :=
   {
-    parentType := field.parentType
-    responseName := field.responseName
     fieldName := field.fieldName
     arguments := field.arguments
     selectionSet :=
@@ -843,8 +841,6 @@ theorem collectFields_firstOccurrences_aux
               · exact hprefixes.mergeSame
                   [(responseName,
                     [{
-                      parentType := parentType
-                      responseName := responseName
                       fieldName := fieldName
                       arguments := arguments
                       selectionSet := Translate.reduceSelectionSet

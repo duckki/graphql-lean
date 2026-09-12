@@ -45,8 +45,7 @@ deriving Repr
 def executableFieldMatchesPathStep (schema : Schema) (field : ExecutableField)
     (step : PathStep)
     : Prop :=
-  field.responseName = step.responseName
-  ∧ field.fieldName = step.field.fieldName
+  field.fieldName = step.field.fieldName
   ∧ Argument.argumentsEquivalent field.arguments step.field.arguments
   ∧ ∃ fieldDefinition,
       schema.lookupField step.parentObject step.field.fieldName = some fieldDefinition

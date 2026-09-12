@@ -29,11 +29,9 @@ theorem executeSelectionSet_ok_of_field_ok
                   childSelectionSet
                 ∈ selectionSet
               -> ∃ responseValue fieldErrors,
-                  Execution.executeField schema resolvers variableValues fuel source
-                    responseName
+                  Execution.executeField schema resolvers variableValues fuel parentType
+                    source responseName
                     [{
-                      parentType := parentType,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := childSelectionSet
@@ -79,7 +77,7 @@ theorem executeSelectionSet_ok_of_field_ok
             ⟨tailFields, tailErrors, htailExecute⟩
           have htailCollected :
               Execution.executeCollectedFields schema resolvers variableValues
-                fuel source
+                fuel parentType source
                 (Execution.collectFields schema variableValues parentType
                   source rest)
               =
@@ -92,8 +90,6 @@ theorem executeSelectionSet_ok_of_field_ok
                   childSelectionSet :: rest)
               =
               (responseName, [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -126,11 +122,9 @@ theorem executeSelectionSetAsResponse_object_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ selectionSet
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -170,11 +164,9 @@ theorem executeSelectionSet_ok_field_mem_of_field_ok
         -> Selection.field targetResponseName targetFieldName targetArguments
               targetDirectives targetChildSelectionSet
             ∈ selectionSet
-        -> Execution.executeField schema resolvers variableValues fuel source
+        -> Execution.executeField schema resolvers variableValues fuel parentType source
               targetResponseName
               [{
-                parentType := parentType,
-                responseName := targetResponseName,
                 fieldName := targetFieldName,
                 arguments := targetArguments,
                 selectionSet := targetChildSelectionSet
@@ -185,11 +177,9 @@ theorem executeSelectionSet_ok_field_mem_of_field_ok
                   childSelectionSet
                 ∈ selectionSet
               -> ∃ responseValue fieldErrors,
-                  Execution.executeField schema resolvers variableValues fuel source
-                    responseName
+                  Execution.executeField schema resolvers variableValues fuel parentType
+                    source responseName
                     [{
-                      parentType := parentType,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := childSelectionSet
@@ -236,7 +226,7 @@ theorem executeSelectionSet_ok_field_mem_of_field_ok
             ⟨tailFields, tailErrors, htailExecute⟩
           have htailCollected :
               Execution.executeCollectedFields schema resolvers variableValues
-                fuel source
+                fuel parentType source
                 (Execution.collectFields schema variableValues parentType
                   source rest)
               =
@@ -249,8 +239,6 @@ theorem executeSelectionSet_ok_field_mem_of_field_ok
                   childSelectionSet :: rest)
               =
               (responseName, [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -291,7 +279,7 @@ theorem executeSelectionSet_ok_field_mem_of_field_ok
                 ⟨tailFields', tailErrors', htailExecute', htargetInTail⟩
             have htailCollected' :
                 Execution.executeCollectedFields schema resolvers variableValues
-                  fuel source
+                  fuel parentType source
                   (Execution.collectFields schema variableValues parentType
                     source rest)
                 =
@@ -330,11 +318,9 @@ theorem executeSelectionSetAsResponse_object_field_mem_of_field_ok
       -> Selection.field targetResponseName targetFieldName targetArguments
             targetDirectives targetChildSelectionSet
           ∈ selectionSet
-      -> Execution.executeField schema resolvers variableValues fuel source
+      -> Execution.executeField schema resolvers variableValues fuel parentType source
             targetResponseName
             [{
-              parentType := parentType,
-              responseName := targetResponseName,
               fieldName := targetFieldName,
               arguments := targetArguments,
               selectionSet := targetChildSelectionSet
@@ -344,11 +330,9 @@ theorem executeSelectionSetAsResponse_object_field_mem_of_field_ok
             Selection.field responseName fieldName arguments directives childSelectionSet
               ∈ selectionSet
             -> ∃ responseValue fieldErrors,
-                Execution.executeField schema resolvers variableValues fuel source
-                  responseName
+                Execution.executeField schema resolvers variableValues fuel parentType
+                  source responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet

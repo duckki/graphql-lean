@@ -23,11 +23,11 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_completeValue
     (hallowed : selectionDirectivesAllowBool variableValues directives = true)
     (hcomplete
       : GraphQL.Execution.singleFieldResult responseName
-          (executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments selectionSet))
+          (executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet))
         = GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-            source responseName
-            [executableField parentType responseName fieldName arguments selectionSet])
+            parentType source responseName
+            [executableField fieldName arguments selectionSet])
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source
         [.field responseName fieldName arguments directives selectionSet]
@@ -40,13 +40,11 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_completeValue
           [.field responseName fieldName arguments directives selectionSet]
         =
       GraphQL.Execution.singleFieldResult responseName
-        (executeField schema resolvers variableValues depth source none
-          (executableField parentType responseName fieldName arguments
-            selectionSet)) := by
+        (executeField schema resolvers variableValues depth parentType source none
+          (executableField fieldName arguments selectionSet)) := by
     cases hfield :
-        executeField schema resolvers variableValues depth source none
-          (executableField parentType responseName fieldName arguments
-            selectionSet) <;>
+        executeField schema resolvers variableValues depth parentType source none
+          (executableField fieldName arguments selectionSet) <;>
       simp only [executableField] at hfield <;>
       simp [executeRootSelectionSet, visitSubfields, visitSelection, hallowed,
         executableField, GraphQL.Execution.singleFieldResult,
@@ -60,14 +58,12 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_completeValue
           [.field responseName fieldName arguments directives selectionSet]
         =
       GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-        source responseName
-        [executableField parentType responseName fieldName arguments
-          selectionSet] := by
+        parentType source responseName
+        [executableField fieldName arguments selectionSet] := by
     cases hspec :
         GraphQL.Execution.executeField schema resolvers variableValues
-          (depth + 1) source responseName
-          [executableField parentType responseName fieldName arguments
-            selectionSet] <;>
+          (depth + 1) parentType source responseName
+          [executableField fieldName arguments selectionSet] <;>
       simp only [executableField] at hspec <;>
       simp [GraphQL.Execution.executeRootSelectionSet,
         GraphQL.Execution.collectFields,
@@ -89,11 +85,11 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_completeValue
     (haligned
       : RootSelectionResultAlignedEquivalent
           (GraphQL.Execution.singleFieldResult responseName
-            (executeField schema resolvers variableValues depth source none
-              (executableField parentType responseName fieldName arguments selectionSet)))
+            (executeField schema resolvers variableValues depth parentType source none
+              (executableField fieldName arguments selectionSet)))
           (GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-            source responseName
-            [executableField parentType responseName fieldName arguments selectionSet]))
+            parentType source responseName
+            [executableField fieldName arguments selectionSet]))
     : RootSelectionResultAlignedEquivalent
         (executeRootSelectionSet schema resolvers variableValues (depth + 1)
           parentType source
@@ -107,13 +103,11 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_completeValue
           [.field responseName fieldName arguments directives selectionSet]
         =
       GraphQL.Execution.singleFieldResult responseName
-        (executeField schema resolvers variableValues depth source none
-          (executableField parentType responseName fieldName arguments
-            selectionSet)) := by
+        (executeField schema resolvers variableValues depth parentType source none
+          (executableField fieldName arguments selectionSet)) := by
     cases hfield :
-        executeField schema resolvers variableValues depth source none
-          (executableField parentType responseName fieldName arguments
-            selectionSet) <;>
+        executeField schema resolvers variableValues depth parentType source none
+          (executableField fieldName arguments selectionSet) <;>
       simp only [executableField] at hfield <;>
       simp [executeRootSelectionSet, visitSubfields, visitSelection, hallowed,
         executableField, GraphQL.Execution.singleFieldResult,
@@ -127,14 +121,12 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_completeValue
           [.field responseName fieldName arguments directives selectionSet]
         =
       GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-        source responseName
-        [executableField parentType responseName fieldName arguments
-          selectionSet] := by
+        parentType source responseName
+        [executableField fieldName arguments selectionSet] := by
     cases hspec :
         GraphQL.Execution.executeField schema resolvers variableValues
-          (depth + 1) source responseName
-          [executableField parentType responseName fieldName arguments
-            selectionSet] <;>
+          (depth + 1) parentType source responseName
+          [executableField fieldName arguments selectionSet] <;>
       simp only [executableField] at hspec <;>
       simp [GraphQL.Execution.executeRootSelectionSet,
         GraphQL.Execution.collectFields,
@@ -194,7 +186,7 @@ theorem completeValue_object_group_eq_spec_of_merged_child_state
       | mk output status =>
           cases hcompleted
                 : GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues childDepth (.object runtimeType identity)
+                    variableValues childDepth runtimeType (.object runtimeType identity)
                     (GraphQL.Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType identity)
                       (GraphQL.Execution.mergedFieldSelectionSet fields)) with
@@ -316,7 +308,7 @@ theorem completeValue_object_group_aligned_of_merged_child_state
           subst output
           cases hcompleted
                 : GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues childDepth (.object runtimeType identity)
+                    variableValues childDepth runtimeType (.object runtimeType identity)
                     (GraphQL.Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType identity)
                       (GraphQL.Execution.mergedFieldSelectionSet fields)) with
@@ -1423,13 +1415,11 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
                 none =
               GraphQL.Execution.completeValue schema resolvers variableValues
                 depth fieldDefinition.outputType
-                [executableField parentType responseName fieldName arguments
-                  selectionSet]
+                [executableField fieldName arguments selectionSet]
                 resolvedValue :=
             completeValue_single_field_eq_spec_of_guarded_child_states schema
               resolvers variableValues
-              (executableField parentType responseName fieldName arguments
-                selectionSet)
+              (executableField fieldName arguments selectionSet)
               fieldDefinition.outputType depth resolvedValue
               (by
                 intro childDepth runtimeType identity hlt _hincludes
@@ -1504,13 +1494,11 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
                 none =
               GraphQL.Execution.completeValue schema resolvers variableValues
                 depth fieldDefinition.outputType
-                [executableField parentType responseName fieldName arguments
-                  selectionSet]
+                [executableField fieldName arguments selectionSet]
                 resolvedValue :=
             completeValue_single_field_eq_spec_of_guarded_child_states schema
               resolvers variableValues
-              (executableField parentType responseName fieldName arguments
-                selectionSet)
+              (executableField fieldName arguments selectionSet)
               fieldDefinition.outputType depth resolvedValue
               (by
                 intro childDepth runtimeType identity hlt hincludes
@@ -1587,13 +1575,11 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
                 none =
               GraphQL.Execution.completeValue schema resolvers variableValues
                 depth fieldDefinition.outputType
-                [executableField parentType responseName fieldName arguments
-                  selectionSet]
+                [executableField fieldName arguments selectionSet]
                 resolvedValue :=
             completeValue_single_field_eq_spec_of_contained_child_states schema
               resolvers variableValues
-              (executableField parentType responseName fieldName arguments
-                selectionSet)
+              (executableField fieldName arguments selectionSet)
               fieldDefinition.outputType depth resolvedValue
               (by
                 intro childDepth runtimeType identity hlt hcontains hincludes
@@ -1670,14 +1656,12 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
                   fieldDefinition.outputType selectionSet resolvedValue none)
                 (GraphQL.Execution.completeValue schema resolvers variableValues
                   depth fieldDefinition.outputType
-                  [executableField parentType responseName fieldName arguments
-                    selectionSet]
+                  [executableField fieldName arguments selectionSet]
                   resolvedValue) := by
             have hgroup :=
               completeValue_group_aligned_of_contained_child_states schema
                 resolvers variableValues
-                [executableField parentType responseName fieldName arguments
-                  selectionSet]
+                [executableField fieldName arguments selectionSet]
                 fieldDefinition.outputType depth resolvedValue
                 (by
                   intro childDepth runtimeType identity hlt hcontains hincludes

@@ -479,7 +479,8 @@ private theorem runtimeCaseFieldGroups_representRuntimeGroups
       exact hequivalent.keysPerm
     fieldsPerm := by
       unfold RuntimeCase.collectedFieldGroupToExecutableGroup at hequivalent
-      exact hequivalent.fieldsPerm
+      simpa only [Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+        using hequivalent.fieldsPerm
   }
 
 private theorem contextFieldGroupsOutcome_runtimeGroupSemantics_eq

@@ -40,23 +40,25 @@ def executeFieldVisitResult
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (previous? : Option ResponseValue)
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (previous? : Option ResponseValue)
     (field : ExecutableField)
     : Result ResponseValue :=
-  executeField schema resolvers variableValues depth source previous? field
+  executeField schema resolvers variableValues depth parentType source previous? field
 
 theorem resultValueOrNull_fieldVisitResult_eq_executeField
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (previous? : Option ResponseValue)
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (previous? : Option ResponseValue)
     (field : ExecutableField)
     : resultValueOrNull
-        (executeFieldVisitResult schema resolvers variableValues depth source
-          previous? field)
+        (executeFieldVisitResult schema resolvers variableValues depth parentType
+          source previous? field)
       = resultValueOrNull
-          (executeField schema resolvers variableValues depth source previous?
-            field) := by
+          (executeField schema resolvers variableValues depth parentType source
+            previous? field) := by
   rfl
 
 @[simp]
@@ -559,16 +561,17 @@ theorem executeField_resolved_eq_completeResolvedValue
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (responseName : Name) (field : ExecutableField)
     (fieldDefinition : FieldDefinition) (resolved : ResolverValue ObjectIdentity)
     (previous : ResponseValue)
-    (hlookup : schema.lookupField field.parentType field.fieldName = some fieldDefinition)
+    (hlookup : schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hresolve
       : coerceAndResolveFieldValue schema resolvers variableValues
-          fieldDefinition field.parentType field.fieldName field.arguments source
+          fieldDefinition parentType field.fieldName field.arguments source
         = some resolved)
-    : executeField schema resolvers variableValues (depth + 1) source (some previous)
-        field
+    : executeField schema resolvers variableValues (depth + 1) parentType source
+        (some previous) field
       = completeResolvedValue schema resolvers variableValues (depth + 1)
           fieldDefinition.outputType field.selectionSet resolved (some previous) := by
   cases previous with
@@ -598,20 +601,21 @@ theorem executeField_empty_output
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
-    : executeField schema resolvers variableValues depth source none field
-      = match schema.lookupField field.parentType field.fieldName with
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
+    : executeField schema resolvers variableValues depth parentType source none field
+      = match schema.lookupField parentType field.fieldName with
         | none => .error 1
         | some fieldDefinition =>
             match coerceAndResolveFieldValue schema resolvers variableValues
-                    fieldDefinition field.parentType field.fieldName field.arguments
+                    fieldDefinition parentType field.fieldName field.arguments
                     source with
             | none => handleFieldError fieldDefinition.outputType
             | some resolved =>
                 completeValue schema resolvers variableValues depth
                   fieldDefinition.outputType field.selectionSet resolved none := by
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none =>
       simp []
   | some fieldDefinition =>
@@ -622,27 +626,31 @@ theorem executeField_object_fresh_eq_empty_output
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType responseName : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (fields : List (Name × ResponseValue))
-    (hfresh : field.responseName ∉ fields.map Prod.fst)
-    : executeField schema resolvers variableValues depth source
-        (responseObjectField? field.responseName (.object fields))
+    (hfresh : responseName ∉ fields.map Prod.fst)
+    : executeField schema resolvers variableValues depth parentType source
+        (responseObjectField? responseName (.object fields))
         field
-      = executeField schema resolvers variableValues depth source none field := by
+      = executeField schema resolvers variableValues depth parentType source none
+          field := by
   have hlookup :
-      responseObjectField? field.responseName (.object fields) = none := by
+      responseObjectField? responseName (.object fields) = none := by
     simp [responseObjectField?,
-      lookupResponseField?_none_of_not_mem field.responseName fields hfresh]
+      lookupResponseField?_none_of_not_mem responseName fields hfresh]
   simp [hlookup]
 
 theorem executeField_reentry_singleton
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (previous : ResponseValue)
-    : executeField schema resolvers variableValues depth source (some previous) field
-      = match schema.lookupField field.parentType field.fieldName with
+    : executeField schema resolvers variableValues depth parentType source
+        (some previous) field
+      = match schema.lookupField parentType field.fieldName with
         | none => .error 1
         | some fieldDefinition =>
             match reusablePreviousValue? schema fieldDefinition.outputType
@@ -650,7 +658,7 @@ theorem executeField_reentry_singleton
             | some previous => .ok (previous, 0)
             | none =>
                 match coerceAndResolveFieldValue schema resolvers variableValues
-                        fieldDefinition field.parentType field.fieldName field.arguments
+                        fieldDefinition parentType field.fieldName field.arguments
                         source with
                 | none => handleFieldError fieldDefinition.outputType
                 | some resolved =>
@@ -664,12 +672,14 @@ theorem executeField_reentry_of_lookup
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType responseName : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (fields : List (Name × ResponseValue)) (previous : ResponseValue)
-    (hlookup : responseObjectField? field.responseName (.object fields) = some previous)
-    : executeField schema resolvers variableValues depth source (some previous) field
-      = executeField schema resolvers variableValues depth source
-          (responseObjectField? field.responseName (.object fields))
+    (hlookup : responseObjectField? responseName (.object fields) = some previous)
+    : executeField schema resolvers variableValues depth parentType source
+        (some previous) field
+      = executeField schema resolvers variableValues depth parentType source
+          (responseObjectField? responseName (.object fields))
           field := by
   simp [hlookup]
 
@@ -677,19 +687,20 @@ theorem executeField_object_append_of_lookup_eq
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType responseName : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (fields suffix : List (Name × ResponseValue)) (previous : ResponseValue)
-    (hlookup : responseObjectField? field.responseName (.object fields) = some previous)
-    : executeField schema resolvers variableValues depth source
-        (responseObjectField? field.responseName (.object (fields ++ suffix)))
+    (hlookup : responseObjectField? responseName (.object fields) = some previous)
+    : executeField schema resolvers variableValues depth parentType source
+        (responseObjectField? responseName (.object (fields ++ suffix)))
         field
-      = executeField schema resolvers variableValues depth source
-          (responseObjectField? field.responseName (.object fields))
+      = executeField schema resolvers variableValues depth parentType source
+          (responseObjectField? responseName (.object fields))
           field := by
   have hlookupAppend :
-      responseObjectField? field.responseName (.object (fields ++ suffix)) =
+      responseObjectField? responseName (.object (fields ++ suffix)) =
         some previous :=
-    responseObjectField?_object_append_of_some_left field.responseName fields
+    responseObjectField?_object_append_of_some_left responseName fields
       suffix previous hlookup
   simp [hlookup, hlookupAppend]
 
@@ -697,41 +708,42 @@ theorem executeField_object_append_of_mem_eq
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType responseName : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (fields suffix : List (Name × ResponseValue))
-    (hmem : field.responseName ∈ fields.map Prod.fst)
-    : executeField schema resolvers variableValues depth source
-        (responseObjectField? field.responseName (.object (fields ++ suffix)))
+    (hmem : responseName ∈ fields.map Prod.fst)
+    : executeField schema resolvers variableValues depth parentType source
+        (responseObjectField? responseName (.object (fields ++ suffix)))
         field
-      = executeField schema resolvers variableValues depth source
-          (responseObjectField? field.responseName (.object fields))
+      = executeField schema resolvers variableValues depth parentType source
+          (responseObjectField? responseName (.object fields))
           field := by
-  rcases lookupResponseField?_some_of_mem field.responseName fields hmem with
+  rcases lookupResponseField?_some_of_mem responseName fields hmem with
     ⟨previous, hlookup⟩
   exact
     executeField_object_append_of_lookup_eq schema resolvers variableValues
-      depth source field fields suffix previous
+      depth parentType responseName source field fields suffix previous
       (by simpa [responseObjectField?] using hlookup)
 
 theorem executeField_reentry_after_merge
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
-    (source : ResolverValue ObjectIdentity) (field : ExecutableField)
+    (parentType responseName : Name) (source : ResolverValue ObjectIdentity)
+    (field : ExecutableField)
     (fields : List (Name × ResponseValue)) (incoming : ResponseValue)
-    : let output :=
-        mergeResponseFieldIntoObject field.responseName incoming (.object fields)
-      executeField schema resolvers variableValues depth source
-        (responseObjectField? field.responseName output)
+    : let output := mergeResponseFieldIntoObject responseName incoming (.object fields)
+      executeField schema resolvers variableValues depth parentType source
+        (responseObjectField? responseName output)
         field
-      = executeField schema resolvers variableValues depth source
-          (match responseObjectField? field.responseName (.object fields) with
+      = executeField schema resolvers variableValues depth parentType source
+          (match responseObjectField? responseName (.object fields) with
             | some existing => some (mergeResponse existing incoming)
             | none => some incoming)
           field := by
     intro output
     simp [output, responseObjectField?_mergeResponseFieldIntoObject_same]
-    cases responseObjectField? field.responseName (.object fields) <;> rfl
+    cases responseObjectField? responseName (.object fields) <;> rfl
 
 theorem completeValue_null_eq_spec
     {ObjectIdentity : Type}
@@ -1276,10 +1288,10 @@ theorem visitSelection_field_allowed_succ
     : visitSelection schema resolvers variableValues (depth + 1) parentType source
         (.field responseName fieldName arguments directives selectionSet) output
       = let previous? := responseObjectField? responseName output
-        let field :=
-          executableField parentType responseName fieldName arguments selectionSet
+        let field := executableField fieldName arguments selectionSet
         mergeResponseFieldResult responseName
-          (executeField schema resolvers variableValues depth source previous? field)
+          (executeField schema resolvers variableValues depth parentType source
+            previous? field)
           output := by
   unfold visitSelection
   simp [hallowed]
@@ -1299,8 +1311,8 @@ theorem visitSelection_field_allowed_succ_fresh_eq_append
         (.field responseName fieldName arguments directives selectionSet)
         (.object fields)
       = let fieldResult :=
-          executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments selectionSet)
+          executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet)
         (
           .object (fields ++ [(responseName, resultValueOrNull fieldResult)]),
           resultStatus fieldResult
@@ -1316,9 +1328,8 @@ theorem visitSelection_field_allowed_succ_fresh_eq_append
     hlookup,
     mergeResponseField_of_not_mem responseName
       (resultValueOrNull
-        (executeField schema resolvers variableValues depth source none
-        (executableField parentType responseName fieldName arguments
-          selectionSet)))
+        (executeField schema resolvers variableValues depth parentType source none
+        (executableField fieldName arguments selectionSet)))
       fields hfresh]
 
 theorem visitSubfields_single_field_allowed_succ_fresh_eq_append
@@ -1336,8 +1347,8 @@ theorem visitSubfields_single_field_allowed_succ_fresh_eq_append
         [.field responseName fieldName arguments directives selectionSet]
         (.object fields)
       = let fieldResult :=
-          executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments selectionSet)
+          executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet)
         (
           .object (fields ++ [(responseName, resultValueOrNull fieldResult)]),
           resultStatus fieldResult
@@ -1355,18 +1366,17 @@ theorem visitSubfields_executableFieldSelections_singleton_succ
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (field : ExecutableField)
     : visitSubfields schema resolvers variableValues (depth + 1) parentType
-        source (executableFieldSelections [field]) (.object [])
+        source (executableFieldSelections responseName [field]) (.object [])
       = let fieldResult :=
-          executeField schema resolvers variableValues depth source none
-            (executableField parentType field.responseName field.fieldName
-              field.arguments field.selectionSet)
+          executeField schema resolvers variableValues depth parentType source none
+            (executableField field.fieldName field.arguments field.selectionSet)
         (
-          .object [(field.responseName, resultValueOrNull fieldResult)],
+          .object [(responseName, resultValueOrNull fieldResult)],
           resultStatus fieldResult
         ) := by
   simpa [executableFieldSelections, executableFieldSelection] using
     visitSubfields_single_field_allowed_succ_fresh_eq_append schema resolvers
-      variableValues depth parentType source field.responseName field.fieldName
+      variableValues depth parentType source responseName field.fieldName
       field.arguments [] field.selectionSet [] rfl (by simp)
 
 theorem executeRootSelectionSet_single_field_allowed_succ_eq_executeField_empty
@@ -1381,17 +1391,15 @@ theorem executeRootSelectionSet_single_field_allowed_succ_eq_executeField_empty
         parentType source
         [.field responseName fieldName arguments directives selectionSet]
       = GraphQL.Execution.singleFieldResult responseName
-          (executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments
-              selectionSet)) := by
+          (executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet)) := by
   unfold executeRootSelectionSet
   rw [visitSubfields_single_field_allowed_succ_fresh_eq_append schema
     resolvers variableValues depth parentType source responseName fieldName
     arguments directives selectionSet [] hallowed (by simp)]
   cases hfield
-        : executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments
-              selectionSet) with
+        : executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet) with
   | error errors =>
       simp [GraphQL.Execution.singleFieldResult, resultStatus]
   | ok result =>
@@ -1413,8 +1421,8 @@ theorem visitSubfields_single_field_allowed_succ_fresh_appends_executeRootSelect
         [.field responseName fieldName arguments directives selectionSet]
         (.object fields)
       = let fieldResult :=
-          executeField schema resolvers variableValues depth source none
-            (executableField parentType responseName fieldName arguments selectionSet)
+          executeField schema resolvers variableValues depth parentType source none
+            (executableField fieldName arguments selectionSet)
         (
           .object (fields ++ [(responseName, resultValueOrNull fieldResult)]),
           resultStatus fieldResult
@@ -1433,11 +1441,9 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
     : visitSelection schema resolvers variableValues depth parentType source
         (.field responseName fieldName arguments directives selectionSet) output
       = visitSubfields schema resolvers variableValues depth parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectSelection schema variableValues parentType
-                source
-                (.field responseName fieldName arguments directives selectionSet))))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectSelection schema variableValues parentType source
+              (.field responseName fieldName arguments directives selectionSet)))
           output := by
   by_cases hallowed :
       selectionDirectivesAllowBool variableValues directives = true
@@ -1447,7 +1453,8 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
           parentType source responseName fieldName arguments directives
           selectionSet output hallowed]
         simp [visitSubfields, GraphQL.Execution.collectSelection,
-          collectedExecutableFields, executableFieldSelections,
+          collectedExecutableSelections, collectedExecutableFields,
+          executableFieldSelections,
           executableFieldSelection, hallowed]
         simp [visitSelection_field_depth_zero schema resolvers variableValues
           parentType source responseName fieldName arguments [] selectionSet
@@ -1457,7 +1464,8 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
           depth parentType source responseName fieldName arguments directives
           selectionSet output hallowed]
         simp [visitSubfields, visitSelection, executeField,
-          GraphQL.Execution.collectSelection, collectedExecutableFields,
+          GraphQL.Execution.collectSelection, collectedExecutableSelections,
+          collectedExecutableFields,
           executableFieldSelections, executableFieldSelection, executableField,
           selectionDirectivesAllowBool_empty, hallowed]
   · have hfalse :
@@ -1469,7 +1477,8 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
       depth parentType source responseName fieldName arguments directives
       selectionSet output hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableFields, executableFieldSelections, hfalse]
+      collectedExecutableSelections, collectedExecutableFields,
+      executableFieldSelections, hfalse]
 
 theorem visitSelection_field_allowed_succ_ready
     {ObjectIdentity : Type}
@@ -1483,9 +1492,9 @@ theorem visitSelection_field_allowed_succ_ready
     : ResponseMergeReady (.object fields)
       -> ResponseMergeReady
           (resultValueOrNull
-            (executeField schema resolvers variableValues depth source
+            (executeField schema resolvers variableValues depth parentType source
               (responseObjectField? responseName (.object fields))
-              (executableField parentType responseName fieldName arguments selectionSet)))
+              (executableField fieldName arguments selectionSet)))
       -> ResponseMergeReady
           (visitSelection schema resolvers variableValues (depth + 1)
             parentType source
@@ -1498,10 +1507,9 @@ theorem visitSelection_field_allowed_succ_ready
     simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject] using
       mergeResponseField_object_ready_of_ready responseName
         (resultValueOrNull
-          (executeField schema resolvers variableValues depth source
+          (executeField schema resolvers variableValues depth parentType source
             (responseObjectField? responseName (.object fields))
-            (executableField parentType responseName fieldName arguments
-              selectionSet)))
+            (executableField fieldName arguments selectionSet)))
         fields hfieldsReady hfieldReady
 
 theorem visitSelection_field_allowed_succ_absorbs
@@ -1519,10 +1527,9 @@ theorem visitSelection_field_allowed_succ_absorbs
             -> ResponseAbsorbs existing
                 (mergeResponse existing
                   (resultValueOrNull
-                    (executeField schema resolvers variableValues depth source
+                    (executeField schema resolvers variableValues depth parentType source
                       (responseObjectField? responseName (.object fields))
-                      (executableField parentType responseName fieldName arguments
-                        selectionSet)))))
+                      (executableField fieldName arguments selectionSet)))))
       -> ResponseAbsorbs (.object fields)
           (visitSelection schema resolvers variableValues (depth + 1)
             parentType source
@@ -1535,10 +1542,9 @@ theorem visitSelection_field_allowed_succ_absorbs
     simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject] using
       mergeResponseField_object_absorbs responseName
         (resultValueOrNull
-          (executeField schema resolvers variableValues depth source
+          (executeField schema resolvers variableValues depth parentType source
             (responseObjectField? responseName (.object fields))
-            (executableField parentType responseName fieldName arguments
-              selectionSet)))
+            (executableField fieldName arguments selectionSet)))
         fields hfieldsReady hcollisionAbsorbs
 
 theorem visitSelection_field_allowed_succ_absorbs_of_fresh
@@ -1580,10 +1586,9 @@ theorem visitSubfields_single_field_allowed_succ_absorbs
             -> ResponseAbsorbs existing
                 (mergeResponse existing
                   (resultValueOrNull
-                    (executeField schema resolvers variableValues depth source
+                    (executeField schema resolvers variableValues depth parentType source
                       (responseObjectField? responseName (.object fields))
-                      (executableField parentType responseName fieldName arguments
-                        selectionSet)))))
+                      (executableField fieldName arguments selectionSet)))))
       -> ResponseAbsorbs (.object fields)
           (visitSubfields schema resolvers variableValues (depth + 1)
             parentType source
@@ -1671,18 +1676,16 @@ theorem
         -> visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output
             = visitSubfields schema resolvers variableValues depth parentType source
-                (executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues parentType
-                      source selectionSet)))
+                (collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues parentType
+                    source selectionSet))
                 output)
     : visitSelection schema resolvers variableValues depth parentType source
         (.inlineFragment none directives selectionSet) output
       = visitSubfields schema resolvers variableValues depth parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectSelection schema variableValues parentType
-                source (.inlineFragment none directives selectionSet))))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectSelection schema variableValues parentType
+              source (.inlineFragment none directives selectionSet)))
           output := by
   by_cases hallowed :
       selectionDirectivesAllowBool variableValues directives = true
@@ -1697,7 +1700,8 @@ theorem
       variableValues depth parentType source directives selectionSet output
       hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableFields, executableFieldSelections, hfalse]
+      collectedExecutableSelections, collectedExecutableFields,
+      executableFieldSelections, hfalse]
 
 theorem
     visitSelection_inline_some_eq_visitSubfields_collectedExecutableFields_collectSelection
@@ -1712,19 +1716,16 @@ theorem
         -> visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output
             = visitSubfields schema resolvers variableValues depth parentType source
-                (executableFieldSelections
-                  (collectedExecutableFields
-                    (GraphQL.Execution.collectFields schema variableValues parentType
-                      source selectionSet)))
+                (collectedExecutableSelections
+                  (GraphQL.Execution.collectFields schema variableValues parentType
+                    source selectionSet))
                 output)
     : visitSelection schema resolvers variableValues depth parentType source
         (.inlineFragment (some typeCondition) directives selectionSet) output
       = visitSubfields schema resolvers variableValues depth parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectSelection schema variableValues parentType
-                source
-                (.inlineFragment (some typeCondition) directives selectionSet))))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectSelection schema variableValues parentType source
+              (.inlineFragment (some typeCondition) directives selectionSet)))
           output := by
   by_cases hallowed :
       selectionDirectivesAllowBool variableValues directives = true
@@ -1744,7 +1745,8 @@ theorem
         variableValues depth parentType source typeCondition directives
         selectionSet output hallowed hfalse]
       simp [visitSubfields, GraphQL.Execution.collectSelection,
-        collectedExecutableFields, executableFieldSelections, hallowed, hfalse]
+        collectedExecutableSelections, collectedExecutableFields,
+        executableFieldSelections, hallowed, hfalse]
   · have hfalse :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases hmatch : selectionDirectivesAllowBool variableValues directives
@@ -1754,7 +1756,8 @@ theorem
       variableValues depth parentType source typeCondition directives
       selectionSet output hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableFields, executableFieldSelections, hfalse]
+      collectedExecutableSelections, collectedExecutableFields,
+      executableFieldSelections, hfalse]
 
 theorem visitSelection_eq_visitSubfields_collectedExecutableFields_collectSelection
     {ObjectIdentity : Type}
@@ -1772,10 +1775,9 @@ theorem visitSelection_eq_visitSubfields_collectedExecutableFields_collectSelect
                   source selectionSet output
                 = visitSubfields schema resolvers variableValues depth parentType
                     source
-                    (executableFieldSelections
-                      (collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source selectionSet)))
+                    (collectedExecutableSelections
+                      (GraphQL.Execution.collectFields schema variableValues
+                        parentType source selectionSet))
                     output
         | .inlineFragment (some typeCondition) directives selectionSet =>
             selectionDirectivesAllowBool variableValues directives = true
@@ -1784,18 +1786,16 @@ theorem visitSelection_eq_visitSubfields_collectedExecutableFields_collectSelect
                   source selectionSet output
                 = visitSubfields schema resolvers variableValues depth parentType
                     source
-                    (executableFieldSelections
-                      (collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source selectionSet)))
+                    (collectedExecutableSelections
+                      (GraphQL.Execution.collectFields schema variableValues
+                        parentType source selectionSet))
                     output)
     : visitSelection schema resolvers variableValues depth parentType source
         selection output
       = visitSubfields schema resolvers variableValues depth parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectSelection schema variableValues parentType
-                source selection)))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectSelection schema variableValues parentType
+              source selection))
           output := by
   cases selection with
   | field responseName fieldName arguments directives selectionSet =>
@@ -1832,10 +1832,9 @@ theorem visitSubfields_single_eq_flattened_collectFields
                   source selectionSet output
                 = visitSubfields schema resolvers variableValues depth parentType
                     source
-                    (executableFieldSelections
-                      (collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source selectionSet)))
+                    (collectedExecutableSelections
+                      (GraphQL.Execution.collectFields schema variableValues
+                        parentType source selectionSet))
                     output
         | .inlineFragment (some typeCondition) directives selectionSet =>
             selectionDirectivesAllowBool variableValues directives = true
@@ -1844,24 +1843,26 @@ theorem visitSubfields_single_eq_flattened_collectFields
                   source selectionSet output
                 = visitSubfields schema resolvers variableValues depth parentType
                     source
-                    (executableFieldSelections
-                      (collectedExecutableFields
-                        (GraphQL.Execution.collectFields schema variableValues
-                          parentType source selectionSet)))
+                    (collectedExecutableSelections
+                      (GraphQL.Execution.collectFields schema variableValues
+                        parentType source selectionSet))
                     output)
     : visitSubfields schema resolvers variableValues depth parentType source
         [selection] output
       = visitSubfields schema resolvers variableValues depth parentType source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source [selection])))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source [selection]))
           output := by
   cases selection with
   | field responseName fieldName arguments directives selectionSet =>
       by_cases hallowed :
           selectionDirectivesAllowBool variableValues directives = true
-      · simp [visitSubfields, GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection, GraphQL.Execution.mergeExecutableGroups, collectedExecutableFields, executableFieldSelections, executableFieldSelection, hallowed]
+      · simp [visitSubfields, GraphQL.Execution.collectFields,
+          GraphQL.Execution.collectSelection,
+          GraphQL.Execution.mergeExecutableGroups, collectedExecutableSelections,
+          collectedExecutableFields, executableFieldSelections,
+          executableFieldSelection, hallowed]
         cases depth <;>
           simp [visitSelection, executableField, hallowed,
             selectionDirectivesAllowBool_empty]
@@ -1876,14 +1877,19 @@ theorem visitSubfields_single_eq_flattened_collectFields
           arguments directives selectionSet output hblocked]
         simp [visitSubfields, GraphQL.Execution.collectFields,
           GraphQL.Execution.collectSelection, GraphQL.Execution.mergeExecutableGroups,
-          collectedExecutableFields, executableFieldSelections, hblocked, visitOk,
+          collectedExecutableSelections, collectedExecutableFields,
+          executableFieldSelections, hblocked, visitOk,
           combineVisitStatus, GraphQL.Execution.Result.combine]
   | inlineFragment typeCondition directives selectionSet =>
       cases typeCondition with
       | none =>
           by_cases hallowed :
               selectionDirectivesAllowBool variableValues directives = true
-          · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection, GraphQL.Execution.mergeExecutableGroups, executableFieldSelections, hallowed] at hbody ⊢
+          · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
+              GraphQL.Execution.collectSelection,
+              GraphQL.Execution.mergeExecutableGroups,
+              collectedExecutableSelections, executableFieldSelections,
+              hallowed] at hbody ⊢
             exact hbody
           · have hblocked :
                 selectionDirectivesAllowBool variableValues directives = false := by
@@ -1892,7 +1898,8 @@ theorem visitSubfields_single_eq_flattened_collectFields
               | true => exact False.elim (hallowed h)
             simp [visitSubfields, visitSelection,
               GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
-              GraphQL.Execution.mergeExecutableGroups, collectedExecutableFields,
+              GraphQL.Execution.mergeExecutableGroups, collectedExecutableSelections,
+              collectedExecutableFields,
               executableFieldSelections, hblocked, visitOk, combineVisitStatus,
               GraphQL.Execution.Result.combine]
       | some typeCondition =>
@@ -1901,7 +1908,11 @@ theorem visitSubfields_single_eq_flattened_collectFields
           · by_cases happly :
                 doesFragmentTypeApplyBool schema parentType source typeCondition =
                   true
-            · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection, GraphQL.Execution.mergeExecutableGroups, executableFieldSelections, hallowed, happly] at hbody ⊢
+            · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
+                GraphQL.Execution.collectSelection,
+                GraphQL.Execution.mergeExecutableGroups,
+                collectedExecutableSelections, executableFieldSelections,
+                hallowed, happly] at hbody ⊢
               exact hbody
             · have hnotApply :
                   doesFragmentTypeApplyBool schema parentType source
@@ -1914,7 +1925,8 @@ theorem visitSubfields_single_eq_flattened_collectFields
               simp [visitSubfields, visitSelection,
                 GraphQL.Execution.collectFields,
                 GraphQL.Execution.collectSelection,
-                GraphQL.Execution.mergeExecutableGroups, collectedExecutableFields,
+                GraphQL.Execution.mergeExecutableGroups,
+                collectedExecutableSelections, collectedExecutableFields,
                 executableFieldSelections, hallowed, hnotApply, visitOk,
                 combineVisitStatus, Result.combine,
                 GraphQL.Execution.Result.combine]
@@ -1925,7 +1937,8 @@ theorem visitSubfields_single_eq_flattened_collectFields
               | true => exact False.elim (hallowed h)
             simp [visitSubfields, visitSelection,
               GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
-              GraphQL.Execution.mergeExecutableGroups, collectedExecutableFields,
+              GraphQL.Execution.mergeExecutableGroups,
+              collectedExecutableSelections, collectedExecutableFields,
               executableFieldSelections, hblocked, visitOk, combineVisitStatus,
               GraphQL.Execution.Result.combine]
 
@@ -2124,10 +2137,9 @@ def VisitSubfieldsFlatCollects
   visitSubfields schema resolvers variableValues depth parentType source
     selectionSet output
   = visitSubfields schema resolvers variableValues depth parentType source
-      (executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            selectionSet)))
+      (collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+          selectionSet))
       output
 
 def VisitSubfieldsFlatCollectsAllOutputs
@@ -2151,10 +2163,9 @@ def VisitSubfieldsRawFlatCollects
   visitSubfields schema resolvers variableValues depth parentType source
     selectionSet output
   = visitSubfields schema resolvers variableValues depth parentType source
-      (executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            selectionSet)))
+      (collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType source
+          selectionSet))
       output
 
 def VisitSubfieldsRawFlatCollectsAllOutputs
@@ -2207,7 +2218,8 @@ theorem VisitSubfieldsRawFlatCollects_nil
     : VisitSubfieldsRawFlatCollects schema resolvers variableValues depth
         parentType source [] output := by
   simp [VisitSubfieldsRawFlatCollects, GraphQL.Execution.collectFields,
-    collectedExecutableFields, executableFieldSelections]
+    collectedExecutableSelections, collectedExecutableFields,
+    executableFieldSelections]
 
 theorem VisitSubfieldsRawFlatCollectsAllOutputs_nil
     {ObjectIdentity : Type}
@@ -2240,54 +2252,48 @@ theorem VisitSubfieldsRawFlatCollects_append_of_namesDisjoint
       : VisitSubfieldsRawFlatCollects schema resolvers variableValues depth
           parentType source right
           (visitSubfields schema resolvers variableValues depth parentType source
-            (executableFieldSelections
-              (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source left)))
+            (collectedExecutableSelections
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source left))
             output).fst)
     : VisitSubfieldsRawFlatCollects schema resolvers variableValues depth
         parentType source (left ++ right) output := by
   unfold VisitSubfieldsRawFlatCollects at hleft hright ⊢
   have hflatAppend :
-      executableFieldSelections
-        (collectedExecutableFields
+      collectedExecutableSelections
           (GraphQL.Execution.collectFields schema variableValues parentType
-            source (left ++ right))) =
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source left)) ++
-      executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source right)) := by
+            source (left ++ right)) =
+        collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source left) ++
+          collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source right) := by
     rw [GraphQL.NormalForm.collectFields_append]
-    rw [collectedExecutableFields_mergeExecutableGroups_eq_append_of_namesDisjoint
+    rw [GraphQL.NormalForm.mergeExecutableGroups_eq_append_of_namesDisjoint
       (GraphQL.Execution.collectFields schema variableValues parentType source
         left)
       (GraphQL.Execution.collectFields schema variableValues parentType source
         right)
       hdisjoint hrightNodup]
-    simp [executableFieldSelections, List.map_append]
+    exact collectedExecutableSelections_append _ _
   rw [visitSubfields_append_equivalence]
   rw [hflatAppend]
   rw [visitSubfields_append_equivalence]
   rw [hleft]
   let flatLeftResult :=
     visitSubfields schema resolvers variableValues depth parentType source
-      (executableFieldSelections
-        (collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source left)))
+      (collectedExecutableSelections
+        (GraphQL.Execution.collectFields schema variableValues parentType
+          source left))
       output
   have hright' :
       visitSubfields schema resolvers variableValues depth parentType source
         right flatLeftResult.fst =
       visitSubfields schema resolvers variableValues depth parentType source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source right)))
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source right))
         flatLeftResult.fst := by
     simpa [flatLeftResult] using hright
   cases flatLeftResult with
@@ -2324,10 +2330,9 @@ theorem VisitSubfieldsRawFlatCollectsAllOutputs_append_of_namesDisjoint
   · exact hleft output
   · exact hright
       (visitSubfields schema resolvers variableValues depth parentType source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source left)))
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source left))
         output).fst
 
 theorem VisitSubfieldsFlatCollects_nil
@@ -2338,7 +2343,8 @@ theorem VisitSubfieldsFlatCollects_nil
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source [] output := by
   simp [VisitSubfieldsFlatCollects, GraphQL.Execution.collectFields,
-    collectedExecutableFields, executableFieldSelections]
+    collectedExecutableSelections, collectedExecutableFields,
+    executableFieldSelections]
 
 theorem VisitSubfieldsFlatCollectsAllOutputs_nil
     {ObjectIdentity : Type}
@@ -2432,10 +2438,9 @@ theorem VisitSubfieldsFlatCollects_append_of_namesDisjoint
       : VisitSubfieldsRawFlatCollects schema resolvers variableValues depth
           parentType source right
           (visitSubfields schema resolvers variableValues depth parentType source
-            (executableFieldSelections
-              (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source left)))
+            (collectedExecutableSelections
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source left))
             output).fst)
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source (left ++ right) output := by
@@ -2474,10 +2479,9 @@ theorem VisitSubfieldsFlatCollectsAllOutputs_append_of_namesDisjoint
   · exact hleft output
   · exact hright
       (visitSubfields schema resolvers variableValues depth parentType source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source left)))
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source left))
         output).fst
 
 theorem VisitSubfieldsFlatCollects_executableFieldSelections_same_group
@@ -2487,14 +2491,12 @@ theorem VisitSubfieldsFlatCollects_executableFieldSelections_same_group
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (fields : List ExecutableField)
     (output : ResponseValue)
-    (hresponse : ∀ field, field ∈ fields -> field.responseName = responseName)
-    (hparent : ∀ field, field ∈ fields -> field.parentType = parentType)
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
-        source (executableFieldSelections fields) output := by
+        source (executableFieldSelections responseName fields) output := by
   unfold VisitSubfieldsFlatCollects
   rw [collectFields_executableFieldSelections_same_group schema variableValues
-    parentType source responseName fields hresponse hparent]
-  cases fields <;> simp [collectedExecutableFields]
+    parentType source responseName fields]
+  cases fields <;> simp [collectedExecutableSelections, executableFieldSelections]
 
 theorem VisitSubfieldsFlatCollects_executableFieldSelections_collectedExecutableFields
     {ObjectIdentity : Type}
@@ -2508,7 +2510,7 @@ theorem VisitSubfieldsFlatCollects_executableFieldSelections_collectedExecutable
     (hresponse : CollectedGroupsResponseName groups)
     (hparent : CollectedGroupsParent parentType groups)
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
-        source (executableFieldSelections (collectedExecutableFields groups))
+        source (collectedExecutableSelections groups)
         output := by
   unfold VisitSubfieldsFlatCollects
   rw [collectFields_executableFieldSelections_collectedExecutableFields schema
@@ -2522,10 +2524,9 @@ theorem VisitSubfieldsFlatCollects_executableFieldSelections_collectedCollectFie
     (selectionSet : List Selection) (output : ResponseValue)
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source
-        (executableFieldSelections
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source selectionSet)))
+        (collectedExecutableSelections
+          (GraphQL.Execution.collectFields schema variableValues parentType
+            source selectionSet))
         output := by
   unfold VisitSubfieldsFlatCollects
   rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
@@ -2605,10 +2606,9 @@ mutual
                           responseName fieldResponseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
-                              source
+                              parentType source
                               (lookupResponseField? fieldResponseName fields)
-                              (executableField parentType fieldResponseName
-                                fieldName arguments selectionSet)))
+                              (executableField fieldName arguments selectionSet)))
                           fields hne
                   | some previous =>
                       cases previous with
@@ -2622,11 +2622,10 @@ mutual
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
-                                  depth' source
+                                  depth' parentType source
                                   (lookupResponseField? fieldResponseName
                                     fields)
-                                  (executableField parentType fieldResponseName
-                                    fieldName arguments selectionSet)))
+                                  (executableField fieldName arguments selectionSet)))
                               fields hne
                       | scalar value =>
                           simp [visitSelection, hallowed,
@@ -2638,11 +2637,10 @@ mutual
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
-                                  depth' source
+                                  depth' parentType source
                                   (lookupResponseField? fieldResponseName
                                     fields)
-                                  (executableField parentType fieldResponseName
-                                    fieldName arguments selectionSet)))
+                                  (executableField fieldName arguments selectionSet)))
                               fields hne
                       | object objectFields =>
                           simp [visitSelection, hallowed,
@@ -2654,11 +2652,10 @@ mutual
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
-                                  depth' source
+                                  depth' parentType source
                                   (lookupResponseField? fieldResponseName
                                     fields)
-                                  (executableField parentType fieldResponseName
-                                    fieldName arguments selectionSet)))
+                                  (executableField fieldName arguments selectionSet)))
                               fields hne
                       | list values =>
                           simp [visitSelection, hallowed,
@@ -2670,11 +2667,10 @@ mutual
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
-                                  depth' source
+                                  depth' parentType source
                                   (lookupResponseField? fieldResponseName
                                     fields)
-                                  (executableField parentType fieldResponseName
-                                    fieldName arguments selectionSet)))
+                                  (executableField fieldName arguments selectionSet)))
                               fields hne
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
@@ -2838,10 +2834,9 @@ mutual
                     mergeResponseField responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
-                          source
+                          parentType source
                           (responseObjectField? responseName (.object fields))
-                          (executableField parentType responseName fieldName
-                            arguments selectionSet)))
+                          (executableField fieldName arguments selectionSet)))
                       fields,
                     ?_
                   ⟩
@@ -2854,10 +2849,9 @@ mutual
                         mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
-                              source
+                              parentType source
                               (responseObjectField? responseName (.object fields))
-                              (executableField parentType responseName fieldName
-                                arguments selectionSet)))
+                              (executableField fieldName arguments selectionSet)))
                           fields,
                         ?_
                       ⟩
@@ -2868,10 +2862,9 @@ mutual
                         mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
-                              source
+                              parentType source
                               (responseObjectField? responseName (.object fields))
-                              (executableField parentType responseName fieldName
-                                arguments selectionSet)))
+                              (executableField fieldName arguments selectionSet)))
                           fields,
                         ?_
                       ⟩
@@ -2882,10 +2875,9 @@ mutual
                         mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
-                              source
+                              parentType source
                               (responseObjectField? responseName (.object fields))
-                              (executableField parentType responseName fieldName
-                                arguments selectionSet)))
+                              (executableField fieldName arguments selectionSet)))
                           fields,
                         ?_
                       ⟩
@@ -2896,10 +2888,9 @@ mutual
                         mergeResponseField responseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
-                              source
+                              parentType source
                               (responseObjectField? responseName (.object fields))
-                              (executableField parentType responseName fieldName
-                                arguments selectionSet)))
+                              (executableField fieldName arguments selectionSet)))
                           fields,
                         ?_
                       ⟩
@@ -2995,25 +2986,22 @@ theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_flattened_spec
     (hflatSpec
       : executeRootSelectionSet schema resolvers variableValues depth parentType
           source
-          (executableFieldSelections
-            (collectedExecutableFields
-              (GraphQL.Execution.collectFields schema variableValues parentType
-                source selectionSet)))
+          (collectedExecutableSelections
+            (GraphQL.Execution.collectFields schema variableValues parentType
+              source selectionSet))
         = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
             depth parentType source
-            (executableFieldSelections
-              (collectedExecutableFields
-                (GraphQL.Execution.collectFields schema variableValues parentType
-                  source selectionSet))))
+            (collectedExecutableSelections
+              (GraphQL.Execution.collectFields schema variableValues parentType
+                source selectionSet)))
     : executeRootSelectionSet schema resolvers variableValues depth parentType
         source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source selectionSet := by
   let flatSelectionSet :=
-    executableFieldSelections
-      (collectedExecutableFields
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source selectionSet))
+    collectedExecutableSelections
+      (GraphQL.Execution.collectFields schema variableValues parentType source
+        selectionSet)
   have hdirectRoot :
       executeRootSelectionSet schema resolvers variableValues depth parentType
         source selectionSet =
@@ -3043,12 +3031,12 @@ def ExecutableFieldsFlatSpecEquivalent
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (fields : List ExecutableField)
+    (responseName : Name) (fields : List ExecutableField)
     : Prop :=
   executeRootSelectionSet schema resolvers variableValues depth parentType source
-    (executableFieldSelections fields)
+    (executableFieldSelections responseName fields)
   = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-      depth parentType source (executableFieldSelections fields)
+      depth parentType source (executableFieldSelections responseName fields)
 
 def ExecutableGroupsFlatSpecEquivalent
     {ObjectIdentity : Type}
@@ -3057,21 +3045,23 @@ def ExecutableGroupsFlatSpecEquivalent
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     : Prop :=
-  ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues depth
-    parentType source (collectedExecutableFields groups)
+  executeRootSelectionSet schema resolvers variableValues depth parentType source
+    (collectedExecutableSelections groups)
+  = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+      depth parentType source (collectedExecutableSelections groups)
 
 def ExecutableFieldsFlatSpecAlignedEquivalent
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (fields : List ExecutableField)
+    (responseName : Name) (fields : List ExecutableField)
     : Prop :=
   RootSelectionResultAlignedEquivalent
     (executeRootSelectionSet schema resolvers variableValues depth parentType
-      source (executableFieldSelections fields))
+      source (executableFieldSelections responseName fields))
     (GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-      depth parentType source (executableFieldSelections fields))
+      depth parentType source (executableFieldSelections responseName fields))
 
 def ExecutableGroupsFlatSpecAlignedEquivalent
     {ObjectIdentity : Type}
@@ -3080,19 +3070,22 @@ def ExecutableGroupsFlatSpecAlignedEquivalent
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     : Prop :=
-  ExecutableFieldsFlatSpecAlignedEquivalent schema resolvers variableValues depth
-    parentType source (collectedExecutableFields groups)
+  RootSelectionResultAlignedEquivalent
+    (executeRootSelectionSet schema resolvers variableValues depth parentType
+      source (collectedExecutableSelections groups))
+    (GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
+      depth parentType source (collectedExecutableSelections groups))
 
 theorem ExecutableFieldsFlatSpecAlignedEquivalent.of_exact
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {depth : Nat}
     {parentType : Name} {source : ResolverValue ObjectIdentity}
-    {fields : List ExecutableField}
+    {responseName : Name} {fields : List ExecutableField}
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues depth
-        parentType source fields
+        parentType source responseName fields
       -> ExecutableFieldsFlatSpecAlignedEquivalent schema resolvers variableValues
-          depth parentType source fields := by
+          depth parentType source responseName fields := by
   intro hexact
   exact RootSelectionResultAlignedEquivalent.of_eq hexact
 
@@ -3107,7 +3100,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent.of_exact
       -> ExecutableGroupsFlatSpecAlignedEquivalent schema resolvers variableValues
           depth parentType source groups := by
   intro hexact
-  exact ExecutableFieldsFlatSpecAlignedEquivalent.of_exact hexact
+  exact RootSelectionResultAlignedEquivalent.of_eq hexact
 
 def ExecutableFieldsMergedComplete
     {ObjectIdentity : Type}
@@ -3118,9 +3111,9 @@ def ExecutableFieldsMergedComplete
     (fields : List ExecutableField) (_resolved : Option (ResolverValue ObjectIdentity))
     : Prop :=
   executeRootSelectionSet schema resolvers variableValues (depth + 1)
-    parentType source (executableFieldSelections (field :: fields))
+    parentType source (executableFieldSelections responseName (field :: fields))
   = GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-      source responseName (field :: fields)
+      parentType source responseName (field :: fields)
 
 def ExecutableFieldsMergedResponse
     {ObjectIdentity : Type}
@@ -3131,9 +3124,9 @@ def ExecutableFieldsMergedResponse
     (fields : List ExecutableField) (_resolved : Option (ResolverValue ObjectIdentity))
     : Prop :=
   executeRootSelectionSet schema resolvers variableValues (depth + 1)
-    parentType source (executableFieldSelections (field :: fields))
+    parentType source (executableFieldSelections responseName (field :: fields))
   = GraphQL.Execution.executeField schema resolvers variableValues (depth + 1)
-      source responseName (field :: fields)
+      parentType source responseName (field :: fields)
 
 theorem visitSubfields_eq_object_singleton_of_executeRootSelectionSet_eq_singleton
     {ObjectIdentity : Type}
@@ -3206,16 +3199,15 @@ theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_flatSpecEquivalent
       : VisitSubfieldsFlatCollects schema resolvers variableValues depth
           parentType source selectionSet (.object []))
     (hflatSpec
-      : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues depth
+      : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues depth
           parentType source
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source selectionSet)))
+          (GraphQL.Execution.collectFields schema variableValues parentType source
+            selectionSet))
     : executeRootSelectionSet schema resolvers variableValues depth parentType
         source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source selectionSet := by
-  unfold ExecutableFieldsFlatSpecEquivalent at hflatSpec
+  unfold ExecutableGroupsFlatSpecEquivalent at hflatSpec
   exact executeRootSelectionSet_eq_spec_of_flatCollects_and_flattened_spec
     schema resolvers variableValues depth parentType source selectionSet
     hdirect hflatSpec
@@ -3230,21 +3222,19 @@ theorem executeRootSelectionSet_aligned_of_flatCollects_and_flatSpecAligned
       : VisitSubfieldsFlatCollects schema resolvers variableValues depth
           parentType source selectionSet (.object []))
     (hflatSpec
-      : ExecutableFieldsFlatSpecAlignedEquivalent schema resolvers variableValues
+      : ExecutableGroupsFlatSpecAlignedEquivalent schema resolvers variableValues
           depth parentType source
-          (collectedExecutableFields
-            (GraphQL.Execution.collectFields schema variableValues parentType
-              source selectionSet)))
+          (GraphQL.Execution.collectFields schema variableValues parentType source
+            selectionSet))
     : RootSelectionResultAlignedEquivalent
         (executeRootSelectionSet schema resolvers variableValues depth parentType
           source selectionSet)
         (GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source selectionSet) := by
   let flatSelectionSet :=
-    executableFieldSelections
-      (collectedExecutableFields
-        (GraphQL.Execution.collectFields schema variableValues parentType
-          source selectionSet))
+    collectedExecutableSelections
+      (GraphQL.Execution.collectFields schema variableValues parentType source
+        selectionSet)
   have hdirectRoot :
       executeRootSelectionSet schema resolvers variableValues depth parentType
         source selectionSet =
@@ -3259,7 +3249,7 @@ theorem executeRootSelectionSet_aligned_of_flatCollects_and_flatSpecAligned
           parentType source flatSelectionSet)
         (GraphQL.Execution.executeRootSelectionSet schema resolvers
           variableValues depth parentType source flatSelectionSet) := by
-    simpa [ExecutableFieldsFlatSpecAlignedEquivalent, flatSelectionSet] using
+    simpa [ExecutableGroupsFlatSpecAlignedEquivalent, flatSelectionSet] using
       hflatSpec
   have hspecFlat :
       GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -3293,7 +3283,6 @@ theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_groupFlatSpecEquival
         source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source selectionSet := by
-  unfold ExecutableGroupsFlatSpecEquivalent at hgroups
   exact executeRootSelectionSet_eq_spec_of_flatCollects_and_flatSpecEquivalent
     schema resolvers variableValues depth parentType source selectionSet
     hdirect hgroups
@@ -3317,7 +3306,6 @@ theorem executeRootSelectionSet_aligned_of_flatCollects_and_groupFlatSpecAligned
           source selectionSet)
         (GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           depth parentType source selectionSet) := by
-  unfold ExecutableGroupsFlatSpecAlignedEquivalent at hgroups
   exact
     executeRootSelectionSet_aligned_of_flatCollects_and_flatSpecAligned
       schema resolvers variableValues depth parentType source selectionSet
@@ -3328,8 +3316,9 @@ theorem ExecutableFieldsFlatSpecEquivalent_nil
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (responseName : Name)
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues depth
-        parentType source [] := by
+        parentType source responseName [] := by
   unfold ExecutableFieldsFlatSpecEquivalent
   simp [executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet,
     executableFieldSelections, GraphQL.Execution.collectFields,
@@ -3343,9 +3332,9 @@ theorem ExecutableGroupsFlatSpecEquivalent_nil
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues depth
         parentType source [] := by
   unfold ExecutableGroupsFlatSpecEquivalent
-  simpa [collectedExecutableFields] using
-    ExecutableFieldsFlatSpecEquivalent_nil schema resolvers variableValues depth
-      parentType source
+  simp [collectedExecutableSelections, executeRootSelectionSet,
+    GraphQL.Execution.executeRootSelectionSet, GraphQL.Execution.collectFields,
+    GraphQL.Execution.executeCollectedFields, visitSubfields, visitOk]
 
 theorem executeRootSelectionSet_eq_spec_of_exact_empty_group
     {ObjectIdentity : Type}

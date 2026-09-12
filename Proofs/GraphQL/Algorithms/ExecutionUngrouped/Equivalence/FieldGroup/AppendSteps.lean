@@ -26,16 +26,14 @@ def ExecutableFieldsMergedCompleteAppendSteps
     : List ExecutableField -> List ExecutableField -> Prop
   | _prefixTail, [] => True
   | prefixTail, later :: rest =>
-      later.responseName = responseName
-      ∧ later.parentType = parentType
-      ∧ later.fieldName = field.fieldName
-      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+      later.fieldName = field.fieldName
+      ∧ resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -79,7 +77,7 @@ def ExecutableFieldsMergedCompleteAppendSteps
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -113,17 +111,15 @@ def ExecutableFieldsMergedCompleteContainedAppendSteps
     : List ExecutableField -> List ExecutableField -> Prop
   | _prefixTail, [] => True
   | prefixTail, later :: rest =>
-      later.responseName = responseName
-      ∧ later.parentType = parentType
-      ∧ later.fieldName = field.fieldName
-      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+      later.fieldName = field.fieldName
+      ∧ resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -170,7 +166,7 @@ def ExecutableFieldsMergedCompleteContainedAppendSteps
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -204,17 +200,15 @@ def ExecutableFieldsMergedAlignedAppendSteps
     : List ExecutableField -> List ExecutableField -> Prop
   | _prefixTail, [] => True
   | prefixTail, later :: rest =>
-      later.responseName = responseName
-      ∧ later.parentType = parentType
-      ∧ later.fieldName = field.fieldName
-      ∧ resolveFieldValueByName schema resolvers variableValues later.parentType
+      later.fieldName = field.fieldName
+      ∧ resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -243,7 +237,7 @@ def ExecutableFieldsMergedAlignedAppendSteps
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -267,10 +261,8 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hfieldResponse : field.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -279,15 +271,15 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
     : ∀ prefixTail remaining,
         GroupedFieldVisitAlignedEquivalent responseName
           (visitSubfields schema resolvers variableValues (completionDepth + 2)
-            parentType source (executableFieldSelections (field :: prefixTail))
+            parentType source
+            (executableFieldSelections responseName (field :: prefixTail))
             (.object []))
           (GraphQL.Execution.executeField schema resolvers variableValues
-            (completionDepth + 2) source responseName (field :: prefixTail))
+            (completionDepth + 2) parentType source responseName
+            (field :: prefixTail))
         -> ExecutableFieldsMergedAlignedAppendSteps schema resolvers variableValues
             (completionDepth + 1) parentType source responseName field resolved
             prefixTail remaining
-        -> (∀ candidate,
-              candidate ∈ field :: prefixTail -> candidate.responseName = responseName)
         -> (∀ candidate,
               candidate ∈ prefixTail
               -> ∃ fieldDefinition,
@@ -296,18 +288,18 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
         -> GroupedFieldVisitAlignedEquivalent responseName
             (visitSubfields schema resolvers variableValues (completionDepth + 2)
               parentType source
-              (executableFieldSelections (field :: (prefixTail ++ remaining)))
+              (executableFieldSelections responseName
+                (field :: (prefixTail ++ remaining)))
               (.object []))
             (GraphQL.Execution.executeField schema resolvers variableValues
-              (completionDepth + 2) source responseName
+              (completionDepth + 2) parentType source responseName
               (field :: (prefixTail ++ remaining)))
-  | prefixTail, [], hprefixAligned, _hsteps, _hresponses, _hlookups => by
+  | prefixTail, [], hprefixAligned, _hsteps, _hlookups => by
       simpa using hprefixAligned
-  | prefixTail, later :: rest, hprefixAligned, hsteps, hresponses,
-      hlookups => by
+  | prefixTail, later :: rest, hprefixAligned, hsteps, hlookups => by
       simp [ExecutableFieldsMergedAlignedAppendSteps] at hsteps
       rcases hsteps with
-        ⟨hlaterResponse, hlaterParent, hfieldName, hresolveLater,
+        ⟨hfieldName, hresolveLater,
           hprefixChildren, hobjects, hchildren, hrest⟩
       have htailLookups :
           ∀ candidate, candidate ∈ prefixTail ++ [later] ->
@@ -320,40 +312,26 @@ theorem ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_pos
         · subst candidate
           rcases hfieldLookup with ⟨fieldDefinition, hlookup⟩
           exact ⟨fieldDefinition, by simpa [hfieldName] using hlookup⟩
-      have hnextResponses :
-          ∀ candidate, candidate ∈ field :: (prefixTail ++ [later]) ->
-            candidate.responseName = responseName := by
-        intro candidate hmem
-        simp at hmem
-        rcases hmem with hhead | htail
-        · subst candidate
-          exact hfieldResponse
-        · rcases htail with hprefixTail | hlater
-          · exact hresponses candidate (by simp [hprefixTail])
-          · subst candidate
-            exact hlaterResponse
       have hnextAligned :
           GroupedFieldVisitAlignedEquivalent responseName
             (visitSubfields schema resolvers variableValues
               (completionDepth + 2) parentType source
-              (executableFieldSelections
+              (executableFieldSelections responseName
                 (field :: (prefixTail ++ [later])))
               (.object []))
             (GraphQL.Execution.executeField schema resolvers variableValues
-              (completionDepth + 2) source responseName
+              (completionDepth + 2) parentType source responseName
               (field :: (prefixTail ++ [later]))) :=
         ExecutableFieldsMergedVisit_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
           schema resolvers variableValues completionDepth parentType source
-          responseName field prefixTail later resolved hprefixAligned hresponses
-          hfieldResponse hlaterResponse hfieldParent hlaterParent hfieldName
-          htailLookups hresolveFirst hresolveLater hprefixChildren hobjects
-          hchildren
+          responseName field prefixTail later resolved hprefixAligned hfieldName
+          htailLookups hresolveFirst hresolveLater hprefixChildren hobjects hchildren
       have htail :=
         ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_positive
           schema resolvers variableValues completionDepth parentType source
-          responseName field resolved hfieldResponse hfieldParent hresolveFirst
+          responseName field resolved hresolveFirst
           hfieldLookup (prefixTail ++ [later]) rest hnextAligned hrest
-          hnextResponses htailLookups
+          htailLookups
       simpa [List.append_assoc] using htail
 
 theorem
@@ -363,12 +341,8 @@ theorem
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (field : ExecutableField) (fields : List ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     (hresolve
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hfieldLookup
@@ -379,7 +353,7 @@ theorem
           childDepth < completionDepth + 1
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -394,39 +368,30 @@ theorem
           (completionDepth + 1) parentType source responseName field resolved []
           fields)
     : ExecutableFieldsFlatSpecAlignedEquivalent schema resolvers variableValues
-        (completionDepth + 2) parentType source (field :: fields) := by
-  have hfieldResponse : field.responseName = responseName :=
-    hresponse field (by simp)
-  have hfieldParent : field.parentType = parentType :=
-    hparent field (by simp)
+        (completionDepth + 2) parentType source responseName
+        (field :: fields) := by
   have hbase :
       GroupedFieldVisitAlignedEquivalent responseName
         (visitSubfields schema resolvers variableValues (completionDepth + 2)
-          parentType source (executableFieldSelections [field]) (.object []))
+          parentType source (executableFieldSelections responseName [field])
+          (.object []))
         (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName [field]) :=
+          (completionDepth + 2) parentType source responseName [field]) :=
     visitSubfields_executableFieldSelections_single_aligned_of_contained_child_states
       schema resolvers variableValues (completionDepth + 1) parentType source
-      responseName field resolved hfieldResponse hfieldParent hresolve
-      hfieldChildren
+      responseName field resolved hresolve hfieldChildren
   have hgroup :
       GroupedFieldVisitAlignedEquivalent responseName
         (visitSubfields schema resolvers variableValues (completionDepth + 2)
           parentType source
-          (executableFieldSelections (field :: ([] ++ fields)))
+          (executableFieldSelections responseName (field :: ([] ++ fields)))
           (.object []))
         (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName
+          (completionDepth + 2) parentType source responseName
           (field :: ([] ++ fields))) :=
     ExecutableFieldsMergedVisitAligned_of_alignedAppendSteps_from_prefix_positive
       schema resolvers variableValues completionDepth parentType source
-      responseName field resolved hfieldResponse hfieldParent hresolve
-      hfieldLookup [] fields hbase hsteps
-      (by
-        intro candidate hmem
-        simp at hmem
-        subst candidate
-        exact hfieldResponse)
+      responseName field resolved hresolve hfieldLookup [] fields hbase hsteps
       (by
         intro candidate hmem
         simp at hmem)
@@ -434,29 +399,34 @@ theorem
       RootSelectionResultAlignedEquivalent
         (executeRootSelectionSet schema resolvers variableValues
           (completionDepth + 2) parentType source
-          (executableFieldSelections (field :: fields)))
+          (executableFieldSelections responseName (field :: fields)))
         (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName (field :: fields)) := by
+          (completionDepth + 2) parentType source responseName
+          (field :: fields)) := by
     unfold executeRootSelectionSet
     exact GroupedFieldVisitAlignedEquivalent.to_rootSelectionResult responseName
       (by simpa using hgroup)
   have hspecRoot :
       GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (completionDepth + 2) parentType source
-          (executableFieldSelections (field :: fields)) =
+          (executableFieldSelections responseName (field :: fields)) =
       GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-        (completionDepth + 2) source [(responseName, field :: fields)] :=
+        (completionDepth + 2) parentType source
+        [(responseName, field :: fields)] :=
     specExecuteRootSelectionSet_executableFieldSelections_same_group schema
       resolvers variableValues (completionDepth + 2) parentType source
-      responseName field fields hresponse hparent
+      responseName field fields
   have hspecField :
       GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-          (completionDepth + 2) source [(responseName, field :: fields)] =
+          (completionDepth + 2) parentType source
+          [(responseName, field :: fields)] =
       GraphQL.Execution.executeField schema resolvers variableValues
-        (completionDepth + 2) source responseName (field :: fields) := by
+        (completionDepth + 2) parentType source responseName
+        (field :: fields) := by
     cases hfield :
         GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName (field :: fields) <;>
+          (completionDepth + 2) parentType source responseName
+          (field :: fields) <;>
       simp [GraphQL.Execution.executeCollectedFields, Result.combine,
         GraphQL.Execution.Result.combine, hfield]
   unfold ExecutableFieldsFlatSpecAlignedEquivalent
@@ -473,19 +443,16 @@ structure ExecutedFieldAppendStep
     (responseName : Name) (field : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
     (prefixTail : List ExecutableField) (later : ExecutableField) where
-  responseName_eq : later.responseName = responseName
-  parent_eq : later.parentType = parentType
   fieldName_eq : later.fieldName = field.fieldName
   resolved_eq
-    : resolveFieldValueByName schema resolvers variableValues later.parentType
+    : resolveFieldValueByName schema resolvers variableValues parentType
         later.fieldName later.arguments source
       = resolved
   prefixChildren
     : ∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -531,8 +498,7 @@ structure ExecutedFieldAppendStep
     : ∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -570,15 +536,14 @@ def ExecutedFieldAppendPlan
 def ExecutedFieldAppendPlanState
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (depth : Nat)
+    (variableValues : VariableValues) (depth : Nat) (parentType : Name)
     (field : ExecutableField) (fields : List ExecutableField)
     : List ExecutableField -> List ExecutableField -> Prop
   | prefixTail, [] =>
       ∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -600,8 +565,7 @@ def ExecutedFieldAppendPlanState
       (∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -645,7 +609,7 @@ def ExecutedFieldAppendPlanState
       ∧ (∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -665,19 +629,19 @@ def ExecutedFieldAppendPlanState
                   }
                 initial := .object []
               })
-      ∧ ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields (prefixTail ++ [later]) rest
+      ∧ ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields (prefixTail ++ [later]) rest
 
 theorem ExecutedFieldAppendPlanState.nil
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields prefixTail : List ExecutableField}
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -696,21 +660,21 @@ theorem ExecutedFieldAppendPlanState.nil
                   }
                 initial := .object []
               })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail [] :=
   hprefixChildren
 
 theorem ExecutedFieldAppendPlanState.cons
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field later : ExecutableField}
     {fields prefixTail rest : List ExecutableField}
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -758,7 +722,7 @@ theorem ExecutedFieldAppendPlanState.cons
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -779,23 +743,23 @@ theorem ExecutedFieldAppendPlanState.cons
                 initial := .object []
               })
     (hrest
-      : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields (prefixTail ++ [later]) rest)
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+      : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields (prefixTail ++ [later]) rest)
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail (later :: rest) :=
   ⟨hprefixChildren, hlater, hobjects, herrors, hchildren, hrest⟩
 
 theorem ExecutedFieldAppendPlanState.singleton
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field later : ExecutableField}
     {fields prefixTail : List ExecutableField}
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -843,7 +807,7 @@ theorem ExecutedFieldAppendPlanState.singleton
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -863,7 +827,7 @@ theorem ExecutedFieldAppendPlanState.singleton
                   }
                 initial := .object []
               })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail [later] := by
   refine ⟨hprefixChildren, hlater, hobjects, herrors, hchildren, ?_⟩
   intro childDepth runtimeType identity hlt hincludes
@@ -872,14 +836,14 @@ theorem ExecutedFieldAppendPlanState.singleton
 theorem ExecutedFieldAppendPlanState.cons_of_visit_absorbs
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field later : ExecutableField}
     {fields prefixTail rest : List ExecutableField}
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -926,7 +890,7 @@ theorem ExecutedFieldAppendPlanState.cons_of_visit_absorbs
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -947,9 +911,9 @@ theorem ExecutedFieldAppendPlanState.cons_of_visit_absorbs
                 initial := .object []
               })
     (hrest
-      : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields (prefixTail ++ [later]) rest)
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+      : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields (prefixTail ++ [later]) rest)
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail (later :: rest) := by
   apply ExecutedFieldAppendPlanState.cons hprefixChildren hlater
   · intro childDepth runtimeType identity hlt
@@ -972,14 +936,14 @@ theorem ExecutedFieldAppendPlanState.cons_of_visit_absorbs
 theorem ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field later : ExecutableField}
     {fields prefixTail : List ExecutableField}
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1026,7 +990,7 @@ theorem ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1046,7 +1010,7 @@ theorem ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
                   }
                 initial := .object []
               })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail [later] := by
   apply ExecutedFieldAppendPlanState.cons_of_visit_absorbs hprefixChildren
     hlater hsteps herrors hchildren
@@ -1056,15 +1020,15 @@ theorem ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
 theorem ExecutedFieldAppendPlanState.prefixChildren
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField}
     {fields prefixTail remaining : List ExecutableField}
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields prefixTail remaining
       -> ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1094,13 +1058,13 @@ theorem ExecutedFieldAppendPlanState.prefixChildren
 theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hprefixChildren
       : ∀ prefixTail childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1153,7 +1117,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1175,8 +1139,8 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
                   })
     : ∀ prefixTail remaining,
         (∀ later, later ∈ remaining -> later ∈ fields)
-        -> ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-            fields prefixTail remaining
+        -> ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+            field fields prefixTail remaining
   | prefixTail, [], _hremaining => by
       exact ExecutedFieldAppendPlanState.nil (hprefixChildren prefixTail)
   | prefixTail, later :: rest, hremaining => by
@@ -1195,13 +1159,13 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
 theorem ExecutedFieldAppendPlanState.of_all_prefixes
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hprefixChildren
       : ∀ prefixTail childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1254,7 +1218,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1274,7 +1238,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes
                       }
                     initial := .object []
                   })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields [] fields := by
   apply ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
     hprefixChildren hobjects herrors hchildren
@@ -1284,13 +1248,13 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes
 theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix_of_visit_absorbs
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hprefixChildren
       : ∀ prefixTail childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1343,7 +1307,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix_of_visit_absorb
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1365,8 +1329,8 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix_of_visit_absorb
                   })
     : ∀ prefixTail remaining,
         (∀ later, later ∈ remaining -> later ∈ fields)
-        -> ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-            fields prefixTail remaining
+        -> ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+            field fields prefixTail remaining
   | prefixTail, [], _hremaining => by
       exact ExecutedFieldAppendPlanState.nil (hprefixChildren prefixTail)
   | prefixTail, later :: rest, hremaining => by
@@ -1387,13 +1351,13 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix_of_visit_absorb
 theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_visit_absorbs
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hprefixChildren
       : ∀ prefixTail childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1446,7 +1410,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_visit_absorbs
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1466,7 +1430,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_visit_absorbs
                       }
                     initial := .object []
                   })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields [] fields := by
   apply
     ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix_of_visit_absorbs
@@ -1477,13 +1441,13 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_visit_absorbs
 theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_local_absorbs
     {ObjectIdentity : Type}
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
+    {variableValues : VariableValues} {depth : Nat} {parentType : Name}
     {field : ExecutableField} {fields : List ExecutableField}
     (hprefixChildren
       : ∀ prefixTail childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -1532,7 +1496,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_local_absorbs
           -> ∀ childDepth runtimeType identity,
               childDepth < depth
               -> schema.typeIncludesObjectBool
-                    ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                    ((schema.fieldReturnType? parentType field.fieldName).getD
                       field.fieldName)
                     runtimeType
                   = true
@@ -1552,7 +1516,7 @@ theorem ExecutedFieldAppendPlanState.of_all_prefixes_of_local_absorbs
                       }
                     initial := .object []
                   })
-    : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+    : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields [] fields := by
   apply ExecutedFieldAppendPlanState.of_all_prefixes_of_visit_absorbs
     hprefixChildren
@@ -1641,8 +1605,7 @@ theorem ExecutedFieldAppendPlan.toAppendSteps
       rcases plan with ⟨step, restPlan⟩
       simp [ExecutableFieldsMergedCompleteAppendSteps]
       exact
-        ⟨step.responseName_eq, step.parent_eq, step.fieldName_eq,
-          step.resolved_eq, step.prefixChildren, step.absorbs,
+        ⟨step.fieldName_eq, step.resolved_eq, step.prefixChildren, step.absorbs,
           step.errorNeutral, step.extendedChildren,
           ExecutedFieldAppendPlan.toAppendSteps schema resolvers
             variableValues depth parentType source responseName field resolved

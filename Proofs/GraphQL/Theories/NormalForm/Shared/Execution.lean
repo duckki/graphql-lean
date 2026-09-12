@@ -66,13 +66,7 @@ theorem mergedFieldSelectionSet_ite {c : Prop} [Decidable c]
   · simp [hc]
 
 def selectionSetExecutableField (selectionSet : List Selection) : ExecutableField :=
-  {
-    parentType := "",
-    responseName := "",
-    fieldName := "",
-    arguments := [],
-    selectionSet := selectionSet
-  }
+  { fieldName := "", arguments := [], selectionSet := selectionSet }
 
 def selectionExecutableField (selection : Selection) : ExecutableField :=
   selectionSetExecutableField [selection]
@@ -138,13 +132,8 @@ def executableGroupNamesDisjoint
   ∀ responseName,
     responseName ∈ left.map Prod.fst -> responseName ∈ right.map Prod.fst -> False
 
-def executableFieldsMatchResponseName
-    (responseName : Name) (fields : List Execution.ExecutableField)
-    : Prop :=
-  ∀ field, field ∈ fields -> field.responseName = responseName
-
 def executableGroupWellFormed (group : Name × List Execution.ExecutableField) : Prop :=
-  group.snd ≠ [] ∧ executableFieldsMatchResponseName group.fst group.snd
+  group.snd ≠ []
 
 def executableGroupsWellFormed (groups : List (Name × List Execution.ExecutableField))
     : Prop :=
@@ -200,11 +189,7 @@ theorem collectSelection_field_noDirectives
       = [(
           responseName,
           [{
-            parentType := parentType,
-            responseName := responseName,
-            fieldName := fieldName,
-            arguments := arguments,
-            selectionSet := selectionSet
+            fieldName := fieldName, arguments := arguments, selectionSet := selectionSet
           }]
         )] := by
   simp [Execution.collectSelection, Execution.selectionDirectivesAllowBool]

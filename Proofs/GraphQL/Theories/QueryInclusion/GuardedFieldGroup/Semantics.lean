@@ -459,14 +459,14 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
       have hruntimeRightReady := executableGroupsSemanticsReady_collectFields schema
         targetValues runtimeType PUnit.unit rightTargetSelectionSet hobject hrightReady
         hrightMerge
-      have hruntimeInclude : executableGroupsIncludeBool schema
+      have hruntimeInclude : executableGroupsIncludeBool schema runtimeType
           (fun outputType leftSelectionSet rightSelectionSet =>
             (schema.getPossibleTypes outputType.namedType).all
               fun childRuntimeType =>
                 selectionSetIncludesBoolWithFuel schema childFuel childRuntimeType
                   targetValues leftSelectionSet rightSelectionSet)
           runtimeLeftGroups runtimeRightGroups = true := by
-        refine executableGroupsIncludeBool_transport schema
+        refine executableGroupsIncludeBool_transport schema runtimeType
           (fun outputType leftSelectionSet rightSelectionSet =>
             childCheck (schema.getPossibleTypes outputType.namedType)
               leftSelectionSet rightSelectionSet)
@@ -490,10 +490,10 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
         have hchildObject : schema.objectType childRuntimeType :=
           SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
             fieldType.namedType childRuntimeType hchildRuntime
-        have hleftCompletionReady : completionFieldsSemanticsReady schema fieldType
+        have hleftCompletionReady : completionFieldsSemanticsReady schema runtimeType fieldType
             runtimeLeftFields :=
           ⟨hruntimeLeftReady leftName runtimeLeftFields hruntimeLeftGroup, hruntimeLeftWitness⟩
-        have hrightCompletionReady : completionFieldsSemanticsReady schema fieldType
+        have hrightCompletionReady : completionFieldsSemanticsReady schema runtimeType fieldType
             runtimeRightFields :=
           ⟨hruntimeRightReady rightName runtimeRightFields hruntimeRightGroup, hruntimeRightWitness⟩
         have hchildIncludesBool : schema.typeIncludesObjectBool fieldType.namedType
@@ -754,7 +754,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
         unfold guardedFieldGroupCaseIncludesBool
         simp only [childIncludes]
         rw [hparentCase.2.1]
-        change executableGroupsIncludeBool schema
+        change executableGroupsIncludeBool schema runtimeType
             (fun outputType leftSelectionSet rightSelectionSet =>
               guardedFieldChildIncludesBool schema childFuel knownValues
                 (schema.getPossibleTypes outputType.namedType) leftSelectionSet
@@ -778,7 +778,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
             rcases runtimeGroupsPermutationEquivalent_singleton_of_mem
                 hrightEquivalent hguardedRightFull with
               ⟨runtimeRightFields, hruntimeRightGroup, hrightSingleton⟩
-            have hruntimeInclude : executableGroupsIncludeBool schema
+            have hruntimeInclude : executableGroupsIncludeBool schema runtimeType
                 (fun outputType leftSelectionSet rightSelectionSet =>
                   (schema.getPossibleTypes outputType.namedType).all
                     fun candidateRuntimeType =>
@@ -809,7 +809,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
             have hleftSingleton : RuntimeGroupsPermutationEquivalent
                 [(leftName, guardedLeftFields')] [(leftName, runtimeLeftFields)] := by
               exact runtimeGroupsPermutationEquivalent_symm hleftSingletonRuntime
-            have hruntimeSingletonInclude : executableGroupsIncludeBool schema
+            have hruntimeSingletonInclude : executableGroupsIncludeBool schema runtimeType
                 (fun outputType leftSelectionSet rightSelectionSet =>
                   (schema.getPossibleTypes outputType.namedType).all
                     fun candidateRuntimeType =>
@@ -820,7 +820,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                 [(right.responseName, runtimeRightFields)] = true := by
               simpa [executableGroupsIncludeBool, executableGroupIncludedBool]
                 using hruntimeMatch
-            have hruntimeLeftSingletonReady : executableGroupsSemanticsReady schema
+            have hruntimeLeftSingletonReady : executableGroupsSemanticsReady schema runtimeType
                 [(leftName, runtimeLeftFields)] := by
               intro responseName fields hgroup
               have heq : (responseName, fields) = (leftName, runtimeLeftFields) := by
@@ -829,7 +829,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
               subst responseName
               subst fields
               exact hruntimeLeftReady leftName runtimeLeftFields hruntimeLeftGroup
-            have hruntimeRightSingletonReady : executableGroupsSemanticsReady schema
+            have hruntimeRightSingletonReady : executableGroupsSemanticsReady schema runtimeType
                 [(right.responseName, runtimeRightFields)] := by
               intro responseName fields hgroup
               have heq : (responseName, fields) =
@@ -838,14 +838,14 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
               subst responseName
               subst fields
               exact hruntimeRightReady right.responseName runtimeRightFields hruntimeRightGroup
-            have hguardedSingletonInclude : executableGroupsIncludeBool schema
+            have hguardedSingletonInclude : executableGroupsIncludeBool schema runtimeType
                 (fun outputType leftSelectionSet rightSelectionSet =>
                   guardedFieldChildIncludesBool schema childFuel knownValues
                     (schema.getPossibleTypes outputType.namedType) leftSelectionSet
                     rightSelectionSet)
                 [(leftName, guardedLeftFields')]
                 [(right.responseName, rightHead :: rightRest)] = true := by
-              apply executableGroupsIncludeBool_transport_of_ready schema
+              apply executableGroupsIncludeBool_transport_of_ready schema runtimeType
                 (fun outputType leftSelectionSet rightSelectionSet =>
                   guardedFieldChildIncludesBool schema childFuel knownValues
                     (schema.getPossibleTypes outputType.namedType) leftSelectionSet
@@ -1032,7 +1032,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                     childValues runtimeType PUnit.unit childOuterRightSelectionSet
                     houterCase.1 houterCase.2.2.2.2.2.1
                     houterCase.2.2.2.2.2.2.1 houterCase.2.2.2.2.2.2.2.1
-                  have hchildRuntimeInclude : executableGroupsIncludeBool schema
+                  have hchildRuntimeInclude : executableGroupsIncludeBool schema runtimeType
                       (fun outputType leftSelectionSet rightSelectionSet =>
                         (schema.getPossibleTypes outputType.namedType).all
                           fun candidateRuntimeType =>
@@ -1049,7 +1049,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                     hchildRightFieldsPerm
                     (by simpa using hguardedRightWitness)
                   have hchildSemantic := executableGroupsIncludeBool_child_at_runtime
-                    schema hschema childFuel childValues childRuntimeLeftGroups
+                    schema hschema childFuel runtimeType childValues childRuntimeLeftGroups
                     childRuntimeRightGroups leftName right.responseName
                     childRuntimeLeftFields childRuntimeRightFields fieldType childRuntimeType
                     hchildLeftEquivalent.rightKeysNodup
@@ -1061,11 +1061,11 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                   have hchildObject :=
                     SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
                       hschema fieldType.namedType childRuntimeType hchildRuntime
-                  have hleftCompletionReady : completionFieldsReady schema fieldType
+                  have hleftCompletionReady : completionFieldsReady schema runtimeType fieldType
                       childRuntimeLeftFields :=
                     ⟨hchildRuntimeLeftReady leftName childRuntimeLeftFields
                       hchildRuntimeLeftGroup, hleftWitness⟩
-                  have hrightCompletionReady : completionFieldsReady schema fieldType
+                  have hrightCompletionReady : completionFieldsReady schema runtimeType fieldType
                       childRuntimeRightFields :=
                     ⟨hchildRuntimeRightReady right.responseName childRuntimeRightFields
                       hchildRuntimeRightGroup, hrightWitness⟩
@@ -1096,7 +1096,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
               · exact hruntimeSingletonInclude
             have hguardedRightIncluded := List.all_eq_true.mp hguardedSingletonInclude
               (right.responseName, rightHead :: rightRest) (by simp)
-            have hlocalIncluded := executableGroupIncludedBool_mono_left schema
+            have hlocalIncluded := executableGroupIncludedBool_mono_left schema runtimeType
               (fun outputType leftSelectionSet rightSelectionSet =>
                 guardedFieldChildIncludesBool schema childFuel knownValues
                   (schema.getPossibleTypes outputType.namedType) leftSelectionSet

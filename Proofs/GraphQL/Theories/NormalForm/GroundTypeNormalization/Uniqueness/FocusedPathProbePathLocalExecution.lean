@@ -1486,12 +1486,11 @@ theorem
               (ProjectionResolverRef.filler
                 : ProjectionResolverRef FieldPairPathLocalProbeRef))
             variableValues parentFuel
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -1504,12 +1503,11 @@ theorem
                 leftArguments rightArguments leftRuntime rightRuntime)
               targetParent leftField rightField leftArguments rightArguments)
             variableValues parentFuel
+            targetParent
             (projectionRootResolverValue
               (.object targetParent FieldPairPathLocalProbeRef.root))
             responseName
             [{
-              parentType := targetParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := childSelectionSet
@@ -1545,12 +1543,11 @@ theorem
                 (ProjectionResolverRef.filler
                   : ProjectionResolverRef FieldPairPathLocalProbeRef))
               variableValues parentFuel
+              targetParent
               (projectionRootResolverValue
                 (.object targetParent FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := targetParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1577,12 +1574,11 @@ theorem
                   targetParent leftField rightField leftArguments
                   rightArguments)
                 variableValues parentFuel
+                targetParent
                 (projectionRootResolverValue
                   (.object targetParent FieldPairPathLocalProbeRef.root))
                 responseName
                 [{
-                  parentType := targetParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1704,12 +1700,11 @@ theorem
                     parentType fieldName fieldName leftTargetArguments
                     rightTargetArguments)
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := siblingFieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -1728,12 +1723,11 @@ theorem
                     parentType fieldName fieldName leftTargetArguments
                     rightTargetArguments)
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := siblingFieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -1764,10 +1758,8 @@ theorem
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (parentFuel + 1)
-        source responseName
+        parentType source responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := leftArguments
           selectionSet := leftChildSelectionSet
@@ -1785,6 +1777,7 @@ theorem
               parentType fieldName fieldName leftTargetArguments rightTargetArguments)
             variableValues
             (parentFuel - leafProbeFuel fieldDefinition.outputType)
+            leftRuntime
             (projectionTargetResolverValue
               (.object leftRuntime
                 (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -1820,10 +1813,8 @@ theorem
       hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (parentFuel + 1)
-        source responseName
+        parentType source responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := rightArguments
           selectionSet := rightChildSelectionSet
@@ -1841,6 +1832,7 @@ theorem
               parentType fieldName fieldName leftTargetArguments rightTargetArguments)
             variableValues
             (parentFuel - leafProbeFuel fieldDefinition.outputType)
+            rightRuntime
             (projectionTargetResolverValue
               (.object rightRuntime
                 (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -2030,12 +2022,11 @@ theorem
                     parentType leftFieldName rightFieldName leftTargetArguments
                     rightTargetArguments)
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2055,12 +2046,11 @@ theorem
                     parentType leftFieldName rightFieldName leftTargetArguments
                     rightTargetArguments)
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2092,10 +2082,8 @@ theorem
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
-        (parentFuel + 1) source responseName
+        (parentFuel + 1) parentType source responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := leftFieldName
           arguments := leftArguments
           selectionSet := leftChildSelectionSet
@@ -2115,6 +2103,7 @@ theorem
               rightTargetArguments)
             variableValues
             (parentFuel - leafProbeFuel leftFieldDefinition.outputType)
+            leftRuntime
             (projectionTargetResolverValue
               (.object leftRuntime
                 (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -2150,10 +2139,8 @@ theorem
       hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
-        (parentFuel + 1) source responseName
+        (parentFuel + 1) parentType source responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := rightFieldName
           arguments := rightArguments
           selectionSet := rightChildSelectionSet
@@ -2173,6 +2160,7 @@ theorem
               rightTargetArguments)
             variableValues
             (parentFuel - leafProbeFuel rightFieldDefinition.outputType)
+            rightRuntime
             (projectionTargetResolverValue
               (.object rightRuntime
                 (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -2435,12 +2423,11 @@ theorem
                     (ProjectionResolverRef.filler
                       : ProjectionResolverRef FieldPairPathLocalProbeRef))
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2456,12 +2443,11 @@ theorem
                     (ProjectionResolverRef.filler
                       : ProjectionResolverRef FieldPairPathLocalProbeRef))
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2491,12 +2477,11 @@ theorem
                   leftRuntime rightRuntime)
                 parentType fieldName fieldName leftArguments rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2533,12 +2518,11 @@ theorem
                   leftRuntime rightRuntime)
                 parentType fieldName fieldName leftArguments rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2571,12 +2555,11 @@ theorem
                   leftRuntime rightRuntime)
                 parentType fieldName fieldName leftArguments rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2602,12 +2585,11 @@ theorem
                   leftRuntime rightRuntime)
                 parentType fieldName fieldName leftArguments rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2854,12 +2836,11 @@ theorem
                     (ProjectionResolverRef.filler
                       : ProjectionResolverRef FieldPairPathLocalProbeRef))
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2875,12 +2856,11 @@ theorem
                     (ProjectionResolverRef.filler
                       : ProjectionResolverRef FieldPairPathLocalProbeRef))
                   variableValues (parentFuel + 1)
+                  parentType
                   (projectionRootResolverValue
                     (.object parentType FieldPairPathLocalProbeRef.root))
                   responseName
                   [{
-                    parentType := parentType,
-                    responseName := responseName,
                     fieldName := siblingFieldName,
                     arguments := arguments,
                     selectionSet := childSelectionSet
@@ -2911,12 +2891,11 @@ theorem
                 parentType leftFieldName rightFieldName leftArguments
                 rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2955,12 +2934,11 @@ theorem
                 parentType leftFieldName rightFieldName leftArguments
                 rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -2995,12 +2973,11 @@ theorem
                 parentType leftFieldName rightFieldName leftArguments
                 rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -3029,12 +3006,11 @@ theorem
                 parentType leftFieldName rightFieldName leftArguments
                 rightArguments)
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -3496,12 +3472,11 @@ theorem
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairPathLocalProbeRef))
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -3536,12 +3511,11 @@ theorem
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairPathLocalProbeRef))
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -4028,12 +4002,11 @@ theorem
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairPathLocalProbeRef))
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -4068,12 +4041,11 @@ theorem
                 (ProjectionResolverRef.filler :
                   ProjectionResolverRef FieldPairPathLocalProbeRef))
               variableValues (parentFuel + 1)
+              parentType
               (projectionRootResolverValue
                 (.object parentType FieldPairPathLocalProbeRef.root))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := siblingFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet

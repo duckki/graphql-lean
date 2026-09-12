@@ -87,12 +87,11 @@ theorem
                   parentType leftField rightField leftArguments rightArguments)
                 variableValues
                 (fuel + 1)
+                parentType
                 (projectionRootResolverValue
                   (.object parentType (none : Option FieldPairProbeTag)))
                 responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -342,12 +341,11 @@ theorem
                   parentType leftField rightField leftArguments rightArguments)
                 variableValues
                 (fuel + 1)
+                parentType
                 (projectionRootResolverValue
                   (.object parentType (none : Option FieldPairProbeTag)))
                 responseName
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -799,10 +797,8 @@ theorem
             directives childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -823,10 +819,8 @@ theorem
             directives childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -864,10 +858,8 @@ theorem
     omega
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -907,10 +899,8 @@ theorem
         hlookup hleftArgumentCoercion hleftFuel hleaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -987,10 +977,8 @@ theorem
               directives childSelectionSet ∈ supportSelectionSet ->
             ∃ responseValue fieldErrors,
               Execution.executeField schema resolvers variableValues
-                (baseFuel + 1) source currentResponseName
+                (baseFuel + 1) parentType source currentResponseName
                 [{
-                  parentType := parentType,
-                  responseName := currentResponseName,
                   fieldName := currentFieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1164,10 +1152,8 @@ theorem
             directives childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1188,10 +1174,8 @@ theorem
             directives childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1247,10 +1231,8 @@ theorem
       hrightCoercion hrightFree hrightMem hrightLookup
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := leftFieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -1292,10 +1274,8 @@ theorem
         hleftArgumentCoercion hleftFuel hleftLeaf
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := rightFieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -1374,10 +1354,8 @@ theorem
               directives childSelectionSet ∈ supportSelectionSet ->
             ∃ responseValue fieldErrors,
               Execution.executeField schema resolvers variableValues
-                (baseFuel + 1) source currentResponseName
+                (baseFuel + 1) parentType source currentResponseName
                 [{
-                  parentType := parentType,
-                  responseName := currentResponseName,
                   fieldName := currentFieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet
@@ -1551,10 +1529,8 @@ theorem
             directives childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1575,10 +1551,8 @@ theorem
             directives childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (baseFuel + 1) source currentResponseName
+              (baseFuel + 1) parentType source currentResponseName
               [{
-                parentType := parentType,
-                responseName := currentResponseName,
                 fieldName := currentFieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -1634,10 +1608,8 @@ theorem
       hrightCoercion hrightFree hrightMem hrightLookup
   have hleftTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := leftFieldName,
           arguments := leftArguments,
           selectionSet := leftChildSelectionSet
@@ -1809,10 +1781,8 @@ theorem
     ⟨rightResponseValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
-        (baseFuel + 1) source responseName
+        (baseFuel + 1) parentType source responseName
         [{
-          parentType := parentType,
-          responseName := responseName,
           fieldName := rightFieldName,
           arguments := rightArguments,
           selectionSet := rightChildSelectionSet
@@ -1895,10 +1865,8 @@ theorem
               directives childSelectionSet ∈ supportSelectionSet ->
             ∃ responseValue fieldErrors,
               Execution.executeField schema resolvers variableValues
-                (baseFuel + 1) source currentResponseName
+                (baseFuel + 1) parentType source currentResponseName
                 [{
-                  parentType := parentType,
-                  responseName := currentResponseName,
                   fieldName := currentFieldName,
                   arguments := arguments,
                   selectionSet := childSelectionSet

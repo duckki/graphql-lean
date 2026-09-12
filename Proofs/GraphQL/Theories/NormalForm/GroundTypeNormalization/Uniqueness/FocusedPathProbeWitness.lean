@@ -2519,10 +2519,8 @@ theorem
             childSelectionSet ∈ selectionSet ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) leftSource responseName
+              (fuel + 1) parentType leftSource responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -2543,10 +2541,8 @@ theorem
             childSelectionSet ∈ selectionSet ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) rightSource responseName
+              (fuel + 1) parentType rightSource responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet

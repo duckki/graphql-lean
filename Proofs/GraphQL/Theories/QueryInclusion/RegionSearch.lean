@@ -85,51 +85,6 @@ theorem booleanVariablesCovered_tail_of_cons
     · exact Or.inr ⟨candidateValue, by
         simpa [inputValueBoolean?, lookupVariableValue?, heq] using hcandidateValue⟩
 
-theorem executableGroupsWithParentType_addExecutableGroup
-    (parentType : Name) (group : Name × List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    : executableGroupsWithParentType parentType (addExecutableGroup group groups)
-      = addExecutableGroup (executableGroupWithParentType parentType group)
-          (executableGroupsWithParentType parentType groups) := by
-  induction groups with
-  | nil => simp [executableGroupsWithParentType, executableGroupWithParentType,
-      addExecutableGroup]
-  | cons candidate rest ih =>
-      rcases candidate with ⟨responseName, fields⟩
-      rcases group with ⟨groupName, groupFields⟩
-      rw [addExecutableGroup]
-      split <;> rename_i hname
-      · unfold executableGroupsWithParentType executableGroupWithParentType
-        simp [List.map_append, addExecutableGroup, hname]
-      · unfold executableGroupsWithParentType executableGroupWithParentType at ih ⊢
-        simp [addExecutableGroup, hname, ih]
-
-theorem executableGroupsWithParentType_groupExecutableFields_acc
-    (parentType : Name) (fields : List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    : executableGroupsWithParentType parentType
-        (fields.foldl
-          (fun accumulated field =>
-            addExecutableGroup (field.responseName, [field]) accumulated)
-          groups)
-      = (fields.map (executableFieldWithParentType parentType)).foldl
-          (fun accumulated field =>
-            addExecutableGroup (field.responseName, [field]) accumulated)
-          (executableGroupsWithParentType parentType groups) := by
-  induction fields generalizing groups with
-  | nil => rfl
-  | cons field rest ih =>
-      simp only [List.foldl_cons, List.map_cons]
-      rw [ih, executableGroupsWithParentType_addExecutableGroup]
-      rfl
-
-theorem executableGroupsWithParentType_groupExecutableFields
-    (parentType : Name) (fields : List ExecutableField)
-    : executableGroupsWithParentType parentType (groupExecutableFields fields)
-      = groupExecutableFields
-          (fields.map (executableFieldWithParentType parentType)) := by
-  exact executableGroupsWithParentType_groupExecutableFields_acc parentType fields []
-
 theorem selectionConditionsForRegion_runtimeGroups_permutationEquivalent
     {ObjectRef : Type}
     (schema : Schema) (region : List Name)
@@ -172,9 +127,7 @@ theorem selectionConditionsForRegion_runtimeGroups_permutationEquivalent
   · exact (executableGroupNamesNodup_iff_map_fst_nodup _).mp
       (NormalForm.collectFields_namesNodup schema variableValues executionParentType
         (.object runtimeType ref) targetSelectionSet)
-  · rw [← Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd,
-      ← Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd]
-    apply hgrouped.2.trans
+  · apply hgrouped.2.trans
     apply (List.Perm.of_eq hfields).trans
     apply (collectFlatFields_perm_of_selectionSet_perm
       schema variableValues executionParentType (.object runtimeType ref)
@@ -247,31 +200,36 @@ def executableGroupsResolverReady (groups : List (Name × List ExecutableField))
   ∀ responseName fields,
     (responseName, fields) ∈ groups -> fields ≠ [] ∧ executableFieldsSameResolver fields
 
-def executableFieldSemanticsReady (schema : Schema) (field : ExecutableField) : Prop :=
+def executableFieldSemanticsReady (schema : Schema) (parentType : Name)
+    (field : ExecutableField)
+    : Prop :=
   ∃ definition,
-    schema.lookupField field.parentType field.fieldName = some definition
+    schema.lookupField parentType field.fieldName = some definition
     ∧ ∀ runtimeType,
         schema.typeIncludesObjectBool definition.outputType.namedType runtimeType = true
         -> NormalForm.selectionSetSemanticsReady schema runtimeType field.selectionSet
 
-def executableFieldsSemanticsReady (schema : Schema) (fields : List ExecutableField)
+def executableFieldsSemanticsReady (schema : Schema) (parentType : Name)
+    (fields : List ExecutableField)
     : Prop :=
   fields ≠ []
-  ∧ (∀ field, field ∈ fields -> executableFieldSemanticsReady schema field)
+  ∧ (∀ field, field ∈ fields -> executableFieldSemanticsReady schema parentType field)
   ∧ executableFieldsSameResolver fields
   ∧ ∀ objectType,
       FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields)
 
-def executableGroupsSemanticsReady (schema : Schema)
+def executableGroupsSemanticsReady (schema : Schema) (parentType : Name)
     (groups : List (Name × List ExecutableField))
     : Prop :=
   ∀ responseName fields,
-    (responseName, fields) ∈ groups -> executableFieldsSemanticsReady schema fields
+    (responseName, fields) ∈ groups
+    -> executableFieldsSemanticsReady schema parentType fields
 
 theorem executableGroupsSemanticsReady_of_ready
-    {schema : Schema} {groups : List (Name × List ExecutableField)}
-    (hready : executableGroupsReady schema groups)
-    : executableGroupsSemanticsReady schema groups := by
+    {schema : Schema} {parentType : Name}
+    {groups : List (Name × List ExecutableField)}
+    (hready : executableGroupsReady schema parentType groups)
+    : executableGroupsSemanticsReady schema parentType groups := by
   intro responseName fields hgroup
   have hfields := hready responseName fields hgroup
   refine ⟨hfields.1, ?_, hfields.2.2.1, hfields.2.2.2⟩
@@ -280,23 +238,26 @@ theorem executableGroupsSemanticsReady_of_ready
     ⟨definition, hlookup, hchild, _hinhabited⟩
   exact ⟨definition, hlookup, hchild⟩
 
-def completionFieldsWitness (schema : Schema) (fieldType : TypeRef)
+def completionFieldsWitness (schema : Schema) (parentType : Name)
+    (fieldType : TypeRef)
     (fields : List ExecutableField)
     : Prop :=
   ∃ field definition,
     field ∈ fields
-    ∧ schema.lookupField field.parentType field.fieldName = some definition
+    ∧ schema.lookupField parentType field.fieldName = some definition
     ∧ fieldType.namedType = definition.outputType.namedType
 
-def completionFieldsSemanticsReady (schema : Schema) (fieldType : TypeRef)
+def completionFieldsSemanticsReady (schema : Schema) (parentType : Name)
+    (fieldType : TypeRef)
     (fields : List ExecutableField)
     : Prop :=
-  executableFieldsSemanticsReady schema fields
-  ∧ completionFieldsWitness schema fieldType fields
+  executableFieldsSemanticsReady schema parentType fields
+  ∧ completionFieldsWitness schema parentType fieldType fields
 
 theorem executableGroupsResolverReady_of_semanticsReady
-    {schema : Schema} {groups : List (Name × List ExecutableField)}
-    (hready : executableGroupsSemanticsReady schema groups)
+    {schema : Schema} {parentType : Name}
+    {groups : List (Name × List ExecutableField)}
+    (hready : executableGroupsSemanticsReady schema parentType groups)
     : executableGroupsResolverReady groups := by
   intro responseName fields hgroup
   have hfields := hready responseName fields hgroup
@@ -308,7 +269,7 @@ theorem executableGroupsSemanticsReady_collectFields
     (hobject : schema.objectType parentType)
     (hready : NormalForm.selectionSetSemanticsReady schema parentType selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet)
-    : executableGroupsSemanticsReady schema
+    : executableGroupsSemanticsReady schema parentType
         (collectFields schema variableValues parentType (.object parentType ref)
           selectionSet) := by
   let groups :=
@@ -318,18 +279,12 @@ theorem executableGroupsSemanticsReady_collectFields
   have hnonempty : CollectedGroupsFieldsNonempty groups := by
     exact collectFields_fieldsNonempty schema variableValues parentType
       (.object parentType ref) selectionSet
-  have hparents : CollectedGroupsParent parentType groups := by
-    exact collectFields_parent schema variableValues parentType
-      (.object parentType ref) selectionSet
   have hlookup :=
     collectFields_lookupValid_of_selectionSetSemanticsReady_object schema
       variableValues parentType parentType ref selectionSet hobject hself hready
   have hchild :=
     collectFields_childSemanticsReady_of_selectionSetSemanticsReady_object schema
       variableValues parentType parentType ref selectionSet hobject hself hready
-  have hresponses : CollectedGroupsResponseName groups := by
-    exact collectFields_responseName schema variableValues parentType
-      (.object parentType ref) selectionSet
   have hcompatible : CollectedGroupsFieldValidationMergeCompatible groups := by
     dsimp only [groups]
     exact collectFields_fieldCompatible_of_canMerge_lookupValid_object schema
@@ -337,11 +292,11 @@ theorem executableGroupsSemanticsReady_collectFields
       (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
         hready)
   have hscoped :
-      ExecutableFieldsRuntimeScopedBy schema parentType
+      ExecutableEntriesRuntimeScopedBy schema parentType
         (FieldMerge.collectFields schema parentType selectionSet)
-        (collectedExecutableFields groups) := by
+        (collectedExecutableEntries groups) := by
     dsimp only [groups]
-    exact collectFields_runtimeScopedBy_of_selectionSetLookupValid_object schema
+    exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
       variableValues parentType parentType parentType ref selectionSet hself
       (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady selectionSet
         hready)
@@ -349,36 +304,28 @@ theorem executableGroupsSemanticsReady_collectFields
   refine ⟨?_, ?_, ?_, ?_⟩
   · exact hnonempty responseName fields hgroup
   · intro field hfield
-    have hparent : field.parentType = parentType :=
-      hparents responseName fields hgroup field hfield
     have hflat : field ∈ collectedExecutableFields groups :=
       collectedExecutableFields_mem_of_group_mem hgroup hfield
     rcases hlookup field hflat with ⟨definition, hdefinition⟩
-    refine ⟨definition, by simpa [hparent] using hdefinition, ?_⟩
+    refine ⟨definition, hdefinition, ?_⟩
     intro runtimeType hincludes
-    exact hchild field hflat definition (by simpa [hparent] using hdefinition)
+    exact hchild field hflat definition hdefinition
       runtimeType hincludes
   · intro first later hfirst hlater
-    have hparent : first.parentType = later.parentType := by
-      rw [hparents responseName fields hgroup first hfirst,
-        hparents responseName fields hgroup later hlater]
-    have hresponse : first.responseName = later.responseName := by
-      rw [hresponses responseName fields hgroup first hfirst,
-        hresponses responseName fields hgroup later hlater]
-    exact ⟨hparent,
-      hcompatible responseName fields hgroup first later hfirst hlater hresponse⟩
+    exact hcompatible responseName fields hgroup first later hfirst hlater
   · intro objectType
     apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped schema
       parentType parentType selectionSet responseName fields hmerge
-    · exact hresponses responseName fields hgroup
-    · intro field hfield
-      exact hscoped field
-        (collectedExecutableFields_mem_of_group_mem hgroup hfield)
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
+    exact hscoped (responseName, field)
+      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem completionFieldsSemanticsReady_merged_semantics
-    {schema : Schema} {fieldType : TypeRef} {fields : List ExecutableField}
+    {schema : Schema} {parentType : Name}
+    {fieldType : TypeRef} {fields : List ExecutableField}
     {runtimeType : Name}
-    (hready : completionFieldsSemanticsReady schema fieldType fields)
+    (hready : completionFieldsSemanticsReady schema parentType fieldType fields)
     (hincludes : schema.typeIncludesObjectBool fieldType.namedType runtimeType = true)
     : NormalForm.selectionSetSemanticsReady schema runtimeType
         (mergedFieldSelectionSet fields) := by
@@ -390,11 +337,11 @@ theorem completionFieldsSemanticsReady_merged_semantics
     rcases hfieldsReady.2.1 field hfield with
       ⟨fieldDefinition, hfieldLookup, hchild⟩
     rcases hfieldsReady.2.2.1 sourceField field hsource hfield with
-      ⟨hparent, hfieldName, _harguments⟩
+      ⟨hfieldName, _harguments⟩
     have hfieldLookup' :
-        schema.lookupField sourceField.parentType sourceField.fieldName
+        schema.lookupField parentType sourceField.fieldName
           = some fieldDefinition := by
-      simpa [hparent, hfieldName] using hfieldLookup
+      simpa [hfieldName] using hfieldLookup
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
@@ -423,8 +370,9 @@ theorem completionFieldsSemanticsReady_merged_semantics
   exact hflat fields heach
 
 theorem completionFieldsSemanticsReady_merged_canMerge
-    {schema : Schema} {fieldType : TypeRef} {fields : List ExecutableField}
-    (hready : completionFieldsSemanticsReady schema fieldType fields)
+    {schema : Schema} {parentType : Name}
+    {fieldType : TypeRef} {fields : List ExecutableField}
+    (hready : completionFieldsSemanticsReady schema parentType fieldType fields)
     (objectType : Name)
     : FieldMerge.fieldsInSetCanMerge schema objectType (mergedFieldSelectionSet fields) :=
   hready.1.2.2.2 objectType
@@ -448,7 +396,7 @@ theorem executableGroupsResolverReady_of_permutationEquivalent
       (hfieldsPerm.mem_iff.mp hlater)
 
 theorem executableGroupsIncludeBool_transport
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (guardedChildIncludes runtimeChildIncludes
       : TypeRef -> List Selection -> List Selection -> Bool)
     (guardedLeftGroups guardedRightGroups runtimeLeftGroups runtimeRightGroups
@@ -469,10 +417,10 @@ theorem executableGroupsIncludeBool_transport
           -> leftName = rightName
           -> guardedLeftFields.Perm runtimeLeftFields
           -> guardedRightFields.Perm runtimeRightFields
-          -> completionFieldsWitness schema fieldType guardedLeftFields
-          -> completionFieldsWitness schema fieldType runtimeLeftFields
-          -> completionFieldsWitness schema fieldType guardedRightFields
-          -> completionFieldsWitness schema fieldType runtimeRightFields
+          -> completionFieldsWitness schema parentType fieldType guardedLeftFields
+          -> completionFieldsWitness schema parentType fieldType runtimeLeftFields
+          -> completionFieldsWitness schema parentType fieldType guardedRightFields
+          -> completionFieldsWitness schema parentType fieldType runtimeRightFields
           -> guardedChildIncludes fieldType
                 (executableFieldsMergedSelectionSet guardedLeftFields)
                 (executableFieldsMergedSelectionSet guardedRightFields)
@@ -482,10 +430,10 @@ theorem executableGroupsIncludeBool_transport
                 (executableFieldsMergedSelectionSet runtimeRightFields)
               = true)
     (hinclude
-      : executableGroupsIncludeBool schema guardedChildIncludes guardedLeftGroups
-          guardedRightGroups
+      : executableGroupsIncludeBool schema parentType guardedChildIncludes
+          guardedLeftGroups guardedRightGroups
         = true)
-    : executableGroupsIncludeBool schema runtimeChildIncludes runtimeLeftGroups
+    : executableGroupsIncludeBool schema parentType runtimeChildIncludes runtimeLeftGroups
         runtimeRightGroups
       = true := by
   apply List.all_eq_true.mpr
@@ -534,20 +482,15 @@ theorem executableGroupsIncludeBool_transport
                     hrightFieldsPerm'.mem_iff.mp (by simp)
                   rcases hruntimeLeftFieldsReady.2 guardedLeftHead runtimeLeftHead
                       hleftGuardedMember (by simp) with
-                    ⟨hleftParent, hleftField, hleftArguments⟩
+                    ⟨hleftField, hleftArguments⟩
                   rcases hruntimeRightFieldsReady.2 guardedRightHead runtimeRightHead
                       hrightGuardedMember (by simp) with
-                    ⟨hrightParent, hrightField, hrightArguments⟩
+                    ⟨hrightField, hrightArguments⟩
                   simp only [Bool.and_eq_true] at hguardedMatch
                   have hname := hguardedMatch.1
-                  have hcall := hguardedMatch.2.1
-                  have hguardedParent := hcall.1.1
-                  have hguardedField := hcall.1.2
-                  have hguardedArguments := hcall.2
+                  have hguardedField := hguardedMatch.2.1.1
+                  have hguardedArguments := hguardedMatch.2.1.2
                   have hguardedChild := hguardedMatch.2.2
-                  have hruntimeParent : runtimeLeftHead.parentType = runtimeRightHead.parentType :=
-                    hleftParent.symm.trans (beq_iff_eq.mp hguardedParent)
-                      |>.trans hrightParent
                   have hruntimeField : runtimeLeftHead.fieldName = runtimeRightHead.fieldName :=
                     hleftField.symm.trans (beq_iff_eq.mp hguardedField)
                       |>.trans hrightField
@@ -560,17 +503,17 @@ theorem executableGroupsIncludeBool_transport
                         hrightArguments)
                   simp only [Bool.and_eq_true]
                   refine ⟨hname,
-                    ⟨⟨beq_iff_eq.mpr hruntimeParent, beq_iff_eq.mpr hruntimeField⟩,
-                      (argumentsSyntacticallyEquivalentBool_iff _ _).mpr hruntimeArguments⟩, ?_⟩
-                  have hlookup : schema.lookupField runtimeRightHead.parentType
+                    ⟨beq_iff_eq.mpr hruntimeField,
+                      (argumentsSyntacticallyEquivalentBool_iff _ _).mpr hruntimeArguments⟩,
+                    ?_⟩
+                  have hlookup : schema.lookupField parentType
                       runtimeRightHead.fieldName
-                    = schema.lookupField guardedRightHead.parentType
+                    = schema.lookupField parentType
                         guardedRightHead.fieldName := by
-                    rw [hrightParent, hrightField]
+                    rw [hrightField]
                   rw [hlookup]
                   cases hdefinition
-                        : schema.lookupField guardedRightHead.parentType
-                            guardedRightHead.fieldName with
+                        : schema.lookupField parentType guardedRightHead.fieldName with
                   | none => simp [hdefinition] at hguardedChild
                   | some definition =>
                       cases hcomposite : definition.outputType.isCompositeBool schema with
@@ -578,21 +521,20 @@ theorem executableGroupsIncludeBool_transport
                       | true =>
                           simp only [hdefinition, hcomposite, if_true] at hguardedChild ⊢
                           have hguardedRightLookup : schema.lookupField
-                              guardedRightHead.parentType guardedRightHead.fieldName
+                              parentType guardedRightHead.fieldName
                             = some definition := hdefinition
                           have hruntimeRightLookup : schema.lookupField
-                              runtimeRightHead.parentType runtimeRightHead.fieldName
+                              parentType runtimeRightHead.fieldName
                             = some definition := by
                             rw [hlookup, hdefinition]
                           have hguardedLeftLookup : schema.lookupField
-                              guardedLeftHead.parentType guardedLeftHead.fieldName
+                              parentType guardedLeftHead.fieldName
                             = some definition := by
-                            simpa [beq_iff_eq.mp hguardedParent,
-                              beq_iff_eq.mp hguardedField] using hdefinition
+                            simpa [beq_iff_eq.mp hguardedField] using hdefinition
                           have hruntimeLeftLookup : schema.lookupField
-                              runtimeLeftHead.parentType runtimeLeftHead.fieldName
+                              parentType runtimeLeftHead.fieldName
                             = some definition := by
-                            simpa [hruntimeParent, hruntimeField] using hruntimeRightLookup
+                            simpa [hruntimeField] using hruntimeRightLookup
                           exact hchild definition.outputType leftName rightName
                             (guardedLeftHead :: guardedLeftRest)
                             (runtimeLeftHead :: runtimeLeftRest)
@@ -607,7 +549,7 @@ theorem executableGroupsIncludeBool_transport
                             hguardedChild
 
 theorem executableGroupsIncludeBool_transport_of_ready
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (guardedChildIncludes runtimeChildIncludes
       : TypeRef -> List Selection -> List Selection -> Bool)
     (guardedLeftGroups guardedRightGroups runtimeLeftGroups runtimeRightGroups
@@ -616,8 +558,10 @@ theorem executableGroupsIncludeBool_transport_of_ready
       : RuntimeGroupsPermutationEquivalent guardedLeftGroups runtimeLeftGroups)
     (hrightEquivalent
       : RuntimeGroupsPermutationEquivalent guardedRightGroups runtimeRightGroups)
-    (hruntimeLeftReady : executableGroupsSemanticsReady schema runtimeLeftGroups)
-    (hruntimeRightReady : executableGroupsSemanticsReady schema runtimeRightGroups)
+    (hruntimeLeftReady
+      : executableGroupsSemanticsReady schema parentType runtimeLeftGroups)
+    (hruntimeRightReady
+      : executableGroupsSemanticsReady schema parentType runtimeRightGroups)
     (hchild
       : ∀ fieldType leftName rightName runtimeLeftFields guardedLeftFields
           runtimeRightFields guardedRightFields,
@@ -628,10 +572,10 @@ theorem executableGroupsIncludeBool_transport_of_ready
           -> leftName = rightName
           -> runtimeLeftFields.Perm guardedLeftFields
           -> runtimeRightFields.Perm guardedRightFields
-          -> completionFieldsWitness schema fieldType runtimeLeftFields
-          -> completionFieldsWitness schema fieldType guardedLeftFields
-          -> completionFieldsWitness schema fieldType runtimeRightFields
-          -> completionFieldsWitness schema fieldType guardedRightFields
+          -> completionFieldsWitness schema parentType fieldType runtimeLeftFields
+          -> completionFieldsWitness schema parentType fieldType guardedLeftFields
+          -> completionFieldsWitness schema parentType fieldType runtimeRightFields
+          -> completionFieldsWitness schema parentType fieldType guardedRightFields
           -> runtimeChildIncludes fieldType
                 (executableFieldsMergedSelectionSet runtimeLeftFields)
                 (executableFieldsMergedSelectionSet runtimeRightFields)
@@ -641,13 +585,13 @@ theorem executableGroupsIncludeBool_transport_of_ready
                 (executableFieldsMergedSelectionSet guardedRightFields)
               = true)
     (hinclude
-      : executableGroupsIncludeBool schema runtimeChildIncludes runtimeLeftGroups
-          runtimeRightGroups
+      : executableGroupsIncludeBool schema parentType runtimeChildIncludes
+          runtimeLeftGroups runtimeRightGroups
         = true)
-    : executableGroupsIncludeBool schema guardedChildIncludes guardedLeftGroups
+    : executableGroupsIncludeBool schema parentType guardedChildIncludes guardedLeftGroups
         guardedRightGroups
       = true := by
-  apply executableGroupsIncludeBool_transport schema runtimeChildIncludes
+  apply executableGroupsIncludeBool_transport schema parentType runtimeChildIncludes
     guardedChildIncludes runtimeLeftGroups runtimeRightGroups guardedLeftGroups guardedRightGroups
     (runtimeGroupsPermutationEquivalent_symm hleftEquivalent)
     (runtimeGroupsPermutationEquivalent_symm hrightEquivalent)
@@ -676,10 +620,12 @@ theorem selectionSetBooleanVariables_perm
     SelectionConditions.selectionBooleanVariables
 
 theorem matchInclusionChildTask?_sound (schema : Schema)
+    (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (rightGroup : Name × List ExecutableField)
     (leftGroups : List (Name × List ExecutableField)) (task : InclusionChildMatch)
-    (hmatch : matchInclusionChildTask? schema rightGroup leftGroups = some task)
+    (hmatch
+      : matchInclusionChildTask? schema parentType rightGroup leftGroups = some task)
     (htask
       : ∀ childTask,
           task = .composite childTask
@@ -691,12 +637,10 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
           leftGroup.1 == rightGroup.1
           && match leftGroup.2, rightGroup.2 with
               | leftField :: _, rightField :: _ =>
-                  leftField.parentType == rightField.parentType
-                  && leftField.fieldName == rightField.fieldName
+                  leftField.fieldName == rightField.fieldName
                   && Argument.argumentsSyntacticallyEquivalentBool leftField.arguments
                       rightField.arguments
-                  && match schema.lookupField rightField.parentType
-                            rightField.fieldName with
+                  && match schema.lookupField parentType rightField.fieldName with
                       | none => false
                       | some definition =>
                           if definition.outputType.isCompositeBool schema then
@@ -731,8 +675,7 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                   exact ih task (by simpa using hmatch) htask
               | cons rightField rightRest =>
                   let compatible :=
-                    leftField.parentType == rightField.parentType
-                    && leftField.fieldName == rightField.fieldName
+                    leftField.fieldName == rightField.fieldName
                     && Argument.argumentsSyntacticallyEquivalentBool leftField.arguments
                       rightField.arguments
                   cases hcompatible : compatible with
@@ -743,8 +686,7 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                   | true =>
                       simp only [compatible, hcompatible, if_true] at hmatch ⊢
                       cases hlookup
-                            : schema.lookupField rightField.parentType
-                                rightField.fieldName with
+                            : schema.lookupField parentType rightField.fieldName with
                       | none => simp [hlookup] at hmatch
                       | some definition =>
                           cases hcomposite
@@ -767,12 +709,13 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                                 simpa [hcomposite] using hchild)
 
 theorem executableGroupIncludedBool_eq_false_of_name_not_mem
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (childIncludes : TypeRef -> List Selection -> List Selection -> Bool)
     (leftGroups : List (Name × List ExecutableField))
     (rightGroup : Name × List ExecutableField)
     (hname : rightGroup.1 ∉ leftGroups.map Prod.fst)
-    : executableGroupIncludedBool schema childIncludes leftGroups rightGroup = false := by
+    : executableGroupIncludedBool schema parentType childIncludes leftGroups rightGroup
+      = false := by
   unfold executableGroupIncludedBool
   apply List.any_eq_false.mpr
   intro leftGroup hleft hincluded
@@ -783,15 +726,16 @@ theorem executableGroupIncludedBool_eq_false_of_name_not_mem
   exact List.mem_map.mpr ⟨leftGroup, hleft, heq⟩
 
 theorem matchInclusionChildTask?_child_true
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (rightGroup : Name × List ExecutableField)
     (leftGroups : List (Name × List ExecutableField)) (task : InclusionChildTask)
     (hnodup : (leftGroups.map Prod.fst).Nodup)
     (hmatch
-      : matchInclusionChildTask? schema rightGroup leftGroups = some (.composite task))
+      : matchInclusionChildTask? schema parentType rightGroup leftGroups
+        = some (.composite task))
     (hinclude
-      : executableGroupIncludedBool schema
+      : executableGroupIncludedBool schema parentType
           (fun outputType => childIncludes (schema.getPossibleTypes outputType.namedType))
           leftGroups rightGroup
         = true)
@@ -823,8 +767,7 @@ theorem matchInclusionChildTask?_child_true
                   exact ih task hnodupParts.2 (by simpa using hmatch) hinclude
               | cons rightField rightRest =>
                   let compatible :=
-                    leftField.parentType == rightField.parentType
-                    && leftField.fieldName == rightField.fieldName
+                    leftField.fieldName == rightField.fieldName
                     && Argument.argumentsSyntacticallyEquivalentBool leftField.arguments
                       rightField.arguments
                   cases hcompatible : compatible with
@@ -835,8 +778,7 @@ theorem matchInclusionChildTask?_child_true
                   | true =>
                       simp only [compatible, hcompatible, if_true] at hmatch hinclude
                       cases hlookup
-                            : schema.lookupField rightField.parentType
-                                rightField.fieldName with
+                            : schema.lookupField parentType rightField.fieldName with
                       | none => simp [hlookup] at hmatch
                       | some definition =>
                           cases hcomposite
@@ -859,7 +801,7 @@ theorem matchInclusionChildTask?_child_true
                                 simpa [beq_iff_eq.mp hname] using hmember
                               have hrestFalse :=
                                 executableGroupIncludedBool_eq_false_of_name_not_mem
-                                  schema
+                                  schema parentType
                                   (fun outputType => childIncludes
                                     (schema.getPossibleTypes outputType.namedType))
                                   rest (rightName, rightField :: rightRest)
@@ -869,17 +811,18 @@ theorem matchInclusionChildTask?_child_true
                               simpa [hlookup, hcomposite] using hinclude
 
 theorem matchInclusionChildTask?_exists_of_include
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (rightGroup : Name × List ExecutableField)
     (leftGroups : List (Name × List ExecutableField))
     (hnodup : (leftGroups.map Prod.fst).Nodup)
     (hinclude
-      : executableGroupIncludedBool schema
+      : executableGroupIncludedBool schema parentType
           (fun outputType => childIncludes (schema.getPossibleTypes outputType.namedType))
           leftGroups rightGroup
         = true)
-    : ∃ task, matchInclusionChildTask? schema rightGroup leftGroups = some task := by
+    : ∃ task,
+        matchInclusionChildTask? schema parentType rightGroup leftGroups = some task := by
   unfold executableGroupIncludedBool at hinclude
   rw [List.any_eq_true] at hinclude
   rcases hinclude with ⟨witness, hwitness, hincluded⟩
@@ -895,15 +838,13 @@ theorem matchInclusionChildTask?_exists_of_include
       | nil => simp at hincludedParts
       | cons rightField rightRest =>
           have hcompatible :
-              (witnessField.parentType == rightField.parentType
-                && witnessField.fieldName == rightField.fieldName
+              (witnessField.fieldName == rightField.fieldName
                 && Argument.argumentsSyntacticallyEquivalentBool witnessField.arguments
                   rightField.arguments) = true := by
             have hcompatibleAnd := hincludedParts.2
             rw [Bool.and_eq_true] at hcompatibleAnd
             exact hcompatibleAnd.1
-          cases hlookup
-                : schema.lookupField rightField.parentType rightField.fieldName with
+          cases hlookup : schema.lookupField parentType rightField.fieldName with
           | none => simp [hlookup] at hincludedParts
           | some definition =>
               induction leftGroups with
@@ -939,29 +880,30 @@ theorem matchInclusionChildTask?_exists_of_include
                         htask]⟩
 
 theorem inclusionChildTasks?_exists_of_include
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (hnodup : (leftGroups.map Prod.fst).Nodup)
     (hinclude
-      : executableGroupsIncludeBool schema
+      : executableGroupsIncludeBool schema parentType
           (fun outputType => childIncludes (schema.getPossibleTypes outputType.namedType))
           leftGroups rightGroups
         = true)
-    : ∃ tasks, inclusionChildTasks? schema leftGroups rightGroups = some tasks := by
+    : ∃ tasks,
+        inclusionChildTasks? schema parentType leftGroups rightGroups = some tasks := by
   induction rightGroups with
   | nil => exact ⟨[], by simp [inclusionChildTasks?]⟩
   | cons rightGroup rest ih =>
-      have hparts : executableGroupIncludedBool schema
+      have hparts : executableGroupIncludedBool schema parentType
               (fun outputType => childIncludes
                 (schema.getPossibleTypes outputType.namedType))
               leftGroups rightGroup = true
-          ∧ executableGroupsIncludeBool schema
+          ∧ executableGroupsIncludeBool schema parentType
               (fun outputType => childIncludes
                 (schema.getPossibleTypes outputType.namedType))
               leftGroups rest = true := by
         simpa [executableGroupsIncludeBool, Bool.and_eq_true] using hinclude
-      rcases matchInclusionChildTask?_exists_of_include schema childIncludes
+      rcases matchInclusionChildTask?_exists_of_include schema parentType childIncludes
           rightGroup leftGroups hnodup hparts.1 with ⟨task, htask⟩
       rcases ih hparts.2 with ⟨tasks, htasks⟩
       cases task with
@@ -972,14 +914,14 @@ theorem inclusionChildTasks?_exists_of_include
             simp [inclusionChildTasks?, htask, htasks]⟩
 
 theorem inclusionChildTasks?_children_true
-    (schema : Schema)
+    (schema : Schema) (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (tasks : List InclusionChildTask)
     (hnodup : (leftGroups.map Prod.fst).Nodup)
-    (hmatch : inclusionChildTasks? schema leftGroups rightGroups = some tasks)
+    (hmatch : inclusionChildTasks? schema parentType leftGroups rightGroups = some tasks)
     (hinclude
-      : executableGroupsIncludeBool schema
+      : executableGroupsIncludeBool schema parentType
           (fun outputType => childIncludes (schema.getPossibleTypes outputType.namedType))
           leftGroups rightGroups
         = true)
@@ -993,20 +935,20 @@ theorem inclusionChildTasks?_children_true
       subst tasks
       simp
   | cons rightGroup rest ih =>
-      have hparts : executableGroupIncludedBool schema
+      have hparts : executableGroupIncludedBool schema parentType
               (fun outputType => childIncludes
                 (schema.getPossibleTypes outputType.namedType))
               leftGroups rightGroup = true
-          ∧ executableGroupsIncludeBool schema
+          ∧ executableGroupsIncludeBool schema parentType
               (fun outputType => childIncludes
                 (schema.getPossibleTypes outputType.namedType))
               leftGroups rest = true := by
         simpa [executableGroupsIncludeBool, Bool.and_eq_true] using hinclude
       simp only [inclusionChildTasks?] at hmatch
-      cases hhead : matchInclusionChildTask? schema rightGroup leftGroups with
+      cases hhead : matchInclusionChildTask? schema parentType rightGroup leftGroups with
       | none => simp [hhead] at hmatch
       | some headTask =>
-          cases htail : inclusionChildTasks? schema leftGroups rest with
+          cases htail : inclusionChildTasks? schema parentType leftGroups rest with
           | none => simp [hhead, htail] at hmatch
           | some tailTasks =>
               cases headTask with
@@ -1018,20 +960,21 @@ theorem inclusionChildTasks?_children_true
                   simp [hhead, htail, Option.bind_eq_bind] at hmatch
                   subst tasks
                   rw [List.all_cons, Bool.and_eq_true]
-                  exact ⟨matchInclusionChildTask?_child_true schema childIncludes
+                  exact ⟨matchInclusionChildTask?_child_true schema parentType childIncludes
                     rightGroup leftGroups headTask hnodup hhead hparts.1,
                     ih tailTasks htail hparts.2⟩
 
 theorem inclusionChildTasks?_sound (schema : Schema)
+    (parentType : Name)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (tasks : List InclusionChildTask)
-    (hmatch : inclusionChildTasks? schema leftGroups rightGroups = some tasks)
+    (hmatch : inclusionChildTasks? schema parentType leftGroups rightGroups = some tasks)
     (htasks
       : tasks.all
           fun task =>
             childIncludes task.possibleTypes task.leftSelectionSet task.rightSelectionSet)
-    : executableGroupsIncludeBool schema
+    : executableGroupsIncludeBool schema parentType
         (fun outputType => childIncludes (schema.getPossibleTypes outputType.namedType))
         leftGroups rightGroups
       = true := by
@@ -1040,10 +983,10 @@ theorem inclusionChildTasks?_sound (schema : Schema)
   | nil => simp
   | cons rightGroup rest ih =>
       simp only [inclusionChildTasks?] at hmatch
-      cases hhead : matchInclusionChildTask? schema rightGroup leftGroups with
+      cases hhead : matchInclusionChildTask? schema parentType rightGroup leftGroups with
       | none => simp [hhead] at hmatch
       | some task =>
-          cases htail : inclusionChildTasks? schema leftGroups rest with
+          cases htail : inclusionChildTasks? schema parentType leftGroups rest with
           | none => simp [hhead, htail] at hmatch
           | some tailTasks =>
               simp only [hhead, htail, Option.bind_eq_bind] at hmatch
@@ -1055,7 +998,7 @@ theorem inclusionChildTasks?_sound (schema : Schema)
                   simp only [List.all_cons]
                   rw [Bool.and_eq_true]
                   constructor
-                  · exact matchInclusionChildTask?_sound schema childIncludes
+                  · exact matchInclusionChildTask?_sound schema parentType childIncludes
                       rightGroup leftGroups .leaf hhead (by simp)
                   · exact ih tailTasks htail htasks
               | composite headTask =>
@@ -1072,7 +1015,7 @@ theorem inclusionChildTasks?_sound (schema : Schema)
                     simpa only [Bool.and_eq_true] using htasks
                   rw [Bool.and_eq_true]
                   constructor
-                  · exact matchInclusionChildTask?_sound schema childIncludes
+                  · exact matchInclusionChildTask?_sound schema parentType childIncludes
                       rightGroup leftGroups (.composite headTask) hhead
                       (by
                         intro childTask heq
@@ -1152,21 +1095,17 @@ theorem inclusionChildTasksForParentTypes?_contains
         = some merged)
     {parentType : Name} (hparent : parentType ∈ parentTypes)
     : ∃ tasks,
-        inclusionChildTasks? schema
-            (executableGroupsWithParentType parentType leftGroups)
-            (executableGroupsWithParentType parentType rightGroups)
-          = some tasks
+        inclusionChildTasks? schema parentType leftGroups rightGroups = some tasks
         ∧ ∀ source, source ∈ tasks -> source ∈ merged := by
   induction parentTypes generalizing merged with
   | nil => simp at hparent
   | cons candidate rest ih =>
       simp only [inclusionChildTasksForParentTypes?] at hmatch
-      let candidateLeftGroups :=
-        executableGroupsWithParentType candidate leftGroups
-      let candidateRightGroups :=
-        executableGroupsWithParentType candidate rightGroups
+      let candidateLeftGroups := leftGroups
+      let candidateRightGroups := rightGroups
       cases hcandidate
-            : inclusionChildTasks? schema candidateLeftGroups candidateRightGroups with
+            : inclusionChildTasks? schema candidate candidateLeftGroups
+                candidateRightGroups with
       | none => simp [candidateLeftGroups, candidateRightGroups, hcandidate] at hmatch
       | some candidateTasks =>
           cases hrest
@@ -1195,18 +1134,14 @@ theorem inclusionChildTasksForParentTypes?_exists_of_include
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (parentTypes : List Name)
-    (hnodup
-      : ∀ parentType,
-          parentType ∈ parentTypes
-          -> ((executableGroupsWithParentType parentType leftGroups).map Prod.fst).Nodup)
+    (hnodup : (leftGroups.map Prod.fst).Nodup)
     (hinclude
       : ∀ parentType,
           parentType ∈ parentTypes
-          -> executableGroupsIncludeBool schema
+          -> executableGroupsIncludeBool schema parentType
                 (fun outputType =>
                   childIncludes (schema.getPossibleTypes outputType.namedType))
-                (executableGroupsWithParentType parentType leftGroups)
-                (executableGroupsWithParentType parentType rightGroups)
+                leftGroups rightGroups
               = true)
     : ∃ tasks,
         inclusionChildTasksForParentTypes? schema leftGroups rightGroups parentTypes
@@ -1218,21 +1153,17 @@ theorem inclusionChildTasksForParentTypes?_exists_of_include
   induction parentTypes with
   | nil => exact ⟨[], by simp [inclusionChildTasksForParentTypes?]⟩
   | cons parentType rest ih =>
-      let parentLeftGroups := executableGroupsWithParentType parentType leftGroups
-      let parentRightGroups := executableGroupsWithParentType parentType rightGroups
+      let parentLeftGroups := leftGroups
+      let parentRightGroups := rightGroups
       have hparentInclude := hinclude parentType (by simp)
-      rcases inclusionChildTasks?_exists_of_include schema childIncludes
-          parentLeftGroups parentRightGroups (hnodup parentType (by simp))
+      rcases inclusionChildTasks?_exists_of_include schema parentType childIncludes
+          parentLeftGroups parentRightGroups hnodup
           hparentInclude with
         ⟨parentTasks, hparentTasks⟩
-      have hparentChildren := inclusionChildTasks?_children_true schema childIncludes
+      have hparentChildren := inclusionChildTasks?_children_true schema parentType childIncludes
         parentLeftGroups parentRightGroups parentTasks
-        (hnodup parentType (by simp)) hparentTasks hparentInclude
-      rcases ih
-          (by
-            intro candidate hcandidate
-            exact hnodup candidate (by simp [hcandidate]))
-          (by
+        hnodup hparentTasks hparentInclude
+      rcases ih (by
             intro candidate hcandidate
             exact hinclude candidate (by simp [hcandidate])) with
         ⟨restTasks, hrestTasks, hrestChildren⟩
@@ -1263,21 +1194,21 @@ theorem group_eq_of_mem_of_mem_of_keysNodup {groups : List (Name × List Executa
 
 theorem executableGroupsIncludeBool_child_at_runtime
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (responseFuel : Nat) (variableValues : VariableValues)
+    (responseFuel : Nat) (parentType : Name) (variableValues : VariableValues)
     (leftGroups rightGroups : List (Name × List ExecutableField))
     (leftName rightName : Name) (leftFields rightFields : List ExecutableField)
     (fieldType : TypeRef) (childRuntimeType : Name)
     (hleftNodup : (leftGroups.map Prod.fst).Nodup)
-    (hleftReady : executableGroupsSemanticsReady schema leftGroups)
-    (hrightReady : executableGroupsSemanticsReady schema rightGroups)
+    (hleftReady : executableGroupsSemanticsReady schema parentType leftGroups)
+    (hrightReady : executableGroupsSemanticsReady schema parentType rightGroups)
     (hleftGroup : (leftName, leftFields) ∈ leftGroups)
     (hrightGroup : (rightName, rightFields) ∈ rightGroups)
     (hname : leftName = rightName)
-    (hleftWitness : completionFieldsWitness schema fieldType leftFields)
-    (hrightWitness : completionFieldsWitness schema fieldType rightFields)
+    (hleftWitness : completionFieldsWitness schema parentType fieldType leftFields)
+    (hrightWitness : completionFieldsWitness schema parentType fieldType rightFields)
     (hchildRuntime : childRuntimeType ∈ schema.getPossibleTypes fieldType.namedType)
     (hinclude
-      : executableGroupsIncludeBool schema
+      : executableGroupsIncludeBool schema parentType
           (fun outputType leftSelectionSet rightSelectionSet =>
             (schema.getPossibleTypes outputType.namedType).all
               fun candidateRuntimeType =>
@@ -1324,8 +1255,7 @@ theorem executableGroupsIncludeBool_child_at_runtime
           rcases hrightFieldsReady.2.2.1 rightSource rightHead hrightSource
               (by simp) with
             ⟨hrightParent, hrightField, _hrightArguments⟩
-          have hrightHeadLookup : schema.lookupField rightHead.parentType
-              rightHead.fieldName = some rightDefinition := by
+          have hrightHeadLookup : schema.lookupField parentType rightHead.fieldName = some rightDefinition := by
             simpa [hrightParent, hrightField] using hrightSourceLookup
           have hcomposite : rightDefinition.outputType.isCompositeBool schema = true := by
             have hincludes : schema.typeIncludesObjectBool

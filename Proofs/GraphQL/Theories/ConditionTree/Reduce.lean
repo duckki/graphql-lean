@@ -60,7 +60,7 @@ theorem reduction_sound (schema : Schema) (parentType : Name)
         runtimeType parentType := by
     exact hinclude
   have hscoped :=
-    Algorithms.ExecutionUngroupedUncached.Eager.collectFields_runtimeScopedBy_of_selectionSetValid
+    Algorithms.ExecutionUngroupedUncached.Eager.collectFields_entriesRuntimeScopedBy_of_selectionSetValid
       schema variableDefinitions variableValues runtimeType parentType runtimeType ref
       selectionSet hparentRuntime hvalid
   have hcompatible :=
@@ -75,12 +75,13 @@ theorem reduction_sound (schema : Schema) (parentType : Name)
   have hgroupScoped : ∀ {responseName fields},
       (responseName, fields) ∈ collectFields schema variableValues runtimeType
           (.object runtimeType ref) selectionSet
-      -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableFieldsRuntimeScopedBy schema
+      -> Algorithms.ExecutionUngroupedUncached.Eager.ExecutableEntriesRuntimeScopedBy schema
           runtimeType (FieldMerge.collectFields schema parentType selectionSet)
-          fields := by
-    intro responseName fields hgroup field hfield
-    exact hscoped field
-      (Algorithms.ExecutionUngroupedUncached.Eager.collectedExecutableFields_mem_of_group_mem
+          (fields.map (fun field => (responseName, field))) := by
+    intro responseName fields hgroup entry hentry
+    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
+    exact hscoped (responseName, field)
+      (Algorithms.ExecutionUngroupedUncached.Eager.collectedExecutableEntries_mem_of_group_mem
         hgroup hfield)
   have hresult := reductionUnits_execute_equivalent schema resolvers variableValues
     hschema fuel parentType runtimeType ref units (reduce schema parentType selectionSet)

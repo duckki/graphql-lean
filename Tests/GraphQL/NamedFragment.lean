@@ -349,8 +349,6 @@ theorem inlineFragmentPropagatesVisitedFragments
 
 def pairSpreadExecutableField : GraphQL.NamedFragment.Execution.ExecutableField :=
   {
-    parentType := "Query"
-    responseName := "parent"
     fieldName := "parent"
     arguments := []
     selectionSet := [.fragmentSpread "Pair" []]

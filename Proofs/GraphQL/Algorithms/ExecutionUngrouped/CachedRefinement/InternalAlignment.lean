@@ -60,16 +60,17 @@ theorem FieldCacheInternallyAligned.of_absorptionShape {ObjectRef : Type}
 theorem executeField_result_internallyAligned {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef) (previous : FieldCacheValue ObjectRef)
     (field : ExecutableField)
     : FieldCacheInternallyAligned previous
       -> FieldCacheInternallyAligned
           (resultValueOrNull
-            (executeField schema resolvers variableValues completionFuel source
+            (executeField schema resolvers variableValues completionFuel parentType source
               (some previous) field)) := by
   intro hprevious
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none => trivial
   | some fieldDefinition =>
       cases previous with
@@ -122,13 +123,14 @@ theorem executeField_result_internallyAligned {ObjectRef : Type}
 theorem executeField_none_result_internallyAligned {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef) (field : ExecutableField)
     : FieldCacheInternallyAligned
         (resultValueOrNull
-          (executeField schema resolvers variableValues completionFuel source none
-            field)) := by
+          (executeField schema resolvers variableValues completionFuel parentType source
+            none field)) := by
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none => trivial
   | some fieldDefinition =>
       have hhandled :
@@ -150,7 +152,7 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
       | error => simpa [hlookup, hcoerce] using hhandled
       | success coercedArguments =>
           cases hresolve
-                : resolveFieldValue resolvers field.parentType field.fieldName
+                : resolveFieldValue resolvers parentType field.fieldName
                     coercedArguments source with
           | none => simpa [hlookup, hcoerce, hresolve] using hhandled
           | some resolved =>
@@ -162,17 +164,18 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
 theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef) (previous : FieldCacheValue ObjectRef)
     (field : ExecutableField)
     : FieldCacheMergeReady previous
       -> FieldCacheInternallyAligned previous
       -> FieldCacheAbsorptionShape previous
           (resultValueOrNull
-            (executeField schema resolvers variableValues completionFuel source
+            (executeField schema resolvers variableValues completionFuel parentType source
               (some previous) field)) := by
   intro hpreviousReady hpreviousAligned
   unfold executeField
-  cases hlookup : schema.lookupField field.parentType field.fieldName with
+  cases hlookup : schema.lookupField parentType field.fieldName with
   | none =>
       simp [resultValueOrNull]
       exact FieldCacheAbsorptionShape.toNull previous
@@ -228,17 +231,18 @@ theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
 theorem executeField_result_absorbs_previous {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (completionFuel : Nat)
+    (parentType : Name)
     (source : ResolverValue ObjectRef) (previous : FieldCacheValue ObjectRef)
     (field : ExecutableField)
     : FieldCacheMergeReady previous
       -> FieldCacheInternallyAligned previous
       -> FieldCacheAbsorbs previous
           (resultValueOrNull
-            (executeField schema resolvers variableValues completionFuel source
+            (executeField schema resolvers variableValues completionFuel parentType source
               (some previous) field)) := by
   intro hpreviousReady hpreviousAligned
   exact (executeField_cacheAbsorptionShape schema resolvers variableValues
-          completionFuel source previous field hpreviousReady
+          completionFuel parentType source previous field hpreviousReady
           hpreviousAligned).to_absorbs
 
 theorem ObjectFieldCachesInternallyAligned.mergeResponseFieldIntoObject
@@ -303,10 +307,9 @@ theorem visitFieldResult_internallyAligned {ObjectRef : Type}
                   | some previous => .ok (previous, 0)
                   | none => outOfFuel
               | completionFuel + 1 =>
-                  executeField schema resolvers variableValues completionFuel source
-                    (objectField? responseName output)
-                    (executableField parentType responseName fieldName arguments
-                      selectionSet))) := by
+                  executeField schema resolvers variableValues completionFuel parentType
+                    source (objectField? responseName output)
+                    (executableField fieldName arguments selectionSet))) := by
   intro houtput
   cases fuel with
   | zero =>
@@ -321,15 +324,13 @@ theorem visitFieldResult_internallyAligned {ObjectRef : Type}
       | none =>
           simpa [hprevious] using
             executeField_none_result_internallyAligned schema resolvers
-              variableValues completionFuel source
-              (executableField parentType responseName fieldName arguments
-                selectionSet)
+              variableValues completionFuel parentType source
+              (executableField fieldName arguments selectionSet)
       | some previous =>
           simpa [hprevious] using
             executeField_result_internallyAligned schema resolvers variableValues
-              completionFuel source previous
-              (executableField parentType responseName fieldName arguments
-                selectionSet)
+              completionFuel parentType source previous
+              (executableField fieldName arguments selectionSet)
               (houtput responseName previous hprevious)
 
 theorem visitFieldResult_absorbs_previous {ObjectRef : Type}
@@ -351,9 +352,8 @@ theorem visitFieldResult_absorbs_previous {ObjectRef : Type}
                       | none => outOfFuel
                   | completionFuel + 1 =>
                       executeField schema resolvers variableValues completionFuel
-                        source (objectField? responseName output)
-                        (executableField parentType responseName fieldName arguments
-                          selectionSet))) := by
+                        parentType source (objectField? responseName output)
+                        (executableField fieldName arguments selectionSet))) := by
   intro hready haligned previous hprevious
   have hpreviousReady : FieldCacheMergeReady previous := by
     cases output with
@@ -371,8 +371,8 @@ theorem visitFieldResult_absorbs_previous {ObjectRef : Type}
   | succ completionFuel =>
       simpa [hprevious] using
         executeField_result_absorbs_previous schema resolvers variableValues
-          completionFuel source previous
-          (executableField parentType responseName fieldName arguments selectionSet)
+          completionFuel parentType source previous
+          (executableField fieldName arguments selectionSet)
           hpreviousReady (haligned responseName previous hprevious)
 
 mutual

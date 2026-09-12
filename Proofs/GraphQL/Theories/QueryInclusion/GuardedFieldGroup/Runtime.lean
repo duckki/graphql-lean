@@ -33,9 +33,10 @@ theorem guardedFieldExecutableFields_entriesForName
     (entries : List SelectionConditions.ConditionedField)
     : guardedFieldExecutableFields variableValues executionParentType runtimeType
         responseName (conditionedFieldsForResponseName responseName entries)
-      = (SelectionConditions.runtimeFields variableValues executionParentType
-          runtimeType entries).filter
-          fun field => field.responseName == responseName := by
+      = ((SelectionConditions.runtimeFields variableValues executionParentType
+            runtimeType entries).filter
+          (fun entry : Name × ExecutableField => entry.1 == responseName)).map
+          Prod.snd := by
   induction entries with
   | nil => simp [conditionedFieldsForResponseName, guardedFieldExecutableFields,
       SelectionConditions.runtimeFields]
@@ -252,41 +253,39 @@ theorem guardedFieldGroups_eq_byFiltering
   simpa [guardedFieldGroupsByFiltering, guardedFieldGroupsForNames] using
     foldl_addGuardedFieldEntry_byFiltering [] entries
 
-def executableGroupsForResponseNames (names : List Name) (fields : List ExecutableField)
+def executableGroupsForResponseNames (names : List Name)
+    (fields : List (Name × ExecutableField))
     : List (Name × List ExecutableField) :=
   names.flatMap
     fun responseName =>
       executableFieldsAsGroup responseName
-        (fields.filter fun field => field.responseName == responseName)
+        ((fields.filter fun field => field.1 == responseName).map Prod.snd)
 
 theorem executableGroupsForResponseNames_wellFormed (names : List Name)
-    (fields : List ExecutableField)
+    (fields : List (Name × ExecutableField))
     : NormalForm.executableGroupsWellFormed
         (executableGroupsForResponseNames names fields) := by
   intro group hgroup
   rcases List.mem_flatMap.mp hgroup with ⟨responseName, _hname, hgroup⟩
-  cases hfields : fields.filter (fun field => field.responseName == responseName) with
+  cases hfields : (fields.filter fun field => field.1 == responseName).map Prod.snd with
   | nil => simp [executableFieldsAsGroup, hfields] at hgroup
   | cons field rest =>
       simp [executableFieldsAsGroup, hfields] at hgroup
       subst group
-      constructor
-      · simp
-      · intro candidate hcandidate
-        have hfiltered : candidate ∈
-            fields.filter (fun item => item.responseName == responseName) := by
-          simpa [hfields] using hcandidate
-        exact beq_iff_eq.mp (List.mem_filter.mp hfiltered).2
+      intro hnil
+      cases hnil
 
 theorem executableGroupsForResponseNames_keysNodup
-    {names : List Name} (hnodup : names.Nodup) (fields : List ExecutableField)
+    {names : List Name} (hnodup : names.Nodup)
+    (fields : List (Name × ExecutableField))
     : ((executableGroupsForResponseNames names fields).map Prod.fst).Nodup := by
   induction names with
   | nil => simp [executableGroupsForResponseNames]
   | cons responseName rest ih =>
       have hparts := List.nodup_cons.mp hnodup
       rw [executableGroupsForResponseNames, List.flatMap_cons, List.map_append]
-      cases hfields : fields.filter (fun field => field.responseName == responseName) with
+      cases hfields
+            : (fields.filter fun field => field.1 == responseName).map Prod.snd with
       | nil =>
           change ((executableGroupsForResponseNames rest fields).map Prod.fst).Nodup
           exact ih hparts.2
@@ -299,7 +298,7 @@ theorem executableGroupsForResponseNames_keysNodup
             rcases List.mem_map.mp hmember with ⟨group, hgroup, hname⟩
             rcases List.mem_flatMap.mp hgroup with ⟨candidate, hcandidate, hgroup⟩
             cases hcandidateFields
-                  : fields.filter (fun item => item.responseName == candidate) with
+                  : (fields.filter fun item => item.1 == candidate).map Prod.snd with
             | nil => simp [executableFieldsAsGroup, hcandidateFields] at hgroup
             | cons candidateField candidateRest =>
                 simp [executableFieldsAsGroup, hcandidateFields] at hgroup
@@ -308,37 +307,63 @@ theorem executableGroupsForResponseNames_keysNodup
                 exact hparts.1 (hname ▸ hcandidate)
           · exact ih hparts.2
 
-theorem flattenCollectedFields_executableGroupsForResponseNames
-    (names : List Name) (fields : List ExecutableField)
-    : flattenCollectedFields (executableGroupsForResponseNames names fields)
+private theorem map_response_snd_filter_eq
+    (responseName : Name) (fields : List (Name × ExecutableField))
+    : ((fields.filter fun field => field.1 == responseName).map Prod.snd
+        |>.map fun field => (responseName, field))
+      = fields.filter fun field => field.1 == responseName := by
+  induction fields with
+  | nil => rfl
+  | cons field rest ih =>
+      rcases field with ⟨name, field⟩
+      by_cases hname : name = responseName
+      · subst name
+        simp [ih]
+      · simp [hname, ih]
+
+theorem flattenExecutableFieldGroups_executableGroupsForResponseNames
+    (names : List Name) (fields : List (Name × ExecutableField))
+    : ConditionTree.flattenExecutableFieldGroups
+        (executableGroupsForResponseNames names fields)
       = names.flatMap
-          fun responseName =>
-            fields.filter fun field => field.responseName == responseName := by
+          fun responseName => fields.filter fun field => field.1 == responseName := by
   induction names with
   | nil => rfl
   | cons responseName rest ih =>
       rw [executableGroupsForResponseNames, List.flatMap_cons]
-      cases hfields : fields.filter (fun field => field.responseName == responseName) with
+      let matching := fields.filter fun field => field.1 == responseName
+      cases hfields : matching.map Prod.snd with
       | nil =>
-          simp only [hfields, executableFieldsAsGroup, List.flatMap_cons,
+          have hmatching : matching = [] := List.map_eq_nil_iff.mp hfields
+          simp only [executableFieldsAsGroup, List.flatMap_cons,
             List.nil_append]
+          have hfilter : fields.filter (fun field => field.1 == responseName) = [] := by
+            simpa [matching] using hmatching
+          rw [hfilter, List.nil_append]
+          change ConditionTree.flattenExecutableFieldGroups
+              (executableGroupsForResponseNames rest fields)
+            = rest.flatMap
+                (fun responseName => fields.filter fun field => field.1 == responseName)
           exact ih
       | cons field tail =>
-          simp only [hfields, executableFieldsAsGroup, List.flatMap_cons]
-          change flattenCollectedFields
+          simp only [executableFieldsAsGroup, List.flatMap_cons]
+          change ConditionTree.flattenExecutableFieldGroups
               ([(responseName, field :: tail)]
                 ++ executableGroupsForResponseNames rest fields)
-            = (field :: tail) ++ rest.flatMap
-                (fun responseName =>
-                  fields.filter fun field => field.responseName == responseName)
-          simp [flattenCollectedFields, ih]
+            = matching ++ rest.flatMap
+                (fun responseName => fields.filter fun field => field.1 == responseName)
+          have hhead : (field :: tail).map (fun field => (responseName, field))
+              = matching := by
+            rw [← hfields]
+            exact map_response_snd_filter_eq responseName fields
+          simp [ConditionTree.flattenExecutableFieldGroups, hhead, ih]
 
 theorem filtersByResponseNames_perm
-    (names : List Name) (fields : List ExecutableField)
+    (names : List Name) (fields : List (Name × ExecutableField))
     (hnodup : names.Nodup)
-    (hcovered : ∀ field, field ∈ fields -> field.responseName ∈ names)
+    (hcovered : ∀ field, field ∈ fields -> field.1 ∈ names)
     : (names.flatMap
-        fun responseName => fields.filter fun field => field.responseName == responseName)
+        fun responseName => fields.filter fun field => field.1 == responseName)
       |>.Perm fields := by
   induction names generalizing fields with
   | nil =>
@@ -350,9 +375,9 @@ theorem filtersByResponseNames_perm
       simp
   | cons responseName rest ih =>
       have hparts := List.nodup_cons.mp hnodup
-      let matchingFields := fields.filter fun field => field.responseName == responseName
-      let others := fields.filter fun field => !(field.responseName == responseName)
-      have hrestCovered : ∀ field, field ∈ others -> field.responseName ∈ rest := by
+      let matchingFields := fields.filter fun field => field.1 == responseName
+      let others := fields.filter fun field => !(field.1 == responseName)
+      have hrestCovered : ∀ field, field ∈ others -> field.1 ∈ rest := by
         intro field hfield
         have hmember := List.mem_filter.mp hfield
         rcases List.mem_cons.mp (hcovered field hmember.1) with hhead | hrest
@@ -361,9 +386,9 @@ theorem filtersByResponseNames_perm
         · exact hrest
       have hrestPerm := ih others hparts.2 hrestCovered
       have hfilters : rest.flatMap
-            (fun candidate => fields.filter fun field => field.responseName == candidate)
+            (fun candidate => fields.filter fun field => field.1 == candidate)
           = rest.flatMap
-            (fun candidate => others.filter fun field => field.responseName == candidate) := by
+            (fun candidate => others.filter fun field => field.1 == candidate) := by
         apply congrArg List.flatten
         apply List.map_congr_left
         intro candidate hcandidate
@@ -374,33 +399,33 @@ theorem filtersByResponseNames_perm
           intro heq
           subst candidate
           exact hparts.1 hcandidate
-        by_cases hcandidateField : field.responseName = candidate
+        by_cases hcandidateField : field.1 = candidate
         · subst candidate
           simp [hne]
         · simp [hcandidateField]
       rw [List.flatMap_cons, hfilters]
       exact (List.Perm.append_left matchingFields hrestPerm).trans
-        (List.filter_append_perm (fun field => field.responseName == responseName)
+        (List.filter_append_perm (fun field => field.1 == responseName)
           fields)
 
 theorem executableGroupsForResponseNames_runtimeFieldGroupsExact (names : List Name)
-    (fields : List ExecutableField) (hnodup : names.Nodup)
-    (hcovered : ∀ field, field ∈ fields -> field.responseName ∈ names)
+    (fields : List (Name × ExecutableField)) (hnodup : names.Nodup)
+    (hcovered : ∀ field, field ∈ fields -> field.1 ∈ names)
     : RuntimeFieldGroupsExact fields (executableGroupsForResponseNames names fields) := by
   constructor
   · exact executableGroupsForResponseNames_keysNodup hnodup fields
-  · rw [flattenCollectedFields_executableGroupsForResponseNames]
+  · rw [flattenExecutableFieldGroups_executableGroupsForResponseNames]
     exact filtersByResponseNames_perm names fields hnodup hcovered
 
 theorem runtimeFields_responseName_mem
     (variableValues : VariableValues) (executionParentType runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
-    {field : ExecutableField}
+    {field : Name × ExecutableField}
     (hfield
       : field
         ∈ SelectionConditions.runtimeFields variableValues
             executionParentType runtimeType entries)
-    : field.responseName ∈ entries.map fun entry => entry.field.responseName := by
+    : field.1 ∈ entries.map fun entry => entry.field.responseName := by
   induction entries with
   | nil => simp [SelectionConditions.runtimeFields] at hfield
   | cons entry rest ih =>
@@ -439,7 +464,7 @@ theorem guardedFieldRuntimeGroups_guardedFieldGroups
         guardedFieldExecutableFields_entriesForName]
       exact congrArg
         (fun tail => executableFieldsAsGroup responseName
-          (fields.filter fun field => field.responseName == responseName) ++ tail) ih
+          ((fields.filter fun field => field.1 == responseName).map Prod.snd) ++ tail) ih
 
 theorem guardedFieldRuntimeGroups_runtimeFieldGroupsExact
     (variableValues : VariableValues) (executionParentType runtimeType : Name)
@@ -483,9 +508,7 @@ theorem guardedFieldRuntimeGroups_permutationEquivalent
     rightWellFormed := groupExecutableFields_wellFormed _
     leftKeysNodup := hguarded.1
     rightKeysNodup := hgrouped.1
-    fieldsPerm := by
-      simpa only [← Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd]
-        using hguarded.2.trans hgrouped.2.symm
+    fieldsPerm := hguarded.2.trans hgrouped.2.symm
   }
 
 theorem runtimeGroupsPermutationEquivalent_trans
@@ -524,14 +547,15 @@ theorem runtimeGroupsPermutationEquivalent_singleton_of_mem
     exact equivalent.rightWellFormed (responseName, rightFields) hright
   · simp
   · simp
-  · simpa [flattenCollectedFields] using hfields
+  · have hfields' := hfields.map (fun field => (responseName, field))
+    simpa [ConditionTree.flattenExecutableFieldGroups] using hfields'
 
 theorem completionFieldsWitness_of_perm
-    {schema : Schema} {fieldType : TypeRef}
+    {schema : Schema} {parentType : Name} {fieldType : TypeRef}
     {source target : List ExecutableField}
     (hperm : source.Perm target)
-    (hwitness : completionFieldsWitness schema fieldType source)
-    : completionFieldsWitness schema fieldType target := by
+    (hwitness : completionFieldsWitness schema parentType fieldType source)
+    : completionFieldsWitness schema parentType fieldType target := by
   rcases hwitness with ⟨field, definition, hfield, hlookup, htype⟩
   exact ⟨field, definition, hperm.mem_iff.mp hfield, hlookup, htype⟩
 

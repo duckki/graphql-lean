@@ -43,8 +43,7 @@ structure ExecutedSingleGroupSelectionState
     : ∀ childDepth runtimeType identity,
         childDepth < depth
         -> schema.typeIncludesObjectBool
-              ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                field.fieldName)
+              ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
               runtimeType
             = true
         -> ExecutionStateEquivalent
@@ -64,7 +63,7 @@ structure ExecutedSingleGroupSelectionState
   appendPlan
     : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
         source responseName field
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         [] fields
 
@@ -95,7 +94,7 @@ def of_collected_appendPlan
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -116,7 +115,7 @@ def of_collected_appendPlan
     (plan
       : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
           source responseName field
-          (resolveFieldValueByName schema resolvers variableValues field.parentType
+          (resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source)
           [] fields)
     : ExecutedSingleGroupSelectionState schema resolvers variableValues depth
@@ -191,7 +190,8 @@ theorem flatSpecEquivalent
       : ExecutedSingleGroupSelectionState schema resolvers variableValues depth
           parentType source selectionSet)
     : ExecutableFieldsFlatSpecEquivalent schema resolvers variableValues
-        (depth + 1) parentType source (state.field :: state.fields) :=
+        (depth + 1) parentType source state.responseName
+        (state.field :: state.fields) :=
   state.toExecutedFieldGroup.flatSpecEquivalent
 
 theorem groupFlatSpecEquivalent
@@ -299,11 +299,9 @@ theorem ExecutedFieldAppendStep_two_of_visit_absorbs
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hlaterParent : later.parentType = parentType)
-    (hlaterResponse : later.responseName = responseName)
     (hfieldName : later.fieldName = first.fieldName)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hfirstChildren
@@ -363,8 +361,6 @@ theorem ExecutedFieldAppendStep_two_of_visit_absorbs
     : ExecutedFieldAppendStep schema resolvers variableValues depth parentType
         source responseName first resolved [] later := by
   refine {
-    responseName_eq := hlaterResponse
-    parent_eq := hlaterParent
     fieldName_eq := hfieldName
     resolved_eq := hresolveLater
     prefixChildren := ?prefixChildren
@@ -393,11 +389,9 @@ theorem ExecutedFieldAppendPlan_two_of_visit_absorbs
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hlaterParent : later.parentType = parentType)
-    (hlaterResponse : later.responseName = responseName)
     (hfieldName : later.fieldName = first.fieldName)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hfirstChildren
@@ -459,8 +453,7 @@ theorem ExecutedFieldAppendPlan_two_of_visit_absorbs
   ExecutedFieldAppendPlan.singleton
     (ExecutedFieldAppendStep_two_of_visit_absorbs schema resolvers
       variableValues depth parentType source responseName first later resolved
-      hlaterParent hlaterResponse hfieldName hresolveLater hfirstChildren
-      hobjects herrors hchildren)
+      hfieldName hresolveLater hfirstChildren hobjects herrors hchildren)
 
 theorem ExecutedFieldAppendStep.of_collected_group
     {ObjectIdentity : Type}
@@ -480,7 +473,7 @@ theorem ExecutedFieldAppendStep.of_collected_group
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -526,7 +519,7 @@ theorem ExecutedFieldAppendStep.of_collected_group
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -548,39 +541,23 @@ theorem ExecutedFieldAppendStep.of_collected_group
               })
     : ExecutedFieldAppendStep schema resolvers variableValues depth parentType
         source responseName field
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         prefixTail later := by
-  have hgroupResponses :
-      ExecutableFieldsResponseName responseName (field :: fields) :=
-    hresponses responseName (field :: fields) hgroup
-  have hgroupParents :
-      ExecutableFieldsParent parentType (field :: fields) :=
-    hparents responseName (field :: fields) hgroup
   have hgroupCompatible :
       ExecutableFieldsFieldValidationMergeCompatible (field :: fields) :=
     hcompatible responseName (field :: fields) hgroup
   have hgroupStable :
       ExecutableFieldsResolveStable schema resolvers variableValues source (field :: fields) :=
     hstable responseName (field :: fields) hgroup
-  have hfieldResponse : field.responseName = responseName :=
-    hgroupResponses field (by simp)
-  have hlaterResponse : later.responseName = responseName :=
-    hgroupResponses later hlater
-  have hlaterParent : later.parentType = parentType :=
-    hgroupParents later hlater
-  have hsameResponse : field.responseName = later.responseName := by
-    rw [hfieldResponse, hlaterResponse]
   have hfieldName : later.fieldName = field.fieldName :=
-    (hgroupCompatible field later (by simp) hlater hsameResponse).1.symm
+    (hgroupCompatible field later (by simp) hlater).1.symm
   have hresolveLater :
-      resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
-      resolveFieldValueByName schema resolvers variableValues field.parentType
+      resolveFieldValueByName schema resolvers variableValues parentType later.fieldName later.arguments source =
+      resolveFieldValueByName schema resolvers variableValues parentType
         field.fieldName field.arguments source :=
-    (hgroupStable field later (by simp) hlater hsameResponse).symm
+    (hgroupStable parentType field later (by simp) hlater).symm
   refine {
-    responseName_eq := hlaterResponse
-    parent_eq := hlaterParent
     fieldName_eq := hfieldName
     resolved_eq := hresolveLater
     prefixChildren := hprefixChildren
@@ -603,11 +580,11 @@ theorem ExecutedFieldAppendPlan.of_collected_group_state
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     : ∀ prefixTail remaining,
-        ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields prefixTail remaining
+        ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields prefixTail remaining
         -> ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
             source responseName field
-            (resolveFieldValueByName schema resolvers variableValues field.parentType
+            (resolveFieldValueByName schema resolvers variableValues parentType
               field.fieldName field.arguments source)
             prefixTail remaining
   | _prefixTail, [], _hstate => by
@@ -711,7 +688,7 @@ theorem ExecutedFieldAppendPlan.of_collected_group_from_prefix
         (∀ later, later ∈ remaining -> later ∈ fields)
         -> ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
             source responseName field
-            (resolveFieldValueByName schema resolvers variableValues field.parentType
+            (resolveFieldValueByName schema resolvers variableValues parentType
               field.fieldName field.arguments source)
             prefixTail remaining
   | prefixTail, remaining, hremaining => by
@@ -814,7 +791,7 @@ theorem ExecutedFieldAppendPlan.of_collected_group
                   })
     : ExecutedFieldAppendPlan schema resolvers variableValues depth parentType
         source responseName field
-        (resolveFieldValueByName schema resolvers variableValues field.parentType
+        (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         [] fields := by
   apply ExecutedFieldAppendPlan.of_collected_group_from_prefix schema resolvers
@@ -910,7 +887,7 @@ def ExecutedFieldGroup.of_collected_group
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields := by
   let hstate :
-      ExecutedFieldAppendPlanState schema resolvers variableValues depth field
+      ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType field
         fields [] fields :=
     ExecutedFieldAppendPlanState.of_all_prefixes
       (by
@@ -953,8 +930,8 @@ def ExecutedFieldGroup.of_collected_group_state
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hstate
-      : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields [] fields)
+      : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields [] fields)
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields :=
   ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
@@ -1158,8 +1135,8 @@ theorem stateEquivalent_of_collected_field_group_state_of_invariant
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hplanState
-      : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields [] fields)
+      : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields [] fields)
     : ExecutionStateEquivalent
         {
           window :=
@@ -1245,8 +1222,8 @@ theorem executeRootSelectionSet_eq_spec_of_collected_field_group_state_of_invari
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
     (hplanState
-      : ExecutedFieldAppendPlanState schema resolvers variableValues depth field
-          fields [] fields)
+      : ExecutedFieldAppendPlanState schema resolvers variableValues depth parentType
+          field fields [] fields)
     : executeRootSelectionSet schema resolvers variableValues (depth + 1)
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
@@ -1311,7 +1288,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_field_group_state_of_invariant
     (hplanState
       : ExecutedFieldAppendPlanState schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth field fields [] fields)
+          depth (operation.rootType schema) field fields [] fields)
     : executeQueryWithFuel schema resolvers variableValues operation (depth + 1) source
       = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
           operation (depth + 1) source := by
@@ -1370,7 +1347,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_state_of_invariant
     (hplanState
       : ExecutedFieldAppendPlanState schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues)
-          depth field fields [] fields)
+          depth (operation.rootType schema) field fields [] fields)
     : executeQuery schema resolvers variableValues operation source
       = GraphQL.Execution.executeQuery schema resolvers variableValues operation
           source := by

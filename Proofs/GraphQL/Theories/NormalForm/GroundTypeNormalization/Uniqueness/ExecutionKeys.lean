@@ -166,8 +166,6 @@ theorem collectFields_normal_object_field_head
           = (
               responseName,
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -230,8 +228,6 @@ theorem collectFields_normal_object_keys_eq_responseNames
                   childSelectionSet :: rest)
               =
               (responseName, [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet

@@ -113,43 +113,24 @@ def ExecutedSingleGroupSelectionState.of_collected_two_visit_absorbs
         source := source
         selectionSet := selectionSet }
       initial := .object [] }
-  have hresponses : CollectedGroupsResponseName groups :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq state groups
-      hcollect
-  have hparents : CollectedGroupsParent parentType groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
-        hcollect
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
-  have hgroupResponses :
-      ExecutableFieldsResponseName responseName [first, later] :=
-    hresponses responseName [first, later] hgroup
-  have hgroupParents :
-      ExecutableFieldsParent parentType [first, later] :=
-    hparents responseName [first, later] hgroup
   have hgroupCompatible :
       ExecutableFieldsFieldValidationMergeCompatible [first, later] :=
     hcompatible responseName [first, later] hgroup
   have hgroupStable :
       ExecutableFieldsResolveStable schema resolvers variableValues source [first, later] :=
     hstable responseName [first, later] hgroup
-  have hfirstResponse : first.responseName = responseName :=
-    hgroupResponses first (by simp)
-  have hlaterResponse : later.responseName = responseName :=
-    hgroupResponses later (by simp)
-  have hlaterParent : later.parentType = parentType :=
-    hgroupParents later (by simp)
-  have hsameResponse : first.responseName = later.responseName := by
-    rw [hfirstResponse, hlaterResponse]
   have hfieldName : later.fieldName = first.fieldName :=
-    (hgroupCompatible first later (by simp) (by simp) hsameResponse).1.symm
+    (hgroupCompatible first later (by simp) (by simp)).1.symm
   have hresolveLater :
-      resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
-      resolveFieldValueByName schema resolvers variableValues first.parentType first.fieldName first.arguments source :=
-    (hgroupStable first later (by simp) (by simp) hsameResponse).symm
+      resolveFieldValueByName schema resolvers variableValues parentType
+          later.fieldName later.arguments source =
+      resolveFieldValueByName schema resolvers variableValues parentType
+          first.fieldName first.arguments source :=
+    (hgroupStable parentType first later (by simp) (by simp)).symm
   apply ExecutedSingleGroupSelectionState.of_collected_appendPlan schema
     resolvers variableValues depth parentType source selectionSet groups
     responseName first [later] hcollect hgroup hexact hdirect
@@ -160,9 +141,9 @@ def ExecutedSingleGroupSelectionState.of_collected_two_visit_absorbs
   exact
     ExecutedFieldAppendPlan_two_of_visit_absorbs schema resolvers
       variableValues depth parentType source responseName first later
-      (resolveFieldValueByName schema resolvers variableValues first.parentType first.fieldName first.arguments source)
-      hlaterParent hlaterResponse hfieldName hresolveLater hfirstChildren
-      hobjects herrors hchildren
+      (resolveFieldValueByName schema resolvers variableValues parentType
+        first.fieldName first.arguments source)
+      hfieldName hresolveLater hfirstChildren hobjects herrors hchildren
 
 theorem stateEquivalent_of_collected_two_field_group_invariant
     {ObjectIdentity : Type}
@@ -1232,20 +1213,16 @@ def ExecutedFieldGroup.two_of_visit_absorbs
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (resolved : Option (ResolverValue ObjectIdentity))
-    (hfirstParent : first.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
-    (hfirstResponse : first.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
     (hfieldName : later.fieldName = first.fieldName)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues first.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           first.fieldName first.arguments source
         = resolved)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType first.fieldName = some fieldDefinition)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hfirstChildren
@@ -1306,28 +1283,13 @@ def ExecutedFieldGroup.two_of_visit_absorbs
         responseName first [later] :=
   ExecutedFieldGroup.of_appendPlan schema resolvers variableValues depth
     parentType source responseName first [later] resolved
-    (by
-      intro candidate hmem
-      simp at hmem
-      rcases hmem with rfl | hmem
-      · exact hfirstResponse
-      · rcases hmem with rfl | hfalse
-        · exact hlaterResponse)
-    (by
-      intro candidate hmem
-      simp at hmem
-      rcases hmem with rfl | hmem
-      · exact hfirstParent
-      · rcases hmem with rfl | hfalse
-        · exact hlaterParent)
     hresolveFirst hfieldLookup
     (by
       intro childDepth runtimeType identity hlt _hincludes
       exact hfirstChildren childDepth runtimeType identity hlt)
     (ExecutedFieldAppendPlan_two_of_visit_absorbs schema resolvers
       variableValues depth parentType source responseName first later resolved
-      hlaterParent hlaterResponse hfieldName hresolveLater hfirstChildren
-      hobjects herrors hchildren)
+      hfieldName hresolveLater hfirstChildren hobjects herrors hchildren)
 
 def ExecutedFieldGroup.collected_two_of_visit_absorbs
     {ObjectIdentity : Type}
@@ -1400,40 +1362,24 @@ def ExecutedFieldGroup.collected_two_of_visit_absorbs
               })
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName first [later] := by
-  have hgroupResponses :
-      ExecutableFieldsResponseName responseName [first, later] :=
-    hresponses responseName [first, later] hgroup
-  have hgroupParents :
-      ExecutableFieldsParent parentType [first, later] :=
-    hparents responseName [first, later] hgroup
   have hgroupCompatible :
       ExecutableFieldsFieldValidationMergeCompatible [first, later] :=
     hcompatible responseName [first, later] hgroup
   have hgroupStable :
       ExecutableFieldsResolveStable schema resolvers variableValues source [first, later] :=
     hstable responseName [first, later] hgroup
-  have hfirstResponse : first.responseName = responseName :=
-    hgroupResponses first (by simp)
-  have hlaterResponse : later.responseName = responseName :=
-    hgroupResponses later (by simp)
-  have hfirstParent : first.parentType = parentType :=
-    hgroupParents first (by simp)
-  have hlaterParent : later.parentType = parentType :=
-    hgroupParents later (by simp)
-  have hsameResponse : first.responseName = later.responseName := by
-    rw [hfirstResponse, hlaterResponse]
   have hfieldName : later.fieldName = first.fieldName :=
-    (hgroupCompatible first later (by simp) (by simp) hsameResponse).1.symm
+    (hgroupCompatible first later (by simp) (by simp)).1.symm
   have hresolveLater :
-      resolveFieldValueByName schema resolvers variableValues later.parentType later.fieldName later.arguments source =
-      resolveFieldValueByName schema resolvers variableValues first.parentType first.fieldName first.arguments source :=
-    (hgroupStable first later (by simp) (by simp) hsameResponse).symm
+      resolveFieldValueByName schema resolvers variableValues parentType later.fieldName later.arguments source =
+      resolveFieldValueByName schema resolvers variableValues parentType first.fieldName first.arguments source :=
+    (hgroupStable parentType first later (by simp) (by simp)).symm
   exact
     ExecutedFieldGroup.two_of_visit_absorbs schema resolvers variableValues
       depth parentType source responseName first later
-      (resolveFieldValueByName schema resolvers variableValues first.parentType first.fieldName first.arguments source)
-      hfirstParent hlaterParent hfirstResponse hlaterResponse hfieldName rfl
-      hfieldLookup hresolveLater hfirstChildren hobjects herrors hchildren
+      (resolveFieldValueByName schema resolvers variableValues parentType first.fieldName first.arguments source)
+      hfieldName rfl hfieldLookup hresolveLater hfirstChildren hobjects herrors
+      hchildren
 
 theorem executeRootSelectionSet_eq_spec_of_exact_two_field_group_appendPlan
     {ObjectIdentity : Type}
@@ -1449,15 +1395,11 @@ theorem executeRootSelectionSet_eq_spec_of_exact_two_field_group_appendPlan
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hfirstParent : first.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
-    (hfirstResponse : first.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
     (hfieldName : later.fieldName = first.fieldName)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
-        = resolveFieldValueByName schema resolvers variableValues first.parentType
+        = resolveFieldValueByName schema resolvers variableValues parentType
             first.fieldName first.arguments source)
     (hfieldLookup
       : ∃ fieldDefinition,
@@ -1526,9 +1468,9 @@ theorem executeRootSelectionSet_eq_spec_of_exact_two_field_group_appendPlan
       [later] hcollect hdirect
       (ExecutedFieldGroup.two_of_visit_absorbs schema resolvers variableValues
         depth parentType source responseName first later
-        (resolveFieldValueByName schema resolvers variableValues first.parentType first.fieldName first.arguments source)
-        hfirstParent hlaterParent hfirstResponse hlaterResponse hfieldName rfl
-        hfieldLookup hresolveLater hfirstChildren hobjects herrors hchildren)
+        (resolveFieldValueByName schema resolvers variableValues parentType first.fieldName first.arguments source)
+        hfieldName rfl hfieldLookup hresolveLater hfirstChildren hobjects herrors
+        hchildren)
 
 theorem executeRootSelectionSet_eq_spec_of_collected_two_field_group_appendPlan
     {ObjectIdentity : Type}

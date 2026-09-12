@@ -657,11 +657,10 @@ theorem executeField_fieldPairProbe_tagged_object_leaf (schema : Schema)
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object sourceRuntimeType (some tag))
+            variableValues (fuel + 1) parentType
+            (.object sourceRuntimeType (some tag))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -734,11 +733,10 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_response_of_fuel_g
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object sourceRuntimeType (some tag))
+            variableValues (fuel + 1) parentType
+            (.object sourceRuntimeType (some tag))
             responseName
             [{
-              parentType := parentType
-              responseName := responseName
               fieldName := fieldName
               arguments := arguments
               selectionSet := childSelectionSet
@@ -825,11 +823,10 @@ theorem executeField_fieldPairProbe_tagged_object_objectProbe_ok_of_child_respon
           Execution.executeField schema
               (fieldPairProbeResolvers schema rootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1) (.object sourceRuntimeType (some tag))
+              variableValues (fuel + 1) parentType
+              (.object sourceRuntimeType (some tag))
               responseName
               [{
-                parentType := parentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -872,10 +869,9 @@ theorem executeField_fieldPairProbe_left_root_leaf
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object targetParent none) responseName
+            variableValues (fuel + 1) targetParent (.object targetParent none)
+            responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -950,10 +946,9 @@ theorem executeField_fieldPairProbe_right_root_leaf_of_not_left
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object targetParent none) responseName
+            variableValues (fuel + 1) targetParent (.object targetParent none)
+            responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1039,10 +1034,8 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-            (.object targetParent none) responseName
+            targetParent (.object targetParent none) responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1053,7 +1046,7 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
                   (Execution.executeCollectedFields schema
                     (fieldPairProbeResolvers schema rootSelectionSet targetParent
                       leftField rightField leftArguments rightArguments)
-                    variableValues fuel
+                    variableValues fuel runtimeType
                     (.object runtimeType (some FieldPairProbeTag.left))
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType (some FieldPairProbeTag.left))
@@ -1122,10 +1115,9 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response_of_fuel_ge
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object targetParent none) responseName
+            variableValues (fuel + 1) targetParent (.object targetParent none)
+            responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := leftField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1201,11 +1193,9 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_ok_of_child_response
           Execution.executeField schema
               (fieldPairProbeResolvers schema rootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1) (.object targetParent none)
+              variableValues (fuel + 1) targetParent (.object targetParent none)
               responseName
               [{
-                parentType := targetParent
-                responseName := responseName
                 fieldName := leftField
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1261,10 +1251,8 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
             variableValues (fuel + leafProbeFuel fieldDefinition.outputType + 1)
-            (.object targetParent none) responseName
+            targetParent (.object targetParent none) responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1275,7 +1263,7 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
                   (Execution.executeCollectedFields schema
                     (fieldPairProbeResolvers schema rootSelectionSet targetParent
                       leftField rightField leftArguments rightArguments)
-                    variableValues fuel
+                    variableValues fuel runtimeType
                     (.object runtimeType (some FieldPairProbeTag.right))
                     (Execution.collectFields schema variableValues runtimeType
                       (.object runtimeType (some FieldPairProbeTag.right))
@@ -1353,10 +1341,9 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_
       -> Execution.executeField schema
             (fieldPairProbeResolvers schema rootSelectionSet targetParent
               leftField rightField leftArguments rightArguments)
-            variableValues (fuel + 1) (.object targetParent none) responseName
+            variableValues (fuel + 1) targetParent (.object targetParent none)
+            responseName
             [{
-              parentType := targetParent
-              responseName := responseName
               fieldName := rightField
               arguments := arguments
               selectionSet := childSelectionSet
@@ -1436,11 +1423,9 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_ok_of_child_response
           Execution.executeField schema
               (fieldPairProbeResolvers schema rootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
-              variableValues (fuel + 1) (.object targetParent none)
+              variableValues (fuel + 1) targetParent (.object targetParent none)
               responseName
               [{
-                parentType := targetParent
-                responseName := responseName
                 fieldName := rightField
                 arguments := arguments
                 selectionSet := childSelectionSet

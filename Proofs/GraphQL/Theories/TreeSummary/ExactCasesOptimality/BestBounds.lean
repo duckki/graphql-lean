@@ -54,7 +54,7 @@ theorem selectionSetOutcomesCoverExecution
               collectFields schema variableValues runtimeType source selectionSet
             let executionResult :=
               AnnotatedExecution.executeQueryAnnotatedCollectedFields schema resolvers
-                variableValues fuel source runtimeGroups
+                variableValues fuel runtimeType source runtimeGroups
             let concreteOutcome :=
               foldAnnotatedResponseFieldsResult concrete executionResult
             ∀ candidate,

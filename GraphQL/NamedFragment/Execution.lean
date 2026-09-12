@@ -38,8 +38,6 @@ def coerceVariableValues (operation : Operation) (variableValues : VariableValue
     variableValues
 
 structure ExecutableField where
-  parentType : Name
-  responseName : Name
   fieldName : Name
   arguments : List Argument
   selectionSet : List Selection
@@ -72,7 +70,7 @@ mutual
         -> Selection -> CollectFieldsResult
     | _fragments,
       visitedFragments,
-      parentType,
+      _parentType,
       _source,
       .field responseName fieldName arguments directives selectionSet =>
         if GraphQL.Execution.selectionDirectivesAllowBool variableValues directives then
@@ -81,8 +79,6 @@ mutual
               [(
                 responseName,
                 [{
-                  parentType := parentType,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
@@ -197,23 +193,23 @@ mutual
   def executeCollectedFields
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (fragments : List FragmentDefinition)
-      (fuel : Nat)
+      (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       : List (Name × List ExecutableField) -> Result (List (Name × ResponseValue))
     | [] => .ok ([], 0)
     | (responseName, fields) :: rest =>
         let head :=
-          executeField schema resolvers variableValues fragments fuel source responseName
-            fields
+          executeField schema resolvers variableValues fragments fuel parentType source
+            responseName fields
         let tail :=
-          executeCollectedFields schema resolvers variableValues fragments fuel source
-            rest
+          executeCollectedFields schema resolvers variableValues fragments fuel parentType
+            source rest
         GraphQL.Execution.Result.combine List.append head tail
 
   def executeField
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (fragments : List FragmentDefinition)
-      (fuel : Nat)
+      (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (responseName : Name)
       : List ExecutableField -> Result (List (Name × ResponseValue))
@@ -222,7 +218,7 @@ mutual
         match fuel with
         | 0 => GraphQL.Execution.outOfFuel
         | fuel' + 1 =>
-            match schema.lookupField field.parentType field.fieldName with
+            match schema.lookupField parentType field.fieldName with
             | none => .error 1
             | some fieldDefinition =>
                 match GraphQL.Execution.coerceArgumentValues schema variableValues
@@ -231,7 +227,7 @@ mutual
                     GraphQL.Execution.singleFieldResult responseName
                       (GraphQL.Execution.handleFieldError fieldDefinition.outputType)
                 | .success coercedArguments =>
-                    match GraphQL.Execution.resolveFieldValue resolvers field.parentType
+                    match GraphQL.Execution.resolveFieldValue resolvers parentType
                             field.fieldName coercedArguments source with
                     | none =>
                         GraphQL.Execution.singleFieldResult responseName
@@ -267,7 +263,7 @@ mutual
         if schema.typeIncludesObjectBool parentType runtimeType then
           let completed :=
             executeCollectedFields schema resolvers variableValues fragments fuel
-              source
+              runtimeType source
               (collectSubfields schema variableValues fragments runtimeType source fields)
           GraphQL.Execution.catchBubbleAsNull
             GraphQL.Execution.ResponseValue.object completed
@@ -307,8 +303,8 @@ def executeRootSelectionSet
     (fragments : List FragmentDefinition)
     : List Selection -> Result (List (Name × ResponseValue))
   | selectionSet =>
-      executeCollectedFields schema resolvers variableValues fragments
-        fuel source
+      executeCollectedFields schema resolvers variableValues fragments fuel parentType
+        source
         (collectFields schema variableValues fragments [] parentType source
           selectionSet).groupedFields
 

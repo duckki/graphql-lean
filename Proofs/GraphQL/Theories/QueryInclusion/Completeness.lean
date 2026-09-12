@@ -83,33 +83,34 @@ theorem annotatedResponseValueIncludes_wrapComposite
 theorem executeAnnotatedCollectedFields_group_annotation
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (responseFields : List AnnotatedResponseField)
     (hresult
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-          source groups
+          parentType source groups
         = .ok (responseFields, 0))
     {responseName : Name} {fields : List ExecutableField}
     (hgroup : (responseName, fields) ∈ groups)
     : ∃ completionFuel field rest definition resolved responseValue,
         fuel = completionFuel + 1
         ∧ fields = field :: rest
-        ∧ schema.lookupField field.parentType field.fieldName = some definition
+        ∧ schema.lookupField parentType field.fieldName = some definition
         ∧ coerceAndResolveFieldValue schema resolvers variableValues definition
-            field.parentType field.fieldName field.arguments source
+            parentType field.fieldName field.arguments source
           = some resolved
         ∧ completeAnnotatedResponseValue schema resolvers variableValues
             completionFuel definition.outputType (field :: rest) resolved
           = .ok (responseValue, 0)
         ∧ .resolved responseName
-            (resolvedFieldProvenance schema variableValues definition field) responseValue
+            (resolvedFieldProvenance schema variableValues parentType definition field)
+            responseValue
           ∈ responseFields := by
   rcases executeAnnotatedCollectedFields_group_result schema resolvers variableValues
-      fuel source groups responseFields hresult hgroup with
+      fuel parentType source groups responseFields hresult hgroup with
     ⟨groupResponseFields, hgroupResult, hmembers⟩
   rcases executeAnnotatedField_ok_zero_decompose schema resolvers variableValues fuel
-      source responseName fields groupResponseFields hgroupResult with
+      parentType source responseName fields groupResponseFields hgroupResult with
     ⟨completionFuel, field, rest, definition, resolved, responseValue,
       hfuel, hfields, hlookup, hresolve, hcomplete, hresponse⟩
   refine ⟨completionFuel, field, rest, definition, resolved, responseValue,
@@ -133,6 +134,7 @@ theorem completeSpineValue_composite_decompose
     : ∃ childFuel childFields,
         executeQueryAnnotatedCollectedFields schema
             (spineResolvers schema) variableValues childFuel
+            (plan 0 fieldType.namedType)
             (.object (plan 0 fieldType.namedType) plan.shift)
             (collectSubfields schema variableValues (plan 0 fieldType.namedType)
               (.object (plan 0 fieldType.namedType) plan.shift) fields)
@@ -153,6 +155,7 @@ theorem completeSpineValue_composite_decompose
           have hcaught := catchAnnotated_eq_ok_zero_of_error_positive
             ((annotatedExecution_error_positive_all schema
               (spineResolvers schema) variableValues).1 childFuel
+              (plan 0 typeName)
               (.object (plan 0 typeName) plan.shift)
               (collectSubfields schema variableValues (plan 0 typeName)
                 (.object (plan 0 typeName) plan.shift) fields))
@@ -217,32 +220,33 @@ theorem completeSpineValue_composite_decompose
 
 theorem executeAnnotatedCollectedFields_success_unique
     (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues) (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (parentType : Name)
+    (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     {leftFuel rightFuel : Nat}
     {leftFields rightFields : List AnnotatedResponseField}
     (hleft
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-          leftFuel source groups
+          leftFuel parentType source groups
         = .ok (leftFields, 0))
     (hright
       : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-          rightFuel source groups
+          rightFuel parentType source groups
         = .ok (rightFields, 0))
     : leftFields = rightFields := by
   let commonFuel := max leftFuel rightFuel
   have hleftCommon : executeQueryAnnotatedCollectedFields schema resolvers
-      variableValues commonFuel source groups = .ok (leftFields, 0) := by
+      variableValues commonFuel parentType source groups = .ok (leftFields, 0) := by
     rw [show commonFuel = leftFuel + (commonFuel - leftFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_left _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      variableValues leftFuel source groups leftFields hleft _
+      variableValues leftFuel parentType source groups leftFields hleft _
   have hrightCommon : executeQueryAnnotatedCollectedFields schema resolvers
-      variableValues commonFuel source groups = .ok (rightFields, 0) := by
+      variableValues commonFuel parentType source groups = .ok (rightFields, 0) := by
     rw [show commonFuel = rightFuel + (commonFuel - rightFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_right _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      variableValues rightFuel source groups rightFields hright _
+      variableValues rightFuel parentType source groups rightFields hright _
   have heq : (.ok (leftFields, 0) : Result (List AnnotatedResponseField))
       = .ok (rightFields, 0) := hleftCommon.symm.trans hrightCommon
   exact congrArg Prod.fst (Except.ok.inj heq)
@@ -257,12 +261,14 @@ def SpineSelectionIncludes
     -> ∀ leftFuel rightFuel leftFields rightFields,
         executeQueryAnnotatedCollectedFields schema
             (spineResolvers schema) leftValues leftFuel
+            parentType
             (.object runtimeType plan)
             (collectFields schema leftValues parentType (.object runtimeType plan)
               leftSelectionSet)
           = .ok (leftFields, 0)
         -> executeQueryAnnotatedCollectedFields schema
               (spineResolvers schema) rightValues rightFuel
+              parentType
               (.object runtimeType plan)
               (collectFields schema rightValues parentType (.object runtimeType plan)
                 rightSelectionSet)
@@ -311,6 +317,7 @@ theorem includes_root_spineSelectionIncludes
   have hleftFieldsEq : leftFields = collectedLeftFields :=
     executeAnnotatedCollectedFields_success_unique schema
       (spineResolvers schema) (coerceVariableValues left suppliedValues)
+      (left.rootType schema)
       (.object (left.rootType schema) plan)
       (collectFields schema (coerceVariableValues left suppliedValues)
         (left.rootType schema) (.object (left.rootType schema) plan)
@@ -332,7 +339,7 @@ theorem includes_root_spineSelectionIncludes
   subst operationRightFields
   have hright' : executeQueryAnnotatedCollectedFields schema
       (spineResolvers schema) (coerceVariableValues right suppliedValues)
-      rightFuel (.object (left.rootType schema) plan)
+      rightFuel (right.rootType schema) (.object (left.rootType schema) plan)
       (collectFields schema (coerceVariableValues right suppliedValues)
         (right.rootType schema) (.object (left.rootType schema) plan)
         right.selectionSet) = .ok (rightFields, 0) := by
@@ -340,6 +347,7 @@ theorem includes_root_spineSelectionIncludes
   have hrightFieldsEq : rightFields = collectedRightFields :=
     executeAnnotatedCollectedFields_success_unique schema
       (spineResolvers schema) (coerceVariableValues right suppliedValues)
+      (right.rootType schema)
       (.object (left.rootType schema) plan)
       (collectFields schema (coerceVariableValues right suppliedValues)
         (right.rootType schema) (.object (left.rootType schema) plan)
@@ -379,6 +387,7 @@ private theorem spineSelectionExecution_success
         executeQueryAnnotatedCollectedFields schema
           (spineResolvers schema) variableValues
           (responseDepthFuelBound schema (selectionSetResponseDepth selectionSet))
+          runtimeType
           (.object runtimeType plan)
           (collectFields schema variableValues runtimeType
             (.object runtimeType plan) selectionSet)
@@ -451,11 +460,9 @@ private theorem spineSelectionIncludes_group_match
               (.object runtimeType (defaultRuntimePlan schema))
               leftSelectionSet
         ∧ rightFields = rightField :: rightRest
-        ∧ leftField.parentType = rightField.parentType
         ∧ leftField.fieldName = rightField.fieldName
         ∧ Argument.argumentsEquivalent leftField.arguments rightField.arguments
-        ∧ schema.lookupField rightField.parentType rightField.fieldName
-          = some definition := by
+        ∧ schema.lookupField runtimeType rightField.fieldName = some definition := by
   let plan := defaultRuntimePlan schema
   have hplan : plan.Valid schema := defaultRuntimePlan_valid schema
   rcases spineSelectionExecution_success schema hschema leftValues runtimeType
@@ -466,7 +473,7 @@ private theorem spineSelectionIncludes_group_match
     ⟨rightResponseFields, hrightResult⟩
   have hresponseIncludes := hincludes plan hplan _ _ _ _ hleftResult hrightResult
   rcases executeAnnotatedCollectedFields_group_annotation schema
-      (spineResolvers schema) rightValues _ (.object runtimeType plan)
+      (spineResolvers schema) rightValues _ runtimeType (.object runtimeType plan)
       (collectFields schema rightValues runtimeType (.object runtimeType plan)
         rightSelectionSet) rightResponseFields hrightResult
       (by simpa [plan] using hrightGroup) with
@@ -475,18 +482,18 @@ private theorem spineSelectionIncludes_group_match
       _hrightComplete, hrightMember⟩
   simp only [annotatedResponseValueIncludes] at hresponseIncludes
   rcases hresponseIncludes rightName
-      (resolvedFieldProvenance schema rightValues definition rightField)
+      (resolvedFieldProvenance schema rightValues runtimeType definition rightField)
       rightValue hrightMember with
     ⟨leftName, leftCall, leftValue, hleftMember, hleftName, hcall,
       _hvalueIncludes⟩
   rcases executeAnnotatedCollectedFields_field_origin schema
-      (spineResolvers schema) leftValues _ (.object runtimeType plan)
+      (spineResolvers schema) leftValues _ runtimeType (.object runtimeType plan)
       (collectFields schema leftValues runtimeType (.object runtimeType plan)
         leftSelectionSet) leftResponseFields hleftResult hleftMember with
     ⟨originName, originFields, groupResponseFields, horiginGroup,
       horiginResult, horiginMember⟩
   rcases executeAnnotatedField_ok_zero_decompose schema
-      (spineResolvers schema) leftValues _ (.object runtimeType plan)
+      (spineResolvers schema) leftValues _ runtimeType (.object runtimeType plan)
       originName originFields groupResponseFields horiginResult with
     ⟨leftCompletionFuel, leftField, leftRest, leftDefinition, leftResolved,
       originValue, _hleftFuel, horiginFields, _hleftLookup, _hleftResolve,
@@ -500,10 +507,10 @@ private theorem spineSelectionIncludes_group_match
   subst leftValue
   subst originName
   subst originFields
-  rcases hcall with ⟨hparent, hfield, harguments⟩
-  simp only [resolvedFieldProvenance] at hparent hfield harguments
+  rcases hcall with ⟨_hparent, hfield, harguments⟩
+  simp only [resolvedFieldProvenance] at hfield harguments
   exact ⟨leftField, leftRest, rightField, rightRest, definition,
-    by simpa [plan] using horiginGroup, hrightFields, hparent, hfield,
+    by simpa [plan] using horiginGroup, hrightFields, hfield,
     harguments, hrightLookup⟩
 
 private theorem spineSelectionIncludes_child
@@ -542,10 +549,8 @@ private theorem spineSelectionIncludes_child
         ∈ collectFields schema rightValues runtimeType
             (.object runtimeType (defaultRuntimePlan schema))
             rightSelectionSet)
-    (hparent : leftField.parentType = rightField.parentType)
     (hfield : leftField.fieldName = rightField.fieldName)
-    (hlookup
-      : schema.lookupField rightField.parentType rightField.fieldName = some definition)
+    (hlookup : schema.lookupField runtimeType rightField.fieldName = some definition)
     (hcomposite : definition.outputType.isCompositeBool schema = true)
     (childRuntimeType : Name)
     (hchildRuntime
@@ -595,7 +600,7 @@ private theorem spineSelectionIncludes_child
       runtimeType (defaultRuntimePlan schema) parentPlan rightSelectionSet]
     exact hrightGroup
   rcases executeAnnotatedCollectedFields_group_annotation schema
-      (spineResolvers schema) rightValues _ (.object runtimeType parentPlan)
+      (spineResolvers schema) rightValues _ runtimeType (.object runtimeType parentPlan)
       (collectFields schema rightValues runtimeType (.object runtimeType parentPlan)
         rightSelectionSet) parentRightResponse hparentRight hrightGroup' with
     ⟨rightCompletionFuel, rightRepresentative, rightTail, rightDefinition,
@@ -621,12 +626,13 @@ private theorem spineSelectionIncludes_child
   subst rightResolved
   simp only [annotatedResponseValueIncludes] at hparentResponseIncludes
   rcases hparentResponseIncludes responseName
-      (resolvedFieldProvenance schema rightValues definition rightField) rightValue
+      (resolvedFieldProvenance schema rightValues runtimeType definition rightField)
+      rightValue
       hrightMember with
     ⟨matchedName, matchedCall, matchedValue, hmatchedMember, hmatchedName,
       _hmatchedCall, hmatchedValue⟩
   rcases executeAnnotatedCollectedFields_field_origin schema
-      (spineResolvers schema) leftValues _ (.object runtimeType parentPlan)
+      (spineResolvers schema) leftValues _ runtimeType (.object runtimeType parentPlan)
       (collectFields schema leftValues runtimeType (.object runtimeType parentPlan)
         leftSelectionSet) parentLeftResponse hparentLeft hmatchedMember with
     ⟨originName, originFields, originResponseFields, horiginGroup,
@@ -637,7 +643,7 @@ private theorem spineSelectionIncludes_child
       horiginGroup
     have horiginAnnotationName : originName = matchedName := by
       rcases executeAnnotatedField_ok_zero_decompose schema
-          (spineResolvers schema) leftValues _
+          (spineResolvers schema) leftValues _ runtimeType
           (.object runtimeType parentPlan) originName originFields originResponseFields
           horiginResult with
         ⟨originFuel, originField, originRest, originDefinition, originResolved,
@@ -658,7 +664,7 @@ private theorem spineSelectionIncludes_child
   injection hgroupsEq with _horiginNameEq horiginFieldsEq
   subst originFields
   rcases executeAnnotatedField_ok_zero_decompose schema
-      (spineResolvers schema) leftValues _ (.object runtimeType parentPlan)
+      (spineResolvers schema) leftValues _ runtimeType (.object runtimeType parentPlan)
       originName (leftField :: leftRest) originResponseFields horiginResult with
     ⟨leftCompletionFuel, leftRepresentative, leftTail, leftDefinition,
       leftResolved, leftValue, _hleftFuel, hleftFields, hleftLookup,
@@ -667,8 +673,8 @@ private theorem spineSelectionIncludes_child
   subst leftRepresentative
   subst leftTail
   have hleftLookup' :
-      schema.lookupField leftField.parentType leftField.fieldName = some definition := by
-    simpa [hparent, hfield] using hlookup
+      schema.lookupField runtimeType leftField.fieldName = some definition := by
+    simpa [hfield] using hlookup
   rw [hleftLookup'] at hleftLookup
   injection hleftLookup with hleftDefinitionEq
   subst leftDefinition
@@ -709,6 +715,7 @@ private theorem spineSelectionIncludes_child
     hwrappedIncludes
   have hactualLeft' : executeQueryAnnotatedCollectedFields schema
       (spineResolvers schema) leftValues actualLeftFuel
+      childRuntimeType
       (.object childRuntimeType childPlan)
       (collectFields schema leftValues childRuntimeType
         (.object childRuntimeType childPlan)
@@ -718,6 +725,7 @@ private theorem spineSelectionIncludes_child
       htarget, hshift] using hactualLeft
   have hactualRight' : executeQueryAnnotatedCollectedFields schema
       (spineResolvers schema) rightValues actualRightFuel
+      childRuntimeType
       (.object childRuntimeType childPlan)
       (collectFields schema rightValues childRuntimeType
         (.object childRuntimeType childPlan)
@@ -727,13 +735,15 @@ private theorem spineSelectionIncludes_child
       htarget, hshift] using hactualRight
   have hleftEq : leftResponseFields = actualLeftFields :=
     executeAnnotatedCollectedFields_success_unique schema
-      (spineResolvers schema) leftValues (.object childRuntimeType childPlan)
+      (spineResolvers schema) leftValues childRuntimeType
+      (.object childRuntimeType childPlan)
       (collectFields schema leftValues childRuntimeType
         (.object childRuntimeType childPlan)
         (mergedFieldSelectionSet (leftField :: leftRest))) hleftChild hactualLeft'
   have hrightEq : rightResponseFields = actualRightFields :=
     executeAnnotatedCollectedFields_success_unique schema
-      (spineResolvers schema) rightValues (.object childRuntimeType childPlan)
+      (spineResolvers schema) rightValues childRuntimeType
+      (.object childRuntimeType childPlan)
       (collectFields schema rightValues childRuntimeType
         (.object childRuntimeType childPlan)
         (mergedFieldSelectionSet (rightField :: rightRest))) hrightChild hactualRight'
@@ -804,7 +814,7 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           hincludes
           hrightGroupDefault with
         ⟨leftField, leftRest, rightField, rightRest, definition, hleftGroupDefault,
-          hrightFields, hparent, hfield, harguments, hlookup⟩
+          hrightFields, hfield, harguments, hlookup⟩
       subst rightFields
       have hleftGroup :
           (rightName, leftField :: leftRest) ∈
@@ -817,7 +827,7 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
       apply List.any_eq_true.mpr
       refine ⟨(rightName, leftField :: leftRest), hleftGroup, ?_⟩
       simp only [beq_self_eq_true, Bool.true_and, Bool.and_eq_true]
-      refine ⟨⟨⟨beq_iff_eq.mpr hparent, beq_iff_eq.mpr hfield⟩,
+      refine ⟨⟨beq_iff_eq.mpr hfield,
         (argumentsSyntacticallyEquivalentBool_iff _ _).mpr harguments⟩, ?_⟩
       rw [hlookup]
       by_cases hcomposite : definition.outputType.isCompositeBool schema = true
@@ -848,13 +858,13 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           (leftField :: leftRest) hleftGroupDefault
         have hrightFieldsCoercion := hrightGroupsCoercion rightName
           (rightField :: rightRest) hrightGroupDefault
-        have hleftLookup : schema.lookupField leftField.parentType leftField.fieldName
+        have hleftLookup : schema.lookupField runtimeType leftField.fieldName
             = some definition := by
-          simpa [hparent, hfield] using hlookup
-        have hleftCompletionReady : completionFieldsReady schema
+          simpa [hfield] using hlookup
+        have hleftCompletionReady : completionFieldsReady schema runtimeType
             definition.outputType (leftField :: leftRest) :=
           ⟨hleftFieldsReady, leftField, definition, by simp, hleftLookup, rfl⟩
-        have hrightCompletionReady : completionFieldsReady schema
+        have hrightCompletionReady : completionFieldsReady schema runtimeType
             definition.outputType (rightField :: rightRest) :=
           ⟨hrightFieldsReady, rightField, definition, by simp, hlookup, rfl⟩
         have hchildIncludesBool :
@@ -882,7 +892,7 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           hleftReady hleftCoercion hleftInhabited hleftMerge hrightReady hrightCoercion
           hrightInhabited hrightMerge hincludes rightName leftField rightField leftRest
           rightRest definition
-          hleftGroupDefault hrightGroupDefault hparent hfield hlookup hcomposite
+          hleftGroupDefault hrightGroupDefault hfield hlookup hcomposite
           childRuntimeType hchildRuntime
         have hrightGroupDepth :
             ∀ field, field ∈ rightField :: rightRest
@@ -893,8 +903,10 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
             (.object runtimeType (defaultRuntimePlan schema))
             rightSelectionSet field
             (by
-              rw [← Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd]
-              exact (Execution.FieldGroups.mem_flattenCollectedFields_iff _ _).mpr
+              rw [← Execution.FieldGroups.flattenExecutableFieldGroups_map_snd]
+              exact
+                (Execution.FieldGroups.mem_map_snd_flattenExecutableFieldGroups_iff
+                  _ _).mpr
                 ⟨rightName, rightField :: rightRest, hrightGroupDefault,
                   hfieldMember⟩)
         have hrightChildDepth :

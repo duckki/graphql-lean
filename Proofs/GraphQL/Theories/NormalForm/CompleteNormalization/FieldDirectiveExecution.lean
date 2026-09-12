@@ -68,8 +68,6 @@ theorem collectFields_field_directives_allowed_exists
           = (
               responseName,
               {
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -80,8 +78,6 @@ theorem collectFields_field_directives_allowed_exists
   intro hallow
   let sourceField : Execution.ExecutableField :=
     {
-      parentType := parentType,
-      responseName := responseName,
       fieldName := fieldName,
       arguments := arguments,
       selectionSet := selectionSet
@@ -114,8 +110,6 @@ theorem collectFields_field_directives_allowed_cons_of_responseName_not_mem
           = (
               responseName,
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -159,8 +153,6 @@ theorem collectFields_field_directives_allowed_exists_of_case
           = (
               responseName,
               {
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -209,8 +201,6 @@ theorem collectFields_field_directives_allowed_cons_of_case_not_mem
           = (
               responseName,
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -251,8 +241,6 @@ theorem collectFields_staticCollectForGround_field_allowed_lookup_none_exists
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -295,8 +283,6 @@ theorem collectFields_staticCollectForGround_field_allowed_lookup_some_exists
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -340,8 +326,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -357,8 +341,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -366,10 +348,11 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
               :: sourceFields
             )
             :: sourceTail
-      -> Execution.executeCollectedFields schema resolvers variableValues depth source
+      -> Execution.executeCollectedFields schema resolvers variableValues depth
+            lookupParent source
             normalizedTail
           = Execution.executeCollectedFields schema resolvers variableValues depth
-              source sourceTail
+              lookupParent source sourceTail
       -> Execution.executeSelectionSet schema resolvers variableValues depth
             lookupParent source
             (staticCollectForGround schema variables lookupParent
@@ -390,8 +373,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
               lookupParent groundType boolCase rest)
         =
         (responseName, {
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet :=
@@ -441,8 +422,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -458,8 +437,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -473,8 +450,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType
                 ({
-                    parentType := lookupParent,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet :=
@@ -486,8 +461,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
               = Execution.completeValue schema resolvers variableValues (depth - 1)
                   fieldDefinition.outputType
                   ({
-                      parentType := lookupParent,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet := selectionSet
@@ -495,10 +468,11 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
                     :: sourceFields)
                   value
           | none => True)
-      -> Execution.executeCollectedFields schema resolvers variableValues depth source
+      -> Execution.executeCollectedFields schema resolvers variableValues depth
+            lookupParent source
             normalizedTail
           = Execution.executeCollectedFields schema resolvers variableValues depth
-              source sourceTail
+              lookupParent source sourceTail
       -> Execution.executeSelectionSet schema resolvers variableValues depth
             lookupParent source
             (staticCollectForGround schema variables lookupParent
@@ -518,8 +492,6 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
               lookupParent groundType boolCase rest)
         =
         (responseName, {
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet :=
@@ -584,8 +556,6 @@ theorem
               Execution.completeValue schema resolvers variableValues (depth - 1)
                 fieldDefinition.outputType
                 [{
-                  parentType := lookupParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet :=
@@ -596,8 +566,6 @@ theorem
               = Execution.completeValue schema resolvers variableValues (depth - 1)
                   fieldDefinition.outputType
                   [{
-                    parentType := lookupParent,
-                    responseName := responseName,
                     fieldName := fieldName,
                     arguments := arguments,
                     selectionSet := selectionSet
@@ -640,8 +608,6 @@ theorem
               selectionSet :: rest))
         =
         (responseName, [{
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := normalizedSelectionSet
@@ -662,8 +628,6 @@ theorem
             selectionSet :: rest)
         =
         (responseName, [{
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := selectionSet
@@ -676,12 +640,12 @@ theorem
       hallow hsourceNotin
   have htailCollected :
       Execution.executeCollectedFields schema resolvers variableValues depth
-          source
+          lookupParent source
           (Execution.collectFields schema variableValues lookupParent source
             normalizedRest)
         =
       Execution.executeCollectedFields schema resolvers variableValues depth
-        source
+        lookupParent source
         (Execution.collectFields schema variableValues lookupParent source
           rest) := by
     simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
@@ -764,8 +728,6 @@ theorem
               selectionSet :: rest))
         =
         (responseName, [{
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := normalizedSelectionSet
@@ -786,8 +748,6 @@ theorem
             selectionSet :: rest)
         =
         (responseName, [{
-          parentType := lookupParent,
-          responseName := responseName,
           fieldName := fieldName,
           arguments := arguments,
           selectionSet := selectionSet
@@ -800,12 +760,12 @@ theorem
       hallow hsourceNotin
   have htailCollected :
       Execution.executeCollectedFields schema resolvers variableValues depth
-          source
+          lookupParent source
           (Execution.collectFields schema variableValues lookupParent source
             normalizedRest)
         =
       Execution.executeCollectedFields schema resolvers variableValues depth
-        source
+        lookupParent source
         (Execution.collectFields schema variableValues lookupParent source
           rest) := by
     simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet,

@@ -31,11 +31,6 @@ def executableGroupsSelectionVarsInOperation
     : Prop :=
   ∀ group, group ∈ groups -> executableFieldsSelectionVarsInOperation operation group.snd
 
-theorem filterExecutableFieldBoolCase_parentType
-    (boolCase : BoolCase) (field : Execution.ExecutableField)
-    : (filterExecutableFieldBoolCase boolCase field).parentType = field.parentType := by
-  rfl
-
 theorem filterExecutableFieldBoolCase_fieldName
     (boolCase : BoolCase) (field : Execution.ExecutableField)
     : (filterExecutableFieldBoolCase boolCase field).fieldName = field.fieldName := by
@@ -296,7 +291,8 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
     (resolvers : Execution.Resolvers ObjectRef)
     (variableValues : Execution.VariableValues)
     (operation : Operation) (boolCase : BoolCase)
-    (depth : Nat) (source : Execution.ResolverValue ObjectRef)
+    (depth : Nat) (parentType : Name)
+    (source : Execution.ResolverValue ObjectRef)
     (groups : List (Name × List Execution.ExecutableField))
     : (∀ childDepth,
         childDepth < depth
@@ -311,9 +307,9 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                     childDepth parentType childSource selectionSet)
       -> executableGroupsSelectionVarsInOperation operation groups
       -> Execution.executeCollectedFields schema resolvers variableValues depth
-            source (filterExecutableGroupsBoolCase boolCase groups)
+            parentType source (filterExecutableGroupsBoolCase boolCase groups)
           = Execution.executeCollectedFields schema resolvers variableValues depth
-              source groups := by
+              parentType source groups := by
   intro hrec hgroups
   induction groups with
   | nil =>
@@ -327,17 +323,17 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
             exact hgroups candidate (by simp [hcandidate])
           have htail :
               Execution.executeCollectedFields schema resolvers variableValues depth
-                  source (filterExecutableGroupsBoolCase boolCase rest)
+                  parentType source (filterExecutableGroupsBoolCase boolCase rest)
                 =
               Execution.executeCollectedFields schema resolvers variableValues depth
-                  source rest :=
+                  parentType source rest :=
             ih hrestVars
           cases fields with
           | nil =>
               simpa [filterExecutableGroupsBoolCase,
                 filterExecutableGroupBoolCase] using
                 GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
-                  schema resolvers variableValues depth source
+                  schema resolvers variableValues depth parentType source
                   (responseName, []) (responseName, [])
                   (filterExecutableGroupsBoolCase boolCase rest)
                   rest
@@ -350,27 +346,26 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                 exact hgroups (responseName, field :: fields) (by simp)
               have hhead :
                   Execution.executeField schema resolvers variableValues depth
-                      source responseName
+                      parentType source responseName
                       (filterExecutableFieldBoolCase boolCase field
                         :: fields.map
                           (filterExecutableFieldBoolCase boolCase))
                     =
                   Execution.executeField schema resolvers variableValues depth
-                      source responseName (field :: fields) := by
+                      parentType source responseName (field :: fields) := by
                 apply executeField_cons_eq_cons_of_completeValue
-                  schema resolvers variableValues depth source responseName
+                  schema resolvers variableValues depth parentType source responseName
                   field (filterExecutableFieldBoolCase boolCase field)
                   fields (fields.map (filterExecutableFieldBoolCase boolCase))
-                · exact filterExecutableFieldBoolCase_parentType boolCase field
                 · exact filterExecutableFieldBoolCase_fieldName boolCase field
                 · exact filterExecutableFieldBoolCase_arguments boolCase field
-                · cases hlookup : schema.lookupField field.parentType field.fieldName with
+                · cases hlookup : schema.lookupField parentType field.fieldName with
                   | none =>
                       simp []
                   | some fieldDefinition =>
                       cases hresolved
                             : Execution.coerceAndResolveFieldValue schema resolvers
-                                variableValues fieldDefinition field.parentType
+                                variableValues fieldDefinition parentType
                                 field.fieldName field.arguments source with
                       | none =>
                           simp [Execution.resolveFieldValueByName, hlookup,
@@ -397,7 +392,7 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                 filterExecutableGroupBoolCase,
                 Execution.executeCollectedFields] using
                 GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
-                  schema resolvers variableValues depth source
+                  schema resolvers variableValues depth parentType source
                   (responseName,
                     filterExecutableFieldBoolCase boolCase field
                       :: fields.map
@@ -437,17 +432,17 @@ theorem executeSelectionSet_filterSelectionSetBoolCase
           variableValues operation parentType source selectionSet hvars
       have hcollected :
           Execution.executeCollectedFields schema resolvers variableValues
-              depth source
+              depth parentType source
               (filterExecutableGroupsBoolCase boolCase
                 (Execution.collectFields schema variableValues parentType
                   source selectionSet))
             =
           Execution.executeCollectedFields schema resolvers variableValues
-              depth source
+              depth parentType source
               (Execution.collectFields schema variableValues parentType
                 source selectionSet) :=
         executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
-          schema resolvers variableValues operation boolCase depth source
+          schema resolvers variableValues operation boolCase depth parentType source
           (Execution.collectFields schema variableValues parentType source
             selectionSet)
           (by

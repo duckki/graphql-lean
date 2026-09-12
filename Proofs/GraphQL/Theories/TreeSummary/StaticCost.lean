@@ -1645,31 +1645,31 @@ private theorem scaled_signed_le_staticBound
 
 private theorem responseFieldCost_le_fieldUseCostAtParentType
     (schema : Schema) (model : CostModel)
-    (variableValues : Execution.VariableValues) (field : Execution.ExecutableField)
+    (variableValues : Execution.VariableValues) (parentType : Name)
+    (field : Execution.ExecutableField)
     (schemaDefinition : FieldDefinition) (value : AnnotatedResponseValue)
     (children : ResponseObservation) (abstractChild : Summary)
     (inheritedSizedFields : List SizedField)
-    (hlookup
-      : schema.lookupField field.parentType field.fieldName = some schemaDefinition)
+    (hlookup : schema.lookupField parentType field.fieldName = some schemaDefinition)
     (hchildren
       : ResponseObservationBound children
           (fun sizedFields =>
             Bound.scale (actualInstanceCount value) (abstractChild sizedFields)))
     (hadmissible
       : responseFieldAdmissible schema model
-          (resolvedFieldProvenance schema variableValues schemaDefinition field)
+          (resolvedFieldProvenance schema variableValues parentType schemaDefinition
+            field)
           value children inheritedSizedFields)
     : responseFieldCost schema model
-        (resolvedFieldProvenance schema variableValues schemaDefinition field)
+        (resolvedFieldProvenance schema variableValues parentType schemaDefinition field)
         value children
         inheritedSizedFields
-      ≤ (fieldUseCostAtParentType schema model field.parentType abstractChild
+      ≤ (fieldUseCostAtParentType schema model parentType abstractChild
           inheritedSizedFields field.fieldName
           (argumentCoercionResultArguments
             (Execution.coerceArgumentValues schema variableValues
               schemaDefinition.arguments field.arguments))).toCost := by
   simp only [resolvedFieldProvenance] at hadmissible ⊢
-  let parentType := field.parentType
   let fieldName := field.fieldName
   let arguments :=
     argumentCoercionResultArguments
@@ -1689,7 +1689,7 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
             ≤ staticInstanceCount model coordinate fieldName schemaDefinition
                 expectedSize inheritedSizedFields
         ∧ children.admissible childContext := by
-    simpa [responseFieldAdmissible, hlookup, hlookup', parentType, fieldName, arguments,
+    simpa [responseFieldAdmissible, hlookup, hlookup', fieldName, arguments,
       coordinate, expectedSize, childContext] using hadmissible
   have hchild := hchildren childContext hadmissible'.2
   have htype := responseValueTypeCost_le schema model schemaDefinition.outputType value
@@ -1740,20 +1740,20 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
             ≤ perInstanceTypeCost := by
           exact Int.le_add_of_nonneg_right (Int.natCast_nonneg _)
         exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, parentType, fieldName, arguments,
+          simpa [responseFieldCost, hlookup, fieldName, arguments,
             actualInstanceCount] using hleaf) hfinalType
     | list values =>
         exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, parentType, fieldName, arguments, coordinate,
+          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
             expectedSize, childContext, responseValueTypeCost] using hvalueType) hfinalType
     | object runtimeType fields =>
         exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, parentType, fieldName, arguments, coordinate,
+          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
             expectedSize, childContext, responseValueTypeCost] using hvalueType) hfinalType
   · cases value with
     | list values | object _ _ =>
         exact Nat.le_trans (by
-          simpa [responseFieldCost, hlookup, parentType, fieldName, arguments, coordinate,
+          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
             expectedSize, childContext, callWeight] using hvalueField) hfinalField
     | null =>
         have hcall : callWeight.toNat
@@ -1761,7 +1761,7 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
               + actualInstanceCount .null * (abstractChild childContext).fieldCost :=
           Nat.le_add_right _ _
         exact Nat.le_trans (by
-          simp [responseFieldCost, hlookup, parentType, fieldName, arguments,
+          simp [responseFieldCost, hlookup, fieldName, arguments,
             coordinate, callWeight]) hfinalField
     | scalar scalarValue =>
         have hcall : callWeight.toNat
@@ -1770,7 +1770,7 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
                 * (abstractChild childContext).fieldCost :=
           Nat.le_add_right _ _
         exact Nat.le_trans (by
-          simp [responseFieldCost, hlookup, parentType, fieldName, arguments,
+          simp [responseFieldCost, hlookup, fieldName, arguments,
             coordinate, callWeight]) hfinalField
 
 private theorem actualCost_le_staticBound
@@ -1992,7 +1992,7 @@ def soundness (schema : Schema) (model : CostModel)
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
-      intro group field definition value children abstractChildren hrepresentative
+      intro group parentType field definition value children abstractChildren hrepresentative
         hparent harguments hlookup _houtput hchildren
       intro inheritedSizedFields hadmissible
       have hchildren' :
@@ -2006,19 +2006,20 @@ def soundness (schema : Schema) (model : CostModel)
             (foldChildSummaryForValue_le_scale schema model variableValues
               abstractChildren value sizedFields))
       have hfield := responseFieldCost_le_fieldUseCostAtParentType schema model
-        variableValues field definition value children abstractChildren
+        variableValues parentType field definition value children abstractChildren
         inheritedSizedFields hlookup hchildren' hadmissible
       have hfield' :
           ((concreteAlgebra schema model).field
-              (resolvedFieldProvenance schema variableValues definition field) value children).cost
+              (resolvedFieldProvenance schema variableValues parentType definition field)
+              value children).cost
               inheritedSizedFields
             ≤ (fieldUseCostAtParentTypeWithVariables schema model variableValues
-                field.parentType abstractChildren inheritedSizedFields field.fieldName
+                parentType abstractChildren inheritedSizedFields field.fieldName
                 field.arguments).toCost := by
         simpa [concreteAlgebra, responseFieldObservation,
           fieldUseCostAtParentTypeWithVariables, hlookup] using hfield
       have hparentBound := fieldUseCostAtParentType_le_fieldUseCost schema model group
-        variableValues abstractChildren inheritedSizedFields field.parentType
+        variableValues abstractChildren inheritedSizedFields parentType
         field.fieldName field.arguments hparent
       have hselectionBound := fieldUseCost_le_groupCost schema model variableValues group
         abstractChildren inheritedSizedFields field.fieldName field.arguments
@@ -2096,7 +2097,7 @@ def soundness (schema : Schema) (model : CostModel)
       exact actualCost_le_trans (hlower sizedFields hadmissible)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
-      intro field definition value children groups abstractChildren hnonempty hmatch
+      intro parentType field definition value children groups abstractChildren hnonempty hmatch
         hconditions hargumentsNodup hlookup hchildren
       intro inheritedSizedFields hadmissible
       let combinedChildren :=
@@ -2113,19 +2114,20 @@ def soundness (schema : Schema) (model : CostModel)
             (foldChildSummaryForValue_le_scale schema model variableValues
               combinedChildren value sizedFields))
       have hfield := responseFieldCost_le_fieldUseCostAtParentType schema model
-        variableValues field definition value children combinedChildren
+        variableValues parentType field definition value children combinedChildren
         inheritedSizedFields hlookup hchildren' hadmissible
       have hfield' :
           ((concreteAlgebra schema model).field
-              (resolvedFieldProvenance schema variableValues definition field) value children).cost
+              (resolvedFieldProvenance schema variableValues parentType definition field)
+              value children).cost
               inheritedSizedFields
             ≤ (fieldUseCostAtParentTypeWithVariables schema model variableValues
-                field.parentType combinedChildren inheritedSizedFields field.fieldName
+                parentType combinedChildren inheritedSizedFields field.fieldName
                 field.arguments).toCost := by
         simpa [concreteAlgebra, responseFieldObservation,
           fieldUseCostAtParentTypeWithVariables, hlookup] using hfield
       have hcapacity := representedGroups_capacity schema model hnonnegative variableValues
-        field.parentType field groups abstractChildren inheritedSizedFields hnonempty
+        parentType field groups abstractChildren inheritedSizedFields hnonempty
         hconditions hmatch hargumentsNodup
       exact actualCost_le_trans hfield' (bound_toCost_le_toCost (by
         simpa [combinedChildren, algebra] using hcapacity))

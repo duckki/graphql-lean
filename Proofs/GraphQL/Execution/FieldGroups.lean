@@ -1,4 +1,5 @@
 import GraphQL.Execution
+import GraphQL.Theories.ConditionTree.FieldCollection
 import Proofs.GraphQL.Algorithms.ExecutionUngrouped.Equivalence.Collection
 import Proofs.GraphQL.Execution.Fuel
 import Proofs.GraphQL.List
@@ -11,6 +12,7 @@ namespace Execution
 namespace FieldGroups
 
 open Execution
+open GraphQL.ConditionTree
 open Algorithms.ExecutionUngroupedUncached.Eager
 
 -- Ungrouped runtime field collection for one syntax boundary. This is proof-facing:
@@ -18,7 +20,7 @@ open Algorithms.ExecutionUngroupedUncached.Eager
 mutual
   def collectFlatFields (schema : Schema) (variableValues : VariableValues)
       (executionParentType : Name) (source : ResolverValue ObjectRef)
-      : List Selection -> List ExecutableField
+      : List Selection -> List (Name × ExecutableField)
     | [] => []
     | selection :: rest =>
         collectFlatSelection schema variableValues executionParentType source selection
@@ -26,16 +28,17 @@ mutual
 
   def collectFlatSelection (schema : Schema) (variableValues : VariableValues)
       (executionParentType : Name) (source : ResolverValue ObjectRef)
-      : Selection -> List ExecutableField
+      : Selection -> List (Name × ExecutableField)
     | .field responseName fieldName arguments directives selectionSet =>
         if selectionDirectivesAllowBool variableValues directives then
-          [{
-            parentType := executionParentType
-            responseName
+          [(
+            responseName,
+            {
             fieldName
             arguments
             selectionSet
-          }]
+          }
+          )]
         else
           []
     | .inlineFragment none directives selectionSet =>
@@ -52,57 +55,89 @@ mutual
           []
 end
 
-def flattenCollectedFields : List (Name × List ExecutableField) -> List ExecutableField
-  | [] => []
-  | (_responseName, fields) :: rest => fields ++ flattenCollectedFields rest
-
-theorem flattenCollectedFields_eq_flatMap_snd
-    (groups : List (Name × List ExecutableField))
-    : flattenCollectedFields groups = groups.flatMap Prod.snd := by
+@[simp]
+theorem flattenExecutableFieldGroups_map_snd (groups : List (Name × List ExecutableField))
+    : (flattenExecutableFieldGroups groups).map Prod.snd = groups.flatMap Prod.snd := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
-      simp [flattenCollectedFields, ih]
+      simp [flattenExecutableFieldGroups, ih, Function.comp_def]
 
-def groupExecutableFields (fields : List ExecutableField)
+theorem flattenExecutableFieldGroups_eq_flatMap
+    (groups : List (Name × List ExecutableField))
+    : flattenExecutableFieldGroups groups
+      = groups.flatMap (fun group => group.2.map (fun field => (group.1, field))) := by
+  induction groups with
+  | nil => rfl
+  | cons group rest ih =>
+      rcases group with ⟨responseName, fields⟩
+      simp [flattenExecutableFieldGroups, ih]
+
+def groupExecutableFields (fields : List (Name × ExecutableField))
     : List (Name × List ExecutableField) :=
-  fields.foldl
-    (fun groups field => addExecutableGroup (field.responseName, [field]) groups) []
+  fields.foldl (fun groups field => addExecutableGroup (field.1, [field.2]) groups) []
 
-def RuntimeFieldGroupsExact (fields : List ExecutableField)
+def RuntimeFieldGroupsExact (fields : List (Name × ExecutableField))
     (groups : List (Name × List ExecutableField))
     : Prop :=
-  (groups.map Prod.fst).Nodup ∧ (flattenCollectedFields groups).Perm fields
+  (groups.map Prod.fst).Nodup ∧ (flattenExecutableFieldGroups groups).Perm fields
 
-theorem flattenCollectedFields_addExecutableGroup_perm
+theorem flattenExecutableFieldGroups_addExecutableGroup_perm
     (group : Name × List ExecutableField)
     (groups : List (Name × List ExecutableField))
-    : (flattenCollectedFields (addExecutableGroup group groups)).Perm
-        (flattenCollectedFields groups ++ group.2) := by
+    : (flattenExecutableFieldGroups (addExecutableGroup group groups)).Perm
+        (flattenExecutableFieldGroups groups
+          ++ group.2.map (fun field => (group.1, field))) := by
   rcases group with ⟨groupName, groupFields⟩
   induction groups with
-  | nil => simp [addExecutableGroup, flattenCollectedFields]
+  | nil => simp [addExecutableGroup, flattenExecutableFieldGroups]
   | cons current rest ih =>
       rcases current with ⟨currentName, currentFields⟩
       by_cases hname : (currentName == groupName) = true
-      · simp only [addExecutableGroup, hname]
-        change (currentFields ++ groupFields ++ flattenCollectedFields rest).Perm
-                ((currentFields ++ flattenCollectedFields rest) ++ groupFields)
+      · have heq : currentName = groupName := beq_iff_eq.mp hname
+        subst groupName
+        simp only [addExecutableGroup, hname, if_true,
+          flattenExecutableFieldGroups, List.map_append]
         simpa [List.append_assoc] using
-          (List.Perm.append_left currentFields
-            (List.perm_append_comm (l₁ := groupFields)
-              (l₂ := flattenCollectedFields rest)))
+          (List.Perm.append_left (currentFields.map fun field => (currentName, field))
+            (List.perm_append_comm
+              (l₁ := groupFields.map fun field => (currentName, field))
+              (l₂ := flattenExecutableFieldGroups rest)))
       · have hfalse : (currentName == groupName) = false := by
           cases hvalue : currentName == groupName
           · rfl
           · contradiction
-        simp only [addExecutableGroup, hfalse]
-        change (currentFields
-                ++ flattenCollectedFields
-                    (addExecutableGroup (groupName, groupFields) rest)).Perm
-                ((currentFields ++ flattenCollectedFields rest) ++ groupFields)
-        simpa [List.append_assoc] using ih.append_left currentFields
+        simp only [addExecutableGroup, hfalse, Bool.false_eq_true, if_false,
+          flattenExecutableFieldGroups]
+        simpa [List.append_assoc] using
+          ih.append_left (currentFields.map fun field => (currentName, field))
+
+theorem flattenExecutableFieldGroups_mem_addExecutableGroup
+    (group : Name × List ExecutableField)
+    (groups : List (Name × List ExecutableField))
+    (entry : Name × ExecutableField)
+    : entry ∈ flattenExecutableFieldGroups (addExecutableGroup group groups)
+      ↔ entry ∈ group.2.map (fun field => (group.1, field))
+        ∨ entry ∈ flattenExecutableFieldGroups groups := by
+  rw [(flattenExecutableFieldGroups_addExecutableGroup_perm group groups).mem_iff]
+  simp [or_comm]
+
+theorem flattenExecutableFieldGroups_mem_mergeExecutableGroups
+    (left right : List (Name × List ExecutableField))
+    (entry : Name × ExecutableField)
+    : entry ∈ flattenExecutableFieldGroups (mergeExecutableGroups left right)
+      ↔ entry ∈ flattenExecutableFieldGroups left
+        ∨ entry ∈ flattenExecutableFieldGroups right := by
+  induction right generalizing left with
+  | nil => simp [mergeExecutableGroups, flattenExecutableFieldGroups]
+  | cons group rest ih =>
+      change entry ∈ flattenExecutableFieldGroups
+          (mergeExecutableGroups (addExecutableGroup group left) rest)
+        ↔ entry ∈ flattenExecutableFieldGroups left
+          ∨ entry ∈ flattenExecutableFieldGroups (group :: rest)
+      rw [ih, flattenExecutableFieldGroups_mem_addExecutableGroup]
+      simp [flattenExecutableFieldGroups, or_assoc, or_left_comm]
 
 theorem mem_addExecutableGroup_key_iff
     (group : Name × List ExecutableField)
@@ -157,23 +192,23 @@ theorem addExecutableGroup_keys_nodup
           · exact hnodup.1 hrest
         · exact ih hnodup.2
 
-theorem groupExecutableFields_exact (fields : List ExecutableField)
+theorem groupExecutableFields_exact (fields : List (Name × ExecutableField))
     : RuntimeFieldGroupsExact fields (groupExecutableFields fields) := by
   unfold RuntimeFieldGroupsExact groupExecutableFields
   have hgeneral :
-      ∀ (rest : List ExecutableField)
+      ∀ (rest : List (Name × ExecutableField))
         (groups : List (Name × List ExecutableField)),
         (groups.map Prod.fst).Nodup
         -> ((rest.foldl
               (fun result field =>
-                addExecutableGroup (field.responseName, [field]) result)
+                addExecutableGroup (field.1, [field.2]) result)
               groups).map Prod.fst).Nodup
-          ∧ (flattenCollectedFields
+          ∧ (flattenExecutableFieldGroups
               (rest.foldl
                 (fun result field =>
-                  addExecutableGroup (field.responseName, [field]) result)
+                  addExecutableGroup (field.1, [field.2]) result)
                 groups)).Perm
-              (flattenCollectedFields groups ++ rest) := by
+              (flattenExecutableFieldGroups groups ++ rest) := by
     intro rest
     induction rest with
     | nil =>
@@ -181,7 +216,7 @@ theorem groupExecutableFields_exact (fields : List ExecutableField)
         exact ⟨hnodup, by simp⟩
     | cons field rest ih =>
         intro groups hnodup
-        let added := addExecutableGroup (field.responseName, [field]) groups
+        let added := addExecutableGroup (field.1, [field.2]) groups
         have haddedNodup : (added.map Prod.fst).Nodup :=
           addExecutableGroup_keys_nodup _ _ hnodup
         rcases ih added haddedNodup with ⟨hfinalNodup, hfinalPerm⟩
@@ -189,30 +224,30 @@ theorem groupExecutableFields_exact (fields : List ExecutableField)
         · exact hfinalNodup
         · apply hfinalPerm.trans
           have haddPerm :
-              (flattenCollectedFields added).Perm
-                (flattenCollectedFields groups ++ [field]) := by
+              (flattenExecutableFieldGroups added).Perm
+                (flattenExecutableFieldGroups groups ++ [field]) := by
             simpa [added] using
-              flattenCollectedFields_addExecutableGroup_perm
-                (field.responseName, [field]) groups
+              flattenExecutableFieldGroups_addExecutableGroup_perm
+                (field.1, [field.2]) groups
           simpa [List.append_assoc] using haddPerm.append_right rest
-  simpa [flattenCollectedFields] using hgeneral fields [] (by simp)
+  simpa [flattenExecutableFieldGroups] using hgeneral fields [] (by simp)
 
 theorem mem_foldExecutableFields_key_iff
-    (fields : List ExecutableField)
+    (fields : List (Name × ExecutableField))
     (groups : List (Name × List ExecutableField)) (responseName : Name)
     : responseName
         ∈ (fields.foldl
             (fun result field =>
-              addExecutableGroup (field.responseName, [field]) result)
+              addExecutableGroup (field.1, [field.2]) result)
             groups).map
             Prod.fst
       ↔ responseName ∈ groups.map Prod.fst
-        ∨ ∃ field, field ∈ fields ∧ responseName = field.responseName := by
+        ∨ ∃ field, field ∈ fields ∧ responseName = field.1 := by
   induction fields generalizing groups with
   | nil => simp
   | cons field rest ih =>
       rw [List.foldl_cons, ih,
-        mem_addExecutableGroup_key_iff (field.responseName, [field]) groups]
+        mem_addExecutableGroup_key_iff (field.1, [field.2]) groups]
       simp only [List.mem_cons]
       constructor
       · intro hmember
@@ -229,23 +264,23 @@ theorem mem_foldExecutableFields_key_iff
           · exact Or.inr ⟨candidate, hrest, hequal⟩
 
 theorem mem_groupExecutableFields_key_iff
-    (fields : List ExecutableField) (responseName : Name)
+    (fields : List (Name × ExecutableField)) (responseName : Name)
     : responseName ∈ (groupExecutableFields fields).map Prod.fst
-      ↔ ∃ field, field ∈ fields ∧ responseName = field.responseName := by
+      ↔ ∃ field, field ∈ fields ∧ responseName = field.1 := by
   simpa [groupExecutableFields] using
     mem_foldExecutableFields_key_iff fields [] responseName
 
-theorem groupExecutableFields_wellFormed (fields : List ExecutableField)
+theorem groupExecutableFields_wellFormed (fields : List (Name × ExecutableField))
     : NormalForm.executableGroupsWellFormed (groupExecutableFields fields) := by
   unfold groupExecutableFields
   have hfold :
-      ∀ (rest : List ExecutableField)
+      ∀ (rest : List (Name × ExecutableField))
         (groups : List (Name × List ExecutableField)),
         NormalForm.executableGroupsWellFormed groups
         -> NormalForm.executableGroupsWellFormed
             (rest.foldl
               (fun result field =>
-                addExecutableGroup (field.responseName, [field]) result)
+                addExecutableGroup (field.1, [field.2]) result)
               groups) := by
     intro rest
     induction rest with
@@ -255,28 +290,26 @@ theorem groupExecutableFields_wellFormed (fields : List ExecutableField)
         apply ih
         exact
           NormalForm.GroundTypeNormalization.addExecutableGroup_wellFormed
-            (field.responseName, [field]) groups
-            (by
-              constructor
-              · simp
-              · intro candidate hcandidate
-                simp at hcandidate
-                subst candidate
-                rfl)
+            (field.1, [field.2]) groups (by simp [NormalForm.executableGroupWellFormed])
             hgroups
   exact hfold fields [] (by
     intro group hgroup
     simp at hgroup)
 
-theorem mem_flattenCollectedFields_iff
+theorem mem_map_snd_flattenExecutableFieldGroups_iff
     (groups : List (Name × List ExecutableField)) (field : ExecutableField)
-    : field ∈ flattenCollectedFields groups
+    : field ∈ (flattenExecutableFieldGroups groups).map Prod.snd
       ↔ ∃ responseName fields, (responseName, fields) ∈ groups ∧ field ∈ fields := by
   induction groups with
-  | nil => simp [flattenCollectedFields]
+  | nil => simp [flattenExecutableFieldGroups]
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
-      simp only [flattenCollectedFields, List.mem_append, ih, List.mem_cons]
+      rw [flattenExecutableFieldGroups, List.map_append]
+      have hmap :
+          (fields.map (fun field => (responseName, field))).map Prod.snd = fields := by
+        simp [Function.comp_def]
+      rw [hmap]
+      simp only [List.mem_append, ih, List.mem_cons]
       constructor
       · intro hmember
         rcases hmember with hfield | ⟨name, groupFields, hgroup, hfield⟩
@@ -287,6 +320,27 @@ theorem mem_flattenCollectedFields_iff
         · cases heq
           exact Or.inl hfield
         · exact Or.inr ⟨name, groupFields, hrest, hfield⟩
+
+theorem mem_flattenExecutableFieldGroups_iff
+    (groups : List (Name × List ExecutableField))
+    (entry : Name × ExecutableField)
+    : entry ∈ flattenExecutableFieldGroups groups
+      ↔ ∃ fields, (entry.1, fields) ∈ groups ∧ entry.2 ∈ fields := by
+  induction groups with
+  | nil => simp [flattenExecutableFieldGroups]
+  | cons group rest ih =>
+      rcases group with ⟨responseName, fields⟩
+      simp only [flattenExecutableFieldGroups, List.mem_append,
+        List.mem_map, List.mem_cons, ih]
+      constructor
+      · rintro (⟨field, hfield, rfl⟩ | ⟨groupFields, hgroup, hfield⟩)
+        · exact ⟨fields, Or.inl rfl, hfield⟩
+        · exact ⟨groupFields, Or.inr hgroup, hfield⟩
+      · rintro ⟨groupFields, hgroup, hfield⟩
+        rcases hgroup with hhead | htail
+        · cases hhead
+          exact Or.inl ⟨entry.2, hfield, rfl⟩
+        · exact Or.inr ⟨groupFields, htail, hfield⟩
 
 theorem mergedFieldSelectionSet_perm
     {left right : List ExecutableField} (hfields : left.Perm right)
@@ -321,124 +375,24 @@ theorem mergedFieldSelectionSet_eq_flatMap (fields : List ExecutableField)
   | nil => rfl
   | cons field rest ih => simp [Execution.mergedFieldSelectionSet, ih]
 
-theorem flattenCollectedFields_mem_addExecutableGroup
-    (group : Name × List ExecutableField)
-    (groups : List (Name × List ExecutableField))
-    (field : ExecutableField)
-    : field ∈ flattenCollectedFields (Execution.addExecutableGroup group groups)
-      ↔ field ∈ group.snd ∨ field ∈ flattenCollectedFields groups := by
-  rcases group with ⟨groupName, groupFields⟩
-  induction groups with
-  | nil =>
-      simp [flattenCollectedFields, Execution.addExecutableGroup]
-  | cons current rest ih =>
-      rcases current with ⟨currentName, currentFields⟩
-      by_cases hname : (currentName == groupName) = true
-      · simp [flattenCollectedFields, Execution.addExecutableGroup, hname,
-          List.mem_append]
-        constructor
-        · intro hmem
-          rcases hmem with hcurrent | hgroupOrRest
-          · exact Or.inr (Or.inl hcurrent)
-          · rcases hgroupOrRest with hgroup | hrest
-            · exact Or.inl hgroup
-            · exact Or.inr (Or.inr hrest)
-        · intro hmem
-          rcases hmem with hgroup | hcurrentOrRest
-          · exact Or.inr (Or.inl hgroup)
-          · rcases hcurrentOrRest with hcurrent | hrest
-            · exact Or.inl hcurrent
-            · exact Or.inr (Or.inr hrest)
-      · have hfalse : (currentName == groupName) = false := by
-          cases hmatch : currentName == groupName
-          · rfl
-          · contradiction
-        simp [flattenCollectedFields, Execution.addExecutableGroup, hfalse,
-          List.mem_append]
-        constructor
-        · intro hmem
-          rcases hmem with hcurrent | hadded
-          · exact Or.inr (Or.inl hcurrent)
-          · rcases ih.mp hadded with hgroup | hrest
-            · exact Or.inl hgroup
-            · exact Or.inr (Or.inr hrest)
-        · intro hmem
-          rcases hmem with hgroup | hcurrentOrRest
-          · exact Or.inr (ih.mpr (Or.inl hgroup))
-          · rcases hcurrentOrRest with hcurrent | hrest
-            · exact Or.inl hcurrent
-            · exact Or.inr (ih.mpr (Or.inr hrest))
-
-theorem flattenCollectedFields_mem_mergeExecutableGroups
-    (left right : List (Name × List ExecutableField))
-    (field : ExecutableField)
-    : field ∈ flattenCollectedFields (Execution.mergeExecutableGroups left right)
-      ↔ field ∈ flattenCollectedFields left ∨ field ∈ flattenCollectedFields right := by
-  induction right generalizing left with
-  | nil =>
-      simp [flattenCollectedFields, Execution.mergeExecutableGroups]
-  | cons group rest ih =>
-      rcases group with ⟨responseName, fields⟩
-      change
-        field
-              ∈ flattenCollectedFields
-                (Execution.mergeExecutableGroups
-                  (Execution.addExecutableGroup (responseName, fields) left)
-                  rest)
-          ↔ field ∈ flattenCollectedFields left
-            ∨ field
-              ∈ flattenCollectedFields ((responseName, fields) :: rest)
-      constructor
-      · intro hmem
-        rcases
-            (ih
-              (Execution.addExecutableGroup (responseName, fields) left)).mp
-              hmem with
-          hadded | hrest
-        · rcases
-              (flattenCollectedFields_mem_addExecutableGroup
-                (responseName, fields) left field).mp hadded with
-            hfield | hleft
-          · exact Or.inr (by simp [flattenCollectedFields, hfield])
-          · exact Or.inl hleft
-        · exact Or.inr (by simp [flattenCollectedFields, hrest])
-      · intro hmem
-        rcases hmem with hleft | hright
-        · exact (ih (Execution.addExecutableGroup (responseName, fields) left)).mpr
-                  (Or.inl
-                    ((flattenCollectedFields_mem_addExecutableGroup
-                        (responseName, fields) left field).mpr
-                      (Or.inr hleft)))
-        · have hfieldsOrRest :
-              field ∈ fields ∨ field ∈ flattenCollectedFields rest := by
-            simpa [flattenCollectedFields, List.mem_append] using hright
-          rcases hfieldsOrRest with hfield | hrest
-          · exact (ih (Execution.addExecutableGroup (responseName, fields) left)).mpr
-                    (Or.inl
-                      ((flattenCollectedFields_mem_addExecutableGroup
-                          (responseName, fields) left field).mpr
-                        (Or.inl hfield)))
-          · exact (ih (Execution.addExecutableGroup (responseName, fields) left)).mpr
-                    (Or.inr hrest)
-
 theorem collectFlatFields_mem_collectFields
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef)
-    (selectionSet : List Selection) (field : ExecutableField)
+    (selectionSet : List Selection) (field : Name × ExecutableField)
     : field ∈ collectFlatFields schema variableValues parentType source selectionSet
       ↔ field
-        ∈ flattenCollectedFields
+        ∈ flattenExecutableFieldGroups
             (Execution.collectFields schema variableValues parentType source
               selectionSet) := by
   cases hselectionSet : selectionSet with
   | nil =>
       subst selectionSet
-      simp [collectFlatFields, Execution.collectFields, flattenCollectedFields]
+      simp [collectFlatFields, Execution.collectFields, flattenExecutableFieldGroups]
   | cons selection rest =>
       subst selectionSet
       rw [collectFlatFields, Execution.collectFields,
-        flattenCollectedFields_mem_mergeExecutableGroups]
+        flattenExecutableFieldGroups_mem_mergeExecutableGroups]
       have ihRest :=
         collectFlatFields_mem_collectFields schema variableValues parentType source
           rest field
@@ -447,7 +401,7 @@ theorem collectFlatFields_mem_collectFields
           cases hdirectives :
               selectionDirectivesAllowBool variableValues directives <;>
             simp [collectFlatSelection, Execution.collectSelection,
-              flattenCollectedFields, hdirectives, ihRest]
+              flattenExecutableFieldGroups, hdirectives, ihRest]
       | inlineFragment typeCondition directives childSelectionSet =>
           have ihChild :=
             collectFlatFields_mem_collectFields schema variableValues parentType
@@ -457,14 +411,14 @@ theorem collectFlatFields_mem_collectFields
               cases hdirectives :
                   selectionDirectivesAllowBool variableValues directives <;>
                 simp [collectFlatSelection, Execution.collectSelection,
-                  flattenCollectedFields, hdirectives, ihChild, ihRest]
+                  flattenExecutableFieldGroups, hdirectives, ihChild, ihRest]
           | some typeName =>
               cases hdirectives :
                   selectionDirectivesAllowBool variableValues directives <;>
                 cases htype :
                   doesFragmentTypeApplyBool schema parentType source typeName <;>
                 simp [collectFlatSelection, Execution.collectSelection,
-                  flattenCollectedFields, hdirectives, htype, ihChild, ihRest]
+                  flattenExecutableFieldGroups, hdirectives, htype, ihChild, ihRest]
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -476,23 +430,20 @@ decreasing_by
     | cases selection <;> simp [Selection.size] <;> omega
     | omega
 
-theorem flattenCollectedFields_mergeExecutableGroups_perm
+theorem flattenExecutableFieldGroups_mergeExecutableGroups_perm
     (left right : List (Name × List ExecutableField))
-    : (flattenCollectedFields (mergeExecutableGroups left right)).Perm
-        (flattenCollectedFields left ++ flattenCollectedFields right) := by
+    : (flattenExecutableFieldGroups (mergeExecutableGroups left right)).Perm
+        (flattenExecutableFieldGroups left ++ flattenExecutableFieldGroups right) := by
   induction right generalizing left with
-  | nil => simp [mergeExecutableGroups, flattenCollectedFields]
+  | nil => simp [mergeExecutableGroups, flattenExecutableFieldGroups]
   | cons group rest ih =>
-      rcases group with ⟨responseName, fields⟩
       rw [mergeExecutableGroups]
-      have hrest := ih (addExecutableGroup (responseName, fields) left)
-      have hadded :=
-        flattenCollectedFields_addExecutableGroup_perm
-          (responseName, fields) left
+      have hrest := ih (addExecutableGroup group left)
+      have hadded := flattenExecutableFieldGroups_addExecutableGroup_perm group left
       exact hrest.trans (by
-        rw [flattenCollectedFields]
+        rw [flattenExecutableFieldGroups]
         simpa [List.append_assoc] using
-          hadded.append_right (flattenCollectedFields rest))
+          hadded.append_right (flattenExecutableFieldGroups rest))
 
 theorem collectFlatFields_perm_flatten_collectFields
     {ObjectRef : Type}
@@ -500,12 +451,12 @@ theorem collectFlatFields_perm_flatten_collectFields
     (parentType : Name) (source : ResolverValue ObjectRef)
     (selectionSet : List Selection)
     : (collectFlatFields schema variableValues parentType source selectionSet).Perm
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues parentType source selectionSet)) := by
   cases hselectionSet : selectionSet with
   | nil =>
       subst selectionSet
-      simp [collectFlatFields, collectFields, flattenCollectedFields]
+      simp [collectFlatFields, collectFields, flattenExecutableFieldGroups]
   | cons selection rest =>
       subst selectionSet
       have hrest :=
@@ -513,14 +464,14 @@ theorem collectFlatFields_perm_flatten_collectFields
           parentType source rest
       have hhead :
           (collectFlatSelection schema variableValues parentType source selection).Perm
-            (flattenCollectedFields
+            (flattenExecutableFieldGroups
               (collectSelection schema variableValues parentType source selection)) := by
         cases selection with
         | field responseName fieldName arguments directives childSelectionSet =>
             cases hdirectives :
                 selectionDirectivesAllowBool variableValues directives <;>
               simp [collectFlatSelection, collectSelection,
-                flattenCollectedFields, hdirectives]
+                flattenExecutableFieldGroups, hdirectives]
         | inlineFragment typeCondition directives childSelectionSet =>
             have hchild :=
               collectFlatFields_perm_flatten_collectFields schema variableValues
@@ -530,17 +481,17 @@ theorem collectFlatFields_perm_flatten_collectFields
                 cases hdirectives :
                     selectionDirectivesAllowBool variableValues directives <;>
                   simp [collectFlatSelection, collectSelection,
-                    flattenCollectedFields, hdirectives, hchild]
+                    flattenExecutableFieldGroups, hdirectives, hchild]
             | some typeName =>
                 cases hdirectives :
                     selectionDirectivesAllowBool variableValues directives <;>
                   cases htype :
                     doesFragmentTypeApplyBool schema parentType source typeName <;>
                   simp [collectFlatSelection, collectSelection,
-                    flattenCollectedFields, hdirectives, htype, hchild]
+                    flattenExecutableFieldGroups, hdirectives, htype, hchild]
       rw [collectFlatFields, collectFields]
       exact (hhead.append hrest).trans
-        (flattenCollectedFields_mergeExecutableGroups_perm
+        (flattenExecutableFieldGroups_mergeExecutableGroups_perm
           (collectSelection schema variableValues parentType source selection)
           (collectFields schema variableValues parentType source rest)).symm
 termination_by SelectionSet.size selectionSet
@@ -595,7 +546,8 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       (selection : Selection)
       : ExecutableFieldsResponseDepthBound
-          (collectFlatSelection schema variableValues parentType source selection)
+          ((collectFlatSelection schema variableValues parentType source selection).map
+            Prod.snd)
           (selectionResponseDepth selection) := by
     intro field hfield
     cases selection with
@@ -607,17 +559,20 @@ mutual
     | inlineFragment typeCondition directives selectionSet =>
         cases typeCondition with
         | none =>
-            cases hallows : selectionDirectivesAllowBool variableValues directives <;>
-              simp [collectFlatSelection, hallows] at hfield
-            exact collectFlatFields_responseDepth_bound schema variableValues
-              parentType source selectionSet field hfield
+            cases hallows : selectionDirectivesAllowBool variableValues directives
+            · simp [collectFlatSelection, hallows] at hfield
+            · exact collectFlatFields_responseDepth_bound schema variableValues
+                parentType source selectionSet field (by
+                  simpa only [collectFlatSelection, hallows, if_true] using hfield)
         | some typeName =>
-            cases hallows : selectionDirectivesAllowBool variableValues directives <;>
-              cases happly :
-                doesFragmentTypeApplyBool schema parentType source typeName <;>
-              simp [collectFlatSelection, hallows, happly] at hfield
-            exact collectFlatFields_responseDepth_bound schema variableValues
-              parentType source selectionSet field hfield
+            cases hallows : selectionDirectivesAllowBool variableValues directives
+            · simp [collectFlatSelection, hallows] at hfield
+            · cases happly : doesFragmentTypeApplyBool schema parentType source typeName
+              · simp [collectFlatSelection, hallows, happly] at hfield
+              · exact collectFlatFields_responseDepth_bound schema variableValues
+                  parentType source selectionSet field (by
+                    simpa only [collectFlatSelection, hallows, happly,
+                      Bool.true_and, if_true] using hfield)
 
   theorem collectFlatFields_responseDepth_bound
       {ObjectRef : Type}
@@ -625,13 +580,15 @@ mutual
       (parentType : Name) (source : ResolverValue ObjectRef)
       (selectionSet : List Selection)
       : ExecutableFieldsResponseDepthBound
-          (collectFlatFields schema variableValues parentType source selectionSet)
+          ((collectFlatFields schema variableValues parentType source selectionSet).map
+            Prod.snd)
           (selectionSetResponseDepth selectionSet) := by
     intro field hfield
     cases selectionSet with
     | nil => simp [collectFlatFields] at hfield
     | cons selection rest =>
         rw [collectFlatFields] at hfield
+        rw [List.map_append] at hfield
         rcases List.mem_append.mp hfield with hhead | htail
         · exact Nat.le_trans
             (collectFlatSelection_responseDepth_bound schema variableValues
@@ -652,13 +609,17 @@ theorem collectFields_responseDepth_bound
         (collectFields schema variableValues parentType source selectionSet)
         (selectionSetResponseDepth selectionSet) := by
   intro field hfield
-  have hfield' : field ∈ flattenCollectedFields
-      (collectFields schema variableValues parentType source selectionSet) := by
-    simpa [flattenCollectedFields_eq_flatMap_snd] using hfield
+  have hfield' : field ∈
+      (flattenExecutableFieldGroups
+        (collectFields schema variableValues parentType source selectionSet)).map
+          Prod.snd := by
+    simpa only [flattenExecutableFieldGroups_map_snd] using hfield
+  have hperm :=
+    (collectFlatFields_perm_flatten_collectFields schema variableValues
+      parentType source selectionSet).map Prod.snd
   exact collectFlatFields_responseDepth_bound schema variableValues parentType
     source selectionSet field
-      ((collectFlatFields_perm_flatten_collectFields schema variableValues
-        parentType source selectionSet).mem_iff.mpr hfield')
+      (hperm.mem_iff.mpr hfield')
 
 theorem selectionSetResponseDepth_flatMap_le
     (fields : List ExecutableField) (depth : Nat)
@@ -677,14 +638,16 @@ theorem selectionSetResponseDepth_flatMap_le
         intro candidate hcandidate
         exact hdepth candidate (by simp [hcandidate])
 
-theorem flattenCollectedFields_eq_collectedExecutableFields
+theorem flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields
     (groups : List (Name × List ExecutableField))
-    : flattenCollectedFields groups = collectedExecutableFields groups := by
+    : (flattenExecutableFieldGroups groups).map Prod.snd
+      = collectedExecutableFields groups := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
-      simp [flattenCollectedFields, collectedExecutableFields, ih]
+      simp [flattenExecutableFieldGroups, collectedExecutableFields, ih,
+        Function.comp_def]
 
 theorem pair_eq_of_map_fst_nodup
     {α : Type} {groups : List (Name × α)}
@@ -717,23 +680,15 @@ structure RuntimeGroupsPermutationEquivalent
   rightWellFormed : NormalForm.executableGroupsWellFormed right
   leftKeysNodup : (left.map Prod.fst).Nodup
   rightKeysNodup : (right.map Prod.fst).Nodup
-  fieldsPerm : (left.flatMap Prod.snd).Perm (right.flatMap Prod.snd)
-
-theorem RuntimeGroupsPermutationEquivalent.flattenedFieldsPerm
-    {left right : List (Name × List ExecutableField)}
-    (equivalent : RuntimeGroupsPermutationEquivalent left right)
-    : (flattenCollectedFields left).Perm (flattenCollectedFields right) := by
-  rw [flattenCollectedFields_eq_flatMap_snd,
-    flattenCollectedFields_eq_flatMap_snd]
-  exact equivalent.fieldsPerm
+  fieldsPerm
+    : (flattenExecutableFieldGroups left).Perm (flattenExecutableFieldGroups right)
 
 theorem mem_group_key_iff_exists_field_of_wellFormed
     (groups : List (Name × List ExecutableField))
     (hgroups : NormalForm.executableGroupsWellFormed groups)
     (responseName : Name)
     : responseName ∈ groups.map Prod.fst
-      ↔ ∃ field,
-          field ∈ flattenCollectedFields groups ∧ responseName = field.responseName := by
+      ↔ ∃ field, (responseName, field) ∈ flattenExecutableFieldGroups groups := by
   constructor
   · intro hmember
     rcases List.mem_map.mp hmember with ⟨group, hgroup, hname⟩
@@ -741,23 +696,16 @@ theorem mem_group_key_iff_exists_field_of_wellFormed
     simp only at hname
     subst groupName
     have hwellFormed := hgroups (responseName, fields) hgroup
-    cases hfields : fields with
-    | nil => exact False.elim (hwellFormed.1 hfields)
+    cases fields with
+    | nil => exact False.elim (hwellFormed rfl)
     | cons field rest =>
-        have hfield : field ∈ fields := by simp [hfields]
-        exact ⟨
-          field,
-          (mem_flattenCollectedFields_iff groups field).mpr
-            ⟨responseName, fields, hgroup, hfield⟩,
-          (hwellFormed.2 field hfield).symm
-        ⟩
-  · rintro ⟨field, hfield, hname⟩
-    rcases (mem_flattenCollectedFields_iff groups field).mp hfield with
-      ⟨groupName, fields, hgroup, hfieldGroup⟩
-    have hwellFormed := hgroups (groupName, fields) hgroup
-    have hfieldName := hwellFormed.2 field hfieldGroup
-    apply List.mem_map.mpr
-    exact ⟨(groupName, fields), hgroup, hfieldName.symm.trans hname.symm⟩
+        refine ⟨field, ?_⟩
+        exact (mem_flattenExecutableFieldGroups_iff groups
+          (responseName, field)).2 ⟨field :: rest, hgroup, by simp⟩
+  · rintro ⟨field, hfield⟩
+    rcases (mem_flattenExecutableFieldGroups_iff groups
+      (responseName, field)).1 hfield with ⟨fields, hgroup, _hfield⟩
+    exact List.mem_map.mpr ⟨(responseName, fields), hgroup, rfl⟩
 
 theorem executableGroupNamesNodup_iff_map_fst_nodup
     (groups : List (Name × List ExecutableField))
@@ -778,10 +726,10 @@ theorem RuntimeGroupsPermutationEquivalent.keys
     mem_group_key_iff_exists_field_of_wellFormed right
       equivalent.rightWellFormed responseName]
   constructor
-  · rintro ⟨field, hfield, hname⟩
-    exact ⟨field, equivalent.flattenedFieldsPerm.mem_iff.mp hfield, hname⟩
-  · rintro ⟨field, hfield, hname⟩
-    exact ⟨field, equivalent.flattenedFieldsPerm.mem_iff.mpr hfield, hname⟩
+  · rintro ⟨field, hfield⟩
+    exact ⟨field, equivalent.fieldsPerm.mem_iff.mp hfield⟩
+  · rintro ⟨field, hfield⟩
+    exact ⟨field, equivalent.fieldsPerm.mem_iff.mpr hfield⟩
 
 private theorem count_eq_indicator_of_nodup {α : Type} [BEq α] [LawfulBEq α] (value : α)
     : ∀ {items : List α},
@@ -819,98 +767,62 @@ theorem filter_eq_nil_of_all_false {α : Type}
       exact ih fun candidate hcandidate =>
         hfalse candidate (by simp [hcandidate])
 
-theorem filter_fields_eq_responseName
-    (responseName : Name) (fields : List ExecutableField)
-    (hresponses : ∀ field, field ∈ fields -> field.responseName = responseName)
-    : fields.filter (fun field => field.responseName == responseName) = fields := by
-  exact List.filter_eq_self.mpr fun field hfield => by
-    simp [hresponses field hfield]
-
-theorem filter_fields_ne_responseName
-    (responseName : Name) (fields : List ExecutableField)
-    (hresponses : ∀ field, field ∈ fields -> field.responseName ≠ responseName)
-    : fields.filter (fun field => field.responseName == responseName) = [] := by
-  apply filter_eq_nil_of_all_false
-  intro field hfield
-  exact beq_eq_false_iff_ne.mpr (hresponses field hfield)
-
-theorem filter_flattenCollectedFields_eq_nil_of_key_not_mem
+theorem filter_flattenExecutableFieldGroups_eq_nil_of_key_not_mem
     (responseName : Name) (groups : List (Name × List ExecutableField))
-    (hwellFormed : NormalForm.executableGroupsWellFormed groups)
     (hnot : responseName ∉ groups.map Prod.fst)
-    : (flattenCollectedFields groups).filter
-        (fun field => field.responseName == responseName)
+    : (flattenExecutableFieldGroups groups).filter (fun entry => entry.1 == responseName)
       = [] := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
       rcases group with ⟨groupName, fields⟩
-      have hgroupWellFormed := hwellFormed (groupName, fields) (by simp)
-      have hgroupNe : groupName ≠ responseName := by
-        intro hequal
-        apply hnot
-        simp [hequal]
-      have hfields :
-          fields.filter (fun field => field.responseName == responseName) = [] :=
-        filter_fields_ne_responseName responseName fields fun field hfield => by
-          rw [hgroupWellFormed.2 field hfield]
-          exact hgroupNe
-      rw [flattenCollectedFields, List.filter_append, hfields,
-        ih (NormalForm.GroundTypeNormalization.executableGroupsWellFormed_tail
-          hwellFormed) (by
-            intro hmember
-            exact hnot (by simp [hmember]))]
-      rfl
+      have hne : groupName ≠ responseName := by
+        intro heq
+        exact hnot (by simp [heq])
+      rw [flattenExecutableFieldGroups, List.filter_append]
+      simp [hne, ih (by intro hmem; exact hnot (by simp [hmem]))]
 
-theorem filter_flattenCollectedFields_head_eq
+theorem filter_flattenExecutableFieldGroups_head_eq
     (responseName : Name) (fields : List ExecutableField)
     (rest : List (Name × List ExecutableField))
-    (hwellFormed : NormalForm.executableGroupsWellFormed ((responseName, fields) :: rest))
     (hnodup : (((responseName, fields) :: rest).map Prod.fst).Nodup)
-    : (flattenCollectedFields ((responseName, fields) :: rest)).filter
-        (fun field => field.responseName == responseName)
-      = fields := by
-  have hgroup := hwellFormed (responseName, fields) (by simp)
+    : (flattenExecutableFieldGroups ((responseName, fields) :: rest)).filter
+        (fun entry => entry.1 == responseName)
+      = fields.map (fun field => (responseName, field)) := by
   have hrestNot : responseName ∉ rest.map Prod.fst :=
     (List.nodup_cons.mp hnodup).1
-  rw [flattenCollectedFields, List.filter_append,
-    filter_fields_eq_responseName responseName fields hgroup.2,
-    filter_flattenCollectedFields_eq_nil_of_key_not_mem responseName rest
-      (NormalForm.GroundTypeNormalization.executableGroupsWellFormed_tail
-        hwellFormed) hrestNot,
-    List.append_nil]
+  rw [flattenExecutableFieldGroups, List.filter_append,
+    filter_flattenExecutableFieldGroups_eq_nil_of_key_not_mem responseName rest hrestNot]
+  simp
 
-theorem filter_flattenCollectedFields_head_ne
+theorem filter_flattenExecutableFieldGroups_head_ne
     (responseName : Name) (fields : List ExecutableField)
     (rest : List (Name × List ExecutableField))
-    (hwellFormed : NormalForm.executableGroupsWellFormed ((responseName, fields) :: rest))
     (hnodup : (((responseName, fields) :: rest).map Prod.fst).Nodup)
-    : (flattenCollectedFields ((responseName, fields) :: rest)).filter
-        (fun field => !(field.responseName == responseName))
-      = flattenCollectedFields rest := by
-  have hgroup := hwellFormed (responseName, fields) (by simp)
-  rw [flattenCollectedFields, List.filter_append]
+    : (flattenExecutableFieldGroups ((responseName, fields) :: rest)).filter
+        (fun entry => !(entry.1 == responseName))
+      = flattenExecutableFieldGroups rest := by
+  have hrestNot : responseName ∉ rest.map Prod.fst :=
+    (List.nodup_cons.mp hnodup).1
+  rw [flattenExecutableFieldGroups, List.filter_append]
   have hhead :
-      fields.filter (fun field => !(field.responseName == responseName)) = [] := by
+      (fields.map (fun field => (responseName, field))).filter
+          (fun entry => !(entry.1 == responseName)) = [] := by
     apply filter_eq_nil_of_all_false
-    intro field hfield
-    simp [hgroup.2 field hfield]
-  rw [hhead, List.nil_append]
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨field, _hfield, rfl⟩
+    simp
+  rw [hhead]
+  simp only [List.nil_append]
   apply List.filter_eq_self.mpr
-  intro field hfield
-  rcases (mem_flattenCollectedFields_iff rest field).mp hfield with
-    ⟨groupName, groupFields, hgroupMem, hfieldMem⟩
-  have hrestWellFormed :=
-    NormalForm.GroundTypeNormalization.executableGroupsWellFormed_tail hwellFormed
-  have hfieldName :=
-    (hrestWellFormed (groupName, groupFields) hgroupMem).2 field hfieldMem
-  have hgroupNe : groupName ≠ responseName := by
-    intro hequal
-    subst groupName
-    have hkey : responseName ∈ rest.map Prod.fst := by
-      exact List.mem_map.mpr ⟨(responseName, groupFields), hgroupMem, rfl⟩
-    exact (List.nodup_cons.mp hnodup).1 hkey
-  simp [hfieldName, hgroupNe]
+  intro entry hentry
+  have hne : entry.1 ≠ responseName := by
+    intro heq
+    rcases (mem_flattenExecutableFieldGroups_iff rest entry).1 hentry with
+      ⟨groupFields, hgroup, _hfield⟩
+    exact hrestNot (List.mem_map.mpr
+      ⟨(entry.1, groupFields), hgroup, heq⟩)
+  simp [hne]
 
 theorem RuntimeGroupsPermutationEquivalent.permuteRight
     {left right reordered : List (Name × List ExecutableField)}
@@ -923,7 +835,10 @@ theorem RuntimeGroupsPermutationEquivalent.permuteRight
     exact equivalent.rightWellFormed group (hperm.mem_iff.mpr hgroup)
   · exact equivalent.leftKeysNodup
   · exact (hperm.map Prod.fst).nodup_iff.mp equivalent.rightKeysNodup
-  · exact equivalent.fieldsPerm.trans (List.Perm.flatMap hperm Prod.snd)
+  · have hentries := List.Perm.flatMap hperm
+        (fun group => group.2.map (fun field => (group.1, field)))
+    exact equivalent.fieldsPerm.trans (by
+      simpa only [← flattenExecutableFieldGroups_eq_flatMap] using hentries)
 
 theorem RuntimeGroupsPermutationEquivalent.headFields
     {responseName : Name} {leftFields rightFields : List ExecutableField}
@@ -934,12 +849,17 @@ theorem RuntimeGroupsPermutationEquivalent.headFields
           ((responseName, rightFields) :: rightTail))
     : leftFields.Perm rightFields := by
   have hfiltered :=
-    equivalent.flattenedFieldsPerm.filter
-      (fun field => field.responseName == responseName)
-  simpa [filter_flattenCollectedFields_head_eq responseName leftFields leftTail
-      equivalent.leftWellFormed equivalent.leftKeysNodup,
-    filter_flattenCollectedFields_head_eq responseName rightFields rightTail
-      equivalent.rightWellFormed equivalent.rightKeysNodup] using hfiltered
+    equivalent.fieldsPerm.filter (fun entry => entry.1 == responseName)
+  have hpairs :
+      (leftFields.map (fun field => (responseName, field))).Perm
+        (rightFields.map (fun field => (responseName, field))) := by
+    simpa only [
+      filter_flattenExecutableFieldGroups_head_eq responseName leftFields leftTail
+        equivalent.leftKeysNodup,
+      filter_flattenExecutableFieldGroups_head_eq responseName rightFields rightTail
+        equivalent.rightKeysNodup] using hfiltered
+  have hfields := hpairs.map Prod.snd
+  simpa [Function.comp_def] using hfields
 
 theorem RuntimeGroupsPermutationEquivalent.tails
     {responseName : Name} {leftFields rightFields : List ExecutableField}
@@ -957,16 +877,13 @@ theorem RuntimeGroupsPermutationEquivalent.tails
   · exact (List.nodup_cons.mp equivalent.leftKeysNodup).2
   · exact (List.nodup_cons.mp equivalent.rightKeysNodup).2
   · have hfiltered :=
-      equivalent.flattenedFieldsPerm.filter
-        (fun field => !(field.responseName == responseName))
-    have htails :
-        (flattenCollectedFields leftTail).Perm
-          (flattenCollectedFields rightTail) := by
-      simpa [filter_flattenCollectedFields_head_ne responseName leftFields leftTail
-          equivalent.leftWellFormed equivalent.leftKeysNodup,
-        filter_flattenCollectedFields_head_ne responseName rightFields rightTail
-          equivalent.rightWellFormed equivalent.rightKeysNodup] using hfiltered
-    simpa [flattenCollectedFields_eq_flatMap_snd] using htails
+      equivalent.fieldsPerm.filter
+        (fun entry => !(entry.1 == responseName))
+    simpa only [
+      filter_flattenExecutableFieldGroups_head_ne responseName leftFields leftTail
+        equivalent.leftKeysNodup,
+      filter_flattenExecutableFieldGroups_head_ne responseName rightFields rightTail
+        equivalent.rightKeysNodup] using hfiltered
 
 theorem RuntimeGroupsPermutationEquivalent.leftDepthBound
     {left right : List (Name × List ExecutableField)}
@@ -974,17 +891,19 @@ theorem RuntimeGroupsPermutationEquivalent.leftDepthBound
     {depth : Nat} (hright : RuntimeGroupsResponseDepthBound right depth)
     : RuntimeGroupsResponseDepthBound left depth := by
   intro field hfield
-  exact hright field (equivalent.fieldsPerm.mem_iff.mp hfield)
+  apply hright field
+  have hfield' := (equivalent.fieldsPerm.map Prod.snd).mem_iff.mp (by
+    simpa only [flattenExecutableFieldGroups_map_snd] using hfield)
+  simpa only [flattenExecutableFieldGroups_map_snd] using hfield'
 
 def RuntimeGroupsCrossCompatible (left right : List (Name × List ExecutableField))
     : Prop :=
-  ∀ leftField,
-    leftField ∈ left.flatMap Prod.snd
-    -> ∀ rightField,
-        rightField ∈ right.flatMap Prod.snd
-        -> leftField.responseName = rightField.responseName
-        -> leftField.parentType = rightField.parentType
-            ∧ leftField.fieldName = rightField.fieldName
+  ∀ leftName leftField,
+    (leftName, leftField) ∈ flattenExecutableFieldGroups left
+    -> ∀ rightName rightField,
+        (rightName, rightField) ∈ flattenExecutableFieldGroups right
+        -> leftName = rightName
+        -> leftField.fieldName = rightField.fieldName
             ∧ Argument.argumentsEquivalent leftField.arguments rightField.arguments
 
 theorem flatMap_snd_perm_of_perm
@@ -998,9 +917,14 @@ theorem RuntimeGroupsCrossCompatible.permuteRight
     (compatible : RuntimeGroupsCrossCompatible left right)
     (hperm : right.Perm reordered)
     : RuntimeGroupsCrossCompatible left reordered := by
-  intro leftField hleft rightField hright hresponse
-  exact compatible leftField hleft rightField
-    ((flatMap_snd_perm_of_perm hperm).mem_iff.mpr hright) hresponse
+  intro leftName leftField hleft rightName rightField hright hresponse
+  have hentries := List.Perm.flatMap hperm
+    (fun group => group.2.map (fun field => (group.1, field)))
+  have hentries' : (flattenExecutableFieldGroups right).Perm
+      (flattenExecutableFieldGroups reordered) := by
+    simpa only [← flattenExecutableFieldGroups_eq_flatMap] using hentries
+  exact compatible leftName leftField hleft rightName rightField
+    (hentries'.mem_iff.mpr hright) hresponse
 
 theorem RuntimeGroupsCrossCompatible.tails
     {leftGroup rightGroup : Name × List ExecutableField}
@@ -1008,48 +932,35 @@ theorem RuntimeGroupsCrossCompatible.tails
     (compatible
       : RuntimeGroupsCrossCompatible (leftGroup :: leftTail) (rightGroup :: rightTail))
     : RuntimeGroupsCrossCompatible leftTail rightTail := by
-  intro leftField hleft rightField hright hresponse
-  apply compatible leftField
-  · simp [hleft]
-  · simp [hright]
+  intro leftName leftField hleft rightName rightField hright hresponse
+  apply compatible leftName leftField
+  · rw [flattenExecutableFieldGroups]
+    exact List.mem_append.mpr (Or.inr hleft)
+  · rw [flattenExecutableFieldGroups]
+    exact List.mem_append.mpr (Or.inr hright)
   · exact hresponse
 
 theorem RuntimeGroupsPermutationEquivalent.crossCompatible
     {left right : List (Name × List ExecutableField)}
     (equivalent : RuntimeGroupsPermutationEquivalent left right)
     (hfieldCompatible : CollectedGroupsFieldValidationMergeCompatible right)
-    (hsameParent : CollectedGroupsSameResponseParent right)
+    (_hsameParent : CollectedGroupsSameResponseParent right)
     : RuntimeGroupsCrossCompatible left right := by
-  intro leftField hleft rightField hright hresponse
-  have hleftRight : leftField ∈ right.flatMap Prod.snd :=
+  intro leftName leftField hleft rightName rightField hright hresponse
+  have hleftRight : (leftName, leftField) ∈ flattenExecutableFieldGroups right :=
     equivalent.fieldsPerm.mem_iff.mp hleft
-  have hleftRight' : leftField ∈ flattenCollectedFields right := by
-    simpa [flattenCollectedFields_eq_flatMap_snd] using hleftRight
-  have hright' : rightField ∈ flattenCollectedFields right := by
-    simpa [flattenCollectedFields_eq_flatMap_snd] using hright
-  rcases (mem_flattenCollectedFields_iff right leftField).mp hleftRight' with
-    ⟨leftName, leftFields, hleftGroup, hleftInGroup⟩
-  rcases (mem_flattenCollectedFields_iff right rightField).mp hright' with
-    ⟨rightName, rightFields, hrightGroup, hrightInGroup⟩
-  have hleftName :=
-    (equivalent.rightWellFormed (leftName, leftFields) hleftGroup).2
-      leftField hleftInGroup
-  have hrightName :=
-    (equivalent.rightWellFormed (rightName, rightFields) hrightGroup).2
-      rightField hrightInGroup
-  have hgroupName : leftName = rightName := by
-    exact hleftName.symm.trans (hresponse.trans hrightName)
+  rcases (mem_flattenExecutableFieldGroups_iff right
+    (leftName, leftField)).mp hleftRight with
+    ⟨leftFields, hleftGroup, hleftInGroup⟩
+  rcases (mem_flattenExecutableFieldGroups_iff right
+    (rightName, rightField)).mp hright with
+    ⟨rightFields, hrightGroup, hrightInGroup⟩
   have hgroups : (leftName, leftFields) = (rightName, rightFields) :=
     pair_eq_of_map_fst_nodup equivalent.rightKeysNodup hleftGroup hrightGroup
-      hgroupName
+      hresponse
   cases hgroups
-  have hfield :=
-    hfieldCompatible leftName leftFields hleftGroup leftField rightField
-      hleftInGroup hrightInGroup hresponse
-  have hparent :=
-    hsameParent leftName leftFields hleftGroup leftField rightField
-      hleftInGroup hrightInGroup hresponse
-  exact ⟨hparent, hfield⟩
+  exact hfieldCompatible leftName leftFields hleftGroup leftField rightField
+    hleftInGroup hrightInGroup
 
 theorem RuntimeGroupsPermutationEquivalent.alignRightHead
     {responseName : Name} {leftFields : List ExecutableField}

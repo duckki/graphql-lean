@@ -15,17 +15,18 @@ mutual
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
           (variableValues : Execution.VariableValues)
           (fragments : List FragmentDefinition) (fuel : Nat)
+          (parentType : Name)
           (source : Execution.ResolverValue ObjectRef)
           (groups : List (Name × List Execution.ExecutableField)),
           executableGroupsInlined groups
           -> Execution.executeCollectedFields schema resolvers variableValues fragments
-                fuel source groups
+                fuel parentType source groups
               = GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-                  fuel source (executableGroupsToSpec groups)
-    | schema, resolvers, variableValues, fragments, fuel, source, [], _hinlined => by
+                  fuel parentType source (executableGroupsToSpec groups)
+    | schema, resolvers, variableValues, fragments, fuel, parentType, source, [], _hinlined => by
         simp [Execution.executeCollectedFields,
           GraphQL.Execution.executeCollectedFields, executableGroupsToSpec]
-    | schema, resolvers, variableValues, fragments, fuel, source,
+    | schema, resolvers, variableValues, fragments, fuel, parentType, source,
         (responseName, fields) :: rest, hinlined => by
         have hfields : executableFieldsInlined fields :=
           hinlined (responseName, fields) (by simp)
@@ -35,35 +36,36 @@ mutual
         simp [Execution.executeCollectedFields,
           GraphQL.Execution.executeCollectedFields, executableGroupsToSpec,
           executableGroupToSpec,
-          executeField_toSpec schema resolvers variableValues fragments fuel source
+          executeField_toSpec schema resolvers variableValues fragments fuel parentType source
             responseName fields hfields,
           executeCollectedFields_toSpec schema resolvers variableValues fragments fuel
-            source rest hrest]
-  termination_by _schema _resolvers _variableValues _fragments fuel _source groups
-      _hinlined =>
+            parentType source rest hrest]
+  termination_by _schema _resolvers _variableValues _fragments fuel _parentType _source
+      groups _hinlined =>
     (fuel, 4, 0, sizeOf groups)
 
   theorem executeField_toSpec
       : ∀ (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
           (variableValues : Execution.VariableValues)
           (fragments : List FragmentDefinition) (fuel : Nat)
+          (parentType : Name)
           (source : Execution.ResolverValue ObjectRef)
           (responseName : Name) (fields : List Execution.ExecutableField),
           executableFieldsInlined fields
-          -> Execution.executeField schema resolvers variableValues fragments fuel source
-                responseName fields
+          -> Execution.executeField schema resolvers variableValues fragments fuel
+                parentType source responseName fields
               = GraphQL.Execution.executeField schema resolvers variableValues fuel
-                  source responseName (fields.map executableFieldToSpec)
-    | schema, resolvers, variableValues, fragments, fuel, source,
+                  parentType source responseName (fields.map executableFieldToSpec)
+    | schema, resolvers, variableValues, fragments, fuel, parentType, source,
         responseName, [], _hinlined => by
         simp [Execution.executeField, GraphQL.Execution.executeField]
-    | schema, resolvers, variableValues, fragments, 0, source,
+    | schema, resolvers, variableValues, fragments, 0, parentType, source,
         responseName, field :: fields, _hinlined => by
         simp [Execution.executeField, GraphQL.Execution.executeField,
           executableFieldToSpec]
-    | schema, resolvers, variableValues, fragments, fuel + 1, source,
+    | schema, resolvers, variableValues, fragments, fuel + 1, parentType, source,
         responseName, field :: fields, hinlined => by
-        cases hfield : schema.lookupField field.parentType field.fieldName with
+        cases hfield : schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, GraphQL.Execution.executeField,
               executableFieldToSpec, hfield]
@@ -76,7 +78,7 @@ mutual
                   hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :
-                resolvers.resolve field.parentType field.fieldName
+                resolvers.resolve parentType field.fieldName
                   coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
@@ -88,8 +90,8 @@ mutual
                   hfield, hcoerce, hresolved,
                   completeValue_toSpec schema resolvers variableValues fragments fuel
                     fieldDefinition.outputType (field :: fields) resolved hinlined]
-  termination_by _schema _resolvers _variableValues _fragments fuel _source _responseName
-      fields _hinlined =>
+  termination_by _schema _resolvers _variableValues _fragments fuel _parentType _source
+      _responseName fields _hinlined =>
     (fuel, 3, 0, sizeOf fields)
 
   theorem completeValue_toSpec
@@ -124,7 +126,7 @@ mutual
         · simp [Execution.completeValue, GraphQL.Execution.completeValue,
             hinclude]
           rw [executeCollectedFields_toSpec schema resolvers variableValues fragments fuel
-            (Execution.ResolverValue.object runtimeType ref)
+            runtimeType (Execution.ResolverValue.object runtimeType ref)
             (Execution.collectSubfields schema variableValues fragments
               runtimeType (Execution.ResolverValue.object runtimeType ref)
               fields)
@@ -203,22 +205,23 @@ mutual
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
               variableDefinitions original
-          -> ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+          -> ∀ (fuel : Nat) (parentType : Name)
+                (source : Execution.ResolverValue ObjectRef)
                 (groups : List (Name × List Execution.ExecutableField)),
               VisitedFragments.ExecutableGroupsValidContext schema variableDefinitions
                 original groups
               -> Execution.executeCollectedFields schema resolvers variableValues original
-                    fuel source groups
+                    fuel parentType source groups
                   = GraphQL.Execution.executeCollectedFields schema resolvers
-                      variableValues fuel source
+                      variableValues fuel parentType source
                       (VisitedFragments.expandedExecutableGroupsToSpec original groups)
     | schema, resolvers, variableValues, variableDefinitions, original,
-        hunique, hacyclic, hall, fuel, source, [], _hgroups => by
+        hunique, hacyclic, hall, fuel, parentType, source, [], _hgroups => by
         simp [Execution.executeCollectedFields,
           GraphQL.Execution.executeCollectedFields,
           VisitedFragments.expandedExecutableGroupsToSpec]
     | schema, resolvers, variableValues, variableDefinitions, original,
-        hunique, hacyclic, hall, fuel, source,
+        hunique, hacyclic, hall, fuel, parentType, source,
         (responseName, fields) :: rest, hgroups => by
         have hfields :
             VisitedFragments.ExecutableFieldsValidContext schema variableDefinitions
@@ -234,12 +237,12 @@ mutual
           VisitedFragments.expandedExecutableGroupsToSpec,
           VisitedFragments.expandedExecutableGroupToSpec,
           executeField_toExpandedSpec schema resolvers variableValues
-            variableDefinitions original hunique hacyclic hall fuel source responseName
+            variableDefinitions original hunique hacyclic hall fuel parentType source responseName
             fields hfields,
           executeCollectedFields_toExpandedSpec schema resolvers variableValues
-            variableDefinitions original hunique hacyclic hall fuel source rest hrest]
+            variableDefinitions original hunique hacyclic hall fuel parentType source rest hrest]
   termination_by _schema _resolvers _variableValues _variableDefinitions _original
-      _hunique _hacyclic _hall fuel _source groups _hgroups =>
+      _hunique _hacyclic _hall fuel _parentType _source groups _hgroups =>
     (fuel, 4, 0, sizeOf groups)
 
   theorem executeField_toExpandedSpec
@@ -251,28 +254,29 @@ mutual
           -> GraphQL.NamedFragment.Validation.fragmentsAcyclic original
           -> GraphQL.NamedFragment.Validation.allFragmentDefinitionsValid schema
               variableDefinitions original
-          -> ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+          -> ∀ (fuel : Nat) (parentType : Name)
+                (source : Execution.ResolverValue ObjectRef)
                 (responseName : Name) (fields : List Execution.ExecutableField),
               VisitedFragments.ExecutableFieldsValidContext schema variableDefinitions
                 original fields
               -> Execution.executeField schema resolvers variableValues original fuel
-                    source responseName fields
+                    parentType source responseName fields
                   = GraphQL.Execution.executeField schema resolvers variableValues fuel
-                      source responseName
+                      parentType source responseName
                       (fields.map
                         (VisitedFragments.expandedExecutableFieldToSpec original))
     | schema, resolvers, variableValues, variableDefinitions, original,
-        hunique, hacyclic, hall, fuel, source, responseName, [], _hfields => by
+        hunique, hacyclic, hall, fuel, parentType, source, responseName, [], _hfields => by
         simp [Execution.executeField, GraphQL.Execution.executeField]
     | schema, resolvers, variableValues, variableDefinitions, original,
-        hunique, hacyclic, hall, 0, source, responseName, field :: fields,
+        hunique, hacyclic, hall, 0, parentType, source, responseName, field :: fields,
         _hfields => by
         simp [Execution.executeField, GraphQL.Execution.executeField,
           VisitedFragments.expandedExecutableFieldToSpec]
     | schema, resolvers, variableValues, variableDefinitions, original,
-        hunique, hacyclic, hall, fuel + 1, source, responseName, field :: fields,
+        hunique, hacyclic, hall, fuel + 1, parentType, source, responseName, field :: fields,
         hfields => by
-        cases hfield : schema.lookupField field.parentType field.fieldName with
+        cases hfield : schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, GraphQL.Execution.executeField,
               VisitedFragments.expandedExecutableFieldToSpec, hfield]
@@ -284,7 +288,7 @@ mutual
                   VisitedFragments.expandedExecutableFieldToSpec, hfield, hcoerce]
             | success coercedArguments =>
             cases hresolved :
-                resolvers.resolve field.parentType field.fieldName
+                resolvers.resolve parentType field.fieldName
                   coercedArguments source with
             | none =>
                 simp [Execution.executeField, GraphQL.Execution.executeField,
@@ -300,7 +304,7 @@ mutual
                     variableDefinitions original hunique hacyclic hall fuel
                     fieldDefinition.outputType (field :: fields) resolved hfields]
   termination_by _schema _resolvers _variableValues _variableDefinitions _original
-      _hunique _hacyclic _hall fuel _source _responseName fields _hfields =>
+      _hunique _hacyclic _hall fuel _parentType _source _responseName fields _hfields =>
     (fuel, 3, 0, sizeOf fields)
 
   theorem completeValue_toExpandedSpec
@@ -349,14 +353,14 @@ mutual
         · simp [Execution.completeValue, GraphQL.Execution.completeValue, hinclude]
           rw [executeCollectedFields_toExpandedSpec schema resolvers variableValues
             variableDefinitions original hunique hacyclic hall fuel
-            (Execution.ResolverValue.object runtimeType ref)
+            runtimeType (Execution.ResolverValue.object runtimeType ref)
             (Execution.collectSubfields schema variableValues original runtimeType
               (Execution.ResolverValue.object runtimeType ref) fields)
             (VisitedFragments.collectSubfields_validContext hunique hacyclic hall
               variableValues runtimeType
               (Execution.ResolverValue.object runtimeType ref) fields hfields)]
           rw [GraphQL.Execution.DuplicateFields.executeCollectedFields_firstOccurrences
-            schema resolvers variableValues fuel
+            schema resolvers variableValues fuel runtimeType
             (Execution.ResolverValue.object runtimeType ref)
             (VisitedFragments.expandedExecutableGroupsToSpec original
               (Execution.collectSubfields schema variableValues original runtimeType
@@ -455,7 +459,7 @@ theorem executeRootSelectionSet_toSpec
   simp [Execution.executeRootSelectionSet,
     GraphQL.Execution.executeRootSelectionSet]
   rw [executeCollectedFields_toSpec schema resolvers variableValues fragments fuel
-    source
+    parentType source
     (Execution.collectFields schema variableValues fragments [] parentType source
       selectionSet).groupedFields
     (collectFields_inlined schema variableValues fragments [] parentType source
@@ -486,14 +490,14 @@ theorem executeRootSelectionSet_toExpandedSpec
   simp [Execution.executeRootSelectionSet,
     GraphQL.Execution.executeRootSelectionSet]
   rw [executeCollectedFields_toExpandedSpec schema resolvers variableValues
-    variableDefinitions fragments hunique hacyclic hall fuel source
+    variableDefinitions fragments hunique hacyclic hall fuel parentType source
     (Execution.collectFields schema variableValues fragments [] parentType source
       selectionSet).groupedFields
     (VisitedFragments.collectFields_validContext hunique hacyclic hall variableValues
       fragments [] parentType parentType source selectionSet hunique hvalid
       (VisitedFragments.SpreadContext.root fragments selectionSet))]
   rw [GraphQL.Execution.DuplicateFields.executeCollectedFields_firstOccurrences
-    schema resolvers variableValues fuel source
+    schema resolvers variableValues fuel parentType source
     (VisitedFragments.expandedExecutableGroupsToSpec fragments
       (Execution.collectFields schema variableValues fragments [] parentType source
         selectionSet).groupedFields)

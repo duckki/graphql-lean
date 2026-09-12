@@ -286,11 +286,10 @@ theorem
               (fieldPairProbeResolvers schema rootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
               variableValues (fuel + 1)
+              parentType
               (.object parentType (some FieldPairProbeTag.left))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet
@@ -313,11 +312,10 @@ theorem
               (fieldPairProbeResolvers schema rootSelectionSet targetParent
                 leftField rightField leftArguments rightArguments)
               variableValues (fuel + 1)
+              parentType
               (.object parentType (some FieldPairProbeTag.right))
               responseName
               [{
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := childSelectionSet

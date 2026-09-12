@@ -152,15 +152,9 @@ theorem executeSelectionSet_append_possibleTypeNormalizations_not_mem
     hnotin]
   simp [Execution.mergeExecutableGroups_nil_right]
 
-def completeValueSelectionSetField (parentType : Name) (selectionSet : List Selection)
+def completeValueSelectionSetField (selectionSet : List Selection)
     : Execution.ExecutableField :=
-  {
-    parentType := parentType,
-    responseName := "",
-    fieldName := "",
-    arguments := [],
-    selectionSet := selectionSet
-  }
+  { fieldName := "", arguments := [], selectionSet := selectionSet }
 
 theorem executeSelectionSet_possibleTypeFragments_runtime_branch
     (schema : Schema)
@@ -385,14 +379,14 @@ theorem completeValue_possibleTypeFragments_eq_of_child_object_lt
                   childDepth runtimeType (.object runtimeType ref)
                   selectionSet)
         -> Execution.completeValue schema resolvers variableValues depth childType
-              [completeValueSelectionSetField childType
+              [completeValueSelectionSetField
                 ((schema.getPossibleTypes childType).map
                   (fun objectType =>
                     Selection.inlineFragment (some objectType) []
                       (normalizeSelectionSet schema objectType selectionSet)))]
               value
             = Execution.completeValue schema resolvers variableValues depth
-                childType [completeValueSelectionSetField childType selectionSet] value
+                childType [completeValueSelectionSetField selectionSet] value
   | 0, _childType, _selectionSet, _value, _hrecursive => by
       simp [Execution.completeValue]
   | depth + 1, childType, selectionSet, value, hrecursive => by

@@ -1033,10 +1033,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) leftSource responseName
+              (fuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1070,10 +1068,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) rightSource responseName
+              (fuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1214,10 +1210,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (leftFuel + 1) leftSource responseName
+              (leftFuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1251,10 +1245,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (rightFuel + 1) rightSource responseName
+              (rightFuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1589,10 +1581,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) leftSource responseName
+              (fuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1626,10 +1616,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) rightSource responseName
+              (fuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1770,10 +1758,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (leftFuel + 1) leftSource responseName
+              (leftFuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1807,10 +1793,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (rightFuel + 1) rightSource responseName
+              (rightFuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet

@@ -97,15 +97,13 @@ theorem
                       rightInitialSelectionSet targetParent leftField rightField
                       leftArguments rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments rightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) parentType
                   (projectionTargetResolverValue
                     (.object sourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
                         currentSelectionSet)))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -121,15 +119,13 @@ theorem
                       rightInitialSelectionSet targetParent leftField rightField
                       leftArguments rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments rightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) parentType
                   (projectionTargetResolverValue
                     (.object sourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                         currentSelectionSet)))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -195,10 +191,8 @@ theorem
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
-        leftSource responseName
+        parentType leftSource responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := arguments
           selectionSet := childSelectionSet
@@ -219,10 +213,8 @@ theorem
     simp [Execution.singleFieldResult, hleftWrapped]
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
-        rightSource responseName
+        parentType rightSource responseName
         [{
-          parentType := parentType
-          responseName := responseName
           fieldName := fieldName
           arguments := arguments
           selectionSet := childSelectionSet
@@ -397,15 +389,13 @@ theorem
                       leftRuntime rightRuntime)
                     targetParent leftProbeField rightProbeField
                     targetLeftArguments targetRightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) leftParentType
                   (projectionTargetResolverValue
                     (.object leftSourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
                         leftCurrentSelectionSet)))
                   responseName
                   [{
-                    parentType := leftParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -423,15 +413,13 @@ theorem
                       leftRuntime rightRuntime)
                     targetParent leftProbeField rightProbeField
                     targetLeftArguments targetRightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) rightParentType
                   (projectionTargetResolverValue
                     (.object rightSourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                         rightCurrentSelectionSet)))
                   responseName
                   [{
-                    parentType := rightParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -506,10 +494,8 @@ theorem
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
-        leftSource responseName
+        leftParentType leftSource responseName
         [{
-          parentType := leftParentType
-          responseName := responseName
           fieldName := leftFieldName
           arguments := leftArguments
           selectionSet := leftChildSelectionSet
@@ -531,10 +517,8 @@ theorem
     simp [Execution.singleFieldResult, hleftWrapped]
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (fuel + 1)
-        rightSource responseName
+        rightParentType rightSource responseName
         [{
-          parentType := rightParentType
-          responseName := responseName
           fieldName := rightFieldName
           arguments := rightArguments
           selectionSet := rightChildSelectionSet
@@ -697,15 +681,13 @@ theorem
                       leftRuntime rightRuntime)
                     targetParent leftProbeField rightProbeField
                     targetLeftArguments targetRightArguments)
-                  variableValues (leftFuel + 1)
+                  variableValues (leftFuel + 1) leftParentType
                   (projectionTargetResolverValue
                     (.object leftSourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
                         leftCurrentSelectionSet)))
                   responseName
                   [{
-                    parentType := leftParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -723,15 +705,13 @@ theorem
                       leftRuntime rightRuntime)
                     targetParent leftProbeField rightProbeField
                     targetLeftArguments targetRightArguments)
-                  variableValues (rightFuel + 1)
+                  variableValues (rightFuel + 1) rightParentType
                   (projectionTargetResolverValue
                     (.object rightSourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                         rightCurrentSelectionSet)))
                   responseName
                   [{
-                    parentType := rightParentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -806,10 +786,8 @@ theorem
     ⟨rightValue, rightFieldErrors, hrightWrapped, _hrightNonNull⟩
   have hleftTarget :
       Execution.executeField schema resolvers variableValues (leftFuel + 1)
-        leftSource responseName
+        leftParentType leftSource responseName
         [{
-          parentType := leftParentType
-          responseName := responseName
           fieldName := leftFieldName
           arguments := leftArguments
           selectionSet := leftChildSelectionSet
@@ -831,10 +809,8 @@ theorem
     simp [Execution.singleFieldResult, hleftWrapped]
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (rightFuel + 1)
-        rightSource responseName
+        rightParentType rightSource responseName
         [{
-          parentType := rightParentType
-          responseName := responseName
           fieldName := rightFieldName
           arguments := rightArguments
           selectionSet := rightChildSelectionSet
@@ -1046,10 +1022,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) leftSource responseName
+              (fuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1070,10 +1044,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (fuel + 1) rightSource responseName
+              (fuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1287,10 +1259,8 @@ theorem
             childSelectionSet ∈ left ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (leftFuel + 1) leftSource responseName
+              (leftFuel + 1) leftParentType leftSource responseName
               [{
-                parentType := leftParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -1312,10 +1282,8 @@ theorem
             childSelectionSet ∈ right ->
           ∃ responseValue fieldErrors,
             Execution.executeField schema resolvers variableValues
-              (rightFuel + 1) rightSource responseName
+              (rightFuel + 1) rightParentType rightSource responseName
               [{
-                parentType := rightParentType
-                responseName := responseName
                 fieldName := fieldName
                 arguments := arguments
                 selectionSet := childSelectionSet
@@ -3275,15 +3243,13 @@ theorem
                       rightInitialSelectionSet targetParent leftField rightField
                       leftArguments rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments rightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) parentType
                   (projectionTargetResolverValue
                     (.object sourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
                         currentSelectionSet)))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet
@@ -3299,15 +3265,13 @@ theorem
                       rightInitialSelectionSet targetParent leftField rightField
                       leftArguments rightArguments leftRuntime rightRuntime)
                     targetParent leftField rightField leftArguments rightArguments)
-                  variableValues (fuel + 1)
+                  variableValues (fuel + 1) parentType
                   (projectionTargetResolverValue
                     (.object sourceRuntimeType
                       (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
                         currentSelectionSet)))
                   responseName
                   [{
-                    parentType := parentType
-                    responseName := responseName
                     fieldName := fieldName
                     arguments := arguments
                     selectionSet := childSelectionSet

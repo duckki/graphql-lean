@@ -123,14 +123,14 @@ theorem queue_singleFieldResultValue_singleFieldResult
 theorem queue_singleFieldResult_executeField_roundtrip
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (responseName : Name) (fields : List ExecutableField)
     : GraphQL.Execution.singleFieldResult responseName
         (singleFieldResultValue responseName
           (GraphQL.Execution.executeField schema resolvers variableValues fuel
-            source responseName fields))
+            parentType source responseName fields))
       = GraphQL.Execution.executeField schema resolvers variableValues fuel
-          source responseName fields := by
+          parentType source responseName fields := by
   cases fields with
   | nil =>
       simp [GraphQL.Execution.executeField, singleFieldResultValue,
@@ -142,14 +142,14 @@ theorem queue_singleFieldResult_executeField_roundtrip
             singleFieldResultValue,
             GraphQL.Execution.singleFieldResult]
       | succ fuel =>
-          cases hlookup : schema.lookupField field.parentType field.fieldName with
+          cases hlookup : schema.lookupField parentType field.fieldName with
           | none =>
               simp [GraphQL.Execution.executeField, hlookup, singleFieldResultValue,
                 GraphQL.Execution.singleFieldResult]
           | some fieldDefinition =>
               cases hresolve
                     : GraphQL.Execution.coerceAndResolveFieldValue schema resolvers
-                        variableValues fieldDefinition field.parentType field.fieldName
+                        variableValues fieldDefinition parentType field.fieldName
                         field.arguments source with
               | none =>
                   simp [hlookup, hresolve,
@@ -205,17 +205,17 @@ theorem queue_combineScopeFieldResults_singleton
 theorem queue_executeCollectedFields_eq_fieldFold
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     : groups.foldr
         (fun group tail =>
           Result.combine List.append
-            (GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              group.fst group.snd)
+            (GraphQL.Execution.executeField schema resolvers variableValues fuel
+              parentType source group.fst group.snd)
             tail)
         (.ok ([], 0))
       = GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-          fuel source groups := by
+          fuel parentType source groups := by
   induction groups with
   | nil =>
       simp [GraphQL.Execution.executeCollectedFields]
@@ -226,37 +226,37 @@ theorem queue_executeCollectedFields_eq_fieldFold
 theorem queue_combineScopeFieldResults_singleton_executeCollectedFields
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef)
+    (parentType : Name) (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     : combineScopeFieldResults 1
         (groups.map
           (fun group =>
-            [GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              group.fst group.snd]))
+            [GraphQL.Execution.executeField schema resolvers variableValues fuel
+              parentType source group.fst group.snd]))
       = [objectResultFromFields
           (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-            fuel source groups)] := by
+            fuel parentType source groups)] := by
   calc
     combineScopeFieldResults 1
           (groups.map
             (fun group =>
-              [GraphQL.Execution.executeField schema resolvers variableValues fuel source
-                group.fst group.snd]))
+              [GraphQL.Execution.executeField schema resolvers variableValues fuel
+                parentType source group.fst group.snd]))
         = [objectResultFromFields
             ((groups.map
                 (fun group =>
                   GraphQL.Execution.executeField schema resolvers variableValues fuel
-                    source group.fst group.snd)).foldr
+                    parentType source group.fst group.snd)).foldr
               (fun block tail => Result.combine List.append block tail)
               (.ok ([], 0)))] := by
       have hsingleton :
           groups.map (fun group =>
               List.singleton
                 (GraphQL.Execution.executeField schema resolvers
-                  variableValues fuel source group.fst group.snd)) =
+                  variableValues fuel parentType source group.fst group.snd)) =
             groups.map (fun group =>
               [GraphQL.Execution.executeField schema resolvers
-                variableValues fuel source group.fst group.snd]) := by
+                variableValues fuel parentType source group.fst group.snd]) := by
         induction groups with
         | nil =>
             rfl
@@ -266,19 +266,19 @@ theorem queue_combineScopeFieldResults_singleton_executeCollectedFields
       simpa [List.map_map, Function.comp_def] using
         (queue_combineScopeFieldResults_singleton
           (blocks := groups.map (fun group =>
-            GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              group.fst group.snd)))
+            GraphQL.Execution.executeField schema resolvers variableValues fuel
+              parentType source group.fst group.snd)))
     _ = [objectResultFromFields
           (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-            fuel source groups)] := by
+            fuel parentType source groups)] := by
       have hfoldMap :
           (groups.map (fun group =>
-            GraphQL.Execution.executeField schema resolvers variableValues fuel source
-              group.fst group.snd)).foldr
+            GraphQL.Execution.executeField schema resolvers variableValues fuel
+              parentType source group.fst group.snd)).foldr
             (fun block tail => Result.combine List.append block tail)
             (.ok ([], 0)) =
           GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-            fuel source groups := by
+            fuel parentType source groups := by
         induction groups with
         | nil =>
             simp [GraphQL.Execution.executeCollectedFields]
@@ -298,11 +298,12 @@ theorem queue_expectedPendingChildWorkSpecResult_eq_scopeSingleton
               work.work.runtimeType work.work.selectionSet).map
             (fun group =>
               [GraphQL.Execution.executeField schema resolvers variableValues
-                work.specFuel work.work.source group.fst group.snd])) := by
+                work.specFuel work.work.runtimeType work.work.source
+                group.fst group.snd])) := by
   simp [expectedPendingChildWorkSpecResult]
   rw [queue_combineScopeFieldResults_singleton_executeCollectedFields
     (ObjectRef := ObjectRef) schema resolvers variableValues work.specFuel
-    work.work.source
+    work.work.runtimeType work.work.source
     (collectFieldsByKey schema variableValues
       work.work.runtimeType work.work.selectionSet)]
 
@@ -1805,7 +1806,7 @@ theorem queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singl
             }
           = [singleFieldResultValue responseName
               (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                source responseName fields)] := by
+                parentType source responseName fields)] := by
   intro hfields
   cases fields with
   | nil =>
@@ -1817,7 +1818,7 @@ theorem queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singl
       exact congrArg (singleFieldResultValue responseName)
         (executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_eq
           (ObjectRef := ObjectRef) schema resolvers variableValues
-          fuel source responseName field rest)
+          fuel parentType source responseName field rest)
 
 theorem queue_expectedScheduleScopeEntries_eq_spec
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1846,7 +1847,7 @@ theorem queue_expectedScheduleScopeEntries_eq_spec
                   scheduleKeyForFields parentType group.fst group.snd,
                   [singleFieldResultValue group.fst
                     (GraphQL.Execution.executeField schema resolvers variableValues
-                      fuel source group.fst group.snd)]
+                      fuel parentType source group.fst group.snd)]
                 )) := by
   intro hnonempty
   induction groups with
@@ -1877,12 +1878,12 @@ theorem queue_nameFieldValueBlocks_specEntries
               group.fst,
               [singleFieldResultValue group.fst.responseName
                 (GraphQL.Execution.executeField schema resolvers variableValues
-                  fuel source group.fst.responseName group.snd)]
+                  fuel group.fst.parentType source group.fst.responseName group.snd)]
             )))
       = groups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              fuel source group.fst.responseName group.snd]) := by
+              fuel group.fst.parentType source group.fst.responseName group.snd]) := by
   induction groups with
   | nil =>
       rfl
@@ -1892,11 +1893,11 @@ theorem queue_nameFieldValueBlocks_specEntries
       constructor
       · exact queue_singleFieldResult_executeField_roundtrip
           (ObjectRef := ObjectRef) schema resolvers variableValues
-          fuel source key.responseName fields
+          fuel key.parentType source key.responseName fields
       · intro a b hmem
         exact queue_singleFieldResult_executeField_roundtrip
           (ObjectRef := ObjectRef) schema resolvers variableValues
-          fuel source a.responseName b
+          fuel a.parentType source a.responseName b
 
 theorem queue_keyedGroups_executeField_results_eq_groups
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1909,11 +1910,11 @@ theorem queue_keyedGroups_executeField_results_eq_groups
               (scheduleKeyForFields parentType group.fst group.snd, group.snd))).map
             (fun group =>
               [GraphQL.Execution.executeField schema resolvers variableValues
-                fuel source group.fst.responseName group.snd])
+                fuel group.fst.parentType source group.fst.responseName group.snd])
           = groups.map
               (fun group =>
                 [GraphQL.Execution.executeField schema resolvers variableValues
-                  fuel source group.fst group.snd]) := by
+                  fuel parentType source group.fst group.snd]) := by
   intro hnonempty
   induction groups with
   | nil =>
@@ -1971,7 +1972,7 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
                   group.fst,
                   [singleFieldResultValue group.fst.responseName
                     (GraphQL.Execution.executeField schema resolvers variableValues
-                      fuel source group.fst.responseName group.snd)]
+                      fuel group.fst.parentType source group.fst.responseName group.snd)]
                 ))
           expectedEntries = specEntries := by
   intro hnonempty
@@ -2000,15 +2001,27 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
                 [singleFieldResultValue
                   (scheduleKeyForFields parentType responseName (field :: rest)).responseName
                   (GraphQL.Execution.executeField schema resolvers variableValues
-                    fuel source
+                    fuel parentType source
                     (scheduleKeyForFields parentType responseName (field :: rest)).responseName
                     (field :: rest))] := by
             simpa [scheduleKeyForFields] using
               queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singleton
                 (ObjectRef := ObjectRef) schema resolvers variableValues
                 parentType responseName (field :: rest) source fuel hfields
+          have hhead' :
+              expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
+                  (scheduleKeyForFields parentType responseName (field :: rest))
+                  { segment :=
+                      { sources := [source]
+                        childSelectionSet := childSelectionSetForFields (field :: rest) }
+                    specFuels := [fuel] } =
+                [singleFieldResultValue responseName
+                  (GraphQL.Execution.executeField schema resolvers variableValues
+                    fuel parentType source responseName (field :: rest))] := by
+            simpa [scheduleKeyForFields] using hhead
           simp only [List.map]
-          simp [hhead, ih htail]
+          rw [hhead', ih htail]
+          simp [scheduleKeyForFields]
 
 theorem queue_expectedEntries_pairKeysNodup
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2093,7 +2106,8 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
               group.fst,
               [singleFieldResultValue group.fst.responseName
                 (GraphQL.Execution.executeField schema resolvers variableValues
-                  work.specFuel work.work.source group.fst.responseName group.snd)]
+                  work.specFuel group.fst.parentType work.work.source
+                  group.fst.responseName group.snd)]
             ))
       combineScopeFieldResults 1 (nameFieldValueBlocks specEntries)
       = [expectedPendingChildWorkSpecResult schema resolvers variableValues work] := by
@@ -2109,7 +2123,8 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
         ( group.fst
         , [singleFieldResultValue group.fst.responseName
             (GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel work.work.source group.fst.responseName group.snd)] ))
+              work.specFuel group.fst.parentType work.work.source
+              group.fst.responseName group.snd)] ))
   have hnonempty :
       collectedGroupsNonempty groups := by
     simpa [groups] using
@@ -2120,7 +2135,8 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
         keyedGroups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel work.work.source group.fst.responseName group.snd]) := by
+              work.specFuel group.fst.parentType work.work.source
+              group.fst.responseName group.snd]) := by
     simpa [specEntries, keyedGroups] using
       queue_nameFieldValueBlocks_specEntries
         (ObjectRef := ObjectRef) schema resolvers variableValues
@@ -2129,11 +2145,13 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
       keyedGroups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel work.work.source group.fst.responseName group.snd]) =
+              work.specFuel group.fst.parentType work.work.source
+              group.fst.responseName group.snd]) =
         groups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel work.work.source group.fst group.snd]) := by
+              work.specFuel work.work.runtimeType work.work.source
+              group.fst group.snd]) := by
     dsimp [keyedGroups]
     exact
       queue_keyedGroups_executeField_results_eq_groups
@@ -2236,7 +2254,8 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
           ( group.fst
           , [singleFieldResultValue group.fst.responseName
               (GraphQL.Execution.executeField schema resolvers variableValues
-                work.specFuel work.work.source group.fst.responseName group.snd)] ))
+                work.specFuel group.fst.parentType work.work.source
+                group.fst.responseName group.snd)] ))
     have hentriesSpec : expectedEntries = specEntries := by
       have hnonempty :
           collectedGroupsNonempty groups := by

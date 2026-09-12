@@ -29,12 +29,6 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
     (hprefixRaw
       : ExecutableFieldsMergedRaw schema resolvers variableValues depth
           parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -42,11 +36,11 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
@@ -54,7 +48,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -104,7 +98,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -129,36 +123,22 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
   unfold ExecutableFieldsMergedRaw at hprefixRaw ⊢
   cases depth with
   | zero =>
-      have hextendedResponses :
-          ∀ candidate, candidate ∈ field :: (fields ++ [later]) ->
-            candidate.responseName = responseName := by
-        intro candidate hmem
-        simp at hmem
-        rcases hmem with hhead | htail
-        · subst candidate
-          exact hfieldResponse
-        · rcases htail with hprefix | hlater
-          · exact hprefixResponses candidate (by simp [hprefix])
-          · subst candidate
-            exact hlaterResponse
       have hextendedVisit :
           visitSubfields schema resolvers variableValues 1 parentType source
-            (executableFieldSelections (field :: (fields ++ [later])))
+            (executableFieldSelections responseName
+              (field :: (fields ++ [later])))
             (.object []) =
           let fieldResult :=
-            executeField schema resolvers variableValues 0 source none
-              (executableField parentType responseName field.fieldName
-                field.arguments field.selectionSet)
+            executeField schema resolvers variableValues 0 parentType source none
+              (executableField field.fieldName field.arguments field.selectionSet)
           (.object [(responseName, .null)], resultStatus fieldResult) :=
         visitSubfields_executableFieldSelections_completion_zero_same_response_fresh
           schema resolvers variableValues parentType source responseName field
-          (fields ++ [later]) [] hextendedResponses htailLookups (by simp)
+          (fields ++ [later]) [] htailLookups (by simp)
       rw [hextendedVisit]
       cases field with
-      | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
-          dsimp at hfieldResponse hfieldParent hresolveFirst ⊢
-          subst fieldResponseName
-          subst fieldParent
+      | mk fieldName arguments selectionSet =>
+          dsimp at hresolveFirst ⊢
           cases hlookup : schema.lookupField parentType fieldName with
           | none =>
               simp [GraphQL.Execution.executeField, executeField, groupedFieldVisitResult, executableField, hlookup, resultStatus]
@@ -174,108 +154,52 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                   simp [executeField, GraphQL.Execution.completeValue, completeValue, outOfFuel, groupedFieldVisitResult, GraphQL.Execution.singleFieldResult, executableField, hlookup, hresolveFirst, reusablePreviousValue?, resultStatus]
   | succ childDepth =>
       cases field with
-      | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
+      | mk fieldName arguments selectionSet =>
           cases later with
-          | mk laterParent laterResponseName laterFieldName laterArguments
-              laterSelectionSet =>
-              dsimp at hfieldResponse hlaterResponse hfieldParent
-              dsimp at hlaterParent hfieldName hresolveFirst hresolveLater
-              dsimp at hprefixResponses hprefixChildren hobjects herrors
+          | mk laterFieldName laterArguments laterSelectionSet =>
+              dsimp at hfieldName hresolveFirst hresolveLater
+              dsimp at hprefixChildren hobjects herrors
               dsimp at hchildren hprefixRaw ⊢
-              subst fieldResponseName
-              subst laterResponseName
-              subst fieldParent
-              subst laterParent
               subst laterFieldName
               have hselectionAppend :
-                  executableFieldSelections
-                      ({ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := arguments
-                         selectionSet := selectionSet } ::
+                  executableFieldSelections responseName
+                      ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                         (fields ++
-                          [{ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
-                             arguments := laterArguments
-                             selectionSet := laterSelectionSet }])) =
-                  executableFieldSelections
-                      ({ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := arguments
-                         selectionSet := selectionSet } ::
+                          [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }])) =
+                  executableFieldSelections responseName
+                      ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                         fields) ++
-                  executableFieldSelections
-                    [{ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
-                       arguments := laterArguments
-                       selectionSet := laterSelectionSet }] := by
+                  executableFieldSelections responseName
+                    [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }] := by
                 simp [executableFieldSelections]
               rw [hselectionAppend]
               rw [visitSubfields_append_equivalence schema resolvers
                 variableValues (childDepth + 2) parentType source
-                (executableFieldSelections
-                  ({ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := arguments
-                     selectionSet := selectionSet } ::
+                (executableFieldSelections responseName
+                  ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                     fields))
-                (executableFieldSelections
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := laterArguments
-                     selectionSet := laterSelectionSet }])
+                (executableFieldSelections responseName
+                  [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }])
                 (.object [])]
               rw [hprefixRaw]
-              have hlaterResponseAll :
-                  ∀ (candidate : ExecutableField),
-                    candidate ∈
-                        ([{ parentType := parentType
-                            responseName := responseName
-                            fieldName := fieldName
-                            arguments := laterArguments
-                            selectionSet := laterSelectionSet }] :
-                          List ExecutableField) ->
-                      candidate.responseName = responseName := by
-                intro candidate hmem
-                simp at hmem
-                subst candidate
-                rfl
               have htailNull :
                   visitSubfields schema resolvers variableValues
                     (childDepth + 2) parentType source
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := laterArguments
-                         selectionSet := laterSelectionSet }])
+                    (executableFieldSelections responseName
+                      [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }])
                     (.object [(responseName, .null)]) =
                   (.object [(responseName, .null)], visitOk) :=
                 visitSubfields_executableFieldSelections_existing_null
                   schema resolvers variableValues (childDepth + 1)
                   parentType source responseName
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := laterArguments
-                     selectionSet := laterSelectionSet }]
-                  [(responseName, .null)] hlaterResponseAll
+                  [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }]
+                  [(responseName, .null)]
                   (by
                     intro candidate hmem
                     simp at hmem
                     subst candidate
                     exact htailLookups
-                      { parentType := parentType
-                        responseName := responseName
-                        fieldName := fieldName
-                        arguments := laterArguments
-                        selectionSet := laterSelectionSet }
+                      { fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }
                       (by simp))
                   (by simp [responseObjectField?, lookupResponseField?])
               cases hlookup : schema.lookupField parentType fieldName with
@@ -311,11 +235,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.named typeName)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           (.object runtimeType identity))
                                         (completeResolvedValue schema resolvers
@@ -328,26 +248,16 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1)
                                               (.named typeName)
-                                              ({ parentType := parentType
-                                                 responseName := responseName
-                                                 fieldName := fieldName
-                                                 arguments := arguments
-                                                 selectionSet := selectionSet } ::
+                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                                 fields)
                                               (.object runtimeType identity))))) =
                                       GraphQL.Execution.completeValue
                                         schema resolvers variableValues
                                         (childDepth + 1) (.named typeName)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           (fields ++
-                                            [{ parentType := parentType
-                                               responseName := responseName
-                                               fieldName := fieldName
-                                               arguments := laterArguments
+                                            [{ fieldName := fieldName,
+                                               arguments := laterArguments,
                                                selectionSet :=
                                                  laterSelectionSet }]))
                                         (.object runtimeType identity) :=
@@ -355,17 +265,9 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                       schema resolvers variableValues
                                       (childDepth + 1) typeName
                                       (.object runtimeType identity)
-                                      ({ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := arguments
-                                         selectionSet := selectionSet } ::
+                                      ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                         fields)
-                                      { parentType := parentType
-                                        responseName := responseName
-                                        fieldName := fieldName
-                                        arguments := laterArguments
-                                        selectionSet := laterSelectionSet }
+                                      { fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }
                                       (by
                                         intro childDepth' runtimeType' identity'
                                           hlt hcontains hincludes
@@ -405,31 +307,19 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         variableValues (childDepth + 1)
                                         (.named typeName)
                                         (GraphQL.Execution.mergedFieldSelectionSet
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                         fields))
                                         (.object runtimeType identity)
                                         none =
                                       GraphQL.Execution.completeValue
                                         schema resolvers variableValues
                                         (childDepth + 1) (.named typeName)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           fields)
                                         (.object runtimeType identity) :=
                                     completeValue_group_eq_spec_of_contained_child_states
                                       schema resolvers variableValues
-                                      ({ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := arguments
-                                         selectionSet := selectionSet } ::
+                                      ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                         fields)
                                       (childDepth + 1) typeName
                                       (.object runtimeType identity)
@@ -455,11 +345,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1)
                                               (.named typeName)
-                                              ({ parentType := parentType
-                                                 responseName := responseName
-                                                 fieldName := fieldName
-                                                 arguments := arguments
-                                                 selectionSet := selectionSet } ::
+                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                                 fields)
                                               (.object runtimeType identity))))) =
                                         visitOk := by
@@ -472,11 +358,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           childDepth typeName runtimeType
                                           identity
                                           (GraphQL.Execution.mergedFieldSelectionSet
-                                            ({ parentType := parentType
-                                               responseName := responseName
-                                               fieldName := fieldName
-                                               arguments := arguments
-                                               selectionSet := selectionSet } ::
+                                            ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                               fields))
                                           laterSelectionSet hincludes
                                           (herrors childDepth runtimeType
@@ -500,11 +382,9 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                       visitSubfields schema resolvers
                                         variableValues (childDepth + 2)
                                         parentType source
-                                        (executableFieldSelections
-                                          [{ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := laterArguments
+                                        (executableFieldSelections responseName
+                                          [{ fieldName := fieldName,
+                                             arguments := laterArguments,
                                              selectionSet :=
                                                laterSelectionSet }])
                                         (groupedFieldVisitResult responseName
@@ -514,11 +394,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1)
                                               (.named typeName)
-                                              ({ parentType := parentType
-                                                 responseName := responseName
-                                                 fieldName := fieldName
-                                                 arguments := arguments
-                                                 selectionSet := selectionSet } ::
+                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                                 fields)
                                               (.object runtimeType identity)))).fst =
                                       mergeResponseFieldResult responseName
@@ -532,11 +408,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1)
                                               (.named typeName)
-                                              ({ parentType := parentType
-                                                 responseName := responseName
-                                                 fieldName := fieldName
-                                                 arguments := arguments
-                                                 selectionSet := selectionSet } ::
+                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                                 fields)
                                               (.object runtimeType identity)))))
                                         (groupedFieldVisitResult responseName
@@ -546,11 +418,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1)
                                               (.named typeName)
-                                              ({ parentType := parentType
-                                                 responseName := responseName
-                                                 fieldName := fieldName
-                                                 arguments := arguments
-                                                 selectionSet := selectionSet } ::
+                                              ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                                 fields)
                                               (.object runtimeType identity)))).fst := by
                                     cases hprefixCompleted
@@ -558,10 +426,8 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                               schema resolvers variableValues
                                               (childDepth + 1) (.named typeName)
                                               ({
-                                                  parentType := parentType
-                                                  responseName := responseName
-                                                  fieldName := fieldName
-                                                  arguments := arguments
+                                                  fieldName := fieldName,
+                                                  arguments := arguments,
                                                   selectionSet := selectionSet
                                                 }
                                                 :: fields)
@@ -595,11 +461,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                       (GraphQL.Execution.completeValue
                                         schema resolvers variableValues
                                         (childDepth + 1) (.named typeName)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           fields)
                                         (.object runtimeType identity))
                                       (completeResolvedValue schema resolvers
@@ -612,26 +474,16 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                             schema resolvers variableValues
                                             (childDepth + 1)
                                             (.named typeName)
-                                            ({ parentType := parentType
-                                               responseName := responseName
-                                               fieldName := fieldName
-                                               arguments := arguments
-                                               selectionSet := selectionSet } ::
+                                            ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                               fields)
                                             (.object runtimeType identity)))))
                                       (GraphQL.Execution.completeValue
                                         schema resolvers variableValues
                                         (childDepth + 1) (.named typeName)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           (fields ++
-                                            [{ parentType := parentType
-                                               responseName := responseName
-                                               fieldName := fieldName
-                                               arguments := laterArguments
+                                            [{ fieldName := fieldName,
+                                               arguments := laterArguments,
                                                selectionSet :=
                                                  laterSelectionSet }]))
                                         (.object runtimeType identity))
@@ -646,17 +498,9 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                 completeValue_group_append_one_result_eq_spec_and_status
                                   schema resolvers variableValues (.list inner)
                                   (childDepth + 1) resolvedValue
-                                  ({ parentType := parentType
-                                     responseName := responseName
-                                     fieldName := fieldName
-                                     arguments := arguments
-                                     selectionSet := selectionSet } ::
+                                  ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                     fields)
-                                  { parentType := parentType
-                                    responseName := responseName
-                                    fieldName := fieldName
-                                    arguments := laterArguments
-                                    selectionSet := laterSelectionSet }
+                                  { fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }
                                   (by
                                     intro childDepth' runtimeType' identity'
                                       hlt hcontains hincludes
@@ -697,23 +541,15 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                   visitSubfields schema resolvers
                                     variableValues (childDepth + 2)
                                     parentType source
-                                    (executableFieldSelections
-                                      [{ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := laterArguments
-                                         selectionSet := laterSelectionSet }])
+                                    (executableFieldSelections responseName
+                                      [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }])
                                     (groupedFieldVisitResult responseName
                                       (GraphQL.Execution.singleFieldResult
                                         responseName
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.list inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))).fst =
                                   mergeResponseFieldResult responseName
@@ -725,11 +561,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.list inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))))
                                     (groupedFieldVisitResult responseName
@@ -738,11 +570,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.list inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))).fst := by
                                 cases hprefixCompleted
@@ -750,10 +578,8 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           resolvers variableValues
                                           (childDepth + 1) (.list inner)
                                           ({
-                                              parentType := parentType
-                                              responseName := responseName
-                                              fieldName := fieldName
-                                              arguments := arguments
+                                              fieldName := fieldName,
+                                              arguments := arguments,
                                               selectionSet := selectionSet
                                             }
                                             :: fields)
@@ -785,11 +611,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                   (GraphQL.Execution.completeValue schema
                                     resolvers variableValues (childDepth + 1)
                                     (.list inner)
-                                    ({ parentType := parentType
-                                       responseName := responseName
-                                       fieldName := fieldName
-                                       arguments := arguments
-                                       selectionSet := selectionSet } ::
+                                    ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                       fields)
                                     resolvedValue)
                                   (completeResolvedValue schema resolvers
@@ -800,26 +622,16 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                       (GraphQL.Execution.completeValue schema
                                         resolvers variableValues
                                         (childDepth + 1) (.list inner)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           fields)
                                         resolvedValue))))
                                   (GraphQL.Execution.completeValue schema
                                     resolvers variableValues (childDepth + 1)
                                     (.list inner)
-                                    (({ parentType := parentType
-                                        responseName := responseName
-                                        fieldName := fieldName
-                                        arguments := arguments
-                                        selectionSet := selectionSet } ::
+                                    (({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                        fields) ++
-                                      [{ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := laterArguments
+                                      [{ fieldName := fieldName,
+                                         arguments := laterArguments,
                                          selectionSet :=
                                            laterSelectionSet }])
                                     resolvedValue)
@@ -834,17 +646,9 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                   schema resolvers variableValues
                                   (.nonNull inner) (childDepth + 1)
                                   resolvedValue
-                                  ({ parentType := parentType
-                                     responseName := responseName
-                                     fieldName := fieldName
-                                     arguments := arguments
-                                     selectionSet := selectionSet } ::
+                                  ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                     fields)
-                                  { parentType := parentType
-                                    responseName := responseName
-                                    fieldName := fieldName
-                                    arguments := laterArguments
-                                    selectionSet := laterSelectionSet }
+                                  { fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }
                                   (by
                                     intro childDepth' runtimeType' identity'
                                       hlt hcontains hincludes
@@ -885,23 +689,15 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                   visitSubfields schema resolvers
                                     variableValues (childDepth + 2)
                                     parentType source
-                                    (executableFieldSelections
-                                      [{ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := laterArguments
-                                         selectionSet := laterSelectionSet }])
+                                    (executableFieldSelections responseName
+                                      [{ fieldName := fieldName, arguments := laterArguments, selectionSet := laterSelectionSet  }])
                                     (groupedFieldVisitResult responseName
                                       (GraphQL.Execution.singleFieldResult
                                         responseName
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.nonNull inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))).fst =
                                   mergeResponseFieldResult responseName
@@ -913,11 +709,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.nonNull inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))))
                                     (groupedFieldVisitResult responseName
@@ -926,11 +718,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                         (GraphQL.Execution.completeValue
                                           schema resolvers variableValues
                                           (childDepth + 1) (.nonNull inner)
-                                          ({ parentType := parentType
-                                             responseName := responseName
-                                             fieldName := fieldName
-                                             arguments := arguments
-                                             selectionSet := selectionSet } ::
+                                          ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                             fields)
                                           resolvedValue))).fst := by
                                 cases hprefixCompleted
@@ -938,10 +726,8 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           resolvers variableValues
                                           (childDepth + 1) (.nonNull inner)
                                           ({
-                                              parentType := parentType
-                                              responseName := responseName
-                                              fieldName := fieldName
-                                              arguments := arguments
+                                              fieldName := fieldName,
+                                              arguments := arguments,
                                               selectionSet := selectionSet
                                             }
                                             :: fields)
@@ -973,11 +759,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                   (GraphQL.Execution.completeValue schema
                                     resolvers variableValues (childDepth + 1)
                                     (.nonNull inner)
-                                    ({ parentType := parentType
-                                       responseName := responseName
-                                       fieldName := fieldName
-                                       arguments := arguments
-                                       selectionSet := selectionSet } ::
+                                    ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                       fields)
                                     resolvedValue)
                                   (completeResolvedValue schema resolvers
@@ -988,26 +770,16 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                       (GraphQL.Execution.completeValue schema
                                         resolvers variableValues
                                         (childDepth + 1) (.nonNull inner)
-                                        ({ parentType := parentType
-                                           responseName := responseName
-                                           fieldName := fieldName
-                                           arguments := arguments
-                                           selectionSet := selectionSet } ::
+                                        ({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                           fields)
                                         resolvedValue))))
                                   (GraphQL.Execution.completeValue schema
                                     resolvers variableValues (childDepth + 1)
                                     (.nonNull inner)
-                                    (({ parentType := parentType
-                                        responseName := responseName
-                                        fieldName := fieldName
-                                        arguments := arguments
-                                        selectionSet := selectionSet } ::
+                                    (({ fieldName := fieldName, arguments := arguments, selectionSet := selectionSet  } ::
                                        fields) ++
-                                      [{ parentType := parentType
-                                         responseName := responseName
-                                         fieldName := fieldName
-                                         arguments := laterArguments
+                                      [{ fieldName := fieldName,
+                                         arguments := laterArguments,
                                          selectionSet :=
                                            laterSelectionSet }])
                                     resolvedValue)
@@ -1016,1083 +788,6 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                 at htailVisit hcombined ⊢
                               rw [htailVisit]
                               exact hcombined
-
-theorem ExecutableFieldsMergedRoot_append_one_aligned_of_prefix_contained
-    {ObjectIdentity : Type}
-    (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (depth : Nat)
-    (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (responseName : Name) (field : ExecutableField)
-    (fields : List ExecutableField) (later : ExecutableField)
-    (resolved : Option (ResolverValue ObjectIdentity))
-    (hprefixRaw
-      : ExecutableFieldsMergedRaw schema resolvers variableValues depth
-          parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
-    (hfieldName : later.fieldName = field.fieldName)
-    (htailLookups
-      : ∀ candidate,
-          candidate ∈ fields ++ [later]
-          -> ∃ fieldDefinition,
-              schema.lookupField parentType candidate.fieldName = some fieldDefinition)
-    (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
-          field.fieldName field.arguments source
-        = resolved)
-    (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
-          later.fieldName later.arguments source
-        = resolved)
-    (hprefixChildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < depth
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> ExecutionStateEquivalent
-              {
-                window :=
-                  {
-                    schema := schema
-                    resolvers := resolvers
-                    variableValues := variableValues
-                    depth := childDepth
-                    parentType := runtimeType
-                    source := .object runtimeType identity
-                    selectionSet :=
-                      GraphQL.Execution.mergedFieldSelectionSet (field :: fields)
-                  }
-                initial := .object []
-              })
-    (hobjects
-      : ∀ childDepth runtimeType identity,
-          childDepth < depth
-          -> ValueContainsObject resolved runtimeType identity
-          -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                (.object [])).fst
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
-                  runtimeType (.object runtimeType identity)
-                  (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                  (.object [])).fst).fst)
-    (hchildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < depth
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> ExecutionStateEquivalent
-              {
-                window :=
-                  {
-                    schema := schema
-                    resolvers := resolvers
-                    variableValues := variableValues
-                    depth := childDepth
-                    parentType := runtimeType
-                    source := .object runtimeType identity
-                    selectionSet :=
-                      GraphQL.Execution.mergedFieldSelectionSet
-                        ((field :: fields) ++ [later])
-                  }
-                initial := .object []
-              })
-    : RootSelectionResultAlignedEquivalent
-        (executeRootSelectionSet schema resolvers variableValues (depth + 1)
-          parentType source
-          (executableFieldSelections (field :: (fields ++ [later]))))
-        (GraphQL.Execution.executeField schema resolvers variableValues
-          (depth + 1) source responseName (field :: (fields ++ [later]))) := by
-  cases depth with
-  | zero =>
-      have hraw :
-          ExecutableFieldsMergedRaw schema resolvers variableValues 0
-            parentType source responseName field (fields ++ [later]) resolved := by
-        apply ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
-          variableValues 0 parentType source responseName field fields later
-          resolved hprefixRaw hprefixResponses hfieldResponse hlaterResponse
-          hfieldParent hlaterParent hfieldName htailLookups hresolveFirst
-          hresolveLater
-        · intro childDepth runtimeType identity hlt hcontains hincludes
-          exact False.elim (Nat.not_lt_zero childDepth hlt)
-        · intro childDepth runtimeType identity hlt hcontains
-          exact False.elim (Nat.not_lt_zero childDepth hlt)
-        · intro childDepth runtimeType identity hlt hcontains
-          exact False.elim (Nat.not_lt_zero childDepth hlt)
-        · intro childDepth runtimeType identity hlt hcontains hincludes
-          exact False.elim (Nat.not_lt_zero childDepth hlt)
-      exact
-        RootSelectionResultAlignedEquivalent.of_eq
-          (ExecutableFieldsMergedResponse_of_raw schema resolvers variableValues
-            0 parentType source responseName field (fields ++ [later])
-            resolved hraw)
-  | succ completionDepth =>
-      cases field with
-      | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
-          cases later with
-          | mk laterParent laterResponseName laterFieldName laterArguments
-              laterSelectionSet =>
-              dsimp at hfieldResponse hlaterResponse hfieldParent
-              dsimp at hlaterParent hfieldName hresolveFirst hresolveLater
-              dsimp at hprefixResponses hprefixChildren hobjects
-              dsimp at hchildren hprefixRaw ⊢
-              subst fieldResponseName
-              subst laterResponseName
-              subst fieldParent
-              subst laterParent
-              subst laterFieldName
-              have hlaterResponseAll :
-                  ∀ (candidate : ExecutableField),
-                    candidate ∈
-                        ([{ parentType := parentType
-                            responseName := responseName
-                            fieldName := fieldName
-                            arguments := laterArguments
-                            selectionSet := laterSelectionSet }] :
-                          List ExecutableField) ->
-                      candidate.responseName = responseName := by
-                intro candidate hmem
-                simp at hmem
-                subst candidate
-                rfl
-              have htailNull :
-                  visitSubfields schema resolvers variableValues
-                    (completionDepth + 2) parentType source
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := laterArguments
-                         selectionSet := laterSelectionSet }])
-                    (.object [(responseName, .null)]) =
-                  (.object [(responseName, .null)], visitOk) :=
-                visitSubfields_executableFieldSelections_existing_null
-                  schema resolvers variableValues (completionDepth + 1)
-                  parentType source responseName
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := laterArguments
-                     selectionSet := laterSelectionSet }]
-                  [(responseName, .null)] hlaterResponseAll
-                  (by
-                    intro candidate hmem
-                    simp at hmem
-                    subst candidate
-                    exact htailLookups
-                      { parentType := parentType
-                        responseName := responseName
-                        fieldName := fieldName
-                        arguments := laterArguments
-                        selectionSet := laterSelectionSet }
-                      (by simp))
-                  (by simp [responseObjectField?, lookupResponseField?])
-              cases hlookup : schema.lookupField parentType fieldName with
-              | none =>
-                  unfold ExecutableFieldsMergedRaw at hprefixRaw
-                  unfold executeRootSelectionSet
-                  rw [show executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          (fields ++
-                            [{ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := laterArguments
-                               selectionSet := laterSelectionSet }])) =
-                      executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields) ++
-                      executableFieldSelections
-                        [{ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := laterArguments
-                           selectionSet := laterSelectionSet }] by
-                    simp [executableFieldSelections, List.map_append]]
-                  rw [visitSubfields_append_equivalence schema resolvers
-                    variableValues (completionDepth + 2) parentType source
-                    (executableFieldSelections
-                      ({ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := arguments
-                         selectionSet := selectionSet } ::
-                        fields))
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := laterArguments
-                         selectionSet := laterSelectionSet }])
-                    (.object [])]
-                  rw [hprefixRaw]
-                  simp [GraphQL.Execution.executeField, hlookup, htailNull,
-                    groupedFieldVisitResult, combineVisitStatus,
-                    GraphQL.Execution.Result.combine, visitOk,
-                    RootSelectionResultAlignedEquivalent,
-                    ErrorPresenceEquivalent]
-              | some fieldDefinition =>
-                  simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
-                  cases resolved with
-                  | none =>
-                      unfold ExecutableFieldsMergedRaw at hprefixRaw
-                      unfold executeRootSelectionSet
-                      rw [show executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              (fields ++
-                                [{ parentType := parentType
-                                   responseName := responseName
-                                   fieldName := fieldName
-                                   arguments := laterArguments
-                                   selectionSet := laterSelectionSet }])) =
-                          executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields) ++
-                          executableFieldSelections
-                            [{ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := laterArguments
-                               selectionSet := laterSelectionSet }] by
-                        simp [executableFieldSelections, List.map_append]]
-                      rw [visitSubfields_append_equivalence schema resolvers
-                        variableValues (completionDepth + 2) parentType source
-                        (executableFieldSelections
-                          ({ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
-                             arguments := arguments
-                             selectionSet := selectionSet } ::
-                            fields))
-                        (executableFieldSelections
-                          [{ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
-                             arguments := laterArguments
-                             selectionSet := laterSelectionSet }])
-                        (.object [])]
-                      rw [hprefixRaw]
-                      cases fieldDefinition with
-                      | mk definitionName outputType definitionArguments =>
-                          cases outputType <;>
-                            simp [hlookup,
-                              hresolveFirst, handleFieldError,
-                              groupedFieldVisitResult,
-                              GraphQL.Execution.singleFieldResult, htailNull,
-                              visitOk, combineVisitStatus,
-                              GraphQL.Execution.Result.combine,
-                              RootSelectionResultAlignedEquivalent,
-                              ErrorPresenceEquivalent]
-                  | some resolvedValue =>
-                      simpa [GraphQL.Execution.executeField, hlookup,
-                        hresolveFirst] using
-                        executeRootSelectionSet_executableFieldSelections_append_one_aligned_resolved
-                          schema resolvers variableValues completionDepth
-                          parentType source responseName fieldName arguments
-                          laterArguments selectionSet laterSelectionSet fields
-                          fieldDefinition resolvedValue
-                          (by
-                            simpa using hprefixRaw)
-                          hlookup
-                          (by simpa using hresolveFirst)
-                          (by simpa using hresolveLater)
-                          (by
-                            intro childDepth runtimeType identity hlt
-                              hcontains hincludes
-                            exact hprefixChildren childDepth runtimeType
-                              identity hlt (by simpa using hcontains)
-                              (by
-                                simpa [Schema.fieldReturnType?, hlookup]
-                                  using hincludes))
-                          (by
-                            intro childDepth runtimeType identity hlt
-                              hcontains
-                            exact hobjects childDepth runtimeType identity hlt
-                              (by simpa using hcontains))
-                          (by
-                          intro childDepth runtimeType identity hlt
-                            hcontains hincludes
-                          exact hchildren childDepth runtimeType identity hlt
-                            (by simpa using hcontains)
-                            (by
-                              simpa [Schema.fieldReturnType?, hlookup]
-                                using hincludes))
-
-theorem ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_positive
-    {ObjectIdentity : Type}
-    (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (completionDepth : Nat)
-    (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (responseName : Name) (field : ExecutableField)
-    (fields : List ExecutableField) (later : ExecutableField)
-    (resolved : Option (ResolverValue ObjectIdentity))
-    (hprefixAligned
-      : GroupedFieldVisitAlignedEquivalent responseName
-          (visitSubfields schema resolvers variableValues (completionDepth + 2)
-            parentType source (executableFieldSelections (field :: fields))
-            (.object []))
-          (GraphQL.Execution.executeField schema resolvers variableValues
-            (completionDepth + 2) source responseName (field :: fields)))
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
-    (hfieldName : later.fieldName = field.fieldName)
-    (htailLookups
-      : ∀ candidate,
-          candidate ∈ fields ++ [later]
-          -> ∃ fieldDefinition,
-              schema.lookupField parentType candidate.fieldName = some fieldDefinition)
-    (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
-          field.fieldName field.arguments source
-        = resolved)
-    (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
-          later.fieldName later.arguments source
-        = resolved)
-    (hprefixChildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> ExecutionStateEquivalent
-              {
-                window :=
-                  {
-                    schema := schema
-                    resolvers := resolvers
-                    variableValues := variableValues
-                    depth := childDepth
-                    parentType := runtimeType
-                    source := .object runtimeType identity
-                    selectionSet :=
-                      GraphQL.Execution.mergedFieldSelectionSet (field :: fields)
-                  }
-                initial := .object []
-              })
-    (hobjects
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                (.object [])).fst
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
-                  runtimeType (.object runtimeType identity)
-                  (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                  (.object [])).fst).fst)
-    (hchildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> ExecutionStateEquivalent
-              {
-                window :=
-                  {
-                    schema := schema
-                    resolvers := resolvers
-                    variableValues := variableValues
-                    depth := childDepth
-                    parentType := runtimeType
-                    source := .object runtimeType identity
-                    selectionSet :=
-                      GraphQL.Execution.mergedFieldSelectionSet
-                        ((field :: fields) ++ [later])
-                  }
-                initial := .object []
-              })
-    : RootSelectionResultAlignedEquivalent
-        (executeRootSelectionSet schema resolvers variableValues
-          (completionDepth + 2) parentType source
-          (executableFieldSelections (field :: (fields ++ [later]))))
-        (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName
-          (field :: (fields ++ [later]))) := by
-  cases field with
-  | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
-      cases later with
-      | mk laterParent laterResponseName laterFieldName laterArguments
-          laterSelectionSet =>
-          dsimp at hfieldResponse hlaterResponse hfieldParent
-          dsimp at hlaterParent hfieldName hresolveFirst hresolveLater
-          dsimp at hprefixResponses hprefixChildren hobjects hchildren
-          subst fieldResponseName
-          subst laterResponseName
-          subst fieldParent
-          subst laterParent
-          subst laterFieldName
-          have hlaterResponseAll :
-              ∀ (candidate : ExecutableField),
-                candidate ∈
-                    ([{ parentType := parentType
-                        responseName := responseName
-                        fieldName := fieldName
-                        arguments := laterArguments
-                        selectionSet := laterSelectionSet }] :
-                      List ExecutableField) ->
-                  candidate.responseName = responseName := by
-            intro candidate hmem
-            simp at hmem
-            subst candidate
-            rfl
-          have htailNull :
-              visitSubfields schema resolvers variableValues
-                (completionDepth + 2) parentType source
-                (executableFieldSelections
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := laterArguments
-                     selectionSet := laterSelectionSet }])
-                (.object [(responseName, .null)]) =
-              (.object [(responseName, .null)], visitOk) :=
-            visitSubfields_executableFieldSelections_existing_null
-              schema resolvers variableValues (completionDepth + 1)
-              parentType source responseName
-              [{ parentType := parentType
-                 responseName := responseName
-                 fieldName := fieldName
-                 arguments := laterArguments
-                 selectionSet := laterSelectionSet }]
-              [(responseName, .null)] hlaterResponseAll
-              (by
-                intro candidate hmem
-                simp at hmem
-                subst candidate
-                exact htailLookups
-                  { parentType := parentType
-                    responseName := responseName
-                    fieldName := fieldName
-                    arguments := laterArguments
-                    selectionSet := laterSelectionSet }
-                  (by simp))
-              (by simp [responseObjectField?, lookupResponseField?])
-          cases hlookup : schema.lookupField parentType fieldName with
-          | none =>
-              have hprefix :
-                  GroupedFieldVisitAlignedEquivalent responseName
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object []))
-                    (GraphQL.Execution.singleFieldResult responseName
-                      (.error 1)) := by
-                simpa [GraphQL.Execution.executeField, hlookup,
-                  GraphQL.Execution.singleFieldResult] using
-                  hprefixAligned
-              have htail :
-                  visitSubfields schema resolvers variableValues
-                    (completionDepth + 2) parentType source
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := laterArguments
-                         selectionSet := laterSelectionSet }])
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object [])).fst =
-                  mergeResponseFieldResult responseName (.ok (.null, 0))
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object [])).fst := by
-                rw [hprefix.1]
-                simpa [groupedFieldVisitResult,
-                  GraphQL.Execution.singleFieldResult,
-                  mergeResponseFieldResult, mergeResponseFieldIntoObject,
-                  mergeResponseField, mergeResponse, resultValueOrNull,
-                  resultStatus, visitOk] using htailNull
-              have haligned :
-                  ResponseValueResultAlignedEquivalent
-                    (GraphQL.Execution.Result.combine mergeResponse
-                      (.error 1 : Result ResponseValue) (.ok (.null, 0)))
-                    (.error 1 : Result ResponseValue) := by
-                simp [ResponseValueResultAlignedEquivalent,
-                  GraphQL.Execution.Result.combine, ErrorPresenceEquivalent]
-              simpa [GraphQL.Execution.executeField, hlookup,
-                executableFieldSelections, List.map_append,
-                GraphQL.Execution.singleFieldResult] using
-                executeRootSelectionSet_append_one_visit_aligned_of_complete
-                  schema resolvers variableValues (completionDepth + 2)
-                  parentType source
-                  (executableFieldSelections
-                    ({ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
-                       arguments := arguments
-                       selectionSet := selectionSet } ::
-                      fields))
-                  (executableFieldSelections
-                    [{ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
-                       arguments := laterArguments
-                       selectionSet := laterSelectionSet }])
-                  responseName (.error 1 : Result ResponseValue)
-                  (.ok (.null, 0)) (.error 1 : Result ResponseValue)
-                  hprefix htail haligned
-          | some fieldDefinition =>
-              simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
-              cases resolved with
-              | none =>
-                  have hprefix :
-                      GroupedFieldVisitAlignedEquivalent responseName
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object []))
-                        (GraphQL.Execution.singleFieldResult responseName
-                          (handleFieldError fieldDefinition.outputType)) := by
-                    simpa [GraphQL.Execution.executeField, hlookup,
-                      hresolveFirst] using hprefixAligned
-                  have htail :
-                      visitSubfields schema resolvers variableValues
-                        (completionDepth + 2) parentType source
-                        (executableFieldSelections
-                          [{ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
-                             arguments := laterArguments
-                             selectionSet := laterSelectionSet }])
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object [])).fst =
-                      mergeResponseFieldResult responseName (.ok (.null, 0))
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object [])).fst := by
-                    rw [hprefix.1]
-                    cases fieldDefinition with
-                    | mk definitionName outputType definitionArguments =>
-                        cases outputType <;>
-                          simp [handleFieldError, groupedFieldVisitResult,
-                            GraphQL.Execution.singleFieldResult,
-                            mergeResponseFieldResult,
-                            mergeResponseFieldIntoObject,
-                            mergeResponseField, mergeResponse,
-                            resultValueOrNull, resultStatus, visitOk,
-                            htailNull]
-                  have haligned :
-                      ResponseValueResultAlignedEquivalent
-                        (GraphQL.Execution.Result.combine mergeResponse
-                          (handleFieldError fieldDefinition.outputType)
-                          (.ok (.null, 0)))
-                        (handleFieldError fieldDefinition.outputType) := by
-                    cases fieldDefinition with
-                    | mk definitionName outputType definitionArguments =>
-                        cases outputType <;>
-                          simp [handleFieldError,
-                            ResponseValueResultAlignedEquivalent,
-                            GraphQL.Execution.Result.combine,
-                            ErrorPresenceEquivalent, mergeResponse]
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst, executableFieldSelections,
-                    List.map_append] using
-                    executeRootSelectionSet_append_one_visit_aligned_of_complete
-                      schema resolvers variableValues (completionDepth + 2)
-                      parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (executableFieldSelections
-                        [{ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := laterArguments
-                           selectionSet := laterSelectionSet }])
-                      responseName (handleFieldError fieldDefinition.outputType)
-                      (.ok (.null, 0))
-                      (handleFieldError fieldDefinition.outputType)
-                      hprefix htail haligned
-              | some resolvedValue =>
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst] using
-                    executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved
-                      schema resolvers variableValues completionDepth
-                      parentType source responseName fieldName arguments
-                      laterArguments selectionSet laterSelectionSet fields
-                      fieldDefinition resolvedValue
-                      (by
-                        simpa [GraphQL.Execution.executeField, hlookup,
-                          hresolveFirst] using hprefixAligned)
-                      hlookup
-                      (by simpa using hresolveLater)
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hprefixChildren childDepth runtimeType identity
-                          hlt (by simpa using hcontains)
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup]
-                              using hincludes))
-                      (by
-                        intro childDepth runtimeType identity hlt hcontains
-                        exact hobjects childDepth runtimeType identity hlt
-                          (by simpa using hcontains))
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hchildren childDepth runtimeType identity hlt
-                          (by simpa using hcontains)
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup]
-                              using hincludes))
-
-theorem
-    ExecutableFieldsMergedRoot_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
-    {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
-    (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
-    (source : ResolverValue ObjectIdentity) (responseName : Name)
-    (field : ExecutableField) (fields : List ExecutableField) (later : ExecutableField)
-    (resolved : Option (ResolverValue ObjectIdentity))
-    (hprefixAligned
-      : GroupedFieldVisitAlignedEquivalent responseName
-          (visitSubfields schema resolvers variableValues (completionDepth + 2)
-            parentType source (executableFieldSelections (field :: fields))
-            (.object []))
-          (GraphQL.Execution.executeField schema resolvers variableValues
-            (completionDepth + 2) source responseName (field :: fields)))
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
-    (hfieldName : later.fieldName = field.fieldName)
-    (htailLookups
-      : ∀ candidate,
-          candidate ∈ fields ++ [later]
-          -> ∃ fieldDefinition,
-              schema.lookupField parentType candidate.fieldName = some fieldDefinition)
-    (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
-          field.fieldName field.arguments source
-        = resolved)
-    (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
-          later.fieldName later.arguments source
-        = resolved)
-    (hprefixChildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> RootSelectionResultAlignedEquivalent
-              (executeRootSelectionSet schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet (field :: fields)))
-              (GraphQL.Execution.executeRootSelectionSet schema resolvers
-                variableValues childDepth runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))))
-    (hobjects
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> ResponseAbsorbs
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                (.object [])).fst
-              (visitSubfields schema resolvers variableValues childDepth
-                runtimeType (.object runtimeType identity) later.selectionSet
-                (visitSubfields schema resolvers variableValues childDepth
-                  runtimeType (.object runtimeType identity)
-                  (GraphQL.Execution.mergedFieldSelectionSet (field :: fields))
-                  (.object [])).fst).fst)
-    (hchildren
-      : ∀ childDepth runtimeType identity,
-          childDepth < completionDepth + 1
-          -> ValueContainsObject resolved runtimeType identity
-          -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
-                  field.fieldName)
-                runtimeType
-              = true
-          -> RootSelectionResultAlignedEquivalent
-              (executeRootSelectionSet schema resolvers variableValues
-                childDepth runtimeType (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet
-                  ((field :: fields) ++ [later])))
-              (GraphQL.Execution.executeRootSelectionSet schema resolvers
-                variableValues childDepth runtimeType
-                (.object runtimeType identity)
-                (GraphQL.Execution.mergedFieldSelectionSet
-                  ((field :: fields) ++ [later]))))
-    : RootSelectionResultAlignedEquivalent
-        (executeRootSelectionSet schema resolvers variableValues
-          (completionDepth + 2) parentType source
-          (executableFieldSelections (field :: (fields ++ [later]))))
-        (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName
-          (field :: (fields ++ [later]))) := by
-  cases field with
-  | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
-      cases later with
-      | mk laterParent laterResponseName laterFieldName laterArguments
-          laterSelectionSet =>
-          dsimp at hfieldResponse hlaterResponse hfieldParent
-          dsimp at hlaterParent hfieldName hresolveFirst hresolveLater
-          dsimp at hprefixResponses hprefixChildren hobjects hchildren
-          subst fieldResponseName
-          subst laterResponseName
-          subst fieldParent
-          subst laterParent
-          subst laterFieldName
-          have hlaterResponseAll :
-              ∀ (candidate : ExecutableField),
-                candidate ∈
-                    ([{ parentType := parentType
-                        responseName := responseName
-                        fieldName := fieldName
-                        arguments := laterArguments
-                        selectionSet := laterSelectionSet }] :
-                      List ExecutableField) ->
-                  candidate.responseName = responseName := by
-            intro candidate hmem
-            simp at hmem
-            subst candidate
-            rfl
-          have htailNull :
-              visitSubfields schema resolvers variableValues
-                (completionDepth + 2) parentType source
-                (executableFieldSelections
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
-                     arguments := laterArguments
-                     selectionSet := laterSelectionSet }])
-                (.object [(responseName, .null)]) =
-              (.object [(responseName, .null)], visitOk) :=
-            visitSubfields_executableFieldSelections_existing_null
-              schema resolvers variableValues (completionDepth + 1)
-              parentType source responseName
-              [{ parentType := parentType
-                 responseName := responseName
-                 fieldName := fieldName
-                 arguments := laterArguments
-                 selectionSet := laterSelectionSet }]
-              [(responseName, .null)] hlaterResponseAll
-              (by
-                intro candidate hmem
-                simp at hmem
-                subst candidate
-                exact htailLookups
-                  { parentType := parentType
-                    responseName := responseName
-                    fieldName := fieldName
-                    arguments := laterArguments
-                    selectionSet := laterSelectionSet }
-                  (by simp))
-              (by simp [responseObjectField?, lookupResponseField?])
-          cases hlookup : schema.lookupField parentType fieldName with
-          | none =>
-              have hprefix :
-                  GroupedFieldVisitAlignedEquivalent responseName
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object []))
-                    (GraphQL.Execution.singleFieldResult responseName
-                      (.error 1)) := by
-                simpa [GraphQL.Execution.executeField, hlookup,
-                  GraphQL.Execution.singleFieldResult] using
-                  hprefixAligned
-              have htail :
-                  visitSubfields schema resolvers variableValues
-                    (completionDepth + 2) parentType source
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
-                         arguments := laterArguments
-                         selectionSet := laterSelectionSet }])
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object [])).fst =
-                  mergeResponseFieldResult responseName (.ok (.null, 0))
-                    (visitSubfields schema resolvers variableValues
-                      (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (.object [])).fst := by
-                rw [hprefix.1]
-                simpa [groupedFieldVisitResult,
-                  GraphQL.Execution.singleFieldResult,
-                  mergeResponseFieldResult, mergeResponseFieldIntoObject,
-                  mergeResponseField, mergeResponse, resultValueOrNull,
-                  resultStatus, visitOk] using htailNull
-              have haligned :
-                  ResponseValueResultAlignedEquivalent
-                    (GraphQL.Execution.Result.combine mergeResponse
-                      (.error 1 : Result ResponseValue) (.ok (.null, 0)))
-                    (.error 1 : Result ResponseValue) := by
-                simp [ResponseValueResultAlignedEquivalent,
-                  GraphQL.Execution.Result.combine, ErrorPresenceEquivalent]
-              simpa [GraphQL.Execution.executeField, hlookup,
-                executableFieldSelections, List.map_append,
-                GraphQL.Execution.singleFieldResult] using
-                executeRootSelectionSet_append_one_visit_aligned_of_complete
-                  schema resolvers variableValues (completionDepth + 2)
-                  parentType source
-                  (executableFieldSelections
-                    ({ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
-                       arguments := arguments
-                       selectionSet := selectionSet } ::
-                      fields))
-                  (executableFieldSelections
-                    [{ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
-                       arguments := laterArguments
-                       selectionSet := laterSelectionSet }])
-                  responseName (.error 1 : Result ResponseValue)
-                  (.ok (.null, 0)) (.error 1 : Result ResponseValue)
-                  hprefix htail haligned
-          | some fieldDefinition =>
-              simp [resolveFieldValueByName, hlookup] at hresolveFirst hresolveLater
-              cases resolved with
-              | none =>
-                  have hprefix :
-                      GroupedFieldVisitAlignedEquivalent responseName
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object []))
-                        (GraphQL.Execution.singleFieldResult responseName
-                          (handleFieldError fieldDefinition.outputType)) := by
-                    simpa [GraphQL.Execution.executeField, hlookup,
-                      hresolveFirst] using hprefixAligned
-                  have htail :
-                      visitSubfields schema resolvers variableValues
-                        (completionDepth + 2) parentType source
-                        (executableFieldSelections
-                          [{ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
-                             arguments := laterArguments
-                             selectionSet := laterSelectionSet }])
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object [])).fst =
-                      mergeResponseFieldResult responseName (.ok (.null, 0))
-                        (visitSubfields schema resolvers variableValues
-                          (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
-                               arguments := arguments
-                               selectionSet := selectionSet } ::
-                              fields))
-                          (.object [])).fst := by
-                    rw [hprefix.1]
-                    cases fieldDefinition with
-                    | mk definitionName outputType definitionArguments =>
-                        cases outputType <;>
-                          simp [handleFieldError, groupedFieldVisitResult,
-                            GraphQL.Execution.singleFieldResult,
-                            mergeResponseFieldResult,
-                            mergeResponseFieldIntoObject,
-                            mergeResponseField, mergeResponse,
-                            resultValueOrNull, resultStatus, visitOk,
-                            htailNull]
-                  have haligned :
-                      ResponseValueResultAlignedEquivalent
-                        (GraphQL.Execution.Result.combine mergeResponse
-                          (handleFieldError fieldDefinition.outputType)
-                          (.ok (.null, 0)))
-                        (handleFieldError fieldDefinition.outputType) := by
-                    cases fieldDefinition with
-                    | mk definitionName outputType definitionArguments =>
-                        cases outputType <;>
-                          simp [handleFieldError,
-                            ResponseValueResultAlignedEquivalent,
-                            GraphQL.Execution.Result.combine,
-                            ErrorPresenceEquivalent, mergeResponse]
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst, executableFieldSelections,
-                    List.map_append] using
-                    executeRootSelectionSet_append_one_visit_aligned_of_complete
-                      schema resolvers variableValues (completionDepth + 2)
-                      parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
-                      (executableFieldSelections
-                        [{ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
-                           arguments := laterArguments
-                           selectionSet := laterSelectionSet }])
-                      responseName (handleFieldError fieldDefinition.outputType)
-                      (.ok (.null, 0))
-                      (handleFieldError fieldDefinition.outputType)
-                      hprefix htail haligned
-              | some resolvedValue =>
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst] using
-                    executeRootSelectionSet_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
-                      schema resolvers variableValues completionDepth
-                      parentType source responseName fieldName arguments
-                      laterArguments selectionSet laterSelectionSet fields
-                      fieldDefinition resolvedValue
-                      (by
-                        simpa [GraphQL.Execution.executeField, hlookup,
-                          hresolveFirst] using hprefixAligned)
-                      hlookup
-                      (by simpa using hresolveLater)
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hprefixChildren childDepth runtimeType identity
-                          hlt (by simpa using hcontains)
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup]
-                              using hincludes))
-                      (by
-                        intro childDepth runtimeType identity hlt hcontains
-                        exact hobjects childDepth runtimeType identity hlt
-                          (by simpa using hcontains))
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hchildren childDepth runtimeType identity hlt
-                          (by simpa using hcontains)
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup]
-                              using hincludes))
 
 theorem
     ExecutableFieldsMergedVisit_append_one_visit_aligned_of_prefix_contained_positive_of_aligned_children
@@ -2104,16 +799,10 @@ theorem
     (hprefixAligned
       : GroupedFieldVisitAlignedEquivalent responseName
           (visitSubfields schema resolvers variableValues (completionDepth + 2)
-            parentType source (executableFieldSelections (field :: fields))
+            parentType source (executableFieldSelections responseName (field :: fields))
             (.object []))
           (GraphQL.Execution.executeField schema resolvers variableValues
-            (completionDepth + 2) source responseName (field :: fields)))
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
+            (completionDepth + 2) parentType source responseName (field :: fields)))
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -2121,11 +810,11 @@ theorem
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
@@ -2133,7 +822,7 @@ theorem
           childDepth < completionDepth + 1
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2164,7 +853,7 @@ theorem
           childDepth < completionDepth + 1
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2181,45 +870,23 @@ theorem
     : GroupedFieldVisitAlignedEquivalent responseName
         (visitSubfields schema resolvers variableValues
           (completionDepth + 2) parentType source
-          (executableFieldSelections (field :: (fields ++ [later])))
+          (executableFieldSelections responseName (field :: (fields ++ [later])))
           (.object []))
         (GraphQL.Execution.executeField schema resolvers variableValues
-          (completionDepth + 2) source responseName
+          (completionDepth + 2) parentType source responseName
           (field :: (fields ++ [later]))) := by
   cases field with
-  | mk fieldParent fieldResponseName fieldName arguments selectionSet =>
+  | mk fieldName arguments selectionSet =>
       cases later with
-      | mk laterParent laterResponseName laterFieldName laterArguments
-          laterSelectionSet =>
-          dsimp at hfieldResponse hlaterResponse hfieldParent
-          dsimp at hlaterParent hfieldName hresolveFirst hresolveLater
-          dsimp at hprefixResponses hprefixChildren hobjects hchildren
-          subst fieldResponseName
-          subst laterResponseName
-          subst fieldParent
-          subst laterParent
+      | mk laterFieldName laterArguments laterSelectionSet =>
+          dsimp at hfieldName hresolveFirst hresolveLater
+          dsimp at hprefixChildren hobjects hchildren
           subst laterFieldName
-          have hlaterResponseAll :
-              ∀ (candidate : ExecutableField),
-                candidate ∈
-                    ([{ parentType := parentType
-                        responseName := responseName
-                        fieldName := fieldName
-                        arguments := laterArguments
-                        selectionSet := laterSelectionSet }] :
-                      List ExecutableField) ->
-                  candidate.responseName = responseName := by
-            intro candidate hmem
-            simp at hmem
-            subst candidate
-            rfl
           have htailNull :
               visitSubfields schema resolvers variableValues
                 (completionDepth + 2) parentType source
-                (executableFieldSelections
-                  [{ parentType := parentType
-                     responseName := responseName
-                     fieldName := fieldName
+                (executableFieldSelections responseName
+                  [{ fieldName := fieldName
                      arguments := laterArguments
                      selectionSet := laterSelectionSet }])
                 (.object [(responseName, .null)]) =
@@ -2227,20 +894,16 @@ theorem
             visitSubfields_executableFieldSelections_existing_null
               schema resolvers variableValues (completionDepth + 1)
               parentType source responseName
-              [{ parentType := parentType
-                 responseName := responseName
-                 fieldName := fieldName
+              [{ fieldName := fieldName
                  arguments := laterArguments
                  selectionSet := laterSelectionSet }]
-              [(responseName, .null)] hlaterResponseAll
+              [(responseName, .null)]
               (by
                 intro candidate hmem
                 simp at hmem
                 subst candidate
                 exact htailLookups
-                  { parentType := parentType
-                    responseName := responseName
-                    fieldName := fieldName
+                  { fieldName := fieldName
                     arguments := laterArguments
                     selectionSet := laterSelectionSet }
                   (by simp))
@@ -2251,10 +914,8 @@ theorem
                   GroupedFieldVisitAlignedEquivalent responseName
                     (visitSubfields schema resolvers variableValues
                       (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
+                      (executableFieldSelections responseName
+                        ({ fieldName := fieldName
                            arguments := arguments
                            selectionSet := selectionSet } ::
                           fields))
@@ -2267,18 +928,14 @@ theorem
               have htail :
                   visitSubfields schema resolvers variableValues
                     (completionDepth + 2) parentType source
-                    (executableFieldSelections
-                      [{ parentType := parentType
-                         responseName := responseName
-                         fieldName := fieldName
+                    (executableFieldSelections responseName
+                      [{ fieldName := fieldName
                          arguments := laterArguments
                          selectionSet := laterSelectionSet }])
                     (visitSubfields schema resolvers variableValues
                       (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
+                      (executableFieldSelections responseName
+                        ({ fieldName := fieldName
                            arguments := arguments
                            selectionSet := selectionSet } ::
                           fields))
@@ -2286,10 +943,8 @@ theorem
                   mergeResponseFieldResult responseName (.ok (.null, 0))
                     (visitSubfields schema resolvers variableValues
                       (completionDepth + 2) parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
+                      (executableFieldSelections responseName
+                        ({ fieldName := fieldName
                            arguments := arguments
                            selectionSet := selectionSet } ::
                           fields))
@@ -2313,17 +968,13 @@ theorem
                 visitSubfields_append_one_visit_aligned_of_complete
                   schema resolvers variableValues (completionDepth + 2)
                   parentType source
-                  (executableFieldSelections
-                    ({ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
+                  (executableFieldSelections responseName
+                    ({ fieldName := fieldName
                        arguments := arguments
                        selectionSet := selectionSet } ::
                       fields))
-                  (executableFieldSelections
-                    [{ parentType := parentType
-                       responseName := responseName
-                       fieldName := fieldName
+                  (executableFieldSelections responseName
+                    [{ fieldName := fieldName
                        arguments := laterArguments
                        selectionSet := laterSelectionSet }])
                   responseName (.error 1 : Result ResponseValue)
@@ -2337,10 +988,8 @@ theorem
                       GroupedFieldVisitAlignedEquivalent responseName
                         (visitSubfields schema resolvers variableValues
                           (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
+                          (executableFieldSelections responseName
+                            ({ fieldName := fieldName
                                arguments := arguments
                                selectionSet := selectionSet } ::
                               fields))
@@ -2352,18 +1001,14 @@ theorem
                   have htail :
                       visitSubfields schema resolvers variableValues
                         (completionDepth + 2) parentType source
-                        (executableFieldSelections
-                          [{ parentType := parentType
-                             responseName := responseName
-                             fieldName := fieldName
+                        (executableFieldSelections responseName
+                          [{ fieldName := fieldName
                              arguments := laterArguments
                              selectionSet := laterSelectionSet }])
                         (visitSubfields schema resolvers variableValues
                           (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
+                          (executableFieldSelections responseName
+                            ({ fieldName := fieldName
                                arguments := arguments
                                selectionSet := selectionSet } ::
                               fields))
@@ -2371,10 +1016,8 @@ theorem
                       mergeResponseFieldResult responseName (.ok (.null, 0))
                         (visitSubfields schema resolvers variableValues
                           (completionDepth + 2) parentType source
-                          (executableFieldSelections
-                            ({ parentType := parentType
-                               responseName := responseName
-                               fieldName := fieldName
+                          (executableFieldSelections responseName
+                            ({ fieldName := fieldName
                                arguments := arguments
                                selectionSet := selectionSet } ::
                               fields))
@@ -2409,17 +1052,13 @@ theorem
                     visitSubfields_append_one_visit_aligned_of_complete
                       schema resolvers variableValues (completionDepth + 2)
                       parentType source
-                      (executableFieldSelections
-                        ({ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
+                      (executableFieldSelections responseName
+                        ({ fieldName := fieldName
                            arguments := arguments
                            selectionSet := selectionSet } ::
                           fields))
-                      (executableFieldSelections
-                        [{ parentType := parentType
-                           responseName := responseName
-                           fieldName := fieldName
+                      (executableFieldSelections responseName
+                        [{ fieldName := fieldName
                            arguments := laterArguments
                            selectionSet := laterSelectionSet }])
                       responseName (handleFieldError fieldDefinition.outputType)
@@ -2471,12 +1110,6 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
     (hprefixRaw
       : ExecutableFieldsMergedRaw schema resolvers variableValues depth
           parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -2484,18 +1117,18 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2542,7 +1175,7 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2569,8 +1202,7 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
   exact
     ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
       variableValues depth parentType source responseName field fields later
-      resolved hprefixRaw hprefixResponses hfieldResponse hlaterResponse
-      hfieldParent hlaterParent hfieldName htailLookups hresolveFirst hresolveLater
+      resolved hprefixRaw hfieldName htailLookups hresolveFirst hresolveLater
       (by
         intro childDepth runtimeType identity hlt _hcontains hincludes
         exact hprefixChildren childDepth runtimeType identity hlt hincludes)
@@ -2595,12 +1227,6 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix
     (hprefixRaw
       : ExecutableFieldsMergedRaw schema resolvers variableValues depth
           parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -2608,18 +1234,18 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2666,7 +1292,7 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix
       : ∀ childDepth runtimeType identity,
           childDepth < depth
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2693,11 +1319,6 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix
     variableValues depth parentType source responseName field fields later
     resolved
   · exact hprefixRaw
-  · exact hprefixResponses
-  · exact hfieldResponse
-  · exact hlaterResponse
-  · exact hfieldParent
-  · exact hlaterParent
   · exact hfieldName
   · exact htailLookups
   · exact hresolveFirst
@@ -2718,12 +1339,6 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
     (hprefixRaw
       : ExecutableFieldsMergedRaw schema resolvers variableValues depth
           parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -2731,11 +1346,11 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
@@ -2743,7 +1358,7 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2793,7 +1408,7 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2820,8 +1435,7 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix_contained
   exact
     ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
       variableValues depth parentType source responseName field fields later
-      resolved hprefixRaw hprefixResponses hfieldResponse hlaterResponse
-      hfieldParent hlaterParent hfieldName htailLookups hresolveFirst
+      resolved hprefixRaw hfieldName htailLookups hresolveFirst
       hresolveLater
       hprefixChildren hobjects herrors hchildren
 
@@ -2836,12 +1450,6 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
     (hprefixRaw
       : ExecutableFieldsMergedRaw schema resolvers variableValues depth
           parentType source responseName field fields resolved)
-    (hprefixResponses
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hfieldResponse : field.responseName = responseName)
-    (hlaterResponse : later.responseName = responseName)
-    (hfieldParent : field.parentType = parentType)
-    (hlaterParent : later.parentType = parentType)
     (hfieldName : later.fieldName = field.fieldName)
     (htailLookups
       : ∀ candidate,
@@ -2849,11 +1457,11 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
           -> ∃ fieldDefinition,
               schema.lookupField parentType candidate.fieldName = some fieldDefinition)
     (hresolveFirst
-      : resolveFieldValueByName schema resolvers variableValues field.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
         = resolved)
     (hresolveLater
-      : resolveFieldValueByName schema resolvers variableValues later.parentType
+      : resolveFieldValueByName schema resolvers variableValues parentType
           later.fieldName later.arguments source
         = resolved)
     (hprefixChildren
@@ -2861,7 +1469,7 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2911,7 +1519,7 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
           childDepth < depth
           -> ValueContainsObject resolved runtimeType identity
           -> schema.typeIncludesObjectBool
-                ((schema.fieldReturnType? field.parentType field.fieldName).getD
+                ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 runtimeType
               = true
@@ -2938,11 +1546,6 @@ theorem ExecutableFieldsMergedComplete_append_one_of_prefix_contained
     schema resolvers variableValues depth parentType source responseName field
     fields later resolved
   · exact hprefixRaw
-  · exact hprefixResponses
-  · exact hfieldResponse
-  · exact hlaterResponse
-  · exact hfieldParent
-  · exact hlaterParent
   · exact hfieldName
   · exact htailLookups
   · exact hresolveFirst

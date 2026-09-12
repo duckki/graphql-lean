@@ -2799,14 +2799,14 @@ theorem match_coerceArgumentValues_resolveFieldValue
 theorem executeField_succ_eq_coerceAndResolveFieldValue
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (responseName : Name)
+    (parentType : Name) (source : ResolverValue ObjectRef) (responseName : Name)
     (field : ExecutableField) (fields : List ExecutableField)
     (fieldDefinition : FieldDefinition)
-    (hlookup : schema.lookupField field.parentType field.fieldName = some fieldDefinition)
-    : executeField schema resolvers variableValues (fuel + 1) source responseName
-        (field :: fields)
+    (hlookup : schema.lookupField parentType field.fieldName = some fieldDefinition)
+    : executeField schema resolvers variableValues (fuel + 1) parentType source
+        responseName (field :: fields)
       = match coerceAndResolveFieldValue schema resolvers variableValues fieldDefinition
-                field.parentType field.fieldName field.arguments source with
+                parentType field.fieldName field.arguments source with
         | none =>
             singleFieldResult responseName (handleFieldError fieldDefinition.outputType)
         | some resolved =>
@@ -2815,7 +2815,7 @@ theorem executeField_succ_eq_coerceAndResolveFieldValue
                 fieldDefinition.outputType (field :: fields) resolved) := by
   simp only [executeField, hlookup]
   exact match_coerceArgumentValues_resolveFieldValue schema resolvers variableValues
-    fieldDefinition field.parentType field.fieldName field.arguments source
+    fieldDefinition parentType field.fieldName field.arguments source
     (singleFieldResult responseName (handleFieldError fieldDefinition.outputType))
     (fun resolved =>
       singleFieldResult responseName

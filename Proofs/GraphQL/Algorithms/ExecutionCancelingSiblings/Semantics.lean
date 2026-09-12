@@ -158,17 +158,19 @@ private structure FuelImplementationsAligned
           (GraphQL.Execution.completeValueList schema resolvers variableValues
             fuel itemType fields values)
   executeField
-    : ∀ source responseName fields,
+    : ∀ parentType source responseName fields,
         StrongResultAligned
-          (executeField schema resolvers variableValues fuel source responseName fields)
+          (executeField schema resolvers variableValues fuel parentType source
+            responseName fields)
           (GraphQL.Execution.executeField schema resolvers variableValues fuel
-            source responseName fields)
+            parentType source responseName fields)
   executeCollectedFields
-    : ∀ source groups,
+    : ∀ parentType source groups,
         StrongResultAligned
-          (executeCollectedFields schema resolvers variableValues fuel source groups)
+          (executeCollectedFields schema resolvers variableValues fuel parentType source
+            groups)
           (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-            fuel source groups)
+            fuel parentType source groups)
 
 private theorem fuelImplementationsAligned
     {ObjectRef : Type}
@@ -189,23 +191,24 @@ private theorem fuelImplementationsAligned
         simp [completeValue, GraphQL.Execution.completeValue,
           StrongResultAligned, outOfFuel]
       have hfield :
-          ∀ source responseName fields,
+          ∀ parentType source responseName fields,
             StrongResultAligned
-              (executeField schema resolvers variableValues 0 source
+              (executeField schema resolvers variableValues 0 parentType source
                 responseName fields)
               (GraphQL.Execution.executeField schema resolvers variableValues 0
-                source responseName fields) := by
-        intro source responseName fields
+                parentType source responseName fields) := by
+        intro parentType source responseName fields
         cases fields <;>
           simp [executeField, GraphQL.Execution.executeField,
             StrongResultAligned, outOfFuel]
       have hcollected :
-          ∀ source groups,
+          ∀ parentType source groups,
             StrongResultAligned
-              (executeCollectedFields schema resolvers variableValues 0 source groups)
+              (executeCollectedFields schema resolvers variableValues 0 parentType source
+                groups)
               (GraphQL.Execution.executeCollectedFields schema resolvers
-                variableValues 0 source groups) := by
-        intro source groups
+                variableValues 0 parentType source groups) := by
+        intro parentType source groups
         induction groups with
         | nil =>
             simp [executeCollectedFields,
@@ -215,23 +218,23 @@ private theorem fuelImplementationsAligned
             rcases group with ⟨responseName, fields⟩
             simp only [executeCollectedFields,
               GraphQL.Execution.executeCollectedFields]
-            have hhead := hfield source responseName fields
+            have hhead := hfield parentType source responseName fields
             generalize hcancelingHead :
-                executeField schema resolvers variableValues 0 source
+                executeField schema resolvers variableValues 0 parentType source
                     responseName fields =
                   cancelingHead at hhead ⊢
             generalize hspecHead :
                 GraphQL.Execution.executeField schema resolvers variableValues
-                    0 source responseName fields =
+                    0 parentType source responseName fields =
                   specHead at hhead ⊢
             have htail := ih
             generalize hcancelingTail :
                 executeCollectedFields schema resolvers variableValues 0
-                    source rest =
+                    parentType source rest =
                   cancelingTail at htail ⊢
             generalize hspecTail :
                 GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues 0 source rest =
+                    variableValues 0 parentType source rest =
                   specTail at htail ⊢
             cases cancelingHead <;> cases specHead <;>
               cases cancelingTail <;> cases specTail <;>
@@ -305,6 +308,7 @@ private theorem fuelImplementationsAligned
                     hinclude] using
                       StrongResultAligned.catchBubbleAsNull ResponseValue.object
                         (ih.executeCollectedFields
+                          runtimeType
                           (ResolverValue.object runtimeType ref)
                           (collectSubfields schema variableValues runtimeType
                             (ResolverValue.object runtimeType ref) fields))
@@ -340,19 +344,19 @@ private theorem fuelImplementationsAligned
             simpa [completeValue, GraphQL.Execution.completeValue] using
               StrongResultAligned.nonNullCompletion (innerIh fields value)
       have hfield :
-          ∀ source responseName fields,
+          ∀ parentType source responseName fields,
             StrongResultAligned
-              (executeField schema resolvers variableValues (fuel + 1) source
+              (executeField schema resolvers variableValues (fuel + 1) parentType source
                 responseName fields)
               (GraphQL.Execution.executeField schema resolvers variableValues
-                (fuel + 1) source responseName fields) := by
-        intro source responseName fields
+                (fuel + 1) parentType source responseName fields) := by
+        intro parentType source responseName fields
         cases fields with
         | nil =>
             simp [executeField, GraphQL.Execution.executeField,
               StrongResultAligned]
         | cons field fields =>
-            cases hlookup : schema.lookupField field.parentType field.fieldName with
+            cases hlookup : schema.lookupField parentType field.fieldName with
             | none =>
                 simp [executeField, GraphQL.Execution.executeField, hlookup,
                   StrongResultAligned]
@@ -373,7 +377,7 @@ private theorem fuelImplementationsAligned
                         StrongResultAligned.singleFieldResult responseName hhandle
                 | success coercedArguments =>
                     cases hresolve
-                          : resolvers.resolve field.parentType field.fieldName
+                          : resolvers.resolve parentType field.fieldName
                               coercedArguments source with
                     | none =>
                         have hhandle :
@@ -395,13 +399,13 @@ private theorem fuelImplementationsAligned
                               (ih.completeValue fieldDefinition.outputType
                                 (field :: fields) resolved)
       have hcollected :
-          ∀ source groups,
+          ∀ parentType source groups,
             StrongResultAligned
               (executeCollectedFields schema resolvers variableValues
-                (fuel + 1) source groups)
+                (fuel + 1) parentType source groups)
               (GraphQL.Execution.executeCollectedFields schema resolvers
-                variableValues (fuel + 1) source groups) := by
-        intro source groups
+                variableValues (fuel + 1) parentType source groups) := by
+        intro parentType source groups
         induction groups with
         | nil =>
             simp [executeCollectedFields,
@@ -411,23 +415,23 @@ private theorem fuelImplementationsAligned
             rcases group with ⟨responseName, fields⟩
             simp only [executeCollectedFields,
               GraphQL.Execution.executeCollectedFields]
-            have hhead := hfield source responseName fields
+            have hhead := hfield parentType source responseName fields
             generalize hcancelingHead :
-                executeField schema resolvers variableValues (fuel + 1) source
+                executeField schema resolvers variableValues (fuel + 1) parentType source
                     responseName fields =
                   cancelingHead at hhead ⊢
             generalize hspecHead :
                 GraphQL.Execution.executeField schema resolvers variableValues
-                    (fuel + 1) source responseName fields =
+                    (fuel + 1) parentType source responseName fields =
                   specHead at hhead ⊢
             have htail := ih
             generalize hcancelingTail :
                 executeCollectedFields schema resolvers variableValues
-                    (fuel + 1) source rest =
+                    (fuel + 1) parentType source rest =
                   cancelingTail at htail ⊢
             generalize hspecTail :
                 GraphQL.Execution.executeCollectedFields schema resolvers
-                    variableValues (fuel + 1) source rest =
+                    variableValues (fuel + 1) parentType source rest =
                   specTail at htail ⊢
             cases cancelingHead <;> cases specHead <;>
               cases cancelingTail <;> cases specTail <;>
@@ -494,7 +498,7 @@ private theorem executeRootSelectionSet_canceling_spec_aligned
   simpa [executeRootSelectionSet,
     GraphQL.Execution.executeRootSelectionSet] using
       (fuelImplementationsAligned schema resolvers variableValues fuel)
-        |>.executeCollectedFields source
+        |>.executeCollectedFields parentType source
           (collectFields schema variableValues parentType source selectionSet)
 
 theorem executeQueryWithFuel_canceling_spec_responseEquivalent

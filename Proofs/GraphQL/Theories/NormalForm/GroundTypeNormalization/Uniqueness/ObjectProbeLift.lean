@@ -84,24 +84,25 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
-      : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+      : ∀ (fuel : Nat) (parentType : Name)
+          (source : Execution.ResolverValue ObjectRef)
           (fields : List (Name × List Execution.ExecutableField)),
           Execution.executeCollectedFields schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)
-            variableValues fuel (liftResolverValue source) fields
+            variableValues fuel parentType (liftResolverValue source) fields
           = Execution.executeCollectedFields schema (liftResolvers base)
-              variableValues fuel (liftResolverValue source) fields
-    | fuel, source, [] => by
+              variableValues fuel parentType (liftResolverValue source) fields
+    | fuel, parentType, source, [] => by
         simp [Execution.executeCollectedFields]
-    | fuel, source, (responseName, fields) :: rest => by
+    | fuel, parentType, source, (responseName, fields) :: rest => by
         simp [Execution.executeCollectedFields,
           executeField_parentObjectProbeFieldResolvers_liftResolverValue
             schema base variableValues targetParent targetField runtimeType
-            ref outputType fuel source responseName fields,
+            ref outputType fuel parentType source responseName fields,
           executeCollectedFields_parentObjectProbeFieldResolvers_liftResolverValue
             schema base variableValues targetParent targetField runtimeType
-            ref outputType fuel source rest]
+            ref outputType fuel parentType source rest]
 
   theorem executeField_parentObjectProbeFieldResolvers_liftResolverValue
       {ObjectRef : Type} (schema : Schema)
@@ -109,20 +110,21 @@ mutual
       (variableValues : Execution.VariableValues)
       (targetParent targetField runtimeType : Name) (ref : ObjectRef)
       (outputType : TypeRef)
-      : ∀ (fuel : Nat) (source : Execution.ResolverValue ObjectRef)
+      : ∀ (fuel : Nat) (parentType : Name)
+          (source : Execution.ResolverValue ObjectRef)
           (responseName : Name) (fields : List Execution.ExecutableField),
           Execution.executeField schema
             (parentObjectProbeFieldResolvers base targetParent targetField
               runtimeType ref outputType)
-            variableValues fuel (liftResolverValue source) responseName fields
+            variableValues fuel parentType (liftResolverValue source) responseName fields
           = Execution.executeField schema (liftResolvers base) variableValues fuel
-              (liftResolverValue source) responseName fields
-    | fuel, source, responseName, [] => by
+              parentType (liftResolverValue source) responseName fields
+    | fuel, parentType, source, responseName, [] => by
         simp [Execution.executeField]
-    | 0, source, responseName, field :: fields => by
+    | 0, parentType, source, responseName, field :: fields => by
         simp [Execution.executeField]
-    | fuel + 1, source, responseName, field :: fields => by
-        cases hlookup : schema.lookupField field.parentType field.fieldName with
+    | fuel + 1, parentType, source, responseName, field :: fields => by
+        cases hlookup : schema.lookupField parentType field.fieldName with
         | none =>
             simp [Execution.executeField, hlookup]
         | some fieldDefinition =>
@@ -135,12 +137,12 @@ mutual
             have hresolveEq :=
               parentObjectProbeFieldResolvers_resolve_liftResolverValue base
                 targetParent targetField runtimeType ref outputType
-                field.parentType field.fieldName coercedArguments source
+                parentType field.fieldName coercedArguments source
             have hliftResolve :=
-              liftResolvers_resolve_liftResolverValue base field.parentType
+              liftResolvers_resolve_liftResolverValue base parentType
                 field.fieldName coercedArguments source
             cases hresolve :
-                base.resolve field.parentType field.fieldName
+                base.resolve parentType field.fieldName
                   coercedArguments source with
             | none =>
                 simp [Execution.resolveFieldValue, hlookup,
@@ -190,6 +192,7 @@ mutual
                 (parentObjectProbeFieldResolvers base targetParent targetField
                   runtimeType ref outputType)
                 variableValues fuel
+                objectType
                 (Execution.ResolverValue.object objectType (some objectRef))
                 (Execution.collectFields schema variableValues objectType
                   (Execution.ResolverValue.object objectType (some objectRef))
@@ -197,6 +200,7 @@ mutual
               =
               Execution.executeCollectedFields schema (liftResolvers base)
                 variableValues fuel
+                objectType
                 (Execution.ResolverValue.object objectType (some objectRef))
                 (Execution.collectFields schema variableValues objectType
                   (Execution.ResolverValue.object objectType (some objectRef))
@@ -205,6 +209,7 @@ mutual
               executeCollectedFields_parentObjectProbeFieldResolvers_liftResolverValue
                 schema base variableValues targetParent targetField
                 runtimeType ref outputType fuel
+                objectType
                 (Execution.ResolverValue.object objectType objectRef)
                 (Execution.collectFields schema variableValues objectType
                   (liftResolverValue
@@ -277,7 +282,7 @@ theorem executeSelectionSetAsResponse_parentObjectProbeFieldResolvers_liftResolv
     Execution.executeRootSelectionSet,
     executeCollectedFields_parentObjectProbeFieldResolvers_liftResolverValue
       schema base variableValues targetParent targetField runtimeType ref
-      outputType fuel source
+      outputType fuel parentType source
       (Execution.collectFields schema variableValues parentType
         (liftResolverValue source) selectionSet)]
 

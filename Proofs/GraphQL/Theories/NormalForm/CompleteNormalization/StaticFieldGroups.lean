@@ -294,8 +294,6 @@ theorem mergedFieldSelectionSet_source_field_head_eq_staticScopedFields
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -305,8 +303,6 @@ theorem mergedFieldSelectionSet_source_field_head_eq_staticScopedFields
             :: sourceTail
       -> Execution.mergedFieldSelectionSet
             ({
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -382,8 +378,6 @@ theorem mergedFieldSelectionSet_source_completeScoped_field_head_eq_staticFields
           = (
               responseName,
               {
-                parentType := execParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -393,8 +387,6 @@ theorem mergedFieldSelectionSet_source_completeScoped_field_head_eq_staticFields
             :: sourceTail
       -> Execution.mergedFieldSelectionSet
             ({
-                parentType := execParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -443,8 +435,6 @@ theorem mergedFieldSelectionSet_source_completeScoped_field_head_eq_staticFields
             :: eraseCompleteScopedSelectionSet rest)
         =
       (responseName, {
-        parentType := execParent,
-        responseName := responseName,
         fieldName := fieldName,
         arguments := arguments,
         selectionSet := selectionSet
@@ -492,8 +482,6 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_directives
               withoutExecutableGroupsWithResponseName
                 responseName
                 [(fieldResponseName, [{
-                  parentType := parentType,
-                  responseName := fieldResponseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
@@ -536,16 +524,12 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_directives
               withoutExecutableGroupsWithResponseName
                 responseName
                 [(fieldResponseName, [{
-                  parentType := parentType,
-                  responseName := fieldResponseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet
                 }])]
               =
               [(fieldResponseName, [{
-                parentType := parentType,
-                responseName := fieldResponseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -669,13 +653,7 @@ theorem
     (subselections rest : List Selection) (sourceFields : List Execution.ExecutableField)
     (sourceRest : List (Name × List Execution.ExecutableField))
     : let sourceField : Execution.ExecutableField :=
-        {
-          parentType := parentType,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := subselections
-        }
+        { fieldName := fieldName, arguments := arguments, selectionSet := subselections }
       Execution.collectFields schema variableValues parentType source
           (Selection.field responseName fieldName arguments directives subselections
             :: rest)
@@ -708,13 +686,7 @@ theorem executeCollectedFields_staticCollect_fieldHead_filtered_tails_eq
     (normalizedFields sourceFields : List Execution.ExecutableField)
     (normalizedTail sourceTail : List (Name × List Execution.ExecutableField))
     : sourceField
-        = {
-          parentType := lookupParent,
-          responseName := responseName,
-          fieldName := fieldName,
-          arguments := arguments,
-          selectionSet := selectionSet
-        }
+        = { fieldName := fieldName, arguments := arguments, selectionSet := selectionSet }
       -> Execution.collectFields schema variableValues lookupParent source
             (staticCollectForGround schema variables lookupParent
               groundType boolCase
@@ -734,9 +706,9 @@ theorem executeCollectedFields_staticCollect_fieldHead_filtered_tails_eq
               lookupParent source
               (withoutFieldSelectionsWithResponseName schema responseName rest)
       -> Execution.executeCollectedFields schema resolvers variableValues depth
-            source normalizedTail
+            lookupParent source normalizedTail
           = Execution.executeCollectedFields schema resolvers variableValues depth
-              source sourceTail := by
+              lookupParent source sourceTail := by
   intro hsourceField hnormalizedCollect hsourceCollect hfiltered
   have hnormalizedFiltered :
       Execution.collectFields schema variableValues lookupParent source
@@ -801,8 +773,6 @@ theorem
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -818,8 +788,6 @@ theorem
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -834,8 +802,6 @@ theorem
                 fieldDefinition.outputType
                 (Execution.mergedFieldSelectionSet
                   ({
-                      parentType := lookupParent,
-                      responseName := responseName,
                       fieldName := fieldName,
                       arguments := arguments,
                       selectionSet :=
@@ -848,8 +814,6 @@ theorem
                   fieldDefinition.outputType
                   (Execution.mergedFieldSelectionSet
                     ({
-                        parentType := lookupParent,
-                        responseName := responseName,
                         fieldName := fieldName,
                         arguments := arguments,
                         selectionSet := selectionSet
@@ -879,8 +843,6 @@ theorem
                 :: rest) := by
   intro hallow hlookup hnormalizedCollect hsourceCollect hcomplete hfiltered
   let normalizedField : Execution.ExecutableField := {
-    parentType := lookupParent,
-    responseName := responseName,
     fieldName := fieldName,
     arguments := arguments,
     selectionSet :=
@@ -888,18 +850,16 @@ theorem
         fieldDefinition.outputType.namedType selectionSet
   }
   let sourceField : Execution.ExecutableField := {
-    parentType := lookupParent,
-    responseName := responseName,
     fieldName := fieldName,
     arguments := arguments,
     selectionSet := selectionSet
   }
   have htail :
       Execution.executeCollectedFields schema resolvers variableValues depth
-          source normalizedTail
+          lookupParent source normalizedTail
         =
         Execution.executeCollectedFields schema resolvers variableValues depth
-          source sourceTail := by
+          lookupParent source sourceTail := by
     exact executeCollectedFields_staticCollect_fieldHead_filtered_tails_eq
       schema resolvers variableValues
       (operationBoolVars operation) depth lookupParent
@@ -987,8 +947,6 @@ theorem
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet :=
@@ -1005,8 +963,6 @@ theorem
           = (
               responseName,
               {
-                parentType := lookupParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -1088,8 +1044,6 @@ theorem
               fieldDefinition.outputType
               (Execution.mergedFieldSelectionSet
                 ({
-                  parentType := lookupParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet :=
@@ -1102,8 +1056,6 @@ theorem
               fieldDefinition.outputType
               (Execution.mergedFieldSelectionSet
                 ({
-                  parentType := lookupParent,
-                  responseName := responseName,
                   fieldName := fieldName,
                   arguments := arguments,
                   selectionSet := selectionSet

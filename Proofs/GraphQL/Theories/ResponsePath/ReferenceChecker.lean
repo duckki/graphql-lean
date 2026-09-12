@@ -121,17 +121,10 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
       have hrightGroupsReady := executableGroupsSemanticsReady_collectFields schema
         variableValues parentType PUnit.unit rightSelectionSet hparentObject hrightReady
         hrightMerge
-      have hleftParents := collectFields_parent schema variableValues parentType source
-        leftSelectionSet
-      have hrightParents := collectFields_parent schema variableValues parentType source
-        rightSelectionSet
       have hleftKeysNodup :=
         (executableGroupNamesNodup_iff_map_fst_nodup _).mp
           (NormalForm.collectFields_namesNodup schema variableValues parentType source
             leftSelectionSet)
-      have hrightWellFormed :=
-        NormalForm.GroundTypeNormalization.collectFields_wellFormed schema variableValues
-          parentType source rightSelectionSet
       apply List.all_eq_true.mpr
       intro rightGroup hrightGroup
       rcases rightGroup with ⟨rightName, rightFields⟩
@@ -144,12 +137,6 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
       have hrightHeadMem : rightHead ∈ rightHead :: rightRest := by simp
       rcases hrightGroupReady.2.1 rightHead hrightHeadMem with
         ⟨definition, hlookup, _hchildReady⟩
-      have hrightHeadParent : rightHead.parentType = parentType :=
-        hrightParents rightName (rightHead :: rightRest) hrightGroup' rightHead
-          hrightHeadMem
-      have hrightHeadName : rightHead.responseName = rightName :=
-        (hrightWellFormed (rightName, rightHead :: rightRest) hrightGroup').2 rightHead
-          hrightHeadMem
       -- The head step realized by the right group under this Boolean environment.
       let headStep : PathStep :=
         { parentObject := parentType
@@ -159,12 +146,10 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
               arguments := rightHead.arguments
               outputType := definition.outputType } }
       have hheadMatch : executableFieldMatchesPathStep schema rightHead headStep := by
-        refine ⟨hrightHeadName, rfl, ?_, definition, ?_, rfl⟩
+        refine ⟨rfl, ?_, definition, ?_, rfl⟩
         · exact NormalForm.GroundTypeNormalization.argumentsEquivalent_refl
             rightHead.arguments
-        · show schema.lookupField parentType rightHead.fieldName = some definition
-          rw [← hrightHeadParent]
-          exact hlookup
+        · exact hlookup
       have hrightSelects : collectedFieldsSelectPath schema variableValues
           (collectFields schema variableValues parentType source rightSelectionSet)
           [headStep] := by
@@ -174,7 +159,7 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
       simp only [collectedFieldsSelectPath] at hleftSelects
       obtain ⟨leftFields, hleftGroupMem, leftWitness, hleftWitnessMem, hleftMatch⟩ :=
         hleftSelects
-      obtain ⟨hleftWitnessName, hleftWitnessFieldName, hleftWitnessArgs, _witnessDefinition,
+      obtain ⟨hleftWitnessFieldName, hleftWitnessArgs, _witnessDefinition,
         _hwitnessLookup, _hwitnessOutput⟩ := hleftMatch
       have hleftGroupReady := hleftGroupsReady rightName leftFields hleftGroupMem
       obtain ⟨leftHead, leftRest, rfl⟩ := List.exists_cons_of_ne_nil hleftGroupReady.1
@@ -183,18 +168,14 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
       refine ⟨(rightName, leftHead :: leftRest), ?_, ?_⟩
       · simpa [source, collectRuntimeFieldGroups] using hleftGroupMem
       rcases hleftGroupReady.2.2.1 leftHead leftWitness hleftHeadMem hleftWitnessMem with
-        ⟨_hleftHeadWitnessParent, hleftHeadWitnessFieldName, hleftHeadWitnessArgs⟩
-      have hleftHeadParent : leftHead.parentType = parentType :=
-        hleftParents rightName (leftHead :: leftRest) hleftGroupMem leftHead hleftHeadMem
-      have hparent : leftHead.parentType = rightHead.parentType :=
-        hleftHeadParent.trans hrightHeadParent.symm
+        ⟨hleftHeadWitnessFieldName, hleftHeadWitnessArgs⟩
       have hfieldName : leftHead.fieldName = rightHead.fieldName :=
         hleftHeadWitnessFieldName.trans hleftWitnessFieldName
       have harguments : Argument.argumentsEquivalent leftHead.arguments
           rightHead.arguments :=
         argumentsEquivalent_trans hleftHeadWitnessArgs hleftWitnessArgs
       simp only [beq_self_eq_true, Bool.true_and, Bool.and_eq_true]
-      refine ⟨⟨⟨beq_iff_eq.mpr hparent, beq_iff_eq.mpr hfieldName⟩,
+      refine ⟨⟨beq_iff_eq.mpr hfieldName,
         (argumentsSyntacticallyEquivalentBool_iff _ _).mpr harguments⟩, ?_⟩
       rw [hlookup]
       cases hcomposite : definition.outputType.isCompositeBool schema with
@@ -208,21 +189,16 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
           have hincludes : schema.typeIncludesObjectBool
               definition.outputType.namedType childRuntimeType = true :=
             List.contains_iff_mem.mpr hchildRuntime
-          have hleftWitnessLookup : schema.lookupField leftWitness.parentType
+          have hleftWitnessLookup : schema.lookupField parentType
               leftWitness.fieldName = some definition := by
-            have hleftWitnessParent : leftWitness.parentType = parentType :=
-              hleftParents rightName (leftHead :: leftRest) hleftGroupMem leftWitness
-                hleftWitnessMem
-            rw [hleftWitnessParent, hleftWitnessFieldName]
-            show schema.lookupField parentType rightHead.fieldName = some definition
-            rw [← hrightHeadParent]
+            rw [hleftWitnessFieldName]
             exact hlookup
           have hleftCompletion : completionFieldsSemanticsReady schema
-              definition.outputType (leftHead :: leftRest) :=
+              parentType definition.outputType (leftHead :: leftRest) :=
             ⟨hleftGroupReady, leftWitness, definition, hleftWitnessMem,
               hleftWitnessLookup, rfl⟩
           have hrightCompletion : completionFieldsSemanticsReady schema
-              definition.outputType (rightHead :: rightRest) :=
+              parentType definition.outputType (rightHead :: rightRest) :=
             ⟨hrightGroupReady, rightHead, definition, hrightHeadMem, hlookup, rfl⟩
           have hrightFieldsDepth : ExecutableFieldsResponseDepthBound
               (rightHead :: rightRest) (childFuel + 1) := by
@@ -365,10 +341,10 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             | nil => simp at hentry
             | cons head tail => exact ⟨head, tail, rfl⟩
           simp only [Bool.and_eq_true, beq_iff_eq] at hentry
-          obtain ⟨hleftName, ⟨⟨_hparentEq, hfieldNameEq⟩, hargumentsBool⟩, _hlookupPart⟩ :=
+          obtain ⟨hleftName, ⟨hfieldNameEq, hargumentsBool⟩, _hlookupPart⟩ :=
             hentry
           subst hleftName
-          obtain ⟨hrightWitnessName, hrightWitnessFieldName, hrightWitnessArgs,
+          obtain ⟨hrightWitnessFieldName, hrightWitnessArgs,
             witnessDefinition, hwitnessLookup, hwitnessOutput⟩ := hrightMatch
           have hrightGroupsReady := executableGroupsSemanticsReady_collectFields schema
             variableValues parentType PUnit.unit rightSelectionSet hparentObject
@@ -377,16 +353,9 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             (rightHead :: rightRest) hrightMem
           rcases hrightGroupReady.2.2.1 rightHead rightWitness (by simp)
               hrightWitnessMem with
-            ⟨_hheadWitnessParent, hheadWitnessFieldName, hheadWitnessArgs⟩
-          have hleftWellFormed :=
-            NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
-              variableValues parentType (ResolverValue.object parentType PUnit.unit)
-              leftSelectionSet
-          have hleftHeadName : leftHead.responseName = step.responseName :=
-            (hleftWellFormed (step.responseName, leftHead :: leftRest) hleftMem).2
-              leftHead (by simp)
+            ⟨hheadWitnessFieldName, hheadWitnessArgs⟩
           refine ⟨leftHead :: leftRest, hleftMem, leftHead, by simp, ?_⟩
-          refine ⟨hleftHeadName, ?_, ?_, witnessDefinition, hwitnessLookup,
+          refine ⟨?_, ?_, witnessDefinition, hwitnessLookup,
             hwitnessOutput⟩
           · exact hfieldNameEq.trans
               (hheadWitnessFieldName.trans hrightWitnessFieldName)
@@ -424,10 +393,10 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             | nil => simp at hentry
             | cons head tail => exact ⟨head, tail, rfl⟩
           simp only [Bool.and_eq_true, beq_iff_eq] at hentry
-          obtain ⟨hleftName, ⟨⟨_hparentEq, hfieldNameEq⟩, hargumentsBool⟩, hlookupPart⟩ :=
+          obtain ⟨hleftName, ⟨hfieldNameEq, hargumentsBool⟩, hlookupPart⟩ :=
             hentry
           subst hleftName
-          obtain ⟨hrightWitnessName, hrightWitnessFieldName, hrightWitnessArgs,
+          obtain ⟨hrightWitnessFieldName, hrightWitnessArgs,
             witnessDefinition, hwitnessLookup, hwitnessOutput⟩ := hrightMatch
           have hleftGroupsReady := executableGroupsSemanticsReady_collectFields schema
             variableValues parentType PUnit.unit leftSelectionSet hparentObject
@@ -441,23 +410,13 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             (rightHead :: rightRest) hrightMem
           rcases hrightGroupReady.2.2.1 rightHead rightWitness (by simp)
               hrightWitnessMem with
-            ⟨_hheadWitnessParent, hheadWitnessFieldName, hheadWitnessArgs⟩
-          have hrightParents := collectFields_parent schema variableValues parentType
-            (ResolverValue.object parentType PUnit.unit) rightSelectionSet
-          have hleftParents := collectFields_parent schema variableValues parentType
-            (ResolverValue.object parentType PUnit.unit) leftSelectionSet
-          have hrightHeadParent : rightHead.parentType = parentType :=
-            hrightParents step.responseName (rightHead :: rightRest) hrightMem rightHead
-              (by simp)
-          have hleftHeadParent : leftHead.parentType = parentType :=
-            hleftParents step.responseName (leftHead :: leftRest) hleftMem leftHead
-              (by simp)
+            ⟨hheadWitnessFieldName, hheadWitnessArgs⟩
           -- The checker's lookup is the path step's lookup.
           rcases hrightGroupReady.2.1 rightHead (by simp) with
             ⟨definition, hlookup, _hchildReady⟩
           have hlookupAtStep : schema.lookupField step.parentObject
               step.field.fieldName = some definition := by
-            rw [hscope, ← hrightHeadParent, ← hrightWitnessFieldName,
+            rw [hscope, ← hrightWitnessFieldName,
               ← hheadWitnessFieldName]
             exact hlookup
           have hdefinitionEq : witnessDefinition = definition := by
@@ -486,15 +445,15 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
           have hincludesBool : schema.typeIncludesObjectBool
               definition.outputType.namedType next.parentObject = true :=
             List.contains_iff_mem.mpr hnextPossible
-          have hleftHeadLookup : schema.lookupField leftHead.parentType
+          have hleftHeadLookup : schema.lookupField parentType
               leftHead.fieldName = some definition := by
-            rw [hleftHeadParent, hfieldNameEq, ← hrightHeadParent]
+            rw [hfieldNameEq]
             exact hlookup
           have hleftCompletion : completionFieldsSemanticsReady schema
-              definition.outputType (leftHead :: leftRest) :=
+              parentType definition.outputType (leftHead :: leftRest) :=
             ⟨hleftGroupReady, leftHead, definition, by simp, hleftHeadLookup, rfl⟩
           have hrightCompletion : completionFieldsSemanticsReady schema
-              definition.outputType (rightHead :: rightRest) :=
+              parentType definition.outputType (rightHead :: rightRest) :=
             ⟨hrightGroupReady, rightHead, definition, by simp, hlookup, rfl⟩
           have hchildRight' : collectedFieldsSelectPath schema variableValues
               (collectFields schema variableValues next.parentObject
@@ -528,16 +487,9 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
             (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
               using hrightChildMerge)
             hchildCheck rfl hchildRight'
-          have hleftWellFormed :=
-            NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
-              variableValues parentType (ResolverValue.object parentType PUnit.unit)
-              leftSelectionSet
-          have hleftHeadName : leftHead.responseName = step.responseName :=
-            (hleftWellFormed (step.responseName, leftHead :: leftRest) hleftMem).2
-              leftHead (by simp)
           refine ⟨leftHead :: leftRest, hleftMem, ⟨leftHead, by simp, ?_⟩,
             htypeIncludes, ?_⟩
-          · refine ⟨hleftHeadName, ?_, ?_, definition, hwitnessLookup, hwitnessOutput⟩
+          · refine ⟨?_, ?_, definition, hwitnessLookup, hwitnessOutput⟩
             · exact hfieldNameEq.trans
                 (hheadWitnessFieldName.trans hrightWitnessFieldName)
             · exact argumentsEquivalent_trans

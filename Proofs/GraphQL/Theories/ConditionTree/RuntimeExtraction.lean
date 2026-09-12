@@ -592,17 +592,15 @@ theorem runtimeFieldsForConditionEntries_perm
         runtimeType source left).Perm
         (runtimeFieldsForConditionEntries schema variableValues executionParentType
           runtimeType source right) := by
-  exact List.Perm.flatMap (β := ExecutableField) hentries fun entry =>
+  exact List.Perm.flatMap (β := Name × ExecutableField) hentries fun entry =>
     if entry.1.allows variableValues runtimeType then
       match entry.2 with
       | .field responseName fieldName arguments _directives selectionSet =>
-          [{
-            parentType := executionParentType
-            responseName
+          [(responseName, {
             fieldName
             arguments
             selectionSet
-          }]
+          })]
       | .inlineFragment .. => []
     else []
 
@@ -612,10 +610,11 @@ theorem collectFlatFields_perm_flatten_collectFields
     (parentType : Name) (source : ResolverValue ObjectRef)
     (selectionSet : List Selection)
     : (collectFlatFields schema variableValues parentType source selectionSet).Perm
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues parentType source selectionSet)) := by
   simpa [ConditionTree.collectFlatFields_eq_fieldGroups,
-    ConditionTree.flattenCollectedFields_eq_fieldGroups] using
+    ConditionTree.flattenExecutableFieldGroups,
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
     Execution.FieldGroups.collectFlatFields_perm_flatten_collectFields schema
       variableValues parentType source selectionSet
 
@@ -630,7 +629,7 @@ theorem extraction_runtimeFields_perm
     : ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
           selectionSet).collectRuntimeFields
         variableValues executionParentType runtimeType).Perm
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
   have hroot :
@@ -666,11 +665,11 @@ theorem extraction_runtimeGroups_occurrence_equivalent
     (executionParentType runtimeType : Name) (ref : ObjectRef)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hpossible : (schema.getPossibleTypes parentType).contains runtimeType = true)
-    : (flattenCollectedFields
+    : (flattenExecutableFieldGroups
         ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet).collectRuntimeFieldGroups
           variableValues executionParentType runtimeType)).Perm
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
   exact (Tree.collectRuntimeFieldGroups_exact variableValues executionParentType
@@ -705,8 +704,8 @@ theorem extracted_runtimeGroups_permutationEquivalent
   · exact (Execution.FieldGroups.executableGroupNamesNodup_iff_map_fst_nodup _).mp
       (NormalForm.collectFields_namesNodup schema variableValues
         executionParentType (.object runtimeType ref) selectionSet)
-  · simpa [ConditionTree.flattenCollectedFields_eq_fieldGroups,
-      Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd] using
+  · simpa [ConditionTree.flattenExecutableFieldGroups,
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
       extraction_runtimeGroups_occurrence_equivalent schema parentType
         inheritedBooleanCondition selectionSet variableValues executionParentType
         runtimeType ref hinherited hpossible
@@ -784,14 +783,16 @@ theorem extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
             executionParentType (.object runtimeType ref) hselectionSet).trans
             (collectFlatFields_perm_flatten_collectFields schema variableValues
               executionParentType (.object runtimeType ref) rightSelectionSet)))
-    simpa [ConditionTree.flattenCollectedFields_eq_fieldGroups,
-      Execution.FieldGroups.flattenCollectedFields_eq_flatMap_snd] using hperm
+    simpa [ConditionTree.flattenExecutableFieldGroups,
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using hperm
 
-theorem flattenCollectedFields_eq_collectedExecutableFields
+theorem flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields
     (groups : List (Name × List ExecutableField))
-    : flattenCollectedFields groups = collectedExecutableFields groups := by
-  rw [ConditionTree.flattenCollectedFields_eq_fieldGroups]
-  exact Execution.FieldGroups.flattenCollectedFields_eq_collectedExecutableFields groups
+    : (flattenExecutableFieldGroups groups).map Prod.snd
+      = collectedExecutableFields groups := by
+  exact
+    Execution.FieldGroups.flattenExecutableFieldGroups_map_snd_eq_collectedExecutableFields
+      groups
 
 end RuntimeExtraction
 end ConditionTree

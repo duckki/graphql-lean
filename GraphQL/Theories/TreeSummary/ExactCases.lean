@@ -741,17 +741,18 @@ structure Soundness
     extends SoundnessCore concrete abstract where
   joinFactoringLaws : JoinFactoringLaws abstract abstractLawful
   field_sound
-    : ∀ group field fieldDefinition value children abstractChildren,
+    : ∀ group parentType field fieldDefinition value children abstractChildren,
         group.representativeMatches field
-        -> field.parentType ∈ group.condition.possibleTypes
+        -> parentType ∈ group.condition.possibleTypes
         -> (field.arguments.map Argument.name).Nodup
-        -> schema.lookupField field.parentType field.fieldName = some fieldDefinition
+        -> schema.lookupField parentType field.fieldName = some fieldDefinition
         -> fieldDefinition.outputType ∈ group.fieldOutputTypes schema
         -> approximates children
             (foldChildSummaryForValue abstract abstractChildren value)
         -> approximates
             (concrete.field
-              (resolvedFieldProvenance schema variableValues fieldDefinition field)
+              (resolvedFieldProvenance schema variableValues parentType fieldDefinition
+                field)
               value children)
             (abstract.field group abstractChildren)
 

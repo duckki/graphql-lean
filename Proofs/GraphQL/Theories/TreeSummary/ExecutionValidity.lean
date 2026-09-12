@@ -10,11 +10,12 @@ open GraphQL.Execution
 open GraphQL.Algorithms.ExecutionUngroupedUncached.Eager
 
 /-- Validation facts retained for the children of one concrete response-name group. -/
-def ExecutableFieldsChildrenValid (schema : Schema) (fields : List ExecutableField)
+def ExecutableFieldsChildrenValid (schema : Schema) (parentType : Name)
+    (fields : List ExecutableField)
     : Prop :=
   ∀ first definition childRuntime,
     first ∈ fields
-    -> schema.lookupField first.parentType first.fieldName = some definition
+    -> schema.lookupField parentType first.fieldName = some definition
     -> schema.typeIncludesObjectBool definition.outputType.namedType childRuntime = true
     -> schema.objectType childRuntime
         ∧ NormalForm.selectionSetSemanticsReady schema childRuntime
@@ -25,18 +26,20 @@ def ExecutableFieldsChildrenValid (schema : Schema) (fields : List ExecutableFie
 /-- Field-merging and argument-validity facts retained recursively for collected runtime
 groups. Named fields keep the recursive soundness proofs independent of conjunction
 nesting. -/
-structure ExecutableFieldGroupValid (schema : Schema) (fields : List ExecutableField)
+structure ExecutableFieldGroupValid (schema : Schema) (parentType : Name)
+    (fields : List ExecutableField)
     : Prop where
   mergeCompatible : ExecutableFieldsFieldValidationMergeCompatible fields
-  childrenValid : ExecutableFieldsChildrenValid schema fields
+  childrenValid : ExecutableFieldsChildrenValid schema parentType fields
   argumentsNodup : ExecutableFieldsArgumentsNodup fields
   childArgumentsNodup
     : ∀ field, field ∈ fields -> selectionSetArgumentsNodup field.selectionSet
 
-def ExecutableGroupsValid (schema : Schema) (groups : List (Name × List ExecutableField))
+def ExecutableGroupsValid (schema : Schema) (parentType : Name)
+    (groups : List (Name × List ExecutableField))
     : Prop :=
   ∀ responseName fields,
-    (responseName, fields) ∈ groups -> ExecutableFieldGroupValid schema fields
+    (responseName, fields) ∈ groups -> ExecutableFieldGroupValid schema parentType fields
 
 theorem collectFields_executableGroupsValid
     {ObjectRef : Type}
@@ -47,7 +50,7 @@ theorem collectFields_executableGroupsValid
     (hready : NormalForm.selectionSetSemanticsReady schema runtimeType selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
     (harguments : selectionSetArgumentsNodup selectionSet)
-    : ExecutableGroupsValid schema
+    : ExecutableGroupsValid schema runtimeType
         (collectFields schema variableValues runtimeType (.object runtimeType ref)
           selectionSet) := by
   let source : ResolverValue ObjectRef := .object runtimeType ref

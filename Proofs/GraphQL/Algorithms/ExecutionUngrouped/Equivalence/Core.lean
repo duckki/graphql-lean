@@ -104,7 +104,7 @@ def specProjectionResult (state : ExecutionEquivalenceState ObjectIdentity)
     : Result ResponseValue :=
   match GraphQL.Execution.executeCollectedFields state.window.schema
           state.window.resolvers state.window.variableValues state.window.depth
-          state.window.source
+          state.window.parentType state.window.source
           (GraphQL.Execution.collectFields state.window.schema
             state.window.variableValues state.window.parentType state.window.source
             state.window.selectionSet) with
@@ -901,18 +901,13 @@ def ExecutableFieldsMergeCompatible (fields : List ExecutableField) : Prop :=
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.responseName = later.responseName
-    -> first.parentType = later.parentType
-        ∧ first.fieldName = later.fieldName
-        ∧ first.arguments = later.arguments
+    -> first.fieldName = later.fieldName ∧ first.arguments = later.arguments
 
 def ExecutableFieldsValidationMergeCompatible (fields : List ExecutableField) : Prop :=
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.responseName = later.responseName
-    -> first.parentType = later.parentType
-        ∧ first.fieldName = later.fieldName
+    -> first.fieldName = later.fieldName
         ∧ Argument.argumentsEquivalent first.arguments later.arguments
 
 def ExecutableFieldsSameParentValidationMergeCompatible (fields : List ExecutableField)
@@ -920,8 +915,6 @@ def ExecutableFieldsSameParentValidationMergeCompatible (fields : List Executabl
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.responseName = later.responseName
-    -> first.parentType = later.parentType
     -> first.fieldName = later.fieldName
         ∧ Argument.argumentsEquivalent first.arguments later.arguments
 
@@ -930,7 +923,6 @@ def ExecutableFieldsFieldValidationMergeCompatible (fields : List ExecutableFiel
   ∀ first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.responseName = later.responseName
     -> first.fieldName = later.fieldName
         ∧ Argument.argumentsEquivalent first.arguments later.arguments
 
@@ -938,14 +930,10 @@ def ExecutableFieldsArgumentsNodup (fields : List ExecutableField) : Prop :=
   ∀ field, field ∈ fields -> (field.arguments.map Argument.name).Nodup
 
 def ExecutableFieldsSameResponseParent (fields : List ExecutableField) : Prop :=
-  ∀ first later,
-    first ∈ fields
-    -> later ∈ fields
-    -> first.responseName = later.responseName
-    -> first.parentType = later.parentType
+  ∀ first later, first ∈ fields -> later ∈ fields -> True
 
-def ExecutableFieldsParent (parentType : Name) (fields : List ExecutableField) : Prop :=
-  ∀ field, field ∈ fields -> field.parentType = parentType
+def ExecutableFieldsParent (_parentType : Name) (fields : List ExecutableField) : Prop :=
+  ∀ field, field ∈ fields -> True
 
 def ScopedFieldsValidationMergeCompatible (fields : List FieldMerge.ScopedField) : Prop :=
   ∀ first later,
@@ -1188,11 +1176,11 @@ theorem ScopedFieldRuntimeApplies.mergeIdentityCondition
   · exact Or.inr (Or.inl hfirstObject)
 
 def ScopedFieldMatchesExecutable
+    (parentType : Name)
     (scopedField : FieldMerge.ScopedField)
     (executableField : ExecutableField)
     : Prop :=
-  scopedField.parentType = executableField.parentType
-  ∧ scopedField.responseName = executableField.responseName
+  scopedField.parentType = parentType
   ∧ scopedField.fieldName = executableField.fieldName
   ∧ scopedField.arguments = executableField.arguments
   ∧ scopedField.selectionSet = executableField.selectionSet
@@ -1201,19 +1189,20 @@ def ScopedFieldMatchesExecutableIdentity
     (scopedField : FieldMerge.ScopedField)
     (executableField : ExecutableField)
     : Prop :=
-  scopedField.responseName = executableField.responseName
-  ∧ scopedField.fieldName = executableField.fieldName
+  scopedField.fieldName = executableField.fieldName
   ∧ scopedField.arguments = executableField.arguments
   ∧ scopedField.selectionSet = executableField.selectionSet
 
 def ExecutableFieldsScopedBy
+    (parentType : Name)
     (scopedFields : List FieldMerge.ScopedField)
     (fields : List ExecutableField)
     : Prop :=
   ∀ field,
     field ∈ fields
     -> ∃ scopedField,
-        scopedField ∈ scopedFields ∧ ScopedFieldMatchesExecutable scopedField field
+        scopedField ∈ scopedFields
+        ∧ ScopedFieldMatchesExecutable parentType scopedField field
 
 def ExecutableFieldsIdentityScopedBy
     (scopedFields : List FieldMerge.ScopedField)
@@ -1238,24 +1227,25 @@ def ExecutableFieldsRuntimeScopedBy
         ∧ ScopedFieldRuntimeApplies schema runtimeType scopedField
 
 theorem ScopedFieldMatchesExecutable.identity
+    {parentType : Name}
     {scopedField : FieldMerge.ScopedField}
     {executableField : ExecutableField}
-    : ScopedFieldMatchesExecutable scopedField executableField
+    : ScopedFieldMatchesExecutable parentType scopedField executableField
       -> ScopedFieldMatchesExecutableIdentity scopedField executableField := by
   intro hmatch
-  rcases hmatch with
-    ⟨_hparent, hresponseName, hfieldName, harguments, hselectionSet⟩
-  exact ⟨hresponseName, hfieldName, harguments, hselectionSet⟩
+  exact hmatch.2
 
 theorem ExecutableFieldsScopedBy.identity
+    (parentType : Name)
     (scopedFields : List FieldMerge.ScopedField)
     (fields : List ExecutableField)
-    : ExecutableFieldsScopedBy scopedFields fields
+    : ExecutableFieldsScopedBy parentType scopedFields fields
       -> ExecutableFieldsIdentityScopedBy scopedFields fields := by
   intro hscoped field hfield
   rcases hscoped field hfield with
     ⟨scopedField, hscopedMem, hmatch⟩
-  exact ⟨scopedField, hscopedMem, ScopedFieldMatchesExecutable.identity hmatch⟩
+  exact ⟨scopedField, hscopedMem,
+    ScopedFieldMatchesExecutable.identity (parentType := parentType) hmatch⟩
 
 theorem ExecutableFieldsRuntimeScopedBy.identityScopedBy
     (schema : Schema) (runtimeType : Name)
@@ -1283,13 +1273,12 @@ def ExecutableFieldsResolveStable
     (resolvers : Resolvers ObjectIdentity) (variableValues : VariableValues)
     (source : ResolverValue ObjectIdentity) (fields : List ExecutableField)
     : Prop :=
-  ∀ first later,
+  ∀ parentType first later,
     first ∈ fields
     -> later ∈ fields
-    -> first.responseName = later.responseName
-    -> resolveFieldValueByName schema resolvers variableValues first.parentType
+    -> resolveFieldValueByName schema resolvers variableValues parentType
           first.fieldName first.arguments source
-        = resolveFieldValueByName schema resolvers variableValues later.parentType
+        = resolveFieldValueByName schema resolvers variableValues parentType
             later.fieldName later.arguments source
 
 def ResolversRespectArgumentEquivalence
@@ -1374,8 +1363,8 @@ theorem ExecutableFieldsResolveStable.tail
     : ExecutableFieldsResolveStable schema resolvers variableValues source
         (field :: fields)
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hstable first later hfirst hlater hresponse
-  exact hstable first later (by simp [hfirst]) (by simp [hlater]) hresponse
+  intro hstable parentType first later hfirst hlater
+  exact hstable parentType first later (by simp [hfirst]) (by simp [hlater])
 
 theorem ExecutableFieldsResolveStable.head_eq_later
     {ObjectIdentity : Type} (schema : Schema) (resolvers : Resolvers ObjectIdentity)
@@ -1385,40 +1374,41 @@ theorem ExecutableFieldsResolveStable.head_eq_later
     : ExecutableFieldsResolveStable schema resolvers variableValues source
         (field :: fields)
       -> later ∈ fields
-      -> field.responseName = later.responseName
-      -> resolveFieldValueByName schema resolvers variableValues field.parentType
+      -> ∀ parentType,
+          resolveFieldValueByName schema resolvers variableValues parentType
             field.fieldName field.arguments source
-          = resolveFieldValueByName schema resolvers variableValues later.parentType
+          = resolveFieldValueByName schema resolvers variableValues parentType
               later.fieldName later.arguments source := by
-  intro hstable hlater hresponse
-  exact hstable field later (by simp) (by simp [hlater]) hresponse
+  intro hstable hlater parentType
+  exact hstable parentType field later (by simp) (by simp [hlater])
 
 structure ExecutedResponseFieldAt
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (completionDepth : Nat)
+    (parentType responseName : Name)
     (source : ResolverValue ObjectIdentity) (output : ResponseValue)
     (field : ExecutableField) (response : ResponseValue) where
   previous : ResponseValue
   resolved : ResolverValue ObjectIdentity
-  previous_eq
-    : previous = (responseObjectField? field.responseName output).getD (.object [])
+  previous_eq : previous = (responseObjectField? responseName output).getD (.object [])
   resolved_eq
     : resolved
-      = resolveFieldValueByName schema resolvers variableValues field.parentType
+      = resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source
   response_eq
     : response
       = completeValue schema resolvers variableValues completionDepth
-          ((schema.fieldReturnType? field.parentType field.fieldName).getD
-            field.fieldName)
+          ((schema.fieldReturnType? parentType field.fieldName).getD field.fieldName)
           field.selectionSet resolved previous
 
-def executableFieldSelection (field : ExecutableField) : Selection :=
-  .field field.responseName field.fieldName field.arguments [] field.selectionSet
+def executableFieldSelection (responseName : Name) (field : ExecutableField)
+    : Selection :=
+  .field responseName field.fieldName field.arguments [] field.selectionSet
 
-def executableFieldSelections (fields : List ExecutableField) : List Selection :=
-  fields.map executableFieldSelection
+def executableFieldSelections (responseName : Name) (fields : List ExecutableField)
+    : List Selection :=
+  fields.map (executableFieldSelection responseName)
 
 theorem selectionDirectivesAllowBool_empty (variableValues : VariableValues)
     : selectionDirectivesAllowBool variableValues [] = true := by
@@ -1428,28 +1418,13 @@ theorem collectSelection_executableFieldSelection
     {ObjectIdentity : Type}
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
+    (responseName : Name)
     (field : ExecutableField)
     : GraphQL.Execution.collectSelection schema variableValues parentType source
-        (executableFieldSelection field)
-      = [(field.responseName, [{ field with parentType := parentType }])] := by
+        (executableFieldSelection responseName field)
+      = [(responseName, [field])] := by
   simp [executableFieldSelection, GraphQL.Execution.collectSelection,
     selectionDirectivesAllowBool_empty]
-
-theorem collectSelection_executableFieldSelection_of_parent
-    {ObjectIdentity : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (field : ExecutableField)
-    : field.parentType = parentType
-      -> GraphQL.Execution.collectSelection schema variableValues parentType source
-            (executableFieldSelection field)
-          = [(field.responseName, [field])] := by
-  intro hparent
-  cases field with
-  | mk fieldParent responseName fieldName arguments selectionSet =>
-      dsimp at hparent ⊢
-      subst fieldParent
-      simp [collectSelection_executableFieldSelection]
 
 theorem collectFields_executableFieldSelections_same_group
     {ObjectIdentity : Type}
@@ -1457,52 +1432,35 @@ theorem collectFields_executableFieldSelections_same_group
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name)
     : ∀ fields : List ExecutableField,
-        (∀ field, field ∈ fields -> field.responseName = responseName)
-        -> (∀ field, field ∈ fields -> field.parentType = parentType)
-        -> GraphQL.Execution.collectFields schema variableValues parentType source
-              (executableFieldSelections fields)
-            = match fields with
-              | [] => []
-              | _field :: _rest => [(responseName, fields)]
-  | [], _hresponse, _hparent => by
+        GraphQL.Execution.collectFields schema variableValues parentType source
+          (executableFieldSelections responseName fields)
+        = match fields with
+          | [] => []
+          | _field :: _rest => [(responseName, fields)]
+  | [] => by
       simp [executableFieldSelections, GraphQL.Execution.collectFields]
-  | field :: rest, hresponse, hparent => by
-      have hfieldResponse : field.responseName = responseName :=
-        hresponse field (by simp)
-      have hfieldParent : field.parentType = parentType :=
-        hparent field (by simp)
-      have hrestResponse :
-          ∀ restField, restField ∈ rest ->
-            restField.responseName = responseName := by
-        intro restField hmem
-        exact hresponse restField (by simp [hmem])
-      have hrestParent :
-          ∀ restField, restField ∈ rest ->
-            restField.parentType = parentType := by
-        intro restField hmem
-        exact hparent restField (by simp [hmem])
+  | field :: rest => by
       cases rest with
       | nil =>
           simp [executableFieldSelections, GraphQL.Execution.collectFields,
-            collectSelection_executableFieldSelection_of_parent schema
-              variableValues parentType source field hfieldParent,
-            GraphQL.Execution.mergeExecutableGroups, hfieldResponse]
+            collectSelection_executableFieldSelection schema variableValues
+              parentType source responseName field,
+            GraphQL.Execution.mergeExecutableGroups]
       | cons next restTail =>
           have hrestCollect :=
             collectFields_executableFieldSelections_same_group schema
               variableValues parentType source responseName (next :: restTail)
-              hrestResponse hrestParent
           change
             GraphQL.Execution.mergeExecutableGroups
               (GraphQL.Execution.collectSelection schema variableValues
-                parentType source (executableFieldSelection field))
+                parentType source (executableFieldSelection responseName field))
               (GraphQL.Execution.collectFields schema variableValues parentType
-                source (executableFieldSelections (next :: restTail))) =
+                source (executableFieldSelections responseName (next :: restTail))) =
             [(responseName, field :: next :: restTail)]
-          rw [collectSelection_executableFieldSelection_of_parent schema
-            variableValues parentType source field hfieldParent, hrestCollect]
+          rw [collectSelection_executableFieldSelection schema variableValues
+            parentType source responseName field, hrestCollect]
           simp [GraphQL.Execution.mergeExecutableGroups,
-            GraphQL.Execution.addExecutableGroup, hfieldResponse]
+            GraphQL.Execution.addExecutableGroup]
 
 theorem specExecuteRootSelectionSet_executableFieldSelections_same_group
     {ObjectIdentity : Type}
@@ -1511,17 +1469,13 @@ theorem specExecuteRootSelectionSet_executableFieldSelections_same_group
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hresponse
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.responseName = responseName)
-    (hparent
-      : ∀ candidate, candidate ∈ field :: fields -> candidate.parentType = parentType)
     : GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
-        depth parentType source (executableFieldSelections (field :: fields))
+        depth parentType source (executableFieldSelections responseName (field :: fields))
       = GraphQL.Execution.executeCollectedFields schema resolvers variableValues
-          depth source [(responseName, field :: fields)] := by
+          depth parentType source [(responseName, field :: fields)] := by
   simp [GraphQL.Execution.executeRootSelectionSet,
     collectFields_executableFieldSelections_same_group schema variableValues
-      parentType source responseName (field :: fields) hresponse hparent]
+      parentType source responseName (field :: fields)]
 
 theorem ResolversRespectFieldAndArgumentEquivalence.to_valid
     {ObjectIdentity : Type} {schema : Schema} {resolvers : Resolvers ObjectIdentity}
@@ -1558,9 +1512,9 @@ def CollectedGroupsParent
   ∀ responseName fields,
     (responseName, fields) ∈ groups -> ExecutableFieldsParent parentType fields
 
-def ExecutableFieldsResponseName (responseName : Name) (fields : List ExecutableField)
+def ExecutableFieldsResponseName (_responseName : Name) (fields : List ExecutableField)
     : Prop :=
-  ∀ field, field ∈ fields -> field.responseName = responseName
+  ∀ field, field ∈ fields -> True
 
 def CollectedGroupsResponseName (groups : List (Name × List ExecutableField)) : Prop :=
   ∀ responseName fields,
@@ -1656,8 +1610,8 @@ theorem ExecutableFieldsParent.sameResponseParent
     (parentType : Name) (fields : List ExecutableField)
     : ExecutableFieldsParent parentType fields
       -> ExecutableFieldsSameResponseParent fields := by
-  intro hparent first later hfirst hlater _hresponse
-  rw [hparent first hfirst, hparent later hlater]
+  intro _hparent _first _later _hfirst _hlater
+  trivial
 
 theorem CollectedGroupsParent.sameResponseParent
     (parentType : Name) (groups : List (Name × List ExecutableField))
@@ -1669,13 +1623,9 @@ theorem CollectedGroupsParent.sameResponseParent
 
 theorem ExecutableFieldsResponseName_singleton
     (responseName : Name) (field : ExecutableField)
-    : field.responseName = responseName
-      -> ExecutableFieldsResponseName responseName [field] := by
-  intro hfield candidate hmem
-  have hcandidate : candidate = field := by
-    simpa using hmem
-  subst candidate
-  exact hfield
+    : ExecutableFieldsResponseName responseName [field] := by
+  intro _candidate _hmem
+  trivial
 
 theorem ExecutableFieldsResponseName_append
     (responseName : Name) (left right : List ExecutableField)
@@ -1774,12 +1724,9 @@ theorem CollectedGroupsResponseName_mergeExecutableGroups
         (CollectedGroupsResponseName_tail hright)
 
 theorem ExecutableFieldsParent_singleton (parentType : Name) (field : ExecutableField)
-    : field.parentType = parentType -> ExecutableFieldsParent parentType [field] := by
-  intro hfield candidate hmem
-  have hcandidate : candidate = field := by
-    simpa using hmem
-  subst candidate
-  exact hfield
+    : ExecutableFieldsParent parentType [field] := by
+  intro _candidate _hmem
+  trivial
 
 theorem ExecutableFieldsParent_append
     (parentType : Name) (left right : List ExecutableField)
@@ -1895,20 +1842,16 @@ mutual
         · simp [GraphQL.Execution.collectSelection, hallows]
           exact CollectedGroupsParent_singleton parentType responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := selectionSet
             }]
             (ExecutableFieldsParent_singleton parentType
               {
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
-              } rfl)
+              })
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases hmatch : selectionDirectivesAllowBool variableValues directives
@@ -2001,20 +1944,16 @@ mutual
         · simp [GraphQL.Execution.collectSelection, hallows]
           exact CollectedGroupsResponseName_singleton responseName
             [{
-              parentType := parentType,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := selectionSet
             }]
             (ExecutableFieldsResponseName_singleton responseName
               {
-                parentType := parentType,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
-              } rfl)
+              })
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases hmatch : selectionDirectivesAllowBool variableValues directives
@@ -2107,9 +2046,7 @@ mutual
             selectionDirectivesAllowBool variableValues directives = true
         · simp [GraphQL.Execution.collectSelection, hallows]
           exact CollectedGroupsFieldsNonempty_singleton responseName
-            [{ parentType := parentType
-               responseName := responseName
-               fieldName := fieldName
+            [{ fieldName := fieldName
                arguments := arguments
                selectionSet := selectionSet }]
             (by simp)

@@ -878,7 +878,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         cases hcompleted
                               : GraphQL.Execution.executeCollectedFields schema
                                   resolvers variableValues childDepth
-                                  (.object runtimeType identity)
+                                  runtimeType (.object runtimeType identity)
                                   (GraphQL.Execution.collectFields schema
                                     variableValues runtimeType
                                     (.object runtimeType identity)
@@ -987,7 +987,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         cases hcompleted
                               : GraphQL.Execution.executeCollectedFields schema
                                   resolvers variableValues childDepth
-                                  (.object runtimeType identity)
+                                  runtimeType (.object runtimeType identity)
                                   (GraphQL.Execution.collectFields schema
                                     variableValues runtimeType
                                     (.object runtimeType identity)

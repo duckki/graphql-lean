@@ -70,10 +70,10 @@ end AnnotatedResponseField
 -- response-name group. This small constructor is the trusted boundary for the metadata
 -- added by annotated execution.
 def resolvedFieldProvenance (schema : Schema) (variableValues : VariableValues)
-    (definition : FieldDefinition) (field : ExecutableField)
+    (parentType : Name) (definition : FieldDefinition) (field : ExecutableField)
     : ResolvedFieldProvenance :=
   {
-    parentType := field.parentType
+    parentType := parentType
     fieldName := field.fieldName
     originalArguments := field.arguments
     coercedArguments :=
@@ -99,7 +99,7 @@ def completeNonNullAnnotatedResponseValue (completed : Result AnnotatedResponseV
 
 def singleAnnotatedResponseFieldResult
     (schema : Schema) (variableValues : VariableValues) (definition : FieldDefinition)
-    (responseName : Name) (field : ExecutableField)
+    (parentType responseName : Name) (field : ExecutableField)
     (completed : Result AnnotatedResponseValue)
     : Result (List AnnotatedResponseField) :=
   match completed with
@@ -108,7 +108,8 @@ def singleAnnotatedResponseFieldResult
       .ok
         (
           [.resolved responseName
-            (resolvedFieldProvenance schema variableValues definition field) value],
+            (resolvedFieldProvenance schema variableValues parentType definition field)
+            value],
           errors
         )
 
@@ -125,22 +126,22 @@ mutual
   def executeQueryAnnotatedCollectedFields
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues)
-      (fuel : Nat) (source : ResolverValue ObjectRef)
+      (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
       : List (Name × List ExecutableField) -> Result (List AnnotatedResponseField)
     | [] => .ok ([], 0)
     | (responseName, fields) :: rest =>
         let head :=
-          executeQueryAnnotatedField schema resolvers variableValues fuel source
-            responseName fields
+          executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+            source responseName fields
         let tail :=
-          executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel source
-            rest
+          executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
+            parentType source rest
         Result.combine List.append head tail
 
   def executeQueryAnnotatedField
       (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variableValues : VariableValues) (fuel : Nat)
-      (source : ResolverValue ObjectRef)
+      (parentType : Name) (source : ResolverValue ObjectRef)
       (responseName : Name)
       : List ExecutableField -> Result (List AnnotatedResponseField)
     | [] => .error 1
@@ -148,7 +149,7 @@ mutual
         match fuel with
         | 0 => .error 1
         | fuel' + 1 =>
-            match schema.lookupField field.parentType field.fieldName with
+            match schema.lookupField parentType field.fieldName with
             | none => .error 1
             | some definition =>
                 match coerceArgumentValues schema variableValues definition.arguments
@@ -159,9 +160,9 @@ mutual
                       | .nonNull _inner => .error 1
                       | _ => .ok (.null, 1)
                     singleAnnotatedResponseFieldResult schema variableValues definition
-                      responseName field completed
+                      parentType responseName field completed
                 | .success coercedArguments =>
-                    match resolveFieldValue resolvers field.parentType field.fieldName
+                    match resolveFieldValue resolvers parentType field.fieldName
                             coercedArguments source with
                     | none =>
                         let completed : Result AnnotatedResponseValue :=
@@ -169,10 +170,10 @@ mutual
                           | .nonNull _inner => .error 1
                           | _ => .ok (.null, 1)
                         singleAnnotatedResponseFieldResult schema variableValues
-                          definition responseName field completed
+                          definition parentType responseName field completed
                     | some resolved =>
                         singleAnnotatedResponseFieldResult schema variableValues
-                          definition responseName field
+                          definition parentType responseName field
                           (completeAnnotatedResponseValue schema resolvers variableValues
                             fuel' definition.outputType (field :: rest) resolved)
 
@@ -200,7 +201,7 @@ mutual
             collectSubfields schema variableValues runtimeType source fields
           let completed :=
             executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-              source childGroups
+              runtimeType source childGroups
           catchAnnotatedResponseBubbleAsNull
             (AnnotatedResponseValue.object runtimeType) completed
         else
@@ -240,7 +241,7 @@ def executeQueryAnnotatedWithFuel
   let coercedVariableValues := coerceVariableValues operation variableValues
   if rootSourceAppliesBool schema operation source then
     match executeQueryAnnotatedCollectedFields schema resolvers coercedVariableValues fuel
-            source
+            (operation.rootType schema) source
             (collectFields schema coercedVariableValues (operation.rootType schema) source
               operation.selectionSet) with
     | .error errors =>

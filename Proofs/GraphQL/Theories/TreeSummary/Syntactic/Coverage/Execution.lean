@@ -28,12 +28,12 @@ def groupCoversField {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType runtimeType : Name)
     (source : ResolverValue ObjectRef)
-    (group : CollectedFieldGroup) (field : ExecutableField)
+    (group : CollectedFieldGroup) (field : Name × ExecutableField)
     : Prop :=
   group.condition.allows variableValues runtimeType = true
   ∧ field
     ∈ collectFlatFields schema variableValues executionParentType source group.selections
-  ∧ field.responseName = group.responseName
+  ∧ field.1 = group.responseName
   ∧ ∀ selection,
       selection ∈ group.selections -> selection.responseName? = some group.responseName
 
@@ -42,7 +42,7 @@ def groupsCoverFields {ObjectRef : Type}
     (executionParentType runtimeType : Name)
     (source : ResolverValue ObjectRef)
     (availableGroups : List CollectedFieldGroup)
-    (fields : List ExecutableField)
+    (fields : List (Name × ExecutableField))
     : Prop :=
   ∀ field,
     field ∈ fields
@@ -72,7 +72,7 @@ def groupsRepresentFields {ObjectRef : Type}
     (executionParentType runtimeType : Name)
     (source : ResolverValue ObjectRef)
     (availableGroups : List CollectedFieldGroup)
-    (fields : List ExecutableField)
+    (fields : List (Name × ExecutableField))
     : Prop :=
   ∀ group,
     group ∈ availableGroups
@@ -80,13 +80,13 @@ def groupsRepresentFields {ObjectRef : Type}
         ∧ ∀ selection,
             selection ∈ group.selections
             -> group.condition.allows variableValues runtimeType = true
-            -> ∃ field,
+            -> ∃ field : Name × ExecutableField,
                 field ∈ fields
                 ∧ groupCoversField schema variableValues executionParentType runtimeType
                     source group field
                 ∧ selection
-                  = .field group.responseName field.fieldName field.arguments []
-                      field.selectionSet
+                  = .field group.responseName field.2.fieldName field.2.arguments []
+                      field.2.selectionSet
 
 theorem representativeMatches_of_groupsRepresentField
     (groups : List CollectedFieldGroup) (field : ExecutableField)
@@ -99,26 +99,30 @@ theorem groupsRepresentField_of_represent_and_compatible
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (runtimeType : Name) (ref : ObjectRef)
-    (groups : List CollectedFieldGroup) (fields : List ExecutableField)
+    (responseName : Name) (groups : List CollectedFieldGroup)
+    (fields : List ExecutableField)
     (field : ExecutableField)
     (hfield : field ∈ fields)
-    (hnames : ExecutableFieldsResponseName field.responseName fields)
+    (_hnames : ExecutableFieldsResponseName "" fields)
     (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields)
     (hconditions
       : ∀ group,
           group ∈ groups -> group.condition.allows variableValues runtimeType = true)
     (hrepresent
       : groupsRepresentFields schema variableValues runtimeType runtimeType
-          (.object runtimeType ref) groups fields)
+          (.object runtimeType ref) groups
+          (fields.map fun candidate => (responseName, candidate)))
     : groupsRepresentField groups field := by
   intro group hgroup
   rcases hrepresent group hgroup with ⟨hfields, hselections⟩
   let selection := group.selections.head hfields
   rcases hselections selection (List.head_mem hfields) (hconditions group hgroup) with
     ⟨candidate, hcandidate, hcover, hselection⟩
-  have hresponse : candidate.responseName = field.responseName := by
-    exact hnames candidate hcandidate
-  rcases hcompatible candidate field hcandidate hfield hresponse with
+  have hcandidateField : candidate.2 ∈ fields := by
+    rcases List.mem_map.mp hcandidate with ⟨candidateField, hcandidateField, heq⟩
+    have hsnd : candidateField = candidate.2 := congrArg Prod.snd heq
+    simpa [hsnd] using hcandidateField
+  rcases hcompatible candidate.2 field hcandidateField hfield with
     ⟨hfieldName, harguments⟩
   have hrepresentativeSelection :
       selection = group.representativeField.toSelection group.responseName := by
@@ -142,8 +146,8 @@ theorem groupsCoverFields_activeGroupsWithResponseName
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType runtimeType responseName : Name)
     (ref : ObjectRef) (groups : List CollectedFieldGroup)
-    (fields : List ExecutableField)
-    (hnames : ∀ field, field ∈ fields -> field.responseName = responseName)
+    (fields : List (Name × ExecutableField))
+    (hnames : ∀ field, field ∈ fields -> field.1 = responseName)
     (hcover
       : groupsCoverFields schema variableValues executionParentType runtimeType
           (.object runtimeType ref) groups fields)
@@ -165,9 +169,8 @@ theorem activeGroupsWithResponseName_ne_nil_of_cover
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType runtimeType responseName : Name)
     (ref : ObjectRef) (groups : List CollectedFieldGroup)
-    (field : ExecutableField) (rest : List ExecutableField)
-    (hnames
-      : ∀ candidate, candidate ∈ field :: rest -> candidate.responseName = responseName)
+    (field : Name × ExecutableField) (rest : List (Name × ExecutableField))
+    (hnames : ∀ candidate, candidate ∈ field :: rest -> candidate.1 = responseName)
     (hcover
       : groupsCoverFields schema variableValues executionParentType runtimeType
           (.object runtimeType ref) groups (field :: rest))
@@ -185,7 +188,7 @@ theorem collectFlatFields_mem_of_selection_mem
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType : Name) (source : ResolverValue ObjectRef)
     (selections : List Selection) (selection : Selection)
-    (field : ExecutableField)
+    (field : Name × ExecutableField)
     (hselection : selection ∈ selections)
     (hfield
       : field
@@ -219,16 +222,16 @@ theorem traversedCollectedGroup_selection_producesField
             traversal)
     (hcondition : group.condition.allows variableValues runtimeType = true)
     (selection : Selection) (hselection : selection ∈ group.selections)
-    : ∃ field,
+    : ∃ field : Name × ExecutableField,
         field
-          ∈ flattenCollectedFields
+          ∈ flattenExecutableFieldGroups
               (collectFields schema variableValues executionParentType
                 (.object runtimeType ref) selectionSet)
         ∧ groupCoversField schema variableValues executionParentType runtimeType
             (.object runtimeType ref) group field
         ∧ selection
-          = .field group.responseName field.fieldName field.arguments []
-              field.selectionSet := by
+          = .field group.responseName field.2.fieldName field.2.arguments []
+              field.2.selectionSet := by
   let tree :=
     ofSelectionSetInScopeWithKnownFalsePruning schema parentType inheritedBooleanCondition
       pruningValues selectionSet
@@ -259,14 +262,13 @@ theorem traversedCollectedGroup_selection_producesField
           rw [← hselectionEq]
           exact hentry
         simpa [Field.toSelection] using hentryTo
-      let field : ExecutableField :=
+      let executableField : ExecutableField :=
         {
-          parentType := executionParentType
-          responseName := group.responseName
           fieldName
           arguments
           selectionSet := children
         }
+      let field : Name × ExecutableField := (group.responseName, executableField)
       have htreeField :
           field ∈ tree.collectRuntimeFields variableValues executionParentType
             runtimeType := by
@@ -278,7 +280,7 @@ theorem traversedCollectedGroup_selection_producesField
         apply List.mem_flatMap.mpr
         refine ⟨(group.condition,
           .field group.responseName fieldName arguments [] children), hentry', ?_⟩
-        simp [hcondition, field]
+        simp [hcondition, field, executableField]
       have hcollected :=
         (ConditionTree.knownFalsePruning_sound schema parentType
           inheritedBooleanCondition variableValues pruningValues selectionSet hmatch
@@ -290,12 +292,12 @@ theorem traversedCollectedGroup_selection_producesField
           (.field group.responseName fieldName arguments [] children) field
           hselection'
         simp [collectFlatFields, collectFlatSelection, selectionDirectivesAllowBool,
-          field]
+          field, executableField]
       · intro candidate hcandidate
         rcases hshape.2 candidate hcandidate with ⟨candidateField, heq, _hentry⟩
         rw [heq]
         simp [Field.toSelection, Selection.responseName?]
-      · simpa [field, Field.toSelection] using hselectionEq
+      · simpa [field, executableField, Field.toSelection] using hselectionEq
 
 theorem traversedCollectedGroup_producesField
     {ObjectRef : Type}
@@ -312,9 +314,9 @@ theorem traversedCollectedGroup_producesField
               inheritedBooleanCondition [] selectionSet)
             traversal)
     (hcondition : group.condition.allows variableValues runtimeType = true)
-    : ∃ field,
+    : ∃ field : Name × ExecutableField,
         field
-          ∈ flattenCollectedFields
+          ∈ flattenExecutableFieldGroups
               (collectFields schema variableValues executionParentType
                 (.object runtimeType ref) selectionSet)
         ∧ groupCoversField schema variableValues executionParentType runtimeType
@@ -458,12 +460,12 @@ theorem collectFlatFields_responseName_eq
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType : Name) (source : ResolverValue ObjectRef)
-    (selection : Selection) (field : ExecutableField) (responseName : Name)
+    (selection : Selection) (field : Name × ExecutableField) (responseName : Name)
     (hselection : selection.responseName? = some responseName)
     (hfield
       : field
         ∈ collectFlatFields schema variableValues executionParentType source [selection])
-    : field.responseName = responseName := by
+    : field.1 = responseName := by
   cases selection with
   | field selectionResponseName fieldName arguments directives selectionSet =>
       simp only [Selection.responseName?, Option.some.injEq] at hselection
@@ -477,13 +479,25 @@ theorem collectFlatFields_responseName_eq
 
 theorem executableField_responseName_mem_of_flatten_mem
     (groups : List (Name × List ExecutableField))
-    (hwellFormed : NormalForm.executableGroupsWellFormed groups)
-    (field : ExecutableField) (hfield : field ∈ flattenCollectedFields groups)
-    : field.responseName ∈ groups.map Prod.fst := by
-  rcases (mem_flattenCollectedFields_iff groups field).mp hfield with
-    ⟨responseName, fields, hgroup, hmember⟩
-  have hresponse := (hwellFormed (responseName, fields) hgroup).2 field hmember
-  simpa [hresponse] using List.mem_map_of_mem (f := Prod.fst) hgroup
+    (_hwellFormed : NormalForm.executableGroupsWellFormed groups)
+    (field : Name × ExecutableField)
+    (hfield : field ∈ flattenExecutableFieldGroups groups)
+    : field.1 ∈ groups.map Prod.fst := by
+  induction groups generalizing field with
+  | nil => simp [flattenExecutableFieldGroups] at hfield
+  | cons group rest ih =>
+      rcases group with ⟨responseName, fields⟩
+      change field ∈ fields.map (fun candidate => (responseName, candidate))
+          ++ flattenExecutableFieldGroups rest at hfield
+      simp only [List.map_cons, List.mem_cons]
+      rcases List.mem_append.mp hfield with hhead | hrest
+      rcases List.mem_map.mp hhead with ⟨candidate, hcandidate, heq⟩
+      · rw [← heq]
+        exact Or.inl rfl
+      · exact Or.inr (ih
+          (NormalForm.GroundTypeNormalization.executableGroupsWellFormed_tail
+            _hwellFormed)
+          field hrest)
 
 theorem groupsWithoutResponseName_cover_tail
     {ObjectRef : Type}
@@ -497,14 +511,14 @@ theorem groupsWithoutResponseName_cover_tail
     (hcover
       : groupsCoverFields schema variableValues runtimeType runtimeType
           (.object runtimeType ref) groups
-          (flattenCollectedFields ((responseName, fields) :: rest)))
+          (flattenExecutableFieldGroups ((responseName, fields) :: rest)))
     : groupsCoverFields schema variableValues runtimeType runtimeType
         (.object runtimeType ref) (groupsWithoutResponseName responseName groups)
-        (flattenCollectedFields rest) := by
+        (flattenExecutableFieldGroups rest) := by
   intro field hfield
   have hfieldAll :
-      field ∈ flattenCollectedFields ((responseName, fields) :: rest) := by
-    rw [flattenCollectedFields]
+      field ∈ flattenExecutableFieldGroups ((responseName, fields) :: rest) := by
+    rw [flattenExecutableFieldGroups]
     exact List.mem_append.mpr (Or.inr hfield)
   rcases hcover field hfieldAll with ⟨group, hgroup, hgroupCover⟩
   refine ⟨group, ?_, hgroupCover⟩
@@ -528,7 +542,7 @@ theorem runtimeField_mem_allCollectedGroups
     (source : ResolverValue ObjectRef)
     (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : Tree) (field : ExecutableField)
+    (tree : Tree) (field : Name × ExecutableField)
     (hfield
       : field ∈ tree.collectRuntimeFields variableValues executionParentType runtimeType)
     : ∃ group,
@@ -580,7 +594,7 @@ theorem extractedGroups_cover_collectedFields
         (allCollectedGroups parentType inheritedBooleanCondition
           (ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet))
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
   intro field hfield
@@ -803,7 +817,7 @@ theorem runtimeField_mem_traversedCollectedGroups
           -> traversal.includeBranch branch = true)
     (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : Tree) (field : ExecutableField)
+    (tree : Tree) (field : Name × ExecutableField)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hcoherent : tree.BranchesCoherent schema inheritedBooleanCondition)
     (hfield
@@ -863,7 +877,7 @@ def Traversal.ExecutionComplete (traversal : Traversal)
           (ofSelectionSetInScopeWithKnownFalsePruning schema parentType
             inheritedBooleanCondition traversal.summaryVariableValues selectionSet)
           (traversal.atRuntimeType schema runtimeType))
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet))
 
@@ -1138,7 +1152,7 @@ theorem collectFlatFields_mem_source
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (executionParentType : Name) (source : ResolverValue ObjectRef)
-    (selections : List Selection) (field : ExecutableField)
+    (selections : List Selection) (field : Name × ExecutableField)
     (hfield
       : field
         ∈ collectFlatFields schema variableValues executionParentType source selections)
@@ -1185,14 +1199,15 @@ theorem groupCoversField_child_mem_mergedSelectionSet
     (executionParentType parentRuntimeType : Name)
     (parentSource : ResolverValue ObjectRef)
     (childRuntimeType : Name) (childSource : ResolverValue ObjectRef)
-    (group : CollectedFieldGroup) (field child : ExecutableField)
+    (group : CollectedFieldGroup)
+    (field child : Name × ExecutableField)
     (hcover
       : groupCoversField schema variableValues executionParentType parentRuntimeType
           parentSource group field)
     (hchild
       : child
         ∈ collectFlatFields schema variableValues childRuntimeType childSource
-            field.selectionSet)
+            field.2.selectionSet)
     : child
       ∈ collectFlatFields schema variableValues childRuntimeType childSource
           group.mergedSelectionSet := by
@@ -1234,7 +1249,7 @@ theorem collectFlatFields_mergedFieldSelectionSet_mem
     {ObjectRef : Type}
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef)
-    (fields : List ExecutableField) (child : ExecutableField)
+    (fields : List ExecutableField) (child : Name × ExecutableField)
     (hchild
       : child
         ∈ collectFlatFields schema variableValues parentType source
@@ -1274,20 +1289,21 @@ theorem candidateChildGroupsFor_cover_subfields
     (hpossible
       : (schema.getPossibleTypes childParentType).contains childRuntimeType = true)
     (hallows : inheritedConditionsAllowGroups variableValues groups)
-    (_hfields : ∀ field, field ∈ fields -> field.responseName = responseName)
+    (_hfields : ∀ field, field ∈ fields -> True)
     (hcover
       : groupsCoverFields schema variableValues executionParentType parentRuntimeType
-          (.object parentRuntimeType parentRef) groups fields)
+          (.object parentRuntimeType parentRef) groups
+          (fields.map fun field => (responseName, field)))
     : groupsCoverFields schema variableValues childRuntimeType childRuntimeType
         (.object childRuntimeType childRef)
         (candidateChildGroupsFor schema childParentType childRuntimeType traversal groups)
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectSubfields schema variableValues childRuntimeType
             (.object childRuntimeType childRef) fields)) := by
   intro child hchild
   have hchildCollected :
       child
-        ∈ flattenCollectedFields
+        ∈ flattenExecutableFieldGroups
             (collectFields schema variableValues childRuntimeType
               (.object childRuntimeType childRef)
               (Execution.mergedFieldSelectionSet fields)) := by
@@ -1304,12 +1320,13 @@ theorem candidateChildGroupsFor_cover_subfields
   rcases collectFlatFields_mergedFieldSelectionSet_mem schema variableValues
       childRuntimeType (.object childRuntimeType childRef) fields child hchildFlat with
     ⟨field, hfield, hfieldChild⟩
-  rcases hcover field hfield with ⟨group, hgroup, hgroupCover⟩
+  rcases hcover (responseName, field) (List.mem_map.mpr ⟨field, hfield, rfl⟩) with
+    ⟨group, hgroup, hgroupCover⟩
   have hmergedChild :=
     groupCoversField_child_mem_mergedSelectionSet schema variableValues
       executionParentType parentRuntimeType (.object parentRuntimeType parentRef)
       childRuntimeType (.object childRuntimeType childRef)
-      group field child hgroupCover hfieldChild
+      group (responseName, field) child hgroupCover hfieldChild
   have hchildGroups :=
     htraversal childParentType group.childInheritedBooleanCondition
       group.mergedSelectionSet childRuntimeType childRuntimeType childRef
@@ -1330,7 +1347,8 @@ theorem candidateChildGroupsFor_represent_subfields
     (schema : Schema) (variableValues : VariableValues)
     (parentRuntimeType : Name) (parentRef : ObjectRef)
     (childParentType childRuntimeType : Name) (childRef : ObjectRef)
-    (groups : List CollectedFieldGroup) (fields : List ExecutableField)
+    (responseName : Name) (groups : List CollectedFieldGroup)
+    (fields : List ExecutableField)
     (traversal : Traversal)
     (hmatch : BooleanValuesMatchForPruning variableValues traversal.summaryVariableValues)
     (hpossible
@@ -1339,11 +1357,12 @@ theorem candidateChildGroupsFor_represent_subfields
     (hconditions : conditionsAllowGroupsAt variableValues parentRuntimeType groups)
     (hrepresent
       : groupsRepresentFields schema variableValues parentRuntimeType parentRuntimeType
-          (.object parentRuntimeType parentRef) groups fields)
+          (.object parentRuntimeType parentRef) groups
+          (fields.map fun field => (responseName, field)))
     : groupsRepresentFields schema variableValues childRuntimeType childRuntimeType
         (.object childRuntimeType childRef)
         (candidateChildGroupsFor schema childParentType childRuntimeType traversal groups)
-        (flattenCollectedFields
+        (flattenExecutableFieldGroups
           (collectSubfields schema variableValues childRuntimeType
             (.object childRuntimeType childRef) fields)) := by
   intro childGroup hchildGroup
@@ -1379,19 +1398,22 @@ theorem candidateChildGroupsFor_represent_subfields
   rcases hrepresentSelections parentSelection hparentSelection
       (hconditions group hgroup) with
     ⟨parentField, hparentField, _hparentCover, hparentSelectionEq⟩
-  have htopInParentField : topChildSelection ∈ parentField.selectionSet := by
+  have htopInParentField : topChildSelection ∈ parentField.2.selectionSet := by
     rw [hparentSelectionEq] at htopSubselection
     simpa [Selection.subselections] using htopSubselection
   have hchildInParentField :
       childField ∈ collectFlatFields schema variableValues childRuntimeType
-        (.object childRuntimeType childRef) parentField.selectionSet := by
+        (.object childRuntimeType childRef) parentField.2.selectionSet := by
     exact collectFlatFields_mem_of_selection_mem schema variableValues childRuntimeType
-      (.object childRuntimeType childRef) parentField.selectionSet topChildSelection
+      (.object childRuntimeType childRef) parentField.2.selectionSet topChildSelection
       childField htopInParentField hchildSingleton
   have htopInMergedFields :
       topChildSelection ∈ Execution.mergedFieldSelectionSet fields :=
     Algorithms.ExecutionUngrouped.selection_mem_mergedFieldSelectionSet_of_field_mem
-      parentField fields hparentField topChildSelection htopInParentField
+      parentField.2 fields (by
+        rcases List.mem_map.mp hparentField with ⟨field, hfield, heq⟩
+        have hsnd : field = parentField.2 := congrArg Prod.snd heq
+        simpa [hsnd] using hfield) topChildSelection htopInParentField
   have hchildInMergedFields :
       childField ∈ collectFlatFields schema variableValues childRuntimeType
         (.object childRuntimeType childRef)
@@ -1399,15 +1421,15 @@ theorem candidateChildGroupsFor_represent_subfields
     collectFlatFields_mem_of_selection_mem schema variableValues childRuntimeType
       (.object childRuntimeType childRef) (Execution.mergedFieldSelectionSet fields)
       topChildSelection childField htopInMergedFields hchildSingleton
-  have hchildCollected :
-      childField ∈ flattenCollectedFields
+  have hchildCollectedEntry :
+      childField ∈ flattenExecutableFieldGroups
         (collectSubfields schema variableValues childRuntimeType
           (.object childRuntimeType childRef) fields) := by
     rw [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
     exact (collectFlatFields_mem_collectFields schema variableValues childRuntimeType
       (.object childRuntimeType childRef) (Execution.mergedFieldSelectionSet fields)
       childField).mp hchildInMergedFields
-  exact ⟨childField, hchildCollected, hchildCover, hchildSelectionEq⟩
+  exact ⟨childField, hchildCollectedEntry, hchildCover, hchildSelectionEq⟩
 
 theorem lookupField_childParentType_mem_of_condition_allows
     (schema : Schema) (variableValues : VariableValues)

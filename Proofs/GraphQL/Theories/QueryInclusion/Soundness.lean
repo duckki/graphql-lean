@@ -122,7 +122,8 @@ theorem executeQueryAnnotated_zero_error_decompose
           = .object runtimeType fields
         ∧ executeQueryAnnotatedCollectedFields schema resolvers
             (coerceVariableValues operation suppliedValues)
-            (executeQueryFuelBound schema operation) (.object runtimeType ref)
+            (executeQueryFuelBound schema operation) (operation.rootType schema)
+            (.object runtimeType ref)
             (collectFields schema (coerceVariableValues operation suppliedValues)
               (operation.rootType schema) (.object runtimeType ref)
               operation.selectionSet)
@@ -135,7 +136,8 @@ theorem executeQueryAnnotated_zero_error_decompose
     cases hresult
           : executeQueryAnnotatedCollectedFields schema resolvers
               (coerceVariableValues operation suppliedValues)
-              (executeQueryFuelBound schema operation) (.object runtimeType ref)
+              (executeQueryFuelBound schema operation) (operation.rootType schema)
+              (.object runtimeType ref)
               (collectFields schema (coerceVariableValues operation suppliedValues)
                 (operation.rootType schema) (.object runtimeType ref)
                 operation.selectionSet) with
@@ -143,7 +145,8 @@ theorem executeQueryAnnotated_zero_error_decompose
         simp only [hresult] at herrors
         have hpositive := executeQueryAnnotatedCollectedFields_error_positive schema
           resolvers (coerceVariableValues operation suppliedValues)
-          (executeQueryFuelBound schema operation) (.object runtimeType ref)
+          (executeQueryFuelBound schema operation) (operation.rootType schema)
+          (.object runtimeType ref)
           (collectFields schema (coerceVariableValues operation suppliedValues)
             (operation.rootType schema) (.object runtimeType ref)
             operation.selectionSet) errors hresult
@@ -308,6 +311,7 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
   have hleftCommon :
       executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues left suppliedValues) commonFuel
+        (right.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues left suppliedValues)
           (right.rootType schema) (.object runtimeType ref) left.selectionSet)
@@ -315,6 +319,7 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
     rw [← hroot]
     change executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues left suppliedValues) commonFuel
+        (left.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues left suppliedValues)
           (left.rootType schema) (.object runtimeType ref) left.selectionSet)
@@ -322,13 +327,15 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
     rw [show commonFuel = leftFuel + (commonFuel - leftFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_left _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      (coerceVariableValues left suppliedValues) leftFuel (.object runtimeType ref)
+      (coerceVariableValues left suppliedValues) leftFuel (left.rootType schema)
+      (.object runtimeType ref)
       (collectFields schema (coerceVariableValues left suppliedValues)
         (left.rootType schema) (.object runtimeType ref) left.selectionSet)
       leftFields hleftResult (commonFuel - leftFuel)
   have hrightCommon :
       executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues right suppliedValues) commonFuel
+        (right.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues right suppliedValues)
           (right.rootType schema) (.object runtimeType ref) right.selectionSet)
@@ -336,7 +343,8 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
     rw [show commonFuel = rightFuel + (commonFuel - rightFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_right _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      (coerceVariableValues right suppliedValues) rightFuel (.object runtimeType ref)
+      (coerceVariableValues right suppliedValues) rightFuel (right.rootType schema)
+      (.object runtimeType ref)
       (collectFields schema (coerceVariableValues right suppliedValues)
         (right.rootType schema) (.object runtimeType ref) right.selectionSet)
       rightFields hrightResult (commonFuel - rightFuel)
@@ -526,6 +534,7 @@ theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
   have hleftCommon :
       executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues left suppliedValues) commonFuel
+        (right.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues left suppliedValues)
           (right.rootType schema) (.object runtimeType ref) left.selectionSet)
@@ -533,6 +542,7 @@ theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
     rw [← hroot]
     change executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues left suppliedValues) commonFuel
+        (left.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues left suppliedValues)
           (left.rootType schema) (.object runtimeType ref) left.selectionSet)
@@ -540,13 +550,15 @@ theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
     rw [show commonFuel = leftFuel + (commonFuel - leftFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_left _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      (coerceVariableValues left suppliedValues) leftFuel (.object runtimeType ref)
+      (coerceVariableValues left suppliedValues) leftFuel (left.rootType schema)
+      (.object runtimeType ref)
       (collectFields schema (coerceVariableValues left suppliedValues)
         (left.rootType schema) (.object runtimeType ref) left.selectionSet)
       leftFields hleftResult (commonFuel - leftFuel)
   have hrightCommon :
       executeQueryAnnotatedCollectedFields schema resolvers
         (coerceVariableValues right suppliedValues) commonFuel
+        (right.rootType schema)
         (.object runtimeType ref)
         (collectFields schema (coerceVariableValues right suppliedValues)
           (right.rootType schema) (.object runtimeType ref) right.selectionSet)
@@ -554,7 +566,8 @@ theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
     rw [show commonFuel = rightFuel + (commonFuel - rightFuel) by
       exact (Nat.add_sub_of_le (Nat.le_max_right _ _)).symm]
     exact executeQueryAnnotatedCollectedFields_success_mono schema resolvers
-      (coerceVariableValues right suppliedValues) rightFuel (.object runtimeType ref)
+      (coerceVariableValues right suppliedValues) rightFuel (right.rootType schema)
+      (.object runtimeType ref)
       (collectFields schema (coerceVariableValues right suppliedValues)
         (right.rootType schema) (.object runtimeType ref) right.selectionSet)
       rightFields hrightResult (commonFuel - rightFuel)

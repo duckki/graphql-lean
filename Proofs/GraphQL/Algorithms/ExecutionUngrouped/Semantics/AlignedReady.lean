@@ -96,8 +96,11 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
     {schema : Schema} {resolvers : Resolvers ObjectIdentity}
     {variableValues : VariableValues} {completionDepth : Nat}
     {parentType runtimeType : Name} {identity : ObjectIdentity}
-    (prefixFields : List ExecutableField)
-    (hparents : ExecutableFieldsParent parentType prefixFields)
+    (prefixFields : List FreshPrefixSelectionDerivation.KeyedExecutableField)
+    (hparents
+      : ExecutableFieldsParent parentType
+          (prefixFields.map
+            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     (hprefixLookups
       : ∀ field,
           field ∈ prefixFields
@@ -110,7 +113,9 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
           -> ∃ normalized,
               SelectionSetFreshPlanNormalizes schema resolvers variableValues
                 completionDepth parentType (.object runtimeType identity)
-                (executableFieldSelections prefixFields ++ selectionSet) normalized
+                (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                    prefixFields
+                  ++ selectionSet) normalized
   | [], _hobject, _hparentRuntime, _hready => by
       rcases
           SelectionSetFreshPlanNormalizes.executableFieldsNormalizes
@@ -151,15 +156,17 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
       by_cases hallows :
           selectionDirectivesAllowBool variableValues directives = true
       · let field :=
-          executableField parentType responseName fieldName arguments
-            selectionSet
+          ({ responseName := responseName
+             fieldName := fieldName
+             arguments := arguments
+             selectionSet := selectionSet } :
+            FreshPrefixSelectionDerivation.KeyedExecutableField)
         have hparents' :
-            ExecutableFieldsParent parentType (prefixFields ++ [field]) := by
-          intro candidate hcandidate
-          rcases List.mem_append.mp hcandidate with hprefix | hfield
-          · exact hparents candidate hprefix
-          · rcases List.mem_singleton.mp hfield
-            simp [field, executableField]
+            ExecutableFieldsParent parentType
+              ((prefixFields ++ [field]).map
+                FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField) := by
+          intro _candidate _hcandidate
+          trivial
         have hlookups' :
             ∀ candidate, candidate ∈ prefixFields ++ [field] ->
               ∃ fieldDefinition,
@@ -169,7 +176,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
           rcases List.mem_append.mp hcandidate with hprefix | hfield
           · exact hprefixLookups candidate hprefix
           · rcases List.mem_singleton.mp hfield with rfl
-            simpa [field, executableField] using hfieldLookup
+            simpa [field] using hfieldLookup
         rcases
             executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (schema := schema) (resolvers := resolvers)
@@ -182,18 +189,24 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         have tail' :
             SelectionSetFreshPlanNormalizes schema resolvers variableValues
               completionDepth parentType (.object runtimeType identity)
-              (executableFieldSelections prefixFields ++
-                executableFieldSelections
-                  [executableField parentType responseName fieldName arguments
-                    selectionSet] ++
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                  prefixFields ++
+                executableFieldSelections responseName
+                  [executableField fieldName arguments selectionSet] ++
                 rest)
               normalized := by
-          simpa [field, executableFieldSelections, List.map_append,
+          simpa [field,
+            FreshPrefixSelectionDerivation.keyedExecutableFieldSelections,
+            FreshPrefixSelectionDerivation.keyedExecutableFieldSelection,
+            executableFieldSelections, executableFieldSelection, executableField,
+            List.map_append,
             List.append_assoc] using tail
         exact
           ⟨normalized,
             SelectionSetFreshPlanNormalizes.executablePrefixFieldConsAllowed
-              prefixFields responseName fieldName arguments directives
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                prefixFields)
+              responseName fieldName arguments directives
               selectionSet rest normalized hallows tail'⟩
       · have hskip :
             selectionDirectivesAllowBool variableValues directives = false := by
@@ -213,7 +226,9 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         exact
           ⟨normalized,
             SelectionSetFreshPlanNormalizes.executablePrefixFieldConsSkipped
-              prefixFields responseName fieldName arguments directives
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                prefixFields)
+              responseName fieldName arguments directives
               selectionSet rest normalized hskip tail⟩
   | .inlineFragment none directives rawChild :: rest, hobject, hparentRuntime,
       hready => by
@@ -246,13 +261,16 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         have tail' :
             SelectionSetFreshPlanNormalizes schema resolvers variableValues
               completionDepth parentType (.object runtimeType identity)
-              (executableFieldSelections prefixFields ++ rawChild ++ rest)
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                  prefixFields ++ rawChild ++ rest)
               normalized := by
           simpa [List.append_assoc] using tail
         exact
           ⟨normalized,
             SelectionSetFreshPlanNormalizes.executablePrefixInlineFragmentNoneConsFlatten
-              prefixFields directives hallows tail'⟩
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                prefixFields)
+              directives hallows tail'⟩
       · have hskip :
             selectionDirectivesAllowBool variableValues directives = false := by
           cases h :
@@ -271,7 +289,9 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         exact
           ⟨normalized,
             SelectionSetFreshPlanNormalizes.executablePrefixInlineFragmentNoneConsSkipped
-              prefixFields directives rawChild hskip tail⟩
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                prefixFields)
+              directives rawChild hskip tail⟩
   | .inlineFragment (some typeCondition) directives rawChild :: rest,
       hobject, hparentRuntime, hready => by
       have hheadReady :
@@ -329,13 +349,16 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
           have tail' :
               SelectionSetFreshPlanNormalizes schema resolvers variableValues
                 completionDepth parentType (.object runtimeType identity)
-                (executableFieldSelections prefixFields ++ rawChild ++ rest)
+                (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                    prefixFields ++ rawChild ++ rest)
                 normalized := by
             simpa [List.append_assoc] using tail
           exact
             ⟨normalized,
               SelectionSetFreshPlanNormalizes.executablePrefixInlineFragmentSomeConsFlatten
-                prefixFields typeCondition directives hallows happly tail'⟩
+                (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                  prefixFields)
+                typeCondition directives hallows happly tail'⟩
         · have hnotApply :
               doesFragmentTypeApplyBool schema parentType
                 (.object runtimeType identity) typeCondition = false := by
@@ -356,7 +379,9 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
           exact
             ⟨normalized,
               SelectionSetFreshPlanNormalizes.executablePrefixInlineFragmentSomeConsDoesNotApply
-                prefixFields typeCondition directives rawChild hallows hnotApply
+                (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                  prefixFields)
+                typeCondition directives rawChild hallows hnotApply
                 tail⟩
       · have hskip :
             selectionDirectivesAllowBool variableValues directives = false := by
@@ -376,7 +401,9 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         exact
           ⟨normalized,
             SelectionSetFreshPlanNormalizes.executablePrefixInlineFragmentSomeConsSkipped
-              prefixFields typeCondition directives rawChild hskip tail⟩
+              (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
+                prefixFields)
+              typeCondition directives rawChild hskip tail⟩
 termination_by selectionSet _ _ _ => SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -406,13 +433,14 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_selectionSetSemanticsReady_ob
         (variableValues := variableValues)
         (completionDepth := completionDepth) (parentType := parentType)
         (runtimeType := runtimeType) (identity := identity)
-        ([] : List ExecutableField) hparents
+        ([] : List FreshPrefixSelectionDerivation.KeyedExecutableField) hparents
         (by
           intro field hfield
           simp at hfield)
         selectionSet hobject hparentRuntime hready with
     ⟨normalized, hnormalized⟩
-  simpa [executableFieldSelections] using hnormalized.rawFreshFlat
+  simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections] using
+    hnormalized.rawFreshFlat
 
 theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -448,27 +476,17 @@ theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
         selectionSet)
       (GraphQL.NormalForm.collectFields_namesNodup schema variableValues
         parentType source selectionSet)
-  · intro responseName fields hgroup first later hfirst hlater hresponse
-    have hparents :
-        CollectedGroupsParent parentType
-          (GraphQL.Execution.collectFields schema variableValues parentType
-            source selectionSet) :=
-      collectFields_parent schema variableValues parentType source selectionSet
-    have hfirstParent : first.parentType = parentType :=
-      hparents responseName fields hgroup first hfirst
-    have hlaterParent : later.parentType = parentType :=
-      hparents responseName fields hgroup later hlater
+  · intro responseName fields hgroup executionParentType first later hfirst hlater
     rcases
-        hcompatible responseName fields hgroup first later hfirst hlater
-          hresponse with
+        hcompatible responseName fields hgroup first later hfirst hlater with
       ⟨hfieldName, harguments⟩
     have hfirstNodup :=
       hcollectedNodup responseName fields hgroup first hfirst
     have hlaterNodup :=
       hcollectedNodup responseName fields hgroup later hlater
-    rw [hfirstParent, hlaterParent, hfieldName]
+    rw [hfieldName]
     exact Resolvers.respectValidArgumentEquivalence schema resolvers variableValues
-      source parentType later.fieldName first.arguments later.arguments
+      source executionParentType later.fieldName first.arguments later.arguments
       hfirstNodup hlaterNodup harguments
 
 noncomputable def
@@ -558,21 +576,12 @@ noncomputable def
                   (ExecutedGroupedSelectionSetState.of_collected_groups_collectedAppendInvariant
                     hcollect hflat hcollected hlookups hcompatible
                     (CollectedFieldGroupAppendInvariant.depth_zero schema
-                      resolvers variableValues groups))
+                      resolvers variableValues parentType groups))
           | succ completionDepth =>
-              have hresponses : CollectedGroupsResponseName groups := by
-                rw [← hcollect]
-                exact collectFields_responseName schema variableValues parentType
-                  (.object runtimeType identity) selectionSet
-              have hparents :
-                  CollectedGroupsParent parentType groups := by
-                rw [← hcollect]
-                exact collectFields_parent schema variableValues parentType
-                  (.object runtimeType identity) selectionSet
               let happend :
                   CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
-                    variableValues completionDepth (.object runtimeType identity)
-                    groups :=
+                    variableValues completionDepth parentType
+                    (.object runtimeType identity) groups :=
                 { prefixChildren := by
                     intro responseName field fields prefixTail hgroup hprefix
                       childDepth childRuntime childIdentity hlt _hcontains
@@ -583,9 +592,6 @@ noncomputable def
                             parentType (.object runtimeType identity)
                             selectionSet := by
                       simpa [groups] using hgroup
-                    have hfieldParent : field.parentType = parentType :=
-                      hparents responseName (field :: fields) hgroup field
-                        (by simp)
                     have hprefixReady :
                         ∀ candidate, candidate ∈ field :: prefixTail ->
                           NormalForm.selectionSetSemanticsReady schema
@@ -606,24 +612,10 @@ noncomputable def
                                 (.object runtimeType identity) selectionSet) :=
                         collectedExecutableFields_mem_of_group_mem hgroupMem
                           hcandidateInGroup
-                      have hcandidateParent : candidate.parentType = parentType :=
-                        hparents responseName (field :: fields) hgroup candidate
-                          hcandidateInGroup
-                      have hfieldResponse : field.responseName = responseName :=
-                        hresponses responseName (field :: fields) hgroup field
-                          (by simp)
-                      have hcandidateResponse :
-                          candidate.responseName = responseName :=
-                        hresponses responseName (field :: fields) hgroup
-                          candidate hcandidateInGroup
-                      have hsameResponse :
-                          field.responseName = candidate.responseName := by
-                        rw [hfieldResponse, hcandidateResponse]
                       have hfieldName :
                           field.fieldName = candidate.fieldName :=
                         (hcompatible responseName (field :: fields) hgroup
-                          field candidate (by simp) hcandidateInGroup
-                          hsameResponse).1
+                          field candidate (by simp) hcandidateInGroup).1
                       rcases
                           collectFields_lookupValid_of_selectionSetSemanticsReady_object
                             schema variableValues parentType runtimeType identity
@@ -631,18 +623,16 @@ noncomputable def
                             hcandidateCollected with
                         ⟨candidateDefinition, hcandidateLookupAtParent⟩
                       have hcandidateLookup :
-                          schema.lookupField candidate.parentType
-                              candidate.fieldName =
+                          schema.lookupField parentType candidate.fieldName =
                             some candidateDefinition := by
-                        simpa [hcandidateParent] using hcandidateLookupAtParent
+                        exact hcandidateLookupAtParent
                       have hcandidateIncludeReturn :
                           schema.typeIncludesObjectBool
-                              ((schema.fieldReturnType? candidate.parentType
+                              ((schema.fieldReturnType? parentType
                                 candidate.fieldName).getD candidate.fieldName)
                               childRuntime =
                             true := by
-                        simpa [hcandidateParent, hfieldParent, ← hfieldName]
-                          using hincludes
+                        simpa [← hfieldName] using hincludes
                       have hcandidateInclude :
                           schema.typeIncludesObjectBool
                               candidateDefinition.outputType.namedType
@@ -694,11 +684,11 @@ noncomputable def
                               hcandidateInGroup))
                     have hchildParentRuntime :
                         ScopedParentRuntimeApplies schema childRuntime
-                          ((schema.fieldReturnType? field.parentType
+                          ((schema.fieldReturnType? parentType
                             field.fieldName).getD field.fieldName) :=
                       ScopedParentRuntimeApplies.of_typeIncludesObjectBool schema
                         childRuntime
-                        ((schema.fieldReturnType? field.parentType
+                        ((schema.fieldReturnType? parentType
                           field.fieldName).getD field.fieldName)
                         hincludes
                     have hchildObject : schema.objectType childRuntime :=

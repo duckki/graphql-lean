@@ -144,8 +144,6 @@ mutual
             exact CollectedGroupsArgumentsNodup_singleton responseName
               [
                 {
-                  parentType := parentType
-                  responseName := responseName
                   fieldName := fieldName
                   arguments := arguments
                   selectionSet := selectionSet
@@ -348,16 +346,12 @@ mutual
         · simp [GraphQL.Execution.collectSelection, hallows]
           exact CollectedGroupsArgumentsNodup_singleton responseName
             [{
-              parentType := collectParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := selectionSet
             }]
             (ExecutableFieldsArgumentsNodup_singleton
               {
-                parentType := collectParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -499,16 +493,12 @@ mutual
         · simp [GraphQL.Execution.collectSelection, hallows]
           exact CollectedGroupsArgumentsNodup_singleton responseName
             [{
-              parentType := collectParent,
-              responseName := responseName,
               fieldName := fieldName,
               arguments := arguments,
               selectionSet := selectionSet
             }]
             (ExecutableFieldsArgumentsNodup_singleton
               {
-                parentType := collectParent,
-                responseName := responseName,
                 fieldName := fieldName,
                 arguments := arguments,
                 selectionSet := selectionSet
@@ -846,26 +836,27 @@ theorem inputValue_equivalent_refl (value : InputValue) : value.equivalent value
   exact inputValue_structuralEquivalent_refl value.canonical
 
 theorem fieldsForNameCanMerge_executable_identity
-    (schema : Schema) (first later : ExecutableField)
+    (schema : Schema) (firstParent firstResponse laterParent laterResponse : Name)
+    (first later : ExecutableField)
     (firstOutputType laterOutputType : TypeRef)
     : FieldMerge.fieldsForNameCanMerge schema
         {
-          parentType := first.parentType
-          responseName := first.responseName
+          parentType := firstParent
+          responseName := firstResponse
           fieldName := first.fieldName
           arguments := first.arguments
           outputType := firstOutputType
           selectionSet := first.selectionSet
         }
         {
-          parentType := later.parentType
-          responseName := later.responseName
+          parentType := laterParent
+          responseName := laterResponse
           fieldName := later.fieldName
           arguments := later.arguments
           outputType := laterOutputType
           selectionSet := later.selectionSet
         }
-      -> first.parentType = later.parentType
+      -> firstParent = laterParent
       -> first.fieldName = later.fieldName
           ∧ Argument.argumentsEquivalent first.arguments later.arguments := by
   intro hmerge hparent
@@ -921,30 +912,30 @@ theorem fieldsInSetCanMerge_scoped_collectFields_fieldCompatible_of_runtimeAppli
       first later (happlies first hfirst) (happlies later hlater))
 
 theorem ScopedFieldsValidationMergeCompatible.executable_sameParent
+    (parentType responseName : Name)
     (scopedFields : List FieldMerge.ScopedField)
     (fields : List ExecutableField)
     : ScopedFieldsValidationMergeCompatible scopedFields
-      -> ExecutableFieldsScopedBy scopedFields fields
+      -> (∀ scopedField,
+            scopedField ∈ scopedFields -> scopedField.responseName = responseName)
+      -> ExecutableFieldsScopedBy parentType scopedFields fields
       -> ExecutableFieldsSameParentValidationMergeCompatible fields := by
-  intro hcompatible hscoped first later hfirst hlater hresponse hparent
+  intro hcompatible hresponses hscoped first later hfirst hlater
   rcases hscoped first hfirst with ⟨firstScoped, hfirstScopedMem,
     hfirstScopedMatch⟩
   rcases hscoped later hlater with ⟨laterScoped, hlaterScopedMem,
     hlaterScopedMatch⟩
   rcases hfirstScopedMatch with
-    ⟨hfirstParent, hfirstResponse, hfirstField, hfirstArguments,
-      _hfirstSelection⟩
+    ⟨hfirstParent, hfirstField, hfirstArguments, _hfirstSelection⟩
   rcases hlaterScopedMatch with
-    ⟨hlaterParent, hlaterResponse, hlaterField, hlaterArguments,
-      _hlaterSelection⟩
+    ⟨hlaterParent, hlaterField, hlaterArguments, _hlaterSelection⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse]
-    exact hresponse
+    exact (hresponses firstScoped hfirstScopedMem).trans
+      (hresponses laterScoped hlaterScopedMem).symm
   have hscopedParent :
       firstScoped.parentType = laterScoped.parentType := by
-    rw [hfirstParent, hlaterParent]
-    exact hparent
+    exact hfirstParent.trans hlaterParent.symm
   rcases hcompatible firstScoped laterScoped hfirstScopedMem hlaterScopedMem
       hscopedResponse hscopedParent with
     ⟨hfield, hargumentsEquivalent⟩
@@ -955,26 +946,27 @@ theorem ScopedFieldsValidationMergeCompatible.executable_sameParent
     exact hargumentsEquivalent
 
 theorem ScopedFieldsFieldValidationMergeCompatible.executable
+    (parentType responseName : Name)
     (scopedFields : List FieldMerge.ScopedField)
     (fields : List ExecutableField)
     : ScopedFieldsFieldValidationMergeCompatible scopedFields
-      -> ExecutableFieldsScopedBy scopedFields fields
+      -> (∀ scopedField,
+            scopedField ∈ scopedFields -> scopedField.responseName = responseName)
+      -> ExecutableFieldsScopedBy parentType scopedFields fields
       -> ExecutableFieldsFieldValidationMergeCompatible fields := by
-  intro hcompatible hscoped first later hfirst hlater hresponse
+  intro hcompatible hresponses hscoped first later hfirst hlater
   rcases hscoped first hfirst with ⟨firstScoped, hfirstScopedMem,
     hfirstScopedMatch⟩
   rcases hscoped later hlater with ⟨laterScoped, hlaterScopedMem,
     hlaterScopedMatch⟩
   rcases hfirstScopedMatch with
-    ⟨_hfirstParent, hfirstResponse, hfirstField, hfirstArguments,
-      _hfirstSelection⟩
+    ⟨_hfirstParent, hfirstField, hfirstArguments, _hfirstSelection⟩
   rcases hlaterScopedMatch with
-    ⟨_hlaterParent, hlaterResponse, hlaterField, hlaterArguments,
-      _hlaterSelection⟩
+    ⟨_hlaterParent, hlaterField, hlaterArguments, _hlaterSelection⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse]
-    exact hresponse
+    exact (hresponses firstScoped hfirstScopedMem).trans
+      (hresponses laterScoped hlaterScopedMem).symm
   rcases hcompatible firstScoped laterScoped hfirstScopedMem hlaterScopedMem
       hscopedResponse with
     ⟨hfield, hargumentsEquivalent⟩
@@ -985,24 +977,27 @@ theorem ScopedFieldsFieldValidationMergeCompatible.executable
     exact hargumentsEquivalent
 
 theorem ScopedFieldsFieldValidationMergeCompatible.executable_identity
+    (responseName : Name)
     (scopedFields : List FieldMerge.ScopedField)
     (fields : List ExecutableField)
     : ScopedFieldsFieldValidationMergeCompatible scopedFields
+      -> (∀ scopedField,
+            scopedField ∈ scopedFields -> scopedField.responseName = responseName)
       -> ExecutableFieldsIdentityScopedBy scopedFields fields
       -> ExecutableFieldsFieldValidationMergeCompatible fields := by
-  intro hcompatible hscoped first later hfirst hlater hresponse
+  intro hcompatible hresponses hscoped first later hfirst hlater
   rcases hscoped first hfirst with ⟨firstScoped, hfirstScopedMem,
     hfirstScopedMatch⟩
   rcases hscoped later hlater with ⟨laterScoped, hlaterScopedMem,
     hlaterScopedMatch⟩
   rcases hfirstScopedMatch with
-    ⟨hfirstResponse, hfirstField, hfirstArguments, _hfirstSelection⟩
+    ⟨hfirstField, hfirstArguments, _hfirstSelection⟩
   rcases hlaterScopedMatch with
-    ⟨hlaterResponse, hlaterField, hlaterArguments, _hlaterSelection⟩
+    ⟨hlaterField, hlaterArguments, _hlaterSelection⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse]
-    exact hresponse
+    exact (hresponses firstScoped hfirstScopedMem).trans
+      (hresponses laterScoped hlaterScopedMem).symm
   rcases hcompatible firstScoped laterScoped hfirstScopedMem hlaterScopedMem
       hscopedResponse with
     ⟨hfield, hargumentsEquivalent⟩
@@ -1014,24 +1009,25 @@ theorem ScopedFieldsFieldValidationMergeCompatible.executable_identity
 
 theorem fieldsInSetCanMerge_executable_runtimeScoped
     (schema : Schema) (parentType runtimeType : Name)
-    (selectionSet : List Selection) (fields : List ExecutableField)
+    (selectionSet : List Selection) (responseName : Name)
+    (fields : List ExecutableField)
     : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema parentType selectionSet) fields
+      -> ExecutableEntriesRuntimeScopedBy schema runtimeType
+          (FieldMerge.collectFields schema parentType selectionSet)
+          (fields.map (fun field => (responseName, field)))
       -> ExecutableFieldsFieldValidationMergeCompatible fields := by
-  intro hmerge hscoped first later hfirst hlater hresponse
-  rcases hscoped first hfirst with
-    ⟨firstScoped, hfirstScopedMem, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped later hlater with
-    ⟨laterScoped, hlaterScopedMem, hlaterMatch, hlaterRuntime⟩
+  intro hmerge hscoped first later hfirst hlater
+  rcases hscoped (responseName, first) (by simp [hfirst]) with
+    ⟨firstScoped, hfirstScopedMem, hfirstResponse, hfirstMatch, hfirstRuntime⟩
+  rcases hscoped (responseName, later) (by simp [hlater]) with
+    ⟨laterScoped, hlaterScopedMem, hlaterResponse, hlaterMatch, hlaterRuntime⟩
   rcases hfirstMatch with
-    ⟨hfirstResponse, hfirstField, hfirstArguments, _hfirstSelection⟩
+    ⟨hfirstField, hfirstArguments, _hfirstSelection⟩
   rcases hlaterMatch with
-    ⟨hlaterResponse, hlaterField, hlaterArguments, _hlaterSelection⟩
+    ⟨hlaterField, hlaterArguments, _hlaterSelection⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse]
-    exact hresponse
+    exact hfirstResponse.trans hlaterResponse.symm
   have hfieldMerge :
       FieldMerge.fieldsForNameCanMerge schema firstScoped laterScoped :=
     FieldMerge.fieldsInSetCanMerge_pair hmerge hfirstScopedMem
@@ -1052,27 +1048,26 @@ theorem fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
     (selectionSet : List Selection) (responseName : Name)
     (fields : List ExecutableField)
     : FieldMerge.fieldsInSetCanMerge schema parentType selectionSet
-      -> (∀ field, field ∈ fields -> field.responseName = responseName)
-      -> ExecutableFieldsRuntimeScopedBy schema runtimeType
-          (FieldMerge.collectFields schema parentType selectionSet) fields
+      -> ExecutableEntriesRuntimeScopedBy schema runtimeType
+          (FieldMerge.collectFields schema parentType selectionSet)
+          (fields.map (fun field => (responseName, field)))
       -> ∀ objectType,
           FieldMerge.fieldsInSetCanMerge schema objectType
             (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hmerge hresponses hscoped objectType
+  intro hmerge hscoped objectType
   apply FieldMerge.fieldsInSetCanMerge_mergedFieldSelectionSet_of_pairwise
   intro first hfirst later hlater
-  rcases hscoped first hfirst with
-    ⟨firstScoped, hfirstScopedMem, hfirstMatch, hfirstRuntime⟩
-  rcases hscoped later hlater with
-    ⟨laterScoped, hlaterScopedMem, hlaterMatch, hlaterRuntime⟩
+  rcases hscoped (responseName, first) (by simp [hfirst]) with
+    ⟨firstScoped, hfirstScopedMem, hfirstResponse, hfirstMatch, hfirstRuntime⟩
+  rcases hscoped (responseName, later) (by simp [hlater]) with
+    ⟨laterScoped, hlaterScopedMem, hlaterResponse, hlaterMatch, hlaterRuntime⟩
   rcases hfirstMatch with
-    ⟨hfirstResponse, _hfirstField, _hfirstArguments, hfirstSelectionSet⟩
+    ⟨_hfirstField, _hfirstArguments, hfirstSelectionSet⟩
   rcases hlaterMatch with
-    ⟨hlaterResponse, _hlaterField, _hlaterArguments, hlaterSelectionSet⟩
+    ⟨_hlaterField, _hlaterArguments, hlaterSelectionSet⟩
   have hscopedResponse :
       firstScoped.responseName = laterScoped.responseName := by
-    rw [hfirstResponse, hlaterResponse, hresponses first hfirst,
-      hresponses later hlater]
+    exact hfirstResponse.trans hlaterResponse.symm
   have hparents :
       firstScoped.parentType = laterScoped.parentType
         ∨ ¬schema.objectType firstScoped.parentType
@@ -1101,26 +1096,24 @@ theorem collectFields_group_mergedFieldSelectionSet_canMerge_runtimeScoped
             (.object runtimeType identity) selectionSet
           = groups
       -> (responseName, fields) ∈ groups
-      -> CollectedGroupsResponseName groups
       -> ∀ objectType,
           FieldMerge.fieldsInSetCanMerge schema objectType
             (GraphQL.Execution.mergedFieldSelectionSet fields) := by
-  intro hvalid hmerge hparentRuntime hcollect hgroup hresponses
+  intro hvalid hmerge hparentRuntime hcollect hgroup
   apply fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
     schema validParent runtimeType selectionSet responseName fields hmerge
-  · intro field hfield
-    exact hresponses responseName fields hgroup field hfield
   · have hscopedAll :
-        ExecutableFieldsRuntimeScopedBy schema runtimeType
+        ExecutableEntriesRuntimeScopedBy schema runtimeType
           (FieldMerge.collectFields schema validParent selectionSet)
-          (collectedExecutableFields groups) := by
+          (collectedExecutableEntries groups) := by
       rw [← hcollect]
-      exact collectFields_runtimeScopedBy_of_selectionSetValid schema
+      exact collectFields_entriesRuntimeScopedBy_of_selectionSetValid schema
         variableDefinitions variableValues collectParent validParent
         runtimeType identity selectionSet hparentRuntime hvalid
-    intro field hfield
-    exact hscopedAll field
-      (collectedExecutableFields_mem_of_group_mem hgroup hfield)
+    intro entry hentry
+    rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
+    exact hscopedAll (responseName, field)
+      (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_operation
     {ObjectIdentity : Type}
@@ -1150,9 +1143,6 @@ theorem collectFields_group_mergedFieldSelectionSet_canMerge_of_valid_root_opera
       runtimeType identity hroot
   · exact hcollect
   · exact hgroup
-  · rw [← hcollect]
-    exact collectFields_responseName schema variableValues (operation.rootType schema)
-      (.object runtimeType identity) operation.selectionSet
 
 theorem collectFields_fieldCompatible_of_selectionSetValid_scopedCompatible
     {ObjectIdentity : Type}
@@ -1169,16 +1159,21 @@ theorem collectFields_fieldCompatible_of_selectionSetValid_scopedCompatible
           (GraphQL.Execution.collectFields schema variableValues collectParent
             source selectionSet) := by
   intro hvalid hscopedCompatible
-  apply CollectedGroupsFieldValidationMergeCompatible.of_collectedExecutableFields
-  exact ScopedFieldsFieldValidationMergeCompatible.executable_identity
-    (FieldMerge.collectFields schema validParent selectionSet)
-    (collectedExecutableFields
-      (GraphQL.Execution.collectFields schema variableValues collectParent source
-        selectionSet))
-    hscopedCompatible
-    (collectFields_identityScopedBy_of_selectionSetValid schema
-      variableDefinitions variableValues collectParent validParent source
-      selectionSet hvalid)
+  intro responseName fields hgroup first later hfirst hlater
+  have hscoped := collectFields_entriesIdentityScopedBy_of_selectionSetValid schema
+    variableDefinitions variableValues collectParent validParent source selectionSet hvalid
+  rcases hscoped (responseName, first)
+      (collectedExecutableEntries_mem_of_group_mem hgroup hfirst) with
+    ⟨firstScoped, hfirstMem, hfirstResponse, hfirstMatch⟩
+  rcases hscoped (responseName, later)
+      (collectedExecutableEntries_mem_of_group_mem hgroup hlater) with
+    ⟨laterScoped, hlaterMem, hlaterResponse, hlaterMatch⟩
+  rcases hfirstMatch with ⟨hfirstField, hfirstArguments, _hfirstSelection⟩
+  rcases hlaterMatch with ⟨hlaterField, hlaterArguments, _hlaterSelection⟩
+  rcases hscopedCompatible firstScoped laterScoped hfirstMem hlaterMem
+      (hfirstResponse.trans hlaterResponse.symm) with ⟨hfield, harguments⟩
+  exact ⟨hfirstField.symm.trans (hfield.trans hlaterField),
+    hfirstArguments.symm ▸ hlaterArguments.symm ▸ harguments⟩
 
 theorem collectFields_fieldCompatible_of_canMerge_runtimeScoped
     {ObjectIdentity : Type}
@@ -1188,22 +1183,22 @@ theorem collectFields_fieldCompatible_of_canMerge_runtimeScoped
     (source : ResolverValue ObjectIdentity)
     (selectionSet : List Selection)
     : FieldMerge.fieldsInSetCanMerge schema validParent selectionSet
-      -> ExecutableFieldsRuntimeScopedBy schema runtimeType
+      -> ExecutableEntriesRuntimeScopedBy schema runtimeType
           (FieldMerge.collectFields schema validParent selectionSet)
-          (collectedExecutableFields
+          (collectedExecutableEntries
             (GraphQL.Execution.collectFields schema variableValues collectParent
               source selectionSet))
       -> CollectedGroupsFieldValidationMergeCompatible
           (GraphQL.Execution.collectFields schema variableValues collectParent
             source selectionSet) := by
   intro hmerge hscoped
-  apply CollectedGroupsFieldValidationMergeCompatible.of_collectedExecutableFields
-  exact fieldsInSetCanMerge_executable_runtimeScoped schema validParent
-    runtimeType selectionSet
-    (collectedExecutableFields
-      (GraphQL.Execution.collectFields schema variableValues collectParent
-        source selectionSet))
-    hmerge hscoped
+  intro responseName fields hgroup
+  apply fieldsInSetCanMerge_executable_runtimeScoped schema validParent
+    runtimeType selectionSet responseName fields hmerge
+  intro entry hentry
+  rcases List.mem_map.mp hentry with ⟨field, hfield, rfl⟩
+  exact hscoped (responseName, field)
+    (collectedExecutableEntries_mem_of_group_mem hgroup hfield)
 
 theorem collectFields_fieldCompatible_of_canMerge_lookupValid
     {ObjectIdentity : Type}
@@ -1222,7 +1217,7 @@ theorem collectFields_fieldCompatible_of_canMerge_lookupValid
   apply collectFields_fieldCompatible_of_canMerge_runtimeScoped
     schema variableValues collectParent validParent runtimeType
     (.object runtimeType identity) selectionSet hmerge
-  exact collectFields_runtimeScopedBy_of_selectionSetLookupValid schema
+  exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
     variableValues collectParent validParent runtimeType identity selectionSet
     hparentRuntime hlookupValid
 
@@ -1243,18 +1238,15 @@ theorem collectFields_fieldCompatible_of_canMerge_lookupValid_object
   apply collectFields_fieldCompatible_of_canMerge_runtimeScoped
     schema variableValues collectParent validParent runtimeType
     (.object runtimeType identity) selectionSet hmerge
-  exact collectFields_runtimeScopedBy_of_selectionSetLookupValid_object schema
+  exact collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
     variableValues collectParent validParent runtimeType identity selectionSet
     hparentRuntime hlookupValid
 
 theorem ExecutableFieldsMergeCompatible.to_validation (fields : List ExecutableField)
     : ExecutableFieldsMergeCompatible fields
       -> ExecutableFieldsValidationMergeCompatible fields := by
-  intro hcompatible first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse with
-    ⟨hparent, hfield, harguments⟩
-  constructor
-  · exact hparent
+  intro hcompatible first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with ⟨hfield, harguments⟩
   constructor
   · exact hfield
   · rw [harguments]
@@ -1269,9 +1261,8 @@ theorem ExecutableFieldsSameParentValidationMergeCompatible.fieldCompatible
     : ExecutableFieldsSameResponseParent fields
       -> ExecutableFieldsSameParentValidationMergeCompatible fields
       -> ExecutableFieldsFieldValidationMergeCompatible fields := by
-  intro hsameParent hcompatible first later hfirst hlater hresponse
-  exact hcompatible first later hfirst hlater hresponse
-    (hsameParent first later hfirst hlater hresponse)
+  intro _hsameParent hcompatible first later hfirst hlater
+  exact hcompatible first later hfirst hlater
 
 theorem CollectedGroupsValidationMergeCompatible.fieldCompatible
     (groups : List (Name × List ExecutableField))
@@ -1290,10 +1281,9 @@ theorem ExecutableFieldsMergeCompatible.resolveStable
     (source : ResolverValue ObjectIdentity) (fields : List ExecutableField)
     : ExecutableFieldsMergeCompatible fields
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hcompatible first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse with
-    ⟨hparent, hfield, harguments⟩
-  simp [hparent, hfield, harguments]
+  intro hcompatible parentType first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with ⟨hfield, harguments⟩
+  simp [hfield, harguments]
 
 theorem ExecutableFieldsSameParentValidationMergeCompatible.resolveStable
     {ObjectIdentity : Type} (schema : Schema)
@@ -1303,12 +1293,10 @@ theorem ExecutableFieldsSameParentValidationMergeCompatible.resolveStable
       -> ExecutableFieldsSameResponseParent fields
       -> ExecutableFieldsSameParentValidationMergeCompatible fields
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hresolvers hsameParent hcompatible first later hfirst hlater hresponse
-  have hparent := hsameParent first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse hparent with
-    ⟨hfield, harguments⟩
-  rw [hparent, hfield]
-  exact hresolvers later.parentType later.fieldName first.arguments
+  intro hresolvers _hsameParent hcompatible parentType first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with ⟨hfield, harguments⟩
+  rw [hfield]
+  exact hresolvers parentType later.fieldName first.arguments
     later.arguments harguments
 
 theorem ExecutableFieldsFieldValidationMergeCompatible.resolveStable
@@ -1318,11 +1306,11 @@ theorem ExecutableFieldsFieldValidationMergeCompatible.resolveStable
     : ResolversRespectFieldAndArgumentEquivalence schema resolvers variableValues source
       -> ExecutableFieldsFieldValidationMergeCompatible fields
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hresolvers hcompatible first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse with
+  intro hresolvers hcompatible parentType first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with
     ⟨hfield, harguments⟩
   rw [hfield]
-  exact hresolvers first.parentType later.parentType later.fieldName
+  exact hresolvers parentType parentType later.fieldName
     first.arguments later.arguments harguments
 
 theorem ExecutableFieldsSameParentValidationMergeCompatible.resolveStableValid
@@ -1334,12 +1322,11 @@ theorem ExecutableFieldsSameParentValidationMergeCompatible.resolveStableValid
       -> ExecutableFieldsSameParentValidationMergeCompatible fields
       -> ExecutableFieldsArgumentsNodup fields
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hresolvers hsameParent hcompatible hnodup first later hfirst hlater hresponse
-  have hparent := hsameParent first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse hparent with
+  intro hresolvers _hsameParent hcompatible hnodup parentType first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with
     ⟨hfield, harguments⟩
-  rw [hparent, hfield]
-  exact hresolvers later.parentType later.fieldName first.arguments later.arguments
+  rw [hfield]
+  exact hresolvers parentType later.fieldName first.arguments later.arguments
     (hnodup first hfirst) (hnodup later hlater) harguments
 
 theorem ExecutableFieldsFieldValidationMergeCompatible.resolveStableValid
@@ -1351,11 +1338,11 @@ theorem ExecutableFieldsFieldValidationMergeCompatible.resolveStableValid
       -> ExecutableFieldsFieldValidationMergeCompatible fields
       -> ExecutableFieldsArgumentsNodup fields
       -> ExecutableFieldsResolveStable schema resolvers variableValues source fields := by
-  intro hresolvers hcompatible hnodup first later hfirst hlater hresponse
-  rcases hcompatible first later hfirst hlater hresponse with
+  intro hresolvers hcompatible hnodup parentType first later hfirst hlater
+  rcases hcompatible first later hfirst hlater with
     ⟨hfield, harguments⟩
   rw [hfield]
-  exact hresolvers first.parentType later.parentType later.fieldName
+  exact hresolvers parentType parentType later.fieldName
     first.arguments later.arguments (hnodup first hfirst)
     (hnodup later hlater) harguments
 
