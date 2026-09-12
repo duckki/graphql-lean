@@ -638,9 +638,6 @@ private theorem spineSelectionIncludes_child
     ⟨originName, originFields, originResponseFields, horiginGroup,
       horiginResult, horiginMember⟩
   have horiginName : originName = responseName := by
-    have hresponseNames := collectFields_responseName schema leftValues runtimeType
-      (.object runtimeType parentPlan) leftSelectionSet originName originFields
-      horiginGroup
     have horiginAnnotationName : originName = matchedName := by
       rcases executeAnnotatedField_ok_zero_decompose schema
           (spineResolvers schema) leftValues _ runtimeType

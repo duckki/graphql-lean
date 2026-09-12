@@ -998,10 +998,7 @@ theorem ofSelectionSetInScope_fieldEntries_mem
 -----------------------------------------------------------------------------------------
 
 def runtimeFieldsForConditionEntries
-    {ObjectRef : Type}
-    (_schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (_source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List (Condition × Selection))
     : List (Name × ExecutableField) :=
   entries.flatMap
@@ -1022,27 +1019,17 @@ def runtimeFieldsForConditionEntries
         []
 
 theorem runtimeFieldsForConditionEntries_append
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     (left right : List (Condition × Selection))
-    : runtimeFieldsForConditionEntries schema variableValues executionParentType
-        runtimeType source (left ++ right)
-      = runtimeFieldsForConditionEntries schema variableValues executionParentType
-          runtimeType source left
-        ++ runtimeFieldsForConditionEntries schema variableValues
-            executionParentType runtimeType source right := by
+    : runtimeFieldsForConditionEntries variableValues runtimeType (left ++ right)
+      = runtimeFieldsForConditionEntries variableValues runtimeType left
+        ++ runtimeFieldsForConditionEntries variableValues runtimeType right := by
   simp [runtimeFieldsForConditionEntries]
 
 theorem runtimeFieldsForConditionEntries_singleton
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     (condition : Condition) (selection : Selection)
-    : runtimeFieldsForConditionEntries schema variableValues executionParentType
-        runtimeType source [(condition, selection)]
+    : runtimeFieldsForConditionEntries variableValues runtimeType [(condition, selection)]
       = if condition.allows variableValues runtimeType then
           match selection with
           | .field responseName fieldName arguments _directives selectionSet =>
@@ -1060,14 +1047,11 @@ theorem runtimeFieldsForConditionEntries_singleton
   simp [runtimeFieldsForConditionEntries]
 
 theorem runtimeFieldsForEntries_eq_projected
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List (Condition × NamedField))
-    : runtimeFieldsForEntries variableValues executionParentType runtimeType entries
-      = runtimeFieldsForConditionEntries schema variableValues executionParentType
-          runtimeType source (entries.map projectStoredFieldEntry) := by
+    : runtimeFieldsForEntries variableValues runtimeType entries
+      = runtimeFieldsForConditionEntries variableValues runtimeType
+          (entries.map projectStoredFieldEntry) := by
   induction entries with
   | nil => simp [runtimeFieldsForEntries, runtimeFieldsForConditionEntries]
   | cons entry rest ih =>
@@ -1094,12 +1078,10 @@ theorem collectFlatSelection_inlineFragment_object
           collectFlatFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet
         else
-          [] := by
-  simpa [ConditionTree.collectFlatSelection_eq_fieldGroups,
-    ConditionTree.collectFlatFields_eq_fieldGroups] using
-    SelectionConditions.collectFlatSelection_inlineFragment_object schema
-      variableValues executionParentType runtimeType ref typeCondition directives
-      selectionSet
+          [] :=
+  SelectionConditions.collectFlatSelection_inlineFragment_object schema
+    variableValues executionParentType runtimeType ref typeCondition directives
+    selectionSet
 
 theorem collectConditionEntries_runtimeFields
     {ObjectRef : Type}
@@ -1110,8 +1092,7 @@ theorem collectConditionEntries_runtimeFields
     (currentCondition : Condition)
     (selectionSet : List Selection)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
-    : runtimeFieldsForConditionEntries schema variableValues executionParentType
-        runtimeType (.object runtimeType ref)
+    : runtimeFieldsForConditionEntries variableValues runtimeType
         (collectConditionEntries schema currentParentType
           inheritedBooleanCondition currentCondition selectionSet)
       = if currentCondition.allows variableValues runtimeType then
@@ -1293,19 +1274,12 @@ decreasing_by
     omega
 
 theorem runtimeFieldsForConditionEntries_mem_congr
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     (left right : List (Condition × Selection))
     (hentries : ∀ entry, entry ∈ left ↔ entry ∈ right)
     (field : Name × ExecutableField)
-    : field
-        ∈ runtimeFieldsForConditionEntries schema variableValues
-            executionParentType runtimeType source left
-      ↔ field
-        ∈ runtimeFieldsForConditionEntries schema variableValues
-            executionParentType runtimeType source right := by
+    : field ∈ runtimeFieldsForConditionEntries variableValues runtimeType left
+      ↔ field ∈ runtimeFieldsForConditionEntries variableValues runtimeType right := by
   simp only [runtimeFieldsForConditionEntries, List.mem_flatMap]
   constructor
   · rintro ⟨entry, hentry, hfield⟩
@@ -1323,7 +1297,6 @@ theorem collectFlatFields_mem_collectFields
         ∈ flattenExecutableFieldGroups
             (Execution.collectFields schema variableValues parentType source
               selectionSet) := by
-  rw [collectFlatFields_eq_fieldGroups]
   simpa [ConditionTree.flattenExecutableFieldGroups,
     Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
       Execution.FieldGroups.collectFlatFields_mem_collectFields schema
@@ -1351,13 +1324,12 @@ theorem extraction_sound
   simp only [if_true] at hsource
   let tree :=
     ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet
-  change field ∈ runtimeFieldsForEntries variableValues executionParentType runtimeType
+  change field ∈ runtimeFieldsForEntries variableValues runtimeType
       tree.storedFieldEntries ↔ _
-  rw [runtimeFieldsForEntries_eq_projected schema variableValues executionParentType
-    runtimeType (.object runtimeType ref) tree.storedFieldEntries]
+  rw [runtimeFieldsForEntries_eq_projected variableValues runtimeType
+    tree.storedFieldEntries]
   rw [← tree.fieldEntries_eq_map_storedFieldEntries]
-  rw [runtimeFieldsForConditionEntries_mem_congr schema variableValues
-    executionParentType runtimeType (.object runtimeType ref)
+  rw [runtimeFieldsForConditionEntries_mem_congr variableValues runtimeType
     tree.fieldEntries
     (collectConditionEntries schema parentType inheritedBooleanCondition
       (rootCondition schema parentType) selectionSet)
@@ -1420,8 +1392,7 @@ theorem extraction_groups_equivalent
     extraction_sound schema parentType inheritedBooleanCondition selectionSet
       variableValues executionParentType runtimeType ref hinherited hpossible
   have hexact :=
-    Tree.collectRuntimeFieldGroups_exact variableValues executionParentType
-      runtimeType tree
+    Tree.collectRuntimeFieldGroups_exact variableValues runtimeType tree
   constructor
   · intro responseName
     rw [Tree.collectRuntimeFieldGroups,

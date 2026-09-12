@@ -7,6 +7,7 @@ namespace QueryInclusion
 
 open Execution
 open Execution.FieldGroups
+open GraphQL.ConditionTree
 
 structure ExecutableFieldSyntacticallyIncludes (left right : ExecutableField) : Prop where
   fieldName : left.fieldName = right.fieldName

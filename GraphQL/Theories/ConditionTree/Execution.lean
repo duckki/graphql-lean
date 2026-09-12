@@ -52,7 +52,7 @@ end
 -- Canonical runtime interpretation of typed condition-tree entries. All runtime gating
 -- is decided by the node condition; stored `Field` values contain no directive payload.
 def runtimeFieldsForEntries
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List (Condition × NamedField))
     : List (Name × ExecutableField) :=
   entries.flatMap
@@ -70,22 +70,20 @@ def runtimeFieldsForEntries
         []
 
 def Tree.collectRuntimeFields
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (tree : Tree)
     : List (Name × ExecutableField) :=
-  runtimeFieldsForEntries variableValues executionParentType runtimeType
-    tree.storedFieldEntries
+  runtimeFieldsForEntries variableValues runtimeType tree.storedFieldEntries
 
 -- Runtime-active field groups in condition-tree/analyzer traversal order.
 -- `storedFieldEntries` emits only a node's local fields before descending, so parent
 -- fields are not copied into child nodes. Global grouping merges repeated response
 -- names before execution.
 def Tree.collectRuntimeFieldGroups
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (tree : Tree)
     : List (Name × List ExecutableField) :=
-  groupExecutableFields
-    (tree.collectRuntimeFields variableValues executionParentType runtimeType)
+  groupExecutableFields (tree.collectRuntimeFields variableValues runtimeType)
 
 -----------------------------------------------------------------------------------------
 -- Tree execution termination measure
@@ -289,12 +287,10 @@ end
 
 private theorem runtimeFieldsForEntries_responseDepth_le
     (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
+    (runtimeType : Name)
     (entries : List (Condition × NamedField))
     : executableFieldsResponseDepth
-        ((runtimeFieldsForEntries variableValues executionParentType runtimeType
-            entries).map
-          Prod.snd)
+        ((runtimeFieldsForEntries variableValues runtimeType entries).map Prod.snd)
       ≤ conditionEntriesResponseDepth entries := by
   induction entries with
   | nil => simp [runtimeFieldsForEntries, executableFieldsResponseDepth,
@@ -316,17 +312,16 @@ private theorem runtimeFieldsForEntries_responseDepth_le
 
 private theorem Tree.collectRuntimeFields_responseDepth_le
     (tree : Tree) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
+    (runtimeType : Name)
     : executableFieldsResponseDepth
-        ((tree.collectRuntimeFields variableValues executionParentType runtimeType).map
-          Prod.snd)
+        ((tree.collectRuntimeFields variableValues runtimeType).map Prod.snd)
       ≤ conditionTreeResponseDepth tree := by
   change executableFieldsResponseDepth
-      ((runtimeFieldsForEntries variableValues executionParentType runtimeType
+      ((runtimeFieldsForEntries variableValues runtimeType
         tree.storedFieldEntries).map Prod.snd) ≤ conditionTreeResponseDepth tree
   exact Nat.le_trans
-    (runtimeFieldsForEntries_responseDepth_le variableValues executionParentType
-      runtimeType tree.storedFieldEntries)
+    (runtimeFieldsForEntries_responseDepth_le variableValues runtimeType
+      tree.storedFieldEntries)
     tree.storedFieldEntries_responseDepth_le
 
 private theorem executableGroupsResponseDepth_addExecutableGroup
@@ -406,15 +401,14 @@ private theorem groupExecutableFields_responseDepth_le
 
 private theorem Tree.collectRuntimeFieldGroups_responseDepth_le
     (tree : Tree) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
+    (runtimeType : Name)
     : executableGroupsResponseDepth
-        (tree.collectRuntimeFieldGroups variableValues executionParentType runtimeType)
+        (tree.collectRuntimeFieldGroups variableValues runtimeType)
       ≤ conditionTreeResponseDepth tree := by
   exact Nat.le_trans
     (groupExecutableFields_responseDepth_le
-      (tree.collectRuntimeFields variableValues executionParentType runtimeType))
-    (tree.collectRuntimeFields_responseDepth_le variableValues
-      executionParentType runtimeType)
+      (tree.collectRuntimeFields variableValues runtimeType))
+    (tree.collectRuntimeFields_responseDepth_le variableValues runtimeType)
 
 def mergedExecutableSelectionSet (fields : List ExecutableField) : List Selection :=
   fields.flatMap ExecutableField.selectionSet
@@ -481,13 +475,12 @@ mutual
       : Result (List (Name × ResponseValue)) :=
     let tree := ofSelectionSet schema parentType selectionSet
     executeCollectedFields schema resolvers variableValues executionParentType source
-      (tree.collectRuntimeFieldGroups variableValues executionParentType runtimeType)
+      (tree.collectRuntimeFieldGroups variableValues runtimeType)
   termination_by (selectionSetResponseDepth selectionSet, 5, 0)
   decreasing_by
     apply executionMeasure_lt_of_le_of_control_lt
     · exact Nat.le_trans
-        (tree.collectRuntimeFieldGroups_responseDepth_le variableValues
-          executionParentType runtimeType)
+        (tree.collectRuntimeFieldGroups_responseDepth_le variableValues runtimeType)
         (conditionTreeResponseDepth_ofSelectionSetInScope schema parentType []
           selectionSet)
     · omega
@@ -673,7 +666,7 @@ def ExtractionGroupsEquivalent
     -> RuntimeFieldGroupsEquivalent
         ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet).collectRuntimeFieldGroups
-          variableValues executionParentType runtimeType)
+          variableValues runtimeType)
         (Execution.collectFields schema variableValues executionParentType
           (.object runtimeType ref) selectionSet)
 
@@ -693,7 +686,7 @@ def ExtractionSound (schema : Schema) (parentType : Name)
         field
           ∈ (ofSelectionSetInScope schema parentType inheritedBooleanCondition
               selectionSet).collectRuntimeFields
-              variableValues executionParentType runtimeType
+              variableValues runtimeType
         ↔ field
           ∈ flattenExecutableFieldGroups
               (Execution.collectFields schema variableValues executionParentType

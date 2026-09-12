@@ -810,7 +810,6 @@ theorem ExecutableFieldsFlatSpecEquivalent_collected_single_field_group_of_child
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (_hgroup : (responseName, [field]) ∈ groups)
-    (_hparents : CollectedGroupsParent parentType groups)
     (hchildren
       : ∀ childDepth runtimeType (identity : ObjectIdentity),
           childDepth < depth
@@ -1313,8 +1312,6 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_merged_co
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (_hgroup : (responseName, field :: fields) ∈ groups)
-    (_hresponses : CollectedGroupsResponseName groups)
-    (_hparents : CollectedGroupsParent parentType groups)
     (hungrouped
       : executeRootSelectionSet schema resolvers variableValues (depth + 1)
           parentType source

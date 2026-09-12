@@ -179,8 +179,6 @@ def depth_zero_general
             parentType source selectionSet))
         (collectFields_fieldsNonempty schema variableValues parentType source
           selectionSet)
-        (collectFields_responseName schema variableValues parentType source selectionSet)
-        (collectFields_parent schema variableValues parentType source selectionSet)
   }
 
 def depth_zero
@@ -325,13 +323,6 @@ def of_collected_groups_state
     rw [← hcollect]
     exact collectFields_fieldsNonempty schema variableValues parentType source
       selectionSet
-  have hresponses : CollectedGroupsResponseName groups :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq state groups
-      hcollect
-  have hparents : CollectedGroupsParent parentType groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
-        hcollect
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
@@ -343,8 +334,8 @@ def of_collected_groups_state
   exact
     of_executedGroups hcollect hflat
         (ExecutedFieldGroups.of_collected_groups_state schema resolvers
-          variableValues depth parentType source groups hnonempty hresponses
-          hparents hlookups hcompatible hstable hplanStates)
+          variableValues depth parentType source groups hnonempty hlookups
+          hcompatible hstable hplanStates)
       hnodup
 
 def of_collected_groups_appendInvariant
@@ -725,8 +716,6 @@ theorem alignedAppendSteps_from_prefix
     (state
       : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
           variableValues completionDepth parentType source groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
@@ -789,8 +778,8 @@ theorem alignedAppendSteps_from_prefix
                   (prefixTail ++ [later]) hgroup hprefixNext childDepth
                   runtimeType identity hlt hcontains
                   hincludes).executeRootSelectionSet_aligned),
-        alignedAppendSteps_from_prefix state hresponses hparents hcompatible
-          hstable responseName field fields (prefixTail ++ [later]) rest
+        alignedAppendSteps_from_prefix state hcompatible hstable responseName
+          field fields (prefixTail ++ [later]) rest
           hgroup hprefixNext hremainingRest
       ⟩
 
@@ -803,8 +792,6 @@ theorem alignedAppendSteps
     (state
       : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
           variableValues completionDepth parentType source groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
@@ -815,7 +802,7 @@ theorem alignedAppendSteps
         (resolveFieldValueByName schema resolvers variableValues parentType
           field.fieldName field.arguments source)
         [] fields :=
-  alignedAppendSteps_from_prefix state hresponses hparents hcompatible hstable
+  alignedAppendSteps_from_prefix state hcompatible hstable
     responseName field fields [] fields hgroup
     (by intro candidate hmem; simp at hmem)
     (by intro candidate hmem; exact hmem)
@@ -868,11 +855,6 @@ def
         source := source
         selectionSet := selectionSet }
       initial := .object [] }
-  have hresponses : CollectedGroupsResponseName groups :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq state groups
-      hcollect
-  have hparents : CollectedGroupsParent parentType groups :=
-    ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups hcollect
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups :=
     ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
       hcollected hcollect
@@ -889,7 +871,7 @@ def
   exact
     ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
       schema resolvers variableValues completionDepth parentType source groups
-      hnonempty hresponses hparents hlookups
+      hnonempty hlookups
       (by
         intro responseName field fields hgroup childDepth runtimeType identity hlt
           hcontains hincludes
@@ -903,8 +885,7 @@ def
         intro responseName field fields hgroup
         exact
           CollectedFieldGroupRecursiveAlignedAppendState.alignedAppendSteps
-            happend hresponses hparents hcompatible hstable responseName field
-            fields hgroup)
+            happend hcompatible hstable responseName field fields hgroup)
       hnodup
 
 def ExecutedGroupedSelectionSetState.of_collected_groups_recursiveAppendState

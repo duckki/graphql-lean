@@ -9,6 +9,7 @@ namespace GraphQL
 namespace QueryInclusion
 
 open Execution.FieldGroups
+open GraphQL.ConditionTree
 
 open Execution AnnotatedExecution
 open SelectionConditions
@@ -328,9 +329,6 @@ theorem executableGroupsReady_collectFields
   have hchild :=
     collectFields_childSemanticsReady_of_selectionSetSemanticsReady_object schema
       variableValues parentType parentType ref selectionSet hobject hself hready
-  have hresponses : CollectedGroupsResponseName groups := by
-    exact collectFields_responseName schema variableValues parentType
-      (.object parentType ref) selectionSet
   have hcompatible : CollectedGroupsFieldValidationMergeCompatible groups := by
     dsimp only [groups]
     exact collectFields_fieldCompatible_of_canMerge_lookupValid_object schema

@@ -447,7 +447,7 @@ private theorem runtimeCaseFieldGroups_representRuntimeGroups
         ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
           inheritedBooleanCondition variableValues selectionSet
       let groups :=
-        RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+        RuntimeCase.fieldGroups inheritedBooleanCondition
           (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
       let runtimeGroups :=
         collectFields schema variableValues runtimeType
@@ -457,7 +457,7 @@ private theorem runtimeCaseFieldGroups_representRuntimeGroups
     ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
       inheritedBooleanCondition variableValues selectionSet
   let groups :=
-    RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+    RuntimeCase.fieldGroups inheritedBooleanCondition
       (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
   let runtimeGroups :=
     collectFields schema variableValues runtimeType
@@ -471,14 +471,13 @@ private theorem runtimeCaseFieldGroups_representRuntimeGroups
       variableValues variableValues hmatch () hinherited
       (List.contains_iff_mem.mpr hincludes)
   change RuntimeGroupsPermutationEquivalent
-    (groups.map (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType))
+    (groups.map CollectedFieldGroup.toExecutableGroup)
     runtimeGroups at hequivalent
   exact {
     keysPerm := by
-      rw [← RuntimeCase.collectedFieldGroupToExecutableGroup_keys]
+      rw [← RuntimeCase.toExecutableGroup_keys]
       exact hequivalent.keysPerm
     fieldsPerm := by
-      unfold RuntimeCase.collectedFieldGroupToExecutableGroup at hequivalent
       simpa only [Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
         using hequivalent.fieldsPerm
   }

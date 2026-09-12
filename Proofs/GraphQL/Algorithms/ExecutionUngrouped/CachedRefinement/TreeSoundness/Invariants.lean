@@ -402,13 +402,12 @@ theorem OutputCacheSoundForGroups.to_flat {ObjectRef : Type}
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (output : FieldCacheValue ObjectRef)
-    : ExecutionUngroupedUncached.Eager.CollectedGroupsResponseName groups
-      -> OutputCacheSoundForGroups schema resolvers variableValues parentType source
-          groups output
+    : OutputCacheSoundForGroups schema resolvers variableValues parentType source
+        groups output
       -> OutputCacheSoundForFields schema resolvers variableValues parentType source
           (ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups)
           output := by
-  intro _hresponses hsound responseName field fieldDefinition previous hfield hprevious
+  intro hsound responseName field fieldDefinition previous hfield hprevious
     hlookup
   rcases collectedExecutableEntries_mem_exists_group groups responseName field hfield with
     ⟨fields, hgroup, hfield⟩
@@ -423,13 +422,12 @@ theorem OutputCacheSoundForFields.to_groups {ObjectRef : Type}
     (source : ResolverValue ObjectRef)
     (groups : List (Name × List ExecutableField))
     (output : FieldCacheValue ObjectRef)
-    : ExecutionUngroupedUncached.Eager.CollectedGroupsResponseName groups
-      -> OutputCacheSoundForFields schema resolvers variableValues parentType source
-          (ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups)
-          output
+    : OutputCacheSoundForFields schema resolvers variableValues parentType source
+        (ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups)
+        output
       -> OutputCacheSoundForGroups schema resolvers variableValues parentType source
           groups output := by
-  intro _hresponses hsound responseName fields field fieldDefinition previous hgroup hfield
+  intro hsound responseName fields field fieldDefinition previous hgroup hfield
     hprevious hlookup
   have hflat :
       (responseName, field)

@@ -15,46 +15,6 @@ open Execution
 open GraphQL.ConditionTree
 open Algorithms.ExecutionUngroupedUncached.Eager
 
--- Ungrouped runtime field collection for one syntax boundary. This is proof-facing:
--- the specification executor returns response-name groups directly.
-mutual
-  def collectFlatFields (schema : Schema) (variableValues : VariableValues)
-      (executionParentType : Name) (source : ResolverValue ObjectRef)
-      : List Selection -> List (Name × ExecutableField)
-    | [] => []
-    | selection :: rest =>
-        collectFlatSelection schema variableValues executionParentType source selection
-        ++ collectFlatFields schema variableValues executionParentType source rest
-
-  def collectFlatSelection (schema : Schema) (variableValues : VariableValues)
-      (executionParentType : Name) (source : ResolverValue ObjectRef)
-      : Selection -> List (Name × ExecutableField)
-    | .field responseName fieldName arguments directives selectionSet =>
-        if selectionDirectivesAllowBool variableValues directives then
-          [(
-            responseName,
-            {
-            fieldName
-            arguments
-            selectionSet
-          }
-          )]
-        else
-          []
-    | .inlineFragment none directives selectionSet =>
-        if selectionDirectivesAllowBool variableValues directives then
-          collectFlatFields schema variableValues executionParentType source selectionSet
-        else
-          []
-    | .inlineFragment (some typeCondition) directives selectionSet =>
-        if selectionDirectivesAllowBool variableValues directives
-            && doesFragmentTypeApplyBool schema executionParentType source
-                typeCondition then
-          collectFlatFields schema variableValues executionParentType source selectionSet
-        else
-          []
-end
-
 @[simp]
 theorem flattenExecutableFieldGroups_map_snd (groups : List (Name × List ExecutableField))
     : (flattenExecutableFieldGroups groups).map Prod.snd = groups.flatMap Prod.snd := by
@@ -73,15 +33,6 @@ theorem flattenExecutableFieldGroups_eq_flatMap
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
       simp [flattenExecutableFieldGroups, ih]
-
-def groupExecutableFields (fields : List (Name × ExecutableField))
-    : List (Name × List ExecutableField) :=
-  fields.foldl (fun groups field => addExecutableGroup (field.1, [field.2]) groups) []
-
-def RuntimeFieldGroupsExact (fields : List (Name × ExecutableField))
-    (groups : List (Name × List ExecutableField))
-    : Prop :=
-  (groups.map Prod.fst).Nodup ∧ (flattenExecutableFieldGroups groups).Perm fields
 
 theorem flattenExecutableFieldGroups_addExecutableGroup_perm
     (group : Name × List ExecutableField)
@@ -944,7 +895,6 @@ theorem RuntimeGroupsPermutationEquivalent.crossCompatible
     {left right : List (Name × List ExecutableField)}
     (equivalent : RuntimeGroupsPermutationEquivalent left right)
     (hfieldCompatible : CollectedGroupsFieldValidationMergeCompatible right)
-    (_hsameParent : CollectedGroupsSameResponseParent right)
     : RuntimeGroupsCrossCompatible left right := by
   intro leftName leftField hleft rightName rightField hright hresponse
   have hleftRight : (leftName, leftField) ∈ flattenExecutableFieldGroups right :=

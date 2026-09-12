@@ -387,8 +387,7 @@ theorem selectionSetResultEquivalent_trans
                 hleft.2.trans hright.2
               ⟩
 
-private def fieldGroupOfSelection (executionParentType : Name)
-    : Selection -> Name × List ExecutableField
+private def fieldGroupOfSelection : Selection -> Name × List ExecutableField
   | .field responseName fieldName arguments _directives childSelectionSet =>
       (
         responseName,
@@ -410,7 +409,7 @@ theorem collectFields_allFields_directiveFree_nodup_eq_map
         -> selectionSetDirectiveFree selectionSet
         -> responseNamesNodup selectionSet
         -> collectFields schema variableValues executionParentType source selectionSet
-            = selectionSet.map (fieldGroupOfSelection executionParentType)
+            = selectionSet.map fieldGroupOfSelection
   | [], _hallFields, _hfree, _hnodup => by
       simp [collectFields]
   | selection :: rest, hallFields, hfree, hnodup => by
@@ -726,7 +725,7 @@ def CompleteValueSoundAtFuel (fuel : Nat) : Prop :=
   ∀ {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (executionParentType responseName fieldName : Name)
+    (fieldName : Name)
     (leftArguments rightArguments : List Argument)
     (leftChild rightChild : List Selection)
     (fieldType : TypeRef) (value : ResolverValue ObjectRef),
@@ -976,8 +975,8 @@ theorem executeField_singleton_equivalent_succ
               simp only [executeField, resolveFieldValue, hlookup, hleftCoercion,
                 hrightCoercion, hleftResolve, hrightResolve]
               apply selectionSetResultEquivalent_singleFieldResult
-              exact hcomplete schema resolvers variableValues executionParentType
-                responseName fieldName leftArguments rightArguments leftChild
+              exact hcomplete schema resolvers variableValues
+                fieldName leftArguments rightArguments leftChild
                 rightChild fieldDefinition.outputType value
                 hleftArgumentsNodup hrightArgumentsNodup hleftChildrenNodup
                 hrightChildrenNodup hleftFree hrightFree hleftNormal
@@ -1033,10 +1032,10 @@ private theorem execute_paired_normal_field_groups_equivalent
         -> SelectionSetResultEquivalent
             (executeCollectedFields schema resolvers variableValues fuel
               executionParentType source
-              (pairs.map (fun pair => fieldGroupOfSelection executionParentType pair.1)))
+              (pairs.map (fun pair => fieldGroupOfSelection pair.1)))
             (executeCollectedFields schema resolvers variableValues fuel
               executionParentType source
-              (pairs.map (fun pair => fieldGroupOfSelection executionParentType pair.2)))
+              (pairs.map (fun pair => fieldGroupOfSelection pair.2)))
   | [], _hpairs => selectionSetResultEquivalent_of_eq rfl
   | pair :: rest, hpairs => by
       rcases pair with ⟨leftSelection, rightSelection⟩
@@ -1145,43 +1144,43 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
   have hleftCollect :
       collectFields schema variableValues executionParentType
         (.object runtimeType ref) left =
-      left.map (fieldGroupOfSelection executionParentType) :=
+      left.map fieldGroupOfSelection :=
     collectFields_allFields_directiveFree_nodup_eq_map schema variableValues
       executionParentType (.object runtimeType ref) left hleftAll hleftFree
       (selectionSetNormal_responseNamesNodup hleftNormal)
   have hrightCollect :
       collectFields schema variableValues executionParentType
         (.object runtimeType ref) right =
-      right.map (fieldGroupOfSelection executionParentType) :=
+      right.map fieldGroupOfSelection :=
     collectFields_allFields_directiveFree_nodup_eq_map schema variableValues
       executionParentType (.object runtimeType ref) right hrightAll hrightFree
       (selectionSetNormal_responseNamesNodup hrightNormal)
   rcases hequal with ⟨pairs, hleftPerm, hrightPerm, hrelations⟩
   let leftPairGroups :=
     pairs.map
-      (fun pair => fieldGroupOfSelection executionParentType pair.1)
+      (fun pair => fieldGroupOfSelection pair.1)
   let rightPairGroups :=
     pairs.map
-      (fun pair => fieldGroupOfSelection executionParentType pair.2)
+      (fun pair => fieldGroupOfSelection pair.2)
   have hleftGroupPerm :
       leftPairGroups.Perm
-        (left.map (fieldGroupOfSelection executionParentType)) := by
+        (left.map fieldGroupOfSelection) := by
     simpa [leftPairGroups, List.map_map, Function.comp_def] using
-      hleftPerm.map (fieldGroupOfSelection executionParentType)
+      hleftPerm.map fieldGroupOfSelection
   have hrightGroupPerm :
       rightPairGroups.Perm
-        (right.map (fieldGroupOfSelection executionParentType)) := by
+        (right.map fieldGroupOfSelection) := by
     simpa [rightPairGroups, List.map_map, Function.comp_def] using
-      hrightPerm.map (fieldGroupOfSelection executionParentType)
+      hrightPerm.map fieldGroupOfSelection
   have hleftCollectNodup :
-      ((left.map (fieldGroupOfSelection executionParentType)).map
+      ((left.map fieldGroupOfSelection).map
         Prod.fst).Nodup := by
     rw [← hleftCollect]
     exact pairKeysNodup_of_executableGroupNamesNodup _
       (collectFields_namesNodup schema variableValues executionParentType
         (.object runtimeType ref) left)
   have hrightCollectNodup :
-      ((right.map (fieldGroupOfSelection executionParentType)).map
+      ((right.map fieldGroupOfSelection).map
         Prod.fst).Nodup := by
     rw [← hrightCollect]
     exact pairKeysNodup_of_executableGroupNamesNodup _
@@ -1212,7 +1211,7 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
       SelectionSetResultEquivalent
         (executeCollectedFields schema resolvers variableValues fuel
           executionParentType (.object runtimeType ref)
-          (left.map (fieldGroupOfSelection executionParentType)))
+          (left.map fieldGroupOfSelection))
         (executeCollectedFields schema resolvers variableValues fuel
           executionParentType (.object runtimeType ref) leftPairGroups) :=
     executeCollectedFields_equivalent_of_perm schema resolvers
@@ -1224,7 +1223,7 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
           executionParentType (.object runtimeType ref) rightPairGroups)
         (executeCollectedFields schema resolvers variableValues fuel
           executionParentType (.object runtimeType ref)
-          (right.map (fieldGroupOfSelection executionParentType))) :=
+          (right.map fieldGroupOfSelection)) :=
     executeCollectedFields_equivalent_of_perm schema resolvers
       variableValues fuel executionParentType (.object runtimeType ref) hrightGroupPerm
       ((hrightGroupPerm.map Prod.fst).nodup_iff.mpr hrightCollectNodup)
@@ -1422,8 +1421,8 @@ theorem selectionSetSoundAtFuel_of_singletonFieldSound {fuel : Nat}
         responseValue_semanticEquivalent_refl]
 
 theorem completeValueSoundAtFuel_zero : CompleteValueSoundAtFuel 0 := by
-  intro ObjectRef schema resolvers variableValues executionParentType
-    responseName fieldName leftArguments rightArguments leftChild rightChild
+  intro ObjectRef schema resolvers variableValues
+    fieldName leftArguments rightArguments leftChild rightChild
     fieldType value _hleftArgumentsNodup
     _hrightArgumentsNodup _hleftChildrenNodup _hrightChildrenNodup
     _hleftFree _hrightFree
@@ -1435,7 +1434,7 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
       -> CompleteValueSoundAtFuel fuel
       -> CompleteValueSoundAtFuel (fuel + 1) := by
   intro hselection hcomplete ObjectRef schema resolvers variableValues
-    executionParentType responseName fieldName leftArguments rightArguments
+    fieldName leftArguments rightArguments
     leftChild rightChild fieldType value hleftArgumentsNodup
     hrightArgumentsNodup hleftChildrenNodup hrightChildrenNodup hleftFree
     hrightFree hleftNormal hrightNormal hequal
@@ -1525,7 +1524,7 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
                 simp only [completeValueList]
                 apply listResponseValueResultEquivalent_combine_cons
                 · exact hcomplete schema resolvers variableValues
-                    executionParentType responseName fieldName leftArguments
+                    fieldName leftArguments
                     rightArguments leftChild rightChild inner value
                     hleftArgumentsNodup hrightArgumentsNodup
                     hleftChildrenNodup hrightChildrenNodup

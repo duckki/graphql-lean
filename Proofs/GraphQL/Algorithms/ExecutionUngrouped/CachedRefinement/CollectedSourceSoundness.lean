@@ -531,37 +531,6 @@ mutual
       omega
 end
 
-theorem collectedExecutableFields_parent (parentType : Name)
-    : ∀ groups : List (Name × List ExecutableField),
-        ExecutionUngroupedUncached.Eager.CollectedGroupsParent parentType groups
-        -> ExecutionUngroupedUncached.Eager.ExecutableFieldsParent parentType
-            (ExecutionUngroupedUncached.Eager.collectedExecutableFields groups)
-  | [], _hparents => by
-      intro field hfield
-      simp [ExecutionUngroupedUncached.Eager.collectedExecutableFields] at hfield
-  | (responseName, fields) :: rest, hparents => by
-      intro field hfield
-      simp [ExecutionUngroupedUncached.Eager.collectedExecutableFields] at hfield
-      rcases hfield with hfield | hfield
-      · exact hparents responseName fields (by simp) field hfield
-      · exact
-          collectedExecutableFields_parent parentType rest
-            (ExecutionUngroupedUncached.Eager.CollectedGroupsParent_tail hparents)
-            field hfield
-
-theorem collectFields_flat_parent {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef)
-    (selectionSet : List Selection)
-    : ExecutionUngroupedUncached.Eager.ExecutableFieldsParent parentType
-        (ExecutionUngroupedUncached.Eager.collectedExecutableFields
-          (GraphQL.Execution.collectFields schema variableValues parentType source
-            selectionSet)) :=
-  collectedExecutableFields_parent parentType
-    (GraphQL.Execution.collectFields schema variableValues parentType source selectionSet)
-    (ExecutionUngroupedUncached.Eager.collectFields_parent schema variableValues
-      parentType source selectionSet)
-
 theorem collectFields_flat_fieldCompatible_of_canMerge_lookupValid_object
     {ObjectRef : Type}
     (schema : Schema)

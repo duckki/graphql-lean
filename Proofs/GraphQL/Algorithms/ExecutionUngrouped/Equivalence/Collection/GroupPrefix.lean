@@ -100,23 +100,6 @@ theorem collectFields_group_prefix_runtimeScopedBy_of_selectionSetValid_object
     · exact List.mem_cons_of_mem field (hprefix candidate htail)
   · exact hscopedAll
 
-theorem collectFields_group_prefix_responseName
-    {ObjectIdentity : Type}
-    (schema : Schema)
-    (variableValues : VariableValues)
-    (collectParent runtimeType : Name)
-    (identity : ObjectIdentity)
-    (selectionSet : List Selection)
-    (responseName : Name) (field : ExecutableField)
-    (fields prefixTail : List ExecutableField)
-    : (responseName, field :: fields)
-        ∈ GraphQL.Execution.collectFields schema variableValues collectParent
-            (.object runtimeType identity) selectionSet
-      -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fields)
-      -> ∀ candidate, candidate ∈ field :: prefixTail -> True := by
-  intro _hgroup _hprefix _candidate _hcandidate
-  trivial
-
 theorem collectFields_group_prefix_childFieldSemanticsReady_of_selectionSetValid
     {ObjectIdentity : Type}
     (schema : Schema)

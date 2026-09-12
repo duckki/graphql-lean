@@ -97,10 +97,6 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
     {variableValues : VariableValues} {completionDepth : Nat}
     {parentType runtimeType : Name} {identity : ObjectIdentity}
     (prefixFields : List FreshPrefixSelectionDerivation.KeyedExecutableField)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (prefixFields.map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     (hprefixLookups
       : ∀ field,
           field ∈ prefixFields
@@ -122,7 +118,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
             (schema := schema) (resolvers := resolvers)
             (variableValues := variableValues)
             (completionDepth := completionDepth) (parentType := parentType)
-            (source := .object runtimeType identity) prefixFields hparents
+            (source := .object runtimeType identity) prefixFields
             hprefixLookups with
         ⟨normalized, hnormalized⟩
       exact ⟨normalized, by simpa using hnormalized⟩
@@ -161,12 +157,6 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
              arguments := arguments
              selectionSet := selectionSet } :
             FreshPrefixSelectionDerivation.KeyedExecutableField)
-        have hparents' :
-            ExecutableFieldsParent parentType
-              ((prefixFields ++ [field]).map
-                FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField) := by
-          intro _candidate _hcandidate
-          trivial
         have hlookups' :
             ∀ candidate, candidate ∈ prefixFields ++ [field] ->
               ∃ fieldDefinition,
@@ -183,7 +173,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
               (runtimeType := runtimeType) (identity := identity)
-              (prefixFields ++ [field]) hparents' hlookups' rest hobject
+              (prefixFields ++ [field]) hlookups' rest hobject
               hparentRuntime hrestReady with
           ⟨normalized, tail⟩
         have tail' :
@@ -220,7 +210,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
               (runtimeType := runtimeType) (identity := identity)
-              prefixFields hparents hprefixLookups rest hobject
+              prefixFields hprefixLookups rest hobject
               hparentRuntime hrestReady with
           ⟨normalized, tail⟩
         exact
@@ -255,7 +245,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
               (runtimeType := runtimeType) (identity := identity)
-              prefixFields hparents hprefixLookups (rawChild ++ rest) hobject
+              prefixFields hprefixLookups (rawChild ++ rest) hobject
               hparentRuntime happendReady with
           ⟨normalized, tail⟩
         have tail' :
@@ -283,7 +273,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
               (runtimeType := runtimeType) (identity := identity)
-              prefixFields hparents hprefixLookups rest hobject
+              prefixFields hprefixLookups rest hobject
               hparentRuntime hrestReady with
           ⟨normalized, tail⟩
         exact
@@ -343,7 +333,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
                 (variableValues := variableValues)
                 (completionDepth := completionDepth) (parentType := parentType)
                 (runtimeType := runtimeType) (identity := identity)
-                prefixFields hparents hprefixLookups (rawChild ++ rest) hobject
+                prefixFields hprefixLookups (rawChild ++ rest) hobject
                 hparentRuntime happendReady with
             ⟨normalized, tail⟩
           have tail' :
@@ -373,7 +363,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
                 (variableValues := variableValues)
                 (completionDepth := completionDepth) (parentType := parentType)
                 (runtimeType := runtimeType) (identity := identity)
-                prefixFields hparents hprefixLookups rest hobject
+                prefixFields hprefixLookups rest hobject
                 hparentRuntime hrestReady with
             ⟨normalized, tail⟩
           exact
@@ -395,7 +385,7 @@ theorem executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
               (runtimeType := runtimeType) (identity := identity)
-              prefixFields hparents hprefixLookups rest hobject
+              prefixFields hprefixLookups rest hobject
               hparentRuntime hrestReady with
           ⟨normalized, tail⟩
         exact
@@ -423,17 +413,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_selectionSetSemanticsReady_ob
           (completionDepth + 1) parentType (.object runtimeType identity)
           selectionSet := by
   intro hobject hparentRuntime hready
-  have hparents :
-      ExecutableFieldsParent parentType ([] : List ExecutableField) := by
-    intro field hfield
-    simp at hfield
   rcases
       executablePrefixRawNormalizes_of_selectionSetSemanticsReady_object
         (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth) (parentType := parentType)
         (runtimeType := runtimeType) (identity := identity)
-        ([] : List FreshPrefixSelectionDerivation.KeyedExecutableField) hparents
+        ([] : List FreshPrefixSelectionDerivation.KeyedExecutableField)
         (by
           intro field hfield
           simp at hfield)

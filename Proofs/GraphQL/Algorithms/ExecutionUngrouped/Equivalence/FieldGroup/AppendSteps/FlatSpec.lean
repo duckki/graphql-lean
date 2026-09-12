@@ -575,12 +575,8 @@ def ExecutedFieldGroup.of_collected_appendSteps
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -627,12 +623,8 @@ def ExecutedFieldGroup.of_collected_appendPlan
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -667,8 +659,7 @@ def ExecutedFieldGroup.of_collected_appendPlan
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields :=
   ExecutedFieldGroup.of_collected_appendSteps schema resolvers variableValues
-    depth parentType source groups responseName field fields hgroup
-    hresponses hparents hfieldLookup hfieldChildren
+    depth parentType source responseName field fields hfieldLookup hfieldChildren
     (ExecutedFieldAppendPlan.toAppendSteps schema resolvers variableValues
       depth parentType source responseName field
       (resolveFieldValueByName schema resolvers variableValues parentType
@@ -780,12 +771,8 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_appendSte
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (groups : List (Name × List ExecutableField))
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
-    (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)

@@ -177,8 +177,7 @@ decreasing_by
   · exact nextTypeBranch_unresolved_lt cursor branch rest _hbranches _
   · exact resolveBooleanBranch_unresolved_lt cursor branch rest _hbranches literal _
 
-def fieldGroups (_parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
+def fieldGroups (inheritedBooleanCondition : List BooleanLiteral)
     (cursor : CaseCursor) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
     : List CollectedFieldGroup :=
@@ -288,7 +287,7 @@ theorem summarize_eq_resolved
     : summarize algebra schema parentType inheritedBooleanCondition cursor possibleTypes
         runtimeType variableValues fixedVariableValues
       = CaseCursor.summarizeFieldGroups algebra schema
-          (fieldGroups parentType inheritedBooleanCondition cursor possibleTypes
+          (fieldGroups inheritedBooleanCondition cursor possibleTypes
             runtimeType variableValues)
           variableValues fixedVariableValues := by
   unfold summarize fieldGroups
@@ -427,15 +426,14 @@ theorem summarize_le
     inheritedBooleanCondition [] cursor possibleTypes runtimeType variableValues
     fixedVariableValues hruntime
 
-private def namedFieldToExecutable (_parentType : Name) (field : NamedField)
-    : ExecutableField :=
+private def namedFieldToExecutable (field : NamedField) : ExecutableField :=
   {
     fieldName := field.field.fieldName
     arguments := field.field.arguments
     selectionSet := field.field.selectionSet
   }
 
-private def fieldGroupToExecutableGroup (_parentType : Name) (group : FieldGroup)
+private def fieldGroupToExecutableGroup (group : FieldGroup)
     : Name × List ExecutableField :=
   (
     group.responseName,
@@ -449,9 +447,9 @@ private def fieldGroupToExecutableGroup (_parentType : Name) (group : FieldGroup
   )
 
 private theorem fieldGroupToExecutableGroup_addFieldWithResponseName
-    (parentType responseName : Name) (field : Field) (groups : List FieldGroup)
+    (responseName : Name) (field : Field) (groups : List FieldGroup)
     : (ConditionTree.addFieldWithResponseName responseName field groups).map
-        (fieldGroupToExecutableGroup parentType)
+        fieldGroupToExecutableGroup
       = addExecutableGroup
           (
             responseName,
@@ -461,7 +459,7 @@ private theorem fieldGroupToExecutableGroup_addFieldWithResponseName
               selectionSet := field.selectionSet
             }]
           )
-          (groups.map (fieldGroupToExecutableGroup parentType)) := by
+          (groups.map fieldGroupToExecutableGroup) := by
   induction groups with
   | nil => simp [ConditionTree.addFieldWithResponseName,
       addExecutableGroup, fieldGroupToExecutableGroup, FieldGroup.fields]
@@ -477,24 +475,22 @@ private theorem fieldGroupToExecutableGroup_addFieldWithResponseName
         simp [ConditionTree.addFieldWithResponseName, addExecutableGroup,
           fieldGroupToExecutableGroup, hfalse, hfalse', ih]
 
-private theorem fieldGroupToExecutableGroup_collectFieldGroups
-    (parentType : Name) (fields : List NamedField)
-    : (ConditionTree.collectFieldGroups fields).map
-        (fieldGroupToExecutableGroup parentType)
+private theorem fieldGroupToExecutableGroup_collectFieldGroups (fields : List NamedField)
+    : (ConditionTree.collectFieldGroups fields).map fieldGroupToExecutableGroup
       = groupExecutableFields
           (fields.map
             fun field =>
-              (field.responseName, namedFieldToExecutable parentType field)) := by
+              (field.responseName, namedFieldToExecutable field)) := by
   unfold ConditionTree.collectFieldGroups groupExecutableFields
   have hfold : ∀ (rest : List NamedField) (groups : List FieldGroup),
       (rest.foldl
           (fun current field => ConditionTree.addFieldToGroups field current)
-          groups).map (fieldGroupToExecutableGroup parentType)
+          groups).map fieldGroupToExecutableGroup
         = rest.foldl
             (fun current field =>
               addExecutableGroup
-                (field.responseName, [namedFieldToExecutable parentType field]) current)
-            (groups.map (fieldGroupToExecutableGroup parentType)) := by
+                (field.responseName, [namedFieldToExecutable field]) current)
+            (groups.map fieldGroupToExecutableGroup) := by
     intro rest groups
     induction rest generalizing groups with
     | nil => rfl
@@ -506,29 +502,21 @@ private theorem fieldGroupToExecutableGroup_collectFieldGroups
   rw [List.foldl_map]
   simpa [namedFieldToExecutable] using hfold fields []
 
-def collectedFieldGroupToExecutableGroup (_executionParentType : Name)
-    (group : CollectedFieldGroup)
-    : Name × List ExecutableField :=
-  group.toExecutableGroup
-
-theorem collectedFieldGroupToExecutableGroup_keys
-    (executionParentType : Name) (groups : List CollectedFieldGroup)
-    : (groups.map (collectedFieldGroupToExecutableGroup executionParentType)).map Prod.fst
+theorem toExecutableGroup_keys (groups : List CollectedFieldGroup)
+    : (groups.map CollectedFieldGroup.toExecutableGroup).map Prod.fst
       = groups.map CollectedFieldGroup.responseName := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
-      simp [collectedFieldGroupToExecutableGroup,
-        CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.responseName, ih]
+      simp [CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.responseName, ih]
 
-private theorem collectedFieldGroupToExecutableGroup_collectFieldGroups
-    (executionParentType : Name)
+private theorem toExecutableGroup_collectFieldGroups
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (groups : List FieldGroup)
     : (TreeSummary.fieldGroupsWithContext inheritedBooleanCondition condition groups).map
-        (collectedFieldGroupToExecutableGroup executionParentType)
-      = groups.map (fieldGroupToExecutableGroup executionParentType) := by
-  simp [TreeSummary.fieldGroupsWithContext, collectedFieldGroupToExecutableGroup,
+        CollectedFieldGroup.toExecutableGroup
+      = groups.map fieldGroupToExecutableGroup := by
+  simp [TreeSummary.fieldGroupsWithContext,
     CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.responseName,
     CollectedFieldGroup.fields, fieldGroupToExecutableGroup, List.map_map]
 
@@ -545,10 +533,10 @@ private def pendingRuntimeNamedFields (variableValues : VariableValues)
   branches.flatMap fun branch => runtimeNamedFields variableValues runtimeType branch.body
 
 private theorem runtimeNamedFields_map
-    (parentType runtimeType : Name) (variableValues : VariableValues) (tree : Tree)
+    (runtimeType : Name) (variableValues : VariableValues) (tree : Tree)
     : (runtimeNamedFields variableValues runtimeType tree).map
-        (fun field => (field.responseName, namedFieldToExecutable parentType field))
-      = tree.collectRuntimeFields variableValues parentType runtimeType := by
+        (fun field => (field.responseName, namedFieldToExecutable field))
+      = tree.collectRuntimeFields variableValues runtimeType := by
   unfold runtimeNamedFields Tree.collectRuntimeFields
   induction tree.storedFieldEntries with
   | nil => simp [runtimeFieldsForEntries]
@@ -561,8 +549,8 @@ private theorem runtimeNamedFields_map
               if entry.1.allows variableValues runtimeType = true then
                 some entry.2 else none).map
                 (fun field => (field.responseName,
-                  namedFieldToExecutable parentType field))
-            = runtimeFieldsForEntries variableValues parentType runtimeType rest
+                  namedFieldToExecutable field))
+            = runtimeFieldsForEntries variableValues runtimeType rest
           exact ih
       | true =>
           simp only [List.filterMap_cons, hallows, if_true, List.map_cons,
@@ -643,12 +631,12 @@ private theorem runtimeNamedFields_eq_nil_of_condition_false
     (hcoherent : tree.BranchesCoherent schema inheritedBooleanCondition)
     : runtimeNamedFields variableValues runtimeType tree = [] := by
   have hsource := tree.runtimeReductionBundles_sourceFields schema variableValues
-    parentType parentType runtimeType inheritedBooleanCondition hinherited hcoherent
+    parentType runtimeType inheritedBooleanCondition hinherited hcoherent
   rw [Tree.runtimeReductionBundles, if_neg (by simpa using hcondition),
     RuntimeFieldBundle.allSourceEntries] at hsource
-  have hexecutable : tree.collectRuntimeFields variableValues parentType runtimeType = [] := by
+  have hexecutable : tree.collectRuntimeFields variableValues runtimeType = [] := by
     simpa [RuntimeFieldBundle.allSourceEntries] using hsource.symm
-  have hmapped := runtimeNamedFields_map parentType runtimeType variableValues tree
+  have hmapped := runtimeNamedFields_map runtimeType variableValues tree
   rw [hexecutable] at hmapped
   cases hfields : runtimeNamedFields variableValues runtimeType tree with
   | nil => rfl
@@ -1033,7 +1021,7 @@ decreasing_by
     | apply skipBranch_unresolved_lt <;> assumption
 
 theorem fieldGroups_conditions
-    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (inheritedBooleanCondition : List BooleanLiteral)
     (cursor : CaseCursor) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
@@ -1041,7 +1029,7 @@ theorem fieldGroups_conditions
     (group : CollectedFieldGroup)
     (hgroup
       : group
-        ∈ fieldGroups parentType inheritedBooleanCondition cursor possibleTypes
+        ∈ fieldGroups inheritedBooleanCondition cursor possibleTypes
             runtimeType variableValues)
     : booleanConditionAllows variableValues group.inheritedBooleanCondition = true
       ∧ group.condition.allows variableValues runtimeType = true := by
@@ -1054,13 +1042,13 @@ theorem fieldGroups_conditions
   · simp [Condition.allows, hresolved.1, booleanConditionAllows]
 
 theorem fieldGroups_shape
-    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (inheritedBooleanCondition : List BooleanLiteral)
     (cursor : CaseCursor) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
     (group : CollectedFieldGroup)
     (hgroup
       : group
-        ∈ fieldGroups parentType inheritedBooleanCondition cursor possibleTypes
+        ∈ fieldGroups inheritedBooleanCondition cursor possibleTypes
             runtimeType variableValues)
     : group.selections ≠ []
       ∧ ∀ selection,
@@ -1107,18 +1095,17 @@ decreasing_by
     | apply skipBranch_unresolved_lt <;> assumption
 
 theorem fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
     (runtimeType : Name) (variableValues : VariableValues)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hcondition : tree.condition.allows variableValues runtimeType = true)
     (hcoherent : tree.BranchesCoherent schema inheritedBooleanCondition)
     (hruntime : runtimeType ∈ tree.condition.possibleTypes)
-    : (fieldGroups parentType inheritedBooleanCondition (.ofConditionTree tree)
+    : (fieldGroups inheritedBooleanCondition (.ofConditionTree tree)
         tree.condition.possibleTypes runtimeType variableValues).map
-        (collectedFieldGroupToExecutableGroup executionParentType)
-      = tree.collectRuntimeFieldGroups variableValues executionParentType
-          runtimeType := by
+        CollectedFieldGroup.toExecutableGroup
+      = tree.collectRuntimeFieldGroups variableValues runtimeType := by
   have hvalid := pendingValid_of_coherent schema inheritedBooleanCondition variableValues
     runtimeType tree.condition tree.branches hcondition (by
       simpa [Tree.BranchesCoherent] using hcoherent)
@@ -1149,9 +1136,9 @@ theorem fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
   unfold fieldGroups
   change (resolved.cursor.fieldGroups resolved.inheritedBooleanCondition
       resolved.possibleTypes).map
-      (collectedFieldGroupToExecutableGroup executionParentType) = _
+      CollectedFieldGroup.toExecutableGroup = _
   rw [CaseCursor.fieldGroups,
-    collectedFieldGroupToExecutableGroup_collectFieldGroups,
+    toExecutableGroup_collectFieldGroups,
     fieldGroupToExecutableGroup_collectFieldGroups, hnamed,
     runtimeNamedFields_map]
   rfl

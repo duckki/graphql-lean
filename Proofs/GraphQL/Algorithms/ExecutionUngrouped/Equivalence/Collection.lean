@@ -388,33 +388,21 @@ theorem collectFields_executableFieldSelections_collectedExecutableFields
     (groups : List (Name × List ExecutableField))
     : PairKeysNodup groups
       -> CollectedGroupsFieldsNonempty groups
-      -> CollectedGroupsResponseName groups
-      -> CollectedGroupsParent parentType groups
       -> GraphQL.Execution.collectFields schema variableValues parentType source
             (collectedExecutableSelections groups)
           = groups := by
   induction groups with
   | nil =>
-      intro _hnodup _hnonempty _hresponse _hparent
+      intro _hnodup _hnonempty
       simp [collectedExecutableSelections, executableFieldSelections,
         GraphQL.Execution.collectFields]
   | cons group rest ih =>
       rcases group with ⟨responseName, fields⟩
-      intro hnodup hnonempty hresponse hparent
+      intro hnodup hnonempty
       have hrestNodup : PairKeysNodup rest :=
         PairKeysNodup.tail hnodup
       have hfieldsNonempty : fields ≠ [] :=
         hnonempty responseName fields (by simp)
-      have hfieldsResponse :
-          ExecutableFieldsResponseName responseName fields :=
-        hresponse responseName fields (by simp)
-      have hfieldsParent :
-          ExecutableFieldsParent parentType fields :=
-        hparent responseName fields (by simp)
-      have hrestResponse : CollectedGroupsResponseName rest :=
-        CollectedGroupsResponseName_tail hresponse
-      have hrestParent : CollectedGroupsParent parentType rest :=
-        CollectedGroupsParent_tail hparent
       have hrestNonempty : CollectedGroupsFieldsNonempty rest := by
         intro restResponseName restFields hmem
         exact hnonempty restResponseName restFields (by simp [hmem])
@@ -431,7 +419,7 @@ theorem collectFields_executableFieldSelections_collectedExecutableFields
           rw [GraphQL.NormalForm.collectFields_append]
           rw [collectFields_executableFieldSelections_same_group schema
             variableValues parentType source responseName (field :: fieldsTail)]
-          rw [ih hrestNodup hrestNonempty hrestResponse hrestParent]
+          rw [ih hrestNodup hrestNonempty]
           have hdisjoint :
               GraphQL.NormalForm.executableGroupNamesDisjoint
                 [(responseName, field :: fieldsTail)] rest := by
@@ -463,10 +451,6 @@ theorem collectFields_executableFieldSelections_collectedExecutableFields_collec
       (GraphQL.NormalForm.collectFields_namesNodup schema variableValues
         parentType source selectionSet)
   · exact collectFields_fieldsNonempty schema variableValues parentType source
-      selectionSet
-  · exact collectFields_responseName schema variableValues parentType source
-      selectionSet
-  · exact collectFields_parent schema variableValues parentType source
       selectionSet
 
 theorem collectedExecutableFields_collectFields_executableFieldSelections_length
@@ -509,18 +493,15 @@ theorem specExecuteRootSelectionSet_executableFieldSelections_collectedExecutabl
     (groups : List (Name × List ExecutableField))
     : PairKeysNodup groups
       -> CollectedGroupsFieldsNonempty groups
-      -> CollectedGroupsResponseName groups
-      -> CollectedGroupsParent parentType groups
       -> GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
             depth parentType source
             (collectedExecutableSelections groups)
           = GraphQL.Execution.executeCollectedFields schema resolvers variableValues
               depth parentType source groups := by
-  intro hnodup hnonempty hresponse hparent
+  intro hnodup hnonempty
   simp [GraphQL.Execution.executeRootSelectionSet,
     collectFields_executableFieldSelections_collectedExecutableFields schema
-      variableValues parentType source groups hnodup hnonempty hresponse
-      hparent]
+      variableValues parentType source groups hnodup hnonempty]
 
 theorem
     specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
@@ -606,30 +587,11 @@ theorem CollectedGroupsFieldValidationMergeCompatible.of_collectedExecutableFiel
     (collectedExecutableFields_mem_of_group_mem hgroup hfirst)
     (collectedExecutableFields_mem_of_group_mem hgroup hlater)
 
-theorem CollectedGroupsValidationMergeCompatible.of_collectedExecutableFields
-    (groups : List (Name × List ExecutableField))
-    : ExecutableFieldsSameParentValidationMergeCompatible
-        (collectedExecutableFields groups)
-      -> CollectedGroupsValidationMergeCompatible groups := by
-  intro hflat responseName fields hgroup first later hfirst hlater
-  exact hflat first later
-    (collectedExecutableFields_mem_of_group_mem hgroup hfirst)
-    (collectedExecutableFields_mem_of_group_mem hgroup hlater)
-
 theorem ExecutableFieldsFieldValidationMergeCompatible.mono
     (source target : List ExecutableField)
     : (∀ field, field ∈ target -> field ∈ source)
       -> ExecutableFieldsFieldValidationMergeCompatible source
       -> ExecutableFieldsFieldValidationMergeCompatible target := by
-  intro hsubset hcompatible first later hfirst hlater
-  exact hcompatible first later (hsubset first hfirst)
-    (hsubset later hlater)
-
-theorem ExecutableFieldsSameParentValidationMergeCompatible.mono
-    (source target : List ExecutableField)
-    : (∀ field, field ∈ target -> field ∈ source)
-      -> ExecutableFieldsSameParentValidationMergeCompatible source
-      -> ExecutableFieldsSameParentValidationMergeCompatible target := by
   intro hsubset hcompatible first later hfirst hlater
   exact hcompatible first later (hsubset first hfirst)
     (hsubset later hlater)
@@ -870,16 +832,15 @@ theorem executableFieldSelections_selectionSetValid_field
     : ∀ fields : List ExecutableField,
         Validation.selectionSetValid schema variableDefinitions parentType
           (executableFieldSelections responseName fields)
-        -> ExecutableFieldsParent parentType fields
         -> ∀ field,
             field ∈ fields
             -> Validation.selectionSetValid schema variableDefinitions
                 ((schema.fieldReturnType? parentType field.fieldName).getD
                   field.fieldName)
                 field.selectionSet
-  | [], _hvalid, _hparents, field, hfield => by
+  | [], _hvalid, field, hfield => by
       simp at hfield
-  | head :: rest, hvalid, hparents, field, hfield => by
+  | head :: rest, hvalid, field, hfield => by
       have hvalidCons :
           Validation.selectionSetValid schema variableDefinitions parentType
             (executableFieldSelection responseName head ::
@@ -901,12 +862,9 @@ theorem executableFieldSelections_selectionSetValid_field
             Validation.selectionSetValid schema variableDefinitions parentType
               (executableFieldSelections responseName rest) :=
           Validation.selectionSetValid_tail hvalidCons
-        have htailParents : ExecutableFieldsParent parentType rest := by
-          intro candidate hcandidate
-          exact hparents candidate (by simp [hcandidate])
         exact
           executableFieldSelections_selectionSetValid_field schema
-            variableDefinitions parentType responseName rest htailValid htailParents field
+            variableDefinitions parentType responseName rest htailValid field
             hrest
 
 theorem executableFieldsScopedBy_selectionSetValid_field

@@ -170,14 +170,6 @@ theorem ExecutionBoundary.groupsFieldCompatible
     (NormalForm.selectionSetLookupValid_of_selectionSetSemanticsReady
       boundary.selectionSet boundary.semanticsReady)
 
-theorem ExecutionBoundary.groupsSameParent
-    {ObjectRef : Type} {schema : Schema} {variableValues : VariableValues}
-    (boundary : ExecutionBoundary (ObjectRef := ObjectRef) schema variableValues)
-    : CollectedGroupsSameResponseParent boundary.allSpecGroups := by
-  rw [boundary.allSpecGroups_eq]
-  exact collectFields_sameResponseParent schema variableValues boundary.parentType
-    (.object boundary.runtimeType boundary.ref) boundary.selectionSet
-
 theorem typeRefExecutionCompletionFuel_pos (fieldType : TypeRef)
     : 0 < typeRefExecutionCompletionFuel fieldType := by
   induction fieldType with
@@ -427,16 +419,10 @@ mutual
                   intro name fields hgroup
                   exact boundary.groupsFieldCompatible name fields
                     (alignedSubset (name, fields) hgroup)
-                have currentSameParent :
-                    CollectedGroupsSameResponseParent
-                      ((responseName, rightHead :: rightRest) :: rightTail) := by
-                  intro name fields hgroup
-                  exact boundary.groupsSameParent name fields
-                    (alignedSubset (name, fields) hgroup)
                 have cross : RuntimeGroupsCrossCompatible
                     ((responseName, leftHead :: leftRest) :: leftTail)
                     ((responseName, rightHead :: rightRest) :: rightTail) :=
-                  aligned.crossCompatible currentFieldCompatible currentSameParent
+                  aligned.crossCompatible currentFieldCompatible
                 have hleftHead :
                     (responseName, leftHead) ∈
                       ConditionTree.flattenExecutableFieldGroups
@@ -866,7 +852,7 @@ mutual
                               RuntimeGroupsPermutationEquivalent
                                 ((ofSelectionSetInScope schema typeName []
                                   leftSelectionSet).collectRuntimeFieldGroups
-                                    variableValues childRuntime childRuntime)
+                                    variableValues childRuntime)
                                 childGroups := by
                             exact
                               extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
@@ -901,7 +887,7 @@ mutual
                               variableValues hschema childBoundary (depth - 1) nextFuel
                               ((ofSelectionSetInScope schema typeName []
                                 leftSelectionSet).collectRuntimeFieldGroups
-                                  variableValues childRuntime childRuntime)
+                                  variableValues childRuntime)
                               childGroups hchildEquivalent (by
                                 intro group hgroup
                                 exact hgroup) hchildDepth hchildFuel
@@ -1079,7 +1065,7 @@ theorem execution_equivalent_of_sufficient_fuel
       have hequivalent :
           RuntimeGroupsPermutationEquivalent
             ((ofOperation schema operation).collectRuntimeFieldGroups
-              coercedVariableValues (operation.rootType schema) runtimeType)
+              coercedVariableValues runtimeType)
             specGroups := by
         simpa [ofOperation, ofSelectionSet, specGroups] using
           (extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
@@ -1097,7 +1083,7 @@ theorem execution_equivalent_of_sufficient_fuel
           hschema boundary (selectionSetResponseDepth operation.selectionSet)
           fuel
           ((ofOperation schema operation).collectRuntimeFieldGroups
-            coercedVariableValues (operation.rootType schema) runtimeType)
+            coercedVariableValues runtimeType)
           specGroups hequivalent (by
             intro group hgroup
             exact hgroup) hdepth hfuel

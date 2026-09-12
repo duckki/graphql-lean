@@ -17,8 +17,7 @@ open Execution.FieldGroups
 -- Runtime collection of reduced syntax
 -----------------------------------------------------------------------------------------
 
-def Field.toExecutable (_executionParentType _responseName : Name) (field : Field)
-    : ExecutableField :=
+def Field.toExecutable (field : Field) : ExecutableField :=
   {
     fieldName := field.fieldName
     arguments := field.arguments
@@ -26,7 +25,7 @@ def Field.toExecutable (_executionParentType _responseName : Name) (field : Fiel
   }
 
 def FieldGroup.reducedExecutableFields
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup)
     : List (Name × ExecutableField) :=
@@ -34,10 +33,7 @@ def FieldGroup.reducedExecutableFields
   | none =>
       group.fields.map
         fun field =>
-          (
-            group.responseName,
-            Field.toExecutable executionParentType group.responseName field
-          )
+          (group.responseName, Field.toExecutable field)
   | some fieldDefinition =>
       let childInheritedBooleanCondition :=
         (canonicalBooleanCondition
@@ -57,15 +53,15 @@ def FieldGroup.reducedExecutableFields
 mutual
   def Tree.reducedRuntimeFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
       : List (Name × ExecutableField) :=
     if tree.condition.allows variableValues runtimeType then
       tree.fields.flatMap
-        (FieldGroup.reducedExecutableFields schema parentType executionParentType
+        (FieldGroup.reducedExecutableFields schema parentType
           inheritedBooleanCondition tree.condition)
       ++ reducedRuntimeBranchFields schema variableValues parentType
-          executionParentType runtimeType inheritedBooleanCondition tree.branches
+          runtimeType inheritedBooleanCondition tree.branches
     else
       []
   termination_by sizeOf tree
@@ -76,16 +72,16 @@ mutual
 
   def reducedRuntimeBranchFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       : List (Branch Tree) -> List (Name × ExecutableField)
     | [] => []
     | branch :: rest =>
         branch.body.reducedRuntimeFields schema variableValues
-          (branch.condition.parentType parentType) executionParentType runtimeType
+          (branch.condition.parentType parentType) runtimeType
           inheritedBooleanCondition
         ++ reducedRuntimeBranchFields schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition rest
+            runtimeType inheritedBooleanCondition rest
   termination_by branches => sizeOf branches
   decreasing_by
     all_goals
@@ -114,10 +110,7 @@ theorem collectFlatFields_map_fieldToSelection
         (.object runtimeType ref) (fields.map (Field.toSelection responseName))
       = fields.map
           fun field =>
-            (
-              responseName,
-              Field.toExecutable executionParentType responseName field
-            ) := by
+            (responseName, Field.toExecutable field) := by
   induction fields with
   | nil => rfl
   | cons field rest tail_ih =>
@@ -132,7 +125,7 @@ theorem collectFlatFields_reduceTreeFieldGroup
     : collectFlatFields schema variableValues executionParentType
         (.object runtimeType ref)
         (reduceTreeFieldGroup schema parentType inheritedBooleanCondition condition group)
-      = group.reducedExecutableFields schema parentType executionParentType
+      = group.reducedExecutableFields schema parentType
           inheritedBooleanCondition condition := by
   rw [reduceTreeFieldGroup]
   cases hlookup : schema.lookupField parentType group.first.fieldName with
@@ -154,7 +147,7 @@ theorem collectFlatFields_reduceTreeFieldGroups
         (reduceTreeFieldGroups schema parentType inheritedBooleanCondition condition
           groups)
       = groups.flatMap
-          (FieldGroup.reducedExecutableFields schema parentType executionParentType
+          (FieldGroup.reducedExecutableFields schema parentType
             inheritedBooleanCondition condition) := by
   induction groups with
   | nil => simp [reduceTreeFieldGroups, collectFlatFields]
@@ -198,7 +191,7 @@ mutual
           (.object runtimeType ref)
           (reduceTree schema parentType inheritedBooleanCondition tree)
         = tree.reducedRuntimeFields schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition := by
+            runtimeType inheritedBooleanCondition := by
     rw [reduceTree, collectFlatFields_append,
       collectFlatFields_reduceTreeFieldGroups]
     rw [Tree.reducedRuntimeFields, if_pos hcondition]
@@ -227,7 +220,7 @@ mutual
           (.object runtimeType ref)
           (reduceTreeBranches schema parentType inheritedBooleanCondition branches)
         = reducedRuntimeBranchFields schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition branches := by
+            runtimeType inheritedBooleanCondition branches := by
     cases branches with
     | nil => simp [reduceTreeBranches, collectFlatFields,
         reducedRuntimeBranchFields]
@@ -317,7 +310,7 @@ def identity (entry : Name × ExecutableField) : RuntimeFieldBundle :=
     childUnit := .identity entry.2.selectionSet
   }
 
-def reduced (schema : Schema) (executionParentType : Name)
+def reduced (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup) (fieldDefinition : FieldDefinition)
     : RuntimeFieldBundle :=
@@ -336,7 +329,7 @@ def reduced (schema : Schema) (executionParentType : Name)
             childInheritedBooleanCondition group.mergedSelectionSet
       }
     sourceFields :=
-      group.fields.map (Field.toExecutable executionParentType group.responseName)
+      group.fields.map Field.toExecutable
     childUnit :=
       .reduce fieldDefinition.outputType.namedType
         childInheritedBooleanCondition group.mergedSelectionSet
@@ -409,7 +402,7 @@ theorem sourceSelectionSet_eq_inputChildUnits
 end RuntimeFieldBundle
 
 def FieldGroup.runtimeBundles
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup)
     : List RuntimeFieldBundle :=
@@ -417,24 +410,24 @@ def FieldGroup.runtimeBundles
   | none =>
       group.fields.map
         fun field =>
-          let executable := field.toExecutable executionParentType group.responseName
+          let executable := field.toExecutable
           RuntimeFieldBundle.identity (group.responseName, executable)
   | some fieldDefinition =>
-      [RuntimeFieldBundle.reduced schema executionParentType
+      [RuntimeFieldBundle.reduced schema
         inheritedBooleanCondition condition group fieldDefinition]
 
 mutual
   def Tree.runtimeReductionBundles
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
       : List RuntimeFieldBundle :=
     if tree.condition.allows variableValues runtimeType then
       tree.fields.flatMap
-        (FieldGroup.runtimeBundles schema parentType executionParentType
+        (FieldGroup.runtimeBundles schema parentType
           inheritedBooleanCondition tree.condition)
       ++ runtimeReductionBranchBundles schema variableValues parentType
-          executionParentType runtimeType inheritedBooleanCondition tree.branches
+          runtimeType inheritedBooleanCondition tree.branches
     else
       []
   termination_by sizeOf tree
@@ -445,16 +438,16 @@ mutual
 
   def runtimeReductionBranchBundles
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       : List (Branch Tree) -> List RuntimeFieldBundle
     | [] => []
     | branch :: rest =>
         branch.body.runtimeReductionBundles schema variableValues
-          (branch.condition.parentType parentType) executionParentType runtimeType
+          (branch.condition.parentType parentType) runtimeType
           inheritedBooleanCondition
         ++ runtimeReductionBranchBundles schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition rest
+            runtimeType inheritedBooleanCondition rest
   termination_by branches => sizeOf branches
   decreasing_by
     all_goals
@@ -464,13 +457,12 @@ mutual
 end
 
 theorem FieldGroup.runtimeBundles_reducedFields
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup)
     : RuntimeFieldBundle.reducedEntries
-        (group.runtimeBundles schema parentType executionParentType
-          inheritedBooleanCondition condition)
-      = group.reducedExecutableFields schema parentType executionParentType
+        (group.runtimeBundles schema parentType inheritedBooleanCondition condition)
+      = group.reducedExecutableFields schema parentType
           inheritedBooleanCondition condition := by
   unfold FieldGroup.runtimeBundles FieldGroup.reducedExecutableFields
   cases hlookup : schema.lookupField parentType group.first.fieldName with
@@ -480,18 +472,14 @@ theorem FieldGroup.runtimeBundles_reducedFields
       simp [RuntimeFieldBundle.reducedEntries, RuntimeFieldBundle.reduced]
 
 theorem FieldGroup.runtimeBundles_sourceFields
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup)
     : RuntimeFieldBundle.allSourceEntries
-        (group.runtimeBundles schema parentType executionParentType
-          inheritedBooleanCondition condition)
+        (group.runtimeBundles schema parentType inheritedBooleanCondition condition)
       = group.fields.map
           fun field =>
-            (
-              group.responseName,
-              Field.toExecutable executionParentType group.responseName field
-            ) := by
+            (group.responseName, Field.toExecutable field) := by
   unfold FieldGroup.runtimeBundles
   cases hlookup : schema.lookupField parentType group.first.fieldName with
   | none =>
@@ -505,51 +493,46 @@ theorem FieldGroup.runtimeBundles_sourceFields
       simp [RuntimeFieldBundle.allSourceEntries, RuntimeFieldBundle.reduced]
 
 theorem runtimeBundlesFieldGroups_reducedFields
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (groups : List FieldGroup)
     : RuntimeFieldBundle.reducedEntries
         (groups.flatMap
           fun group =>
-            group.runtimeBundles schema parentType executionParentType
-              inheritedBooleanCondition condition)
+            group.runtimeBundles schema parentType inheritedBooleanCondition condition)
       = groups.flatMap
-          (FieldGroup.reducedExecutableFields schema parentType executionParentType
+          (FieldGroup.reducedExecutableFields schema parentType
             inheritedBooleanCondition condition) := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
       rw [List.flatMap_cons, RuntimeFieldBundle.reducedEntries, List.map_append]
       have hgroup := group.runtimeBundles_reducedFields schema parentType
-        executionParentType inheritedBooleanCondition condition
+        inheritedBooleanCondition condition
       unfold RuntimeFieldBundle.reducedEntries at hgroup ih
       rw [hgroup, ih]
       rfl
 
 theorem runtimeBundlesFieldGroups_sourceFields
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (groups : List FieldGroup)
     : RuntimeFieldBundle.allSourceEntries
         (groups.flatMap
           fun group =>
-            group.runtimeBundles schema parentType executionParentType
-              inheritedBooleanCondition condition)
+            group.runtimeBundles schema parentType inheritedBooleanCondition condition)
       = groups.flatMap
           fun group =>
             group.fields.map
               fun field =>
-                (
-                  group.responseName,
-                  Field.toExecutable executionParentType group.responseName field
-                ) := by
+                (group.responseName, Field.toExecutable field) := by
   induction groups with
   | nil => rfl
   | cons group rest ih =>
       rw [List.flatMap_cons, RuntimeFieldBundle.allSourceEntries,
         List.flatMap_append]
       have hgroup := group.runtimeBundles_sourceFields schema parentType
-        executionParentType inheritedBooleanCondition condition
+        inheritedBooleanCondition condition
       unfold RuntimeFieldBundle.allSourceEntries at hgroup ih
       rw [hgroup, ih]
       rfl
@@ -557,20 +540,20 @@ theorem runtimeBundlesFieldGroups_sourceFields
 mutual
   theorem Tree.runtimeReductionBundles_reducedFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
       : RuntimeFieldBundle.reducedEntries
           (tree.runtimeReductionBundles schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition)
+            runtimeType inheritedBooleanCondition)
         = tree.reducedRuntimeFields schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition := by
+            runtimeType inheritedBooleanCondition := by
     rw [Tree.runtimeReductionBundles, Tree.reducedRuntimeFields]
     split
     · rw [RuntimeFieldBundle.reducedEntries, List.map_append]
       have hlocal := runtimeBundlesFieldGroups_reducedFields schema parentType
-        executionParentType inheritedBooleanCondition tree.condition tree.fields
+        inheritedBooleanCondition tree.condition tree.fields
       have hbranches := runtimeReductionBranchBundles_reducedFields schema variableValues
-        parentType executionParentType runtimeType inheritedBooleanCondition
+        parentType runtimeType inheritedBooleanCondition
         tree.branches
       unfold RuntimeFieldBundle.reducedEntries at hlocal hbranches
       rw [hlocal, hbranches]
@@ -583,14 +566,14 @@ mutual
 
   theorem runtimeReductionBranchBundles_reducedFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       (branches : List (Branch Tree))
       : RuntimeFieldBundle.reducedEntries
           (runtimeReductionBranchBundles schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition branches)
+            runtimeType inheritedBooleanCondition branches)
         = reducedRuntimeBranchFields schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition branches := by
+            runtimeType inheritedBooleanCondition branches := by
     cases branches with
     | nil => simp [runtimeReductionBranchBundles, reducedRuntimeBranchFields,
         RuntimeFieldBundle.reducedEntries]
@@ -598,10 +581,10 @@ mutual
         rw [runtimeReductionBranchBundles, reducedRuntimeBranchFields,
             RuntimeFieldBundle.reducedEntries, List.map_append]
         have hbody := branch.body.runtimeReductionBundles_reducedFields schema
-          variableValues (branch.condition.parentType parentType) executionParentType
+          variableValues (branch.condition.parentType parentType)
           runtimeType inheritedBooleanCondition
         have hrest := runtimeReductionBranchBundles_reducedFields schema variableValues
-          parentType executionParentType runtimeType inheritedBooleanCondition rest
+          parentType runtimeType inheritedBooleanCondition rest
         unfold RuntimeFieldBundle.reducedEntries at hbody hrest
         rw [hbody, hrest]
   termination_by sizeOf branches
@@ -614,32 +597,27 @@ mutual
 end
 
 theorem runtimeFieldsForEntries_append
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (left right : List (Condition × NamedField))
-    : runtimeFieldsForEntries variableValues executionParentType runtimeType
-        (left ++ right)
-      = runtimeFieldsForEntries variableValues executionParentType runtimeType left
-        ++ runtimeFieldsForEntries variableValues executionParentType runtimeType
-            right := by
+    : runtimeFieldsForEntries variableValues runtimeType (left ++ right)
+      = runtimeFieldsForEntries variableValues runtimeType left
+        ++ runtimeFieldsForEntries variableValues runtimeType right := by
   induction left with
   | nil => rfl
   | cons entry rest ih =>
       simp [runtimeFieldsForEntries, List.append_assoc]
 
 theorem runtimeFieldsForEntries_group
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (condition : Condition) (group : FieldGroup)
-    : runtimeFieldsForEntries variableValues executionParentType runtimeType
+    : runtimeFieldsForEntries variableValues runtimeType
         (group.fields.map
           fun field =>
             (condition, ({ responseName := group.responseName, field } : NamedField)))
       = if condition.allows variableValues runtimeType then
           group.fields.map
             fun field =>
-              (
-                group.responseName,
-                Field.toExecutable executionParentType group.responseName field
-              )
+              (group.responseName, Field.toExecutable field)
         else
           [] := by
   induction group.fields with
@@ -650,9 +628,9 @@ theorem runtimeFieldsForEntries_group
         simp [runtimeFieldsForEntries, Field.toExecutable, hallows, ih]
 
 theorem runtimeFieldsForEntries_groups
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (condition : Condition) (groups : List FieldGroup)
-    : runtimeFieldsForEntries variableValues executionParentType runtimeType
+    : runtimeFieldsForEntries variableValues runtimeType
         (groups.flatMap
           fun group =>
             group.fields.map
@@ -663,10 +641,7 @@ theorem runtimeFieldsForEntries_groups
             fun group =>
               group.fields.map
                 fun field =>
-                  (
-                    group.responseName,
-                    Field.toExecutable executionParentType group.responseName field
-                  )
+                  (group.responseName, Field.toExecutable field)
         else
           [] := by
   induction groups with
@@ -684,21 +659,21 @@ theorem Tree.branches_sizeOf_lt (tree : Tree) : sizeOf tree.branches < sizeOf tr
 mutual
   theorem Tree.runtimeReductionBundles_sourceFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
       (hinherited
         : booleanConditionAllows variableValues inheritedBooleanCondition = true)
       (hcoherent : tree.BranchesCoherent schema inheritedBooleanCondition)
       : RuntimeFieldBundle.allSourceEntries
           (tree.runtimeReductionBundles schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition)
-        = tree.collectRuntimeFields variableValues executionParentType runtimeType := by
+            runtimeType inheritedBooleanCondition)
+        = tree.collectRuntimeFields variableValues runtimeType := by
     rw [Tree.runtimeReductionBundles]
     split
     · rename_i hallows
       rw [RuntimeFieldBundle.allSourceEntries, List.flatMap_append]
       have hlocal := runtimeBundlesFieldGroups_sourceFields schema parentType
-        executionParentType inheritedBooleanCondition tree.condition tree.fields
+        inheritedBooleanCondition tree.condition tree.fields
       unfold RuntimeFieldBundle.allSourceEntries at hlocal
       rw [hlocal]
       rw [Tree.collectRuntimeFields, Tree.storedFieldEntries,
@@ -706,7 +681,7 @@ mutual
         runtimeFieldsForEntries_groups]
       rw [if_pos hallows]
       have hbranches := runtimeReductionBranchBundles_sourceFields schema
-        variableValues parentType executionParentType runtimeType
+        variableValues parentType runtimeType
         inheritedBooleanCondition tree.condition tree.branches hinherited
         (by simpa [Tree.BranchesCoherent] using hcoherent)
       unfold RuntimeFieldBundle.allSourceEntries at hbranches
@@ -721,7 +696,7 @@ mutual
         · exact False.elim (hnot hvalue)
       rw [if_neg (by simpa using hfalse)]
       have hbranches := runtimeFieldsForEntries_branches_false schema
-        variableValues parentType executionParentType runtimeType
+        variableValues parentType runtimeType
         inheritedBooleanCondition tree.condition tree.branches hinherited hfalse
         (by simpa [Tree.BranchesCoherent] using hcoherent)
       rw [hbranches]
@@ -733,7 +708,7 @@ mutual
 
   theorem runtimeReductionBranchBundles_sourceFields
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       (parentCondition : Condition)
       (branches : List (Branch Tree))
@@ -743,8 +718,8 @@ mutual
         : branchesCoherent schema inheritedBooleanCondition parentCondition branches)
       : RuntimeFieldBundle.allSourceEntries
           (runtimeReductionBranchBundles schema variableValues parentType
-            executionParentType runtimeType inheritedBooleanCondition branches)
-        = runtimeFieldsForEntries variableValues executionParentType runtimeType
+            runtimeType inheritedBooleanCondition branches)
+        = runtimeFieldsForEntries variableValues runtimeType
             (branchStoredFieldEntries branches) := by
     cases branches with
     | nil => simp [RuntimeFieldBundle.allSourceEntries,
@@ -756,10 +731,10 @@ mutual
           RuntimeFieldBundle.allSourceEntries, List.flatMap_append,
           runtimeFieldsForEntries_append]
         have hbody := branch.body.runtimeReductionBundles_sourceFields schema
-          variableValues (branch.condition.parentType parentType) executionParentType
+          variableValues (branch.condition.parentType parentType)
           runtimeType inheritedBooleanCondition hinherited hcoherent.2.1
         have hrest := runtimeReductionBranchBundles_sourceFields schema variableValues
-          parentType executionParentType runtimeType inheritedBooleanCondition
+          parentType runtimeType inheritedBooleanCondition
           parentCondition rest hinherited hcoherent.2.2
         unfold RuntimeFieldBundle.allSourceEntries at hbody hrest
         unfold Tree.collectRuntimeFields at hbody
@@ -774,7 +749,7 @@ mutual
 
   theorem runtimeFieldsForEntries_branches_false
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       (parentCondition : Condition) (branches : List (Branch Tree))
       (hinherited
@@ -782,7 +757,7 @@ mutual
       (hparent : parentCondition.allows variableValues runtimeType = false)
       (hcoherent
         : branchesCoherent schema inheritedBooleanCondition parentCondition branches)
-      : runtimeFieldsForEntries variableValues executionParentType runtimeType
+      : runtimeFieldsForEntries variableValues runtimeType
           (branchStoredFieldEntries branches)
         = [] := by
     cases branches with
@@ -798,17 +773,17 @@ mutual
           cases hbranch : branch.condition.allows schema variableValues runtimeType <;>
             simpa [hparent, hbranch] using hnext
         have hbody := branch.body.runtimeReductionBundles_sourceFields schema
-          variableValues (branch.condition.parentType parentType) executionParentType
+          variableValues (branch.condition.parentType parentType)
           runtimeType inheritedBooleanCondition hinherited hcoherent.2.1
         rw [Tree.runtimeReductionBundles, if_neg (by simpa using hbodyFalse),
           RuntimeFieldBundle.allSourceEntries] at hbody
         have hrest := runtimeFieldsForEntries_branches_false schema variableValues
-          parentType executionParentType runtimeType inheritedBooleanCondition
+          parentType runtimeType inheritedBooleanCondition
           parentCondition rest hinherited hparent hcoherent.2.2
         rw [branchStoredFieldEntries, runtimeFieldsForEntries_append]
         unfold Tree.collectRuntimeFields at hbody
         have hbodyNil :
-            runtimeFieldsForEntries variableValues executionParentType runtimeType
+            runtimeFieldsForEntries variableValues runtimeType
               branch.body.storedFieldEntries = [] := by
           simpa [RuntimeFieldBundle.allSourceEntries] using hbody.symm
         rw [hbodyNil, hrest, List.nil_append]
@@ -852,20 +827,20 @@ theorem RuntimeFieldBundle.identity_wellFormed
       ReductionUnit.selectionSet]
 
 theorem RuntimeFieldBundle.reduced_wellFormed
-    (schema : Schema) (executionParentType : Name)
+    (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup) (fieldDefinition : FieldDefinition)
-    : (RuntimeFieldBundle.reduced schema executionParentType
+    : (RuntimeFieldBundle.reduced schema
         inheritedBooleanCondition condition group fieldDefinition).WellFormed
         schema := by
   constructor
   · simp [RuntimeFieldBundle.reduced, FieldGroup.fields]
-  · exact ⟨Field.toExecutable executionParentType group.responseName group.first,
+  · exact ⟨Field.toExecutable group.first,
       by simp [RuntimeFieldBundle.reduced, FieldGroup.fields, Field.toExecutable]⟩
   · simp [RuntimeFieldBundle.reduced, ReductionUnit.outputSelectionSet]
   · have hchildren :
         (group.fields.map
-            (Field.toExecutable executionParentType group.responseName)).flatMap
+            Field.toExecutable).flatMap
             ExecutableField.selectionSet
           = group.fields.flatMap Field.selectionSet := by
       induction group.fields with
@@ -1242,7 +1217,7 @@ def ReductionUnit.runtimeBundles
   | .reduce parentType inheritedBooleanCondition selectionSet =>
       let tree :=
         ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet
-      tree.runtimeReductionBundles schema variableValues parentType executionParentType
+      tree.runtimeReductionBundles schema variableValues parentType
         runtimeType inheritedBooleanCondition
   | .identity selectionSet =>
       (collectFlatFields schema variableValues executionParentType
@@ -1323,7 +1298,7 @@ theorem ReductionUnit.collectFlatFields_output_eq_reducedFields
         (ofSelectionSetInScope_branchesCoherent schema parentType
           inheritedBooleanCondition selectionSet)
       have hbundles := tree.runtimeReductionBundles_reducedFields schema
-        variableValues parentType executionParentType runtimeType inheritedBooleanCondition
+        variableValues parentType runtimeType inheritedBooleanCondition
       simpa [ReductionUnit.runtimeBundles, reduceInScope, tree] using
         hcollected.trans hbundles.symm
 
@@ -1343,7 +1318,7 @@ theorem ReductionUnit.allSourceFields_runtimeBundles_perm
       let tree := ofSelectionSetInScope schema parentType
         inheritedBooleanCondition selectionSet
       have hsource := tree.runtimeReductionBundles_sourceFields schema variableValues
-        parentType executionParentType runtimeType inheritedBooleanCondition
+        parentType runtimeType inheritedBooleanCondition
         happlicable.1
         (ofSelectionSetInScope_branchesCoherent schema parentType
           inheritedBooleanCondition selectionSet)
@@ -1363,13 +1338,12 @@ theorem ReductionUnit.allSourceFields_runtimeBundles_perm
             (.object runtimeType ref) selectionSet))
 
 theorem FieldGroup.runtimeBundles_wellFormed
-    (schema : Schema) (parentType executionParentType : Name)
+    (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral) (condition : Condition)
     (group : FieldGroup)
     : ∀ bundle,
         bundle
-          ∈ group.runtimeBundles schema parentType executionParentType
-              inheritedBooleanCondition condition
+          ∈ group.runtimeBundles schema parentType inheritedBooleanCondition condition
         -> bundle.WellFormed schema := by
   intro bundle hbundle
   unfold FieldGroup.runtimeBundles at hbundle
@@ -1377,34 +1351,34 @@ theorem FieldGroup.runtimeBundles_wellFormed
   · rcases List.mem_map.mp hbundle with ⟨field, _hfield, rfl⟩
     exact RuntimeFieldBundle.identity_wellFormed schema
       (group.responseName,
-        Field.toExecutable executionParentType group.responseName field)
+        Field.toExecutable field)
   · rename_i fieldDefinition hlookup
-    have : bundle = RuntimeFieldBundle.reduced schema executionParentType
+    have : bundle = RuntimeFieldBundle.reduced schema
         inheritedBooleanCondition condition group fieldDefinition := by
       simpa using List.mem_singleton.mp hbundle
     subst bundle
-    exact RuntimeFieldBundle.reduced_wellFormed schema executionParentType
+    exact RuntimeFieldBundle.reduced_wellFormed schema
       inheritedBooleanCondition condition group fieldDefinition
 
 mutual
   theorem Tree.runtimeReductionBundles_wellFormed
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral) (tree : Tree)
       : ∀ bundle,
           bundle
             ∈ tree.runtimeReductionBundles schema variableValues parentType
-                executionParentType runtimeType inheritedBooleanCondition
+                runtimeType inheritedBooleanCondition
           -> bundle.WellFormed schema := by
     intro bundle hbundle
     rw [Tree.runtimeReductionBundles] at hbundle
     split at hbundle
     · rcases List.mem_append.mp hbundle with hlocal | hbranches
       · rcases List.mem_flatMap.mp hlocal with ⟨group, hgroup, hbundle⟩
-        exact group.runtimeBundles_wellFormed schema parentType executionParentType
+        exact group.runtimeBundles_wellFormed schema parentType
           inheritedBooleanCondition tree.condition bundle hbundle
       · exact runtimeReductionBranchBundles_wellFormed schema variableValues
-          parentType executionParentType runtimeType inheritedBooleanCondition
+          parentType runtimeType inheritedBooleanCondition
           tree.branches bundle hbranches
     · simp at hbundle
   termination_by sizeOf tree
@@ -1413,13 +1387,13 @@ mutual
 
   theorem runtimeReductionBranchBundles_wellFormed
       (schema : Schema) (variableValues : VariableValues)
-      (parentType executionParentType runtimeType : Name)
+      (parentType runtimeType : Name)
       (inheritedBooleanCondition : List BooleanLiteral)
       (branches : List (Branch Tree))
       : ∀ bundle,
           bundle
             ∈ runtimeReductionBranchBundles schema variableValues parentType
-                executionParentType runtimeType inheritedBooleanCondition branches
+                runtimeType inheritedBooleanCondition branches
           -> bundle.WellFormed schema := by
     intro bundle hbundle
     cases branches with
@@ -1429,9 +1403,9 @@ mutual
         rcases List.mem_append.mp hbundle with hbody | hrest
         · exact branch.body.runtimeReductionBundles_wellFormed schema
             variableValues (branch.condition.parentType parentType)
-            executionParentType runtimeType inheritedBooleanCondition bundle hbody
+            runtimeType inheritedBooleanCondition bundle hbody
         · exact runtimeReductionBranchBundles_wellFormed schema variableValues
-            parentType executionParentType runtimeType inheritedBooleanCondition
+            parentType runtimeType inheritedBooleanCondition
             rest bundle hrest
   termination_by sizeOf branches
   decreasing_by
@@ -1454,7 +1428,7 @@ theorem ReductionUnit.runtimeBundles_wellFormed
   cases unit with
   | reduce parentType inheritedBooleanCondition selectionSet =>
       exact Tree.runtimeReductionBundles_wellFormed schema variableValues
-        parentType executionParentType runtimeType inheritedBooleanCondition
+        parentType runtimeType inheritedBooleanCondition
         (ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet)
         bundle hbundle
   | identity selectionSet =>
@@ -1695,8 +1669,7 @@ theorem FieldGroup.runtimeBundles_childrenRuntimeApplicable
     (hparentPossible : (schema.getPossibleTypes parentType).contains runtimeType = true)
     : ∀ bundle,
         bundle
-          ∈ group.runtimeBundles schema parentType runtimeType
-              inheritedBooleanCondition condition
+          ∈ group.runtimeBundles schema parentType inheritedBooleanCondition condition
         -> ∀ runtimeFieldDefinition,
             schema.lookupField runtimeType bundle.reducedField.fieldName
               = some runtimeFieldDefinition
@@ -1715,13 +1688,13 @@ theorem FieldGroup.runtimeBundles_childrenRuntimeApplicable
       rcases List.mem_map.mp hbundle with ⟨field, _hfield, rfl⟩
       intro unit hunit
       have : unit = .identity
-          (Field.toExecutable runtimeType group.responseName field).selectionSet := by
+          (Field.toExecutable field).selectionSet := by
         simpa [RuntimeFieldBundle.identity] using List.mem_singleton.mp hunit
       subst unit
       simp [ReductionUnit.RuntimeApplicable]
   | some staticFieldDefinition =>
       simp only [hstaticLookup] at hbundle
-      have hbundleEq : bundle = RuntimeFieldBundle.reduced schema runtimeType
+      have hbundleEq : bundle = RuntimeFieldBundle.reduced schema
           inheritedBooleanCondition condition group staticFieldDefinition := by
         simpa using List.mem_singleton.mp hbundle
       subst bundle
@@ -1760,7 +1733,7 @@ mutual
       : ∀ bundle,
           bundle
             ∈ tree.runtimeReductionBundles schema variableValues parentType
-                runtimeType runtimeType inheritedBooleanCondition
+                runtimeType inheritedBooleanCondition
           -> ∀ runtimeFieldDefinition,
               schema.lookupField runtimeType bundle.reducedField.fieldName
                 = some runtimeFieldDefinition
@@ -1806,7 +1779,7 @@ mutual
       : ∀ bundle,
           bundle
             ∈ runtimeReductionBranchBundles schema variableValues parentType
-                runtimeType runtimeType inheritedBooleanCondition branches
+                runtimeType inheritedBooleanCondition branches
           -> ∀ runtimeFieldDefinition,
               schema.lookupField runtimeType bundle.reducedField.fieldName
                 = some runtimeFieldDefinition

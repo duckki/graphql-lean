@@ -562,7 +562,7 @@ theorem executeField_resolved_eq_completeResolvedValue
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
     (variableValues : VariableValues) (depth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
-    (responseName : Name) (field : ExecutableField)
+    (field : ExecutableField)
     (fieldDefinition : FieldDefinition) (resolved : ResolverValue ObjectIdentity)
     (previous : ResponseValue)
     (hlookup : schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -2507,14 +2507,12 @@ theorem VisitSubfieldsFlatCollects_executableFieldSelections_collectedExecutable
     (output : ResponseValue)
     (hnodup : PairKeysNodup groups)
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponse : CollectedGroupsResponseName groups)
-    (hparent : CollectedGroupsParent parentType groups)
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source (collectedExecutableSelections groups)
         output := by
   unfold VisitSubfieldsFlatCollects
   rw [collectFields_executableFieldSelections_collectedExecutableFields schema
-    variableValues parentType source groups hnodup hnonempty hresponse hparent]
+    variableValues parentType source groups hnodup hnonempty]
 
 theorem VisitSubfieldsFlatCollects_executableFieldSelections_collectedCollectFields
     {ObjectIdentity : Type}

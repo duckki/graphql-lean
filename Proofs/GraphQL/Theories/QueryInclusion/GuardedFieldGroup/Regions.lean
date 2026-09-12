@@ -168,11 +168,8 @@ theorem guardedFieldExecutableFields_eq_of_region_and_variables
           variableName ∈ guardedFieldGroupBooleanVariables left right
           -> inputValueBoolean? leftValues (.variable variableName)
               = inputValueBoolean? rightValues (.variable variableName))
-    (executionParentType : Name)
-    : guardedFieldExecutableFields leftValues executionParentType leftRuntimeType
-        group.responseName group.entries
-      = guardedFieldExecutableFields rightValues executionParentType rightRuntimeType
-          group.responseName group.entries := by
+    : guardedFieldExecutableFields leftValues leftRuntimeType group.entries
+      = guardedFieldExecutableFields rightValues rightRuntimeType group.entries := by
   unfold guardedFieldExecutableFields
   apply congrArg List.flatten
   apply List.map_congr_left
@@ -183,28 +180,6 @@ theorem guardedFieldExecutableFields_eq_of_region_and_variables
     · exact Or.inr hentry
   rw [guardedFieldCondition_allows_eq_of_region_and_variables parentRegion
     left right hentry' hregion hleftRuntime hrightRuntime hagrees]
-
-theorem guardedFieldExecutableFields_withParentType (variableValues : VariableValues)
-    (sourceParentType targetParentType runtimeType : Name) (responseName : Name)
-    (entries : List SelectionConditions.ConditionedField)
-    : guardedFieldExecutableFields variableValues sourceParentType runtimeType
-        responseName entries
-      = guardedFieldExecutableFields variableValues targetParentType runtimeType
-          responseName entries := by
-  rfl
-
-theorem executableFieldsAsGroup_withParentType
-    (sourceParentType targetParentType runtimeType responseName : Name)
-    (variableValues : VariableValues)
-    (entries : List SelectionConditions.ConditionedField)
-    : executableFieldsAsGroup responseName
-        (guardedFieldExecutableFields variableValues sourceParentType runtimeType
-          responseName entries)
-      = executableFieldsAsGroup responseName
-          (guardedFieldExecutableFields variableValues targetParentType runtimeType
-            responseName entries) := by
-  rw [guardedFieldExecutableFields_withParentType variableValues sourceParentType
-    targetParentType runtimeType responseName entries]
 
 end QueryInclusion
 end GraphQL

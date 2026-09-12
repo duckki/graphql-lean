@@ -402,10 +402,6 @@ theorem of_executableFieldSelections_responseNamesNodup
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List FreshPrefixSelectionDerivation.KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
         completionDepth parentType source
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections fields)
@@ -413,7 +409,7 @@ theorem of_executableFieldSelections_responseNamesNodup
   of_plan
     (FreshPrefixSelectionPlan.of_executableFieldSelections_responseNamesNodup
       schema resolvers variableValues completionDepth parentType source fields
-      hnodup hparents)
+      hnodup)
 
 theorem fieldAllowedDropDirectives
     {ObjectIdentity : Type}
@@ -1426,10 +1422,6 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (([first] ++ (middle ++ [later])).map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     (hmiddleNodup : (middle.map (fun field => field.responseName)).Nodup)
     (hnotMiddle : later.responseName ∉ middle.map (fun field => field.responseName))
     : SelectionSetFreshPlanNormalizes schema resolvers variableValues
@@ -1438,11 +1430,6 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
           ([first] ++ (middle ++ [later])))
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections
           ([first] ++ [later] ++ middle)) := by
-  have hmiddleParents : ExecutableFieldsParent parentType
-      (middle.map
-        FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField) := by
-    intro field hfield
-    exact hparents field (by simp [hfield])
   have hnotMiddleCollect :
       first.responseName ∉
         (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1462,22 +1449,7 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections middle) :=
     FreshPrefixSelectionPlan.of_executableFieldSelections_responseNamesNodup
       schema resolvers variableValues completionDepth parentType source middle
-      hmiddleNodup hmiddleParents
-  have hpairResponses :
-      ExecutableFieldsResponseName first.responseName
-        [first.toExecutableField, later.toExecutableField] := by
-    intro _field _hfield
-    trivial
-  have hpairParents :
-      ExecutableFieldsParent parentType
-        [first.toExecutableField, later.toExecutableField] := by
-    intro field hfield
-    simp at hfield
-    rcases hfield with hfield | hfield
-    · subst field
-      exact hparents first.toExecutableField (by simp)
-    · subst field
-      exact hparents later.toExecutableField (by simp)
+      hmiddleNodup
   have hpairCollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           (executableFieldSelections first.responseName
@@ -1510,7 +1482,7 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
   · exact
       collectFields_executableFieldSelections_single_prefix_duplicate_fresh_middle
         schema variableValues parentType source first later middle
-        hsameResponse hmiddleNodup hmiddleParents hnotMiddle
+        hsameResponse hmiddleNodup hnotMiddle
   · have hraw :
         VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           (completionDepth + 1) parentType source
@@ -1520,7 +1492,7 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
       VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
         resolvers variableValues completionDepth parentType source
         first.responseName first.toExecutableField later.toExecutableField
-        (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections middle) rfl
+        (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections middle)
         hlaterLookup
         hnotMiddleCollect hmiddlePlan.freshFlat
     simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections,
@@ -1543,8 +1515,7 @@ theorem executableFieldSinglePrefixDuplicateFreshMiddle
           [first.toExecutableField, later.toExecutableField])
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections middle)
         (.sameGroup first.responseName
-          [first.toExecutableField, later.toExecutableField] hpairResponses
-          hpairParents)
+          [first.toExecutableField, later.toExecutableField])
         hmiddlePlan
         hpairMiddleDisjoint
     simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections,
@@ -1560,12 +1531,9 @@ theorem executableFieldPrefixDuplicateFreshMiddle
     (responseName : Name) (prefixFields : List ExecutableField)
     (later : ExecutableField) (middle : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ExecutableFieldsResponseName responseName prefixFields)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
-    (hparents : ExecutableFieldsParent parentType (prefixFields ++ [later]))
     (hnotMiddle
       : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1587,14 +1555,6 @@ theorem executableFieldPrefixDuplicateFreshMiddle
     collectedExecutableSelections
       (GraphQL.Execution.collectFields schema variableValues parentType
         source middle)
-  have hprefixLaterResponse :
-      ExecutableFieldsResponseName responseName (prefixFields ++ [later]) := by
-    intro _field _hfield
-    trivial
-  have hprefixLaterParents :
-      ExecutableFieldsParent parentType (prefixFields ++ [later]) := by
-    intro field hfield
-    exact hparents field hfield
   have hprefixCollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           (executableFieldSelections responseName (prefixFields ++ [later])) =
@@ -1635,14 +1595,12 @@ theorem executableFieldPrefixDuplicateFreshMiddle
   · simpa [collectedMiddle] using
       collectFields_group_duplicate_field_middle_append_eq_collected_middle
         schema variableValues parentType source responseName prefixFields later
-        middle [] hprefixNonempty (by intro _field _hfield; trivial)
-        hlaterResponse hnotMiddle
+        middle [] hprefixNonempty hnotMiddle
   · exact
       VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_after_same_response_prefix
         schema resolvers variableValues completionDepth parentType source
         responseName prefixFields later middle hprefixNonempty
-        (by intro _field _hfield; trivial) hlaterResponse hlaterLookup
-        hnotMiddle hmiddle
+        hlaterLookup hnotMiddle hmiddle
   · have hnormalizedPlan :
         FreshPrefixSelectionPlan schema resolvers variableValues
           completionDepth parentType source
@@ -1655,8 +1613,7 @@ theorem executableFieldPrefixDuplicateFreshMiddle
         (parentType := parentType) (source := source)
         (executableFieldSelections responseName (prefixFields ++ [later]))
         collectedMiddle
-        (.sameGroup responseName (prefixFields ++ [later])
-          hprefixLaterResponse hprefixLaterParents)
+        (.sameGroup responseName (prefixFields ++ [later]))
         (FreshPrefixSelectionPlan.of_collectedCollectFields schema resolvers
           variableValues completionDepth parentType source middle)
         hprefixMiddleDisjoint
@@ -1671,8 +1628,6 @@ theorem duplicateFieldPrefixBlockNormalizeTrans_of_middleNormalizes
     (later : ExecutableField)
     (middle suffix normalizedMiddle normalizedTail : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (_hprefixResponse : ExecutableFieldsResponseName responseName prefixFields)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1717,16 +1672,14 @@ theorem duplicateFieldPrefixBlockNormalizeTrans_of_middleNormalizes
           collectFields_group_duplicate_field_middle_append_eq_collected_middle
             schema variableValues parentType source responseName prefixFields
             later middle suffix hprefixNonempty
-            (by intro _field _hfield; trivial)
-            hlaterResponse hnotMiddle
+            hnotMiddle
         _ = GraphQL.Execution.collectFields schema variableValues parentType source
               normalizedTail :=
           htail.collect_eq
     rawFreshFlat :=
       VisitSubfieldsFlatCollectsFreshPrefixes_group_duplicate_field_middle_append_of_normalized
         schema resolvers variableValues completionDepth parentType source responseName
-        prefixFields later middle suffix hprefixNonempty
-        (by intro _field _hfield; trivial) hlaterResponse hlaterLookup hnotMiddle
+        prefixFields later middle suffix hprefixNonempty hlaterLookup hnotMiddle
         hmiddle.rawFreshFlat htail.rawFreshFlat
     normalizedPlan := htail.normalizedPlan
   }
@@ -1738,7 +1691,6 @@ theorem duplicateFieldBlockNormalize
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1773,10 +1725,10 @@ theorem duplicateFieldBlockNormalize
     collect_eq :=
       collectFields_duplicate_field_middle_append_eq_collected_middle schema
         variableValues parentType source responseName first later middle suffix
-        hsameResponse hnotMiddle
+        hnotMiddle
     rawFreshFlat :=
       (FreshPrefixSelectionPlan.duplicateFieldBlockNormalize responseName first later
-        middle suffix hsameResponse hlaterLookup hnotMiddle hmiddle hnormalized).freshFlat
+        middle suffix hlaterLookup hnotMiddle hmiddle hnormalized).freshFlat
     normalizedPlan := hnormalized
   }
 
@@ -1787,7 +1739,6 @@ theorem duplicateFieldBlockNormalizeTrans
     {parentType : Name} {source : ResolverValue ObjectIdentity}
     (responseName : Name) (first later : ExecutableField)
     (middle suffix normalizedTail : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1826,7 +1777,7 @@ theorem duplicateFieldBlockNormalizeTrans
   trans
     (duplicateFieldBlockNormalize schema resolvers variableValues
       completionDepth parentType source responseName first later middle suffix
-      hsameResponse hlaterLookup hnotMiddle hmiddle hnormalized)
+      hlaterLookup hnotMiddle hmiddle hnormalized)
     htail
 
 theorem duplicateFieldBlockNormalizeTrans_of_middleNormalizes {ObjectIdentity : Type}
@@ -1835,7 +1786,6 @@ theorem duplicateFieldBlockNormalizeTrans_of_middleNormalizes {ObjectIdentity : 
     {source : ResolverValue ObjectIdentity} (responseName : Name)
     (first later : ExecutableField)
     (middle suffix normalizedMiddle normalizedTail : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1879,14 +1829,14 @@ theorem duplicateFieldBlockNormalizeTrans_of_middleNormalizes {ObjectIdentity : 
                   ++ suffix) :=
           collectFields_duplicate_field_middle_append_eq_collected_middle
             schema variableValues parentType source responseName first later middle suffix
-            hsameResponse hnotMiddle
+            hnotMiddle
         _ = GraphQL.Execution.collectFields schema variableValues parentType source
               normalizedTail :=
           htail.collect_eq
     rawFreshFlat :=
       VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
         schema resolvers variableValues completionDepth parentType source responseName
-        first later middle suffix hsameResponse hlaterLookup hnotMiddle
+        first later middle suffix hlaterLookup hnotMiddle
         hmiddle.rawFreshFlat htail.rawFreshFlat
     normalizedPlan := htail.normalizedPlan
   }
@@ -1955,7 +1905,7 @@ theorem executableFieldDuplicateBlockNormalizeTrans
       (completionDepth := completionDepth) (parentType := parentType)
       (source := source) first.responseName first.toExecutableField
       later.toExecutableField (keyedExecutableFieldSelections middleFields)
-      (keyedExecutableFieldSelections suffixFields) normalized rfl
+      (keyedExecutableFieldSelections suffixFields) normalized
       hlaterLookup hnotMiddleCollect hmiddlePlan hintermediatePlan hnormalized
 
 theorem executableFieldDuplicateBlockNormalizeTrans_of_middleNormalizes
@@ -2009,7 +1959,7 @@ theorem executableFieldDuplicateBlockNormalizeTrans_of_middleNormalizes
       (source := source) first.responseName first.toExecutableField
       later.toExecutableField (keyedExecutableFieldSelections middleFields)
       (keyedExecutableFieldSelections suffixFields) normalizedMiddle normalized
-      rfl hlaterLookup hnotMiddleCollect hmiddle hnormalized
+      hlaterLookup hnotMiddleCollect hmiddle hnormalized
 
 theorem executableFieldPrefixDuplicateBlockNormalizeTrans_of_middleNormalizes
     {ObjectIdentity : Type}
@@ -2021,7 +1971,6 @@ theorem executableFieldPrefixDuplicateBlockNormalizeTrans_of_middleNormalizes
     (middleFields suffixFields : List KeyedExecutableField)
     (normalizedMiddle normalized : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ExecutableFieldsResponseName responseName prefixFields)
     (hlaterResponse : later.responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
@@ -2066,7 +2015,7 @@ theorem executableFieldPrefixDuplicateBlockNormalizeTrans_of_middleNormalizes
       (source := source) responseName prefixFields later.toExecutableField
       (keyedExecutableFieldSelections middleFields)
       (keyedExecutableFieldSelections suffixFields) normalizedMiddle normalized
-      hprefixNonempty hprefixResponse rfl hlaterLookup
+      hprefixNonempty hlaterLookup
       hnotMiddleCollect hmiddle hnormalized
 
 theorem executableFieldPrefixNormalizesOfCases_middleNormalizes
@@ -2077,8 +2026,6 @@ theorem executableFieldPrefixNormalizesOfCases_middleNormalizes
     (responseName : Name) (prefixFields : List ExecutableField)
     (rest : List KeyedExecutableField)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ExecutableFieldsResponseName responseName prefixFields)
-    (hprefixParents : ExecutableFieldsParent parentType prefixFields)
     (hrestLookups
       : ∀ field,
           field ∈ rest
@@ -2141,7 +2088,7 @@ theorem executableFieldPrefixNormalizesOfCases_middleNormalizes
     simpa [List.append_assoc] using
       executableFieldPrefixDuplicateBlockNormalizeTrans_of_middleNormalizes
         responseName prefixFields later middle suffix normalizedMiddle
-        normalized hprefixNonempty hprefixResponse hlater hlaterLookup
+        normalized hprefixNonempty hlater hlaterLookup
         hnotMiddle hmiddleStep hnormalizedStep
   · rcases hfresh hmem with ⟨normalizedRest, hrest⟩
     have hprefix :
@@ -2150,7 +2097,7 @@ theorem executableFieldPrefixNormalizesOfCases_middleNormalizes
           (executableFieldSelections responseName prefixFields)
           (executableFieldSelections responseName prefixFields) :=
       SelectionSetFreshPlanNormalizes.of_plan
-        (.sameGroup responseName prefixFields hprefixResponse hprefixParents)
+        (.sameGroup responseName prefixFields)
     have hprefixCollect :
         GraphQL.Execution.collectFields schema variableValues parentType source
             (executableFieldSelections responseName prefixFields) =
@@ -2194,10 +2141,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
     (responseName : Name) (prefixFields : List ExecutableField)
     (rest : List KeyedExecutableField)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ExecutableFieldsResponseName responseName prefixFields)
-    (hwholeParents
-      : ExecutableFieldsParent parentType
-          (prefixFields ++ rest.map KeyedExecutableField.toExecutableField))
     (hwholeLookups
       : ∀ field,
           field ∈ prefixFields ++ rest.map KeyedExecutableField.toExecutableField
@@ -2206,8 +2149,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
     (normalizeSmaller
       : ∀ fields,
           fields.length < prefixFields.length + rest.length
-          -> ExecutableFieldsParent parentType
-              (fields.map KeyedExecutableField.toExecutableField)
           -> (∀ field,
                 field ∈ fields
                 -> ∃ fieldDefinition,
@@ -2227,10 +2168,7 @@ theorem executableFieldPrefixNormalizes_of_smaller
           (rest : List KeyedExecutableField),
         rest.length = m ->
         prefixFields ≠ [] ->
-        ExecutableFieldsResponseName responseName prefixFields ->
         prefixFields.length + rest.length = total ->
-        ExecutableFieldsParent parentType
-          (prefixFields ++ rest.map KeyedExecutableField.toExecutableField) ->
         (∀ field, field ∈ prefixFields ++
             rest.map KeyedExecutableField.toExecutableField ->
           ∃ fieldDefinition, schema.lookupField parentType field.fieldName =
@@ -2243,8 +2181,7 @@ theorem executableFieldPrefixNormalizes_of_smaller
     intro m
     induction m using Nat.strongRecOn with
     | ind m ih =>
-        intro prefixFields rest hrestLen hprefixNonempty hprefixResponse
-          htotal hparents hlookups
+        intro prefixFields rest hrestLen hprefixNonempty htotal hlookups
         by_cases hmem :
             responseName ∈ rest.map (fun field => field.responseName)
         · rcases
@@ -2257,11 +2194,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
                 parentType source (keyedExecutableFieldSelections middle))
           let transformedRest : List KeyedExecutableField :=
             collectedMiddle ++ suffix
-          have hmiddleParents :
-              ExecutableFieldsParent parentType
-                (middle.map KeyedExecutableField.toExecutableField) := by
-            intro _field _hfield
-            trivial
           have hmiddleLookups :
               ∀ field, field ∈ middle ->
                 ∃ fieldDefinition,
@@ -2287,19 +2219,8 @@ theorem executableFieldPrefixNormalizes_of_smaller
             rw [← htotal, hsplit]
             simp [List.length_append]
             omega
-          rcases normalizeSmaller middle hmiddleLt hmiddleParents
-              hmiddleLookups with
+          rcases normalizeSmaller middle hmiddleLt hmiddleLookups with
             ⟨normalizedMiddle, hmiddleStep⟩
-          have hcollectedMiddleParents :
-              ExecutableFieldsParent parentType
-                (collectedMiddle.map KeyedExecutableField.toExecutableField) := by
-            intro _field _hfield
-            trivial
-          have hsuffixParents :
-              ExecutableFieldsParent parentType
-                (suffix.map KeyedExecutableField.toExecutableField) := by
-            intro _field _hfield
-            trivial
           have hcollectedMiddleLookups :
               ∀ field,
                 field ∈ collectedMiddle.map
@@ -2328,11 +2249,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
             right
             rw [hsplit, List.map_append, List.map_cons]
             exact List.mem_append.mpr (.inr (List.mem_cons_of_mem _ hfield))
-          have htransformedParents :
-              ExecutableFieldsParent parentType
-                (transformedRest.map KeyedExecutableField.toExecutableField) := by
-            intro _field _hfield
-            trivial
           have htransformedLookups :
               ∀ field,
                 field ∈ transformedRest.map
@@ -2346,12 +2262,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
             rcases List.mem_append.mp hfield with hcollected | hsuffix
             · exact hcollectedMiddleLookups field hcollected
             · exact hsuffixLookups field hsuffix
-          have hnewWholeParents :
-                ExecutableFieldsParent parentType
-                  ((prefixFields ++ [later.toExecutableField]) ++
-                    transformedRest.map KeyedExecutableField.toExecutableField) := by
-              intro _field _hfield
-              trivial
           have hcollectedLen :
               collectedMiddle.length = middle.length := by
             dsimp [collectedMiddle]
@@ -2376,11 +2286,6 @@ theorem executableFieldPrefixNormalizes_of_smaller
           have hnewPrefixNonempty :
               prefixFields ++ [later.toExecutableField] ≠ [] := by
             simp
-          have hnewPrefixResponse :
-              ExecutableFieldsResponseName responseName
-                (prefixFields ++ [later.toExecutableField]) := by
-            intro _field _hfield
-            trivial
           have hnewWholeLookups :
               ∀ field,
                 field ∈ (prefixFields ++ [later.toExecutableField]) ++
@@ -2400,8 +2305,7 @@ theorem executableFieldPrefixNormalizes_of_smaller
           rcases
               ih transformedRest.length htransformedLt
                 (prefixFields ++ [later.toExecutableField]) transformedRest rfl
-                hnewPrefixNonempty hnewPrefixResponse hnewTotal
-                hnewWholeParents hnewWholeLookups with
+                hnewPrefixNonempty hnewTotal hnewWholeLookups with
             ⟨normalizedTail, htailStep⟩
           have htailStep' :
               SelectionSetFreshPlanNormalizes schema resolvers variableValues
@@ -2431,25 +2335,15 @@ theorem executableFieldPrefixNormalizes_of_smaller
               (completionDepth := completionDepth)
               (parentType := parentType) (source := source)
               responseName prefixFields later middle suffix normalizedMiddle
-              normalizedTail hprefixNonempty hprefixResponse hlater
+              normalizedTail hprefixNonempty hlater
               hlaterLookup hnotMiddle hmiddleStep htailStep'
-        · have hprefixParents :
-              ExecutableFieldsParent parentType prefixFields := by
-            intro _field _hfield
-            trivial
-          have hprefix :
+        · have hprefix :
               SelectionSetFreshPlanNormalizes schema resolvers variableValues
                 completionDepth parentType source
                 (executableFieldSelections responseName prefixFields)
                 (executableFieldSelections responseName prefixFields) :=
             SelectionSetFreshPlanNormalizes.of_plan
-              (.sameGroup responseName prefixFields hprefixResponse
-                hprefixParents)
-          have hrestParents :
-              ExecutableFieldsParent parentType
-                (rest.map KeyedExecutableField.toExecutableField) := by
-            intro _field _hfield
-            trivial
+              (.sameGroup responseName prefixFields)
           have hrestLookups :
               ∀ field, field ∈ rest ->
                 ∃ fieldDefinition,
@@ -2467,7 +2361,7 @@ theorem executableFieldPrefixNormalizes_of_smaller
                 contradiction
             | cons firstPrefix restPrefix =>
                 simp
-          rcases normalizeSmaller rest hrestLt hrestParents hrestLookups with
+          rcases normalizeSmaller rest hrestLt hrestLookups with
             ⟨normalizedRest, hrestStep⟩
           have hprefixCollect :
               GraphQL.Execution.collectFields schema variableValues parentType
@@ -2505,7 +2399,7 @@ theorem executableFieldPrefixNormalizes_of_smaller
                   hrestStep hdisjoint
           ⟩
   exact aux rest.length prefixFields rest rfl hprefixNonempty
-    hprefixResponse rfl hwholeParents hwholeLookups
+    rfl hwholeLookups
 
 theorem executableFieldsNormalizes
     {ObjectIdentity : Type}
@@ -2513,9 +2407,6 @@ theorem executableFieldsNormalizes
     {variableValues : VariableValues} {completionDepth : Nat}
     {parentType : Name} {source : ResolverValue ObjectIdentity}
     (fields : List KeyedExecutableField)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     (hlookups
       : ∀ field,
           field ∈ fields
@@ -2528,8 +2419,6 @@ theorem executableFieldsNormalizes
   have aux :
       ∀ n (fields : List KeyedExecutableField),
           fields.length = n ->
-          ExecutableFieldsParent parentType
-            (fields.map KeyedExecutableField.toExecutableField) ->
           (∀ field, field ∈ fields ->
             ∃ fieldDefinition,
               schema.lookupField parentType field.fieldName =
@@ -2541,7 +2430,7 @@ theorem executableFieldsNormalizes
     intro n
     induction n using Nat.strongRecOn with
     | ind n ih =>
-        intro fields hlen hparents hlookups
+        intro fields hlen hlookups
         cases fields with
         | nil =>
             exact ⟨
@@ -2550,11 +2439,6 @@ theorem executableFieldsNormalizes
                 variableValues completionDepth parentType source
             ⟩
         | cons first rest =>
-            have hwholeParents :
-                ExecutableFieldsParent parentType
-                  ([first.toExecutableField] ++
-                    rest.map KeyedExecutableField.toExecutableField) := by
-              simpa using hparents
             have hwholeLookups :
                 ∀ field,
                   field ∈ [first.toExecutableField] ++
@@ -2578,18 +2462,15 @@ theorem executableFieldsNormalizes
                   (parentType := parentType) (source := source)
                   first.responseName [first.toExecutableField] rest
                   (by simp)
+                  hwholeLookups
                   (by
-                    intro _field _hfield
-                    trivial)
-                  hwholeParents hwholeLookups
-                  (by
-                    intro smaller hlt hsmallerParents hsmallerLookups
+                    intro smaller hlt hsmallerLookups
                     exact
                       ih smaller.length
                         (by
                           rw [← hlen]
                           simpa [List.length_append, Nat.add_comm] using hlt)
-                        smaller rfl hsmallerParents hsmallerLookups) with
+                        smaller rfl hsmallerLookups) with
             ⟨normalized, hnormalized⟩
             exact ⟨
               normalized,
@@ -2598,7 +2479,7 @@ theorem executableFieldsNormalizes
                   keyedExecutableFieldSelection, executableFieldSelections] using
                   hnormalized
             ⟩
-  exact aux fields.length fields rfl hparents hlookups
+  exact aux fields.length fields rfl hlookups
 
 private theorem selectionSet_size_append (left right : List Selection)
     : SelectionSet.size (left ++ right)
@@ -2614,9 +2495,6 @@ theorem executablePrefixRawNormalizes
     {variableValues : VariableValues} {completionDepth : Nat}
     {parentType : Name} {source : ResolverValue ObjectIdentity}
     (prefixFields : List KeyedExecutableField)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (prefixFields.map KeyedExecutableField.toExecutableField))
     (hprefixLookups
       : ∀ field,
           field ∈ prefixFields
@@ -2633,7 +2511,7 @@ theorem executablePrefixRawNormalizes
           executableFieldsNormalizes (schema := schema) (resolvers := resolvers)
             (variableValues := variableValues)
             (completionDepth := completionDepth) (parentType := parentType)
-            (source := source) prefixFields hparents hprefixLookups with
+            (source := source) prefixFields hprefixLookups with
         ⟨normalized, hnormalized⟩
       exact ⟨normalized, by simpa using hnormalized⟩
   | .field responseName fieldName arguments directives selectionSet :: rest,
@@ -2656,12 +2534,6 @@ theorem executablePrefixRawNormalizes
       · let field : KeyedExecutableField :=
           { toExecutableField := executableField fieldName arguments selectionSet
             responseName := responseName }
-        have hparents' :
-            ExecutableFieldsParent parentType
-              ((prefixFields ++ [field]).map
-                KeyedExecutableField.toExecutableField) := by
-          intro _candidate _hcandidate
-          trivial
         have hlookups' :
             ∀ candidate, candidate ∈ prefixFields ++ [field] ->
               ∃ fieldDefinition,
@@ -2677,8 +2549,8 @@ theorem executablePrefixRawNormalizes
               (schema := schema) (resolvers := resolvers)
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
-              (source := source) (prefixFields ++ [field]) hparents'
-              hlookups' rest hrestLookup with
+              (source := source) (prefixFields ++ [field]) hlookups' rest
+              hrestLookup with
           ⟨normalized, tail⟩
         have tail' :
             SelectionSetFreshPlanNormalizes schema resolvers variableValues
@@ -2707,7 +2579,7 @@ theorem executablePrefixRawNormalizes
               (schema := schema) (resolvers := resolvers)
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
-              (source := source) prefixFields hparents hprefixLookups rest
+              (source := source) prefixFields hprefixLookups rest
               hrestLookup with
           ⟨normalized, tail⟩
         exact
@@ -2743,7 +2615,7 @@ theorem executablePrefixRawNormalizes
               (schema := schema) (resolvers := resolvers)
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
-              (source := source) prefixFields hparents hprefixLookups
+              (source := source) prefixFields hprefixLookups
               (rawChild ++ rest) happendLookup with
           ⟨normalized, tail⟩
         have tail' :
@@ -2768,7 +2640,7 @@ theorem executablePrefixRawNormalizes
               (schema := schema) (resolvers := resolvers)
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
-              (source := source) prefixFields hparents hprefixLookups rest
+              (source := source) prefixFields hprefixLookups rest
               hrestLookup with
           ⟨normalized, tail⟩
         exact
@@ -2808,7 +2680,7 @@ theorem executablePrefixRawNormalizes
                 (schema := schema) (resolvers := resolvers)
                 (variableValues := variableValues)
                 (completionDepth := completionDepth) (parentType := parentType)
-                (source := source) prefixFields hparents hprefixLookups
+                (source := source) prefixFields hprefixLookups
                 (rawChild ++ rest) happendLookup with
             ⟨normalized, tail⟩
           have tail' :
@@ -2834,7 +2706,7 @@ theorem executablePrefixRawNormalizes
                 (schema := schema) (resolvers := resolvers)
                 (variableValues := variableValues)
                 (completionDepth := completionDepth) (parentType := parentType)
-                (source := source) prefixFields hparents hprefixLookups rest
+                (source := source) prefixFields hprefixLookups rest
                 hrestLookup with
             ⟨normalized, tail⟩
           exact
@@ -2853,7 +2725,7 @@ theorem executablePrefixRawNormalizes
               (schema := schema) (resolvers := resolvers)
               (variableValues := variableValues)
               (completionDepth := completionDepth) (parentType := parentType)
-              (source := source) prefixFields hparents hprefixLookups rest
+              (source := source) prefixFields hprefixLookups rest
               hrestLookup with
           ⟨normalized, tail⟩
         exact
@@ -2883,18 +2755,12 @@ theorem exists_allFields_directiveFree
   intro hall hfree hlookupValid
   let fields :=
     selectionSet.map
-      (FreshPrefixSelectionDerivation.executableFieldOfSelection parentType)
+      FreshPrefixSelectionDerivation.executableFieldOfSelection
   have hselectionEq : keyedExecutableFieldSelections fields = selectionSet := by
     dsimp [fields]
     exact
       FreshPrefixSelectionDerivation.executableFieldSelections_map_executableFieldOfSelection
-        parentType selectionSet hall hfree
-  have hparents : ExecutableFieldsParent parentType
-      (fields.map KeyedExecutableField.toExecutableField) := by
-    dsimp [fields]
-    exact
-      FreshPrefixSelectionDerivation.executableFieldsParent_map_executableFieldOfSelection
-        parentType selectionSet
+        selectionSet hall hfree
   have hlookups :
       ∀ field, field ∈ fields ->
         ∃ fieldDefinition, schema.lookupField parentType field.fieldName =
@@ -2925,7 +2791,7 @@ theorem exists_allFields_directiveFree
       executableFieldsNormalizes (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth) (parentType := parentType)
-        (source := source) fields hparents hlookups with
+        (source := source) fields hlookups with
     ⟨normalizedSelectionSet, hnormalization⟩
   exact ⟨
     normalizedSelectionSet,
@@ -3184,7 +3050,6 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddle
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -3216,7 +3081,7 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddle
                   source middle))
           ++ suffix) :=
   duplicateFieldBlockNormalize schema resolvers variableValues completionDepth
-    parentType source responseName first later middle suffix hsameResponse hlaterLookup
+    parentType source responseName first later middle suffix hlaterLookup
     hnotMiddle
     (FreshPrefixSelectionPlan.of_headDisjointTree schema resolvers
       variableValues completionDepth parentType source middle hmiddle)
@@ -3229,8 +3094,6 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
-    (hparents : ExecutableFieldsParent parentType [first, later])
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -3265,11 +3128,11 @@ theorem duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
                   source middle))
           ++ suffix) :=
   duplicateFieldBlockNormalizeHeadDisjointMiddle schema resolvers variableValues
-    completionDepth parentType source responseName first later middle suffix hsameResponse
+    completionDepth parentType source responseName first later middle suffix
     hlaterLookup hnotMiddle hmiddle
     (FreshPrefixSelectionPlan.duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
       schema resolvers variableValues completionDepth parentType source
-      responseName first later middle suffix hparents hnotMiddle hdisjoint hsuffix)
+      responseName first later middle suffix hnotMiddle hdisjoint hsuffix)
 
 end SelectionSetFreshPlanNormalizes
 

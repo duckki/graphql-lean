@@ -8,6 +8,7 @@ namespace SelectionConditions
 
 open Execution
 open Execution.FieldGroups
+open GraphQL.ConditionTree
 
 theorem booleanConditionAllows_append (variableValues : VariableValues)
     (left right : List BooleanLiteral)
@@ -571,17 +572,17 @@ theorem collectFlatSelection_inlineFragment_object
       doesFragmentTypeApplyBool_object]
 
 theorem runtimeFields_append
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (left right : List ConditionedField)
-    : runtimeFields variableValues executionParentType runtimeType (left ++ right)
-      = runtimeFields variableValues executionParentType runtimeType left
-        ++ runtimeFields variableValues executionParentType runtimeType right := by
+    : runtimeFields variableValues runtimeType (left ++ right)
+      = runtimeFields variableValues runtimeType left
+        ++ runtimeFields variableValues runtimeType right := by
   simp [runtimeFields]
 
 theorem runtimeFields_singleton
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (condition : Condition) (field : Field)
-    : runtimeFields variableValues executionParentType runtimeType [{ condition, field }]
+    : runtimeFields variableValues runtimeType [{ condition, field }]
       = if condition.allows variableValues runtimeType then
           [(
             field.responseName,
@@ -602,7 +603,7 @@ theorem extractFields_runtimeFields
     (inheritedBooleanCondition : List BooleanLiteral)
     (currentCondition : Condition) (selectionSet : List Selection)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
-    : runtimeFields variableValues executionParentType runtimeType
+    : runtimeFields variableValues runtimeType
         (extractFields schema inheritedBooleanCondition currentCondition selectionSet)
       = if currentCondition.allows variableValues runtimeType then
           collectFlatFields schema variableValues executionParentType

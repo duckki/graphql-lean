@@ -136,15 +136,14 @@ mutual
         cases region with
         | nil => simp
         | cons runtimeType rest =>
-            let executionParentType := fixedExecutionParentType.getD runtimeType
             let sourceLeftFields := guardedFieldExecutableFields sourceValues
-              executionParentType runtimeType left.responseName left.entries
+              runtimeType left.entries
             let sourceRightFields := guardedFieldExecutableFields sourceValues
-              executionParentType runtimeType right.responseName right.entries
+              runtimeType right.entries
             let targetLeftFields := guardedFieldExecutableFields targetValues
-              executionParentType runtimeType left.responseName left.entries
+              runtimeType left.entries
             let targetRightFields := guardedFieldExecutableFields targetValues
-              executionParentType runtimeType right.responseName right.entries
+              runtimeType right.entries
             have hvariableAgreement : ∀ variableName,
                 variableName ∈ guardedFieldGroupBooleanVariables left right
                 -> inputValueBoolean? sourceValues (.variable variableName)
@@ -160,14 +159,14 @@ mutual
                 parentRegion left right left (Or.inl rfl)
                 (region := runtimeType :: rest) hregion
                 (leftRuntimeType := runtimeType) (rightRuntimeType := runtimeType)
-                (by simp) (by simp) hvariableAgreement executionParentType
+                (by simp) (by simp) hvariableAgreement
             have hrightFields : sourceRightFields = targetRightFields := by
               unfold sourceRightFields targetRightFields
               exact guardedFieldExecutableFields_eq_of_region_and_variables
                 parentRegion left right right (Or.inr rfl)
                 (region := runtimeType :: rest) hregion
                 (leftRuntimeType := runtimeType) (rightRuntimeType := runtimeType)
-                (by simp) (by simp) hvariableAgreement executionParentType
+                (by simp) (by simp) hvariableAgreement
             cases responseFuel with
             | zero =>
                 change sourceRightFields.isEmpty = true at hregionCheck
@@ -351,19 +350,17 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
   let runtimeRightGroups := collectRuntimeFieldGroups schema targetValues runtimeType
     runtimeType rightTargetSelectionSet
   have hleftEquivalent : RuntimeGroupsPermutationEquivalent
-      (guardedFieldRuntimeGroups targetValues runtimeType runtimeType leftGroups)
+      (guardedFieldRuntimeGroups targetValues runtimeType leftGroups)
       runtimeLeftGroups := by
     apply runtimeGroupsPermutationEquivalent_trans
-      (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType
-        runtimeType leftEntries)
+      (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType leftEntries)
     exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent schema parentRegion
       hleftSelectionSet targetValues runtimeType runtimeType PUnit.unit hruntimeParent
   have hrightEquivalent : RuntimeGroupsPermutationEquivalent
-      (guardedFieldRuntimeGroups targetValues runtimeType runtimeType rightGroups)
+      (guardedFieldRuntimeGroups targetValues runtimeType rightGroups)
       runtimeRightGroups := by
     apply runtimeGroupsPermutationEquivalent_trans
-      (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType
-        runtimeType rightEntries)
+      (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType rightEntries)
     exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent schema parentRegion
       hrightSelectionSet targetValues runtimeType runtimeType PUnit.unit hruntimeParent
   have hgroupComplete : ∀ right,
@@ -475,8 +472,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
               fun childRuntimeType =>
                 selectionSetIncludesBoolWithFuel schema childFuel childRuntimeType
                   targetValues leftSelectionSet rightSelectionSet)
-          (guardedFieldRuntimeGroups targetValues runtimeType runtimeType leftGroups)
-          (guardedFieldRuntimeGroups targetValues runtimeType runtimeType rightGroups)
+          (guardedFieldRuntimeGroups targetValues runtimeType leftGroups)
+          (guardedFieldRuntimeGroups targetValues runtimeType rightGroups)
           runtimeLeftGroups runtimeRightGroups hleftEquivalent hrightEquivalent
           (executableGroupsResolverReady_of_semanticsReady hruntimeLeftReady)
           (executableGroupsResolverReady_of_semanticsReady hruntimeRightReady) ?_ hguarded
@@ -698,20 +695,18 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
     let runtimeRightGroups := collectRuntimeFieldGroups schema targetValues runtimeType
       runtimeType rightTargetSelectionSet
     have hleftEquivalent : RuntimeGroupsPermutationEquivalent
-        (guardedFieldRuntimeGroups targetValues runtimeType runtimeType leftGroups)
+        (guardedFieldRuntimeGroups targetValues runtimeType leftGroups)
         runtimeLeftGroups := by
       apply runtimeGroupsPermutationEquivalent_trans
-        (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType
-          runtimeType leftEntries)
+        (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType leftEntries)
       exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent schema
         parentRegion hleftSelectionSet targetValues runtimeType runtimeType PUnit.unit
         hruntimeParent
     have hrightEquivalent : RuntimeGroupsPermutationEquivalent
-        (guardedFieldRuntimeGroups targetValues runtimeType runtimeType rightGroups)
+        (guardedFieldRuntimeGroups targetValues runtimeType rightGroups)
         runtimeRightGroups := by
       apply runtimeGroupsPermutationEquivalent_trans
-        (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType
-          runtimeType rightEntries)
+        (guardedFieldRuntimeGroups_permutationEquivalent targetValues runtimeType rightEntries)
       exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent schema
         parentRegion hrightSelectionSet targetValues runtimeType runtimeType PUnit.unit
         hruntimeParent
@@ -727,8 +722,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
           simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups] using
             hparentCase.2.2.2.2.2.2.2.2
         have hguardedEmpty :
-            (guardedFieldRuntimeGroups targetValues runtimeType runtimeType
-              rightGroups).isEmpty = true := by
+            (guardedFieldRuntimeGroups targetValues runtimeType rightGroups).isEmpty
+              = true := by
           rw [runtimeGroupsPermutationEquivalent_isEmpty_iff hrightEquivalent]
           exact hruntimeEmpty
         have hfullInclude : guardedFieldRuntimeGroupsIncludeBool schema 0
@@ -743,10 +738,9 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
           hfullInclude right hright
     | succ childFuel =>
         let guardedLeftFields := guardedFieldExecutableFields targetValues runtimeType
-          runtimeType (guardedFieldGroupFor leftGroups right).responseName
           (guardedFieldGroupFor leftGroups right).entries
         let guardedRightFields := guardedFieldExecutableFields targetValues runtimeType
-          runtimeType right.responseName right.entries
+          right.entries
         let guardedLeftLocalGroups := executableFieldsAsGroup
           (guardedFieldGroupFor leftGroups right).responseName guardedLeftFields
         let guardedRightLocalGroups := executableFieldsAsGroup right.responseName
@@ -770,10 +764,9 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
               simp [guardedRightLocalGroups, executableFieldsAsGroup, hrightFields]
             have hguardedRightFull :
                 (right.responseName, rightHead :: rightRest) ∈
-                  guardedFieldRuntimeGroups targetValues runtimeType runtimeType
-                    rightGroups := by
+                  guardedFieldRuntimeGroups targetValues runtimeType rightGroups := by
               apply guardedFieldRuntimeGroup_component_mem targetValues runtimeType
-                runtimeType rightGroups right hright
+                rightGroups right hright
               simpa [guardedRightFields] using hguardedRightLocal
             rcases runtimeGroupsPermutationEquivalent_singleton_of_mem
                 hrightEquivalent hguardedRightFull with
@@ -802,7 +795,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
               ⟨guardedLeftFields', hguardedLeftFull, hleftSingletonRuntime⟩
             have hguardedLeftLocal : (leftName, guardedLeftFields') ∈ guardedLeftLocalGroups := by
               apply guardedFieldGroupFor_runtimeGroup_mem targetValues runtimeType
-                runtimeType leftGroups right
+                leftGroups right
                 (by simpa [leftGroups] using
                   guardedFieldGroups_responseNames_nodup leftEntries)
                 (leftName, guardedLeftFields') hguardedLeftFull hname
@@ -964,35 +957,33 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                         (guardedFieldGroupFor leftGroups right) right)
                       (guardedFieldGroupFor leftGroups right) right
                       (guardedFieldGroupFor leftGroups right) (Or.inl rfl)
-                      hregion hruntime hruntime hleftVariableAgreement runtimeType
+                      hregion hruntime hruntime hleftVariableAgreement
                   have hrightFieldsEqual :=
                     guardedFieldExecutableFields_eq_of_region_and_variables
                       (guardedFieldParentRegion schema fixedExecutionParentType
                         (guardedFieldGroupFor leftGroups right) right)
                       (guardedFieldGroupFor leftGroups right) right right
                       (Or.inr rfl) hregion hruntime hruntime hleftVariableAgreement
-                      runtimeType
                   have hchildLeftEquivalent : RuntimeGroupsPermutationEquivalent
-                      (guardedFieldRuntimeGroups childValues runtimeType runtimeType
-                        leftGroups) childRuntimeLeftGroups := by
+                      (guardedFieldRuntimeGroups childValues runtimeType leftGroups)
+                      childRuntimeLeftGroups := by
                     apply runtimeGroupsPermutationEquivalent_trans
                       (guardedFieldRuntimeGroups_permutationEquivalent childValues
-                        runtimeType runtimeType leftEntries)
+                        runtimeType leftEntries)
                     exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent
                       schema parentRegion hchildOuterLeftSelectionSet childValues runtimeType
                       runtimeType PUnit.unit hruntimeParent
                   have hchildRightEquivalent : RuntimeGroupsPermutationEquivalent
-                      (guardedFieldRuntimeGroups childValues runtimeType runtimeType
-                        rightGroups) childRuntimeRightGroups := by
+                      (guardedFieldRuntimeGroups childValues runtimeType rightGroups)
+                      childRuntimeRightGroups := by
                     apply runtimeGroupsPermutationEquivalent_trans
                       (guardedFieldRuntimeGroups_permutationEquivalent childValues
-                        runtimeType runtimeType rightEntries)
+                        runtimeType rightEntries)
                     exact selectionConditionsForRegion_runtimeGroups_permutationEquivalent
                       schema parentRegion hchildOuterRightSelectionSet childValues runtimeType
                       runtimeType PUnit.unit hruntimeParent
                   have hchildGuardedLeft : (leftName, guardedLeftFields') ∈
-                      guardedFieldRuntimeGroups childValues runtimeType runtimeType
-                        leftGroups := by
+                      guardedFieldRuntimeGroups childValues runtimeType leftGroups := by
                     have htargetLocal :
                         (leftName, guardedLeftFields') ∈
                           guardedLeftLocalGroups := hguardedLeftLocal
@@ -1001,19 +992,16 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                           executableFieldsAsGroup
                             (guardedFieldGroupFor leftGroups right).responseName
                             (guardedFieldExecutableFields childValues runtimeType
-                              runtimeType
-                              (guardedFieldGroupFor leftGroups right).responseName
                               (guardedFieldGroupFor leftGroups right).entries) := by
                       rw [← hleftFieldsEqual]
                       simpa [guardedLeftLocalGroups, guardedLeftFields] using htargetLocal
                     exact guardedFieldGroupFor_runtimeGroups_subset childValues
-                      runtimeType runtimeType leftGroups right _ hchildLocal
+                      runtimeType leftGroups right _ hchildLocal
                   have hchildGuardedRight :
                       (right.responseName, rightHead :: rightRest) ∈
-                        guardedFieldRuntimeGroups childValues runtimeType runtimeType
-                          rightGroups := by
+                        guardedFieldRuntimeGroups childValues runtimeType rightGroups := by
                     apply guardedFieldRuntimeGroup_component_mem childValues
-                      runtimeType runtimeType rightGroups right hright
+                      runtimeType rightGroups right hright
                     rw [← hrightFieldsEqual]
                     simpa [guardedRightLocalGroups, guardedRightFields] using hguardedRightLocal
                   rcases runtimeGroupsPermutationEquivalent_matchingGroup

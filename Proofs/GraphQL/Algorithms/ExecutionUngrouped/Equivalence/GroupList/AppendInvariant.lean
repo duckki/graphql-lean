@@ -537,8 +537,6 @@ theorem
     (hinvariant
       : CollectedFieldGroupContainedAppendInvariant schema resolvers
           variableValues depth parentType source groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable
       : CollectedGroupsResolveStable schema resolvers variableValues source
@@ -595,7 +593,7 @@ theorem
         hinvariant.extendedChildren responseName field fields prefixTail
           later hgroup hprefix hlaterFields,
         ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
-          hinvariant hresponses hparents hcompatible hstable responseName field fields
+          hinvariant hcompatible hstable responseName field fields
           (prefixTail ++ [later]) rest hgroup hprefixNext hremainingRest
       ⟩
 
@@ -608,8 +606,6 @@ theorem ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant
     (hinvariant
       : CollectedFieldGroupContainedAppendInvariant schema resolvers
           variableValues depth parentType source groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (responseName : Name) (field : ExecutableField)
@@ -621,7 +617,7 @@ theorem ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant
           field.fieldName field.arguments source)
         [] fields :=
   ExecutableFieldsMergedCompleteContainedAppendSteps.of_collectedInvariant_from_prefix
-    hinvariant hresponses hparents hcompatible hstable responseName field
+    hinvariant hcompatible hstable responseName field
     fields [] fields hgroup
     (by intro candidate hmem; simp at hmem)
     (by intro later hlater; exact hlater)
@@ -1071,30 +1067,6 @@ theorem fieldsNonempty
       · exact fieldsNonempty hgroups.2 candidateResponseName candidateFields
           htail
 
-theorem responseName
-    {ObjectIdentity : Type}
-    {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
-    {parentType : Name} {source : ResolverValue ObjectIdentity}
-    : ∀ {groups : List (Name × List ExecutableField)},
-        ExecutedFieldGroups schema resolvers variableValues depth parentType source groups
-        -> CollectedGroupsResponseName groups
-  | groups, _hgroups => by
-      intro _responseName _fields _hmem _field _hfield
-      trivial
-
-theorem parent
-    {ObjectIdentity : Type}
-    {schema : Schema} {resolvers : Resolvers ObjectIdentity}
-    {variableValues : VariableValues} {depth : Nat}
-    {parentType : Name} {source : ResolverValue ObjectIdentity}
-    : ∀ {groups : List (Name × List ExecutableField)},
-        ExecutedFieldGroups schema resolvers variableValues depth parentType source groups
-        -> CollectedGroupsParent parentType groups
-  | groups, _hgroups => by
-      intro _responseName _fields _hmem _field _hfield
-      trivial
-
 def of_collected_groups_state
     {ObjectIdentity : Type}
     (schema : Schema) (resolvers : Resolvers ObjectIdentity)
@@ -1102,8 +1074,6 @@ def of_collected_groups_state
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     : ∀ (groups : List (Name × List ExecutableField)),
         CollectedGroupsFieldsNonempty groups
-        -> CollectedGroupsResponseName groups
-        -> CollectedGroupsParent parentType groups
         -> (∀ responseName field fields,
               (responseName, field :: fields) ∈ groups
               -> ∃ fieldDefinition,
@@ -1116,29 +1086,27 @@ def of_collected_groups_state
                   parentType field fields [] fields)
         -> ExecutedFieldGroups schema resolvers variableValues depth parentType
             source groups
-  | [], _hnonempty, _hresponses, _hparents, _hlookups, _hcompatible, _hstable,
+  | [], _hnonempty, _hlookups, _hcompatible, _hstable,
       _hplanStates =>
       ExecutedFieldGroups.nil
-  | (responseName, []) :: rest, hnonempty, _hresponses, _hparents,
+  | (responseName, []) :: rest, hnonempty,
       _hlookups, _hcompatible, _hstable, _hplanStates => by
       have hhead : ([] : List ExecutableField) ≠ [] :=
         hnonempty responseName [] (by simp)
       exact False.elim (hhead rfl)
-  | (responseName, field :: fields) :: rest, hnonempty, hresponses, hparents,
+  | (responseName, field :: fields) :: rest, hnonempty,
       hlookups, hcompatible, hstable, hplanStates => by
       exact
         ExecutedFieldGroups.cons
           (ExecutedFieldGroup.of_collected_group_state schema resolvers
             variableValues depth parentType source
             ((responseName, field :: fields) :: rest) responseName field
-            fields (by simp) hresponses hparents hcompatible hstable
+            fields (by simp) hcompatible hstable
             (hlookups responseName field fields (by simp))
             (hplanStates responseName field fields (by simp)))
           (of_collected_groups_state schema resolvers variableValues depth
             parentType source rest
             (CollectedGroupsFieldsNonempty_tail hnonempty)
-            (CollectedGroupsResponseName_tail hresponses)
-            (CollectedGroupsParent_tail hparents)
             (by
               intro tailResponseName tailField tailFields hmem
               exact hlookups tailResponseName tailField tailFields
@@ -1158,8 +1126,6 @@ def of_collected_groups_appendInvariant
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hlookups
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
@@ -1171,7 +1137,7 @@ def of_collected_groups_appendInvariant
     : ExecutedFieldGroups schema resolvers variableValues depth parentType source
         groups :=
   of_collected_groups_state schema resolvers variableValues depth parentType
-    source groups hnonempty hresponses hparents hlookups hcompatible hstable
+    source groups hnonempty hlookups hcompatible hstable
     (by
       intro _responseName field fields _hmem
       exact ExecutedFieldAppendPlanState.of_appendInvariant hinvariant field
@@ -1184,8 +1150,6 @@ def of_collected_groups_collectedAppendInvariant
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hlookups
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
@@ -1199,7 +1163,7 @@ def of_collected_groups_collectedAppendInvariant
     : ExecutedFieldGroups schema resolvers variableValues depth parentType source
         groups :=
   of_collected_groups_state schema resolvers variableValues depth parentType
-    source groups hnonempty hresponses hparents hlookups hcompatible hstable
+    source groups hnonempty hlookups hcompatible hstable
     (by
       intro responseName field fields hgroup
       exact
@@ -1213,8 +1177,6 @@ def of_collected_groups_collectedLocalAppendInvariant
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hlookups
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
@@ -1228,7 +1190,7 @@ def of_collected_groups_collectedLocalAppendInvariant
     : ExecutedFieldGroups schema resolvers variableValues depth parentType source
         groups :=
   of_collected_groups_state schema resolvers variableValues depth parentType
-    source groups hnonempty hresponses hparents hlookups hcompatible hstable
+    source groups hnonempty hlookups hcompatible hstable
     (by
       intro responseName field fields hgroup
       exact
@@ -1276,14 +1238,6 @@ theorem groupFlatSpecEquivalent
               CollectedGroupsFieldsNonempty
                 ((responseName, field :: fieldsTail) :: rest) :=
             ExecutedFieldGroups.fieldsNonempty hgroups
-          have hresponses :
-              CollectedGroupsResponseName
-                ((responseName, field :: fieldsTail) :: rest) :=
-            ExecutedFieldGroups.responseName hgroups
-          have hparents :
-              CollectedGroupsParent parentType
-                ((responseName, field :: fieldsTail) :: rest) :=
-            ExecutedFieldGroups.parent hgroups
           have hspec :
               GraphQL.Execution.executeRootSelectionSet schema resolvers
                   variableValues (depth + 1) parentType source
@@ -1295,7 +1249,6 @@ theorem groupFlatSpecEquivalent
             specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields
               schema resolvers variableValues (depth + 1) parentType source
               ((responseName, field :: fieldsTail) :: rest) hnodup hnonempty
-              hresponses hparents
           have htailSpec :
               GraphQL.Execution.executeRootSelectionSet schema resolvers
                   variableValues (depth + 1) parentType source
@@ -1306,8 +1259,6 @@ theorem groupFlatSpecEquivalent
               schema resolvers variableValues (depth + 1) parentType source
               rest htailNodup
               (ExecutedFieldGroups.fieldsNonempty htail)
-              (ExecutedFieldGroups.responseName htail)
-              (ExecutedFieldGroups.parent htail)
           have hheadEq :
               executeRootSelectionSet schema resolvers variableValues
                   (depth + 1) parentType source
@@ -1355,9 +1306,7 @@ theorem groupFlatSpecEquivalent
             have htailGroupKey : tailResponseName ∈ rest.map Prod.fst := by
               rw [← collectFields_executableFieldSelections_collectedExecutableFields
                 schema variableValues parentType source rest htailNodup
-                (ExecutedFieldGroups.fieldsNonempty htail)
-                (ExecutedFieldGroups.responseName htail)
-                (ExecutedFieldGroups.parent htail)]
+                (ExecutedFieldGroups.fieldsNonempty htail)]
               exact htailKey
             have hheadNotTail : responseName ∉ rest.map Prod.fst :=
               PairKeysNodup.head_not_mem_tail hnodup
@@ -1421,8 +1370,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
     {parentType : Name} {source : ResolverValue ObjectIdentity}
     {groups : List (Name × List ExecutableField)}
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hnodup : PairKeysNodup groups)
     (hgroupAligned
       : ∀ responseName field fields,
@@ -1456,8 +1403,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
                 variableValues depth parentType source rest := by
             exact ih
               (CollectedGroupsFieldsNonempty_tail hnonempty)
-              (CollectedGroupsResponseName_tail hresponses)
-              (CollectedGroupsParent_tail hparents)
               htailNodup
               (by
                 intro tailResponseName tailField tailFields hmem
@@ -1480,14 +1425,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
               CollectedGroupsFieldsNonempty
                 ((responseName, field :: fieldsTail) :: rest) :=
             hnonempty
-          have hresponsesAll :
-              CollectedGroupsResponseName
-                ((responseName, field :: fieldsTail) :: rest) :=
-            hresponses
-          have hparentsAll :
-              CollectedGroupsParent parentType
-                ((responseName, field :: fieldsTail) :: rest) :=
-            hparents
           have hspec :
               GraphQL.Execution.executeRootSelectionSet schema resolvers
                   variableValues depth parentType source
@@ -1499,7 +1436,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
             specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields
               schema resolvers variableValues depth parentType source
               ((responseName, field :: fieldsTail) :: rest) hnodup hnonemptyAll
-              hresponsesAll hparentsAll
           have htailSpec :
               GraphQL.Execution.executeRootSelectionSet schema resolvers
                   variableValues depth parentType source
@@ -1509,8 +1445,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
             specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields
               schema resolvers variableValues depth parentType source rest
               htailNodup (CollectedGroupsFieldsNonempty_tail hnonempty)
-              (CollectedGroupsResponseName_tail hresponses)
-              (CollectedGroupsParent_tail hparents)
           have hheadSpecRoot :
               GraphQL.Execution.executeRootSelectionSet schema resolvers
                   variableValues depth parentType source
@@ -1572,9 +1506,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
             have htailGroupKey : tailResponseName ∈ rest.map Prod.fst := by
               rw [← collectFields_executableFieldSelections_collectedExecutableFields
                 schema variableValues parentType source rest htailNodup
-                (CollectedGroupsFieldsNonempty_tail hnonempty)
-                (CollectedGroupsResponseName_tail hresponses)
-                (CollectedGroupsParent_tail hparents)]
+                (CollectedGroupsFieldsNonempty_tail hnonempty)]
               exact htailKey
             have hheadNotTail : responseName ∉ rest.map Prod.fst :=
               PairKeysNodup.head_not_mem_tail hnodup
@@ -1660,8 +1592,6 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (groups : List (Name × List ExecutableField))
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hlookups
       : ∀ responseName field fields,
           (responseName, field :: fields) ∈ groups
@@ -1703,7 +1633,7 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
       (schema := schema) (resolvers := resolvers)
       (variableValues := variableValues) (depth := completionDepth + 2)
       (parentType := parentType) (source := source) (groups := groups)
-      hnonempty hresponses hparents hnodup
+      hnonempty hnodup
       (by
         intro responseName field fields hgroup
         exact

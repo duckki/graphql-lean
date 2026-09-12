@@ -1299,8 +1299,6 @@ def ExecutedFieldGroup.collected_two_of_visit_absorbs
     (groups : List (Name × List ExecutableField))
     (responseName : Name) (first later : ExecutableField)
     (hgroup : (responseName, [first, later]) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hfieldLookup
@@ -1489,8 +1487,6 @@ theorem executeRootSelectionSet_eq_spec_of_collected_two_field_group_appendPlan
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hfieldLookup
@@ -1554,14 +1550,14 @@ theorem executeRootSelectionSet_eq_spec_of_collected_two_field_group_appendPlan
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (depth + 1) parentType source selectionSet := by
-  rw [hexact] at hcollect hgroup hresponses hparents hcompatible hstable
+  rw [hexact] at hcollect hgroup hcompatible hstable
   exact
     executeRootSelectionSet_eq_spec_of_executedFieldGroup schema resolvers
       variableValues depth parentType source selectionSet responseName first
       [later] hcollect hdirect
       (ExecutedFieldGroup.collected_two_of_visit_absorbs schema resolvers
         variableValues depth parentType source [(responseName, [first, later])]
-        responseName first later hgroup hresponses hparents hcompatible hstable
+        responseName first later hgroup hcompatible hstable
         hfieldLookup hfirstChildren hobjects herrors hchildren)
 
 theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
@@ -1584,8 +1580,6 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
           (GraphQL.Execution.coerceVariableValues operation variableValues)
           (depth + 1) (operation.rootType schema) source operation.selectionSet
           (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable
       : CollectedGroupsResolveStable schema resolvers
@@ -1672,7 +1666,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan
       (GraphQL.Execution.coerceVariableValues operation variableValues) depth
       (operation.rootType schema) source
       operation.selectionSet groups responseName first later hcollect hgroup
-      hexact hdirect hresponses hparents hcompatible hstable hfieldLookup
+      hexact hdirect hcompatible hstable hfieldLookup
       hfirstChildren hobjects herrors hchildren
 
 theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
@@ -1696,8 +1690,6 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
           (GraphQL.Execution.coerceVariableValues operation variableValues)
           (depth + 1) (operation.rootType schema) source operation.selectionSet
           (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent (operation.rootType schema) groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable
       : CollectedGroupsResolveStable schema resolvers
@@ -1781,8 +1773,8 @@ theorem executeQuery_eq_spec_of_collected_two_field_group_appendPlan
   exact
     executeQueryWithFuel_eq_spec_of_collected_two_field_group_appendPlan schema
       resolvers variableValues operation depth source groups responseName first
-      later hroot hcollect hgroup hexact hdirect hresponses hparents
-      hcompatible hstable hfieldLookup hfirstChildren hobjects herrors
+      later hroot hcollect hgroup hexact hdirect hcompatible hstable hfieldLookup
+      hfirstChildren hobjects herrors
       hchildren
 
 end Eager

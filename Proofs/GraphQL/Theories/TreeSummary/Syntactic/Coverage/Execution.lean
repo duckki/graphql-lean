@@ -103,7 +103,6 @@ theorem groupsRepresentField_of_represent_and_compatible
     (fields : List ExecutableField)
     (field : ExecutableField)
     (hfield : field ∈ fields)
-    (_hnames : ExecutableFieldsResponseName "" fields)
     (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields)
     (hconditions
       : ∀ group,
@@ -270,11 +269,9 @@ theorem traversedCollectedGroup_selection_producesField
         }
       let field : Name × ExecutableField := (group.responseName, executableField)
       have htreeField :
-          field ∈ tree.collectRuntimeFields variableValues executionParentType
-            runtimeType := by
+          field ∈ tree.collectRuntimeFields variableValues runtimeType := by
         rw [Tree.collectRuntimeFields,
-          runtimeFieldsForEntries_eq_projected schema variableValues executionParentType
-            runtimeType (.object runtimeType ref),
+          runtimeFieldsForEntries_eq_projected variableValues runtimeType,
           ← tree.fieldEntries_eq_map_storedFieldEntries]
         unfold runtimeFieldsForConditionEntries
         apply List.mem_flatMap.mpr
@@ -543,8 +540,7 @@ theorem runtimeField_mem_allCollectedGroups
     (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
     (tree : Tree) (field : Name × ExecutableField)
-    (hfield
-      : field ∈ tree.collectRuntimeFields variableValues executionParentType runtimeType)
+    (hfield : field ∈ tree.collectRuntimeFields variableValues runtimeType)
     : ∃ group,
         group ∈ allCollectedGroups parentType inheritedBooleanCondition tree
         ∧ groupCoversField schema variableValues executionParentType runtimeType source
@@ -820,8 +816,7 @@ theorem runtimeField_mem_traversedCollectedGroups
     (tree : Tree) (field : Name × ExecutableField)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hcoherent : tree.BranchesCoherent schema inheritedBooleanCondition)
-    (hfield
-      : field ∈ tree.collectRuntimeFields variableValues executionParentType runtimeType)
+    (hfield : field ∈ tree.collectRuntimeFields variableValues runtimeType)
     : ∃ group,
         group
           ∈ traversedCollectedGroups parentType inheritedBooleanCondition tree traversal
@@ -1289,7 +1284,6 @@ theorem candidateChildGroupsFor_cover_subfields
     (hpossible
       : (schema.getPossibleTypes childParentType).contains childRuntimeType = true)
     (hallows : inheritedConditionsAllowGroups variableValues groups)
-    (_hfields : ∀ field, field ∈ fields -> True)
     (hcover
       : groupsCoverFields schema variableValues executionParentType parentRuntimeType
           (.object parentRuntimeType parentRef) groups

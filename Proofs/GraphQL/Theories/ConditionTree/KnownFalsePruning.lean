@@ -35,7 +35,7 @@ def KnownFalsePruningSound (schema : Schema) (parentType : Name)
             ∈ (ofSelectionSetInScopeWithKnownFalsePruning schema parentType
                 inheritedBooleanCondition pruningValues
                 selectionSet).collectRuntimeFields
-                runtimeValues executionParentType runtimeType
+                runtimeValues runtimeType
           ↔ field
             ∈ flattenExecutableFieldGroups
                 (Execution.collectFields schema runtimeValues executionParentType
@@ -265,7 +265,7 @@ theorem knownFalsePruning_runtimeGroups_occurrence_equivalent
         ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
             inheritedBooleanCondition pruningValues
             selectionSet).collectRuntimeFieldGroups
-          runtimeValues executionParentType runtimeType)).Perm
+          runtimeValues runtimeType)).Perm
         (flattenExecutableFieldGroups
           (collectFields schema runtimeValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
@@ -296,16 +296,14 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent
         ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
             inheritedBooleanCondition pruningValues
             selectionSet).collectRuntimeFieldGroups
-          runtimeValues executionParentType runtimeType)
+          runtimeValues runtimeType)
         (collectFields schema runtimeValues executionParentType
           (.object runtimeType ref) selectionSet) := by
   constructor
-  · exact Tree.collectRuntimeFieldGroups_wellFormed runtimeValues executionParentType
-      runtimeType _
+  · exact Tree.collectRuntimeFieldGroups_wellFormed runtimeValues runtimeType _
   · exact NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
       runtimeValues executionParentType (.object runtimeType ref) selectionSet
-  · exact (Tree.collectRuntimeFieldGroups_exact runtimeValues executionParentType
-      runtimeType _).1
+  · exact (Tree.collectRuntimeFieldGroups_exact runtimeValues runtimeType _).1
   · exact (executableGroupNamesNodup_iff_map_fst_nodup _).mp
             (NormalForm.collectFields_namesNodup schema runtimeValues executionParentType
               (.object runtimeType ref) selectionSet)
@@ -329,16 +327,14 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent_toPermutedSelectio
         ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
             inheritedBooleanCondition pruningValues
             leftSelectionSet).collectRuntimeFieldGroups
-          runtimeValues executionParentType runtimeType)
+          runtimeValues runtimeType)
         (collectFields schema runtimeValues executionParentType
           (.object runtimeType ref) rightSelectionSet) := by
   constructor
-  · exact Tree.collectRuntimeFieldGroups_wellFormed runtimeValues executionParentType
-      runtimeType _
+  · exact Tree.collectRuntimeFieldGroups_wellFormed runtimeValues runtimeType _
   · exact NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
       runtimeValues executionParentType (.object runtimeType ref) rightSelectionSet
-  · exact (Tree.collectRuntimeFieldGroups_exact runtimeValues executionParentType
-      runtimeType _).1
+  · exact (Tree.collectRuntimeFieldGroups_exact runtimeValues runtimeType _).1
   · exact (executableGroupNamesNodup_iff_map_fst_nodup _).mp
             (NormalForm.collectFields_namesNodup schema runtimeValues executionParentType
               (.object runtimeType ref) rightSelectionSet)
@@ -347,7 +343,7 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent_toPermutedSelectio
           ((ofSelectionSetInScopeWithKnownFalsePruning schema parentType
               inheritedBooleanCondition pruningValues
               leftSelectionSet).collectRuntimeFieldGroups
-            runtimeValues executionParentType runtimeType)).Perm
+            runtimeValues runtimeType)).Perm
           (ConditionTree.flattenExecutableFieldGroups
             (collectFields schema runtimeValues executionParentType
               (.object runtimeType ref) rightSelectionSet)) := by

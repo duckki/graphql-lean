@@ -30,12 +30,8 @@ def guardedFieldGroupCaseIncludesBool (schema : Schema) (responseFuel : Nat)
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     : Bool :=
   let executionParentType := fixedExecutionParentType.getD runtimeType
-  let leftFields :=
-    guardedFieldExecutableFields fieldValues executionParentType runtimeType
-      left.responseName left.entries
-  let rightFields :=
-    guardedFieldExecutableFields fieldValues executionParentType runtimeType
-      right.responseName right.entries
+  let leftFields := guardedFieldExecutableFields fieldValues runtimeType left.entries
+  let rightFields := guardedFieldExecutableFields fieldValues runtimeType right.entries
   match responseFuel with
   | 0 => rightFields.isEmpty
   | _responseFuel + 1 =>
@@ -47,12 +43,9 @@ def guardedFieldGroupCaseIncludesBool (schema : Schema) (responseFuel : Nat)
         (executableFieldsAsGroup right.responseName rightFields)
 
 theorem guardedFieldExecutableFields_origin (variableValues : VariableValues)
-    (executionParentType runtimeType responseName : Name)
+    (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField) (field : ExecutableField)
-    (hfield
-      : field
-        ∈ guardedFieldExecutableFields variableValues executionParentType
-            runtimeType responseName entries)
+    (hfield : field ∈ guardedFieldExecutableFields variableValues runtimeType entries)
     : ∃ entry,
         entry ∈ entries
         ∧ entry.condition.allows variableValues runtimeType = true
@@ -72,16 +65,14 @@ theorem guardedFieldExecutableFields_origin (variableValues : VariableValues)
 
 theorem guardedFieldExecutableFields_empty_of_no_runtime_entries
     (variableValues : VariableValues)
-    (executionParentType runtimeType responseName : Name)
+    (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
     (hempty : guardedFieldEntriesAtRuntimeType runtimeType entries = [])
-    : guardedFieldExecutableFields variableValues executionParentType runtimeType
-        responseName entries
-      = [] := by
+    : guardedFieldExecutableFields variableValues runtimeType entries = [] := by
   apply List.eq_nil_iff_forall_not_mem.mpr
   intro field hfield
-  rcases guardedFieldExecutableFields_origin variableValues executionParentType
-      runtimeType responseName entries field hfield with
+  rcases guardedFieldExecutableFields_origin variableValues runtimeType entries
+      field hfield with
     ⟨entry, hentry, hallows, _hfield⟩
   have hpossible : runtimeType ∈ entry.condition.possibleTypes := by
     have hparts : entry.condition.possibleTypes.contains runtimeType = true
@@ -95,12 +86,11 @@ theorem guardedFieldExecutableFields_empty_of_no_runtime_entries
   simp at hfiltered
 
 theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableValues)
-    (executionParentType runtimeType responseName : Name)
+    (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
-    : guardedFieldExecutableFields variableValues executionParentType runtimeType
-        responseName entries
-      = guardedFieldExecutableFields variableValues executionParentType runtimeType
-          responseName (guardedFieldEntriesAtRuntimeType runtimeType entries) := by
+    : guardedFieldExecutableFields variableValues runtimeType entries
+      = guardedFieldExecutableFields variableValues runtimeType
+          (guardedFieldEntriesAtRuntimeType runtimeType entries) := by
   induction entries with
   | nil => simp [guardedFieldExecutableFields,
       guardedFieldEntriesAtRuntimeType]
@@ -118,8 +108,7 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
                     }]
                   else
                     [])
-                  ++ guardedFieldExecutableFields variableValues executionParentType
-                      runtimeType responseName rest
+                  ++ guardedFieldExecutableFields variableValues runtimeType rest
                 = (if entry.condition.allows variableValues runtimeType then
                       [{
                         fieldName := entry.field.fieldName
@@ -128,8 +117,7 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
                       }]
                     else
                       [])
-                  ++ guardedFieldExecutableFields variableValues executionParentType
-                      runtimeType responseName
+                  ++ guardedFieldExecutableFields variableValues runtimeType
                       (guardedFieldEntriesAtRuntimeType runtimeType rest)
         rw [ih]
       · have hcontains : entry.condition.possibleTypes.contains runtimeType = false := by
@@ -162,10 +150,10 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
   let rightEntries := guardedFieldEntriesAtRuntimeType runtimeType right.entries
   cases hrightEntries : rightEntries with
   | nil =>
-      have hrightFields : guardedFieldExecutableFields variableValues
-          executionParentType runtimeType right.responseName right.entries = [] :=
+      have hrightFields : guardedFieldExecutableFields variableValues runtimeType
+          right.entries = [] :=
         guardedFieldExecutableFields_empty_of_no_runtime_entries variableValues
-          executionParentType runtimeType right.responseName right.entries
+          runtimeType right.entries
           (by simpa [rightEntries] using hrightEntries)
       simp [guardedFieldGroupCaseIncludesBool, executionParentType, hrightFields,
         executableFieldsAsGroup, executableGroupsIncludeBool]
@@ -186,10 +174,10 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
           have hleftCalls := hhead.2
           have hleaf : definition.outputType.isCompositeBool schema = false := by
             simpa using hhead.1
-          let leftFields := guardedFieldExecutableFields variableValues
-            executionParentType runtimeType left.responseName left.entries
-          let rightFields := guardedFieldExecutableFields variableValues
-            executionParentType runtimeType right.responseName right.entries
+          let leftFields := guardedFieldExecutableFields variableValues runtimeType
+            left.entries
+          let rightFields := guardedFieldExecutableFields variableValues runtimeType
+            right.entries
           cases hrightFields : rightFields with
           | nil =>
               simp [guardedFieldGroupCaseIncludesBool, executionParentType,
@@ -197,11 +185,10 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
                 executableGroupsIncludeBool]
           | cons rightField rightFieldsRest =>
               have hrightField : rightField ∈ guardedFieldExecutableFields
-                  variableValues executionParentType runtimeType right.responseName
-                  right.entries := by
+                  variableValues runtimeType right.entries := by
                 simp [rightFields, hrightFields]
               rcases guardedFieldExecutableFields_origin variableValues
-                  executionParentType runtimeType right.responseName right.entries
+                  runtimeType right.entries
                   rightField hrightField with
                 ⟨rightEntry, hrightEntry, hrightAllows, hrightFieldEq⟩
               have hrightPossible : runtimeType ∈ rightEntry.condition.possibleTypes := by
@@ -266,8 +253,7 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
                 selectionSet := leftEntry.field.selectionSet
               }
               have hleftField : leftField ∈ guardedFieldExecutableFields
-                  variableValues executionParentType runtimeType left.responseName
-                  left.entries := by
+                  variableValues runtimeType left.entries := by
                 unfold guardedFieldExecutableFields
                 apply List.mem_flatMap.mpr
                 refine ⟨leftEntry, hleftEntry, ?_⟩
@@ -279,11 +265,11 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
                   simp [hleftFields] at this
               | cons leftFieldHead leftFieldsRest =>
                   have hleftFieldHead : leftFieldHead ∈
-                      guardedFieldExecutableFields variableValues executionParentType
-                        runtimeType left.responseName left.entries := by
+                      guardedFieldExecutableFields variableValues runtimeType
+                        left.entries := by
                     simp [leftFields, hleftFields]
                   rcases guardedFieldExecutableFields_origin variableValues
-                      executionParentType runtimeType left.responseName left.entries
+                      runtimeType left.entries
                       leftFieldHead hleftFieldHead with
                     ⟨leftHeadEntry, hleftHeadEntry, hleftHeadAllows,
                       hleftFieldHeadEq⟩
@@ -357,10 +343,10 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
   let rightEntries := guardedFieldEntriesAtRuntimeType runtimeType right.entries
   cases hrightEntries : rightEntries with
   | nil =>
-      have hrightFields : guardedFieldExecutableFields variableValues
-          executionParentType runtimeType right.responseName right.entries = [] :=
+      have hrightFields : guardedFieldExecutableFields variableValues runtimeType
+          right.entries = [] :=
         guardedFieldExecutableFields_empty_of_no_runtime_entries variableValues
-          executionParentType runtimeType right.responseName right.entries
+          runtimeType right.entries
           (by simpa [rightEntries] using hrightEntries)
       simp [guardedFieldGroupCaseIncludesBool, executionParentType, hrightFields,
         executableFieldsAsGroup, executableGroupsIncludeBool]
@@ -410,8 +396,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                             : rightEntry.condition.allows variableValues runtimeType with
                       | false =>
                           have hrightFields : guardedFieldExecutableFields
-                              variableValues executionParentType runtimeType
-                              right.responseName right.entries = [] := by
+                              variableValues runtimeType right.entries = [] := by
                             rw [guardedFieldExecutableFields_runtime_entries]
                             simp [rightEntries, hrightEntries,
                               guardedFieldExecutableFields, hrightAllows]
@@ -462,8 +447,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                             simp [Condition.allows, hleftPossible,
                               hleftBooleanAllows]
                           have hleftFields : guardedFieldExecutableFields
-                              variableValues executionParentType runtimeType
-                              left.responseName left.entries =
+                              variableValues runtimeType left.entries =
                                 [{
                                   fieldName := leftEntry.field.fieldName
                                   arguments := leftEntry.field.arguments
@@ -473,8 +457,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                             simp [leftEntries, hleftEntries,
                               guardedFieldExecutableFields, hleftAllows]
                           have hrightFields : guardedFieldExecutableFields
-                              variableValues executionParentType runtimeType
-                              right.responseName right.entries =
+                              variableValues runtimeType right.entries =
                                 [{
                                   fieldName := rightEntry.field.fieldName
                                   arguments := rightEntry.field.arguments
@@ -673,26 +656,20 @@ theorem guardedFieldGroupIncludesWithFuel_sound
       cases region with
       | nil => simp at hruntime
       | cons representativeRuntimeType rest =>
-          let representativeExecutionParentType :=
-            fixedExecutionParentType.getD representativeRuntimeType
           let targetExecutionParentType := fixedExecutionParentType.getD runtimeType
           let baseLeftFields :=
-            guardedFieldExecutableFields checkValues
-              representativeExecutionParentType representativeRuntimeType
-              left.responseName left.entries
+            guardedFieldExecutableFields checkValues representativeRuntimeType
+              left.entries
           let baseRightFields :=
-            guardedFieldExecutableFields checkValues
-              representativeExecutionParentType representativeRuntimeType
-              right.responseName right.entries
+            guardedFieldExecutableFields checkValues representativeRuntimeType
+              right.entries
           let baseLeftGroups := executableFieldsAsGroup left.responseName baseLeftFields
           let baseRightGroups :=
             executableFieldsAsGroup right.responseName baseRightFields
           let targetLeftFields :=
-            guardedFieldExecutableFields targetValues targetExecutionParentType
-              runtimeType left.responseName left.entries
+            guardedFieldExecutableFields targetValues runtimeType left.entries
           let targetRightFields :=
-            guardedFieldExecutableFields targetValues targetExecutionParentType
-              runtimeType right.responseName right.entries
+            guardedFieldExecutableFields targetValues runtimeType right.entries
           let targetLeftGroups :=
             executableFieldsAsGroup left.responseName targetLeftFields
           let targetRightGroups :=
@@ -707,29 +684,15 @@ theorem guardedFieldGroupIncludesWithFuel_sound
             · rcases hknown with ⟨value, hvalue⟩
               exact hvalue.trans (hagrees variableName value hvalue).symm
           have hleftGroups : baseLeftGroups = targetLeftGroups := by
-            rw [show baseLeftGroups = executableFieldsAsGroup left.responseName
-                (guardedFieldExecutableFields checkValues
-                  representativeExecutionParentType representativeRuntimeType
-                  left.responseName left.entries) by rfl,
-              executableFieldsAsGroup_withParentType representativeExecutionParentType
-                targetExecutionParentType representativeRuntimeType left.responseName
-                checkValues left.entries]
-            unfold targetLeftGroups targetLeftFields
+            unfold baseLeftGroups baseLeftFields targetLeftGroups targetLeftFields
             rw [guardedFieldExecutableFields_eq_of_region_and_variables
               parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
-              hvariableAgreement targetExecutionParentType]
+              hvariableAgreement]
           have hrightGroups : baseRightGroups = targetRightGroups := by
-            rw [show baseRightGroups = executableFieldsAsGroup right.responseName
-                (guardedFieldExecutableFields checkValues
-                  representativeExecutionParentType representativeRuntimeType
-                  right.responseName right.entries) by rfl,
-              executableFieldsAsGroup_withParentType representativeExecutionParentType
-                targetExecutionParentType representativeRuntimeType right.responseName
-                checkValues right.entries]
-            unfold targetRightGroups targetRightFields
+            unfold baseRightGroups baseRightFields targetRightGroups targetRightFields
             rw [guardedFieldExecutableFields_eq_of_region_and_variables
               parentRegion left right right (Or.inr rfl) hregion (by simp) hruntime
-              hvariableAgreement targetExecutionParentType]
+              hvariableAgreement]
           cases responseFuel with
           | zero =>
               change baseRightFields.isEmpty = true at hregionCheck
@@ -946,16 +909,12 @@ theorem guardedFieldGroupIncludesWithFuel_complete
             · simp at hremaining
             · exact hvalue) targetValues
             htargetComplete htargetAgrees
-          let representativeExecutionParentType :=
-            fixedExecutionParentType.getD representativeRuntimeType
           let baseLeftFields :=
-            guardedFieldExecutableFields checkValues
-              representativeExecutionParentType representativeRuntimeType
-              left.responseName left.entries
+            guardedFieldExecutableFields checkValues representativeRuntimeType
+              left.entries
           let baseRightFields :=
-            guardedFieldExecutableFields checkValues
-              representativeExecutionParentType representativeRuntimeType
-              right.responseName right.entries
+            guardedFieldExecutableFields checkValues representativeRuntimeType
+              right.entries
           let baseLeftGroups := executableFieldsAsGroup left.responseName baseLeftFields
           let baseRightGroups :=
             executableFieldsAsGroup right.responseName baseRightFields
@@ -979,8 +938,7 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                 hregion representativeRuntimeType (by simp)
               change
                 (guardedFieldExecutableFields targetValues
-                  representativeExecutionParentType representativeRuntimeType
-                  right.responseName right.entries).isEmpty = true
+                  representativeRuntimeType right.entries).isEmpty = true
                 at hrepresentative
               have hfields :=
                 guardedFieldExecutableFields_eq_of_region_and_variables
@@ -988,7 +946,6 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                   (leftRuntimeType := representativeRuntimeType)
                   (rightRuntimeType := representativeRuntimeType)
                   (by simp) (by simp) hvariableAgreement
-                  representativeExecutionParentType
               rw [← hfields] at hrepresentative
               exact hrepresentative
           | succ responseFuel =>
@@ -1029,40 +986,23 @@ theorem guardedFieldGroupIncludesWithFuel_complete
                 have htargetCase := hcase (representativeRuntimeType :: rest) hregion
                   runtimeType hruntime
                 let targetLeftFields :=
-                  guardedFieldExecutableFields targetValues parentType runtimeType
-                    left.responseName left.entries
+                  guardedFieldExecutableFields targetValues runtimeType left.entries
                 let targetRightFields :=
-                  guardedFieldExecutableFields targetValues parentType runtimeType
-                    right.responseName right.entries
+                  guardedFieldExecutableFields targetValues runtimeType right.entries
                 let targetLeftGroups :=
                   executableFieldsAsGroup left.responseName targetLeftFields
                 let targetRightGroups :=
                   executableFieldsAsGroup right.responseName targetRightFields
                 have hleftGroups : baseLeftGroups = targetLeftGroups := by
-                  rw [show baseLeftGroups = executableFieldsAsGroup left.responseName
-                      (guardedFieldExecutableFields checkValues
-                        representativeExecutionParentType representativeRuntimeType
-                        left.responseName left.entries) by rfl,
-                    executableFieldsAsGroup_withParentType
-                      representativeExecutionParentType parentType
-                      representativeRuntimeType left.responseName checkValues left.entries]
-                  unfold targetLeftGroups targetLeftFields
+                  unfold baseLeftGroups baseLeftFields targetLeftGroups targetLeftFields
                   rw [guardedFieldExecutableFields_eq_of_region_and_variables
                     parentRegion left right left (Or.inl rfl) hregion (by simp) hruntime
-                    hvariableAgreement parentType]
+                    hvariableAgreement]
                 have hrightGroups : baseRightGroups = targetRightGroups := by
-                  rw [show baseRightGroups = executableFieldsAsGroup right.responseName
-                      (guardedFieldExecutableFields checkValues
-                        representativeExecutionParentType representativeRuntimeType
-                        right.responseName right.entries) by rfl,
-                    executableFieldsAsGroup_withParentType
-                      representativeExecutionParentType parentType
-                      representativeRuntimeType right.responseName checkValues
-                      right.entries]
-                  unfold targetRightGroups targetRightFields
+                  unfold baseRightGroups baseRightFields targetRightGroups targetRightFields
                   rw [guardedFieldExecutableFields_eq_of_region_and_variables
                     parentRegion left right right (Or.inr rfl) hregion (by simp) hruntime
-                    hvariableAgreement parentType]
+                    hvariableAgreement]
                 simp only [guardedFieldGroupCaseIncludesBool] at htargetCase
                 rw [hexecutionParent] at htargetCase
                 change executableGroupsIncludeBool schema
@@ -1225,18 +1165,15 @@ theorem executableGroupIncludedBool_mono_left
   exact List.any_eq_true.mpr ⟨leftGroup, hsubset leftGroup hleftGroup, hmatch⟩
 
 theorem guardedFieldGroupFor_runtimeGroups_subset
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (leftGroups : List GuardedFieldGroup) (right : GuardedFieldGroup)
     : ∀ group,
         group
           ∈ executableFieldsAsGroup
               (guardedFieldGroupFor leftGroups right).responseName
-              (guardedFieldExecutableFields variableValues executionParentType
-                runtimeType (guardedFieldGroupFor leftGroups right).responseName
+              (guardedFieldExecutableFields variableValues runtimeType
                 (guardedFieldGroupFor leftGroups right).entries)
-        -> group
-            ∈ guardedFieldRuntimeGroups variableValues executionParentType
-                runtimeType leftGroups := by
+        -> group ∈ guardedFieldRuntimeGroups variableValues runtimeType leftGroups := by
   intro group hgroup
   unfold guardedFieldGroupFor at hgroup
   cases hfind : findGuardedFieldGroup? right.responseName leftGroups with
@@ -1249,25 +1186,20 @@ theorem guardedFieldGroupFor_runtimeGroups_subset
       simpa [hfind] using hgroup
 
 theorem guardedFieldGroupFor_runtimeGroup_mem
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (leftGroups : List GuardedFieldGroup) (right : GuardedFieldGroup)
     (hnodup : (leftGroups.map GuardedFieldGroup.responseName).Nodup)
     (group : Name × List ExecutableField)
-    (hgroup
-      : group
-        ∈ guardedFieldRuntimeGroups variableValues executionParentType
-            runtimeType leftGroups)
+    (hgroup : group ∈ guardedFieldRuntimeGroups variableValues runtimeType leftGroups)
     (hname : group.1 = right.responseName)
     : group
       ∈ executableFieldsAsGroup
           (guardedFieldGroupFor leftGroups right).responseName
-          (guardedFieldExecutableFields variableValues executionParentType
-            runtimeType (guardedFieldGroupFor leftGroups right).responseName
+          (guardedFieldExecutableFields variableValues runtimeType
             (guardedFieldGroupFor leftGroups right).entries) := by
   rcases List.mem_flatMap.mp hgroup with ⟨left, hleft, hlocal⟩
   cases hfields
-        : guardedFieldExecutableFields variableValues executionParentType
-            runtimeType left.responseName left.entries with
+        : guardedFieldExecutableFields variableValues runtimeType left.entries with
   | nil => simp [executableFieldsAsGroup, hfields] at hlocal
   | cons field rest =>
       have hlocalEq : group = (left.responseName, field :: rest) := by
@@ -1307,17 +1239,15 @@ theorem executableGroupIncludedBool_restrict_left
     ⟨leftGroup, hmatching leftGroup hleftGroup hname, hmatch⟩
 
 theorem guardedFieldRuntimeGroup_component_mem
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (groups : List GuardedFieldGroup) (guardedGroup : GuardedFieldGroup)
     (hguardedGroup : guardedGroup ∈ groups)
     : ∀ group,
         group
           ∈ executableFieldsAsGroup guardedGroup.responseName
-              (guardedFieldExecutableFields variableValues executionParentType
-                runtimeType guardedGroup.responseName guardedGroup.entries)
-        -> group
-            ∈ guardedFieldRuntimeGroups variableValues executionParentType
-                runtimeType groups := by
+              (guardedFieldExecutableFields variableValues runtimeType
+                guardedGroup.entries)
+        -> group ∈ guardedFieldRuntimeGroups variableValues runtimeType groups := by
   intro group hgroup
   apply List.mem_flatMap.mpr
   exact ⟨guardedGroup, hguardedGroup, hgroup⟩
@@ -1330,10 +1260,9 @@ def guardedFieldRuntimeGroupsIncludeBool
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     : Bool :=
   let executionParentType := fixedExecutionParentType.getD runtimeType
-  let leftRuntimeGroups :=
-    guardedFieldRuntimeGroups variableValues executionParentType runtimeType leftGroups
+  let leftRuntimeGroups := guardedFieldRuntimeGroups variableValues runtimeType leftGroups
   let rightRuntimeGroups :=
-    guardedFieldRuntimeGroups variableValues executionParentType runtimeType rightGroups
+    guardedFieldRuntimeGroups variableValues runtimeType rightGroups
   match responseFuel with
   | 0 => rightRuntimeGroups.isEmpty
   | _responseFuel + 1 =>
@@ -1364,16 +1293,14 @@ theorem guardedFieldGroupCases_sound_runtime
   | zero =>
       unfold guardedFieldRuntimeGroupsIncludeBool
       have hempty : guardedFieldRuntimeGroups variableValues
-          (fixedExecutionParentType.getD runtimeType) runtimeType rightGroups = [] := by
+          runtimeType rightGroups = [] := by
         unfold guardedFieldRuntimeGroups
         apply List.flatMap_eq_nil_iff.mpr
         intro right hright
         have hcase := hcases right hright
         unfold guardedFieldGroupCaseIncludesBool at hcase
         cases hfields
-              : guardedFieldExecutableFields variableValues
-                  (fixedExecutionParentType.getD runtimeType) runtimeType
-                  right.responseName right.entries with
+              : guardedFieldExecutableFields variableValues runtimeType right.entries with
         | nil => simp [executableFieldsAsGroup]
         | cons field rest => simp [hfields] at hcase
       simp [hempty]
@@ -1395,14 +1322,13 @@ theorem guardedFieldGroupCases_sound_runtime
         (executableFieldsAsGroup
           (guardedFieldGroupFor leftGroups right).responseName
           (guardedFieldExecutableFields variableValues
-            (fixedExecutionParentType.getD runtimeType) runtimeType
-            (guardedFieldGroupFor leftGroups right).responseName
+            runtimeType
             (guardedFieldGroupFor leftGroups right).entries))
         (guardedFieldRuntimeGroups variableValues
-          (fixedExecutionParentType.getD runtimeType) runtimeType leftGroups)
+          runtimeType leftGroups)
         rightRuntimeGroup
         (guardedFieldGroupFor_runtimeGroups_subset variableValues
-          (fixedExecutionParentType.getD runtimeType) runtimeType leftGroups right)
+          runtimeType leftGroups right)
         hlocalIncluded
 
 theorem guardedFieldGroupCases_complete_runtime
@@ -1429,26 +1355,19 @@ theorem guardedFieldGroupCases_complete_runtime
       unfold guardedFieldRuntimeGroupsIncludeBool at hinclude
       unfold guardedFieldGroupCaseIncludesBool
       cases hfields
-            : guardedFieldExecutableFields variableValues
-                (fixedExecutionParentType.getD runtimeType) runtimeType
-                right.responseName right.entries with
+            : guardedFieldExecutableFields variableValues runtimeType right.entries with
       | nil => simp [hfields]
       | cons head rest =>
           have hcomponent : (right.responseName, head :: rest)
               ∈ guardedFieldRuntimeGroups variableValues
-                (fixedExecutionParentType.getD runtimeType) runtimeType
-                rightGroups := by
+                runtimeType rightGroups := by
             apply guardedFieldRuntimeGroup_component_mem variableValues
-              (fixedExecutionParentType.getD runtimeType) runtimeType rightGroups
-              right hright
+              runtimeType rightGroups right hright
             simp [executableFieldsAsGroup, hfields]
           have hempty : guardedFieldRuntimeGroups variableValues
-              (fixedExecutionParentType.getD runtimeType) runtimeType rightGroups
-              = [] := by
+              runtimeType rightGroups = [] := by
             cases hgroups
-                  : guardedFieldRuntimeGroups variableValues
-                      (fixedExecutionParentType.getD runtimeType) runtimeType
-                      rightGroups with
+                  : guardedFieldRuntimeGroups variableValues runtimeType rightGroups with
             | nil => rfl
             | cons group groups => simp [hgroups] at hinclude
           rw [hempty] at hcomponent
@@ -1460,14 +1379,11 @@ theorem guardedFieldGroupCases_complete_runtime
       apply List.all_eq_true.mpr
       intro rightRuntimeGroup hrightLocal
       have hrightRuntime := guardedFieldRuntimeGroup_component_mem variableValues
-        (fixedExecutionParentType.getD runtimeType) runtimeType rightGroups right
-        hright rightRuntimeGroup hrightLocal
+        runtimeType rightGroups right hright rightRuntimeGroup hrightLocal
       have hfullIncluded := List.all_eq_true.mp hinclude rightRuntimeGroup hrightRuntime
       have hrightName : rightRuntimeGroup.1 = right.responseName := by
         cases hfields
-              : guardedFieldExecutableFields variableValues
-                  (fixedExecutionParentType.getD runtimeType) runtimeType
-                  right.responseName right.entries with
+              : guardedFieldExecutableFields variableValues runtimeType right.entries with
         | nil => simp [executableFieldsAsGroup, hfields] at hrightLocal
         | cons field rest =>
             simp [executableFieldsAsGroup, hfields] at hrightLocal
@@ -1479,18 +1395,17 @@ theorem guardedFieldGroupCases_complete_runtime
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)
         (guardedFieldRuntimeGroups variableValues
-          (fixedExecutionParentType.getD runtimeType) runtimeType leftGroups)
+          runtimeType leftGroups)
         (executableFieldsAsGroup
           (guardedFieldGroupFor leftGroups right).responseName
           (guardedFieldExecutableFields variableValues
-            (fixedExecutionParentType.getD runtimeType) runtimeType
-            (guardedFieldGroupFor leftGroups right).responseName
+            runtimeType
             (guardedFieldGroupFor leftGroups right).entries))
         rightRuntimeGroup
         (by
           intro leftRuntimeGroup hleftRuntime hname
           exact guardedFieldGroupFor_runtimeGroup_mem variableValues
-            (fixedExecutionParentType.getD runtimeType) runtimeType leftGroups right
+            runtimeType leftGroups right
             hleftNodup leftRuntimeGroup hleftRuntime (hname.trans hrightName))
         hfullIncluded
 
@@ -1519,18 +1434,15 @@ theorem guardedFieldGroupCase_of_region_cases
     : guardedFieldGroupCaseIncludesBool schema responseFuel
         fixedExecutionParentType variableValues runtimeType left right childIncludes
       = true := by
-  let executionParentType := fixedExecutionParentType.getD runtimeType
   cases hrightFields
-        : guardedFieldExecutableFields variableValues
-            executionParentType runtimeType right.responseName right.entries with
+        : guardedFieldExecutableFields variableValues runtimeType right.entries with
   | nil =>
       cases responseFuel with
       | zero =>
-          simp [guardedFieldGroupCaseIncludesBool, executionParentType,
-            hrightFields]
+          simp [guardedFieldGroupCaseIncludesBool, hrightFields]
       | succ responseFuel =>
-          simp [guardedFieldGroupCaseIncludesBool, executionParentType,
-            hrightFields, executableFieldsAsGroup, executableGroupsIncludeBool]
+          simp [guardedFieldGroupCaseIncludesBool, hrightFields,
+            executableFieldsAsGroup, executableGroupsIncludeBool]
   | cons field rest =>
       have hparent : runtimeType ∈
           guardedFieldParentRegion schema fixedExecutionParentType left right := by
@@ -1540,7 +1452,7 @@ theorem guardedFieldGroupCase_of_region_cases
               hfixedRuntime parentType hfixed
         | none =>
             have hfield : field ∈ guardedFieldExecutableFields variableValues
-                executionParentType runtimeType right.responseName right.entries := by
+                runtimeType right.entries := by
               simp [hrightFields]
             unfold guardedFieldExecutableFields at hfield
             rcases List.mem_flatMap.mp hfield with ⟨entry, hentry, hactive⟩

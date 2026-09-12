@@ -39,34 +39,6 @@ theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet
       hselectionSet
   · exact hresolvers
 
-theorem
-    ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_validationCompatible
-    {ObjectIdentity : Type} (state : ExecutionEquivalenceState ObjectIdentity)
-    (variableDefinitions : List VariableDefinition)
-    (hselectionSet
-      : Validation.selectionSetValid state.window.schema variableDefinitions
-          state.window.parentType state.window.selectionSet)
-    (hcompatible
-      : CollectedGroupsValidationMergeCompatible
-          (GraphQL.Execution.collectFields state.window.schema
-            state.window.variableValues state.window.parentType
-            state.window.source state.window.selectionSet))
-    (hresolvers
-      : ResolversRespectValidFieldAndArgumentEquivalence state.window.schema
-          state.window.resolvers state.window.variableValues state.window.source)
-    : ExecutionValidFieldSemanticStateInvariant state := by
-  apply ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet state
-    variableDefinitions hselectionSet
-  · exact CollectedGroupsValidationMergeCompatible.fieldCompatible
-      (GraphQL.Execution.collectFields state.window.schema
-        state.window.variableValues state.window.parentType
-        state.window.source state.window.selectionSet)
-      (collectFields_sameResponseParent state.window.schema
-        state.window.variableValues state.window.parentType
-        state.window.source state.window.selectionSet)
-      hcompatible
-  · exact hresolvers
-
 theorem ExecutionValidFieldSemanticStateInvariant.of_valid_selectionSet_scopedCompatible
     {ObjectIdentity : Type}
     (state : ExecutionEquivalenceState ObjectIdentity)
@@ -435,10 +407,6 @@ theorem
       hparentRuntime
       (NormalForm.selectionSetLookupValid_of_selectionSetValid selectionSet
         hselectionSet)
-  have hvalidationCompatible :
-      CollectedGroupsValidationMergeCompatible groups := by
-    intro responseName fields hmem first later hfirst hlater
-    exact hfieldCompatible responseName fields hmem first later hfirst hlater
   have hargumentsNodup : CollectedGroupsArgumentsNodup groups := by
     dsimp [groups]
     exact collectFields_argumentsNodup_of_selectionSetValid schema
@@ -450,15 +418,14 @@ theorem
       (.object runtimeType identity) selectionSet
   · dsimp [groups]
     exact
-      CollectedGroupsValidationMergeCompatible.resolveStableValid schema resolvers
+      CollectedGroupsFieldValidationMergeCompatible.resolveStableValidSameParent
+        schema resolvers
         variableValues (.object runtimeType identity)
         (GraphQL.Execution.collectFields schema variableValues collectParent
           (.object runtimeType identity) selectionSet)
         (Resolvers.respectValidArgumentEquivalence schema resolvers variableValues
           (.object runtimeType identity))
-        (collectFields_sameResponseParent schema variableValues collectParent
-          (.object runtimeType identity) selectionSet)
-        hvalidationCompatible hargumentsNodup
+        hfieldCompatible hargumentsNodup
 
 theorem
     ExecutionCollectedFieldInvariant.of_valid_root_operation_canMerge_argumentEquivalence

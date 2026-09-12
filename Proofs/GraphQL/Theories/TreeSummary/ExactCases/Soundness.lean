@@ -69,7 +69,7 @@ def candidateChildGroups (schema : Schema) (variableValues : VariableValues)
     : List CollectedFieldGroup :=
   let tree :=
     group.childTreeWithKnownFalsePruning schema childParentType fixedVariableValues
-  RuntimeCase.fieldGroups childParentType group.childInheritedBooleanCondition
+  RuntimeCase.fieldGroups group.childInheritedBooleanCondition
     (.ofConditionTree tree) tree.condition.possibleTypes childRuntimeType variableValues
 
 def candidateChildGroupsFor (schema : Schema) (variableValues : VariableValues)
@@ -101,10 +101,10 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
         ConditionTree.ofSelectionSetInScope schema parentType
           inheritedBooleanCondition selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+        ((RuntimeCase.fieldGroups inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             variableValues).map
-          (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+          CollectedFieldGroup.toExecutableGroup)
         (collectFields schema variableValues executionParentType
           (.object runtimeType ref) executionSelectionSet) := by
   let tree := ConditionTree.ofSelectionSetInScope schema parentType
@@ -117,7 +117,7 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
     rw [hroot]
     simpa [rootCondition, Condition.allows, booleanConditionAllows] using hpossible
   have hmap := RuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
-    schema parentType executionParentType inheritedBooleanCondition tree runtimeType
+    schema parentType inheritedBooleanCondition tree runtimeType
     variableValues hinherited hcondition
     (ConditionTree.ofSelectionSetInScope_branchesCoherent schema parentType
       inheritedBooleanCondition selectionSet)
@@ -125,10 +125,10 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
       rw [hroot]
       exact List.contains_iff_mem.mp hpossible)
   change RuntimeGroupsPermutationEquivalent
-    ((RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+    ((RuntimeCase.fieldGroups inheritedBooleanCondition
         (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
         variableValues).map
-      (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+      CollectedFieldGroup.toExecutableGroup)
     (collectFields schema variableValues executionParentType
       (.object runtimeType ref) executionSelectionSet)
   rw [hmap]
@@ -148,10 +148,10 @@ theorem runtimeCaseGroups_permutationEquivalent
         ConditionTree.ofSelectionSetInScope schema parentType
           inheritedBooleanCondition selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+        ((RuntimeCase.fieldGroups inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             variableValues).map
-          (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+          CollectedFieldGroup.toExecutableGroup)
         (collectFields schema variableValues executionParentType
           (.object runtimeType ref) selectionSet) := by
   exact runtimeCaseGroups_permutationEquivalent_of_perm schema parentType
@@ -172,10 +172,10 @@ theorem runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm
         ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
           inheritedBooleanCondition pruningValues selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+        ((RuntimeCase.fieldGroups inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             runtimeValues).map
-          (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+          CollectedFieldGroup.toExecutableGroup)
         (collectFields schema runtimeValues executionParentType
           (.object runtimeType ref) executionSelectionSet) := by
   let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
@@ -189,16 +189,16 @@ theorem runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm
     rw [hroot]
     simpa [rootCondition, Condition.allows, booleanConditionAllows] using hpossible
   have hmap := RuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
-    schema parentType executionParentType inheritedBooleanCondition tree runtimeType
+    schema parentType inheritedBooleanCondition tree runtimeType
     runtimeValues hinherited hcondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent schema parentType
       inheritedBooleanCondition pruningValues selectionSet)
     (by rw [hroot]; exact List.contains_iff_mem.mp hpossible)
   change RuntimeGroupsPermutationEquivalent
-    ((RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+    ((RuntimeCase.fieldGroups inheritedBooleanCondition
         (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
         runtimeValues).map
-      (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+      CollectedFieldGroup.toExecutableGroup)
     (collectFields schema runtimeValues executionParentType
       (.object runtimeType ref) executionSelectionSet)
   rw [hmap]
@@ -220,19 +220,19 @@ def StaticGroupsValid (variableValues : VariableValues) (runtimeType : Name)
             -> ∃ field : Field, selection = field.toSelection group.responseName
 
 theorem runtimeCaseGroups_valid
-    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (inheritedBooleanCondition : List BooleanLiteral)
     (tree : CaseCursor) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
     (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
     (hruntime : runtimeType ∈ possibleTypes)
     : StaticGroupsValid variableValues runtimeType
-        (RuntimeCase.fieldGroups parentType inheritedBooleanCondition tree possibleTypes
+        (RuntimeCase.fieldGroups inheritedBooleanCondition tree possibleTypes
           runtimeType variableValues) := by
   intro group hgroup
-  have hconditions := RuntimeCase.fieldGroups_conditions parentType
+  have hconditions := RuntimeCase.fieldGroups_conditions
     inheritedBooleanCondition tree possibleTypes runtimeType variableValues hinherited
     hruntime group hgroup
-  have hshape := RuntimeCase.fieldGroups_shape parentType inheritedBooleanCondition tree
+  have hshape := RuntimeCase.fieldGroups_shape inheritedBooleanCondition tree
     possibleTypes runtimeType variableValues group hgroup
   exact ⟨hconditions.1, hconditions.2, hshape.1, hshape.2⟩
 
@@ -245,26 +245,11 @@ theorem StaticGroupsValid.filter
   intro group hgroup
   exact hvalid group (List.mem_filter.mp hgroup).1
 
-private theorem mappedGroupKeys
-    (executionParentType : Name) (groups : List CollectedFieldGroup)
-    : (groups.map
-        (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType)).map
-        Prod.fst
+private theorem mappedGroupKeys (groups : List CollectedFieldGroup)
+    : (groups.map CollectedFieldGroup.toExecutableGroup).map Prod.fst
       = groups.map CollectedFieldGroup.responseName := by
-  simp [List.map_map, RuntimeCase.collectedFieldGroupToExecutableGroup,
+  simp [List.map_map,
     CollectedFieldGroup.toExecutableGroup]
-
-theorem staticResponseNamesNodup
-    (executionParentType : Name) (groups : List CollectedFieldGroup)
-    (executionGroups : List (Name × List ExecutableField))
-    (hequivalent
-      : RuntimeGroupsPermutationEquivalent
-          (groups.map
-            (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
-          executionGroups)
-    : (groups.map CollectedFieldGroup.responseName).Nodup := by
-  rw [← mappedGroupKeys executionParentType groups]
-  exact hequivalent.leftKeysNodup
 
 theorem runtimeGroupsPermutationEquivalent_symm
     {left right : List (Name × List ExecutableField)}
@@ -345,29 +330,25 @@ theorem summarizeCollectedGroups_perm
   | trans _ _ ihLeft ihRight => exact ihLeft.trans ihRight
 
 theorem alignStaticGroup
-    (executionParentType responseName : Name)
+    (responseName : Name)
     (executionFields : List ExecutableField)
     (executionTail : List (Name × List ExecutableField))
     (groups : List CollectedFieldGroup)
     (hequivalent
       : RuntimeGroupsPermutationEquivalent
-          (groups.map
-            (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+          (groups.map CollectedFieldGroup.toExecutableGroup)
           ((responseName, executionFields) :: executionTail))
     : ∃ group staticTail,
         groups.Perm (group :: staticTail)
         ∧ group.responseName = responseName
-        ∧ (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType
-            group).2.Perm
-            executionFields
+        ∧ group.toExecutableGroup.2.Perm executionFields
         ∧ RuntimeGroupsPermutationEquivalent
-            (staticTail.map
-              (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+            (staticTail.map CollectedFieldGroup.toExecutableGroup)
             executionTail := by
   have hright : responseName ∈ (((responseName, executionFields) :: executionTail).map
       Prod.fst) := by simp
   have hleft := (hequivalent.keys responseName).mpr hright
-  rw [mappedGroupKeys executionParentType groups] at hleft
+  rw [mappedGroupKeys groups] at hleft
   rcases List.mem_map.mp hleft with ⟨group, hgroup, hname⟩
   rcases List.mem_iff_append.mp hgroup with ⟨before, after, hgroups⟩
   subst groups
@@ -375,19 +356,17 @@ theorem alignStaticGroup
   have hperm :
       (before ++ group :: after).Perm (group :: staticTail) := by
     simp [staticTail]
-  have hmappedPerm := hperm.map
-    (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType)
+  have hmappedPerm := hperm.map CollectedFieldGroup.toExecutableGroup
   have haligned :=
     runtimeGroupsPermutationEquivalent_permuteLeft hequivalent hmappedPerm
   have hgroupName : group.responseName = responseName := hname
   have haligned' : RuntimeGroupsPermutationEquivalent
       ((responseName,
-          (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType group).2)
+          group.toExecutableGroup.2)
         :: staticTail.map
-          (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType))
+          CollectedFieldGroup.toExecutableGroup)
       ((responseName, executionFields) :: executionTail) := by
-    simpa [RuntimeCase.collectedFieldGroupToExecutableGroup,
-      CollectedFieldGroup.toExecutableGroup, hgroupName] using haligned
+    simpa [CollectedFieldGroup.toExecutableGroup, hgroupName] using haligned
   exact ⟨group, staticTail, hperm, hgroupName, haligned'.headFields,
     haligned'.tails⟩
 
@@ -673,12 +652,9 @@ theorem candidateChildGroupsFor_le_summarizeCollectedChildren
           exact hchild candidate (by simp [hcandidate]))
 
 theorem representativeMatches_of_mapped_perm
-    (executionParentType : Name) (group : CollectedFieldGroup)
+    (group : CollectedFieldGroup)
     (fields : List ExecutableField) (field : ExecutableField)
-    (hfields
-      : (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType
-          group).2.Perm
-          fields)
+    (hfields : group.toExecutableGroup.2.Perm fields)
     (hfield : field ∈ fields)
     (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields)
     : group.representativeMatches field := by
@@ -689,9 +665,8 @@ theorem representativeMatches_of_mapped_perm
       selectionSet := group.representativeField.selectionSet
     }
   have hrepresentativeMapped : representative ∈
-      (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType group).2 := by
-    unfold RuntimeCase.collectedFieldGroupToExecutableGroup
-      CollectedFieldGroup.toExecutableGroup
+      group.toExecutableGroup.2 := by
+    unfold CollectedFieldGroup.toExecutableGroup
     apply List.mem_map.mpr
     exact ⟨group.representativeField,
       CollectedFieldGroup.representativeField_mem_fields group, rfl⟩
@@ -716,22 +691,20 @@ private theorem executableFieldAlignment
     (group : CollectedFieldGroup) (field : ExecutableField)
     (rest : List ExecutableField) (definition : FieldDefinition)
     (hlookup : schema.lookupField runtimeType field.fieldName = some definition)
-    (hfields
-      : (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
-          (field :: rest))
+    (hfields : group.toExecutableGroup.2.Perm (field :: rest))
     (hexecutionValid : ExecutableFieldGroupValid schema runtimeType (field :: rest))
     (hvalid : StaticGroupsValid variableValues runtimeType [group])
     : ExecutableFieldAlignment schema variableValues runtimeType group field
         definition := by
   have hfieldMem : field ∈
-      (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2 :=
+      group.toExecutableGroup.2 :=
     (hfields.mem_iff).mpr (by simp)
   have hlookupRuntime : schema.lookupField runtimeType field.fieldName = some definition :=
     hlookup
   have hcondition := (hvalid group (by simp)).2.1
   have hparentPossible : runtimeType ∈ group.condition.possibleTypes := by
     exact List.contains_iff_mem.mp (Bool.and_eq_true_iff.mp hcondition).1
-  have hrepresentative := representativeMatches_of_mapped_perm runtimeType group
+  have hrepresentative := representativeMatches_of_mapped_perm group
     (field :: rest) field hfields (by simp) hexecutionValid.mergeCompatible
   have hlookupRepresentative :
       schema.lookupField runtimeType group.representativeField.fieldName
@@ -749,27 +722,22 @@ private theorem executableFieldAlignment
   }
 
 theorem collectedFieldGroup_mergedSelectionSet_perm
-    (executionParentType : Name) (group : CollectedFieldGroup)
+    (group : CollectedFieldGroup)
     (fields : List ExecutableField)
     (_hshape
       : ∀ selection,
           selection ∈ group.selections
           -> ∃ field : Field, selection = field.toSelection group.responseName)
-    (hfields
-      : (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType
-          group).2.Perm
-          fields)
+    (hfields : group.toExecutableGroup.2.Perm fields)
     : group.mergedSelectionSet.Perm (Execution.mergedFieldSelectionSet fields) := by
   have hgroup :
       group.mergedSelectionSet
         = Execution.mergedFieldSelectionSet
-            (RuntimeCase.collectedFieldGroupToExecutableGroup executionParentType
-              group).2 := by
+            group.toExecutableGroup.2 := by
     rw [CollectedFieldGroup.mergedSelectionSet,
       ConditionTree.FieldGroup.mergedSelectionSet,
       mergedFieldSelectionSet_eq_flatMap]
     simp [
-      RuntimeCase.collectedFieldGroupToExecutableGroup,
       CollectedFieldGroup.toExecutableGroup, CollectedFieldGroup.fields,
       CollectedFieldGroup.responseName,
       SelectionSet.mergeSelectionSets, ConditionTree.FieldGroup.selections,
@@ -829,8 +797,7 @@ private theorem annotatedResponseExecution_related_all
         ∀ (ref : ObjectRef) staticGroups,
           source = .object runtimeType ref
           -> RuntimeGroupsPermutationEquivalent
-              (staticGroups.map
-                (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType))
+              (staticGroups.map CollectedFieldGroup.toExecutableGroup)
               executionGroups
           -> ExecutableGroupsValid schema runtimeType executionGroups
           -> StaticGroupsValid variableValues runtimeType staticGroups
@@ -844,8 +811,7 @@ private theorem annotatedResponseExecution_related_all
           ∀ (ref : ObjectRef) group,
             source = .object runtimeType ref
             -> group.responseName = responseName
-            -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
-                fields
+            -> group.toExecutableGroup.2.Perm fields
             -> ExecutableFieldGroupValid schema runtimeType fields
             -> StaticGroupsValid variableValues runtimeType [group]
             -> soundness.approximates
@@ -860,10 +826,8 @@ private theorem annotatedResponseExecution_related_all
             -> schema.lookupField runtimeType fieldName = some definition
             -> definition.outputType ∈ group.fieldOutputTypes schema
             -> (∃ field, field ∈ fields ∧ field.fieldName = fieldName)
-            -> ExecutableFieldsParent runtimeType fields
             -> ExecutableFieldGroupValid schema runtimeType fields
-            -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
-                fields
+            -> group.toExecutableGroup.2.Perm fields
             -> StaticGroupsValid variableValues runtimeType [group]
             -> soundness.approximates
                 (foldAnnotatedResponseValueResult concrete
@@ -880,10 +844,8 @@ private theorem annotatedResponseExecution_related_all
             -> schema.lookupField runtimeType fieldName = some definition
             -> definition.outputType ∈ group.fieldOutputTypes schema
             -> (∃ field, field ∈ fields ∧ field.fieldName = fieldName)
-            -> ExecutableFieldsParent runtimeType fields
             -> ExecutableFieldGroupValid schema runtimeType fields
-            -> (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2.Perm
-                fields
+            -> group.toExecutableGroup.2.Perm fields
             -> StaticGroupsValid variableValues runtimeType [group]
             -> soundness.approximates
                 (foldAnnotatedResponseValuesResult concrete
@@ -907,7 +869,7 @@ private theorem annotatedResponseExecution_related_all
     intro fuel runtimeType source responseName fields rest field_ih tail_ih ref
       staticGroups hsource hequivalent hexecutionValid hvalid
     subst source
-    rcases alignStaticGroup runtimeType responseName fields rest staticGroups hequivalent
+    rcases alignStaticGroup responseName fields rest staticGroups hequivalent
       with ⟨group, staticTail, hperm, hname, hfields, htailEquivalent⟩
     have hvalid' := hvalid.perm hperm
     have hgroupExecutionValid := hexecutionValid responseName fields (by simp)
@@ -932,10 +894,9 @@ private theorem annotatedResponseExecution_related_all
       _hexecutionValid hvalid
     have hnonempty := (hvalid group (by simp)).2.2.1
     have hmappedNonempty :
-        (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType group).2 ≠ [] := by
+        group.toExecutableGroup.2 ≠ [] := by
       intro hempty
-      unfold RuntimeCase.collectedFieldGroupToExecutableGroup
-        CollectedFieldGroup.toExecutableGroup at hempty
+      unfold CollectedFieldGroup.toExecutableGroup at hempty
       dsimp only [Prod.snd] at hempty
       have hfields : group.fields = [] := List.map_eq_nil_iff.mp hempty
       unfold CollectedFieldGroup.fields at hfields
@@ -1019,9 +980,6 @@ private theorem annotatedResponseExecution_related_all
       field rest definition hlookup hfields hexecutionValid hvalid
     have hcompleted := complete_ih runtimeType ref field.fieldName definition
       group rfl halignment.runtimeLookup halignment.outputType ⟨field, by simp, rfl⟩
-      (by
-        intro _candidate _hcandidate
-        trivial)
       hexecutionValid hfields hvalid
     have hsingle := soundness.singleFieldResult_sound variableValues
       fixedVariableValues runtimeType responseName field definition
@@ -1032,16 +990,16 @@ private theorem annotatedResponseExecution_related_all
     simpa [executeQueryAnnotatedField, hlookup, hcoerce, hresolve] using hsingle
   case case9 =>
     intro fieldType fields value runtimeType ref fieldName definition group
-      _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid _hfields _hvalid
+      _hnamed _hlookup _houtput _hwitness _hexecutionValid _hfields _hvalid
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
       soundness.empty_sound
   case case10 =>
     intro fuel inner fields value hfuel complete_ih runtimeType ref fieldName
-      definition group hnamed hlookup houtput hwitness hparents hexecutionValid hfields
+      definition group hnamed hlookup houtput hwitness hexecutionValid hfields
       hvalid
     have hinner := complete_ih runtimeType ref fieldName definition group
-      (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness hparents
+      (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness
       hexecutionValid hfields hvalid
     simpa [completeAnnotatedResponseValue, hfuel] using
       soundness.toSoundnessCore.completeNonNullResult_sound
@@ -1051,7 +1009,7 @@ private theorem annotatedResponseExecution_related_all
         hinner
   case case11 =>
     intro fuel fieldType fields hnotNonNull runtimeType ref fieldName
-      definition group _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid
+      definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hnotNonNull,
       foldAnnotatedResponseValueResult, foldAnnotatedResponseValue,
@@ -1059,14 +1017,14 @@ private theorem annotatedResponseExecution_related_all
       soundness.empty_sound
   case case12 =>
     intro fuel typeName fields value hcomposite runtimeType ref fieldName
-      definition group _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid
+      definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hcomposite,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
       soundness.empty_sound
   case case13 =>
     intro fuel typeName fields value hnotComposite runtimeType ref fieldName
-      definition group _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid
+      definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid
     have hcomposite : (TypeRef.named typeName).isCompositeBool schema = false := by
       cases hvalue : (TypeRef.named typeName).isCompositeBool schema with
@@ -1079,7 +1037,7 @@ private theorem annotatedResponseExecution_related_all
   case case14 =>
     intro fuel childParentType fields childRuntimeType childRef hinclude childGroups
       child_ih runtimeType ref fieldName definition group hnamed hlookup
-      houtput hwitness hparents hexecutionValid hfields hvalid
+      houtput hwitness hexecutionValid hfields hvalid
     have hchildParent : childParentType = definition.outputType.namedType := by
       simpa [TypeRef.namedType] using hnamed
     subst childParentType
@@ -1091,7 +1049,7 @@ private theorem annotatedResponseExecution_related_all
       simpa [Schema.typeIncludesObjectBool] using hinclude
     have hselectionPerm : group.mergedSelectionSet.Perm
         (Execution.mergedFieldSelectionSet fields) :=
-      collectedFieldGroup_mergedSelectionSet_perm runtimeType group fields
+      collectedFieldGroup_mergedSelectionSet_perm group fields
         (hvalid group (by simp)).2.2.2 hfields
     rcases hwitness with ⟨first, hfirst, hfirstName⟩
     have hlookupFirst :
@@ -1119,8 +1077,8 @@ private theorem annotatedResponseExecution_related_all
         (hvalid group (by simp)).1
         (Bool.and_eq_true_iff.mp (hvalid group (by simp)).2.1).2
     have hchildEquivalent : RuntimeGroupsPermutationEquivalent
-        (childStaticGroups.map
-          (RuntimeCase.collectedFieldGroupToExecutableGroup childRuntimeType))
+          (childStaticGroups.map
+          CollectedFieldGroup.toExecutableGroup)
         childGroups := by
       simpa [childStaticGroups, candidateChildGroups, childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet,
@@ -1132,8 +1090,7 @@ private theorem annotatedResponseExecution_related_all
           hchildInherited hpossible
     have hchildValid : StaticGroupsValid variableValues childRuntimeType childStaticGroups := by
       unfold childStaticGroups candidateChildGroups
-      exact runtimeCaseGroups_valid definition.outputType.namedType
-        group.childInheritedBooleanCondition
+      exact runtimeCaseGroups_valid group.childInheritedBooleanCondition
         (.ofConditionTree
           (group.childTreeWithKnownFalsePruning schema definition.outputType.namedType
             fixedVariableValues))
@@ -1217,7 +1174,7 @@ private theorem annotatedResponseExecution_related_all
           soundness.abstractLawful.combine_empty] using hchildFields
   case case15 =>
     intro fuel parentType fields childRuntimeType childRef hnotInclude runtimeType ref
-      fieldName definition group _hnamed _hlookup _houtput _hwitness _hparents
+      fieldName definition group _hnamed _hlookup _houtput _hwitness
       _hexecutionValid _hfields _hvalid
     have hinclude : schema.typeIncludesObjectBool parentType childRuntimeType = false := by
       cases hvalue : schema.typeIncludesObjectBool parentType childRuntimeType with
@@ -1228,10 +1185,10 @@ private theorem annotatedResponseExecution_related_all
       soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref fieldName
-      definition group hnamed hlookup houtput hwitness hparents hexecutionValid hfields
+      definition group hnamed hlookup houtput hwitness hexecutionValid hfields
       hvalid
     have hlist := list_ih runtimeType ref fieldName definition group
-      (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness hparents
+      (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness
       hexecutionValid hfields hvalid
     cases hresult : completeAnnotatedResponseValueList schema resolvers variableValues fuel
         inner fields values with
@@ -1258,33 +1215,33 @@ private theorem annotatedResponseExecution_related_all
           foldChildSummaryForValueResult, foldChildSummaryForValue] using hvalues
   case case17 =>
     intro fuel typeName fields values runtimeType ref fieldName definition
-      group _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid _hfields
+      group _hnamed _hlookup _houtput _hwitness _hexecutionValid _hfields
       _hvalid
     simpa [completeAnnotatedResponseValue, foldAnnotatedResponseValueResult,
       foldChildSummaryForValueResult] using
       soundness.empty_sound
   case case18 =>
     intro fuel inner fields value hnotNull hnotList runtimeType ref fieldName
-      definition group _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid
+      definition group _hnamed _hlookup _houtput _hwitness _hexecutionValid
       _hfields _hvalid
     simpa [completeAnnotatedResponseValue, hnotNull, hnotList,
       foldAnnotatedResponseValueResult, foldChildSummaryForValueResult] using
       soundness.empty_sound
   case case19 =>
     intro fuel itemType fields runtimeType ref fieldName definition group
-      _hnamed _hlookup _houtput _hwitness _hparents _hexecutionValid _hfields _hvalid
+      _hnamed _hlookup _houtput _hwitness _hexecutionValid _hfields _hvalid
     simpa [completeAnnotatedResponseValueList,
       foldAnnotatedResponseValuesResult, foldAnnotatedResponseValues,
       foldChildSummaryForValuesResult, foldChildSummaryForValues] using
       soundness.empty_sound
   case case20 =>
     intro fuel itemType fields value values head_ih tail_ih runtimeType ref
-      fieldName definition group hnamed hlookup houtput hwitness hparents hexecutionValid
+      fieldName definition group hnamed hlookup houtput hwitness hexecutionValid
       hfields hvalid
     have hhead := head_ih runtimeType ref fieldName definition group hnamed
-      hlookup houtput hwitness hparents hexecutionValid hfields hvalid
+      hlookup houtput hwitness hexecutionValid hfields hvalid
     have htail := tail_ih runtimeType ref fieldName definition group hnamed
-      hlookup houtput hwitness hparents hexecutionValid hfields hvalid
+      hlookup houtput hwitness hexecutionValid hfields hvalid
     simpa [completeAnnotatedResponseValueList] using
       soundness.toSoundnessCore.combineValuesResult_sound
         (completeAnnotatedResponseValue schema resolvers variableValues fuel itemType fields
@@ -1322,7 +1279,7 @@ theorem Soundness.executeSelectionSetAnnotated_sound
           selectionSet (BooleanEnvironment.concrete variableValues)) := by
   let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
     parentType inheritedBooleanCondition variableValues selectionSet
-  let staticGroups := RuntimeCase.fieldGroups parentType inheritedBooleanCondition
+  let staticGroups := RuntimeCase.fieldGroups inheritedBooleanCondition
     (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
   let executionGroups := collectFields schema variableValues runtimeType
     (.object runtimeType ref) selectionSet
@@ -1343,7 +1300,7 @@ theorem Soundness.executeSelectionSetAnnotated_sound
     simpa [rootCondition, Schema.typeIncludesObject] using hpossible
   have hequivalent : RuntimeGroupsPermutationEquivalent
       (staticGroups.map
-        (RuntimeCase.collectedFieldGroupToExecutableGroup runtimeType))
+        CollectedFieldGroup.toExecutableGroup)
       executionGroups := by
     simpa [tree, staticGroups, executionGroups] using
       runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm schema
@@ -1351,7 +1308,7 @@ theorem Soundness.executeSelectionSetAnnotated_sound
         (List.Perm.refl selectionSet) variableValues variableValues hmatch ref
         hinherited hpossibleBool
   have hvalid : StaticGroupsValid variableValues runtimeType staticGroups := by
-    exact runtimeCaseGroups_valid parentType inheritedBooleanCondition
+    exact runtimeCaseGroups_valid inheritedBooleanCondition
       (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
       hinherited htreePossible
   have hexecutionValid : ExecutableGroupsValid schema runtimeType executionGroups := by
@@ -1432,7 +1389,7 @@ private theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
       subst runtimeType
       let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
         (operation.rootType schema) [] pruningValues operation.selectionSet
-      let staticGroups := RuntimeCase.fieldGroups (operation.rootType schema) []
+      let staticGroups := RuntimeCase.fieldGroups []
         (.ofConditionTree tree) tree.condition.possibleTypes
         (operation.rootType schema) coercedVariableValues
       let executionGroups := collectFields schema coercedVariableValues
@@ -1454,7 +1411,7 @@ private theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
         simpa [rootCondition] using List.contains_iff_mem.mp hpossible
       have hequivalent : RuntimeGroupsPermutationEquivalent
           (staticGroups.map
-            (RuntimeCase.collectedFieldGroupToExecutableGroup (operation.rootType schema)))
+            CollectedFieldGroup.toExecutableGroup)
           executionGroups := by
         simpa [tree, staticGroups, executionGroups] using
           runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm schema
@@ -1464,7 +1421,7 @@ private theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
             (by simp [booleanConditionAllows]) hpossible
       have hvalid : StaticGroupsValid coercedVariableValues
           (operation.rootType schema) staticGroups := by
-        exact runtimeCaseGroups_valid (operation.rootType schema) []
+        exact runtimeCaseGroups_valid []
           (.ofConditionTree tree) tree.condition.possibleTypes
           (operation.rootType schema) coercedVariableValues
           (by simp [booleanConditionAllows]) htreePossible

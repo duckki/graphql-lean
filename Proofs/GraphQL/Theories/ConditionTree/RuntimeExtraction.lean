@@ -582,16 +582,11 @@ theorem ofSelectionSetInScope_fieldEntries_perm
       (by simp [conditionForBranches?, Tree.root])
 
 theorem runtimeFieldsForConditionEntries_perm
-    {ObjectRef : Type}
-    (schema : Schema) (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
-    (source : ResolverValue ObjectRef)
+    (variableValues : VariableValues) (runtimeType : Name)
     {left right : List (Condition × Selection)}
     (hentries : left.Perm right)
-    : (runtimeFieldsForConditionEntries schema variableValues executionParentType
-        runtimeType source left).Perm
-        (runtimeFieldsForConditionEntries schema variableValues executionParentType
-          runtimeType source right) := by
+    : (runtimeFieldsForConditionEntries variableValues runtimeType left).Perm
+        (runtimeFieldsForConditionEntries variableValues runtimeType right) := by
   exact List.Perm.flatMap (β := Name × ExecutableField) hentries fun entry =>
     if entry.1.allows variableValues runtimeType then
       match entry.2 with
@@ -612,8 +607,7 @@ theorem collectFlatFields_perm_flatten_collectFields
     : (collectFlatFields schema variableValues parentType source selectionSet).Perm
         (flattenExecutableFieldGroups
           (collectFields schema variableValues parentType source selectionSet)) := by
-  simpa [ConditionTree.collectFlatFields_eq_fieldGroups,
-    ConditionTree.flattenExecutableFieldGroups,
+  simpa [ConditionTree.flattenExecutableFieldGroups,
     Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
     Execution.FieldGroups.collectFlatFields_perm_flatten_collectFields schema
       variableValues parentType source selectionSet
@@ -628,7 +622,7 @@ theorem extraction_runtimeFields_perm
     (hpossible : (schema.getPossibleTypes parentType).contains runtimeType = true)
     : ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
           selectionSet).collectRuntimeFields
-        variableValues executionParentType runtimeType).Perm
+        variableValues runtimeType).Perm
         (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
@@ -646,11 +640,9 @@ theorem extraction_runtimeFields_perm
   rw [hroot] at hsource
   simp only [if_true] at hsource
   rw [Tree.collectRuntimeFields,
-    runtimeFieldsForEntries_eq_projected schema variableValues executionParentType
-      runtimeType (.object runtimeType ref),
+    runtimeFieldsForEntries_eq_projected variableValues runtimeType,
     ← Tree.fieldEntries_eq_map_storedFieldEntries]
-  exact (runtimeFieldsForConditionEntries_perm schema variableValues executionParentType
-          runtimeType (.object runtimeType ref)
+  exact (runtimeFieldsForConditionEntries_perm variableValues runtimeType
           (ofSelectionSetInScope_fieldEntries_perm schema parentType
             inheritedBooleanCondition selectionSet)).trans
           ((List.Perm.of_eq hsource).trans
@@ -668,12 +660,11 @@ theorem extraction_runtimeGroups_occurrence_equivalent
     : (flattenExecutableFieldGroups
         ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet).collectRuntimeFieldGroups
-          variableValues executionParentType runtimeType)).Perm
+          variableValues runtimeType)).Perm
         (flattenExecutableFieldGroups
           (collectFields schema variableValues executionParentType
             (.object runtimeType ref) selectionSet)) := by
-  exact (Tree.collectRuntimeFieldGroups_exact variableValues executionParentType
-          runtimeType
+  exact (Tree.collectRuntimeFieldGroups_exact variableValues runtimeType
           (ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet)).2.trans
           (extraction_runtimeFields_perm schema parentType inheritedBooleanCondition
@@ -691,16 +682,15 @@ theorem extracted_runtimeGroups_permutationEquivalent
     : RuntimeGroupsPermutationEquivalent
         ((ofSelectionSetInScope schema parentType inheritedBooleanCondition
             selectionSet).collectRuntimeFieldGroups
-          variableValues executionParentType runtimeType)
+          variableValues runtimeType)
         (collectFields schema variableValues executionParentType
           (.object runtimeType ref) selectionSet) := by
   constructor
   · exact Tree.collectRuntimeFieldGroups_wellFormed variableValues
-      executionParentType runtimeType _
+      runtimeType _
   · exact NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
       variableValues executionParentType (.object runtimeType ref) selectionSet
-  · exact (Tree.collectRuntimeFieldGroups_exact variableValues
-      executionParentType runtimeType _).1
+  · exact (Tree.collectRuntimeFieldGroups_exact variableValues runtimeType _).1
   · exact (Execution.FieldGroups.executableGroupNamesNodup_iff_map_fst_nodup _).mp
       (NormalForm.collectFields_namesNodup schema variableValues
         executionParentType (.object runtimeType ref) selectionSet)
@@ -742,10 +732,9 @@ theorem collectFlatFields_perm_of_selectionSet_perm
     (parentType : Name) (source : ResolverValue ObjectRef)
     {left right : List Selection} (hselectionSet : left.Perm right)
     : (collectFlatFields schema variableValues parentType source left).Perm
-        (collectFlatFields schema variableValues parentType source right) := by
-  simpa [ConditionTree.collectFlatFields_eq_fieldGroups] using
-    Execution.FieldGroups.collectFlatFields_perm_of_selectionSet_perm schema
-      variableValues parentType source hselectionSet
+        (collectFlatFields schema variableValues parentType source right) :=
+  Execution.FieldGroups.collectFlatFields_perm_of_selectionSet_perm schema
+    variableValues parentType source hselectionSet
 
 theorem extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
     (schema : Schema) (extractionParentType : Name)
@@ -760,16 +749,15 @@ theorem extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
     : RuntimeGroupsPermutationEquivalent
         ((ofSelectionSetInScope schema extractionParentType
             inheritedBooleanCondition leftSelectionSet).collectRuntimeFieldGroups
-          variableValues executionParentType runtimeType)
+          variableValues runtimeType)
         (collectFields schema variableValues executionParentType
           (.object runtimeType ref) rightSelectionSet) := by
   constructor
   · exact Tree.collectRuntimeFieldGroups_wellFormed variableValues
-      executionParentType runtimeType _
+      runtimeType _
   · exact NormalForm.GroundTypeNormalization.collectFields_wellFormed schema
       variableValues executionParentType (.object runtimeType ref) rightSelectionSet
-  · exact (Tree.collectRuntimeFieldGroups_exact variableValues
-      executionParentType runtimeType _).1
+  · exact (Tree.collectRuntimeFieldGroups_exact variableValues runtimeType _).1
   · exact (Execution.FieldGroups.executableGroupNamesNodup_iff_map_fst_nodup _).mp
       (NormalForm.collectFields_namesNodup schema variableValues
         executionParentType (.object runtimeType ref) rightSelectionSet)

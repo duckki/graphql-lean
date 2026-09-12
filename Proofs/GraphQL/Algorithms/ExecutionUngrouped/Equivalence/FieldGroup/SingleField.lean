@@ -549,7 +549,7 @@ theorem visitSubfields_executableFieldSelections_single_existing_eq_merge_comple
       completeResolvedValue schema resolvers variableValues (completionDepth + 1)
         fieldDefinition.outputType selectionSet resolvedValue (some previous) :=
     executeField_resolved_eq_completeResolvedValue schema resolvers
-      variableValues completionDepth parentType source responseName
+      variableValues completionDepth parentType source
           {
         fieldName := fieldName
         arguments := arguments

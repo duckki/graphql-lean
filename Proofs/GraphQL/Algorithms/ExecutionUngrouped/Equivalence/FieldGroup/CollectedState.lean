@@ -34,8 +34,6 @@ structure ExecutedSingleGroupSelectionState
   direct
     : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
         parentType source selectionSet (.object [])
-  responses : CollectedGroupsResponseName groups
-  parents : CollectedGroupsParent parentType groups
   headLookup
     : ∃ fieldDefinition,
         schema.lookupField parentType field.fieldName = some fieldDefinition
@@ -128,38 +126,6 @@ def of_collected_appendPlan
   group_mem := hgroup
   exact_groups := hexact
   direct := hdirect
-  responses :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq
-      {
-        window :=
-          {
-            schema := schema
-            resolvers := resolvers
-            variableValues := variableValues
-            depth := depth
-            parentType := parentType
-            source := source
-            selectionSet := selectionSet
-          }
-        initial := .object []
-      }
-      groups hcollect
-  parents :=
-    ExecutionCollectedFieldInvariant.parent_of_collect_eq
-      {
-        window :=
-          {
-            schema := schema
-            resolvers := resolvers
-            variableValues := variableValues
-            depth := depth
-            parentType := parentType
-            source := source
-            selectionSet := selectionSet
-          }
-        initial := .object []
-      }
-      groups hcollect
   headLookup := hfieldLookup
   headChildren := hfieldChildren
   appendPlan := plan
@@ -176,8 +142,7 @@ def toExecutedFieldGroup
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         state.responseName state.field state.fields :=
   ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
-    depth parentType source state.groups state.responseName state.field
-    state.fields state.group_mem state.responses state.parents
+    depth parentType source state.responseName state.field state.fields
     state.headLookup state.headChildren state.appendPlan
 
 theorem flatSpecEquivalent
@@ -224,8 +189,7 @@ theorem executeRootSelectionSet_eq_spec
   executeRootSelectionSet_eq_spec_of_collected_appendPlan schema resolvers
     variableValues depth parentType source selectionSet state.groups
     state.responseName state.field state.fields state.collect_eq
-    state.group_mem state.direct state.responses state.parents
-    state.headLookup state.headChildren state.appendPlan state.exact_groups
+    state.direct state.headLookup state.headChildren state.appendPlan state.exact_groups
 
 theorem stateEquivalent
     {ObjectIdentity : Type}
@@ -465,8 +429,6 @@ theorem ExecutedFieldAppendStep.of_collected_group
     (fields prefixTail : List ExecutableField) (later : ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
     (hlater : later ∈ field :: fields)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hprefixChildren
@@ -575,8 +537,6 @@ theorem ExecutedFieldAppendPlan.of_collected_group_state
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     : ∀ prefixTail remaining,
@@ -596,12 +556,12 @@ theorem ExecutedFieldAppendPlan.of_collected_group_state
       · exact
           ExecutedFieldAppendStep.of_collected_group schema resolvers
             variableValues depth parentType source groups responseName field
-            fields prefixTail later hgroup hlater hresponses hparents
-            hcompatible hstable hprefixChildren hobjects herrors hchildren
+            fields prefixTail later hgroup hlater hcompatible hstable
+            hprefixChildren hobjects herrors hchildren
       · exact
           ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
             variableValues depth parentType source groups responseName field
-            fields hgroup hresponses hparents hcompatible hstable
+            fields hgroup hcompatible hstable
             (prefixTail ++ [later]) rest hrest
 
 theorem ExecutedFieldAppendPlan.of_collected_group_from_prefix
@@ -613,8 +573,6 @@ theorem ExecutedFieldAppendPlan.of_collected_group_from_prefix
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hprefixChildren
@@ -695,7 +653,7 @@ theorem ExecutedFieldAppendPlan.of_collected_group_from_prefix
       exact
         ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
           variableValues depth parentType source groups responseName field fields
-          hgroup hresponses hparents hcompatible hstable prefixTail remaining
+          hgroup hcompatible hstable prefixTail remaining
           (ExecutedFieldAppendPlanState.of_all_prefixes_from_prefix
             (by
               intro prefixTail childDepth runtimeType identity hlt _hincludes
@@ -718,8 +676,6 @@ theorem ExecutedFieldAppendPlan.of_collected_group
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hprefixChildren
@@ -796,7 +752,7 @@ theorem ExecutedFieldAppendPlan.of_collected_group
         [] fields := by
   apply ExecutedFieldAppendPlan.of_collected_group_from_prefix schema resolvers
     variableValues depth parentType source groups responseName field fields
-    hgroup hresponses hparents hcompatible hstable hprefixChildren hobjects
+    hgroup hcompatible hstable hprefixChildren hobjects
     herrors hchildren
   intro later hlater
   exact hlater
@@ -810,8 +766,6 @@ def ExecutedFieldGroup.of_collected_group
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hfieldLookup
@@ -902,8 +856,7 @@ def ExecutedFieldGroup.of_collected_group
           hlt)
   exact
     ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
-      depth parentType source groups responseName field fields hgroup hresponses
-      hparents hfieldLookup
+      depth parentType source responseName field fields hfieldLookup
       (by
         intro childDepth runtimeType identity hlt
         simpa [GraphQL.Execution.mergedFieldSelectionSet] using
@@ -911,7 +864,7 @@ def ExecutedFieldGroup.of_collected_group
             runtimeType identity hlt)
       (ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
         variableValues depth parentType source groups responseName field fields
-        hgroup hresponses hparents hcompatible hstable [] fields hstate)
+        hgroup hcompatible hstable [] fields hstate)
 
 def ExecutedFieldGroup.of_collected_group_state
     {ObjectIdentity : Type}
@@ -922,8 +875,6 @@ def ExecutedFieldGroup.of_collected_group_state
     (responseName : Name) (field : ExecutableField)
     (fields : List ExecutableField)
     (hgroup : (responseName, field :: fields) ∈ groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hcompatible : CollectedGroupsFieldValidationMergeCompatible groups)
     (hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups)
     (hfieldLookup
@@ -935,8 +886,7 @@ def ExecutedFieldGroup.of_collected_group_state
     : ExecutedFieldGroup schema resolvers variableValues depth parentType source
         responseName field fields :=
   ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
-    depth parentType source groups responseName field fields hgroup hresponses
-    hparents hfieldLookup
+    depth parentType source responseName field fields hfieldLookup
     (by
       intro childDepth runtimeType identity hlt
       simpa [GraphQL.Execution.mergedFieldSelectionSet] using
@@ -944,7 +894,7 @@ def ExecutedFieldGroup.of_collected_group_state
           runtimeType identity hlt)
     (ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
       variableValues depth parentType source groups responseName field fields
-      hgroup hresponses hparents hcompatible hstable [] fields hstate)
+      hgroup hcompatible hstable [] fields hstate)
 
 theorem stateEquivalent_of_collected_field_group_of_invariant
     {ObjectIdentity : Type}
@@ -1074,27 +1024,20 @@ theorem stateEquivalent_of_collected_field_group_of_invariant
         source := source
         selectionSet := selectionSet }
       initial := .object [] }
-  have hresponses : CollectedGroupsResponseName groups :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq state groups
-      hcollect
-  have hparents : CollectedGroupsParent parentType groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
-        hcollect
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   apply stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
     variableValues (depth + 1) parentType source selectionSet
-  rw [hexact] at hcollect hgroup hresponses hparents hcompatible hstable
+  rw [hexact] at hcollect hgroup hcompatible hstable
   exact
     executeRootSelectionSet_eq_spec_of_executedFieldGroup schema resolvers
       variableValues depth parentType source selectionSet responseName field
       fields hcollect hdirect
       (ExecutedFieldGroup.of_collected_group schema resolvers variableValues
         depth parentType source [(responseName, field :: fields)] responseName
-      field fields hgroup hresponses hparents hcompatible hstable
+      field fields hgroup hcompatible hstable
       hfieldLookup hprefixChildren hobjects herrors hchildren)
 
 theorem stateEquivalent_of_collected_field_group_state_of_invariant
@@ -1161,27 +1104,20 @@ theorem stateEquivalent_of_collected_field_group_state_of_invariant
         source := source
         selectionSet := selectionSet }
       initial := .object [] }
-  have hresponses : CollectedGroupsResponseName groups :=
-    ExecutionCollectedFieldInvariant.responseName_of_collect_eq state groups
-      hcollect
-  have hparents : CollectedGroupsParent parentType groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.parent_of_collect_eq state groups
-        hcollect
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
     simpa [state] using
       ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   apply stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
     variableValues (depth + 1) parentType source selectionSet
-  rw [hexact] at hcollect hgroup hresponses hparents hcompatible hstable
+  rw [hexact] at hcollect hgroup hcompatible hstable
   exact
     executeRootSelectionSet_eq_spec_of_executedFieldGroup schema resolvers
       variableValues depth parentType source selectionSet responseName field
       fields hcollect hdirect
       (ExecutedFieldGroup.of_collected_group_state schema resolvers
         variableValues depth parentType source [(responseName, field :: fields)]
-        responseName field fields hgroup hresponses hparents hcompatible
+        responseName field fields hgroup hcompatible
         hstable hfieldLookup hplanState)
 
 theorem executeRootSelectionSet_eq_spec_of_collected_field_group_state_of_invariant

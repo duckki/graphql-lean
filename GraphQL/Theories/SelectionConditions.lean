@@ -371,7 +371,7 @@ def ofTypeRegion (schema : Schema) (region : List Name) (selectionSet : List Sel
 -- Runtime interpretation of a flat conditioned-field boundary. The cumulative
 -- condition is the complete gate; extracted fields no longer carry modeled directives.
 def runtimeFields (variableValues : VariableValues)
-    (executionParentType runtimeType : Name) (entries : List ConditionedField)
+    (runtimeType : Name) (entries : List ConditionedField)
     : List (Name × ExecutableField) :=
   entries.flatMap
     fun entry =>

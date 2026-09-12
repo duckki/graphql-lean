@@ -711,12 +711,9 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendSteps
       : GraphQL.Execution.collectFields schema variableValues parentType source
           selectionSet
         = groups)
-    (hgroup : (responseName, field :: fields) ∈ groups)
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -748,14 +745,13 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendSteps
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (depth + 1) parentType source selectionSet := by
-  rw [hexact] at hcollect hgroup hresponses hparents
+  rw [hexact] at hcollect
   exact
     executeRootSelectionSet_eq_spec_of_executedFieldGroup schema resolvers
       variableValues depth parentType source selectionSet responseName field
       fields hcollect hdirect
       (ExecutedFieldGroup.of_collected_appendSteps schema resolvers
-        variableValues depth parentType source [(responseName, field :: fields)]
-        responseName field fields hgroup hresponses hparents
+        variableValues depth parentType source responseName field fields
         hfieldLookup
         (by
           intro childDepth runtimeType identity hlt _hincludes
@@ -777,13 +773,10 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendSteps
           (operation.rootType schema)
           source operation.selectionSet
         = groups)
-    (hgroup : (responseName, field :: fields) ∈ groups)
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent (operation.rootType schema) groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -820,13 +813,13 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendSteps
           operation (depth + 1) source := by
   apply executeQueryWithFuel_eq_spec_of_root_fields_eq schema resolvers
     variableValues operation (depth + 1) source hroot
-  rw [hexact] at hcollect hgroup hresponses hparents
+  rw [hexact] at hcollect
   exact
     executeRootSelectionSet_eq_spec_of_collected_appendSteps schema resolvers
       (GraphQL.Execution.coerceVariableValues operation variableValues)
       depth (operation.rootType schema) source operation.selectionSet
       [(responseName, field :: fields)] responseName field fields hcollect
-      hgroup hdirect hresponses hparents hfieldLookup hfieldChildren hsteps rfl
+      hdirect hfieldLookup hfieldChildren hsteps rfl
 
 theorem executeRootSelectionSet_eq_spec_of_collected_appendPlan
     {ObjectIdentity : Type}
@@ -841,12 +834,9 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendPlan
       : GraphQL.Execution.collectFields schema variableValues parentType source
           selectionSet
         = groups)
-    (hgroup : (responseName, field :: fields) ∈ groups)
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers variableValues (depth + 1)
           parentType source selectionSet (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType field.fieldName = some fieldDefinition)
@@ -883,14 +873,13 @@ theorem executeRootSelectionSet_eq_spec_of_collected_appendPlan
         parentType source selectionSet
       = GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           (depth + 1) parentType source selectionSet := by
-  rw [hexact] at hcollect hgroup hresponses hparents
+  rw [hexact] at hcollect
   exact
     executeRootSelectionSet_eq_spec_of_executedFieldGroup schema resolvers
       variableValues depth parentType source selectionSet responseName field
       fields hcollect hdirect
       (ExecutedFieldGroup.of_collected_appendPlan schema resolvers
-        variableValues depth parentType source [(responseName, field :: fields)]
-        responseName field fields hgroup hresponses hparents
+        variableValues depth parentType source responseName field fields
         hfieldLookup
         hfieldChildren
         plan)
@@ -910,13 +899,10 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendPlan
           (operation.rootType schema)
           source operation.selectionSet
         = groups)
-    (hgroup : (responseName, field :: fields) ∈ groups)
     (hdirect
       : VisitSubfieldsFlatCollects schema resolvers
           (GraphQL.Execution.coerceVariableValues operation variableValues) (depth + 1)
           (operation.rootType schema) source operation.selectionSet (.object []))
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent (operation.rootType schema) groups)
     (hfieldLookup
       : ∃ fieldDefinition,
           schema.lookupField (operation.rootType schema) field.fieldName
@@ -953,14 +939,13 @@ theorem executeQueryWithFuel_eq_spec_of_collected_appendPlan
           operation (depth + 1) source := by
   apply executeQueryWithFuel_eq_spec_of_root_fields_eq schema resolvers
     variableValues operation (depth + 1) source hroot
-  rw [hexact] at hcollect hgroup hresponses hparents
+  rw [hexact] at hcollect
   exact
     executeRootSelectionSet_eq_spec_of_collected_appendPlan schema resolvers
       (GraphQL.Execution.coerceVariableValues operation variableValues)
       depth (operation.rootType schema) source operation.selectionSet
       [(responseName, field :: fields)] responseName field fields hcollect
-      hgroup hdirect hresponses hparents
-      hfieldLookup
+      hdirect hfieldLookup
       (by
         intro childDepth runtimeType identity hlt _hincludes
         exact hfieldChildren childDepth runtimeType identity hlt)

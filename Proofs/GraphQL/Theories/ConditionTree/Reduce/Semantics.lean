@@ -55,16 +55,6 @@ structure ReductionExecutionBoundary {ObjectRef : Type}
             (FieldMerge.collectFields schema extractionParentType selectionSet)
             (fields.map fun field => (responseName, field))
 
-theorem ReductionExecutionBoundary.groupsSameParent
-    {ObjectRef : Type} {schema : Schema} {variableValues : VariableValues}
-    (boundary : ReductionExecutionBoundary (ObjectRef := ObjectRef) schema variableValues)
-    : Algorithms.ExecutionUngroupedUncached.Eager.CollectedGroupsSameResponseParent
-        boundary.allSpecGroups := by
-  rw [boundary.allSpecGroups_eq]
-  exact Algorithms.ExecutionUngroupedUncached.Eager.collectFields_sameResponseParent schema
-    variableValues boundary.parentType
-    (.object boundary.runtimeType boundary.ref) boundary.selectionSet
-
 theorem ReductionExecutionBoundary.groupField_mem_collected
     {ObjectRef : Type} {schema : Schema} {variableValues : VariableValues}
     (boundary : ReductionExecutionBoundary (ObjectRef := ObjectRef) schema variableValues)

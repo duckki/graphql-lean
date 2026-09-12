@@ -206,8 +206,7 @@ theorem fieldDirectiveTreeWellFormedSmoke
 
 def fieldDirectiveRuntimeResponseNames (variableValues : Execution.VariableValues)
     : List Name :=
-  (fieldDirectiveTree.collectRuntimeFields variableValues "Animal" "Dog").map
-    fun field => field.1
+  (fieldDirectiveTree.collectRuntimeFields variableValues "Dog").map fun field => field.1
 
 theorem fieldDirectiveBranchesControlExecutionSmoke
     : fieldDirectiveRuntimeResponseNames [("x", .boolean true), ("y", .boolean false)]
@@ -342,8 +341,7 @@ def parentChildRepeatedResponseNameTree : Tree :=
 -- The parent occurrence fixes the group's position. The matching child occurrence is
 -- merged into that group rather than becoming a second executable visit.
 theorem parentResponseNameIsExcludedFromChildGroupsSmoke
-    : let groups :=
-        parentChildRepeatedResponseNameTree.collectRuntimeFieldGroups [] "Animal" "Dog"
+    : let groups := parentChildRepeatedResponseNameTree.collectRuntimeFieldGroups [] "Dog"
       groups.map Prod.fst = ["label"]
       ∧ groups.map (fun group => group.2.length) = [2] := by
   native_decide

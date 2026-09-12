@@ -9,6 +9,7 @@ namespace GraphQL
 namespace QueryInclusion
 
 open Execution.FieldGroups
+open GraphQL.ConditionTree
 
 open Execution
 open SelectionConditions
@@ -94,8 +95,7 @@ theorem selectionConditionsForRegion_runtimeGroups_permutationEquivalent
     (ref : ObjectRef) (hruntime : runtimeType ∈ region)
     : RuntimeGroupsPermutationEquivalent
         (groupExecutableFields
-          (SelectionConditions.runtimeFields variableValues executionParentType
-            runtimeType
+          (SelectionConditions.runtimeFields variableValues runtimeType
             (SelectionConditions.ofTypeRegion schema region extractedSelectionSet)))
         (collectFields schema variableValues executionParentType
           (.object runtimeType ref) targetSelectionSet) := by
@@ -110,14 +110,14 @@ theorem selectionConditionsForRegion_runtimeGroups_permutationEquivalent
   rw [hroot] at hsource
   simp only [if_true] at hsource
   have hfields :
-      SelectionConditions.runtimeFields variableValues executionParentType runtimeType
+      SelectionConditions.runtimeFields variableValues runtimeType
           (SelectionConditions.ofTypeRegion schema region extractedSelectionSet)
         =
           (collectFlatFields schema variableValues executionParentType
             (.object runtimeType ref) extractedSelectionSet) := by
     exact hsource
-  let fields := SelectionConditions.runtimeFields variableValues executionParentType
-    runtimeType (SelectionConditions.ofTypeRegion schema region extractedSelectionSet)
+  let fields := SelectionConditions.runtimeFields variableValues runtimeType
+    (SelectionConditions.ofTypeRegion schema region extractedSelectionSet)
   have hgrouped := groupExecutableFields_exact fields
   constructor
   · exact groupExecutableFields_wellFormed fields

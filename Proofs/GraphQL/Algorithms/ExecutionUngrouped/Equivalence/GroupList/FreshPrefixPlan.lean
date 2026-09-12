@@ -36,16 +36,13 @@ inductive FreshPrefixSelectionPlan
       -> FreshPrefixSelectionPlan schema resolvers variableValues completionDepth
           parentType source (left ++ right)
   | sameGroup (responseName : Name) (fields : List ExecutableField)
-    : ExecutableFieldsResponseName responseName fields
-      -> ExecutableFieldsParent parentType fields
-      -> FreshPrefixSelectionPlan schema resolvers variableValues completionDepth
-          parentType source (executableFieldSelections responseName fields)
+    : FreshPrefixSelectionPlan schema resolvers variableValues completionDepth
+        parentType source (executableFieldSelections responseName fields)
   | duplicateFieldBlockNormalize
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -78,9 +75,8 @@ inductive FreshPrefixSelectionPlan
           parentType source (selection :: rest)
   | duplicateFieldBlock (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -117,10 +113,8 @@ inductive FreshPrefixSelectionDerivation
       -> FreshPrefixSelectionDerivation schema variableValues parentType source
           (left ++ right)
   | sameGroup (responseName : Name) (fields : List ExecutableField)
-    : ExecutableFieldsResponseName responseName fields
-      -> ExecutableFieldsParent parentType fields
-      -> FreshPrefixSelectionDerivation schema variableValues parentType source
-          (executableFieldSelections responseName fields)
+    : FreshPrefixSelectionDerivation schema variableValues parentType source
+        (executableFieldSelections responseName fields)
   | inlineFragmentNone (directives : List DirectiveApplication)
     (selectionSet : List Selection)
     : (selectionDirectivesAllowBool variableValues directives = true
@@ -139,9 +133,8 @@ inductive FreshPrefixSelectionDerivation
   | duplicateFieldBlockNormalize
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -170,9 +163,8 @@ inductive FreshPrefixSelectionDerivation
           (selection :: rest)
   | duplicateFieldBlock (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -287,7 +279,7 @@ theorem duplicateFieldBlock_of_headDisjointTrees
           ++ middle
           ++ executableFieldSelections responseName [later]
           ++ suffix) :=
-  .duplicateFieldBlock responseName first later middle suffix rfl hlaterLookup
+  .duplicateFieldBlock responseName first later middle suffix hlaterLookup
     hnotMiddle hdisjoint
     (of_headDisjointTree schema variableValues parentType source middle hmiddle)
     (of_headDisjointTree schema variableValues parentType source suffix hsuffix)
@@ -412,55 +404,6 @@ theorem collectedGroupsFieldsNonempty_singletonExecutableGroups
         simp [hfields]
       · exact ih htail
 
-theorem collectedGroupsResponseName_singletonExecutableGroups
-    (fields : List KeyedExecutableField)
-    : CollectedGroupsResponseName (singletonExecutableGroups fields) := by
-  intro responseName groupFields hmem
-  induction fields generalizing responseName groupFields with
-  | nil =>
-      simp [singletonExecutableGroups] at hmem
-  | cons field rest ih =>
-      simp [singletonExecutableGroups] at hmem
-      rcases hmem with hhead | htail
-      · rcases hhead with ⟨hresponse, hfields⟩
-        subst responseName
-        subst groupFields
-        intro _candidate _hcandidate
-        trivial
-      · exact ih responseName groupFields htail
-
-theorem collectedGroupsParent_singletonExecutableGroups
-    {parentType : Name} {fields : List KeyedExecutableField}
-    : CollectedGroupsParent parentType (singletonExecutableGroups fields) := by
-  intro responseName groupFields hmem
-  induction fields generalizing responseName groupFields with
-  | nil =>
-      simp [singletonExecutableGroups] at hmem
-  | cons field rest ih =>
-      simp [singletonExecutableGroups] at hmem
-      rcases hmem with hhead | htail
-      · rcases hhead with ⟨_hresponse, hfields⟩
-        subst groupFields
-        intro _candidate _hcandidate
-        trivial
-      · exact ih responseName groupFields htail
-
-theorem ExecutableFieldsParent_collectedExecutableFields {parentType : Name}
-    : ∀ {groups : List (Name × List ExecutableField)},
-        CollectedGroupsParent parentType groups
-        -> ExecutableFieldsParent parentType (collectedExecutableFields groups)
-  | [], _hparents => by
-      intro field hfield
-      simp [collectedExecutableFields] at hfield
-  | (responseName, fields) :: rest, hparents => by
-      intro field hfield
-      simp [collectedExecutableFields] at hfield
-      rcases hfield with hfield | hfield
-      · exact hparents responseName fields (by simp) field hfield
-      · exact
-          ExecutableFieldsParent_collectedExecutableFields
-            (CollectedGroupsParent_tail hparents) field hfield
-
 theorem collectFields_executableFieldSelections_key_mem
     {ObjectIdentity : Type}
     (schema : Schema) (variableValues : VariableValues)
@@ -572,38 +515,25 @@ theorem of_collectedGroups
     : ∀ groups,
         PairKeysNodup groups
         -> CollectedGroupsFieldsNonempty groups
-        -> CollectedGroupsResponseName groups
-        -> CollectedGroupsParent parentType groups
         -> FreshPrefixSelectionDerivation schema variableValues parentType source
             (collectedExecutableSelections groups)
-  | [], _hnodup, _hnonempty, _hresponses, _hparents => by
+  | [], _hnodup, _hnonempty => by
       simpa [collectedExecutableSelections, executableFieldSelections] using
         (FreshPrefixSelectionDerivation.nil
           (schema := schema) (variableValues := variableValues)
           (parentType := parentType) (source := source))
-  | (responseName, fields) :: rest, hnodup, hnonempty, hresponses, hparents =>
+  | (responseName, fields) :: rest, hnodup, hnonempty =>
       by
         have hrestNodup : PairKeysNodup rest :=
           PairKeysNodup.tail hnodup
         have hrestNonempty : CollectedGroupsFieldsNonempty rest :=
           CollectedGroupsFieldsNonempty_tail hnonempty
-        have hrestResponses : CollectedGroupsResponseName rest :=
-          CollectedGroupsResponseName_tail hresponses
-        have hrestParents : CollectedGroupsParent parentType rest :=
-          CollectedGroupsParent_tail hparents
         have hfieldsNonempty : fields ≠ [] :=
           hnonempty responseName fields (by simp)
         cases fields with
         | nil =>
             exact False.elim (hfieldsNonempty rfl)
         | cons field fieldsTail =>
-            have hheadResponse :
-                ExecutableFieldsResponseName responseName
-                  (field :: fieldsTail) :=
-              hresponses responseName (field :: fieldsTail) (by simp)
-            have hheadParent :
-                ExecutableFieldsParent parentType (field :: fieldsTail) :=
-              hparents responseName (field :: fieldsTail) (by simp)
             have hheadCollect :
                 GraphQL.Execution.collectFields schema variableValues
                   parentType source
@@ -619,7 +549,7 @@ theorem of_collectedGroups
                 rest :=
               collectFields_executableFieldSelections_collectedExecutableFields
                 schema variableValues parentType source rest hrestNodup
-                hrestNonempty hrestResponses hrestParents
+                hrestNonempty
             have hdisjoint :
                 GraphQL.NormalForm.executableGroupNamesDisjoint
                   (GraphQL.Execution.collectFields schema variableValues
@@ -639,14 +569,13 @@ theorem of_collectedGroups
                 FreshPrefixSelectionDerivation schema variableValues parentType
                   source (executableFieldSelections responseName
                     (field :: fieldsTail)) :=
-              .sameGroup responseName (field :: fieldsTail) hheadResponse
-                hheadParent
+              .sameGroup responseName (field :: fieldsTail)
             have htail :
                 FreshPrefixSelectionDerivation schema variableValues parentType
                   source
                   (collectedExecutableSelections rest) :=
               of_collectedGroups schema variableValues parentType source rest
-                hrestNodup hrestNonempty hrestResponses hrestParents
+                hrestNodup hrestNonempty
             simpa [collectedExecutableSelections, executableFieldSelections] using
               FreshPrefixSelectionDerivation.appendDisjoint
                 (schema := schema) (variableValues := variableValues)
@@ -672,8 +601,6 @@ theorem of_collectedCollectFields
       (GraphQL.NormalForm.collectFields_namesNodup schema variableValues
         parentType source selectionSet))
     (collectFields_fieldsNonempty schema variableValues parentType source selectionSet)
-    (collectFields_responseName schema variableValues parentType source selectionSet)
-    (collectFields_parent schema variableValues parentType source selectionSet)
 
 theorem of_executableFieldSelections_responseNamesNodup
     {ObjectIdentity : Type}
@@ -681,9 +608,6 @@ theorem of_executableFieldSelections_responseNamesNodup
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (_hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     : FreshPrefixSelectionDerivation schema variableValues parentType source
         (keyedExecutableFieldSelections fields) := by
   simpa [collectedExecutableSelections_singletonExecutableGroups] using
@@ -691,8 +615,6 @@ theorem of_executableFieldSelections_responseNamesNodup
       (singletonExecutableGroups fields)
       (pairKeysNodup_singletonExecutableGroups hnodup)
       (collectedGroupsFieldsNonempty_singletonExecutableGroups fields)
-      (collectedGroupsResponseName_singletonExecutableGroups fields)
-      (collectedGroupsParent_singletonExecutableGroups)
 
 theorem collectFields_executableFieldSelections_singletonExecutableGroups
     {ObjectIdentity : Type}
@@ -700,9 +622,6 @@ theorem collectFields_executableFieldSelections_singletonExecutableGroups
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (_hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     : GraphQL.Execution.collectFields schema variableValues parentType source
         (keyedExecutableFieldSelections fields)
       = singletonExecutableGroups fields := by
@@ -712,8 +631,6 @@ theorem collectFields_executableFieldSelections_singletonExecutableGroups
       variableValues parentType source (singletonExecutableGroups fields)
       (pairKeysNodup_singletonExecutableGroups hnodup)
       (collectedGroupsFieldsNonempty_singletonExecutableGroups fields)
-      (collectedGroupsResponseName_singletonExecutableGroups fields)
-      (collectedGroupsParent_singletonExecutableGroups)
 
 theorem collectFields_executableFieldSelections_mem_cons
     {ObjectIdentity : Type}
@@ -721,9 +638,6 @@ theorem collectFields_executableFieldSelections_mem_cons
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     {fields : List KeyedExecutableField}
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     {responseName : Name} {field : ExecutableField}
     {fieldsTail : List ExecutableField}
     (hgroup
@@ -740,7 +654,7 @@ theorem collectFields_executableFieldSelections_mem_cons
           (keyedExecutableFieldSelections fields) =
         singletonExecutableGroups fields :=
     collectFields_executableFieldSelections_singletonExecutableGroups schema
-      variableValues parentType source fields hnodup hparents
+      variableValues parentType source fields hnodup
   have hgroupSingle :
       (responseName, field :: fieldsTail) ∈
         singletonExecutableGroups fields := by
@@ -753,9 +667,6 @@ theorem collectFields_executableFieldSelections_prefix_empty
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     {fields : List KeyedExecutableField}
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     {responseName : Name} {field : ExecutableField}
     {fieldsTail prefixTail : List ExecutableField}
     (hgroup
@@ -771,7 +682,7 @@ theorem collectFields_executableFieldSelections_prefix_empty
         ∧ prefixTail = [] := by
   rcases
       collectFields_executableFieldSelections_mem_cons schema variableValues
-        parentType source hnodup hparents hgroup with
+        parentType source hnodup hgroup with
     ⟨keyedField, hkeyedField, hresponseName, hfieldEq, hfieldsTail⟩
   have hprefixTail : prefixTail = [] := by
     cases prefixTail with
@@ -782,7 +693,7 @@ theorem collectFields_executableFieldSelections_prefix_empty
   exact ⟨keyedField, hkeyedField, hresponseName, hfieldEq, hfieldsTail,
     hprefixTail⟩
 
-def executableFieldOfSelection (_parentType : Name) : Selection -> KeyedExecutableField
+def executableFieldOfSelection : Selection -> KeyedExecutableField
   | .field responseName fieldName arguments _directives selectionSet =>
       {
         fieldName := fieldName
@@ -798,12 +709,11 @@ def executableFieldOfSelection (_parentType : Name) : Selection -> KeyedExecutab
         responseName := ""
       }
 
-theorem executableFieldSelections_map_executableFieldOfSelection (parentType : Name)
+theorem executableFieldSelections_map_executableFieldOfSelection
     : ∀ selectionSet,
         NormalForm.selectionsAllFields selectionSet
         -> NormalForm.selectionSetDirectiveFree selectionSet
-        -> keyedExecutableFieldSelections
-              (selectionSet.map (executableFieldOfSelection parentType))
+        -> keyedExecutableFieldSelections (selectionSet.map executableFieldOfSelection)
             = selectionSet
   | [], _hall, _hfree => by
       simp [keyedExecutableFieldSelections]
@@ -824,25 +734,25 @@ theorem executableFieldSelections_map_executableFieldOfSelection (parentType : N
           have hrestEq :
               List.map
                   (keyedExecutableFieldSelection ∘
-                    executableFieldOfSelection parentType) rest =
+                    executableFieldOfSelection) rest =
                 rest := by
             simpa [keyedExecutableFieldSelections, List.map_map,
               Function.comp_def] using
               executableFieldSelections_map_executableFieldOfSelection
-                parentType rest hrestAll hrestFree
+                rest hrestAll hrestFree
           simp [keyedExecutableFieldSelections, keyedExecutableFieldSelection,
             executableFieldSelection,
             executableFieldOfSelection, hrestEq]
       | inlineFragment typeCondition directives selectionSet =>
           simp [Selection.isField] at hselectionField
 
-theorem responseNames_map_executableFieldOfSelection (parentType : Name)
+theorem responseNames_map_executableFieldOfSelection
     : ∀ selectionSet,
         NormalForm.selectionsAllFields selectionSet
         -> selectionSet.filterMap Selection.responseName?
             = (selectionSet.map
                 (fun selection =>
-                  (executableFieldOfSelection parentType selection).responseName))
+                  (executableFieldOfSelection selection).responseName))
   | [], _hall => by
       simp
   | selection :: rest, hall => by
@@ -854,30 +764,21 @@ theorem responseNames_map_executableFieldOfSelection (parentType : Name)
       cases selection with
       | field responseName fieldName arguments directives selectionSet =>
           simp [Selection.responseName?, executableFieldOfSelection,
-            responseNames_map_executableFieldOfSelection parentType rest
+            responseNames_map_executableFieldOfSelection rest
               hrestAll]
       | inlineFragment typeCondition directives selectionSet =>
           simp [Selection.isField] at hselectionField
 
-theorem responseNamesNodup_map_executableFieldOfSelection
-    (parentType : Name) (selectionSet : List Selection)
+theorem responseNamesNodup_map_executableFieldOfSelection (selectionSet : List Selection)
     : NormalForm.selectionsAllFields selectionSet
       -> NormalForm.responseNamesNodup selectionSet
       -> (selectionSet.map
             (fun selection =>
-              (executableFieldOfSelection parentType selection).responseName)).Nodup := by
+              (executableFieldOfSelection selection).responseName)).Nodup := by
   intro hall hnodup
   have hnames :=
-    responseNames_map_executableFieldOfSelection parentType selectionSet hall
+    responseNames_map_executableFieldOfSelection selectionSet hall
   simpa [NormalForm.responseNamesNodup, hnames] using hnodup
-
-theorem executableFieldsParent_map_executableFieldOfSelection
-    (parentType : Name) (selectionSet : List Selection)
-    : ExecutableFieldsParent parentType
-        ((selectionSet.map (executableFieldOfSelection parentType)).map
-          KeyedExecutableField.toExecutableField) := by
-  intro field hfield
-  trivial
 
 theorem collectFields_allFields_directiveFree_responseNamesNodup_prefix_empty
     {ObjectIdentity : Type}
@@ -896,21 +797,15 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_prefix_empty
           -> fieldsTail = [] ∧ prefixTail = [] := by
   intro hall hfree hnodup responseName field fieldsTail prefixTail hgroup
     hprefix
-  let fields := selectionSet.map (executableFieldOfSelection parentType)
+  let fields := selectionSet.map executableFieldOfSelection
   have hselectionSet :
       keyedExecutableFieldSelections fields = selectionSet := by
-    exact executableFieldSelections_map_executableFieldOfSelection parentType
-      selectionSet hall hfree
+    exact executableFieldSelections_map_executableFieldOfSelection selectionSet
+      hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
     simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection parentType
-        selectionSet hall hnodup
-  have hparents : ExecutableFieldsParent parentType
-      (fields.map KeyedExecutableField.toExecutableField) := by
-    simpa [fields] using
-      executableFieldsParent_map_executableFieldOfSelection parentType
-        selectionSet
+      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hgroup' :
       (responseName, field :: fieldsTail) ∈
         GraphQL.Execution.collectFields schema variableValues parentType source
@@ -918,7 +813,7 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_prefix_empty
     simpa [hselectionSet] using hgroup
   rcases
       collectFields_executableFieldSelections_prefix_empty schema
-        variableValues parentType source hfieldsNodup hparents hgroup'
+        variableValues parentType source hfieldsNodup hgroup'
         hprefix with
     ⟨_keyedField, _hkeyedField, _hresponseName, _hfieldEq, hfieldsTail,
       hprefixTail⟩
@@ -939,27 +834,21 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_field_mem_prefi
                 selectionSet
           -> (∀ candidate, candidate ∈ prefixTail -> candidate ∈ fieldsTail)
           -> field
-                ∈ (selectionSet.map (executableFieldOfSelection parentType)).map
+                ∈ (selectionSet.map executableFieldOfSelection).map
                     KeyedExecutableField.toExecutableField
               ∧ fieldsTail = []
               ∧ prefixTail = [] := by
   intro hall hfree hnodup responseName field fieldsTail prefixTail hgroup
     hprefix
-  let fields := selectionSet.map (executableFieldOfSelection parentType)
+  let fields := selectionSet.map executableFieldOfSelection
   have hselectionSet :
       keyedExecutableFieldSelections fields = selectionSet := by
-    exact executableFieldSelections_map_executableFieldOfSelection parentType
-      selectionSet hall hfree
+    exact executableFieldSelections_map_executableFieldOfSelection selectionSet
+      hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
     simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection parentType
-        selectionSet hall hnodup
-  have hparents : ExecutableFieldsParent parentType
-      (fields.map KeyedExecutableField.toExecutableField) := by
-    simpa [fields] using
-      executableFieldsParent_map_executableFieldOfSelection parentType
-        selectionSet
+      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hgroup' :
       (responseName, field :: fieldsTail) ∈
         GraphQL.Execution.collectFields schema variableValues parentType source
@@ -967,7 +856,7 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_field_mem_prefi
     simpa [hselectionSet] using hgroup
   rcases
       collectFields_executableFieldSelections_prefix_empty schema
-        variableValues parentType source hfieldsNodup hparents hgroup'
+        variableValues parentType source hfieldsNodup hgroup'
         hprefix with
     ⟨keyedField, hkeyedField, _hresponseName, hfieldEq, hfieldsTail,
       hprefixTail⟩
@@ -1182,26 +1071,20 @@ theorem of_allFields_directiveFree_responseNamesNodup
       -> FreshPrefixSelectionDerivation schema variableValues parentType source
           selectionSet := by
   intro hall hfree hnodup
-  let fields := selectionSet.map (executableFieldOfSelection parentType)
+  let fields := selectionSet.map executableFieldOfSelection
   have hselectionSet :
       keyedExecutableFieldSelections fields = selectionSet := by
-    exact executableFieldSelections_map_executableFieldOfSelection parentType
-      selectionSet hall hfree
+    exact executableFieldSelections_map_executableFieldOfSelection selectionSet
+      hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
     simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection parentType selectionSet
-        hall hnodup
-  have hparents : ExecutableFieldsParent parentType
-      (fields.map KeyedExecutableField.toExecutableField) := by
-    simpa [fields] using
-      executableFieldsParent_map_executableFieldOfSelection parentType
-        selectionSet
+      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hderivation :
       FreshPrefixSelectionDerivation schema variableValues parentType source
         (keyedExecutableFieldSelections fields) :=
     of_executableFieldSelections_responseNamesNodup schema variableValues
-      parentType source fields hfieldsNodup hparents
+      parentType source fields hfieldsNodup
   rwa [hselectionSet] at hderivation
 
 theorem
@@ -1210,9 +1093,6 @@ theorem
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map KeyedExecutableField.toExecutableField))
     : SelectionSetCollectFieldsHeadDisjointTree schema variableValues parentType
         source (keyedExecutableFieldSelections fields) := by
   have htree :
@@ -1231,10 +1111,6 @@ theorem
             SelectionSetCollectFieldsHeadDisjoint]
           constructor
           · intro responseName hleft hright
-            have hrestParents : ExecutableFieldsParent parentType
-                (rest.map KeyedExecutableField.toExecutableField) := by
-              intro restField hrestField
-              exact hparents restField (by simp [hrestField])
             have hrestNodup :
                 (rest.map (fun field => field.responseName)).Nodup := by
               simpa using (List.nodup_cons.mp hnodup).2
@@ -1245,14 +1121,12 @@ theorem
               collectFields_executableFieldSelections_singletonExecutableGroups
                 schema variableValues parentType source [field]
                 (by simp)
-                (by intro _ _; trivial)
             have hrestCollect :
                 GraphQL.Execution.collectFields schema variableValues parentType
                     source (keyedExecutableFieldSelections rest) =
                   singletonExecutableGroups rest :=
               collectFields_executableFieldSelections_singletonExecutableGroups
                 schema variableValues parentType source rest hrestNodup
-                hrestParents
             have hheadCollect' :
                 GraphQL.Execution.collectFields schema variableValues parentType
                     source [keyedExecutableFieldSelection field] =
@@ -1273,9 +1147,6 @@ theorem
             exact (List.nodup_cons.mp hnodup).1 (by
               simpa [hleftEq] using hrightMem)
           · exact ih (by simpa using (List.nodup_cons.mp hnodup).2)
-              (by
-                intro restField hrestField
-                exact hparents restField (by simp [hrestField]))
     · intro selection hselection
       rcases List.mem_map.mp hselection with ⟨field, _hfield, hselectionEq⟩
       cases hselectionEq
@@ -1295,9 +1166,6 @@ theorem collectFields_executableFieldSelections_single_prefix_duplicate_fresh_mi
     (middle : List KeyedExecutableField)
     (hsameResponse : later.responseName = first.responseName)
     (hmiddleNodup : (middle.map (fun field => field.responseName)).Nodup)
-    (hmiddleParents
-      : ExecutableFieldsParent parentType
-          (middle.map KeyedExecutableField.toExecutableField))
     (hnotMiddle : later.responseName ∉ middle.map (fun field => field.responseName))
     : GraphQL.Execution.collectFields schema variableValues parentType source
         (keyedExecutableFieldSelections ([first] ++ (middle ++ [later])))
@@ -1319,11 +1187,11 @@ theorem collectFields_executableFieldSelections_single_prefix_duplicate_fresh_mi
           (keyedExecutableFieldSelections middle) =
         FreshPrefixSelectionDerivation.singletonExecutableGroups middle :=
     FreshPrefixSelectionDerivation.collectFields_executableFieldSelections_singletonExecutableGroups
-      schema variableValues parentType source middle hmiddleNodup hmiddleParents
+      schema variableValues parentType source middle hmiddleNodup
   have hdup :=
     collectFields_duplicate_field_middle_append_eq_collected_middle schema
       variableValues parentType source first.responseName first.toExecutableField
-      later.toExecutableField (keyedExecutableFieldSelections middle) [] rfl
+      later.toExecutableField (keyedExecutableFieldSelections middle) []
       hnotMiddleCollect
   rw [hmiddleCollect] at hdup
   simpa [keyedExecutableFieldSelections, keyedExecutableFieldSelection,
@@ -1351,27 +1219,27 @@ theorem freshFlat
       exact VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
         schema resolvers variableValues (completionDepth + 1) parentType source
         left right hdisjoint ihleft ihright
-  | sameGroup responseName fields hresponse hparent =>
+  | sameGroup responseName fields =>
       exact
         VisitSubfieldsFlatCollectsFreshPrefixes_executableFieldSelections_same_group
           schema resolvers variableValues (completionDepth + 1) parentType
           source responseName fields
-  | duplicateFieldBlockNormalize responseName first later middle suffix hsameResponse
+  | duplicateFieldBlockNormalize responseName first later middle suffix
       hlaterLookup hnotMiddle hmiddle hnormalized ihmiddle ihnormalized =>
       exact
         VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_normalized
           schema resolvers variableValues completionDepth parentType source
-          responseName first later middle suffix hsameResponse hlaterLookup hnotMiddle
+          responseName first later middle suffix hlaterLookup hnotMiddle
           ihmiddle ihnormalized
   | consDisjoint selection rest hselection hrest hdisjoint ihrest =>
       exact VisitSubfieldsFlatCollectsFreshPrefixes_cons_of_namesDisjoint schema
         resolvers variableValues (completionDepth + 1) parentType source
         selection rest hdisjoint hselection ihrest
-  | duplicateFieldBlock responseName first later middle suffix hsameResponse hlaterLookup
+  | duplicateFieldBlock responseName first later middle suffix hlaterLookup
       hnotMiddle hdisjoint hmiddle hsuffix ihmiddle ihsuffix =>
       exact VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
         schema resolvers variableValues completionDepth parentType source
-        responseName first later middle suffix hsameResponse hlaterLookup
+        responseName first later middle suffix hlaterLookup
         hnotMiddle hdisjoint
         ihmiddle ihsuffix
 
@@ -1483,7 +1351,7 @@ theorem duplicateFieldBlock_of_headDisjointTrees
           ++ middle
           ++ executableFieldSelections responseName [later]
           ++ suffix) :=
-  .duplicateFieldBlock responseName first later middle suffix rfl hlaterLookup
+  .duplicateFieldBlock responseName first later middle suffix hlaterLookup
     hnotMiddle hdisjoint
     (of_headDisjointTree schema resolvers variableValues completionDepth
       parentType source middle hmiddle)
@@ -1532,41 +1400,28 @@ theorem of_collectedGroups
     : ∀ groups,
         PairKeysNodup groups
         -> CollectedGroupsFieldsNonempty groups
-        -> CollectedGroupsResponseName groups
-        -> CollectedGroupsParent parentType groups
         -> FreshPrefixSelectionPlan schema resolvers variableValues
             completionDepth parentType source
             (collectedExecutableSelections groups)
-  | [], _hnodup, _hnonempty, _hresponses, _hparents => by
+  | [], _hnodup, _hnonempty => by
       simpa [collectedExecutableSelections, executableFieldSelections] using
         (FreshPrefixSelectionPlan.nil
           (schema := schema) (resolvers := resolvers)
           (variableValues := variableValues)
           (completionDepth := completionDepth)
           (parentType := parentType) (source := source))
-  | (responseName, fields) :: rest, hnodup, hnonempty, hresponses, hparents =>
+  | (responseName, fields) :: rest, hnodup, hnonempty =>
       by
         have hrestNodup : PairKeysNodup rest :=
           PairKeysNodup.tail hnodup
         have hrestNonempty : CollectedGroupsFieldsNonempty rest :=
           CollectedGroupsFieldsNonempty_tail hnonempty
-        have hrestResponses : CollectedGroupsResponseName rest :=
-          CollectedGroupsResponseName_tail hresponses
-        have hrestParents : CollectedGroupsParent parentType rest :=
-          CollectedGroupsParent_tail hparents
         have hfieldsNonempty : fields ≠ [] :=
           hnonempty responseName fields (by simp)
         cases fields with
         | nil =>
             exact False.elim (hfieldsNonempty rfl)
         | cons field fieldsTail =>
-            have hheadResponse :
-                ExecutableFieldsResponseName responseName
-                  (field :: fieldsTail) :=
-              hresponses responseName (field :: fieldsTail) (by simp)
-            have hheadParent :
-                ExecutableFieldsParent parentType (field :: fieldsTail) :=
-              hparents responseName (field :: fieldsTail) (by simp)
             have hheadCollect :
                 GraphQL.Execution.collectFields schema variableValues
                   parentType source
@@ -1582,7 +1437,7 @@ theorem of_collectedGroups
                 rest :=
               collectFields_executableFieldSelections_collectedExecutableFields
                 schema variableValues parentType source rest hrestNodup
-                hrestNonempty hrestResponses hrestParents
+                hrestNonempty
             have hdisjoint :
                 GraphQL.NormalForm.executableGroupNamesDisjoint
                   (GraphQL.Execution.collectFields schema variableValues
@@ -1603,15 +1458,13 @@ theorem of_collectedGroups
                   completionDepth parentType source
                   (executableFieldSelections responseName
                     (field :: fieldsTail)) :=
-              .sameGroup responseName (field :: fieldsTail) hheadResponse
-                hheadParent
+              .sameGroup responseName (field :: fieldsTail)
             have htail :
                 FreshPrefixSelectionPlan schema resolvers variableValues
                   completionDepth parentType source
                   (collectedExecutableSelections rest) :=
               of_collectedGroups schema resolvers variableValues completionDepth
                 parentType source rest hrestNodup hrestNonempty
-                hrestResponses hrestParents
             simpa [collectedExecutableSelections, executableFieldSelections] using
               FreshPrefixSelectionPlan.appendDisjoint
                 (schema := schema) (resolvers := resolvers)
@@ -1642,8 +1495,6 @@ theorem of_collectedCollectFields
       (GraphQL.NormalForm.collectFields_namesNodup schema variableValues
         parentType source selectionSet))
     (collectFields_fieldsNonempty schema variableValues parentType source selectionSet)
-    (collectFields_responseName schema variableValues parentType source selectionSet)
-    (collectFields_parent schema variableValues parentType source selectionSet)
 
 theorem duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
     {ObjectIdentity : Type}
@@ -1652,7 +1503,6 @@ theorem duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    (hparents : ExecutableFieldsParent parentType [first, later])
     (hnotMiddle
       : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1682,10 +1532,6 @@ theorem duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
         source middle)
   let normalizedBlock := executableFieldSelections responseName [first, later] ++
     collectedMiddle
-  have hpairResponses :
-      ExecutableFieldsResponseName responseName [first, later] := by
-    intro _field _hfield
-    trivial
   have hpairCollect :
       GraphQL.Execution.collectFields schema variableValues parentType source
           (executableFieldSelections responseName [first, later]) =
@@ -1722,7 +1568,7 @@ theorem duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
       (parentType := parentType) (source := source)
       (executableFieldSelections responseName [first, later])
       collectedMiddle
-      (.sameGroup responseName [first, later] hpairResponses hparents)
+      (.sameGroup responseName [first, later])
       (of_collectedCollectFields schema resolvers variableValues
         completionDepth parentType source middle)
       hpairMiddleDisjoint
@@ -1734,7 +1580,7 @@ theorem duplicateFieldBlockNormalizePlan_of_headDisjointSuffix
           normalizedBlock := by
     have hcollect :=
       collectFields_duplicate_field_middle_append_eq_collected_middle schema
-        variableValues parentType source responseName first later middle [] rfl
+        variableValues parentType source responseName first later middle []
         hnotMiddle
     simpa [normalizedBlock, collectedMiddle] using hcollect
   have hblockSuffixDisjoint :
@@ -1775,9 +1621,8 @@ theorem of_derivation
         (of_derivation schema resolvers variableValues completionDepth
           parentType source hright)
         hdisjoint
-  | _, FreshPrefixSelectionDerivation.sameGroup responseName fields hresponse
-        hparent =>
-      .sameGroup responseName fields hresponse hparent
+  | _, FreshPrefixSelectionDerivation.sameGroup responseName fields =>
+      .sameGroup responseName fields
   | _, FreshPrefixSelectionDerivation.inlineFragmentNone directives
         selectionSet hselectionSet =>
       .consDisjoint (.inlineFragment none directives selectionSet) []
@@ -1810,9 +1655,9 @@ theorem of_derivation
           intro responseName _hleft hright
           simp [GraphQL.Execution.collectFields] at hright)
   | _, FreshPrefixSelectionDerivation.duplicateFieldBlockNormalize responseName
-        first later middle suffix hsameResponse hlaterLookup hnotMiddle hmiddle
+        first later middle suffix hlaterLookup hnotMiddle hmiddle
         hnormalized =>
-      .duplicateFieldBlockNormalize responseName first later middle suffix hsameResponse
+      .duplicateFieldBlockNormalize responseName first later middle suffix
         hlaterLookup hnotMiddle
         (of_derivation schema resolvers variableValues completionDepth
           parentType source hmiddle)
@@ -1828,9 +1673,9 @@ theorem of_derivation
           parentType source hrest)
         hdisjoint
   | _, FreshPrefixSelectionDerivation.duplicateFieldBlock responseName first later
-        middle suffix hsameResponse hlaterLookup hnotMiddle hdisjoint hmiddle
+        middle suffix hlaterLookup hnotMiddle hdisjoint hmiddle
         hsuffix =>
-      .duplicateFieldBlock responseName first later middle suffix hsameResponse
+      .duplicateFieldBlock responseName first later middle suffix
         hlaterLookup
         hnotMiddle hdisjoint
         (of_derivation schema resolvers variableValues completionDepth
@@ -1845,16 +1690,12 @@ theorem of_executableFieldSelections_responseNamesNodup
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (fields : List FreshPrefixSelectionDerivation.KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     : FreshPrefixSelectionPlan schema resolvers variableValues completionDepth
         parentType source
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections fields) :=
   of_derivation schema resolvers variableValues completionDepth parentType source
     (FreshPrefixSelectionDerivation.of_executableFieldSelections_responseNamesNodup
-      schema variableValues parentType source fields hnodup hparents)
+      schema variableValues parentType source fields hnodup)
 
 theorem of_allFields_directiveFree_responseNamesNodup
     {ObjectIdentity : Type}

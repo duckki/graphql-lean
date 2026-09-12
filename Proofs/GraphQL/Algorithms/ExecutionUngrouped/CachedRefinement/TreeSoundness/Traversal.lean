@@ -63,11 +63,6 @@ mutual
         universeSet
     let flatEntries :=
       ExecutionUngroupedUncached.Eager.collectedExecutableEntries groups
-    have hresponses :
-        ExecutionUngroupedUncached.Eager.CollectedGroupsResponseName groups := by
-      exact
-        ExecutionUngroupedUncached.Eager.collectFields_responseName schema
-          variableValues parentType source universeSet
     have hgroupsNodup :
         ExecutionUngroupedUncached.Eager.PairKeysNodup groups := by
       exact
@@ -475,7 +470,7 @@ mutual
                       (.object source outputFields) hwithin hmergeReady haligned
                       (OutputCacheSoundForGroups.to_flat schema resolvers variableValues
                         parentType source
-                        groups (.object source outputFields) hresponses hsource)
+                        groups (.object source outputFields) hsource)
                   have hpostSource :=
                     OutputCacheSoundForFields.to_groups schema resolvers variableValues
                       parentType source groups
@@ -483,7 +478,7 @@ mutual
                         (completionFuel + 1) parentType source
                         (.field responseName fieldName arguments directives selectionSet)
                         (.object source outputFields)).value
-                      hresponses hpostSourceFlat
+                      hpostSourceFlat
                   have hpostTree :
                       OutputCacheTreeSoundForGroups schema resolvers variableValues
                         (completionFuel + 1) parentType source groups

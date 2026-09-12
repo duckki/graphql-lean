@@ -9,6 +9,7 @@ namespace QueryInclusion
 open Execution
 open Execution.FieldGroups
 open SelectionConditions
+open ConditionTree
 
 -- Filtering specification used to relate the one-pass executable grouping function to
 -- the field-group semantics.
@@ -18,23 +19,21 @@ def conditionedFieldsForResponseName (responseName : Name)
   entries.filter fun entry => entry.field.responseName == responseName
 
 def guardedFieldRuntimeGroups (variableValues : VariableValues)
-    (executionParentType runtimeType : Name)
+    (runtimeType : Name)
     (groups : List GuardedFieldGroup)
     : List (Name × List ExecutableField) :=
   groups.flatMap
     fun group =>
       executableFieldsAsGroup group.responseName
-        (guardedFieldExecutableFields variableValues executionParentType runtimeType
-          group.responseName group.entries)
+        (guardedFieldExecutableFields variableValues runtimeType group.entries)
 
 theorem guardedFieldExecutableFields_entriesForName
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (responseName : Name)
     (entries : List SelectionConditions.ConditionedField)
-    : guardedFieldExecutableFields variableValues executionParentType runtimeType
-        responseName (conditionedFieldsForResponseName responseName entries)
-      = ((SelectionConditions.runtimeFields variableValues executionParentType
-            runtimeType entries).filter
+    : guardedFieldExecutableFields variableValues runtimeType
+        (conditionedFieldsForResponseName responseName entries)
+      = ((SelectionConditions.runtimeFields variableValues runtimeType entries).filter
           (fun entry : Name × ExecutableField => entry.1 == responseName)).map
           Prod.snd := by
   induction entries with
@@ -42,8 +41,8 @@ theorem guardedFieldExecutableFields_entriesForName
       SelectionConditions.runtimeFields]
   | cons entry rest ih =>
       rcases entry with ⟨condition, field⟩
-      rw [conditionedFieldsForResponseName, SelectionConditions.runtimeFields]
-      simp only [List.flatMap_cons, List.filter_append]
+      simp only [conditionedFieldsForResponseName, List.filter_cons,
+        SelectionConditions.runtimeFields, List.flatMap_cons, List.filter_append]
       by_cases hname : field.responseName = responseName <;>
         cases hallow : condition.allows variableValues runtimeType <;>
         simp [hname, hallow, guardedFieldExecutableFields] <;>
@@ -418,18 +417,16 @@ theorem executableGroupsForResponseNames_runtimeFieldGroupsExact (names : List N
     exact filtersByResponseNames_perm names fields hnodup hcovered
 
 theorem runtimeFields_responseName_mem
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
     {field : Name × ExecutableField}
     (hfield
-      : field
-        ∈ SelectionConditions.runtimeFields variableValues
-            executionParentType runtimeType entries)
+      : field ∈ SelectionConditions.runtimeFields variableValues runtimeType entries)
     : field.1 ∈ entries.map fun entry => entry.field.responseName := by
   induction entries with
   | nil => simp [SelectionConditions.runtimeFields] at hfield
   | cons entry rest ih =>
-      rw [SelectionConditions.runtimeFields, List.flatMap_cons] at hfield
+      simp only [SelectionConditions.runtimeFields, List.flatMap_cons] at hfield
       rcases List.mem_append.mp hfield with hhead | hrest
       · split at hhead
         · simp at hhead
@@ -439,19 +436,16 @@ theorem runtimeFields_responseName_mem
       · simp [ih hrest]
 
 theorem guardedFieldRuntimeGroups_guardedFieldGroups
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
-    : guardedFieldRuntimeGroups variableValues executionParentType runtimeType
-        (guardedFieldGroups entries)
+    : guardedFieldRuntimeGroups variableValues runtimeType (guardedFieldGroups entries)
       = executableGroupsForResponseNames
           ((entries.map fun entry => entry.field.responseName).eraseDups)
-          (SelectionConditions.runtimeFields variableValues executionParentType
-            runtimeType entries) := by
-  let fields := SelectionConditions.runtimeFields variableValues executionParentType
-    runtimeType entries
+          (SelectionConditions.runtimeFields variableValues runtimeType entries) := by
+  let fields := SelectionConditions.runtimeFields variableValues runtimeType entries
   let names := (entries.map fun entry => entry.field.responseName).eraseDups
   rw [guardedFieldGroups_eq_byFiltering]
-  change guardedFieldRuntimeGroups variableValues executionParentType runtimeType
+  change guardedFieldRuntimeGroups variableValues runtimeType
       (names.map fun responseName =>
         { responseName,
           entries := conditionedFieldsForResponseName responseName entries })
@@ -467,40 +461,35 @@ theorem guardedFieldRuntimeGroups_guardedFieldGroups
           ((fields.filter fun field => field.1 == responseName).map Prod.snd) ++ tail) ih
 
 theorem guardedFieldRuntimeGroups_runtimeFieldGroupsExact
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
     : RuntimeFieldGroupsExact
-        (SelectionConditions.runtimeFields variableValues executionParentType
-          runtimeType entries)
-        (guardedFieldRuntimeGroups variableValues executionParentType runtimeType
+        (SelectionConditions.runtimeFields variableValues runtimeType entries)
+        (guardedFieldRuntimeGroups variableValues runtimeType
           (guardedFieldGroups entries)) := by
   rw [guardedFieldRuntimeGroups_guardedFieldGroups]
   apply executableGroupsForResponseNames_runtimeFieldGroupsExact
   · exact eraseDups_nodup _
   · intro field hfield
     exact List.mem_eraseDups.mpr
-      (runtimeFields_responseName_mem variableValues executionParentType
-        runtimeType entries hfield)
+      (runtimeFields_responseName_mem variableValues runtimeType entries hfield)
 
 theorem guardedFieldRuntimeGroups_permutationEquivalent
-    (variableValues : VariableValues) (executionParentType runtimeType : Name)
+    (variableValues : VariableValues) (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
     : RuntimeGroupsPermutationEquivalent
-        (guardedFieldRuntimeGroups variableValues executionParentType runtimeType
+        (guardedFieldRuntimeGroups variableValues runtimeType
           (guardedFieldGroups entries))
         (groupExecutableFields
-          (SelectionConditions.runtimeFields variableValues executionParentType
-            runtimeType entries)) := by
-  let guardedGroups := guardedFieldRuntimeGroups variableValues executionParentType
-    runtimeType (guardedFieldGroups entries)
+          (SelectionConditions.runtimeFields variableValues runtimeType entries)) := by
+  let guardedGroups := guardedFieldRuntimeGroups variableValues runtimeType
+    (guardedFieldGroups entries)
   let groupedFields := groupExecutableFields
-    (SelectionConditions.runtimeFields variableValues executionParentType runtimeType
-      entries)
+    (SelectionConditions.runtimeFields variableValues runtimeType entries)
   have hguarded := guardedFieldRuntimeGroups_runtimeFieldGroupsExact variableValues
-    executionParentType runtimeType entries
+    runtimeType entries
   have hgrouped := groupExecutableFields_exact
-    (SelectionConditions.runtimeFields variableValues executionParentType runtimeType
-      entries)
+    (SelectionConditions.runtimeFields variableValues runtimeType entries)
   exact {
     leftWellFormed := by
       rw [guardedFieldRuntimeGroups_guardedFieldGroups]

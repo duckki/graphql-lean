@@ -108,27 +108,6 @@ abbrev CoercedInputValue := ConstInputValue
 -- semantics would matter.
 abbrev VariableValues := List (Name × CoercedInputValue)
 
-mutual
-  -- Variable names that the input syntax can resolve. Runtime values are ground, so
-  -- argument coercion never needs unrelated entries from the operation environment.
-  def inputValueReferencedVariables : InputValue -> List Name
-    | .variable name => [name]
-    | .list values => inputValueListReferencedVariables values
-    | .object fields => inputValueObjectFieldsReferencedVariables fields
-    | _ => []
-
-  def inputValueListReferencedVariables : List InputValue -> List Name
-    | [] => []
-    | value :: rest =>
-        inputValueReferencedVariables value ++ inputValueListReferencedVariables rest
-
-  def inputValueObjectFieldsReferencedVariables : List (Name × InputValue) -> List Name
-    | [] => []
-    | (_, value) :: rest =>
-        inputValueReferencedVariables value
-        ++ inputValueObjectFieldsReferencedVariables rest
-end
-
 -- Spec 6.4.2 resolver argument entry. Both the argument map and runtime variable map use
 -- the variable-free input grammar, so executable syntax cannot cross the resolver
 -- boundary.

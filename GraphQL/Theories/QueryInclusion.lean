@@ -464,7 +464,7 @@ def guardedFieldGroupBooleanVariables (left right : GuardedFieldGroup) : List Na
         SelectionConditions.BooleanLiteral.variableName).eraseDups
 
 def guardedFieldExecutableFields (variableValues : VariableValues)
-    (executionParentType runtimeType : Name) (responseName : Name)
+    (runtimeType : Name)
     (entries : List SelectionConditions.ConditionedField)
     : List ExecutableField :=
   entries.flatMap
@@ -611,13 +611,10 @@ mutual
         match region with
         | [] => true
         | runtimeType :: _rest =>
-            let executionParentType := fixedExecutionParentType.getD runtimeType
             let leftFields :=
-              guardedFieldExecutableFields variableValues executionParentType
-                runtimeType left.responseName left.entries
+              guardedFieldExecutableFields variableValues runtimeType left.entries
             let rightFields :=
-              guardedFieldExecutableFields variableValues executionParentType
-                runtimeType right.responseName right.entries
+              guardedFieldExecutableFields variableValues runtimeType right.entries
             match responseFuel with
             | 0 => rightFields.isEmpty
             | responseFuel + 1 =>

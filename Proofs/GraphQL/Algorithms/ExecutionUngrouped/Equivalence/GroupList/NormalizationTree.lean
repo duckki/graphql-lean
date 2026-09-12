@@ -46,10 +46,6 @@ inductive SelectionSetFreshPlanNormalizationTree
   | executableFieldSelectionsResponseNamesNodup
     (fields : List FreshPrefixSelectionDerivation.KeyedExecutableField)
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
-    (hparents
-      : ExecutableFieldsParent parentType
-          (fields.map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField))
     : SelectionSetFreshPlanNormalizationTree schema resolvers variableValues
         completionDepth parentType source
         (FreshPrefixSelectionDerivation.keyedExecutableFieldSelections fields)
@@ -156,9 +152,6 @@ inductive SelectionSetFreshPlanNormalizationTree
     : later.responseName = first.responseName
       -> (∃ fieldDefinition,
             schema.lookupField parentType later.fieldName = some fieldDefinition)
-      -> ExecutableFieldsParent parentType
-          (([first] ++ (middle ++ [later])).map
-            FreshPrefixSelectionDerivation.KeyedExecutableField.toExecutableField)
       -> (middle.map (fun field => field.responseName)).Nodup
       -> later.responseName ∉ middle.map (fun field => field.responseName)
       -> SelectionSetFreshPlanNormalizationTree schema resolvers variableValues
@@ -170,9 +163,8 @@ inductive SelectionSetFreshPlanNormalizationTree
   | duplicateFieldBlockNormalize
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -200,9 +192,8 @@ inductive SelectionSetFreshPlanNormalizationTree
   | duplicateFieldBlockNormalizeHeadDisjointMiddle
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -230,9 +221,8 @@ inductive SelectionSetFreshPlanNormalizationTree
   | duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
     (responseName : Name) (first later : ExecutableField)
     (middle suffix : List Selection)
-    : responseName = responseName -> ExecutableFieldsParent parentType [first, later]
-      -> (∃ fieldDefinition,
-            schema.lookupField parentType later.fieldName = some fieldDefinition)
+    : (∃ fieldDefinition,
+        schema.lookupField parentType later.fieldName = some fieldDefinition)
       -> responseName
           ∉ (GraphQL.Execution.collectFields schema variableValues parentType
               source middle).map
@@ -283,11 +273,11 @@ theorem normalizes
   | ofHeadDisjointTree tree =>
       exact SelectionSetFreshPlanNormalizes.of_headDisjointTree schema
         resolvers variableValues completionDepth parentType source tree
-  | executableFieldSelectionsResponseNamesNodup fields hnodup hparents =>
+  | executableFieldSelectionsResponseNamesNodup fields hnodup =>
       exact
         SelectionSetFreshPlanNormalizes.of_executableFieldSelections_responseNamesNodup
           schema resolvers variableValues completionDepth parentType source
-          fields hnodup hparents
+          fields hnodup
   | appendDisjoint left right hdisjoint ihleft ihright =>
       exact SelectionSetFreshPlanNormalizes.appendDisjoint ihleft ihright
         hdisjoint
@@ -326,31 +316,31 @@ theorem normalizes
       exact SelectionSetFreshPlanNormalizes.inlineFragmentSomeDoesNotApply
         typeCondition directives selectionSet hallows hnotApply
   | executableFieldSinglePrefixDuplicateFreshMiddle first later middle
-      hsameResponse hlaterLookup hparents hmiddleNodup hnotMiddle =>
+      hsameResponse hlaterLookup hmiddleNodup hnotMiddle =>
       exact
         SelectionSetFreshPlanNormalizes.executableFieldSinglePrefixDuplicateFreshMiddle
-          first later middle hsameResponse hlaterLookup hparents hmiddleNodup
+          first later middle hsameResponse hlaterLookup hmiddleNodup
           hnotMiddle
-  | duplicateFieldBlockNormalize responseName first later middle suffix hsameResponse
+  | duplicateFieldBlockNormalize responseName first later middle suffix
       hlaterLookup hnotMiddle hmiddle hnormalized =>
       exact SelectionSetFreshPlanNormalizes.duplicateFieldBlockNormalize schema
         resolvers variableValues completionDepth parentType source responseName first later
-        middle suffix hsameResponse hlaterLookup hnotMiddle hmiddle
+        middle suffix hlaterLookup hnotMiddle hmiddle
         hnormalized
   | duplicateFieldBlockNormalizeHeadDisjointMiddle responseName first later middle suffix
-      hsameResponse hlaterLookup hnotMiddle hmiddle hnormalized =>
+      hlaterLookup hnotMiddle hmiddle hnormalized =>
       exact
         SelectionSetFreshPlanNormalizes.duplicateFieldBlockNormalizeHeadDisjointMiddle
           schema resolvers variableValues completionDepth parentType source
-          responseName first later middle suffix hsameResponse hlaterLookup hnotMiddle hmiddle
+          responseName first later middle suffix hlaterLookup hnotMiddle hmiddle
           hnormalized
   | duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix responseName first later middle
-      suffix hsameResponse hparents hlaterLookup hnotMiddle hdisjoint hmiddle
+      suffix hlaterLookup hnotMiddle hdisjoint hmiddle
       hsuffix =>
       exact
         SelectionSetFreshPlanNormalizes.duplicateFieldBlockNormalizeHeadDisjointMiddleSuffix
           schema resolvers variableValues completionDepth parentType source
-          responseName first later middle suffix hsameResponse hparents hlaterLookup
+          responseName first later middle suffix hlaterLookup
           hnotMiddle hdisjoint hmiddle hsuffix
 
 theorem of_derivation
@@ -740,7 +730,6 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_allOutp
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField)
     (middle : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -778,7 +767,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_allOutp
               none
               (executableField first.fieldName first.arguments first.selectionSet)))
           (executableField later.fieldName later.arguments later.selectionSet))
-      suffix hsameResponse hlaterLookup hnotMiddle rfl rfl hsuffix
+      suffix hlaterLookup hnotMiddle rfl rfl hsuffix
       (hmiddle _)
 
 end Eager

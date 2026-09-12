@@ -932,15 +932,13 @@ theorem ExecutableGroupsFlatSpecEquivalent_depth_zero_general
     (groups : List (Name × List ExecutableField))
     (hnodup : PairKeysNodup groups)
     (hnonempty : CollectedGroupsFieldsNonempty groups)
-    (hresponses : CollectedGroupsResponseName groups)
-    (hparents : CollectedGroupsParent parentType groups)
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues 0
         parentType source groups := by
   unfold ExecutableGroupsFlatSpecEquivalent
   have hspec :=
     specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields
       schema resolvers variableValues 0 parentType source groups hnodup
-      hnonempty hresponses hparents
+      hnonempty
   have hcollected :=
     executeCollectedFields_depth_zero_nonempty schema resolvers variableValues
       parentType source groups hnonempty
@@ -963,8 +961,7 @@ theorem ExecutableGroupsFlatSpecEquivalent_depth_zero_general
         (collectedExecutableSelections (group :: rest)) []
         ResponseMergeReady_empty_object]
       rw [collectFields_executableFieldSelections_collectedExecutableFields
-        schema variableValues parentType source (group :: rest) hnodup hnonempty
-        hresponses hparents]
+        schema variableValues parentType source (group :: rest) hnodup hnonempty]
       cases hzero : zeroDepthExecutableGroupsResult (group :: rest) [] with
       | mk output status =>
           have hstatus' :
@@ -1006,17 +1003,13 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_all
       -> VisitSubfieldsFlatCollectsFreshPrefixes schema resolvers variableValues
           (completionDepth + 1) parentType source selectionSet := by
   intro hlookupValid
-  have hparents :
-      ExecutableFieldsParent parentType ([] : List ExecutableField) := by
-    intro field hfield
-    simp at hfield
   rcases
       SelectionSetFreshPlanNormalizes.executablePrefixRawNormalizes
         (schema := schema) (resolvers := resolvers)
         (variableValues := variableValues)
         (completionDepth := completionDepth) (parentType := parentType)
         (source := source)
-        ([] : List FreshPrefixSelectionDerivation.KeyedExecutableField) hparents
+        ([] : List FreshPrefixSelectionDerivation.KeyedExecutableField)
         (by
           intro field hfield
           simp at hfield)

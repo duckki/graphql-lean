@@ -24,7 +24,6 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
     (responseName : Name) (first later : ExecutableField) (middle : List Selection)
     (firstResponse laterResponse : ResponseValue)
     (suffix : List (Name × ResponseValue))
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -121,7 +120,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
             (executableField later.fieldName
               later.arguments later.selectionSet)) =
          laterResponse := by
-    simpa [laterField, hsameResponse] using hlaterValue
+    simpa [laterField] using hlaterValue
   have hlaterVisitValue :
       resultValueOrNull laterVisitResult = laterResponse := by
     dsimp [laterVisitResult]
@@ -201,7 +200,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
           (.object ([(responseName, firstResponse)] ++ suffix)) =
         some firstResponse := by
       apply responseObjectField?_object_append_of_some_left
-      simp [responseObjectField?, lookupResponseField?, hsameResponse]
+      simp [responseObjectField?, lookupResponseField?]
     rw [show executableFieldSelections responseName [later] =
         [executableFieldSelection responseName later] by rfl]
     simp only [visitSubfields, executableFieldSelection]
@@ -230,13 +229,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                   (executableField later.fieldName later.arguments later.selectionSet)) =
               laterResponse := by
             symm
-            simpa [laterField, hsameResponse] using hlaterResponse
+            simpa [laterField] using hlaterResponse
           exact hdata.trans hlaterNull
-        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, hsameResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
+        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
     | scalar value =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -260,13 +258,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.scalar value))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
     | object objectFields =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -290,13 +287,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.object objectFields))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
     | list values =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -320,9 +316,9 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.list values))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
   have hmergedMiddleFlat :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatMiddle
@@ -417,7 +413,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         responseObjectField? responseName
           (.object [(responseName, firstResponse)]) =
         some firstResponse := by
-      simp [responseObjectField?, lookupResponseField?, hsameResponse]
+      simp [responseObjectField?, lookupResponseField?]
     rw [show executableFieldSelections responseName [later] =
         [executableFieldSelection responseName later] by rfl]
     simp only [visitSubfields, executableFieldSelection]
@@ -446,13 +442,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                   (executableField later.fieldName later.arguments later.selectionSet)) =
               laterResponse := by
             symm
-            simpa [laterField, hsameResponse] using hlaterResponse
+            simpa [laterField] using hlaterResponse
           exact hdata.trans hlaterNull
-        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, hsameResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
+        simp [hlaterNull, visitOk, laterStatus, mergeResponseFieldIntoObject, mergeResponseField, mergeResponse, mergeResponseFieldResult, executeField, executableField, hlaterLookup, reusablePreviousValue?_null, resultStatus, combineVisitStatus, GraphQL.Execution.Result.combine]
     | scalar value =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -476,13 +471,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.scalar value))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
     | object objectFields =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -506,13 +500,12 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.object objectFields))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
     | list values =>
         simp [mergeResponseFieldResult, mergeResponseFieldIntoObject,
           laterStatus]
-        rw [hsameResponse]
         change
           mergeResponseField responseName
               (resultValueOrNull
@@ -536,9 +529,9 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
                     completionDepth parentType source (some (.list values))
                     (executableField later.fieldName later.arguments later.selectionSet)) =
                 laterResponse by
-                simpa [laterVisitResult, laterField, hsameResponse] using
+                simpa [laterVisitResult, laterField] using
                   hlaterVisitValue]
-        · simp [laterStatus, laterVisitResult, laterField, hsameResponse]
+        · simp [laterStatus, laterVisitResult, laterField]
   have hfirstLater :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source (executableFieldSelections responseName [first, later])
@@ -597,7 +590,6 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -638,7 +630,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
   apply
     VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singleton
       schema resolvers variableValues completionDepth parentType source responseName first
-      later middle firstResponse laterResponse suffix hsameResponse
+      later middle firstResponse laterResponse suffix
       hlaterLookup hnotMiddle
   · rfl
   · rfl
@@ -663,7 +655,6 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -683,7 +674,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes
         (.object []) := by
   apply VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_fresh
     schema resolvers variableValues completionDepth parentType source responseName first
-      later middle hsameResponse hlaterLookup hnotMiddle
+      later middle hlaterLookup hnotMiddle
   · obtain ⟨suffix, hsuffix⟩ :=
       visitSubfields_preserves_object schema resolvers variableValues
         (completionDepth + 1) parentType source
@@ -700,7 +691,6 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -766,7 +756,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
       VisitSubfieldsFlatCollects_duplicate_field_middle_of_freshPrefixes schema
         resolvers variableValues completionDepth parentType source responseName first
       later
-        middle hsameResponse hlaterLookup hnotMiddle hmiddle
+        middle hlaterLookup hnotMiddle hmiddle
     unfold VisitSubfieldsFlatCollects at hflat
     dsimp [rawBlock, flatFields] at hflat
     rw [← hflat]
@@ -808,8 +798,6 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
     (responseName : Name) (prefixFields : List ExecutableField)
     (later : ExecutableField) (middle : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1128,8 +1116,6 @@ theorem
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (prefixFields : List ExecutableField) (later : ExecutableField)
     (middle : List Selection) (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1195,8 +1181,8 @@ theorem
     have hflat :=
       VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
         schema resolvers variableValues completionDepth parentType source
-        responseName prefixFields later middle hprefixNonempty
-        hprefixResponse hlaterResponse hlaterLookup hnotMiddle hmiddle
+        responseName prefixFields later middle hprefixNonempty hlaterLookup
+        hnotMiddle hmiddle
     unfold VisitSubfieldsFlatCollects at hflat
     dsimp [rawBlock, flatFields] at hflat
     rw [← hflat]
@@ -1237,7 +1223,6 @@ theorem visitSubfields_duplicate_field_middle_append_eq_collected_middle
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle suffix : List Selection)
     (prefixFields : List (Name × ResponseValue))
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1289,7 +1274,7 @@ theorem visitSubfields_duplicate_field_middle_append_eq_collected_middle
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
       resolvers variableValues completionDepth parentType source responseName first
       later
-      middle hsameResponse hlaterLookup hnotMiddle hmiddle prefixFields hfresh
+      middle hlaterLookup hnotMiddle hmiddle prefixFields hfresh
   have hnormalizedBlock :
       collectedExecutableSelections
           (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1324,8 +1309,6 @@ theorem visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
     (later : ExecutableField) (middle suffix : List Selection)
     (outputFields : List (Name × ResponseValue))
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1376,8 +1359,8 @@ theorem visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
         (.object outputFields) :=
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_after_same_response_prefix
       schema resolvers variableValues completionDepth parentType source
-      responseName prefixFields later middle hprefixNonempty hprefixResponse
-      hlaterResponse hlaterLookup hnotMiddle hmiddle outputFields hfresh
+      responseName prefixFields later middle hprefixNonempty hlaterLookup
+      hnotMiddle hmiddle outputFields hfresh
   have hnormalizedBlock :
       collectedExecutableSelections
           (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1408,7 +1391,6 @@ theorem collectFields_duplicate_field_middle_append_eq_collected_middle
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hnotMiddle
       : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1466,8 +1448,6 @@ theorem collectFields_group_duplicate_field_middle_append_eq_collected_middle
     (responseName : Name) (prefixFields : List ExecutableField)
     (later : ExecutableField) (middle suffix : List Selection)
     (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
-    (hlaterResponse : responseName = responseName)
     (hnotMiddle
       : responseName
         ∉ (GraphQL.Execution.collectFields schema variableValues parentType
@@ -1524,7 +1504,6 @@ theorem
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (first later : ExecutableField) (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1568,7 +1547,7 @@ theorem
     exact
       collectFields_duplicate_field_middle_append_eq_collected_middle schema
         variableValues parentType source responseName first later middle suffix
-        hsameResponse hnotMiddle
+        hnotMiddle
   have hblockFresh :
       ∀ entry,
         entry ∈
@@ -1609,7 +1588,7 @@ theorem
   rw [visitSubfields_duplicate_field_middle_append_eq_collected_middle schema
     resolvers variableValues completionDepth parentType source responseName first
       later
-    middle suffix prefixFields hsameResponse hlaterLookup hnotMiddle hmiddle
+    middle suffix prefixFields hlaterLookup hnotMiddle hmiddle
     hblockFresh]
   rw [hcollect]
   exact hnormalized prefixFields
@@ -1632,8 +1611,6 @@ theorem
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (prefixFields : List ExecutableField) (later : ExecutableField)
     (middle suffix : List Selection) (hprefixNonempty : prefixFields ≠ [])
-    (hprefixResponse : ∀ field, field ∈ prefixFields -> responseName = responseName)
-    (hlaterResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1677,7 +1654,7 @@ theorem
     exact
       collectFields_group_duplicate_field_middle_append_eq_collected_middle
         schema variableValues parentType source responseName prefixFields later
-        middle suffix hprefixNonempty hprefixResponse hlaterResponse hnotMiddle
+        middle suffix hprefixNonempty hnotMiddle
   have hblockFresh :
       ∀ entry,
         entry ∈
@@ -1718,8 +1695,7 @@ theorem
   rw [visitSubfields_group_duplicate_field_middle_append_eq_collected_middle
     schema resolvers variableValues completionDepth parentType source
     responseName prefixFields later middle suffix outputFields hprefixNonempty
-    hprefixResponse hlaterResponse hlaterLookup hnotMiddle hmiddle
-    hblockFresh]
+    hlaterLookup hnotMiddle hmiddle hblockFresh]
   rw [hcollect]
   exact hnormalized outputFields
     (by
@@ -1740,7 +1716,6 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_of_allOut
     (variableValues : VariableValues) (completionDepth : Nat)
     (parentType : Name) (source : ResolverValue ObjectIdentity)
     (responseName : Name) (first later : ExecutableField) (middle : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1760,7 +1735,7 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_of_allOut
   VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
     resolvers variableValues completionDepth parentType source responseName first
     later
-    middle hsameResponse hlaterLookup hnotMiddle
+    middle hlaterLookup hnotMiddle
     (VisitSubfieldsFlatCollectsFreshPrefixes.of_allOutputs schema resolvers
       variableValues (completionDepth + 1) parentType source middle hmiddle)
 
@@ -1770,7 +1745,6 @@ theorem
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (first later : ExecutableField) (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1807,7 +1781,7 @@ theorem
     VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle schema
       resolvers variableValues completionDepth parentType source responseName first
       later
-      middle hsameResponse hlaterLookup hnotMiddle hmiddle
+      middle hlaterLookup hnotMiddle hmiddle
   simpa [List.append_assoc] using
     VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
       resolvers variableValues (completionDepth + 1) parentType source
@@ -1821,7 +1795,6 @@ theorem
     (variableValues : VariableValues) (completionDepth : Nat) (parentType : Name)
     (source : ResolverValue ObjectIdentity) (responseName : Name)
     (first later : ExecutableField) (middle suffix : List Selection)
-    (hsameResponse : responseName = responseName)
     (hlaterLookup
       : ∃ fieldDefinition,
           schema.lookupField parentType later.fieldName = some fieldDefinition)
@@ -1853,7 +1826,7 @@ theorem
   VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle_append_of_namesDisjoint
     schema resolvers variableValues completionDepth parentType source responseName first
     later
-    middle suffix hsameResponse hlaterLookup hnotMiddle hdisjoint
+    middle suffix hlaterLookup hnotMiddle hdisjoint
     (VisitSubfieldsFlatCollectsFreshPrefixes_of_headDisjointTree schema
       resolvers variableValues (completionDepth + 1) parentType source middle
       hmiddle)

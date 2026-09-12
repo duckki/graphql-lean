@@ -1473,7 +1473,6 @@ theorem generatedNormalizedFieldChild_of_collectFields_field_layer
       have hfieldEq' :
           field =
             (FreshPrefixSelectionDerivation.executableFieldOfSelection
-                parentType
                 (Selection.field selectionResponseName selectionFieldName
                   selectionArguments selectionDirectives selectionSet)).toExecutableField :=
         hfieldEq.symm
@@ -2368,7 +2367,6 @@ theorem collectedFieldGroupLocalAppendInvariant_of_allFieldsNormal
       have hfieldEq' :
           field =
             (FreshPrefixSelectionDerivation.executableFieldOfSelection
-                parentType
                 (Selection.field selectionResponseName selectionFieldName
                   selectionArguments selectionDirectives childSelectionSet)).toExecutableField :=
         hfieldEq.symm
