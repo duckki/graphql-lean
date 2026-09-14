@@ -1993,7 +1993,7 @@ def soundness (schema : Schema) (model : CostModel)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
       intro group parentType field definition value children abstractChildren hrepresentative
-        hparent harguments hlookup _houtput hchildren
+        hparent harguments hlookup _houtput _hdefinitions hchildren
       intro inheritedSizedFields hadmissible
       have hchildren' :
           ResponseObservationBound children
@@ -2100,7 +2100,7 @@ def soundness (schema : Schema) (model : CostModel)
         (bound_toCost_le_toCost (hle sizedFields))
     field_sound := by
       intro parentType field definition value children groups abstractChildren hnonempty hmatch
-        hconditions hargumentsNodup hlookup hchildren
+        hconditions _hdefinitions hargumentsNodup hlookup hchildren
       intro inheritedSizedFields hadmissible
       let combinedChildren :=
         TreeSummary.Syntactic.foldChildSummaries

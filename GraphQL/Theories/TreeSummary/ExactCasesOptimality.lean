@@ -420,7 +420,7 @@ def SelectionSetExecutionCovered
     -> schema.typeIncludesObject parentType runtimeType
     -> SchemaWellFormedness.schemaWellFormed schema
     -> schema.objectType runtimeType
-    -> Validation.selectionSetValid schema variableDefinitions runtimeType selectionSet
+    -> Validation.selectionSetValid schema variableDefinitions parentType selectionSet
     -> FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet
     ->  let source : ResolverValue ObjectRef := .object runtimeType ref
         let runtimeGroups :=

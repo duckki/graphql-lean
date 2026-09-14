@@ -25,10 +25,29 @@ def listMultiplier (listSize : Nat) : TypeRef -> Nat
   | .list inner => listSize * listMultiplier listSize inner
   | .nonNull inner => listMultiplier listSize inner
 
--- Maximum multiplicity of any field output available under this group's possible
--- runtime parent types.
+/-- Maximum field multiplicity computed from one selected field definition. Validated
+operations give every possible runtime implementation the same list-wrapper shape. -/
+def fieldListMultiplierForDefinition (listSize : Nat) (definition : FieldDefinition)
+    : Nat :=
+  max 1 (listMultiplier listSize definition.outputType)
+
+/-- Maximum field multiplicity from one possible runtime parent. Operation validity and
+schema well-formedness ensure that the first possible parent has a field definition and
+that choosing any other possible parent would give the same list-wrapper shape. -/
 def fieldListMultiplier (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
     : Nat :=
+  match group.condition.possibleTypes with
+  | [] => 1
+  | parentType :: _ =>
+      match schema.lookupField parentType group.representativeField.fieldName with
+      | none => 1
+      | some definition => fieldListMultiplierForDefinition listSize definition
+
+/-- Reference implementation that scans every possible runtime parent. This is the
+original `fieldListMultiplier` definition, retained to state the shortcut's correctness
+theorem. -/
+def fieldListMultiplierForAllDefinitions (schema : Schema) (listSize : Nat)
+    (group : CollectedFieldGroup) : Nat :=
   (group.fieldOutputTypes schema).foldl
     (fun multiplier outputType =>
       max multiplier (listMultiplier listSize outputType))

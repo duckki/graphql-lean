@@ -1165,6 +1165,7 @@ structure Soundness
         -> (field.arguments.map Argument.name).Nodup
         -> schema.lookupField parentType field.fieldName = some fieldDefinition
         -> fieldDefinition.outputType ∈ group.fieldOutputTypes schema
+        -> group.FieldDefinitionsCompatible schema
         -> approximates children
             (foldChildSummaryForValue abstract abstractChildren value)
         -> approximates

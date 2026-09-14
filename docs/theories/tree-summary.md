@@ -406,6 +406,20 @@ the affine field rule, and `Nat.max` satisfy the framework's localized least-bou
 obligations. The proof is algebraically valid for every `Nat`; interpreting the
 multiplicity model as realizable list cardinalities assumes a positive list-size bound.
 
+The response-size proof module also isolates the list-shape optimization used by Rust
+commit `fd3b4c0`. `listMultiplier_eq_of_outputTypeSubtype` proves that output covariance
+preserves list multiplicity. `fieldListMultiplier_eq_forDefinition` relates the
+one-parent implementation to `fieldListMultiplierForDefinition`, provided the
+runtime-type region is nonempty and every runtime lookup exists with an output type
+covariant to the selected definition. The public
+`fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier` theorem directly equates
+the original all-parent fold with the one-parent implementation for a compatible valid
+field group.
+`fieldListMultiplier_eq_forDefinition_of_schemaWellFormed` derives those lookup and
+covariance witnesses from schema well-formedness, static field lookup, and the engine's
+possible-type scope. This is a local function equivalence over unbounded `Nat`; it does
+not claim whole-analyzer equivalence or model Rust's saturating `u64` arithmetic.
+
 ## StaticCost example
 
 `GraphQL.Theories.TreeSummary.StaticCost` is a static query-cost analysis

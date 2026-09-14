@@ -451,6 +451,7 @@ structure Soundness
         groups ≠ []
         -> groupsRepresentField groups field
         -> conditionsAllowGroupsAt variableValues parentType groups
+        -> (∀ group, group ∈ groups -> group.FieldDefinitionsCompatible schema)
         -> (field.arguments.map Argument.name).Nodup
         -> schema.lookupField parentType field.fieldName = some definition
         -> approximates children
