@@ -124,6 +124,18 @@ def fieldOutputTypes (schema : Schema) (group : CollectedFieldGroup) : List Type
       (schema.lookupField parentType group.representativeField.fieldName).map
         FieldDefinition.outputType
 
+/-- Schema compatibility needed when an analysis inspects only one of a collected
+field's possible runtime definitions. The witness is a common validated output type;
+no source parent is retained in the executable condition tree. -/
+def FieldDefinitionsCompatible (schema : Schema) (group : CollectedFieldGroup) : Prop :=
+  ∃ expectedOutputType,
+    ∀ parentType,
+      parentType ∈ group.condition.possibleTypes
+      -> ∃ implementation,
+          schema.lookupField parentType group.representativeField.fieldName
+            = some implementation
+          ∧ schema.outputTypeSubtype implementation.outputType expectedOutputType
+
 end CollectedFieldGroup
 
 /-- Child selection sets are interpreted once for every output type that this collected

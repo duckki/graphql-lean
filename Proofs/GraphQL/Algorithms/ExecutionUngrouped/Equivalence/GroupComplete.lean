@@ -219,8 +219,8 @@ theorem groupFlatSpecEquivalent
   unfold ExecutableGroupsFlatSpecEquivalent
   induction groups with
   | nil =>
-      simp [collectedExecutableSelections, executableFieldSelections,
-        executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet,
+      simp [collectedExecutableSelections, executeRootSelectionSet,
+        GraphQL.Execution.executeRootSelectionSet,
         GraphQL.Execution.collectFields,
         GraphQL.Execution.executeCollectedFields, visitSubfields, visitOk]
   | cons group rest ih =>

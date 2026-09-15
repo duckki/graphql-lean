@@ -67,13 +67,14 @@ theorem collectedResponseNameCountsOnceSmoke
 
 theorem sameResponseNameInCompatibleConditionsIsGloballyGroupedSmoke
     : (show Nat from
-        ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
+        ExactCases.CaseCursor.summarizeSelectionSet
+          (MaxResponseSize.algebra conditionSchema 1)
           conditionSchema "Animal" []
           [
             .field "label" "name" [] [] [],
             .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
           ]
-          ExactCases.BooleanEnvironment.unresolved)
+          [])
       = (1 : Nat) := by
   native_decide
 
@@ -119,10 +120,10 @@ theorem repeatedConditionalResponseNameCaseIsGloballyGrouped
 
 theorem exactCasesCountRepeatedConditionalResponseNameOnce
     : (show Nat from
-        ExactCases.summarizeConditionTree
+        ExactCases.CaseCursor.summarizeConditionTree
           (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
           repeatedConditionalResponseNameTree
-          ExactCases.BooleanEnvironment.unresolved)
+          [])
       = (1 : Nat) := by
   native_decide
 
@@ -170,10 +171,10 @@ theorem nestedConditionCompositionRecursesOnCaseCursor
 
 theorem nestedConditionCompositionCountsResponseNameOnce
     : (show Nat from
-        ExactCases.summarizeConditionTree
+        ExactCases.CaseCursor.summarizeConditionTree
           (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
           nestedConditionalResponseNameTree
-          ExactCases.BooleanEnvironment.unresolved)
+          [])
       = (1 : Nat) := by
   native_decide
 
@@ -202,8 +203,8 @@ def complementaryConditionalFieldsTree : ConditionTree.Tree :=
 
 -- Variable-independent summaries model only false and true; missing follows false.
 theorem unresolvedBooleanHasTwoCases
-    : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra conditionSchema
-        [] complementaryConditionalFieldsTree ExactCases.BooleanEnvironment.unresolved
+    : ExactCases.CaseCursor.summarizeConditionTree collectedCaseSizesAlgebra
+        conditionSchema [] complementaryConditionalFieldsTree []
       = [1, 1] := by
   native_decide
 
@@ -218,7 +219,7 @@ theorem syntacticComplementaryBooleanBranchesJoinSmoke
 
 theorem lazyBooleanDecisionSplitsOnlyWhenReached
     : let variables := ["x"]
-      let environment := ExactCases.BooleanEnvironment.unresolved
+      let environment := ExactCases.CaseCursor.BooleanEnvironment.unresolved
       let decision :=
         ExactCases.Internal.summarizeConditionTreeDecision collectedCaseSizesAlgebra
           conditionSchema [] complementaryConditionalFieldsTree variables
@@ -242,39 +243,66 @@ theorem exactCasesCompactRetainsLocalDecisionStructure
   rfl
 
 theorem explicitMissingBooleanContextSelectsNegativePolarity
-    : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
-        conditionSchema [] complementaryConditionalFieldsTree
-        (ExactCases.BooleanEnvironment.concrete [])
+    : ExactCases.CaseForest.summarizeConditionTree collectedCaseSizesAlgebra
+        conditionSchema [] complementaryConditionalFieldsTree []
       = [1] := by
   native_decide
 
-theorem completeBooleanStatusUsesOption
+def emptyScopeComplementaryConditionalFieldsTree : ConditionTree.Tree :=
+  {
+    complementaryConditionalFieldsTree with
+      condition :=
+        { complementaryConditionalFieldsTree.condition with possibleTypes := [] }
+  }
+
+-- Type partitions retain Core's nonempty-region semantics. A Boolean-only frontier is
+-- scheduler progress and therefore does not manufacture an empty compatibility region.
+theorem caseForestTypeRegionsDoesNotInventEmptyRegion
+    : (ExactCases.CaseForest.ofConditionTree
+        emptyScopeComplementaryConditionalFieldsTree).typeRegions
+        []
+      = [] := by
+  native_decide
+
+-- The concrete scheduler still resolves a Boolean-only frontier directly while carrying
+-- its current scope, independently of whether the type partition has a representative.
+theorem emptyScopeBooleanFrontierStillProgresses
+    : ExactCases.CaseForest.summarizeConditionTree collectedCaseSizesAlgebra
+        conditionSchema [] emptyScopeComplementaryConditionalFieldsTree []
+      = [1] := by
+  native_decide
+
+theorem concreteBooleanStatusUsesOption
     : (
-        (ExactCases.BooleanEnvironment.concrete []).statusForVariable "x",
-        (ExactCases.BooleanEnvironment.concrete [("x", .int 1)]).statusForVariable "x",
-        (ExactCases.BooleanEnvironment.concrete [("x", .boolean true)]).statusForVariable
+        (ExactCases.CaseCursor.BooleanEnvironment.concrete []).statusForVariable "x",
+        (ExactCases.CaseCursor.BooleanEnvironment.concrete
+          [("x", .int 1)]).statusForVariable
+          "x",
+        (ExactCases.CaseCursor.BooleanEnvironment.concrete
+          [("x", .boolean true)]).statusForVariable
           "x"
       )
       = (some false, some false, some true) := by
   native_decide
 
 theorem explicitKnownBooleanContextSelectsOnePolarity
-    : ExactCases.summarizeConditionTree collectedCaseSizesAlgebra
+    : ExactCases.CaseForest.summarizeConditionTree collectedCaseSizesAlgebra
         conditionSchema [] complementaryConditionalFieldsTree
-        (ExactCases.BooleanEnvironment.concrete [("x", .boolean false)])
+        [("x", .boolean false)]
       = [1] := by
   native_decide
 
 theorem summarizeSelectionSetUsesInheritedBooleanConditionSmoke
     : (show Nat from
-        ExactCases.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
+        ExactCases.CaseCursor.summarizeSelectionSet
+          (MaxResponseSize.algebra conditionSchema 1)
           conditionSchema "Animal"
           [.positive "x"]
           [
             .field "excluded" "name" [] [.skip (.variable "x")] [],
             .field "included" "id" [] [] []
           ]
-          ExactCases.BooleanEnvironment.unresolved)
+          [])
       = (1 : Nat) := by
   native_decide
 
@@ -571,13 +599,15 @@ def conditionallyVisitedNameSelection : List Selection :=
 -- Backend summaries expose that known-false pruning makes the field handler unreachable.
 -- The known-true case deliberately retains and visits the condition edge.
 theorem knownFalsePruningSkipsFieldHandlersSmoke
-    : ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
+    : ExactCases.CaseForest.summarizeSelectionSet visitedResponseNamesAlgebra
+          conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.concrete [("showName", .boolean false)])
+          [("showName", .boolean false)]
         = []
-      ∧ ExactCases.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
+      ∧ ExactCases.CaseForest.summarizeSelectionSet visitedResponseNamesAlgebra
+          conditionSchema
           "Animal" [] conditionallyVisitedNameSelection
-          (ExactCases.BooleanEnvironment.concrete [("showName", .boolean true)])
+          [("showName", .boolean true)]
         = ["name"]
       ∧ Syntactic.summarizeSelectionSet visitedResponseNamesAlgebra conditionSchema
           "Animal" [] conditionallyVisitedNameSelection [("showName", .boolean false)]

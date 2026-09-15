@@ -155,7 +155,7 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
         guardedFieldExecutableFields_empty_of_no_runtime_entries variableValues
           runtimeType right.entries
           (by simpa [rightEntries] using hrightEntries)
-      simp [guardedFieldGroupCaseIncludesBool, executionParentType, hrightFields,
+      simp [guardedFieldGroupCaseIncludesBool, hrightFields,
         executableFieldsAsGroup, executableGroupsIncludeBool]
   | cons rightHead rightRest =>
       simp only [guardedScalarFieldIncludesAtRuntimeTypeBool, rightEntries,
@@ -180,7 +180,7 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
             right.entries
           cases hrightFields : rightFields with
           | nil =>
-              simp [guardedFieldGroupCaseIncludesBool, executionParentType,
+              simp [guardedFieldGroupCaseIncludesBool,
                 rightFields, hrightFields, executableFieldsAsGroup,
                 executableGroupsIncludeBool]
           | cons rightField rightFieldsRest =>
@@ -348,7 +348,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
         guardedFieldExecutableFields_empty_of_no_runtime_entries variableValues
           runtimeType right.entries
           (by simpa [rightEntries] using hrightEntries)
-      simp [guardedFieldGroupCaseIncludesBool, executionParentType, hrightFields,
+      simp [guardedFieldGroupCaseIncludesBool, hrightFields,
         executableFieldsAsGroup, executableGroupsIncludeBool]
   | cons rightEntry rightRest =>
       cases rightRest with
@@ -401,7 +401,7 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                             simp [rightEntries, hrightEntries,
                               guardedFieldExecutableFields, hrightAllows]
                           simp [guardedFieldGroupCaseIncludesBool,
-                            executionParentType, hrightFields, executableFieldsAsGroup,
+                            hrightFields, executableFieldsAsGroup,
                             executableGroupsIncludeBool]
                       | true =>
                           have hrightBooleanAllows : booleanConditionAllows variableValues
@@ -1356,7 +1356,7 @@ theorem guardedFieldGroupCases_complete_runtime
       unfold guardedFieldGroupCaseIncludesBool
       cases hfields
             : guardedFieldExecutableFields variableValues runtimeType right.entries with
-      | nil => simp [hfields]
+      | nil => simp
       | cons head rest =>
           have hcomponent : (right.responseName, head :: rest)
               ∈ guardedFieldRuntimeGroups variableValues

@@ -2,12 +2,13 @@ import Proofs.GraphQL.Theories.ConditionTree.ExecutionEquivalence
 import Proofs.GraphQL.Theories.ConditionTree.BooleanVariables
 import Proofs.GraphQL.Theories.ConditionTree.RuntimeExtraction
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.RuntimeCases
-import Proofs.GraphQL.Theories.TreeSummary.ExactCases.CaseForestSoundness
+import Proofs.GraphQL.Theories.TreeSummary.ExactCases.CaseForestRuntimeCases
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.ResolvedContext
 import Proofs.GraphQL.Theories.TreeSummary.ExactCases.VariableValues
 import Proofs.GraphQL.Theories.TreeSummary.Algebra
 import Proofs.GraphQL.Theories.TreeSummary.Soundness
 import Proofs.GraphQL.Theories.TreeSummary.ExecutionValidity
+import Proofs.GraphQL.Theories.TreeSummary.FieldDefinitions
 import GraphQL.Theories.TreeSummary.ExactCases
 
 /-! Soundness of the exact-case-tree summary fold. -/
@@ -23,15 +24,28 @@ open GraphQL.Execution
 open GraphQL.Execution.FieldGroups
 open GraphQL.Algorithms.ExecutionUngroupedUncached.Eager
 open Internal
+open _root_.GraphQL.TreeSummary.Measure
+open _root_.GraphQL.TreeSummary.ExactCases.Measure
 
 universe u v
+
+namespace WithVariablesProof
+
+def CaseForest.summarizeSelectionSetWithPruning (algebra : Algebra) (schema : Schema)
+    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (selectionSet : List Selection) (variableValues fixedVariableValues : VariableValues)
+    : algebra.Summary :=
+  CaseForest.summarizeConditionTree algebra schema inheritedBooleanCondition
+    (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+      inheritedBooleanCondition fixedVariableValues selectionSet)
+    variableValues fixedVariableValues
 
 def summarizedGroup (algebra : Algebra) (schema : Schema)
     (variableValues : VariableValues) (group : CollectedFieldGroup)
     (fixedVariableValues : VariableValues := variableValues)
     : algebra.Summary :=
   algebra.field group
-    (CaseCursor.summarizeChildTypes algebra schema group
+    (CaseForest.summarizeChildTypes algebra schema group
       (childParentTypes schema group) variableValues fixedVariableValues)
 
 def summarizeCollectedGroups (algebra : Algebra) (schema : Schema)
@@ -49,7 +63,7 @@ def summarizedChildren (algebra : Algebra) (schema : Schema)
     (variableValues : VariableValues) (group : CollectedFieldGroup)
     (fixedVariableValues : VariableValues := variableValues)
     : algebra.Summary :=
-  CaseCursor.summarizeChildTypes algebra schema group
+  CaseForest.summarizeChildTypes algebra schema group
     (childParentTypes schema group) variableValues fixedVariableValues
 
 def summarizeCollectedChildren (algebra : Algebra) (schema : Schema)
@@ -70,7 +84,7 @@ def candidateChildGroups (schema : Schema) (variableValues : VariableValues)
     : List CollectedFieldGroup :=
   let tree :=
     group.childTreeWithKnownFalsePruning schema childParentType fixedVariableValues
-  RuntimeCase.fieldGroups group.childInheritedBooleanCondition
+  CaseForestRuntimeCase.fieldGroups childParentType group.childInheritedBooleanCondition
     (.ofConditionTree tree) tree.condition.possibleTypes childRuntimeType variableValues
 
 def candidateChildGroupsFor (schema : Schema) (variableValues : VariableValues)
@@ -102,7 +116,7 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
         ConditionTree.ofSelectionSetInScope schema parentType
           inheritedBooleanCondition selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups inheritedBooleanCondition
+        ((CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             variableValues).map
           CollectedFieldGroup.toExecutableGroup)
@@ -117,7 +131,7 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
   have hcondition : tree.condition.allows variableValues runtimeType = true := by
     rw [hroot]
     simpa [rootCondition, Condition.allows, booleanConditionAllows] using hpossible
-  have hmap := RuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
+  have hmap := CaseForestRuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
     schema parentType inheritedBooleanCondition tree runtimeType
     variableValues hinherited hcondition
     (ConditionTree.ofSelectionSetInScope_branchesCoherent schema parentType
@@ -126,7 +140,7 @@ theorem runtimeCaseGroups_permutationEquivalent_of_perm
       rw [hroot]
       exact List.contains_iff_mem.mp hpossible)
   change RuntimeGroupsPermutationEquivalent
-    ((RuntimeCase.fieldGroups inheritedBooleanCondition
+    ((CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition
         (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
         variableValues).map
       CollectedFieldGroup.toExecutableGroup)
@@ -149,7 +163,7 @@ theorem runtimeCaseGroups_permutationEquivalent
         ConditionTree.ofSelectionSetInScope schema parentType
           inheritedBooleanCondition selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups inheritedBooleanCondition
+        ((CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             variableValues).map
           CollectedFieldGroup.toExecutableGroup)
@@ -173,7 +187,7 @@ theorem runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm
         ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
           inheritedBooleanCondition pruningValues selectionSet
       RuntimeGroupsPermutationEquivalent
-        ((RuntimeCase.fieldGroups inheritedBooleanCondition
+        ((CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition
             (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
             runtimeValues).map
           CollectedFieldGroup.toExecutableGroup)
@@ -189,14 +203,14 @@ theorem runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm
   have hcondition : tree.condition.allows runtimeValues runtimeType = true := by
     rw [hroot]
     simpa [rootCondition, Condition.allows, booleanConditionAllows] using hpossible
-  have hmap := RuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
+  have hmap := CaseForestRuntimeCase.fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
     schema parentType inheritedBooleanCondition tree runtimeType
     runtimeValues hinherited hcondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent schema parentType
       inheritedBooleanCondition pruningValues selectionSet)
     (by rw [hroot]; exact List.contains_iff_mem.mp hpossible)
   change RuntimeGroupsPermutationEquivalent
-    ((RuntimeCase.fieldGroups inheritedBooleanCondition
+    ((CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition
         (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
         runtimeValues).map
       CollectedFieldGroup.toExecutableGroup)
@@ -226,51 +240,289 @@ private def StaticGroupsFieldsValid (schema : Schema)
     : Prop :=
   ∀ group, group ∈ groups -> group.FieldsValid schema variableDefinitions
 
-theorem runtimeCaseGroups_valid
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : CaseCursor) (possibleTypes : PossibleTypeRegion)
-    (runtimeType : Name) (variableValues : VariableValues)
-    (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
-    (hruntime : runtimeType ∈ possibleTypes)
-    : StaticGroupsValid variableValues runtimeType
-        (RuntimeCase.fieldGroups inheritedBooleanCondition tree possibleTypes
-          runtimeType variableValues) := by
+private theorem StaticGroupsFieldsValid.perm
+    {schema : Schema} {variableDefinitions : List VariableDefinition}
+    {left right : List CollectedFieldGroup}
+    (hvalid : StaticGroupsFieldsValid schema variableDefinitions left)
+    (hperm : left.Perm right)
+    : StaticGroupsFieldsValid schema variableDefinitions right := by
   intro group hgroup
-  have hconditions := RuntimeCase.fieldGroups_conditions
-    inheritedBooleanCondition tree possibleTypes runtimeType variableValues hinherited
-    hruntime group hgroup
-  have hshape := RuntimeCase.fieldGroups_shape inheritedBooleanCondition tree
-    possibleTypes runtimeType variableValues group hgroup
-  exact ⟨hconditions.1, hconditions.2, hshape.1, hshape.2⟩
+  exact hvalid group (hperm.mem_iff.mpr hgroup)
 
-private theorem CaseTrace.fieldGroups_fieldsValid_of_emptyInherited
+private def ActiveTreesFieldsValid (schema : Schema)
+    (variableDefinitions : List VariableDefinition)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (region : PossibleTypeRegion) (trees : List Tree)
+    : Prop :=
+  ∀ tree,
+    tree ∈ trees
+    -> TreeFieldsValid schema variableDefinitions tree
+        ∧ (∀ runtimeType,
+            runtimeType ∈ region -> runtimeType ∈ tree.condition.possibleTypes)
+        ∧ tree.BranchesCoherent schema inheritedBooleanCondition
+
+private theorem branchFieldEntries_mem_of_body
+    (branches : List (Branch Tree)) (branch : Branch Tree)
+    (hbranch : branch ∈ branches) (entry : Condition × Selection)
+    (hentry : entry ∈ branch.body.fieldEntries)
+    : entry ∈ branchFieldEntries branches := by
+  induction branches with
+  | nil => simp at hbranch
+  | cons head rest ih =>
+      rcases List.mem_cons.mp hbranch with rfl | hrest
+      · simp [branchFieldEntries, hentry]
+      · simp [branchFieldEntries, ih hrest]
+
+private theorem conditionForBooleanBranch_possibleTypes
+    (schema : Schema) (inherited : List BooleanLiteral)
+    (source target : Condition) (literal : BooleanLiteral)
+    (hcondition
+      : conditionForBranch? schema inherited source (.booleanLiteral literal)
+        = some target)
+    : target.possibleTypes = source.possibleTypes := by
+  simp only [conditionForBranch?] at hcondition
+  cases hcandidate : canonicalBooleanCondition (source.booleanCondition ++ [literal]) with
+  | none => simp [hcandidate] at hcondition
+  | some candidate =>
+      rw [hcandidate] at hcondition
+      let filtered := candidate.filter fun item => !inherited.contains item
+      change (canonicalBooleanCondition (inherited ++ filtered)).bind
+          (fun _ => some { source with booleanCondition := filtered }) = some target
+        at hcondition
+      cases hglobal : canonicalBooleanCondition (inherited ++ filtered) with
+      | none => simp [hglobal] at hcondition
+      | some global =>
+          rw [hglobal] at hcondition
+          simp only [Option.bind_some, Option.some.injEq] at hcondition
+          subst target
+          rfl
+
+private theorem selectedChildren_fieldsValid
     (schema : Schema) (variableDefinitions : List VariableDefinition)
-    (inherited : List BooleanLiteral) (scope : PossibleTypes)
-    (runtimeType : Name) (trace : CaseTrace.Trace)
+    (inherited : List BooleanLiteral) (parentCondition : Condition)
+    (region : PossibleTypeRegion) (variableValues : VariableValues)
+    (branches : List (Branch Tree))
+    (hfields
+      : ∀ branch,
+          branch ∈ branches -> TreeFieldsValid schema variableDefinitions branch.body)
+    (hregion
+      : ∀ runtimeType,
+          runtimeType ∈ region -> runtimeType ∈ parentCondition.possibleTypes)
+    (hcoherent : branchesCoherent schema inherited parentCondition branches)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited region
+        (CaseForest.selectedChildren region variableValues branches) := by
+  induction branches with
+  | nil => simp [CaseForest.selectedChildren, ActiveTreesFieldsValid]
+  | cons branch rest ih =>
+      have hbodyFields := hfields branch (by simp)
+      have hrestFields : ∀ candidate, candidate ∈ rest ->
+          TreeFieldsValid schema variableDefinitions candidate.body := by
+        intro candidate hcandidate
+        exact hfields candidate (by simp [hcandidate])
+      have hcoherent' :
+          conditionForBranch? schema inherited parentCondition branch.condition
+              = some branch.body.condition
+            ∧ branch.body.BranchesCoherent schema inherited
+            ∧ branchesCoherent schema inherited parentCondition rest := by
+        simpa [branchesCoherent] using hcoherent
+      rcases hcoherent' with ⟨hcondition, hbodyCoherent, hrestCoherent⟩
+      have htail := ih hrestFields hrestCoherent
+      cases hbranchCondition : branch.condition with
+      | typeCondition typeName =>
+          simp only [CaseForest.selectedChildren, hbranchCondition]
+          split <;> rename_i hselected
+          · intro tree htree
+            rcases List.mem_cons.mp htree with rfl | htree
+            · refine ⟨hbodyFields, ?_, hbodyCoherent⟩
+              intro runtimeType hruntime
+              exact List.contains_iff_mem.mp
+                (List.all_eq_true.mp hselected runtimeType hruntime)
+            · exact htail tree htree
+          · exact htail
+      | booleanLiteral literal =>
+          simp only [CaseForest.selectedChildren, hbranchCondition]
+          split
+          · intro tree htree
+            rcases List.mem_cons.mp htree with rfl | htree
+            · refine ⟨hbodyFields, ?_, hbodyCoherent⟩
+              rw [conditionForBooleanBranch_possibleTypes schema inherited
+                parentCondition branch.body.condition literal
+                (by simpa [hbranchCondition] using hcondition)]
+              exact hregion
+            · exact htail tree htree
+          · exact htail
+
+private theorem resolveActiveTrees_fieldsValid
+    (schema : Schema) (variableDefinitions : List VariableDefinition)
+    (inherited : List BooleanLiteral) (region : PossibleTypeRegion)
+    (variableValues : VariableValues) (trees : List Tree)
+    (hvalid : ActiveTreesFieldsValid schema variableDefinitions inherited region trees)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited region
+        (CaseForest.resolveActiveTrees region variableValues trees) := by
+  induction trees with
+  | nil => simp [CaseForest.resolveActiveTrees, ActiveTreesFieldsValid]
+  | cons tree rest ih =>
+      rcases hvalid tree (by simp) with ⟨htreeFields, htreeRegion, htreeCoherent⟩
+      have hrest : ActiveTreesFieldsValid schema variableDefinitions inherited region
+          rest := by
+        intro candidate hcandidate
+        exact hvalid candidate (by simp [hcandidate])
+      have hlocalFields : TreeFieldsValid schema variableDefinitions
+          { tree with branches := [] } := by
+        intro entry hentry
+        apply htreeFields entry
+        simp only [Tree.fieldEntries, branchFieldEntries, List.append_nil] at hentry
+        simp [Tree.fieldEntries, hentry]
+      have hbranchFields : ∀ branch, branch ∈ tree.branches ->
+          TreeFieldsValid schema variableDefinitions branch.body := by
+        intro branch hbranch entry hentry
+        apply htreeFields entry
+        simp only [Tree.fieldEntries, List.mem_append]
+        exact Or.inr (branchFieldEntries_mem_of_body tree.branches branch hbranch
+          entry hentry)
+      have hselected := selectedChildren_fieldsValid schema variableDefinitions
+        inherited tree.condition region variableValues tree.branches hbranchFields
+        htreeRegion (by simpa [Tree.BranchesCoherent] using htreeCoherent)
+      have htail := ih hrest
+      rw [CaseForest.resolveActiveTrees]
+      intro candidate hcandidate
+      rcases List.mem_cons.mp hcandidate with rfl | hcandidate
+      · exact ⟨hlocalFields, htreeRegion,
+          by simp [Tree.BranchesCoherent, branchesCoherent]⟩
+      · rcases List.mem_append.mp hcandidate with hcandidate | hcandidate
+        · exact hselected candidate hcandidate
+        · exact htail candidate hcandidate
+
+private theorem ActiveTreesFieldsValid.mono
+    {schema : Schema} {variableDefinitions : List VariableDefinition}
+    {inherited : List BooleanLiteral} {source target : PossibleTypeRegion}
+    {trees : List Tree}
+    (hvalid : ActiveTreesFieldsValid schema variableDefinitions inherited source trees)
+    (hsubset : ∀ runtimeType, runtimeType ∈ target -> runtimeType ∈ source)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited target trees := by
+  intro tree htree
+  rcases hvalid tree htree with ⟨hfields, hregion, hcoherent⟩
+  exact ⟨hfields, fun runtimeType hruntime =>
+    hregion runtimeType (hsubset runtimeType hruntime), hcoherent⟩
+
+private theorem resolve_fieldsValid
+    (schema : Schema) (variableDefinitions : List VariableDefinition)
+    (coherenceInherited : List BooleanLiteral)
+    (parentType : Name) (inherited : List BooleanLiteral)
+    (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
+    (runtimeType : Name) (variableValues : VariableValues)
     (hvalid
-      : ∀ group,
-          group ∈ CaseTrace.fieldGroups [] scope runtimeType trace
-          -> group.FieldsValid schema variableDefinitions)
-    : ∀ group,
-        group ∈ CaseTrace.fieldGroups inherited scope runtimeType trace
-        -> group.FieldsValid schema variableDefinitions := by
-  intro group hgroup
-  unfold CaseTrace.fieldGroups at hgroup
-  unfold fieldGroupsWithContext at hgroup
-  rcases List.mem_map.mp hgroup with ⟨sourceGroup, hsourceGroup, rfl⟩
-  have hsource := hvalid
-    { inheritedBooleanCondition := CaseTrace.inheritedBooleanCondition [] trace
-      condition :=
-        { possibleTypes := CaseTrace.possibleTypes scope runtimeType trace
-          booleanCondition := [] }
-      fieldGroup := sourceGroup }
-    (by
-      unfold CaseTrace.fieldGroups fieldGroupsWithContext
-      exact List.mem_map.mpr ⟨sourceGroup, hsourceGroup, rfl⟩)
-  intro selection hselection
-  exact hsource selection hselection
+      : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+          possibleTypes tree.activeTrees)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : let resolved :=
+        CaseForestRuntimeCase.resolve parentType inherited tree
+          possibleTypes runtimeType variableValues
+      ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+        resolved.possibleTypes resolved.tree.activeTrees := by
+  rw [CaseForestRuntimeCase.resolve.eq_1]
+  split <;> rename_i hbranches
+  · let region := CaseForestRuntimeCase.chooseTypeRegion runtimeType possibleTypes
+      (tree.typeRegions possibleTypes)
+    have hregion := CaseForestRuntimeCase.chooseTypeRegion_mem tree possibleTypes
+      runtimeType hruntime
+    have hsubset : ∀ candidate, candidate ∈ region -> candidate ∈ possibleTypes :=
+      (possibleTypeRegions_exact possibleTypes tree.typeBranchPossibleTypes).1
+        region hregion.1 |>.2
+    have hregionValid := hvalid.mono hsubset
+    have hresolved : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited region
+        (tree.resolveBranches region variableValues).activeTrees := by
+      simpa [CaseForest.resolveBranches] using
+        resolveActiveTrees_fieldsValid schema variableDefinitions coherenceInherited region
+          variableValues tree.activeTrees hregionValid
+    exact resolve_fieldsValid schema variableDefinitions coherenceInherited parentType
+      (CaseForest.extendBooleanCondition inherited tree.booleanVariables variableValues)
+      (tree.resolveBranches region variableValues) region runtimeType variableValues hresolved
+      hregion.2
+  · exact hvalid
+termination_by
+  (caseForestResponseDepth tree, caseForestUnresolvedCount tree, 3, 0)
+decreasing_by
+  apply quadruple_lt_of_depth_le_of_control_lt
+  · exact resolveBranches_responseDepth_le region variableValues tree
+  · exact resolveBranches_unresolvedCount_lt region variableValues tree (by assumption)
 
 private theorem runtimeCaseGroups_fieldsValid
+    (schema : Schema) (variableDefinitions : List VariableDefinition)
+    (parentType : Name) (inherited coherenceInherited : List BooleanLiteral)
+    (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
+    (runtimeType : Name) (variableValues : VariableValues)
+    (hvalid
+      : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+          possibleTypes tree.activeTrees)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : ∀ group,
+        group
+          ∈ CaseForestRuntimeCase.fieldGroups parentType inherited tree
+              possibleTypes runtimeType variableValues
+        -> group.FieldsValid schema variableDefinitions := by
+  intro group hgroup
+  unfold CaseForestRuntimeCase.fieldGroups at hgroup
+  let resolved := CaseForestRuntimeCase.resolve parentType inherited tree possibleTypes
+    runtimeType variableValues
+  have hresolved := resolve_fieldsValid schema variableDefinitions coherenceInherited
+    parentType inherited tree possibleTypes runtimeType variableValues hvalid hruntime
+  change group ∈ resolved.tree.fieldGroups resolved.inheritedBooleanCondition
+    resolved.possibleTypes at hgroup
+  unfold CaseForest.fieldGroups at hgroup
+  apply fieldGroupsWithContext_fieldsValid schema variableDefinitions
+    resolved.inheritedBooleanCondition
+    { possibleTypes := resolved.possibleTypes, booleanCondition := [] }
+    resolved.tree.namedFields _ group hgroup
+  intro namedField hnamed
+  unfold CaseForest.namedFields at hnamed
+  rcases List.mem_flatMap.mp hnamed with ⟨sourceTree, hsourceTree, hnamed⟩
+  rcases List.mem_flatMap.mp hnamed with ⟨sourceGroup, hsourceGroup, hnamed⟩
+  rcases List.mem_map.mp hnamed with ⟨sourceField, hsourceField, heq⟩
+  subst namedField
+  rcases hresolved sourceTree hsourceTree with
+    ⟨htreeFields, hregion, _hcoherent⟩
+  apply FieldEntryValid.mono schema variableDefinitions sourceTree.condition
+    { possibleTypes := resolved.possibleTypes, booleanCondition := [] }
+    (ConditionTree.Field.toSelection sourceGroup.responseName sourceField)
+  · apply htreeFields
+    simp only [Tree.fieldEntries, List.mem_append]
+    apply Or.inl
+    apply List.mem_flatMap.mpr
+    refine ⟨sourceGroup, hsourceGroup, List.mem_map.mpr ?_⟩
+    exact ⟨ConditionTree.Field.toSelection sourceGroup.responseName sourceField,
+      List.mem_map.mpr ⟨sourceField, hsourceField, rfl⟩,
+      rfl⟩
+  · exact hregion
+
+/-- Runtime resolution does not inspect the inherited-condition representation. The
+coherence context may therefore be retained separately while proving field validity. -/
+theorem conditionTreeRuntimeCaseGroups_fieldsValidWithCoherence
+    (schema : Schema) (variableDefinitions : List VariableDefinition)
+    (parentType : Name) (resolveInherited coherenceInherited : List BooleanLiteral)
+    (tree : Tree)
+    (runtimeType : Name) (variableValues : VariableValues)
+    (hfields : TreeFieldsValid schema variableDefinitions tree)
+    (hcoherent : tree.BranchesCoherent schema coherenceInherited)
+    (hruntime : runtimeType ∈ tree.condition.possibleTypes)
+    : ∀ group,
+        group
+          ∈ CaseForestRuntimeCase.fieldGroups parentType resolveInherited
+              (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
+              variableValues
+        -> group.FieldsValid schema variableDefinitions := by
+  apply runtimeCaseGroups_fieldsValid schema variableDefinitions parentType
+    resolveInherited coherenceInherited (.ofConditionTree tree)
+    tree.condition.possibleTypes runtimeType variableValues
+  · intro sourceTree hsourceTree
+    simp only [CaseForest.ofConditionTree, List.mem_singleton] at hsourceTree
+    subst sourceTree
+    exact ⟨hfields, fun candidate hcandidate => hcandidate, hcoherent⟩
+  · exact hruntime
+
+/-- Resolving one validated condition tree with the batched runtime scheduler preserves
+the source field-definition witnesses in every terminal group. -/
+theorem conditionTreeRuntimeCaseGroups_fieldsValid
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (parentType : Name) (inherited : List BooleanLiteral) (tree : Tree)
     (runtimeType : Name) (variableValues : VariableValues)
@@ -279,26 +531,29 @@ private theorem runtimeCaseGroups_fieldsValid
     (hruntime : runtimeType ∈ tree.condition.possibleTypes)
     : ∀ group,
         group
-          ∈ RuntimeCase.fieldGroups inherited (.ofConditionTree tree)
+          ∈ CaseForestRuntimeCase.fieldGroups parentType inherited (.ofConditionTree tree)
               tree.condition.possibleTypes runtimeType variableValues
-        -> group.FieldsValid schema variableDefinitions := by
-  have hcursor := RuntimeCase.fieldGroups_eq_trace inherited (.ofConditionTree tree)
-    tree.condition.possibleTypes runtimeType variableValues hruntime
-  have hforest := CaseForestRuntimeCase.fieldGroups_eq_trace parentType []
-    (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
-    (by rfl) (by simp [booleanConditionAllows]) hruntime
-  have htrace : CaseTrace.ofCursor variableValues runtimeType (.ofConditionTree tree)
-      = CaseTrace.ofForest variableValues runtimeType (.ofConditionTree tree) := by
-    simp [CaseTrace.ofCursor, CaseCursor.ofConditionTree, CaseCursor.namedFields,
-      CaseTrace.ofForest, CaseForest.ofConditionTree, CaseTrace.ofTrees,
-      CaseTrace.ofTree]
-  rw [hcursor, htrace]
-  apply CaseTrace.fieldGroups_fieldsValid_of_emptyInherited schema variableDefinitions
-  rw [← hforest]
-  exact
-    WithVariablesProof.conditionTreeRuntimeCaseGroups_fieldsValidWithCoherence schema
-      variableDefinitions parentType [] inherited tree runtimeType variableValues hfields
-      hcoherent hruntime
+        -> group.FieldsValid schema variableDefinitions :=
+  conditionTreeRuntimeCaseGroups_fieldsValidWithCoherence schema variableDefinitions
+    parentType inherited inherited tree runtimeType variableValues hfields hcoherent
+    hruntime
+
+theorem runtimeCaseGroups_valid
+    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
+    (runtimeType : Name) (variableValues : VariableValues)
+    (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : StaticGroupsValid variableValues runtimeType
+        (CaseForestRuntimeCase.fieldGroups parentType inheritedBooleanCondition tree
+          possibleTypes runtimeType variableValues) := by
+  intro group hgroup
+  have hconditions := CaseForestRuntimeCase.fieldGroups_conditions parentType
+    inheritedBooleanCondition tree possibleTypes runtimeType variableValues hinherited
+    hruntime group hgroup
+  have hshape := CaseForestRuntimeCase.fieldGroups_shape parentType inheritedBooleanCondition tree
+    possibleTypes runtimeType variableValues group hgroup
+  exact ⟨hconditions.1, hconditions.2, hshape.1, hshape.2⟩
 
 theorem StaticGroupsValid.filter
     {variableValues : VariableValues} {runtimeType : Name}
@@ -312,8 +567,18 @@ theorem StaticGroupsValid.filter
 private theorem mappedGroupKeys (groups : List CollectedFieldGroup)
     : (groups.map CollectedFieldGroup.toExecutableGroup).map Prod.fst
       = groups.map CollectedFieldGroup.responseName := by
-  simp [List.map_map,
-    CollectedFieldGroup.toExecutableGroup]
+  simp [List.map_map, CollectedFieldGroup.toExecutableGroup]
+
+theorem staticResponseNamesNodup
+    (groups : List CollectedFieldGroup)
+    (executionGroups : List (Name × List ExecutableField))
+    (hequivalent
+      : RuntimeGroupsPermutationEquivalent
+          (groups.map CollectedFieldGroup.toExecutableGroup)
+          executionGroups)
+    : (groups.map CollectedFieldGroup.responseName).Nodup := by
+  rw [← mappedGroupKeys groups]
+  exact hequivalent.leftKeysNodup
 
 theorem runtimeGroupsPermutationEquivalent_symm
     {left right : List (Name × List ExecutableField)}
@@ -341,15 +606,6 @@ theorem StaticGroupsValid.perm
     (hvalid : StaticGroupsValid variableValues runtimeType left)
     (hperm : left.Perm right)
     : StaticGroupsValid variableValues runtimeType right := by
-  intro group hgroup
-  exact hvalid group (hperm.mem_iff.mpr hgroup)
-
-private theorem StaticGroupsFieldsValid.perm
-    {schema : Schema} {variableDefinitions : List VariableDefinition}
-    {left right : List CollectedFieldGroup}
-    (hvalid : StaticGroupsFieldsValid schema variableDefinitions left)
-    (hperm : left.Perm right)
-    : StaticGroupsFieldsValid schema variableDefinitions right := by
   intro group hgroup
   exact hvalid group (hperm.mem_iff.mpr hgroup)
 
@@ -434,10 +690,8 @@ theorem alignStaticGroup
     runtimeGroupsPermutationEquivalent_permuteLeft hequivalent hmappedPerm
   have hgroupName : group.responseName = responseName := hname
   have haligned' : RuntimeGroupsPermutationEquivalent
-      ((responseName,
-          group.toExecutableGroup.2)
-        :: staticTail.map
-          CollectedFieldGroup.toExecutableGroup)
+      ((responseName, group.toExecutableGroup.2)
+        :: staticTail.map CollectedFieldGroup.toExecutableGroup)
       ((responseName, executionFields) :: executionTail) := by
     simpa [CollectedFieldGroup.toExecutableGroup, hgroupName] using haligned
   exact ⟨group, staticTail, hperm, hgroupName, haligned'.headFields,
@@ -448,15 +702,15 @@ theorem summarizeCollectedGroups_eq
     (fixedVariableValues : VariableValues)
     (groups : List CollectedFieldGroup)
     : summarizeCollectedGroups algebra schema variableValues groups fixedVariableValues
-      = CaseCursor.summarizeFieldGroups algebra schema groups variableValues
+      = CaseForest.summarizeFieldGroups algebra schema groups variableValues
           fixedVariableValues := by
   induction groups with
   | nil => simp [summarizeCollectedGroups,
-      CaseCursor.summarizeFieldGroups, combineMap]
+      CaseForest.summarizeFieldGroups, combineMap]
   | cons group rest ih =>
       simp only [summarizeCollectedGroups,
-        CaseCursor.summarizeFieldGroups, combineMap, summarizedGroup]
-      simpa [summarizedGroup, CaseCursor.summarizeFieldGroups, combineMap] using
+        CaseForest.summarizeFieldGroups, combineMap, summarizedGroup]
+      simpa [summarizedGroup, CaseForest.summarizeFieldGroups, combineMap] using
         congrArg
           (algebra.combine
             (summarizedGroup algebra schema variableValues group fixedVariableValues))
@@ -625,10 +879,10 @@ theorem summarizeChildParentType_le
         ( let childTree :=
             group.childTreeWithKnownFalsePruning schema childParentType
               fixedVariableValues
-          CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
+          CaseForest.summarize algebra schema group.childInheritedBooleanCondition
             (.ofConditionTree childTree)
             childTree.condition.possibleTypes variableValues fixedVariableValues)
-        (CaseCursor.summarizeChildTypes algebra schema group parentTypes
+        (CaseForest.summarizeChildTypes algebra schema group parentTypes
           variableValues fixedVariableValues) := by
   cases htypes : parentTypes with
   | nil => simp [htypes] at hchild
@@ -638,29 +892,29 @@ theorem summarizeChildParentType_le
       | nil =>
           simp only [List.mem_singleton] at hchild
           subst childParentType
-          rw [CaseCursor.summarizeChildTypes, joinMap]
+          rw [CaseForest.summarizeChildTypes, joinMap]
           exact lawful.le_refl _
       | cons next tail =>
-          rw [CaseCursor.summarizeChildTypes, joinMap]
+          rw [CaseForest.summarizeChildTypes, joinMap]
           simp only [List.mem_cons] at hchild
           rcases hchild with rfl | hrest
           · exact lawful.le_join_left _ _
           · apply lawful.le_trans _
-              (CaseCursor.summarizeChildTypes algebra schema group (next :: tail)
+              (CaseForest.summarizeChildTypes algebra schema group (next :: tail)
                 variableValues fixedVariableValues)
             · exact summarizeChildParentType_le algebra lawful schema group
                 (next :: tail) childParentType
                 (by simpa only [List.mem_cons] using hrest) variableValues
                 fixedVariableValues
-            · simpa [CaseCursor.summarizeChildTypes, joinMap] using
+            · simpa [CaseForest.summarizeChildTypes, joinMap] using
                 (lawful.le_join_right
-                  (CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
+                  (CaseForest.summarize algebra schema group.childInheritedBooleanCondition
                     (.ofConditionTree
                       (group.childTreeWithKnownFalsePruning schema first fixedVariableValues))
                     (group.childTreeWithKnownFalsePruning schema first
                       fixedVariableValues).condition.possibleTypes
                     variableValues fixedVariableValues)
-                  (CaseCursor.summarizeChildTypes algebra schema group (next :: tail)
+                  (CaseForest.summarizeChildTypes algebra schema group (next :: tail)
                     variableValues fixedVariableValues))
 termination_by sizeOf parentTypes
 decreasing_by
@@ -670,7 +924,6 @@ decreasing_by
 
 theorem candidateChildGroupsFor_le_summarizeCollectedChildren
     (algebra : Algebra.{v}) {lawful : algebra.Lawful}
-    (joinFactoringLaws : ExactCases.JoinFactoringLaws algebra lawful)
     (schema : Schema) (variableValues : VariableValues)
     (fixedVariableValues : VariableValues)
     (childParentType childRuntimeType : Name)
@@ -696,15 +949,15 @@ theorem candidateChildGroupsFor_le_summarizeCollectedChildren
           group.childTreeWithKnownFalsePruning schema childParentType fixedVariableValues
         rw [summarizeCollectedGroups_eq algebra schema variableValues
           fixedVariableValues _,
-          ← RuntimeCase.summarize_eq_resolved algebra schema childParentType
+          ← CaseForestRuntimeCase.summarize_eq_resolved algebra schema childParentType
             group.childInheritedBooleanCondition (.ofConditionTree childTree)
             childTree.condition.possibleTypes childRuntimeType variableValues
             fixedVariableValues]
         apply lawful.le_trans _
-          (CaseCursor.summarize algebra schema group.childInheritedBooleanCondition
+          (CaseForest.summarize algebra schema group.childInheritedBooleanCondition
             (.ofConditionTree childTree)
             childTree.condition.possibleTypes variableValues fixedVariableValues)
-        · apply RuntimeCase.summarize_le algebra joinFactoringLaws schema
+        · apply CaseForestRuntimeCase.summarize_le algebra lawful schema
             childParentType
             group.childInheritedBooleanCondition (.ofConditionTree childTree)
             childTree.condition.possibleTypes childRuntimeType variableValues
@@ -737,8 +990,7 @@ theorem representativeMatches_of_mapped_perm
       arguments := group.representativeField.arguments
       selectionSet := group.representativeField.selectionSet
     }
-  have hrepresentativeMapped : representative ∈
-      group.toExecutableGroup.2 := by
+  have hrepresentativeMapped : representative ∈ group.toExecutableGroup.2 := by
     unfold CollectedFieldGroup.toExecutableGroup
     apply List.mem_map.mpr
     exact ⟨group.representativeField,
@@ -788,23 +1040,20 @@ private theorem executableFieldAlignment
     (hvalid : StaticGroupsValid variableValues runtimeType [group])
     : ExecutableFieldAlignment schema variableValues runtimeType group field
         definition := by
-  have hfieldMem : field ∈
-      group.toExecutableGroup.2 :=
+  have hfieldMem : field ∈ group.toExecutableGroup.2 :=
     (hfields.mem_iff).mpr (by simp)
-  have hlookupRuntime : schema.lookupField runtimeType field.fieldName = some definition :=
-    hlookup
   have hcondition := (hvalid group (by simp)).2.1
-  have hparentPossible : runtimeType ∈ group.condition.possibleTypes := by
-    exact List.contains_iff_mem.mp (Bool.and_eq_true_iff.mp hcondition).1
+  have hparentPossible : runtimeType ∈ group.condition.possibleTypes :=
+    List.contains_iff_mem.mp (Bool.and_eq_true_iff.mp hcondition).1
   have hrepresentative := representativeMatches_of_mapped_perm group
     (field :: rest) field hfields (by simp) hexecutionValid.mergeCompatible
   have hlookupRepresentative :
       schema.lookupField runtimeType group.representativeField.fieldName
         = some definition := by
     rw [hrepresentative.1]
-    exact hlookupRuntime
+    exact hlookup
   exact {
-    runtimeLookup := hlookupRuntime
+    runtimeLookup := hlookup
     parentPossible := hparentPossible
     representative := hrepresentative
     argumentsNodup := hexecutionValid.argumentsNodup field (by simp)
@@ -816,12 +1065,15 @@ private theorem executableFieldAlignment
 theorem collectedFieldGroup_mergedSelectionSet_perm
     (group : CollectedFieldGroup)
     (fields : List ExecutableField)
+    (_hshape
+      : ∀ selection,
+          selection ∈ group.selections
+          -> ∃ field : Field, selection = field.toSelection group.responseName)
     (hfields : group.toExecutableGroup.2.Perm fields)
     : group.mergedSelectionSet.Perm (Execution.mergedFieldSelectionSet fields) := by
   have hgroup :
       group.mergedSelectionSet
-        = Execution.mergedFieldSelectionSet
-            group.toExecutableGroup.2 := by
+        = Execution.mergedFieldSelectionSet group.toExecutableGroup.2 := by
     rw [CollectedFieldGroup.mergedSelectionSet,
       ConditionTree.FieldGroup.mergedSelectionSet,
       mergedFieldSelectionSet_eq_flatMap]
@@ -834,7 +1086,7 @@ theorem collectedFieldGroup_mergedSelectionSet_perm
   rw [hgroup]
   exact mergedFieldSelectionSet_perm hfields
 
-theorem Soundness.singleFieldResult_sound
+theorem singleFieldResult_sound_complete
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (variableValues fixedVariableValues : VariableValues)
     (parentType responseName : Name)
@@ -882,7 +1134,7 @@ private theorem annotatedResponseExecution_related_all
     (variableValues fixedVariableValues : VariableValues)
     (hpruning : BooleanValuesMatchForPruning variableValues fixedVariableValues)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (soundness : SoundnessWithFactoring concrete abstract schema variableValues)
+    (soundness : Soundness concrete abstract schema variableValues)
     : (∀ fuel runtimeType source executionGroups,
         ∀ (ref : ObjectRef) staticGroups,
           source = .object runtimeType ref
@@ -991,8 +1243,7 @@ private theorem annotatedResponseExecution_related_all
     intro fuel runtimeType source responseName ref group _hsource _hname hfields
       _hexecutionValid hvalid _hdefinitions
     have hnonempty := (hvalid group (by simp)).2.2.1
-    have hmappedNonempty :
-        group.toExecutableGroup.2 ≠ [] := by
+    have hmappedNonempty : group.toExecutableGroup.2 ≠ [] := by
       intro hempty
       unfold CollectedFieldGroup.toExecutableGroup at hempty
       dsimp only [Prod.snd] at hempty
@@ -1035,10 +1286,11 @@ private theorem annotatedResponseExecution_related_all
           foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
         exact soundness.toSoundnessCore.empty_sound_any _
-    have hsingle := soundness.singleFieldResult_sound variableValues
-      fixedVariableValues runtimeType responseName field definition completed group
-      halignment.parentPossible halignment.representative halignment.argumentsNodup
-      hlookup halignment.outputType hdefinitions.definitionsCompatible hcompleted
+    have hsingle := singleFieldResult_sound_complete variableValues
+      fixedVariableValues runtimeType responseName soundness field definition completed
+      group halignment.parentPossible halignment.representative
+      halignment.argumentsNodup hlookup halignment.outputType
+      hdefinitions.definitionsCompatible hcompleted
     simp only [executeQueryAnnotatedField, hlookup]
     rw [hcoerce]
     exact hsingle
@@ -1063,10 +1315,11 @@ private theorem annotatedResponseExecution_related_all
           foldAnnotatedResponseValue, foldChildSummaryForValueResult,
           foldChildSummaryForValue] <;>
         exact soundness.toSoundnessCore.empty_sound_any _
-    have hsingle := soundness.singleFieldResult_sound variableValues
-      fixedVariableValues runtimeType responseName field definition completed group
-      halignment.parentPossible halignment.representative halignment.argumentsNodup
-      hlookup halignment.outputType hdefinitions.definitionsCompatible hcompleted
+    have hsingle := singleFieldResult_sound_complete variableValues
+      fixedVariableValues runtimeType responseName soundness field definition completed
+      group halignment.parentPossible halignment.representative
+      halignment.argumentsNodup hlookup halignment.outputType
+      hdefinitions.definitionsCompatible hcompleted
     simp only [executeQueryAnnotatedField, hlookup, hcoerce]
     rw [hresolve]
     exact hsingle
@@ -1080,8 +1333,8 @@ private theorem annotatedResponseExecution_related_all
     have hcompleted := complete_ih runtimeType ref field.fieldName definition
       group rfl halignment.runtimeLookup halignment.outputType ⟨field, by simp, rfl⟩
       hexecutionValid hfields hvalid hdefinitions
-    have hsingle := soundness.singleFieldResult_sound variableValues
-      fixedVariableValues runtimeType responseName field definition
+    have hsingle := singleFieldResult_sound_complete variableValues
+      fixedVariableValues runtimeType responseName soundness field definition
       (completeAnnotatedResponseValue schema resolvers variableValues fuel
         definition.outputType (field :: rest) resolved)
       group halignment.parentPossible halignment.representative
@@ -1097,8 +1350,8 @@ private theorem annotatedResponseExecution_related_all
       soundness.empty_sound
   case case10 =>
     intro fuel inner fields value hfuel complete_ih runtimeType ref fieldName
-      definition group hnamed hlookup houtput hwitness hexecutionValid hfields
-      hvalid hdefinitions
+      definition group hnamed hlookup houtput hwitness hexecutionValid hfields hvalid
+      hdefinitions
     have hinner := complete_ih runtimeType ref fieldName definition group
       (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness
       hexecutionValid hfields hvalid hdefinitions
@@ -1151,7 +1404,7 @@ private theorem annotatedResponseExecution_related_all
     have hselectionPerm : group.mergedSelectionSet.Perm
         (Execution.mergedFieldSelectionSet fields) :=
       collectedFieldGroup_mergedSelectionSet_perm group fields
-        hfields
+        (hvalid group (by simp)).2.2.2 hfields
     rcases hwitness with ⟨first, hfirst, hfirstName⟩
     have hrepresentativeFirst := representativeMatches_of_mapped_perm group fields first
       hfields hfirst hexecutionValid.mergeCompatible
@@ -1207,8 +1460,7 @@ private theorem annotatedResponseExecution_related_all
       rw [hroot]
       simpa [rootCondition] using List.contains_iff_mem.mp hpossible
     have hchildEquivalent : RuntimeGroupsPermutationEquivalent
-          (childStaticGroups.map
-          CollectedFieldGroup.toExecutableGroup)
+        (childStaticGroups.map CollectedFieldGroup.toExecutableGroup)
         childGroups := by
       simpa [childStaticGroups, candidateChildGroups, childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet,
@@ -1220,7 +1472,8 @@ private theorem annotatedResponseExecution_related_all
           hchildInherited hpossible
     have hchildValid : StaticGroupsValid variableValues childRuntimeType childStaticGroups := by
       unfold childStaticGroups candidateChildGroups
-      exact runtimeCaseGroups_valid group.childInheritedBooleanCondition
+      exact runtimeCaseGroups_valid definition.outputType.namedType
+        group.childInheritedBooleanCondition
         (.ofConditionTree
           (group.childTreeWithKnownFalsePruning schema definition.outputType.namedType
             fixedVariableValues))
@@ -1231,17 +1484,23 @@ private theorem annotatedResponseExecution_related_all
     have hchildDefinitions : StaticGroupsFieldsValid schema variableDefinitions
         childStaticGroups := by
       unfold childStaticGroups candidateChildGroups
-      exact runtimeCaseGroups_fieldsValid schema variableDefinitions
-        definition.outputType.namedType group.childInheritedBooleanCondition childTree
-        childRuntimeType variableValues hchildTreeFields
-        (by
-          unfold childTree
-          exact
-            ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent
-              schema definition.outputType.namedType
-              group.childInheritedBooleanCondition fixedVariableValues
-              group.mergedSelectionSet)
-        hchildTreePossible
+      apply runtimeCaseGroups_fieldsValid schema variableDefinitions
+        definition.outputType.namedType group.childInheritedBooleanCondition
+        group.childInheritedBooleanCondition
+        (.ofConditionTree childTree) childTree.condition.possibleTypes
+        childRuntimeType variableValues
+      · intro tree htree
+        simp only [CaseForest.ofConditionTree, List.mem_singleton] at htree
+        subst tree
+        exact ⟨hchildTreeFields, fun candidate hcandidate => hcandidate,
+          by
+            unfold childTree
+            exact
+              ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent
+                schema definition.outputType.namedType
+                group.childInheritedBooleanCondition fixedVariableValues
+                group.mergedSelectionSet⟩
+      · exact hchildTreePossible
     have hchild := child_ih childRef childStaticGroups rfl
       hchildEquivalent hchildExecutionValid hchildValid hchildDefinitions
     have hcandidatesLe : soundness.abstractLawful.le
@@ -1254,7 +1513,7 @@ private theorem annotatedResponseExecution_related_all
         simp only [List.mem_eraseDups, List.mem_map]
         exact ⟨definition.outputType, houtput, rfl⟩
       have hbound := candidateChildGroupsFor_le_summarizeCollectedChildren abstract
-        soundness.joinFactoringLaws schema variableValues fixedVariableValues
+        (lawful := soundness.abstractLawful) schema variableValues fixedVariableValues
         definition.outputType.namedType childRuntimeType [group]
         (List.contains_iff_mem.mp hpossible)
         (by
@@ -1318,8 +1577,8 @@ private theorem annotatedResponseExecution_related_all
       soundness.empty_sound
   case case16 =>
     intro fuel inner fields values list_ih runtimeType ref fieldName
-      definition group hnamed hlookup houtput hwitness hexecutionValid hfields
-      hvalid hdefinitions
+      definition group hnamed hlookup houtput hwitness hexecutionValid hfields hvalid
+      hdefinitions
     have hlist := list_ih runtimeType ref fieldName definition group
       (by simpa [TypeRef.namedType] using hnamed) hlookup houtput hwitness
       hexecutionValid hfields hvalid hdefinitions
@@ -1385,120 +1644,7 @@ private theorem annotatedResponseExecution_related_all
         (summarizedChildren abstract schema variableValues group fixedVariableValues)
         hhead htail
 
--- Execution at one active selection-set boundary is sound for the concrete cursor
--- environment. The proof-facing resolved summary is the same decision fold used to
--- characterize `CaseCursor.selectionSetOutcomes`.
-theorem SoundnessWithFactoring.executeSelectionSetAnnotated_sound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (soundness : SoundnessWithFactoring concrete abstract schema variableValues)
-    (resolvers : Resolvers ObjectRef) (parentType : Name)
-    (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (fuel : Nat) (runtimeType : Name)
-    (ref : ObjectRef)
-    (hinherited : booleanConditionAllows variableValues inheritedBooleanCondition = true)
-    (hpossible : schema.typeIncludesObject parentType runtimeType)
-    (variableDefinitions : List VariableDefinition)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hobject : schema.objectType runtimeType)
-    (hselectionValid
-      : Validation.selectionSetValid schema variableDefinitions parentType selectionSet)
-    (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
-    : soundness.approximates
-        (foldAnnotatedResponseFieldsResult concrete
-          (executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
-            runtimeType
-            (.object runtimeType ref)
-            (collectFields schema variableValues runtimeType
-              (.object runtimeType ref) selectionSet)))
-        (summarizeSelectionSetResolved abstract schema parentType
-          inheritedBooleanCondition selectionSet variableValues variableValues) := by
-  let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
-    parentType inheritedBooleanCondition variableValues selectionSet
-  let staticGroups := RuntimeCase.fieldGroups inheritedBooleanCondition
-    (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
-  let executionGroups := collectFields schema variableValues runtimeType
-    (.object runtimeType ref) selectionSet
-  have hmatch : BooleanValuesMatchForPruning variableValues variableValues := by
-    intro variableName value hvalue
-    simp [hvalue]
-  have hpossibleBool :
-      (schema.getPossibleTypes parentType).contains runtimeType = true :=
-    List.contains_iff_mem.mpr hpossible
-  have hrootCondition : tree.condition = rootCondition schema parentType := by
-    unfold tree
-      ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning
-      ConditionTree.ofSelectionSetInScope
-    rw [ConditionTree.Tree.insertSelections_condition]
-    rfl
-  have htreePossible : runtimeType ∈ tree.condition.possibleTypes := by
-    rw [hrootCondition]
-    simpa [rootCondition, Schema.typeIncludesObject] using hpossible
-  have hequivalent : RuntimeGroupsPermutationEquivalent
-      (staticGroups.map
-        CollectedFieldGroup.toExecutableGroup)
-      executionGroups := by
-    simpa [tree, staticGroups, executionGroups] using
-      runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm schema
-        parentType runtimeType runtimeType inheritedBooleanCondition
-        (List.Perm.refl selectionSet) variableValues variableValues hmatch ref
-        hinherited hpossibleBool
-  have hvalid : StaticGroupsValid variableValues runtimeType staticGroups := by
-    exact runtimeCaseGroups_valid inheritedBooleanCondition
-      (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
-      hinherited htreePossible
-  have htreeFields : TreeFieldsValid schema variableDefinitions tree := by
-    unfold tree
-    exact ofSelectionSetInScopeWithKnownFalsePruning_fieldsValid schema
-      variableDefinitions parentType inheritedBooleanCondition variableValues selectionSet
-      hschema
-      (SelectionSetSourceValid.of_selectionSetValid hselectionValid)
-  have hdefinitions : StaticGroupsFieldsValid schema variableDefinitions staticGroups := by
-    unfold staticGroups
-    exact runtimeCaseGroups_fieldsValid schema variableDefinitions parentType
-      inheritedBooleanCondition tree runtimeType variableValues htreeFields
-      (by
-        unfold tree
-        exact
-          ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent
-            schema parentType inheritedBooleanCondition variableValues selectionSet)
-      htreePossible
-  have hexecutionValid : ExecutableGroupsValid schema runtimeType executionGroups := by
-    have hready :=
-      NormalForm.selectionSetSemanticsReady_of_selectionSetValid_possibleObject schema
-        variableDefinitions parentType runtimeType hschema hpossible selectionSet
-        hselectionValid
-    have harguments := Execution.selectionSetArgumentsNodup_of_selectionSetValid
-      hselectionValid
-    exact collectFields_executableGroupsValid schema variableValues runtimeType
-      ref selectionSet hschema hobject hready hmerge harguments
-  have hrelated :=
-    (annotatedResponseExecution_related_all schema resolvers variableDefinitions
-      variableValues variableValues hmatch hschema soundness).1 fuel runtimeType
-      (.object runtimeType ref) executionGroups ref staticGroups rfl hequivalent
-      hexecutionValid hvalid hdefinitions
-  have hsummaryLe : soundness.abstractLawful.le
-      (summarizeCollectedGroups abstract schema variableValues staticGroups
-        variableValues)
-      (summarizeSelectionSetResolved abstract schema parentType
-        inheritedBooleanCondition selectionSet variableValues variableValues) := by
-    rw [summarizeCollectedGroups_eq abstract schema variableValues variableValues _]
-    rw [← RuntimeCase.summarize_eq_resolved abstract schema parentType
-      inheritedBooleanCondition (.ofConditionTree tree)
-      tree.condition.possibleTypes runtimeType variableValues variableValues]
-    apply soundness.abstractLawful.le_trans _
-      (CaseCursor.summarize abstract schema inheritedBooleanCondition
-        (.ofConditionTree tree) tree.condition.possibleTypes
-        variableValues variableValues)
-    · exact RuntimeCase.summarize_le abstract soundness.joinFactoringLaws schema
-        parentType inheritedBooleanCondition (.ofConditionTree tree)
-        tree.condition.possibleTypes runtimeType variableValues variableValues
-        htreePossible
-    · rw [CaseCursor.summarize_ofConditionTree_eq_resolved]
-      exact soundness.abstractLawful.le_refl _
-  have hrelated' := soundness.approximates_upward _ _ _ hrelated hsummaryLe
-  simpa [executionGroups, foldAnnotatedResponseFieldsResult] using hrelated'
-
-private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
+theorem Soundness.executeQueryAnnotatedWithFuel_soundAt
     {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
     (operation : Operation) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues)
@@ -1507,7 +1653,7 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
       : BooleanValuesMatchForPruning
           (coerceVariableValues operation variableValues) pruningValues)
     (soundness
-      : SoundnessWithFactoring concrete abstract schema
+      : Soundness concrete abstract schema
           (coerceVariableValues operation variableValues))
     (fuel : Nat)
     (source : ResolverValue ObjectRef)
@@ -1517,7 +1663,8 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
         (foldAnnotatedResponse concrete
           (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
             source))
-        (summarizeSelectionSetResolved abstract schema (operation.rootType schema) []
+        (CaseForest.summarizeSelectionSetWithPruning abstract schema
+          (operation.rootType schema) []
           operation.selectionSet (coerceVariableValues operation variableValues)
           pruningValues) := by
   have hrootObject : schema.objectType (operation.rootType schema) := by
@@ -1529,7 +1676,8 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
       simpa [executeQueryAnnotatedWithFuel, hroot, foldAnnotatedResponse,
         foldAnnotatedResponseValue] using
         soundness.toSoundnessCore.empty_sound_any
-          (summarizeSelectionSetResolved abstract schema (operation.rootType schema) []
+          (CaseForest.summarizeSelectionSetWithPruning abstract schema
+            (operation.rootType schema) []
             operation.selectionSet (coerceVariableValues operation variableValues)
             pruningValues)
   | true =>
@@ -1541,7 +1689,7 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
       subst runtimeType
       let tree := ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema
         (operation.rootType schema) [] pruningValues operation.selectionSet
-      let staticGroups := RuntimeCase.fieldGroups []
+      let staticGroups := CaseForestRuntimeCase.fieldGroups (operation.rootType schema) []
         (.ofConditionTree tree) tree.condition.possibleTypes
         (operation.rootType schema) coercedVariableValues
       let executionGroups := collectFields schema coercedVariableValues
@@ -1562,8 +1710,7 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
         rw [hrootCondition]
         simpa [rootCondition] using List.contains_iff_mem.mp hpossible
       have hequivalent : RuntimeGroupsPermutationEquivalent
-          (staticGroups.map
-            CollectedFieldGroup.toExecutableGroup)
+          (staticGroups.map CollectedFieldGroup.toExecutableGroup)
           executionGroups := by
         simpa [tree, staticGroups, executionGroups] using
           runtimeCaseGroupsWithVariables_permutationEquivalent_of_perm schema
@@ -1573,7 +1720,7 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
             (by simp [booleanConditionAllows]) hpossible
       have hvalid : StaticGroupsValid coercedVariableValues
           (operation.rootType schema) staticGroups := by
-        exact runtimeCaseGroups_valid []
+        exact runtimeCaseGroups_valid (operation.rootType schema) []
           (.ofConditionTree tree) tree.condition.possibleTypes
           (operation.rootType schema) coercedVariableValues
           (by simp [booleanConditionAllows]) htreePossible
@@ -1587,16 +1734,21 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
       have hdefinitions : StaticGroupsFieldsValid schema operation.variableDefinitions
           staticGroups := by
         unfold staticGroups
-        exact runtimeCaseGroups_fieldsValid schema operation.variableDefinitions
-          (operation.rootType schema) [] tree (operation.rootType schema)
-          coercedVariableValues htreeFields
-          (by
-            unfold tree
-            exact
-              ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent
-                schema (operation.rootType schema) [] pruningValues
-                operation.selectionSet)
-          htreePossible
+        apply runtimeCaseGroups_fieldsValid schema operation.variableDefinitions
+          (operation.rootType schema) [] [] (.ofConditionTree tree)
+          tree.condition.possibleTypes (operation.rootType schema)
+          coercedVariableValues
+        · intro sourceTree hsourceTree
+          simp only [CaseForest.ofConditionTree, List.mem_singleton] at hsourceTree
+          subst sourceTree
+          exact ⟨htreeFields, fun candidate hcandidate => hcandidate,
+            by
+              unfold tree
+              exact
+                ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent
+                  schema (operation.rootType schema) [] pruningValues
+                  operation.selectionSet⟩
+        · exact htreePossible
       have hexecutionValid : ExecutableGroupsValid schema (operation.rootType schema)
           executionGroups := by
         have hready :=
@@ -1614,35 +1766,28 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
           operation.variableDefinitions coercedVariableValues pruningValues hmatch hschema
           soundness).1 fuel (operation.rootType schema)
           (.object (operation.rootType schema) ref) executionGroups ref staticGroups
-          rfl hequivalent hexecutionValid
-          hvalid hdefinitions
+          rfl hequivalent hexecutionValid hvalid hdefinitions
       have hsummaryLe : soundness.abstractLawful.le
           (summarizeCollectedGroups abstract schema coercedVariableValues staticGroups
             pruningValues)
-          (summarizeSelectionSetResolved abstract schema (operation.rootType schema) []
+          (CaseForest.summarizeSelectionSetWithPruning abstract schema
+            (operation.rootType schema) []
             operation.selectionSet coercedVariableValues pruningValues) := by
         rw [summarizeCollectedGroups_eq abstract schema coercedVariableValues
           pruningValues _]
-        rw [← RuntimeCase.summarize_eq_resolved abstract schema
+        rw [← CaseForestRuntimeCase.summarize_eq_resolved abstract schema
           (operation.rootType schema) [] (.ofConditionTree tree)
           tree.condition.possibleTypes (operation.rootType schema)
           coercedVariableValues pruningValues]
-        apply soundness.abstractLawful.le_trans _
-          (CaseCursor.summarize abstract schema [] (.ofConditionTree tree)
-            tree.condition.possibleTypes
-            coercedVariableValues pruningValues)
-        · exact RuntimeCase.summarize_le abstract soundness.joinFactoringLaws schema
-            (operation.rootType schema) [] (.ofConditionTree tree)
-            tree.condition.possibleTypes (operation.rootType schema)
-            coercedVariableValues pruningValues htreePossible
-        · rw [CaseCursor.summarize_ofConditionTree_eq_resolved]
-          exact soundness.abstractLawful.le_refl _
+        exact CaseForestRuntimeCase.summarize_le abstract soundness.abstractLawful schema
+          (operation.rootType schema) [] (.ofConditionTree tree)
+          tree.condition.possibleTypes (operation.rootType schema)
+          coercedVariableValues pruningValues htreePossible
       have hrelated' := soundness.approximates_upward _ _ _ hrelated hsummaryLe
       cases hresult
             : executeQueryAnnotatedCollectedFields schema resolvers
                 coercedVariableValues fuel (operation.rootType schema)
-                (.object (operation.rootType schema) ref)
-                executionGroups with
+                (.object (operation.rootType schema) ref) executionGroups with
       | error errors =>
           rw [hresult] at hrelated'
           simpa [executeQueryAnnotatedWithFuel, hroot, coercedVariableValues,
@@ -1656,90 +1801,6 @@ private theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt
             executionGroups, hresult, foldAnnotatedResponse,
             foldAnnotatedResponseValue,
             foldAnnotatedResponseFieldsResult] using hrelated'
-
-theorem SoundnessWithFactoring.executeQueryAnnotatedWithFuel_sound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (operation : Operation) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues)
-    (soundness
-      : SoundnessWithFactoring concrete abstract schema
-          (coerceVariableValues operation variableValues))
-    (fuel : Nat) (source : ResolverValue ObjectRef)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hoperation : Validation.operationDefinitionValid schema operation)
-    : soundness.approximates
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotatedWithFuel schema resolvers variableValues operation fuel
-            source))
-        (summarizeOperation abstract schema operation) := by
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  have hresolved :=
-    SoundnessWithFactoring.executeQueryAnnotatedWithFuel_soundAt operation resolvers
-      variableValues []
-      (by intro variableName value hvalue;
-          simp [inputValueBoolean?, lookupVariableValue?] at hvalue)
-      soundness fuel source hschema hoperation
-  have hforget := summarizeOperationResolved_le_unknown abstract
-    soundness.joinFactoringLaws schema operation coercedVariableValues
-  exact soundness.approximates_upward _ _ _ hresolved hforget
-
-theorem SoundnessWithFactoring.executeQueryAnnotated_sound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (operation : Operation) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues)
-    (soundness
-      : SoundnessWithFactoring concrete abstract schema
-          (coerceVariableValues operation variableValues))
-    (source : ResolverValue ObjectRef)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hoperation : Validation.operationDefinitionValid schema operation)
-    : soundness.approximates
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotated schema resolvers variableValues operation source))
-        (summarizeOperation abstract schema operation) := by
-  simpa [executeQueryAnnotated] using
-    SoundnessWithFactoring.executeQueryAnnotatedWithFuel_sound operation resolvers
-      variableValues soundness (executeQueryFuelBound schema operation) source
-      hschema hoperation
-
--- Variable-aware operation soundness specialized to one already selected abstract
--- algebra. Unlike `analysisWithVariablesSound`, this form needs a soundness witness only
--- for the current request's coerced values.
-theorem Soundness.executeQueryAnnotatedWithVariables_sound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (operation : Operation) (resolvers : Resolvers ObjectRef)
-    (variableValues : VariableValues)
-    (soundness
-      : Soundness concrete abstract schema
-          (coerceVariableValues operation variableValues))
-    (source : ResolverValue ObjectRef)
-    (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hoperation : Validation.operationDefinitionValid schema operation)
-    : soundness.approximates
-        (foldAnnotatedResponse concrete
-          (executeQueryAnnotated schema resolvers variableValues operation source))
-        (summarizeOperationWithVariables (fun _values => abstract) schema variableValues
-          operation) := by
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  have hrelated :=
-    WithVariablesProof.Soundness.executeQueryAnnotatedWithFuel_soundAt operation resolvers
-      variableValues
-      coercedVariableValues (by intro variableName value hvalue; rw [hvalue]; rfl)
-      soundness (executeQueryFuelBound schema operation) source hschema hoperation
-  simpa [executeQueryAnnotated, summarizeOperationWithVariables,
-    CaseForest.summarizeSelectionSet,
-    WithVariablesProof.CaseForest.summarizeSelectionSetWithPruning,
-    coercedVariableValues] using hrelated
-
-theorem analysisSound
-    {concrete : ConcreteAlgebra.{u}} {abstract : Algebra.{v}} {schema : Schema}
-    (soundnessFor : ∀ values, SoundnessWithFactoring concrete abstract schema values)
-    (operation : Operation)
-    : AnalysisSound soundnessFor operation := by
-  intro hschema hoperation ObjectRef resolvers variableValues source
-  let coercedVariableValues := coerceVariableValues operation variableValues
-  exact SoundnessWithFactoring.executeQueryAnnotated_sound operation resolvers variableValues
-    (soundnessFor coercedVariableValues) source hschema hoperation
 
 -- Proof-facing fuel variant used by analyses whose algebra depends on coerced request
 -- variables. The public definition module exposes only the default-executor statement.
@@ -1767,8 +1828,16 @@ theorem operationWithVariablesSoundWithFuel
     (soundnessFor : ∀ values, Soundness concrete (algebraFor values) schema values)
     (operation : Operation)
     : OperationWithVariablesSoundWithFuel algebraFor soundnessFor operation := by
-  exact WithVariablesProof.operationWithVariablesSoundWithFuel algebraFor
-    soundnessFor operation
+  intro hschema hoperation ObjectRef resolvers variableValues fuel source
+  let coercedVariableValues := coerceVariableValues operation variableValues
+  have hrelated :=
+    Soundness.executeQueryAnnotatedWithFuel_soundAt operation resolvers
+      variableValues
+      coercedVariableValues (by intro variableName value hvalue; rw [hvalue]; rfl)
+      (soundnessFor coercedVariableValues) fuel source hschema hoperation
+  simpa [summarizeOperationWithVariables, CaseForest.summarizeSelectionSet,
+    CaseForest.summarizeSelectionSetWithPruning,
+    coercedVariableValues] using hrelated
 
 theorem analysisWithVariablesSound
     {concrete : ConcreteAlgebra.{u}}
@@ -1781,6 +1850,8 @@ theorem analysisWithVariablesSound
     hschema hoperation ObjectRef resolvers variableValues
     (executeQueryFuelBound schema operation) source
   simpa [executeQueryAnnotated] using hsound
+
+end WithVariablesProof
 
 end ExactCases
 end TreeSummary

@@ -1453,8 +1453,7 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
           parentType source responseName fieldName arguments directives
           selectionSet output hallowed]
         simp [visitSubfields, GraphQL.Execution.collectSelection,
-          collectedExecutableSelections, collectedExecutableFields,
-          executableFieldSelections,
+          collectedExecutableSelections, executableFieldSelections,
           executableFieldSelection, hallowed]
         simp [visitSelection_field_depth_zero schema resolvers variableValues
           parentType source responseName fieldName arguments [] selectionSet
@@ -1465,7 +1464,6 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
           selectionSet output hallowed]
         simp [visitSubfields, visitSelection, executeField,
           GraphQL.Execution.collectSelection, collectedExecutableSelections,
-          collectedExecutableFields,
           executableFieldSelections, executableFieldSelection, executableField,
           selectionDirectivesAllowBool_empty, hallowed]
   · have hfalse :
@@ -1477,8 +1475,7 @@ theorem visitSelection_field_eq_visitSubfields_collectedExecutableFields_collect
       depth parentType source responseName fieldName arguments directives
       selectionSet output hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableSelections, collectedExecutableFields,
-      executableFieldSelections, hfalse]
+      collectedExecutableSelections, hfalse]
 
 theorem visitSelection_field_allowed_succ_ready
     {ObjectIdentity : Type}
@@ -1700,8 +1697,7 @@ theorem
       variableValues depth parentType source directives selectionSet output
       hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableSelections, collectedExecutableFields,
-      executableFieldSelections, hfalse]
+      collectedExecutableSelections, hfalse]
 
 theorem
     visitSelection_inline_some_eq_visitSubfields_collectedExecutableFields_collectSelection
@@ -1745,8 +1741,7 @@ theorem
         variableValues depth parentType source typeCondition directives
         selectionSet output hallowed hfalse]
       simp [visitSubfields, GraphQL.Execution.collectSelection,
-        collectedExecutableSelections, collectedExecutableFields,
-        executableFieldSelections, hallowed, hfalse]
+        collectedExecutableSelections, hallowed, hfalse]
   · have hfalse :
         selectionDirectivesAllowBool variableValues directives = false := by
       cases hmatch : selectionDirectivesAllowBool variableValues directives
@@ -1756,8 +1751,7 @@ theorem
       variableValues depth parentType source typeCondition directives
       selectionSet output hfalse]
     simp [visitSubfields, GraphQL.Execution.collectSelection,
-      collectedExecutableSelections, collectedExecutableFields,
-      executableFieldSelections, hfalse]
+      collectedExecutableSelections, hfalse]
 
 theorem visitSelection_eq_visitSubfields_collectedExecutableFields_collectSelection
     {ObjectIdentity : Type}
@@ -1861,8 +1855,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
       · simp [visitSubfields, GraphQL.Execution.collectFields,
           GraphQL.Execution.collectSelection,
           GraphQL.Execution.mergeExecutableGroups, collectedExecutableSelections,
-          collectedExecutableFields, executableFieldSelections,
-          executableFieldSelection, hallowed]
+          executableFieldSelections, executableFieldSelection, hallowed]
         cases depth <;>
           simp [visitSelection, executableField, hallowed,
             selectionDirectivesAllowBool_empty]
@@ -1877,8 +1870,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
           arguments directives selectionSet output hblocked]
         simp [visitSubfields, GraphQL.Execution.collectFields,
           GraphQL.Execution.collectSelection, GraphQL.Execution.mergeExecutableGroups,
-          collectedExecutableSelections, collectedExecutableFields,
-          executableFieldSelections, hblocked, visitOk,
+          collectedExecutableSelections, hblocked, visitOk,
           combineVisitStatus, GraphQL.Execution.Result.combine]
   | inlineFragment typeCondition directives selectionSet =>
       cases typeCondition with
@@ -1888,7 +1880,6 @@ theorem visitSubfields_single_eq_flattened_collectFields
           · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
               GraphQL.Execution.collectSelection,
               GraphQL.Execution.mergeExecutableGroups,
-              collectedExecutableSelections, executableFieldSelections,
               hallowed] at hbody ⊢
             exact hbody
           · have hblocked :
@@ -1899,8 +1890,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
             simp [visitSubfields, visitSelection,
               GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
               GraphQL.Execution.mergeExecutableGroups, collectedExecutableSelections,
-              collectedExecutableFields,
-              executableFieldSelections, hblocked, visitOk, combineVisitStatus,
+              hblocked, visitOk, combineVisitStatus,
               GraphQL.Execution.Result.combine]
       | some typeCondition =>
           by_cases hallowed :
@@ -1911,7 +1901,6 @@ theorem visitSubfields_single_eq_flattened_collectFields
             · simp [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
                 GraphQL.Execution.collectSelection,
                 GraphQL.Execution.mergeExecutableGroups,
-                collectedExecutableSelections, executableFieldSelections,
                 hallowed, happly] at hbody ⊢
               exact hbody
             · have hnotApply :
@@ -1926,8 +1915,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
                 GraphQL.Execution.collectFields,
                 GraphQL.Execution.collectSelection,
                 GraphQL.Execution.mergeExecutableGroups,
-                collectedExecutableSelections, collectedExecutableFields,
-                executableFieldSelections, hallowed, hnotApply, visitOk,
+                collectedExecutableSelections, hallowed, hnotApply, visitOk,
                 combineVisitStatus, Result.combine,
                 GraphQL.Execution.Result.combine]
           · have hblocked :
@@ -1938,8 +1926,7 @@ theorem visitSubfields_single_eq_flattened_collectFields
             simp [visitSubfields, visitSelection,
               GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
               GraphQL.Execution.mergeExecutableGroups,
-              collectedExecutableSelections, collectedExecutableFields,
-              executableFieldSelections, hblocked, visitOk, combineVisitStatus,
+              collectedExecutableSelections, hblocked, visitOk, combineVisitStatus,
               GraphQL.Execution.Result.combine]
 
 theorem visitSubfields_nil_absorbs_of_ready
@@ -2218,8 +2205,7 @@ theorem VisitSubfieldsRawFlatCollects_nil
     : VisitSubfieldsRawFlatCollects schema resolvers variableValues depth
         parentType source [] output := by
   simp [VisitSubfieldsRawFlatCollects, GraphQL.Execution.collectFields,
-    collectedExecutableSelections, collectedExecutableFields,
-    executableFieldSelections]
+    collectedExecutableSelections]
 
 theorem VisitSubfieldsRawFlatCollectsAllOutputs_nil
     {ObjectIdentity : Type}
@@ -2343,8 +2329,7 @@ theorem VisitSubfieldsFlatCollects_nil
     : VisitSubfieldsFlatCollects schema resolvers variableValues depth parentType
         source [] output := by
   simp [VisitSubfieldsFlatCollects, GraphQL.Execution.collectFields,
-    collectedExecutableSelections, collectedExecutableFields,
-    executableFieldSelections]
+    collectedExecutableSelections]
 
 theorem VisitSubfieldsFlatCollectsAllOutputs_nil
     {ObjectIdentity : Type}

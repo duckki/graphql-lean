@@ -1,4 +1,5 @@
 import GraphQL.Theories.TreeSummary.MaxResponseSize
+import Proofs.GraphQL.SchemaWellFormedness.PossibleTypes
 import Proofs.GraphQL.Theories.TreeSummary.AnnotationErasure
 import Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality
 
@@ -472,6 +473,160 @@ def algebraLawful (schema : Schema) (listSize : Nat) : (algebra schema listSize)
     le_join_right := Nat.le_max_right
   }
 
+/-- GraphQL output covariance preserves list-wrapper shape. Nullability and the named
+output type may change, but neither affects `listMultiplier`. -/
+theorem listMultiplier_eq_of_outputTypeSubtype (schema : Schema) (listSize : Nat)
+    {implementation expected : TypeRef}
+    (hsubtype : schema.outputTypeSubtype implementation expected)
+    : listMultiplier listSize implementation = listMultiplier listSize expected := by
+  induction implementation generalizing expected with
+  | named implementationName =>
+      cases expected with
+      | named expectedName => rfl
+      | list expectedInner => simp [Schema.outputTypeSubtype] at hsubtype
+      | nonNull expectedInner => simp [Schema.outputTypeSubtype] at hsubtype
+  | list implementationInner ih =>
+      cases expected with
+      | named expectedName => simp [Schema.outputTypeSubtype] at hsubtype
+      | list expectedInner =>
+          exact congrArg (fun multiplier => listSize * multiplier) (ih hsubtype)
+      | nonNull expectedInner => simp [Schema.outputTypeSubtype] at hsubtype
+  | nonNull implementationInner ih =>
+      cases expected with
+      | named expectedName =>
+          apply ih
+          simpa only [Schema.outputTypeSubtype] using hsubtype
+      | list expectedInner =>
+          apply ih
+          simpa only [Schema.outputTypeSubtype] using hsubtype
+      | nonNull expectedInner =>
+          exact ih (expected := expectedInner)
+            (by simpa only [Schema.outputTypeSubtype] using hsubtype)
+
+private theorem foldlListMultiplier_eq_of_nonempty_constant (listSize value : Nat)
+    (outputTypes : List TypeRef) (accumulator : Nat)
+    (hnonempty : outputTypes ≠ [])
+    (hconstant : ∀ outputType ∈ outputTypes, listMultiplier listSize outputType = value)
+    : outputTypes.foldl
+        (fun maximum outputType =>
+          max maximum (listMultiplier listSize outputType))
+        accumulator
+      = max accumulator value := by
+  induction outputTypes generalizing accumulator with
+  | nil => contradiction
+  | cons outputType rest ih =>
+      have hhead := hconstant outputType (by simp)
+      cases rest with
+      | nil => simp [hhead]
+      | cons next tail =>
+          rw [List.foldl_cons, hhead]
+          rw [ih (accumulator := max accumulator value)]
+          · exact Nat.max_eq_left (Nat.le_max_right accumulator value)
+          · simp
+          · intro candidate hcandidate
+            exact hconstant candidate (by simp [hcandidate])
+
+/-- The reference all-runtime-parent implementation agrees with one validated field
+definition whenever every possible runtime lookup exists and is covariant with it. -/
+theorem fieldListMultiplierForAllDefinitions_eq_forDefinition
+    (schema : Schema) (listSize : Nat)
+    (group : CollectedFieldGroup) (definition : FieldDefinition)
+    (hnonempty : group.condition.possibleTypes ≠ [])
+    (hruntime
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          ∃ implementation,
+            schema.lookupField parentType group.representativeField.fieldName
+              = some implementation
+            ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
+    : fieldListMultiplierForAllDefinitions schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
+  have houtputNonempty : group.fieldOutputTypes schema ≠ [] := by
+    cases hpossible : group.condition.possibleTypes with
+    | nil => exact (hnonempty hpossible).elim
+    | cons parentType rest =>
+        rcases hruntime parentType (by simp [hpossible]) with
+          ⟨implementation, hlookup, _hsubtype⟩
+        simp [CollectedFieldGroup.fieldOutputTypes, hpossible, hlookup]
+  have hconstant : ∀ outputType ∈ group.fieldOutputTypes schema,
+      listMultiplier listSize outputType =
+        listMultiplier listSize definition.outputType := by
+    intro outputType houtput
+    rcases List.mem_filterMap.mp houtput with
+      ⟨parentType, hparentType, hfiltered⟩
+    rcases hruntime parentType hparentType with
+      ⟨implementation, hlookup, hsubtype⟩
+    simp [hlookup] at hfiltered
+    subst outputType
+    exact listMultiplier_eq_of_outputTypeSubtype schema listSize hsubtype
+  exact foldlListMultiplier_eq_of_nonempty_constant listSize
+    (listMultiplier listSize definition.outputType)
+    (group.fieldOutputTypes schema) 1 houtputNonempty hconstant
+
+/-- The one-parent implementation agrees with any field definition to which every
+possible runtime implementation is covariant. -/
+theorem fieldListMultiplier_eq_forDefinition (schema : Schema) (listSize : Nat)
+    (group : CollectedFieldGroup) (definition : FieldDefinition)
+    (hnonempty : group.condition.possibleTypes ≠ [])
+    (hruntime
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          ∃ implementation,
+            schema.lookupField parentType group.representativeField.fieldName
+              = some implementation
+            ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
+  cases hpossible : group.condition.possibleTypes with
+  | nil => exact (hnonempty hpossible).elim
+  | cons parentType rest =>
+      rcases hruntime parentType (by simp [hpossible]) with
+        ⟨implementation, hlookup, hsubtype⟩
+      simp only [fieldListMultiplier, hpossible, hlookup]
+      rw [fieldListMultiplierForDefinition]
+      rw [listMultiplier_eq_of_outputTypeSubtype schema listSize hsubtype]
+      rfl
+
+/-- The original all-parent fold equals the one-parent shortcut on a valid field group.
+The premise is group-local: it does not choose or retain the source field's parent. -/
+theorem fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier
+    (schema : Schema) (listSize : Nat)
+    (group : CollectedFieldGroup)
+    (hnonempty : group.condition.possibleTypes ≠ [])
+    (hcompatible : group.FieldDefinitionsCompatible schema)
+    : fieldListMultiplierForAllDefinitions schema listSize group
+      = fieldListMultiplier schema listSize group := by
+  rcases hcompatible with ⟨expectedOutputType, hruntime⟩
+  let definition : FieldDefinition :=
+    { name := group.representativeField.fieldName, outputType := expectedOutputType }
+  rw [fieldListMultiplierForAllDefinitions_eq_forDefinition schema listSize group
+    definition hnonempty hruntime]
+  exact (fieldListMultiplier_eq_forDefinition schema listSize group definition
+    hnonempty hruntime).symm
+
+/-- Schema well-formedness discharges the group-local runtime-lookup premise when the
+group's possible parents come from the selected field's static parent type. -/
+theorem fieldListMultiplier_eq_forDefinition_of_schemaWellFormed
+    (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
+    (staticParentType : Name) (definition : FieldDefinition)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hdefinition
+      : schema.lookupField staticParentType group.representativeField.fieldName
+        = some definition)
+    (hpossible
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          parentType ∈ schema.getPossibleTypes staticParentType)
+    (hnonempty : group.condition.possibleTypes ≠ [])
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
+  apply fieldListMultiplier_eq_forDefinition schema listSize group definition hnonempty
+  intro parentType hparentType
+  have hparentPossible := hpossible parentType hparentType
+  rcases SchemaWellFormedness.schemaWellFormed_possibleObject_lookupField_exists
+      hschema hparentPossible hdefinition with
+    ⟨implementation, himplementation⟩
+  exact ⟨implementation, himplementation,
+    SchemaWellFormedness.schemaWellFormed_possibleObject_lookupField_outputTypeSubtype
+      hschema hparentPossible hdefinition himplementation⟩
+
 private theorem foldlListMultiplier_ge_accumulator (listSize : Nat)
     (outputTypes : List TypeRef) (accumulator : Nat)
     : accumulator
@@ -503,26 +658,44 @@ private theorem listMultiplier_le_foldl_of_mem (listSize : Nat)
             (foldlListMultiplier_ge_accumulator listSize rest _)
       | inr hrest => exact ih _ hrest
 
-theorem listMultiplier_le_fieldListMultiplier (schema : Schema) (listSize : Nat)
+theorem listMultiplier_le_fieldListMultiplierForAllDefinitions
+    (schema : Schema) (listSize : Nat)
     (group : CollectedFieldGroup) (outputType : TypeRef)
     (hmem : outputType ∈ group.fieldOutputTypes schema)
-    : listMultiplier listSize outputType ≤ fieldListMultiplier schema listSize group := by
+    : listMultiplier listSize outputType
+      ≤ fieldListMultiplierForAllDefinitions schema listSize group := by
   exact listMultiplier_le_foldl_of_mem listSize outputType
     (group.fieldOutputTypes schema) 1 hmem
 
-theorem one_le_fieldListMultiplier (schema : Schema) (listSize : Nat)
+theorem one_le_fieldListMultiplierForAllDefinitions (schema : Schema) (listSize : Nat)
     (group : CollectedFieldGroup)
-    : 1 ≤ fieldListMultiplier schema listSize group := by
+    : 1 ≤ fieldListMultiplierForAllDefinitions schema listSize group := by
   exact foldlListMultiplier_ge_accumulator listSize (group.fieldOutputTypes schema) 1
+
+theorem max_one_listMultiplier_le_fieldListMultiplierForAllDefinitions
+    (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
+    (outputType : TypeRef) (hmem : outputType ∈ group.fieldOutputTypes schema)
+    : max 1 (listMultiplier listSize outputType)
+      ≤ fieldListMultiplierForAllDefinitions schema listSize group := by
+  exact Nat.max_le.mpr
+    ⟨one_le_fieldListMultiplierForAllDefinitions schema listSize group,
+      listMultiplier_le_fieldListMultiplierForAllDefinitions schema listSize group
+        outputType hmem
+  ⟩
 
 theorem max_one_listMultiplier_le_fieldListMultiplier
     (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
     (outputType : TypeRef) (hmem : outputType ∈ group.fieldOutputTypes schema)
+    (hcompatible : group.FieldDefinitionsCompatible schema)
     : max 1 (listMultiplier listSize outputType)
       ≤ fieldListMultiplier schema listSize group := by
-  exact Nat.max_le.mpr ⟨one_le_fieldListMultiplier schema listSize group,
-    (listMultiplier_le_fieldListMultiplier schema listSize group outputType hmem)
-  ⟩
+  have hnonempty : group.condition.possibleTypes ≠ [] := by
+    intro hempty
+    simp [CollectedFieldGroup.fieldOutputTypes, hempty] at hmem
+  rw [← fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier schema
+    listSize group hnonempty hcompatible]
+  exact max_one_listMultiplier_le_fieldListMultiplierForAllDefinitions schema
+    listSize group outputType hmem
 
 mutual
   private theorem foldChildSummaryForValue_le_mul
@@ -707,7 +880,7 @@ theorem joinFactoringLaws (schema : Schema) (listSize : Nat)
 
 def soundness (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues)
-    : TreeSummary.ExactCases.Soundness (concreteAlgebra schema)
+    : TreeSummary.ExactCases.SoundnessWithFactoring (concreteAlgebra schema)
         (algebra schema listSize) schema variableValues :=
   {
     approximates := ResponseObservationBound listSize
@@ -723,7 +896,7 @@ def soundness (schema : Schema) (listSize : Nat)
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
       intro group parentType _field schemaDefinition value children abstractChildren
-        _hrepresentative _hparent _harguments hlookup houtput hchildren
+        _hrepresentative _hparent _harguments hlookup houtput hcompatible hchildren
       intro hadmissible
       have hadmissible' :
           responseValueChildMultiplicity value
@@ -735,7 +908,7 @@ def soundness (schema : Schema) (listSize : Nat)
         (foldChildSummaryForValue_le_mul schema listSize abstractChildren value)
       have hmultiplier := Nat.le_trans hadmissible'.1
         (max_one_listMultiplier_le_fieldListMultiplier schema listSize group
-          schemaDefinition.outputType houtput)
+          schemaDefinition.outputType houtput hcompatible)
       exact Nat.add_le_add_left
         (Nat.le_trans hchild
           (Nat.mul_le_mul_right abstractChildren hmultiplier)) 1
@@ -808,7 +981,7 @@ def soundness (schema : Schema) (listSize : Nat)
       exact Nat.le_trans (hlower hadmissible) hle
     field_sound := by
       intro parentType field definition value children groups abstractChildren hnonempty hmatch
-        hconditions _harguments hlookup hchildren
+        hconditions hdefinitions _harguments hlookup hchildren
       intro hadmissible
       have hadmissible' :
           responseValueChildMultiplicity value
@@ -837,7 +1010,7 @@ def soundness (schema : Schema) (listSize : Nat)
             hlookupRepresentative
         exact Nat.le_trans hadmissible'.1
           (max_one_listMultiplier_le_fieldListMultiplier schema listSize group
-            definition.outputType houtput)
+            definition.outputType houtput (hdefinitions group hgroup))
       have hcapacity := summarizedGroups_capacity schema listSize
         (responseValueChildMultiplicity value) abstractChildren groups hmultipliers
       have hlength : 1 ≤ groups.length := by
@@ -919,7 +1092,8 @@ theorem algebraSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Ope
           source)
       ≤ estimateOperation schema listSize operation := by
   have hrefinement :=
-    TreeSummary.ExactCases.Soundness.executeQueryAnnotatedWithFuel_sound operation
+    TreeSummary.ExactCases.SoundnessWithFactoring.executeQueryAnnotatedWithFuel_sound
+      operation
       resolvers variableValues
       (soundness schema listSize
         (Execution.coerceVariableValues operation variableValues))
@@ -993,7 +1167,7 @@ theorem algebraWithVariablesSoundWithFuel
   have hrefinement :=
     TreeSummary.ExactCases.operationWithVariablesSoundWithFuel
       (fun _values => algebra schema listSize)
-      (fun values => soundness schema listSize values)
+      (fun values => (soundness schema listSize values).toSoundness)
       operation hschema hoperation ObjectRef resolvers variableValues fuel source
   simpa [ResponseWithinListSize, annotatedSize,
     MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using

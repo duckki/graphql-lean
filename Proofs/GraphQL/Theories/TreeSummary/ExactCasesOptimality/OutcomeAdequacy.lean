@@ -12,6 +12,7 @@ open GraphQL.Execution
 open GraphQL.Execution.FieldGroups
 open Optimality
 open Internal
+open CaseCursor
 
 universe u v w
 
@@ -168,9 +169,13 @@ theorem selectionSetOutcomesInhabited
         inheritedBooleanCondition selectionSet initial := by
   unfold SelectionSetOutcomesInhabited OutcomeSemantics.FieldOutcomesInhabited
   intro hfieldOutcomes
-  exact (summarizeSelectionSet_best
-    (inhabitanceTransferLaws semantics hfieldOutcomes) schema parentType
-    inheritedBooleanCondition selectionSet initial).feasible
+  unfold CaseCursor.selectionSetOutcomes
+  exact (Internal.summarizeConditionTreeDecision_best
+    (inhabitanceTransferLaws semantics hfieldOutcomes) schema
+    inheritedBooleanCondition
+    (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+      inheritedBooleanCondition initial.pruningValues selectionSet)
+    initial).feasible
 
 @[reducible]
 private def runtimeGroupSemantics : OutcomeSemantics :=
@@ -561,7 +566,7 @@ private theorem contextOutcome_runtimeGroupSemantics_hasRuntimeType
             (possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes])
           = region :=
       RuntimeCase.chooseTypeRegion_eq_of_mem possibleTypes
-        [branch.body.condition.possibleTypes] runtimeType region hruntimePossible
+        [branch.body.condition.possibleTypes] runtimeType hruntimePossible region
         hregion hruntimeRegion
     refine ⟨runtimeType, hruntimePossible, ?_⟩
     change List CollectedFieldGroup at outcome
@@ -586,7 +591,7 @@ private theorem contextOutcome_runtimeGroupSemantics_hasRuntimeType
             (possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes])
           = region :=
       RuntimeCase.chooseTypeRegion_eq_of_mem possibleTypes
-        [branch.body.condition.possibleTypes] runtimeType region hruntimePossible
+        [branch.body.condition.possibleTypes] runtimeType hruntimePossible region
         hregion hruntimeRegion
     refine ⟨runtimeType, hruntimePossible, ?_⟩
     change List CollectedFieldGroup at outcome

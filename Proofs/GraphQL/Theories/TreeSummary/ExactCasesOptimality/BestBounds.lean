@@ -1,3 +1,5 @@
+import Proofs.GraphQL.Theories.TreeSummary.ExactCases.CaseForestOptimality
+import Proofs.GraphQL.Theories.TreeSummary.ExactCases.CaseForestOutcomeLifting
 import Proofs.GraphQL.Theories.TreeSummary.ExactCasesOptimality.OutcomeCharacterization
 
 /-! Selection-set and operation best-bound theorems for ExactCases. -/
@@ -12,58 +14,60 @@ open Optimality
 
 universe u v w
 
-theorem summarizeSelectionSet_best
+theorem CaseCursor.summarizeSelectionSet_best
     {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
     {le : abstract.Summary -> abstract.Summary -> Prop}
     (laws : BestTransferLaws semantics abstract le) (schema : Schema)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (initial : BooleanEnvironment)
+    (selectionSet : List Selection) (caseValues : VariableValues)
     : BestBound le laws.approximates
-        (selectionSetOutcomes semantics schema parentType
-          inheritedBooleanCondition selectionSet initial)
-        (summarizeSelectionSet abstract schema parentType inheritedBooleanCondition
-          selectionSet initial) := by
-  unfold selectionSetOutcomes summarizeSelectionSet
-  exact summarizeConditionTree_best laws schema inheritedBooleanCondition
+        (CaseCursor.selectionSetOutcomes semantics schema parentType
+          inheritedBooleanCondition selectionSet (.symbolic caseValues))
+        (CaseCursor.summarizeSelectionSet abstract schema parentType
+          inheritedBooleanCondition selectionSet caseValues) := by
+  unfold CaseCursor.selectionSetOutcomes CaseCursor.summarizeSelectionSet
+  exact CaseCursor.summarizeConditionTree_best laws schema inheritedBooleanCondition
     (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
-      inheritedBooleanCondition initial.pruningValues selectionSet)
-    initial
+      inheritedBooleanCondition [] selectionSet)
+    caseValues
 
--- The relational outcomes collectively cover every execution at the same valid
--- selection boundary. Coverage is by common upper bounds: one execution may combine
--- several recursively selected cases, notably across heterogeneous list elements.
-theorem selectionSetOutcomesCoverExecution
+-- Proof-facing concrete specialization used to connect cursor outcomes to execution.
+-- This is a theorem about the internal resolved fold, not a public evaluation entry
+-- point.
+theorem summarizeSelectionSetResolved_best
+    {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}}
+    {le : abstract.Summary -> abstract.Summary -> Prop}
+    (laws : BestTransferLaws semantics abstract le) (schema : Schema)
+    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (selectionSet : List Selection) (variableValues : VariableValues)
+    : BestBound le laws.approximates
+        (CaseCursor.selectionSetOutcomes semantics schema parentType
+          inheritedBooleanCondition selectionSet (.concrete variableValues))
+        (summarizeSelectionSetResolved abstract schema parentType
+          inheritedBooleanCondition selectionSet variableValues variableValues) := by
+  unfold CaseCursor.selectionSetOutcomes summarizeSelectionSetResolved
+  simpa [summarizeConditionTreeWithPruning,
+    summarizeConditionTreeDecisionWithPruning,
+    Internal.summarizeConditionTreeDecision,
+    CaseCursor.BooleanEnvironment.pruningValues] using
+    Internal.summarizeConditionTreeDecision_best laws schema inheritedBooleanCondition
+      (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+        inheritedBooleanCondition variableValues selectionSet)
+      (.concrete variableValues)
+
+-- Every common bound of the shared cursor outcomes also bounds execution at the same
+-- concrete request context.
+theorem selectionSetExecutionCovered
     {semantics : OutcomeSemantics.{u}} {concrete : ConcreteAlgebra.{v}}
     {abstract : Algebra.{w}} {schema : Schema} (variableValues : VariableValues)
-    (soundness : Soundness concrete abstract schema variableValues)
+    (soundness : SoundnessWithFactoring concrete abstract schema variableValues)
     (laws : BestTransferLaws semantics abstract soundness.abstractLawful.le)
     (variableDefinitions : List VariableDefinition)
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
     (selectionSet : List Selection)
-    : ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-        (fuel : Nat) (runtimeType : Name) (ref : ObjectRef),
-        booleanConditionAllows variableValues inheritedBooleanCondition = true
-        -> schema.typeIncludesObject parentType runtimeType
-        -> SchemaWellFormedness.schemaWellFormed schema
-        -> schema.objectType runtimeType
-        -> Validation.selectionSetValid schema variableDefinitions runtimeType
-            selectionSet
-        -> FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet
-        ->  let source : ResolverValue ObjectRef := .object runtimeType ref
-            let runtimeGroups :=
-              collectFields schema variableValues runtimeType source selectionSet
-            let executionResult :=
-              AnnotatedExecution.executeQueryAnnotatedCollectedFields schema resolvers
-                variableValues fuel runtimeType source runtimeGroups
-            let concreteOutcome :=
-              foldAnnotatedResponseFieldsResult concrete executionResult
-            ∀ candidate,
-              OutcomeSet.IsUpperBound laws.approximates
-                (selectionSetOutcomes semantics schema parentType
-                  inheritedBooleanCondition selectionSet
-                  (BooleanEnvironment.concrete variableValues))
-                candidate
-              -> soundness.approximates concreteOutcome candidate := by
+    : SelectionSetExecutionCovered variableValues soundness laws variableDefinitions
+        parentType inheritedBooleanCondition selectionSet := by
+  unfold SelectionSetExecutionCovered
   intro ObjectRef resolvers fuel runtimeType ref hinherited hpossible hschema hobject
     hselectionValid hmerge
   dsimp only
@@ -72,11 +76,9 @@ theorem selectionSetOutcomesCoverExecution
   have hexecution := soundness.executeSelectionSetAnnotated_sound resolvers parentType
     inheritedBooleanCondition selectionSet fuel runtimeType ref hinherited hpossible
     variableDefinitions hschema hobject hselectionValid hmerge
-  have hbest := summarizeSelectionSet_best laws schema parentType
-    inheritedBooleanCondition selectionSet
-    (BooleanEnvironment.concrete variableValues)
-  apply soundness.approximates_upward _ _ _
-    (by exact hexecution)
+  have hbest := summarizeSelectionSetResolved_best laws schema parentType
+    inheritedBooleanCondition selectionSet variableValues
+  apply soundness.approximates_upward _ _ _ hexecution
   exact hbest.least candidate hcandidate
 
 theorem summarizeOperation_best
@@ -87,8 +89,8 @@ theorem summarizeOperation_best
         (operationOutcomes semantics schema operation)
         (summarizeOperation abstract schema operation) := by
   unfold operationOutcomes summarizeOperation
-  exact summarizeSelectionSet_best laws schema (operation.rootType schema) []
-    operation.selectionSet BooleanEnvironment.unresolved
+  exact CaseCursor.summarizeSelectionSet_best laws schema (operation.rootType schema) []
+    operation.selectionSet []
 
 theorem analysisOptimal
     {semantics : OutcomeSemantics.{u}} {abstract : Algebra.{v}} {schema : Schema}
@@ -99,7 +101,7 @@ theorem analysisOptimal
 
 theorem summarizeOperationWithVariables_best
     {semantics : OutcomeSemantics.{u}}
-    (abstractFor : VariableValues -> Algebra.{v}) {schema : Schema}
+    (abstractFor : VariableValues → Algebra.{v}) {schema : Schema}
     (variableValues : VariableValues) (operation : Operation)
     {le
       : (abstractFor (Execution.coerceVariableValues operation variableValues)).Summary
@@ -112,15 +114,14 @@ theorem summarizeOperationWithVariables_best
         (operationOutcomesWithVariables semantics schema variableValues operation)
         (summarizeOperationWithVariables abstractFor schema variableValues
           operation) := by
-  unfold operationOutcomesWithVariables summarizeOperationWithVariables
-  exact summarizeSelectionSet_best laws schema (operation.rootType schema) []
-    operation.selectionSet
-    (BooleanEnvironment.concrete
-      (Execution.coerceVariableValues operation variableValues))
+  apply bestBound_of_attainable_iff
+    (CaseForestOutcomeLifting.operationOutcomesWithVariables_iff_forest
+      schema variableValues operation)
+  exact summarizeOperationWithVariables_forest_best abstractFor variableValues operation laws
 
 theorem analysisWithVariablesOptimal
     {semantics : OutcomeSemantics.{u}}
-    (abstractFor : VariableValues -> Algebra.{v}) {schema : Schema}
+    (abstractFor : VariableValues → Algebra.{v}) {schema : Schema}
     (variableValues : VariableValues) (operation : Operation)
     {le
       : (abstractFor (Execution.coerceVariableValues operation variableValues)).Summary
@@ -131,25 +132,6 @@ theorem analysisWithVariablesOptimal
           (abstractFor (Execution.coerceVariableValues operation variableValues)) le)
     : AnalysisWithVariablesOptimal abstractFor schema variableValues operation laws :=
   summarizeOperationWithVariables_best abstractFor variableValues operation laws
-
-theorem operationOutcomesCoverExecutions
-    {semantics : OutcomeSemantics.{u}} {concrete : ConcreteAlgebra.{v}}
-    {abstract : Algebra.{w}}
-    (schema : Schema) (variableValues : VariableValues) (operation : Operation)
-    (soundness
-      : Soundness concrete abstract schema
-          (Execution.coerceVariableValues operation variableValues))
-    (laws : BestTransferLaws semantics abstract soundness.abstractLawful.le)
-    : OperationOutcomesCoverExecutions schema variableValues operation soundness
-        laws := by
-  unfold OperationOutcomesCoverExecutions
-  intro hschema hoperation candidate hcandidate ObjectRef resolvers source
-  have hexecution := soundness.executeQueryAnnotatedWithVariables_sound operation
-    resolvers variableValues source hschema hoperation
-  have hbest := summarizeOperationWithVariables_best (schema := schema)
-    (fun _values => abstract) variableValues operation laws
-  exact soundness.approximates_upward _ _ _ hexecution
-    (hbest.least candidate hcandidate)
 
 end ExactCases
 end TreeSummary

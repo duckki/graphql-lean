@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.TreeSummary.Syntactic.RuntimePath
+import Proofs.GraphQL.Theories.TreeSummary.FieldDefinitions
 
 /-! Runtime-selected Syntactic field groups and their algebraic folds. -/
 
@@ -200,6 +201,45 @@ mutual
       simp_wf
       omega
 end
+
+/-- A traversed group retains the source validation witness for every occurrence. -/
+theorem traversedCollectedGroup_fieldsValid
+    (schema : Schema) (variableDefinitions : List VariableDefinition)
+    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (traversal : Traversal) (group : CollectedFieldGroup)
+    (htree : TreeFieldsValid schema variableDefinitions tree)
+    (hgroup
+      : group
+        ∈ traversedCollectedGroups parentType inheritedBooleanCondition tree traversal)
+    : group.FieldsValid schema variableDefinitions := by
+  intro selection hselection
+  have hshape := traversedCollectedGroup_shape parentType inheritedBooleanCondition
+    tree traversal group hgroup
+  rcases hshape.2 selection hselection with ⟨_field, _heq, hentry⟩
+  exact htree _ hentry
+
+/-- A traversed group inherits field-definition compatibility from the source tree. -/
+theorem traversedCollectedGroup_definitionsCompatible
+    (schema : Schema) (parentType : Name)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (traversal : Traversal) (group : CollectedFieldGroup)
+    (htree
+      : ∀ entry,
+          entry ∈ tree.fieldEntries -> FieldEntryDefinitionsCompatible schema entry)
+    (hgroup
+      : group
+        ∈ traversedCollectedGroups parentType inheritedBooleanCondition tree traversal)
+    : group.FieldDefinitionsCompatible schema := by
+  have hshape := traversedCollectedGroup_shape parentType inheritedBooleanCondition
+    tree traversal group hgroup
+  have hrepresentative :
+      group.representativeField.toSelection group.responseName ∈ group.selections := by
+    simp [CollectedFieldGroup.selections, CollectedFieldGroup.responseName,
+      CollectedFieldGroup.representativeField,
+      ConditionTree.FieldGroup.selections, ConditionTree.FieldGroup.fields]
+  rcases hshape.2 _ hrepresentative with ⟨_field, _heq, hentry⟩
+  simpa [FieldEntryDefinitionsCompatible, ConditionTree.Field.toSelection,
+    CollectedFieldGroup.FieldDefinitionsCompatible] using htree _ hentry
 
 theorem summarizeCollectedGroups_filter_le
     (algebra : Algebra.{v}) (lawful : algebra.Lawful)

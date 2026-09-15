@@ -205,6 +205,164 @@ theorem nestedSelectionsShareMissingBooleanValue
       = 3 := by
   native_decide
 
+def multiplierStaticDefinition : FieldDefinition :=
+  {
+    name := "values"
+    outputType := .list (.list (.named "String"))
+  }
+
+def multiplierImplementationA : FieldDefinition :=
+  {
+    name := "values"
+    outputType := .nonNull (.list (.nonNull (.list (.nonNull (.named "String")))))
+  }
+
+def multiplierImplementationB : FieldDefinition :=
+  {
+    name := "values"
+    outputType := .list (.nonNull (.list (.named "String")))
+  }
+
+def multiplierSchema : Schema :=
+  {
+    queryType := "A"
+    types :=
+      [
+        .object
+          {
+            name := "A"
+            fields := [multiplierImplementationA]
+          },
+        .object
+          {
+            name := "B"
+            fields := [multiplierImplementationB]
+          }
+      ]
+  }
+
+def multiplierGroup : CollectedFieldGroup :=
+  {
+    inheritedBooleanCondition := []
+    condition :=
+      {
+        possibleTypes := ["A", "A", "B"]
+        booleanCondition := []
+      }
+    fieldGroup :=
+      {
+        responseName := "values"
+        first :=
+          {
+            fieldName := "values"
+            arguments := []
+            selectionSet := []
+          }
+        rest := []
+      }
+  }
+
+private theorem stringOutputTypeSubtypeSelf
+    : multiplierSchema.outputTypeSubtype (.named "String") (.named "String") := by
+  simp [Schema.outputTypeSubtype, Schema.namedOutputTypeSubtype, Schema.isLeafType,
+    Schema.lookupType, Schema.allTypes, Schema.builtinScalarDefinitions,
+    BuiltinScalar.name, TypeDefinition.name, TypeDefinition.isLeafType,
+    multiplierSchema]
+
+private theorem multiplierRuntimeDefinitionsCovariant
+    : ∀ parentType ∈ multiplierGroup.condition.possibleTypes,
+        ∃ implementation,
+          multiplierSchema.lookupField parentType
+              multiplierGroup.representativeField.fieldName
+            = some implementation
+          ∧ multiplierSchema.outputTypeSubtype implementation.outputType
+              multiplierStaticDefinition.outputType := by
+  intro parentType hparentType
+  have hparent : parentType = "A" ∨ parentType = "B" := by
+    simpa [multiplierGroup] using hparentType
+  rcases hparent with rfl | rfl
+  · refine ⟨multiplierImplementationA, ?_, ?_⟩
+    · rfl
+    · simpa [multiplierImplementationA, multiplierStaticDefinition,
+        Schema.outputTypeSubtype] using stringOutputTypeSubtypeSelf
+  · refine ⟨multiplierImplementationB, ?_, ?_⟩
+    · rfl
+    · simpa [multiplierImplementationB, multiplierStaticDefinition,
+        Schema.outputTypeSubtype] using stringOutputTypeSubtypeSelf
+
+private theorem multiplierDefinitionsCompatible
+    : multiplierGroup.FieldDefinitionsCompatible multiplierSchema :=
+  ⟨multiplierStaticDefinition.outputType, multiplierRuntimeDefinitionsCovariant⟩
+
+theorem fieldListMultiplierReferenceEquivalenceSmoke
+    : fieldListMultiplierForAllDefinitions multiplierSchema 3 multiplierGroup
+      = fieldListMultiplier multiplierSchema 3 multiplierGroup := by
+  apply fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier
+  · simp [multiplierGroup]
+  · exact multiplierDefinitionsCompatible
+
+-- The old scan and the definition-based shortcut agree for multiple runtime parents,
+-- duplicate output definitions, and strengthened nullability at several wrapper levels.
+theorem fieldListMultiplierDefinitionShortcutSmoke
+    : fieldListMultiplier multiplierSchema 3 multiplierGroup
+      = fieldListMultiplierForDefinition 3 multiplierStaticDefinition := by
+  apply fieldListMultiplier_eq_forDefinition
+  · simp [multiplierGroup]
+  · exact multiplierRuntimeDefinitionsCovariant
+
+-- Bounds zero and one retain the fold's minimum multiplier of one; a larger bound is
+-- raised once for each nested list wrapper.
+theorem fieldListMultiplierDefinitionBoundarySmoke
+    : fieldListMultiplierForDefinition 0 multiplierStaticDefinition = 1
+      ∧ fieldListMultiplierForDefinition 1 multiplierStaticDefinition = 1
+      ∧ fieldListMultiplierForDefinition 3 multiplierStaticDefinition = 9 := by
+  native_decide
+
+theorem singularFieldListMultiplierDefinitionSmoke
+    : fieldListMultiplierForDefinition 3
+        ({ name := "value", outputType := .named "String" } : FieldDefinition)
+      = 1 := by
+  native_decide
+
+-- Covariance may also narrow the named output while preserving the enclosing list
+-- shape; the proof does not require equality of the names.
+theorem covariantNamedOutputsPreserveListMultiplierSmoke (schema : Schema)
+    (hsubtype
+      : schema.outputTypeSubtype
+          (.list (.named "Implementation")) (.list (.named "Expected")))
+    : listMultiplier 3 (.list (.named "Implementation"))
+      = listMultiplier 3 (.list (.named "Expected")) :=
+  listMultiplier_eq_of_outputTypeSubtype schema 3 hsubtype
+
+def emptyMultiplierGroup : CollectedFieldGroup :=
+  {
+    multiplierGroup with
+      condition := { multiplierGroup.condition with possibleTypes := [] }
+  }
+
+-- The nonempty-runtime-type premise is necessary: the original empty fold returns one,
+-- while a static nested-list definition can have a larger multiplier.
+theorem emptyFieldListMultiplierDoesNotUseStaticDefinition
+    : fieldListMultiplier multiplierSchema 3 emptyMultiplierGroup = 1
+      ∧ fieldListMultiplierForDefinition 3 multiplierStaticDefinition = 9 := by
+  native_decide
+
+theorem fieldListMultiplierSchemaCorollaryApiSmoke
+    (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
+    (staticParentType : Name) (definition : FieldDefinition)
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hdefinition
+      : schema.lookupField staticParentType group.representativeField.fieldName
+        = some definition)
+    (hpossible
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          parentType ∈ schema.getPossibleTypes staticParentType)
+    (hnonempty : group.condition.possibleTypes ≠ [])
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition :=
+  fieldListMultiplier_eq_forDefinition_of_schemaWellFormed schema listSize group
+    staticParentType definition hschema hdefinition hpossible hnonempty
+
 theorem analysisOptimalApiSmoke (schema : Schema) (listSize : Nat) (operation : Operation)
     : ExactCases.AnalysisOptimal schema listSize operation :=
   ExactCases.analysisOptimal schema listSize operation

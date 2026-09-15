@@ -242,7 +242,7 @@ private theorem CaseCursor.summarizeDecisionWithPruning_nil
     (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
     (inheritedBooleanCondition caseCondition : List BooleanLiteral)
     (cursor : CaseCursor)
-    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (possibleTypes : PossibleTypeRegion) (environment : CaseCursor.BooleanEnvironment)
     (pruningValues : Execution.VariableValues := environment.pruningValues)
     (hbranches : cursor.pendingBranches = [])
     : cursor.summarizeDecisionWithPruning algebra schema variableOrder
@@ -261,7 +261,7 @@ private theorem CaseCursor.summarizeDecisionWithPruning_cons
     (algebra : Algebra) (schema : Schema) (variableOrder : BooleanVariableNames)
     (inheritedBooleanCondition caseCondition : List BooleanLiteral)
     (cursor : CaseCursor)
-    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (possibleTypes : PossibleTypeRegion) (environment : CaseCursor.BooleanEnvironment)
     (pruningValues : Execution.VariableValues := environment.pruningValues)
     (branch : Branch Tree) (rest : List (Branch Tree))
     (hbranches : cursor.pendingBranches = branch :: rest)
@@ -317,7 +317,7 @@ theorem CaseCursor.summarizeDecisionWithPruning_related
     (variableOrder : BooleanVariableNames)
     (inheritedBooleanCondition caseCondition : List BooleanLiteral)
     (cursor : CaseCursor)
-    (possibleTypes : PossibleTypeRegion) (environment : BooleanEnvironment)
+    (possibleTypes : PossibleTypeRegion) (environment : CaseCursor.BooleanEnvironment)
     (pruningValues : Execution.VariableValues := environment.pruningValues)
     : BooleanDecision.Related algebraRelation.related
         (CaseCursor.summarizeDecisionWithPruning left schema variableOrder
@@ -411,7 +411,7 @@ theorem CaseCursor.summarizeChildTypesDecisionWithPruning_related
     (algebraRelation : left.Relation right) (schema : Schema)
     (variableOrder : BooleanVariableNames)
     (group : CollectedFieldGroup) (parentTypes : TypeNames)
-    (environment : BooleanEnvironment)
+    (environment : CaseCursor.BooleanEnvironment)
     (pruningValues : Execution.VariableValues := environment.pruningValues)
     : BooleanDecision.Related algebraRelation.related
         (CaseCursor.summarizeChildTypesDecisionWithPruning left schema variableOrder group
@@ -433,7 +433,7 @@ theorem CaseCursor.summarizeFieldGroupsDecisionWithPruning_related
     (left : Algebra.{u}) (right : Algebra.{v})
     (algebraRelation : left.Relation right) (schema : Schema)
     (variableOrder : BooleanVariableNames)
-    (groups : List CollectedFieldGroup) (environment : BooleanEnvironment)
+    (groups : List CollectedFieldGroup) (environment : CaseCursor.BooleanEnvironment)
     (pruningValues : Execution.VariableValues := environment.pruningValues)
     : BooleanDecision.Related algebraRelation.related
         (CaseCursor.summarizeFieldGroupsDecisionWithPruning left schema variableOrder
@@ -450,35 +450,112 @@ theorem CaseCursor.summarizeFieldGroupsDecisionWithPruning_related
       schema variableOrder group (childParentTypes schema group) environment
       pruningValues
 
-theorem summarizeConditionTree_related
+theorem CaseForest.summarize_related
     (left : Algebra.{u}) (right : Algebra.{v})
     (algebraRelation : left.Relation right) (schema : Schema)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (tree : Tree) (environment : BooleanEnvironment)
+    (forest : CaseForest) (possibleTypes : PossibleTypeRegion)
+    (variableValues fixedVariableValues : Execution.VariableValues)
     : algebraRelation.related
-        (summarizeConditionTree left schema inheritedBooleanCondition tree environment)
-        (summarizeConditionTree right schema inheritedBooleanCondition tree
-          environment) := by
-  unfold summarizeConditionTree Internal.summarizeConditionTreeDecision
+        (CaseForest.summarize left schema inheritedBooleanCondition forest
+          possibleTypes variableValues fixedVariableValues)
+        (CaseForest.summarize right schema inheritedBooleanCondition forest
+          possibleTypes variableValues fixedVariableValues) := by
+  apply CaseForest.summarize.induct schema variableValues fixedVariableValues
+    (motive1 := fun inherited forest possibleTypes =>
+      algebraRelation.related
+        (CaseForest.summarize left schema inherited forest possibleTypes
+          variableValues fixedVariableValues)
+        (CaseForest.summarize right schema inherited forest possibleTypes
+          variableValues fixedVariableValues))
+    (motive2 := fun groups =>
+      algebraRelation.related
+        (CaseForest.summarizeFieldGroups left schema groups variableValues
+          fixedVariableValues)
+        (CaseForest.summarizeFieldGroups right schema groups variableValues
+          fixedVariableValues))
+    (motive3 := fun group parentTypes =>
+      algebraRelation.related
+        (CaseForest.summarizeChildTypes left schema group parentTypes
+          variableValues fixedVariableValues)
+        (CaseForest.summarizeChildTypes right schema group parentTypes
+          variableValues fixedVariableValues))
+    (motive4 := fun inherited forest regions hbranches =>
+      algebraRelation.related
+        (CaseForest.summarizeTypeRegions left schema inherited forest regions
+          variableValues hbranches fixedVariableValues)
+        (CaseForest.summarizeTypeRegions right schema inherited forest regions
+          variableValues hbranches fixedVariableValues))
+  case case1 =>
+    intro inherited forest possibleTypes hbranches htypes ih
+    rw [CaseForest.summarize.eq_1 right schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    rw [CaseForest.summarize.eq_1 left schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    simpa [hbranches, htypes] using ih
+  case case2 =>
+    intro inherited forest possibleTypes hbranches htypes ih
+    rw [CaseForest.summarize.eq_1 right schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    rw [CaseForest.summarize.eq_1 left schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    simpa [hbranches, htypes] using ih
+  case case3 =>
+    intro inherited forest possibleTypes hbranches ih
+    rw [CaseForest.summarize.eq_1 right schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    rw [CaseForest.summarize.eq_1 left schema inherited forest possibleTypes
+      variableValues fixedVariableValues]
+    simpa [hbranches] using ih
+  case case4 =>
+    intro groups ih
+    simp only [CaseForest.summarizeFieldGroups.eq_1]
+    apply algebraRelation.combineMap_related groups
+    intro group hgroup
+    exact algebraRelation.field_related group _ _ (ih group hgroup)
+  case case5 =>
+    intro group parentTypes ih
+    simp only [CaseForest.summarizeChildTypes.eq_1]
+    apply algebraRelation.joinMap_related parentTypes
+    intro childParentType hparentType
+    exact ih childParentType
+  case case6 =>
+    intro inherited forest regions hbranches ih
+    simp only [CaseForest.summarizeTypeRegions.eq_1]
+    apply algebraRelation.joinMap_related regions
+    intro region hregion
+    exact ih region
+
+theorem CaseCursor.summarizeConditionTree_related
+    (left : Algebra.{u}) (right : Algebra.{v})
+    (algebraRelation : left.Relation right) (schema : Schema)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (caseValues : Execution.VariableValues)
+    : algebraRelation.related
+        (CaseCursor.summarizeConditionTree left schema inheritedBooleanCondition tree
+          caseValues)
+        (CaseCursor.summarizeConditionTree right schema inheritedBooleanCondition tree
+          caseValues) := by
+  unfold CaseCursor.summarizeConditionTree Internal.summarizeConditionTreeDecision
   rw [BooleanDecision.collapse_compact, BooleanDecision.collapse_compact]
   apply BooleanDecision.Related.collapse left right algebraRelation
   exact CaseCursor.summarizeDecisionWithPruning_related left right algebraRelation schema
     (conditionTreeBooleanVariables tree).eraseDups inheritedBooleanCondition
-    [] (.ofConditionTree tree) tree.condition.possibleTypes environment
+    [] (.ofConditionTree tree) tree.condition.possibleTypes (.symbolic caseValues) []
 
-theorem summarizeSelectionSet_related
+theorem CaseForest.summarizeConditionTree_related
     (left : Algebra.{u}) (right : Algebra.{v})
     (algebraRelation : left.Relation right) (schema : Schema)
-    (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
-    (selectionSet : List Selection) (environment : BooleanEnvironment)
+    (inheritedBooleanCondition : List BooleanLiteral)
+    (tree : Tree) (variableValues fixedVariableValues : Execution.VariableValues)
     : algebraRelation.related
-        (summarizeSelectionSet left schema parentType inheritedBooleanCondition
-          selectionSet environment)
-        (summarizeSelectionSet right schema parentType inheritedBooleanCondition
-          selectionSet environment) := by
-  unfold summarizeSelectionSet
-  exact summarizeConditionTree_related left right algebraRelation schema
-    inheritedBooleanCondition _ environment
+        (CaseForest.summarizeConditionTree left schema inheritedBooleanCondition tree
+          variableValues fixedVariableValues)
+        (CaseForest.summarizeConditionTree right schema inheritedBooleanCondition tree
+          variableValues fixedVariableValues) := by
+  exact CaseForest.summarize_related left right algebraRelation schema
+    inheritedBooleanCondition (.ofConditionTree tree) tree.condition.possibleTypes
+    variableValues fixedVariableValues
 
 end ExactCases
 end TreeSummary

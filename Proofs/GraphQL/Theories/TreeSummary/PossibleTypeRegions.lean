@@ -297,5 +297,179 @@ theorem possibleTypeRegions_exact (scope : PossibleTypes)
   exact possibleTypeRegions_fold_exact scope [] conditions
     (if scope.isEmpty then [] else [scope]) hinitial
 
+-- The region containing a representative is its full membership-equivalence class.
+-- This characterization makes the selected region independent of the order in which
+-- condition sets are used to refine the partition.
+def possibleTypeMembershipClass (scope : PossibleTypes)
+    (conditions : List PossibleTypes) (representative : Name)
+    : PossibleTypeRegion :=
+  scope.filter
+    fun candidate =>
+      conditions.all
+        fun allowed =>
+          allowed.contains candidate == allowed.contains representative
+
+private theorem splitRegionFor_membershipClass
+    (scope : PossibleTypes) (processed : List PossibleTypes)
+    (allowed : PossibleTypes) (representative : Name)
+    : splitRegionFor (possibleTypeMembershipClass scope processed representative)
+        allowed representative
+      = possibleTypeMembershipClass scope (processed ++ [allowed]) representative := by
+  unfold splitRegionFor possibleTypeMembershipClass
+  split <;> rename_i hallowed
+  · rw [List.filter_filter]
+    apply congrArg (List.filter · scope)
+    funext candidate
+    have hrepresentativeMem : representative ∈ allowed :=
+      List.contains_iff_mem.mp hallowed
+    cases hcandidate : allowed.contains candidate with
+    | false =>
+        have hcandidateNotMem : candidate ∉ allowed := by
+          intro hmem
+          exact Bool.noConfusion
+            (hcandidate.symm.trans (List.contains_iff_mem.mpr hmem))
+        simp [List.all_append, hrepresentativeMem, hcandidateNotMem]
+    | true =>
+        have hcandidateMem : candidate ∈ allowed :=
+          List.contains_iff_mem.mp hcandidate
+        simp [List.all_append, hrepresentativeMem, hcandidateMem, Bool.and_comm]
+  · have hallowedFalse : allowed.contains representative = false := by
+      cases hvalue : allowed.contains representative
+      · rfl
+      · exact (hallowed hvalue).elim
+    rw [List.filter_filter]
+    apply congrArg (List.filter · scope)
+    funext candidate
+    have hrepresentativeNotMem : representative ∉ allowed := by
+      intro hmem
+      exact Bool.noConfusion
+        (hallowedFalse.symm.trans (List.contains_iff_mem.mpr hmem))
+    cases hcandidate : allowed.contains candidate with
+    | false =>
+        have hcandidateNotMem : candidate ∉ allowed := by
+          intro hmem
+          exact Bool.noConfusion
+            (hcandidate.symm.trans (List.contains_iff_mem.mpr hmem))
+        simp [List.all_append, hrepresentativeNotMem, hcandidateNotMem, Bool.and_comm]
+    | true =>
+        have hcandidateMem : candidate ∈ allowed :=
+          List.contains_iff_mem.mp hcandidate
+        simp [List.all_append, hrepresentativeNotMem, hcandidateMem]
+
+private theorem refinePossibleTypeRegions_membershipClass
+    (scope : PossibleTypes) (processed regions : List PossibleTypes)
+    (allowed : PossibleTypes)
+    (hclasses
+      : ∀ region,
+          region ∈ regions
+          -> ∀ representative,
+              representative ∈ region
+              -> region = possibleTypeMembershipClass scope processed representative)
+    : ∀ candidate,
+        candidate ∈ refinePossibleTypeRegions allowed regions
+        -> ∀ representative,
+            representative ∈ candidate
+            -> candidate
+                = possibleTypeMembershipClass scope
+                    (processed ++ [allowed]) representative := by
+  intro candidate hcandidate representative hrepresentative
+  rw [refinePossibleTypeRegions] at hcandidate
+  rcases List.mem_flatMap.mp hcandidate with ⟨region, hregion, hcandidate⟩
+  have hparent : representative ∈ region :=
+    mem_of_mem_splitPossibleTypeRegion region allowed candidate hcandidate
+      hrepresentative
+  rw [eq_splitRegionFor_of_mem_splitPossibleTypeRegion region allowed candidate
+      hcandidate hrepresentative,
+    hclasses region hregion representative hparent,
+    splitRegionFor_membershipClass]
+
+private theorem possibleTypeRegions_fold_membershipClass
+    (scope : PossibleTypes) (processed conditions : List PossibleTypes)
+    (regions : List PossibleTypeRegion)
+    (hclasses
+      : ∀ region,
+          region ∈ regions
+          -> ∀ representative,
+              representative ∈ region
+              -> region = possibleTypeMembershipClass scope processed representative)
+    : ∀ candidate,
+        candidate
+          ∈ conditions.foldl
+              (fun current allowed => refinePossibleTypeRegions allowed current) regions
+        -> ∀ representative,
+            representative ∈ candidate
+            -> candidate
+                = possibleTypeMembershipClass scope
+                    (processed ++ conditions) representative := by
+  induction conditions generalizing processed regions with
+  | nil => simpa using hclasses
+  | cons allowed rest ih =>
+      rw [List.foldl_cons]
+      have hrefined := refinePossibleTypeRegions_membershipClass scope processed regions
+        allowed hclasses
+      have hrest := ih (processed ++ [allowed])
+        (refinePossibleTypeRegions allowed regions) hrefined
+      simpa [List.append_assoc] using hrest
+
+theorem possibleTypeRegions_membershipClass (scope : PossibleTypes)
+    (conditions : List PossibleTypes) (region : PossibleTypeRegion)
+    (hregion : region ∈ possibleTypeRegions scope conditions) (representative : Name)
+    (hrepresentative : representative ∈ region)
+    : region = possibleTypeMembershipClass scope conditions representative := by
+  unfold possibleTypeRegions at hregion
+  apply possibleTypeRegions_fold_membershipClass scope [] conditions
+      (if scope.isEmpty then [] else [scope]) _ region hregion representative
+      hrepresentative
+  intro initial hinitial candidate hcandidate
+  cases hempty : scope.isEmpty with
+  | true => simp [hempty] at hinitial
+  | false =>
+      simp only [hempty, Bool.false_eq_true, if_false, List.mem_singleton] at hinitial
+      subst initial
+      unfold possibleTypeMembershipClass
+      symm
+      apply List.filter_eq_self.mpr
+      intro typeName htypeName
+      simp
+
+theorem possibleTypeMembershipClass_perm
+    (scope : PossibleTypes) {left right : List PossibleTypes}
+    (hperm : left.Perm right) (representative : Name)
+    : possibleTypeMembershipClass scope left representative
+      = possibleTypeMembershipClass scope right representative := by
+  unfold possibleTypeMembershipClass
+  apply congrArg (List.filter · scope)
+  funext candidate
+  exact hperm.all_eq
+
+theorem possibleTypeMembershipClass_eq_of_mem_iff
+    (scope : PossibleTypes) (left right : List PossibleTypes)
+    (representative : Name)
+    (hmembership : ∀ allowed, allowed ∈ left ↔ allowed ∈ right)
+    : possibleTypeMembershipClass scope left representative
+      = possibleTypeMembershipClass scope right representative := by
+  unfold possibleTypeMembershipClass
+  apply congrArg (List.filter · scope)
+  funext candidate
+  apply Bool.eq_iff_iff.mpr
+  simp only [List.all_eq_true]
+  constructor
+  · intro hall allowed hallowed
+    exact hall allowed ((hmembership allowed).mpr hallowed)
+  · intro hall allowed hallowed
+    exact hall allowed ((hmembership allowed).mp hallowed)
+
+theorem possibleTypeMembershipClass_append
+    (scope : PossibleTypes) (left right : List PossibleTypes)
+    (representative : Name)
+    : possibleTypeMembershipClass
+        (possibleTypeMembershipClass scope left representative) right representative
+      = possibleTypeMembershipClass scope (left ++ right) representative := by
+  unfold possibleTypeMembershipClass
+  rw [List.filter_filter]
+  apply congrArg (List.filter · scope)
+  funext candidate
+  simp [List.all_append, Bool.and_comm]
+
 end TreeSummary
 end GraphQL
