@@ -469,8 +469,7 @@ theorem executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_obj
             rest)
         =
         .ok (tailFields, tailErrors) := by
-      simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet]
-        using htail
+      simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet] using htail
     exact
       ExecutionResponseKeys.executeCollectedFields_ok_keys schema resolvers
         variableValues fuel parentType source
@@ -493,8 +492,8 @@ theorem executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_obj
     intro hmem
     have hnames :
         (responseName :: rest.filterMap Selection.responseName?).Nodup := by
-      simpa [responseNamesNodup, Selection.responseName?] using
-        selectionSetNormal_responseNamesNodup hnormal
+      simpa [responseNamesNodup, Selection.responseName?]
+        using selectionSetNormal_responseNamesNodup hnormal
     have hnotRest : responseName ∉ rest.filterMap Selection.responseName? :=
       (List.nodup_cons.mp hnames).1
     exact hnotRest (by simpa [htailKeys, hrestKeys] using hmem)
@@ -632,10 +631,12 @@ theorem responseValue_semanticEquivalent_of_singleFieldResult_data
                 (.object [(responseName, leftValue)])
                 (.object [(responseName, rightValue)]) := by
             simpa [Execution.selectionSetResultToResponse, Execution.singleFieldResult,
-              hleft, hright] using hsemantic
-          simpa [Execution.Result.getD, hleft, hright] using
-            SemanticSeparation.responseValue_semanticEquivalent_singleton_object_field
-              hobject
+              hleft, hright]
+              using hsemantic
+          simpa [Execution.Result.getD, hleft, hright]
+            using
+              SemanticSeparation.responseValue_semanticEquivalent_singleton_object_field
+                hobject
 
 theorem not_wrapTypeRefSelectionSetResponse_data_semanticEquivalent_of_child
     (responseName : Name) (outputType : TypeRef) {left right : Execution.Response}
@@ -645,14 +646,13 @@ theorem not_wrapTypeRefSelectionSetResponse_data_semanticEquivalent_of_child
             (wrapTypeRefSelectionSetResponse responseName outputType right).data := by
   intro hchild hwrapped
   apply hchild
-  exact
-    wrapTypeRefSelectionSetDataValue_semanticEquivalent_injective outputType
-      (responseValue_semanticEquivalent_of_singleFieldResult_data responseName
-        (wrapTypeRefSelectionSetResult outputType left)
-        (wrapTypeRefSelectionSetResult outputType right)
-        (by
-          simpa [wrapTypeRefSelectionSetResponse,
-            wrapTypeRefSelectionSetDataValue] using hwrapped))
+  exact wrapTypeRefSelectionSetDataValue_semanticEquivalent_injective outputType
+    (responseValue_semanticEquivalent_of_singleFieldResult_data responseName
+      (wrapTypeRefSelectionSetResult outputType left)
+      (wrapTypeRefSelectionSetResult outputType right)
+      (by
+        simpa [wrapTypeRefSelectionSetResponse, wrapTypeRefSelectionSetDataValue]
+          using hwrapped))
 
 theorem dataEquivalent_singleton_response_of_combine_ok_tail
     (responseName : Name)
@@ -718,7 +718,8 @@ theorem dataEquivalent_singleton_response_of_combine_ok_tail
                 (.object ((responseName, leftValue) :: leftTailFields))
                 (.object ((responseName, rightValue) :: rightTailFields)) := by
             simpa [Execution.selectionSetResultToResponse, Execution.Result.combine,
-              hleftHead, hrightHead] using hdata
+              hleftHead, hrightHead]
+              using hdata
           have hvalueCanonical :
               Execution.ResponseValue.canonical leftValue =
                 Execution.ResponseValue.canonical rightValue :=
@@ -741,13 +742,11 @@ theorem responseValue_null_not_semanticEquivalent_object_append_singleton
   intro hsemantic
   cases pref with
   | nil =>
-      exact
-        SemanticSeparation.responseValue_null_not_semanticEquivalent_object_cons
-          (by simpa using hsemantic)
+      exact SemanticSeparation.responseValue_null_not_semanticEquivalent_object_cons
+        (by simpa using hsemantic)
   | cons field rest =>
-      exact
-        SemanticSeparation.responseValue_null_not_semanticEquivalent_object_cons
-          (by simpa [List.cons_append, List.append_assoc] using hsemantic)
+      exact SemanticSeparation.responseValue_null_not_semanticEquivalent_object_cons
+        (by simpa [List.cons_append, List.append_assoc] using hsemantic)
 
 theorem responseValue_object_append_singleton_not_semanticEquivalent_null
     {pref suffix : List (Name × Execution.ResponseValue)}
@@ -757,13 +756,11 @@ theorem responseValue_object_append_singleton_not_semanticEquivalent_null
   intro hsemantic
   cases pref with
   | nil =>
-      exact
-        SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_null
-          (by simpa using hsemantic)
+      exact SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_null
+        (by simpa using hsemantic)
   | cons field rest =>
-      exact
-        SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_null
-          (by simpa [List.cons_append, List.append_assoc] using hsemantic)
+      exact SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_null
+        (by simpa [List.cons_append, List.append_assoc] using hsemantic)
 
 theorem dataEquivalent_singleton_response_of_context_ok
     (responseName : Name)
@@ -814,7 +811,8 @@ theorem dataEquivalent_singleton_response_of_context_ok
                 (.object (rightPrefixFields ++
                   [(responseName, rightValue)] ++ rightSuffixFields)) := by
             simpa [Execution.selectionSetResultToResponse, Execution.Result.combine,
-              hleftHead, hrightHead, List.append_assoc] using hdata
+              hleftHead, hrightHead, List.append_assoc]
+              using hdata
           exact False.elim
             (responseValue_null_not_semanticEquivalent_object_append_singleton
               hnullObject)
@@ -831,7 +829,8 @@ theorem dataEquivalent_singleton_response_of_context_ok
                   [(responseName, leftValue)] ++ leftSuffixFields))
                 .null := by
             simpa [Execution.selectionSetResultToResponse, Execution.Result.combine,
-              hleftHead, hrightHead, List.append_assoc] using hdata
+              hleftHead, hrightHead, List.append_assoc]
+              using hdata
           exact False.elim
             (responseValue_object_append_singleton_not_semanticEquivalent_null
               hobjectNull)
@@ -847,7 +846,8 @@ theorem dataEquivalent_singleton_response_of_context_ok
                 (.object (rightPrefixFields ++
                   [(responseName, rightValue)] ++ rightSuffixFields)) := by
             simpa [Execution.selectionSetResultToResponse, Execution.Result.combine,
-              hleftHead, hrightHead, List.append_assoc] using hdata
+              hleftHead, hrightHead, List.append_assoc]
+              using hdata
           have hvalueCanonical :
               Execution.ResponseValue.canonical leftValue =
                 Execution.ResponseValue.canonical rightValue :=
@@ -983,52 +983,47 @@ theorem
     simpa [Execution.executeSelectionSetAsResponse, leftHead, rightHead, hleftSplit,
       hrightSplit, hleftPrefix, hrightPrefix, hleftSuffix, hrightSuffix]
       using hparentData
-  exact
-    dataEquivalent_singleton_response_of_context_ok responseName leftHead
-      rightHead leftPrefixFields rightPrefixFields leftSuffixFields
-      rightSuffixFields leftPrefixErrors rightPrefixErrors leftSuffixErrors
-      rightSuffixErrors
-      (by
-        intro fields errors hok
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := leftField,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }]
-            fields errors (by simpa [leftHead] using hok))
-      (by
-        intro fields errors hok
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := rightField,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }]
-            fields errors (by simpa [rightHead] using hok))
-      (by
-        intro value errors hok
-        exact
-          executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source leftPref
-            responseName leftField leftArguments leftChildSelectionSet
-            leftSuffix leftPrefixFields leftSuffixFields leftPrefixErrors
-            leftSuffixErrors value errors hleftFree hleftNormal hobject
-            hleftPrefix (by simpa [leftHead] using hok) hleftSuffix)
-      (by
-        intro value errors hok
-        exact
-          executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source rightPref
-            responseName rightField rightArguments rightChildSelectionSet
-            rightSuffix rightPrefixFields rightSuffixFields rightPrefixErrors
-            rightSuffixErrors value errors hrightFree hrightNormal hobject
-            hrightPrefix (by simpa [rightHead] using hok) hrightSuffix)
-      hcontextData
+  exact dataEquivalent_singleton_response_of_context_ok responseName leftHead
+    rightHead leftPrefixFields rightPrefixFields leftSuffixFields
+    rightSuffixFields leftPrefixErrors rightPrefixErrors leftSuffixErrors
+    rightSuffixErrors
+    (by
+      intro fields errors hok
+      exact executeField_ok_responseFields_singleton schema resolvers
+        variableValues fuel parentType source responseName
+        [{
+          fieldName := leftField,
+          arguments := leftArguments,
+          selectionSet := leftChildSelectionSet
+        }]
+        fields errors (by simpa [leftHead] using hok))
+    (by
+      intro fields errors hok
+      exact executeField_ok_responseFields_singleton schema resolvers
+        variableValues fuel parentType source responseName
+        [{
+          fieldName := rightField,
+          arguments := rightArguments,
+          selectionSet := rightChildSelectionSet
+        }]
+        fields errors (by simpa [rightHead] using hok))
+    (by
+      intro value errors hok
+      exact executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
+        schema resolvers variableValues fuel parentType source leftPref
+        responseName leftField leftArguments leftChildSelectionSet
+        leftSuffix leftPrefixFields leftSuffixFields leftPrefixErrors
+        leftSuffixErrors value errors hleftFree hleftNormal hobject
+        hleftPrefix (by simpa [leftHead] using hok) hleftSuffix)
+    (by
+      intro value errors hok
+      exact executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
+        schema resolvers variableValues fuel parentType source rightPref
+        responseName rightField rightArguments rightChildSelectionSet
+        rightSuffix rightPrefixFields rightSuffixFields rightPrefixErrors
+        rightSuffixErrors value errors hrightFree hrightNormal hobject
+        hrightPrefix (by simpa [rightHead] using hok) hrightSuffix)
+    hcontextData
 
 theorem target_split_singleton_response_dataEquivalent_of_responseData_context_ok
     {ObjectRef : Type} {schema : Schema}
@@ -1153,52 +1148,47 @@ theorem target_split_singleton_response_dataEquivalent_of_responseData_context_o
     simpa [Execution.executeSelectionSetAsResponse, leftHead, rightHead, hleftSplit,
       hrightSplit, hleftPrefix, hrightPrefix, hleftSuffix, hrightSuffix]
       using hdata
-  exact
-    dataEquivalent_singleton_response_of_context_ok responseName leftHead
-      rightHead leftPrefixFields rightPrefixFields leftSuffixFields
-      rightSuffixFields leftPrefixErrors rightPrefixErrors leftSuffixErrors
-      rightSuffixErrors
-      (by
-        intro fields errors hok
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := leftField,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }]
-            fields errors (by simpa [leftHead] using hok))
-      (by
-        intro fields errors hok
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := rightField,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }]
-            fields errors (by simpa [rightHead] using hok))
-      (by
-        intro value errors hok
-        exact
-          executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source leftPref
-            responseName leftField leftArguments leftChildSelectionSet
-            leftSuffix leftPrefixFields leftSuffixFields leftPrefixErrors
-            leftSuffixErrors value errors hleftFree hleftNormal hobject
-            hleftPrefix (by simpa [leftHead] using hok) hleftSuffix)
-      (by
-        intro value errors hok
-        exact
-          executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source rightPref
-            responseName rightField rightArguments rightChildSelectionSet
-            rightSuffix rightPrefixFields rightSuffixFields rightPrefixErrors
-            rightSuffixErrors value errors hrightFree hrightNormal hobject
-            hrightPrefix (by simpa [rightHead] using hok) hrightSuffix)
-      hcontextData
+  exact dataEquivalent_singleton_response_of_context_ok responseName leftHead
+    rightHead leftPrefixFields rightPrefixFields leftSuffixFields
+    rightSuffixFields leftPrefixErrors rightPrefixErrors leftSuffixErrors
+    rightSuffixErrors
+    (by
+      intro fields errors hok
+      exact executeField_ok_responseFields_singleton schema resolvers
+        variableValues fuel parentType source responseName
+        [{
+          fieldName := leftField,
+          arguments := leftArguments,
+          selectionSet := leftChildSelectionSet
+        }]
+        fields errors (by simpa [leftHead] using hok))
+    (by
+      intro fields errors hok
+      exact executeField_ok_responseFields_singleton schema resolvers
+        variableValues fuel parentType source responseName
+        [{
+          fieldName := rightField,
+          arguments := rightArguments,
+          selectionSet := rightChildSelectionSet
+        }]
+        fields errors (by simpa [rightHead] using hok))
+    (by
+      intro value errors hok
+      exact executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
+        schema resolvers variableValues fuel parentType source leftPref
+        responseName leftField leftArguments leftChildSelectionSet
+        leftSuffix leftPrefixFields leftSuffixFields leftPrefixErrors
+        leftSuffixErrors value errors hleftFree hleftNormal hobject
+        hleftPrefix (by simpa [leftHead] using hok) hleftSuffix)
+    (by
+      intro value errors hok
+      exact executeSelectionSet_ok_field_split_responseFields_nodup_of_normal_object
+        schema resolvers variableValues fuel parentType source rightPref
+        responseName rightField rightArguments rightChildSelectionSet
+        rightSuffix rightPrefixFields rightSuffixFields rightPrefixErrors
+        rightSuffixErrors value errors hrightFree hrightNormal hobject
+        hrightPrefix (by simpa [rightHead] using hok) hrightSuffix)
+    hcontextData
 
 theorem
     target_head_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_tail_ok
@@ -1302,62 +1292,62 @@ theorem
                 selectionSet := rightChildSelectionSet
               }])
             (.ok (rightTailFields, rightTailErrors)))).data := by
-    simpa [Execution.executeSelectionSetAsResponse, hleftSplit, hrightSplit,
-      hleftTail, hrightTail] using hwhole
-  exact
-    dataEquivalent_singleton_response_of_combine_ok_tail responseName
-      (Execution.executeField schema resolvers variableValues fuel parentType source
-        responseName
-        [{
-          fieldName := leftField,
-          arguments := leftArguments,
-          selectionSet := leftChildSelectionSet
-        }])
-      (Execution.executeField schema resolvers variableValues fuel parentType source
-        responseName
-        [{
-          fieldName := rightField,
-          arguments := rightArguments,
-          selectionSet := rightChildSelectionSet
-        }])
-      leftTailFields rightTailFields leftTailErrors rightTailErrors
-      (by
-        intro fields errors hhead
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := leftField,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }] fields errors hhead)
-      (by
-        intro fields errors hhead
-        exact
-          executeField_ok_responseFields_singleton schema resolvers
-            variableValues fuel parentType source responseName
-            [{
-              fieldName := rightField,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }] fields errors hhead)
-      (by
-        intro value errors _hhead
-        exact
-          executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source
-            responseName leftField leftArguments [] leftChildSelectionSet
-            leftRest value leftTailFields leftTailErrors hleftFree
-            hleftNormal hobject hleftTail)
-      (by
-        intro value errors _hhead
-        exact
-          executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_object
-            schema resolvers variableValues fuel parentType source
-            responseName rightField rightArguments [] rightChildSelectionSet
-            rightRest value rightTailFields rightTailErrors hrightFree
-            hrightNormal hobject hrightTail)
-      hprojected
+    simpa [Execution.executeSelectionSetAsResponse, hleftSplit, hrightSplit, hleftTail,
+      hrightTail]
+      using hwhole
+  exact dataEquivalent_singleton_response_of_combine_ok_tail responseName
+    (Execution.executeField schema resolvers variableValues fuel parentType source
+      responseName
+      [{
+        fieldName := leftField,
+        arguments := leftArguments,
+        selectionSet := leftChildSelectionSet
+      }])
+    (Execution.executeField schema resolvers variableValues fuel parentType source
+      responseName
+      [{
+        fieldName := rightField,
+        arguments := rightArguments,
+        selectionSet := rightChildSelectionSet
+      }])
+    leftTailFields rightTailFields leftTailErrors rightTailErrors
+    (by
+      intro fields errors hhead
+      exact
+        executeField_ok_responseFields_singleton schema resolvers
+          variableValues fuel parentType source responseName
+          [{
+            fieldName := leftField,
+            arguments := leftArguments,
+            selectionSet := leftChildSelectionSet
+          }] fields errors hhead)
+    (by
+      intro fields errors hhead
+      exact
+        executeField_ok_responseFields_singleton schema resolvers
+          variableValues fuel parentType source responseName
+          [{
+            fieldName := rightField,
+            arguments := rightArguments,
+            selectionSet := rightChildSelectionSet
+          }] fields errors hhead)
+    (by
+      intro value errors _hhead
+      exact
+        executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_object
+          schema resolvers variableValues fuel parentType source
+          responseName leftField leftArguments [] leftChildSelectionSet
+          leftRest value leftTailFields leftTailErrors hleftFree
+          hleftNormal hobject hleftTail)
+    (by
+      intro value errors _hhead
+      exact
+        executeSelectionSet_ok_head_cons_tail_responseFields_nodup_of_normal_object
+          schema resolvers variableValues fuel parentType source
+          responseName rightField rightArguments [] rightChildSelectionSet
+          rightRest value rightTailFields rightTailErrors hrightFree
+          hrightNormal hobject hrightTail)
+    hprojected
 
 theorem executeSelectionSetAsResponse_normal_object_field_split_error_data_null
     {ObjectRef : Type} (schema : Schema)

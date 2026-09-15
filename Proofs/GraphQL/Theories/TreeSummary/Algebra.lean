@@ -134,9 +134,10 @@ theorem combineMap_related
   induction items with
   | nil => simpa [combineMap] using relation.empty_related
   | cons item rest ih =>
-      simpa [combineMap] using relation.combine_related _ _ _ _
-        (hitem item (by simp))
-        (ih fun candidate hcandidate => hitem candidate (by simp [hcandidate]))
+      simpa [combineMap]
+        using relation.combine_related _ _ _ _
+          (hitem item (by simp))
+          (ih fun candidate hcandidate => hitem candidate (by simp [hcandidate]))
 
 theorem joinMap_related
     {left : Algebra.{u}} {right : Algebra.{v}}
@@ -153,10 +154,11 @@ theorem joinMap_related
       cases rest with
       | nil => simpa [joinMap] using hitem item (by simp)
       | cons next tail =>
-          simpa [joinMap] using relation.join_related _ _ _ _
-            (hitem item (by simp))
-            (joinMap_related relation (next :: tail) leftSummary rightSummary
-              fun candidate hcandidate => hitem candidate (by simp [hcandidate]))
+          simpa [joinMap]
+            using relation.join_related _ _ _ _
+              (hitem item (by simp))
+              (joinMap_related relation (next :: tail) leftSummary rightSummary
+                fun candidate hcandidate => hitem candidate (by simp [hcandidate]))
 termination_by items.length
 
 end Algebra.Relation

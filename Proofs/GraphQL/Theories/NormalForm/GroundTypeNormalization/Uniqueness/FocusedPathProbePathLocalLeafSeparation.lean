@@ -270,14 +270,12 @@ theorem
         childSelectionSet fieldDefinition hlookup
         (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
           hrightChildren hmem hlookup) hfuel hleaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
-      resolvers resolvers variableValues (fuel + 1) leftSource rightSource
-      hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
-      hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne
-        fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
+    resolvers resolvers variableValues (fuel + 1) leftSource rightSource hobject hnormal
+    hnormal hfree hfree hmem hmem hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne
+      fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children
@@ -571,15 +569,14 @@ theorem
         (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
           hrightChildren hrightMem hrightLookup)
         hrightFuel hrightLeaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
-      resolvers resolvers variableValues (fuel + 1) leftSource rightSource
-      hleftObject hrightObject hleftNormal hrightNormal hleftFree
-      hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-        leftFieldDefinition.outputType rightFieldDefinition.outputType
-        (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
+    resolvers resolvers variableValues (fuel + 1) leftSource rightSource hleftObject
+    hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+    hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
+      leftFieldDefinition.outputType rightFieldDefinition.outputType
+      (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children_fuels
@@ -874,16 +871,14 @@ theorem
         (PathLocalSelectionSetFieldChildrenReady.argumentCoercion_of_mem_lookup
           hrightChildren hrightMem hrightLookup)
         hrightFuel hrightLeaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
-      resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1)
-      leftSource rightSource hleftObject hrightObject hleftNormal
-      hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
-      hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-        leftFieldDefinition.outputType rightFieldDefinition.outputType
-        (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
+    resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1) leftSource
+    rightSource hleftObject hrightObject hleftNormal hrightNormal hleftFree hrightFree
+    hleftMem hrightMem hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
+      leftFieldDefinition.outputType rightFieldDefinition.outputType
+      (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_field_children
@@ -2322,36 +2317,33 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftLeaf hrightLeaf hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues fuel targetParent
+    leftProbeField rightProbeField leftParentType rightParentType leftParentType
+    rightParentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
+    hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject hleftMem
+    hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftLeaf hrightLeaf hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_valid_normal_support_context_fuel_ge_fuels
@@ -2463,36 +2455,33 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues leftFuel rightFuel
-      targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftLeaf hrightLeaf hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_leaf_field_pair_of_field_children_fuels
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues leftFuel rightFuel
+    targetParent leftProbeField rightProbeField leftParentType rightParentType
+    leftParentType rightParentType targetLeftArguments targetRightArguments leftRuntime
+    rightRuntime hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject
+    hleftMem hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftLeaf hrightLeaf hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_responseName_diff_of_valid_normal_support_context_fuel_ge
@@ -3441,26 +3430,23 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_field_children
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      hleftLeaf hrightComposite hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_field_children
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues fuel targetParent
+    leftProbeField rightProbeField leftParentType rightParentType leftParentType
+    rightParentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
+    hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject hleftMem
+    hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    hleftLeaf hrightComposite hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_valid_normal_support_context_fuel_ge
@@ -3572,27 +3558,24 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_field_children
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftComposite hrightLeaf hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_field_children
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues fuel targetParent
+    leftProbeField rightProbeField leftParentType rightParentType leftParentType
+    rightParentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
+    hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject hleftMem
+    hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftComposite hrightLeaf hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_valid_normal_support_context_fuel_ge_fuels
@@ -3704,26 +3687,23 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_field_children_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues leftFuel rightFuel
-      targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      hleftLeaf hrightComposite hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_leaf_right_composite_field_pair_of_field_children_fuels
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues leftFuel rightFuel
+    targetParent leftProbeField rightProbeField leftParentType rightParentType
+    leftParentType rightParentType targetLeftArguments targetRightArguments leftRuntime
+    rightRuntime hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject
+    hleftMem hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    hleftLeaf hrightComposite hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_valid_normal_support_context_fuel_ge_fuels
@@ -3835,27 +3815,24 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_field_children_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues leftFuel rightFuel
-      targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftComposite hrightLeaf hleftChildren hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_left_composite_right_leaf_field_pair_of_field_children_fuels
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues leftFuel rightFuel
+    targetParent leftProbeField rightProbeField leftParentType rightParentType
+    leftParentType rightParentType targetLeftArguments targetRightArguments leftRuntime
+    rightRuntime hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject
+    hleftMem hrightMem hleftLookup hrightLookup
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftComposite hrightLeaf hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_leaf_of_valid_normal_support_context_fuel_ge_fuels

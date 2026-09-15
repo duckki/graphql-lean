@@ -291,9 +291,10 @@ private theorem collectFlatFields_field_argumentCoercionReady
                 exact collectFlatFields_field_argumentCoercionReady schema
                   variableValues sourceRuntimeType parentType ref childSelectionSet
                   hsourceType
-                  (hheadReady hdirectives (by
-                    simpa [hsourceType, doesFragmentTypeApplyBool,
-                      runtimeObjectType?] using hhead.1))
+                  (hheadReady hdirectives
+                    (by
+                      simpa [hsourceType, doesFragmentTypeApplyBool, runtimeObjectType?]
+                        using hhead.1))
                   entry hhead.2
       · exact collectFlatFields_field_argumentCoercionReady schema variableValues
           sourceRuntimeType parentType ref rest hsourceType hrestReady entry hrest
@@ -498,9 +499,10 @@ theorem completionFieldsReady_merged_semantics
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
-    exact hchild runtimeType (by
-      rw [← htype]
-      exact hincludes)
+    exact hchild runtimeType
+      (by
+        rw [← htype]
+        exact hincludes)
   have hflat : ∀ candidates : List ExecutableField,
       (∀ field, field ∈ candidates ->
         NormalForm.selectionSetSemanticsReady schema runtimeType field.selectionSet)
@@ -549,9 +551,10 @@ theorem completionFieldsReady_merged_argumentCoercion
     rw [hsourceLookup] at hfieldLookup'
     injection hfieldLookup' with hdefinition
     subst fieldDefinition
-    exact hchild runtimeType (by
-      rw [← htype]
-      exact hincludes)
+    exact hchild runtimeType
+      (by
+        rw [← htype]
+        exact hincludes)
   have hflat : ∀ candidates : List ExecutableField,
       (∀ field, field ∈ candidates ->
         selectionSetArgumentsCoercible schema variableValues runtimeType
@@ -560,7 +563,8 @@ theorem completionFieldsReady_merged_argumentCoercion
           (candidates.flatMap ExecutableField.selectionSet) := by
     intro candidates
     induction candidates with
-    | nil => intro _hready; trivial
+    | nil =>
+        intro _hready; trivial
     | cons field rest ih =>
         intro hready
         rw [List.flatMap_cons]
@@ -692,8 +696,11 @@ private theorem supportedAnnotatedExecution_all
       executableGroupsDepthBound_tail hdepth
     rcases headIH depth hheadReady hheadDepth hfuel with ⟨head, hhead⟩
     rcases tailIH depth htailReady htailDepth hfuel with ⟨tail, htail⟩
-    exact ⟨head ++ tail, by
-      simp [executeQueryAnnotatedCollectedFields, hhead, htail, Result.combine]⟩
+    exact ⟨
+      head ++ tail,
+      by
+        simp [executeQueryAnnotatedCollectedFields, hhead, htail, Result.combine]
+    ⟩
   case case3 =>
     intro fuel parentType source responseName depth hready _hdepth _hfuel
     exact False.elim (hready.1.1 rfl)
@@ -764,11 +771,14 @@ private theorem supportedAnnotatedExecution_all
     subst value
     rcases completeIH parentType depth hcompletionReady hdepth hsupported hvalueFuel with
       ⟨completed, hcompleted, _hnonnull⟩
-    exact ⟨[.resolved responseName
+    exact ⟨
+      [.resolved responseName
         (resolvedFieldProvenance schema variableValues parentType definition field)
-          completed], by
-      simp [executeQueryAnnotatedField, hlookup, _hcoerce, resolveFieldValue,
-        hresolve, hcompleted, singleAnnotatedResponseFieldResult]⟩
+        completed],
+      by
+        simp [executeQueryAnnotatedField, hlookup, _hcoerce, resolveFieldValue,
+          hresolve, hcompleted, singleAnnotatedResponseFieldResult]
+    ⟩
   case case9 =>
     intro fieldType fields value fieldParentType depth _hready _hdepth _hsupported hfuel
     unfold valueCompletionFuelBound at hfuel
@@ -778,8 +788,8 @@ private theorem supportedAnnotatedExecution_all
       hsupported hfuel
     have hinnerReady :
         completionFieldsExecutionReady schema variableValues fieldParentType inner fields := by
-      simpa [completionFieldsExecutionReady, completionFieldsReady,
-        TypeRef.namedType] using hready
+      simpa [completionFieldsExecutionReady, completionFieldsReady, TypeRef.namedType]
+        using hready
     have hinnerSupported : resolverValueSupported schema inner value := by
       simpa [resolverValueSupported] using hsupported
     have hinnerFuel : valueCompletionFuelBound schema depth inner ≤ fuel := by
@@ -789,9 +799,13 @@ private theorem supportedAnnotatedExecution_all
     cases fuel with
     | zero => exact False.elim (hfuelPositive rfl)
     | succ fuel =>
-        exact ⟨result, by
-          simp [completeAnnotatedResponseValue, hresult,
-            completeNonNullAnnotatedResponseValue], hnonnull⟩
+        exact ⟨
+          result,
+          by
+            simp [completeAnnotatedResponseValue, hresult,
+              completeNonNullAnnotatedResponseValue],
+          hnonnull
+        ⟩
   case case11 =>
     intro fuel fieldType fields hnotNonNull fieldParentType depth _hready _hdepth
       hsupported _hfuel
@@ -808,8 +822,12 @@ private theorem supportedAnnotatedExecution_all
       _hdepth _hsupported _hfuel
     have hleaf : (TypeRef.named typeName).isCompositeBool schema = false := by
       simpa using hnotComposite
-    exact ⟨.scalar value, by
-      simp [completeAnnotatedResponseValue, hleaf], by simp⟩
+    exact ⟨
+      .scalar value,
+      by
+        simp [completeAnnotatedResponseValue, hleaf],
+      by simp
+    ⟩
   case case14 =>
     intro fuel parentType fields runtimeType ref hincludes childGroups childIH
       fieldParentType depth hready hdepth _hsupported hfuel
@@ -881,21 +899,24 @@ private theorem supportedAnnotatedExecution_all
       simpa [childGroups,
         NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
         using hresponse
-    exact ⟨.object runtimeType responseFields, by
-      simp [completeAnnotatedResponseValue, hincludes, hresponse',
-        catchAnnotatedResponseBubbleAsNull], by simp⟩
+    exact ⟨
+      .object runtimeType responseFields,
+      by
+        simp [completeAnnotatedResponseValue, hincludes, hresponse',
+          catchAnnotatedResponseBubbleAsNull],
+      by simp
+    ⟩
   case case15 =>
     intro fuel parentType fields runtimeType ref hnotIncludes fieldParentType depth
       _hready _hdepth hsupported _hfuel
-    exact False.elim (hnotIncludes (by
-      simpa [resolverValueSupported] using hsupported))
+    exact False.elim (hnotIncludes (by simpa [resolverValueSupported] using hsupported))
   case case16 =>
     intro fuel inner fields values completeListIH fieldParentType depth hready hdepth
       hsupported hfuel
     have hinnerReady :
         completionFieldsExecutionReady schema variableValues fieldParentType inner fields := by
-      simpa [completionFieldsExecutionReady, completionFieldsReady,
-        TypeRef.namedType] using hready
+      simpa [completionFieldsExecutionReady, completionFieldsReady, TypeRef.namedType]
+        using hready
     have hvaluesSupported : resolverValuesSupported schema inner values := by
       simpa [resolverValueSupported] using hsupported
     have hinnerFuel : valueCompletionFuelBound schema depth inner ≤ fuel :=
@@ -903,9 +924,13 @@ private theorem supportedAnnotatedExecution_all
     rcases completeListIH fieldParentType depth hinnerReady hdepth hvaluesSupported
       hinnerFuel with
       ⟨result, hresult⟩
-    exact ⟨.list result, by
-      simp [completeAnnotatedResponseValue, hresult,
-        catchAnnotatedResponseBubbleAsNull], by simp⟩
+    exact ⟨
+      .list result,
+      by
+        simp [completeAnnotatedResponseValue, hresult,
+          catchAnnotatedResponseBubbleAsNull],
+      by simp
+    ⟩
   case case17 =>
     intro fuel typeName fields values fieldParentType depth _hready _hdepth
       hsupported _hfuel
@@ -930,8 +955,11 @@ private theorem supportedAnnotatedExecution_all
       ⟨head, hhead, _hheadNonnull⟩
     rcases headIH fieldParentType depth hready hdepth htailSupported hfuel with
       ⟨tail, htail⟩
-    exact ⟨head :: tail, by
-      simp [completeAnnotatedResponseValueList, hhead, htail, Result.combine]⟩
+    exact ⟨
+      head :: tail,
+      by
+        simp [completeAnnotatedResponseValueList, hhead, htail, Result.combine]
+    ⟩
 
 theorem executeQueryAnnotatedCollectedFields_supported
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -1027,13 +1055,11 @@ private theorem supportedResolverValue_supported (schema : Schema)
           simpa using hcomposite
         simp [supportedResolverValue, hleaf, resolverValueSupported]
   | list inner ih =>
-      simpa [supportedResolverValue, resolverValueSupported,
-        resolverValuesSupported] using ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [supportedResolverValue, resolverValueSupported, resolverValuesSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
   | nonNull inner ih =>
-      simpa [supportedResolverValue, resolverValueSupported] using
-        ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [supportedResolverValue, resolverValueSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
 
 noncomputable def supportedResolvers (schema : Schema) : Resolvers PUnit where
   resolve parentType fieldName _arguments _source :=
@@ -1136,13 +1162,11 @@ private theorem plannedResolverValue_supported
           simpa using hcomposite
         simp [plannedResolverValue, hleaf, resolverValueSupported]
   | list inner ih =>
-      simpa [plannedResolverValue, resolverValueSupported,
-        resolverValuesSupported] using ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [plannedResolverValue, resolverValueSupported, resolverValuesSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
   | nonNull inner ih =>
-      simpa [plannedResolverValue, resolverValueSupported] using
-        ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [plannedResolverValue, resolverValueSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
 
 def plannedResolvers (schema : Schema) (plan : RuntimePlan) : Resolvers Nat where
   resolve parentType fieldName _arguments source :=
@@ -1163,18 +1187,34 @@ theorem plannedResolvers_supported
     : ResolversSupported schema (plannedResolvers schema plan) := by
   intro parentType fieldName arguments source definition hlookup hinhabited
   cases source with
-  | null => exact ⟨_, by simp [plannedResolvers, hlookup],
-      plannedResolverValue_supported schema plan hplan 0 definition.outputType
-        hinhabited⟩
-  | scalar value => exact ⟨_, by simp [plannedResolvers, hlookup],
-      plannedResolverValue_supported schema plan hplan 0 definition.outputType
-        hinhabited⟩
-  | object runtimeType depth => exact ⟨_, by simp [plannedResolvers, hlookup],
-      plannedResolverValue_supported schema plan hplan depth definition.outputType
-        hinhabited⟩
-  | list values => exact ⟨_, by simp [plannedResolvers, hlookup],
-      plannedResolverValue_supported schema plan hplan 0 definition.outputType
-        hinhabited⟩
+  | null =>
+      exact ⟨
+        _,
+        by simp [plannedResolvers, hlookup],
+        plannedResolverValue_supported schema plan hplan 0 definition.outputType
+          hinhabited
+      ⟩
+  | scalar value =>
+      exact ⟨
+        _,
+        by simp [plannedResolvers, hlookup],
+        plannedResolverValue_supported schema plan hplan 0 definition.outputType
+          hinhabited
+      ⟩
+  | object runtimeType depth =>
+      exact ⟨
+        _,
+        by simp [plannedResolvers, hlookup],
+        plannedResolverValue_supported schema plan hplan depth definition.outputType
+          hinhabited
+      ⟩
+  | list values =>
+      exact ⟨
+        _,
+        by simp [plannedResolvers, hlookup],
+        plannedResolverValue_supported schema plan hplan 0 definition.outputType
+          hinhabited
+      ⟩
 
 theorem executeQueryAnnotated_planned_supported
     (schema : Schema) (plan : RuntimePlan) (hplan : plan.Valid schema)
@@ -1295,13 +1335,11 @@ private theorem spineResolverValue_supported (schema : Schema) (plan : RuntimePl
           simpa using hcomposite
         simp [spineResolverValue, hleaf, resolverValueSupported]
   | list inner ih =>
-      simpa [spineResolverValue, resolverValueSupported,
-        resolverValuesSupported] using ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [spineResolverValue, resolverValueSupported, resolverValuesSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
   | nonNull inner ih =>
-      simpa [spineResolverValue, resolverValueSupported] using
-        ih (by
-          simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      simpa [spineResolverValue, resolverValueSupported]
+        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
 
 noncomputable def spineResolvers (schema : Schema) : Resolvers RuntimePlan where
   resolve parentType fieldName _arguments source :=
@@ -1335,8 +1373,12 @@ theorem spineResolvers_supported (schema : Schema)
         spineResolverValue_supported schema
           (defaultRuntimePlan schema) definition.outputType hinhabited
       ⟩
-  | object runtimeType plan => exact ⟨_, by simp [spineResolvers, hlookup],
-      spineResolverValue_supported schema plan definition.outputType hinhabited⟩
+  | object runtimeType plan =>
+      exact ⟨
+        _,
+        by simp [spineResolvers, hlookup],
+        spineResolverValue_supported schema plan definition.outputType hinhabited
+      ⟩
   | list values =>
       exact ⟨
         spineResolverValue schema (defaultRuntimePlan schema) definition.outputType,

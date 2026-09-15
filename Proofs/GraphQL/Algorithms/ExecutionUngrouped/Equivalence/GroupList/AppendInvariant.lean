@@ -518,15 +518,14 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_prefixChildren
     extendedChildren := by
       intro responseName field fields prefixTail later hgroup hprefix hlater
         childDepth runtimeType identity hlt hcontains hincludes
-      exact
-        hchildren responseName field fields (prefixTail ++ [later]) hgroup
-          (by
-            intro candidate hcandidate
-            rcases List.mem_append.mp hcandidate with hprefixMem | hlaterMem
-            · exact hprefix candidate hprefixMem
-            · rcases List.mem_singleton.mp hlaterMem
-              exact hlater)
-          childDepth runtimeType identity hlt hcontains hincludes
+      exact hchildren responseName field fields (prefixTail ++ [later]) hgroup
+        (by
+          intro candidate hcandidate
+          rcases List.mem_append.mp hcandidate with hprefixMem | hlaterMem
+          · exact hprefix candidate hprefixMem
+          · rcases List.mem_singleton.mp hlaterMem
+            exact hlater)
+        childDepth runtimeType identity hlt hcontains hincludes
   }
 
 theorem
@@ -748,8 +747,8 @@ theorem CollectedFieldGroupContainedAppendInvariant.of_collectedLocalAppendInvar
     extendedChildren := by
       intro responseName field fields prefixTail later hgroup hprefix hlater
         childDepth runtimeType identity hlt _hcontains hincludes
-      simpa [List.cons_append] using
-        hinvariant.prefixChildren responseName field fields
+      simpa [List.cons_append]
+        using hinvariant.prefixChildren responseName field fields
           (prefixTail ++ [later]) hgroup
           (by
             intro candidate hcandidate
@@ -777,13 +776,12 @@ theorem ExecutedFieldAppendPlanState.of_collectedAppendInvariant_from_prefix
         fields prefixTail remaining := by
   cases remaining with
   | nil =>
-      exact
-        ExecutedFieldAppendPlanState.nil
-          (by
-            intro childDepth runtimeType identity hlt _hincludes
-            exact hinvariant.prefixChildren responseName field fields
-              prefixTail hgroup hprefix childDepth runtimeType identity hlt
-              _hincludes)
+      exact ExecutedFieldAppendPlanState.nil
+        (by
+          intro childDepth runtimeType identity hlt _hincludes
+          exact hinvariant.prefixChildren responseName field fields
+            prefixTail hgroup hprefix childDepth runtimeType identity hlt
+            _hincludes)
   | cons later rest =>
       have hlater : later ∈ fields := hremaining later (by simp)
       apply ExecutedFieldAppendPlanState.cons
@@ -796,8 +794,8 @@ theorem ExecutedFieldAppendPlanState.of_collectedAppendInvariant_from_prefix
       · exact hinvariant.errorNeutral responseName field fields prefixTail
           later hgroup hprefix hlater
       · intro childDepth runtimeType identity hlt _hincludes
-        simpa [List.cons_append] using
-          hinvariant.prefixChildren responseName field fields
+        simpa [List.cons_append]
+          using hinvariant.prefixChildren responseName field fields
             (prefixTail ++ [later]) hgroup
             (by
               intro candidate hcandidate
@@ -855,13 +853,12 @@ theorem ExecutedFieldAppendPlanState.of_collectedLocalAppendInvariant_from_prefi
         fields prefixTail remaining := by
   cases remaining with
   | nil =>
-      exact
-        ExecutedFieldAppendPlanState.nil
-          (by
-            intro childDepth runtimeType identity hlt _hincludes
-            exact hinvariant.prefixChildren responseName field fields
-              prefixTail hgroup hprefix childDepth runtimeType identity hlt
-              _hincludes)
+      exact ExecutedFieldAppendPlanState.nil
+        (by
+          intro childDepth runtimeType identity hlt _hincludes
+          exact hinvariant.prefixChildren responseName field fields
+            prefixTail hgroup hprefix childDepth runtimeType identity hlt
+            _hincludes)
   | cons later rest =>
       have hlater : later ∈ fields := hremaining later (by simp)
       let base :=
@@ -919,8 +916,8 @@ theorem ExecutedFieldAppendPlanState.of_collectedLocalAppendInvariant_from_prefi
       · exact hinvariant.errorNeutral responseName field fields prefixTail
           later hgroup hprefix hlater
       · intro childDepth runtimeType identity hlt _hincludes
-        simpa [List.cons_append] using
-          hinvariant.prefixChildren responseName field fields
+        simpa [List.cons_append]
+          using hinvariant.prefixChildren responseName field fields
             (prefixTail ++ [later]) hgroup
             (by
               intro candidate hcandidate
@@ -1419,8 +1416,8 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
                   variableValues depth parentType source
                   (executableFieldSelections responseName
                     (field :: fieldsTail))) := by
-            simpa [ExecutableFieldsFlatSpecAlignedEquivalent] using
-              hgroupAligned responseName field fieldsTail (by simp)
+            simpa [ExecutableFieldsFlatSpecAlignedEquivalent]
+              using hgroupAligned responseName field fieldsTail (by simp)
           have hnonemptyAll :
               CollectedGroupsFieldsNonempty
                 ((responseName, field :: fieldsTail) :: rest) :=
@@ -1628,23 +1625,21 @@ theorem ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
     (hnodup : PairKeysNodup groups)
     : ExecutableGroupsFlatSpecAlignedEquivalent schema resolvers variableValues
         (completionDepth + 2) parentType source groups := by
-  exact
-    ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned
-      (schema := schema) (resolvers := resolvers)
-      (variableValues := variableValues) (depth := completionDepth + 2)
-      (parentType := parentType) (source := source) (groups := groups)
-      hnonempty hnodup
-      (by
-        intro responseName field fields hgroup
-        exact
-          ExecutableFieldsFlatSpecAlignedEquivalent_nonempty_group_of_alignedAppendSteps_positive
-            schema resolvers variableValues completionDepth parentType source
-            responseName field fields
-            (resolveFieldValueByName schema resolvers variableValues parentType field.fieldName field.arguments source)
-            rfl
-            (hlookups responseName field fields hgroup)
-            (hfieldChildren responseName field fields hgroup)
-            (hsteps responseName field fields hgroup))
+  exact ExecutableGroupsFlatSpecAlignedEquivalent_of_group_aligned (schema := schema)
+    (resolvers := resolvers) (variableValues := variableValues)
+    (depth := completionDepth + 2) (parentType := parentType) (source := source)
+    (groups := groups) hnonempty hnodup
+    (by
+      intro responseName field fields hgroup
+      exact
+        ExecutableFieldsFlatSpecAlignedEquivalent_nonempty_group_of_alignedAppendSteps_positive
+          schema resolvers variableValues completionDepth parentType source
+          responseName field fields
+          (resolveFieldValueByName schema resolvers variableValues parentType field.fieldName field.arguments source)
+          rfl
+          (hlookups responseName field fields hgroup)
+          (hfieldChildren responseName field fields hgroup)
+          (hsteps responseName field fields hgroup))
 
 end Eager
 end ExecutionUngroupedUncached

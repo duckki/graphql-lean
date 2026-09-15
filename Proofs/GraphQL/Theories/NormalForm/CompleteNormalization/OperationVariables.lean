@@ -105,22 +105,26 @@ private theorem lookupVariableValue?_foldlDefaults_default_eq_some
               ((variableDefinition.name, defaultValue) :: prefixValues)
               variableDefinition.name = some defaultValue := by
         simp [Execution.lookupVariableValue?]
-      simpa [prefixValues, hlookup, hdefault] using
-        (show ∃ value,
-            Execution.lookupVariableValue?
-              (suffix.foldl
-                (fun coercedValues definition =>
-                  match Execution.lookupVariableValue? coercedValues definition.name with
-                  | some _value => coercedValues
-                  | none =>
-                      match definition.defaultValue with
-                      | some candidateDefault =>
-                          (definition.name, candidateDefault) :: coercedValues
-                      | none => coercedValues)
-                ((variableDefinition.name, defaultValue) :: prefixValues))
-              variableDefinition.name = some value from
-          ⟨defaultValue,
-            lookupVariableValue?_foldlDefaults_eq_some suffix _ hadd⟩)
+      simpa [prefixValues, hlookup, hdefault]
+        using (show ∃ value,
+                      Execution.lookupVariableValue?
+                        (suffix.foldl
+                          (fun coercedValues definition =>
+                            match Execution.lookupVariableValue? coercedValues
+                                    definition.name with
+                            | some _value => coercedValues
+                            | none =>
+                                match definition.defaultValue with
+                                | some candidateDefault =>
+                                    (definition.name, candidateDefault) :: coercedValues
+                                | none => coercedValues)
+                          ((variableDefinition.name, defaultValue) :: prefixValues))
+                        variableDefinition.name
+                      = some value
+                from ⟨
+                  defaultValue,
+                  lookupVariableValue?_foldlDefaults_eq_some suffix _ hadd
+                ⟩)
 
 private theorem foldlDefaults_eq_self_of_defaults_present
     : ∀ (variableDefinitions : List VariableDefinition)
@@ -291,8 +295,7 @@ theorem directivesAllowInCase_eq_execution_of_field_head
   intro hagrees hsourceVars
   exact directivesAllowInCase_eq_execution_of_sourceSelectionSet
     variableValues boolCase operation
-    (Selection.field responseName fieldName arguments directives selectionSet
-      :: rest)
+    (Selection.field responseName fieldName arguments directives selectionSet :: rest)
     directives hagrees
     (by
       intro varName hmem

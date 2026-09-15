@@ -66,20 +66,19 @@ theorem normalizeOperation_operationVariablesUsed
       Validation.operationVariablesUsed operation :=
     Validation.operationDefinitionValid_operationVariablesUsed hvalid
   intro variableDefinition hvariableDefinition
-  have hsourceVariable :
-      variableDefinition.name
+  have hsourceVariable
+      : variableDefinition.name
         ∈ Validation.selectionSetVariables operation.selectionSet :=
-    hsourceVariablesUsed variableDefinition (by
-      simpa [normalizeOperation] using hvariableDefinition)
+    hsourceVariablesUsed variableDefinition
+      (by simpa [normalizeOperation] using hvariableDefinition)
   change variableDefinition.name
     ∈ Validation.selectionSetVariables
         (normalizeSelectionSet schema (operation.rootType schema)
           operation.selectionSet)
-  exact
-    normalizeSelectionSet_variables_mem schema variableDefinition.name hschema
-      (operation.rootType schema) operation.selectionSet
-      [(operation.rootType schema)] hrootObject (by simp) hrootStack hready
-      hmerge hfree hfeasible hsourceVariable
+  exact normalizeSelectionSet_variables_mem schema variableDefinition.name hschema
+    (operation.rootType schema) operation.selectionSet
+    [(operation.rootType schema)] hrootObject (by simp) hrootStack hready
+    hmerge hfree hfeasible hsourceVariable
 
 theorem normalizeOperation_valid_of_operationFieldsValid
     (schema : Schema) (operation : Operation)
@@ -126,17 +125,20 @@ theorem normalizeOperation_valid_of_operationFieldsValid
   exact ⟨
     by simp [normalizeOperation],
     by
-      simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-        (Validation.operationDefinitionValid_rootTypeComposite
-          (operation := operation) hvalid),
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using (Validation.operationDefinitionValid_rootTypeComposite
+                (operation := operation) hvalid),
     (Validation.operationDefinitionValid_variableDefinitionsValid
       (operation := operation) hvalid),
     by simpa [normalizeOperation] using hnormalizedNonempty,
-    by simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-      hnormalizedSelectionSet.selectionSetValid,
-    by simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-      hnormalizedSelectionSet.fieldsCanMerge,
-    hvariablesUsed⟩
+    by
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using hnormalizedSelectionSet.selectionSetValid,
+    by
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using hnormalizedSelectionSet.fieldsCanMerge,
+    hvariablesUsed
+  ⟩
 
 theorem normalizeOperation_valid (schema : Schema) (operation : Operation)
     : NormalForm.normalizeOperationValid schema operation := by
@@ -196,17 +198,20 @@ theorem normalizeOperation_valid (schema : Schema) (operation : Operation)
   exact ⟨
     by simp [normalizeOperation],
     by
-      simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-        (Validation.operationDefinitionValid_rootTypeComposite
-          (operation := operation) hvalid),
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using (Validation.operationDefinitionValid_rootTypeComposite
+                (operation := operation) hvalid),
     (Validation.operationDefinitionValid_variableDefinitionsValid
       (operation := operation) hvalid),
     by simpa [normalizeOperation] using hnormalizedNonempty,
-    by simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-      hnormalizedSelectionSet.selectionSetValid,
-    by simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-      hnormalizedSelectionSet.fieldsCanMerge,
-    hvariablesUsed⟩
+    by
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using hnormalizedSelectionSet.selectionSetValid,
+    by
+      simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+        using hnormalizedSelectionSet.fieldsCanMerge,
+    hvariablesUsed
+  ⟩
 
 end GroundTypeNormalization
 

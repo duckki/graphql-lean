@@ -39,14 +39,14 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
   have hrightNormalizedFree :
       operationDirectiveFree (normalizeOperation schema right) :=
     normalizeOperation_directiveFree schema right hrightCoercion
-  have hleftNormalizedNormal :
-      operationNormal schema (normalizeOperation schema left) :=
-    by simpa [normalizeOperationNormal] using
-      normalizeOperation_normal schema left hschema hleftValid
-  have hrightNormalizedNormal :
-      operationNormal schema (normalizeOperation schema right) :=
-    by simpa [normalizeOperationNormal] using
-      normalizeOperation_normal schema right hschema hrightValid
+  have hleftNormalizedNormal
+      : operationNormal schema (normalizeOperation schema left) := by
+    simpa [normalizeOperationNormal]
+      using normalizeOperation_normal schema left hschema hleftValid
+  have hrightNormalizedNormal
+      : operationNormal schema (normalizeOperation schema right) := by
+    simpa [normalizeOperationNormal]
+      using normalizeOperation_normal schema right hschema hrightValid
   have hnormalizedDefinitions :
       variableDefinitionsSyntacticallyEquivalent
         (normalizeOperation schema left).variableDefinitions
@@ -79,8 +79,8 @@ theorem normalizeOperation_uniqueUpToReordering_of_normal_operations
       hleftEquivalent resolvers variableValues fuel source
     have hrightResponse :=
       hrightEquivalent resolvers variableValues fuel source
-    simpa [hleftResponse, hrightResponse] using
-      hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
+    simpa [hleftResponse, hrightResponse]
+      using hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
   exact
     hnormalUnique hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal

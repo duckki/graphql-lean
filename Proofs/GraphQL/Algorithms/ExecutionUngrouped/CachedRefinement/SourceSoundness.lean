@@ -676,8 +676,7 @@ theorem PreviousCacheSound.mergeResponse_left {ObjectRef : Type}
               have hsoundPrevious := hsound hreusePrevious
               rcases hsoundPrevious with ⟨hreuseOut, hresolve⟩
               constructor
-              · simpa [ExecutionUngroupedUncached.reusablePreviousValue?] using
-                  hreuseOut
+              · simpa [ExecutionUngroupedUncached.reusablePreviousValue?] using hreuseOut
               · exact hresolve
           | some sourceValues =>
               have hreusePrevious :
@@ -689,8 +688,7 @@ theorem PreviousCacheSound.mergeResponse_left {ObjectRef : Type}
               have hsoundPrevious := hsound hreusePrevious
               rcases hsoundPrevious with ⟨hreuseOut, hresolve⟩
               constructor
-              · simpa [ExecutionUngroupedUncached.reusablePreviousValue?] using
-                  hreuseOut
+              · simpa [ExecutionUngroupedUncached.reusablePreviousValue?] using hreuseOut
               · exact hresolve
 
 theorem PreviousCacheSound.of_absorptionShape {ObjectRef : Type}
@@ -812,12 +810,11 @@ theorem OutputCacheSoundForFields.mergeResponseFieldIntoObject {ObjectRef : Type
         | some existing =>
             simp [hlookupExisting] at hpreviousLookup
             subst previous
-            exact
-              PreviousCacheSound.mergeResponse_left (parentType := parentType)
-                schema resolvers source
-                fieldDefinition field existing incoming
-                (hsound targetName field fieldDefinition existing hfield
-                  (by simp [objectField?, htarget, hlookupExisting]) hlookup)
+            exact PreviousCacheSound.mergeResponse_left (parentType := parentType)
+              schema resolvers source
+              fieldDefinition field existing incoming
+              (hsound targetName field fieldDefinition existing hfield
+                (by simp [objectField?, htarget, hlookupExisting]) hlookup)
       · have hpreviousLookup :
             lookupField? targetName
                 (mergeResponseField responseName incoming outputFields)
@@ -1039,12 +1036,11 @@ theorem OutputCacheSoundForGroups.mergeResponseFieldIntoObject {ObjectRef : Type
         | some existing =>
             simp [hlookupExisting] at hpreviousLookup
             subst previous
-            exact
-              PreviousCacheSound.mergeResponse_left (parentType := parentType)
-                schema resolvers source
-                fieldDefinition field existing incoming
-                (hsound responseName fields field fieldDefinition existing hgroup
-                  hfield (by simp [objectField?, hlookupExisting]) hlookup)
+            exact PreviousCacheSound.mergeResponse_left (parentType := parentType)
+              schema resolvers source
+              fieldDefinition field existing incoming
+              (hsound responseName fields field fieldDefinition existing hgroup
+                hfield (by simp [objectField?, hlookupExisting]) hlookup)
       · have hpreviousLookup :
             lookupField? targetName
                 (mergeResponseField responseName incoming outputFields)
@@ -1170,8 +1166,7 @@ theorem executeField_none_result_previousCacheSound_of_executableFields
           parentType first.fieldName first.arguments source
         = coerceAndResolveFieldValue schema resolvers variableValues laterDefinition
             parentType later.fieldName later.arguments source := by
-    simpa [resolveFieldValueByName, hlookupFirst, hlookupLater] using
-      hresolveEqByName
+    simpa [resolveFieldValueByName, hlookupFirst, hlookupLater] using hresolveEqByName
   exact
     executeField_none_result_previousCacheSound_of_sameResponseShape schema
       resolvers variableValues completionFuel parentType source first later
@@ -1243,8 +1238,8 @@ theorem OutputCacheSoundForFields.merge_executeField {ObjectRef : Type}
   · intro later laterDefinition hlater hlookupLater
     cases hprevious : objectField? responseName output with
     | none =>
-        simpa [hprevious] using
-          executeField_none_result_previousCacheSound_of_executableFields schema
+        simpa [hprevious]
+          using executeField_none_result_previousCacheSound_of_executableFields schema
             resolvers variableValues completionFuel parentType responseName source
             fields first later firstDefinition laterDefinition hschema hcompatible
             hargumentsNodup hfirst hlater hlookupFirst hlookupLater
@@ -1255,10 +1250,9 @@ theorem OutputCacheSoundForFields.merge_executeField {ObjectRef : Type}
           | scalar value => simp [objectField?] at hprevious
           | list sourceValues? values => simp [objectField?] at hprevious
           | object objectSource outputFields =>
-              exact
-                lookupField?_some_cacheReady objectSource responseName
-                  outputFields previous hready
-                  (by simpa [objectField?] using hprevious)
+              exact lookupField?_some_cacheReady objectSource responseName
+                outputFields previous hready
+                (by simpa [objectField?] using hprevious)
         have hpreviousAligned : FieldCacheInternallyAligned previous :=
           haligned responseName previous hprevious
         have hpreviousSound :
@@ -1270,8 +1264,8 @@ theorem OutputCacheSoundForFields.merge_executeField {ObjectRef : Type}
           executeField_cacheAbsorptionShape schema resolvers variableValues
             completionFuel parentType source previous first hpreviousReady
             hpreviousAligned
-        simpa [hprevious] using
-          PreviousCacheSound.of_absorptionShape (parentType := parentType) schema
+        simpa [hprevious]
+          using PreviousCacheSound.of_absorptionShape (parentType := parentType) schema
             resolvers source
             laterDefinition later previous
             (resultValueOrNull

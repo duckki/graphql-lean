@@ -676,8 +676,8 @@ theorem deepSelectionSetSuccessResolverValue_named_object
           = .object typeName PUnit.unit := by
   intro hobject
   simpa [deepSelectionSetSuccessResolverValue,
-    deepSelectionSetSuccessResolverValueWithRef] using
-    deepSelectionSetSuccessResolverValueWithRef_named_object schema
+    deepSelectionSetSuccessResolverValueWithRef]
+    using deepSelectionSetSuccessResolverValueWithRef_named_object schema
       rootSelectionSet PUnit.unit parentType fieldName typeName hobject
 
 theorem deepSelectionSetSuccessResolverValue_named_leaf
@@ -689,8 +689,8 @@ theorem deepSelectionSetSuccessResolverValue_named_leaf
           = .scalar "success" := by
   intro hleaf
   simpa [deepSelectionSetSuccessResolverValue,
-    deepSelectionSetSuccessResolverValueWithRef] using
-    deepSelectionSetSuccessResolverValueWithRef_named_leaf schema
+    deepSelectionSetSuccessResolverValueWithRef]
+    using deepSelectionSetSuccessResolverValueWithRef_named_leaf schema
       rootSelectionSet PUnit.unit parentType fieldName typeName hleaf
 
 theorem deepSelectionSetSuccessResolverValue_named_abstract
@@ -706,8 +706,8 @@ theorem deepSelectionSetSuccessResolverValue_named_abstract
           = .object runtimeType PUnit.unit := by
   intro hcomposite hnonObject hruntime
   simpa [deepSelectionSetSuccessResolverValue,
-    deepSelectionSetSuccessResolverValueWithRef] using
-    deepSelectionSetSuccessResolverValueWithRef_named_abstract schema
+    deepSelectionSetSuccessResolverValueWithRef]
+    using deepSelectionSetSuccessResolverValueWithRef_named_abstract schema
       rootSelectionSet PUnit.unit parentType fieldName typeName runtimeType
       hcomposite hnonObject hruntime
 
@@ -908,10 +908,11 @@ theorem leafProbeResponseValue_not_semanticEquivalent_of_ne_any
   | named leftName =>
       cases rightType with
       | named _rightName =>
-          exact hne (by
-            simpa [leafProbeResponseValue,
-              Execution.ResponseValue.semanticEquivalent,
-              Execution.ResponseValue.canonical] using hsemantic)
+          exact hne
+            (by
+              simpa [leafProbeResponseValue, Execution.ResponseValue.semanticEquivalent,
+                Execution.ResponseValue.canonical]
+                using hsemantic)
       | list _rightInner =>
           simp [leafProbeResponseValue,
             Execution.ResponseValue.semanticEquivalent,
@@ -928,12 +929,12 @@ theorem leafProbeResponseValue_not_semanticEquivalent_of_ne_any
             Execution.ResponseValue.canonical,
             Execution.ResponseValue.canonicalList] at hsemantic
       | list rightInner =>
-          exact leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-            leftInner rightInner hne (by
-              simpa [leafProbeResponseValue,
-                Execution.ResponseValue.semanticEquivalent,
-                Execution.ResponseValue.canonical,
-                Execution.ResponseValue.canonicalList] using hsemantic)
+          exact leafProbeResponseValue_not_semanticEquivalent_of_ne_any leftInner
+            rightInner hne
+            (by
+              simpa [leafProbeResponseValue, Execution.ResponseValue.semanticEquivalent,
+                Execution.ResponseValue.canonical, Execution.ResponseValue.canonicalList]
+                using hsemantic)
       | nonNull rightInner =>
           exact leafProbeResponseValue_not_semanticEquivalent_of_ne_any
             (.list leftInner) rightInner hne hsemantic
@@ -1406,20 +1407,18 @@ theorem executeField_deepSelectionSetSuccessWithRef_of_lookup
   rcases
       Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
     ⟨coercedArguments, hcoercionResult⟩
-  have hresolve :
-      Execution.coerceAndResolveFieldValue schema
-        (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
-        variableValues fieldDefinition parentType fieldName arguments source
-        =
-      some
-        (deepSelectionSetSuccessResolverValueWithRef schema rootSelectionSet
-          objectRef parentType fieldName fieldDefinition.outputType) :=
-    by
-      simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
-        hcoercionResult]
-      exact deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
-        rootSelectionSet objectRef parentType fieldName
-        coercedArguments source fieldDefinition hlookup
+  have hresolve
+      : Execution.coerceAndResolveFieldValue schema
+          (deepSelectionSetSuccessResolversWithRef schema rootSelectionSet objectRef)
+          variableValues fieldDefinition parentType fieldName arguments source
+        = some
+            (deepSelectionSetSuccessResolverValueWithRef schema rootSelectionSet
+              objectRef parentType fieldName fieldDefinition.outputType) := by
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
+    exact deepSelectionSetSuccessResolversWithRef_resolve_lookup schema
+      rootSelectionSet objectRef parentType fieldName
+      coercedArguments source fieldDefinition hlookup
   simp [hlookup, hresolve]
 
 theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok
@@ -1801,13 +1800,10 @@ theorem executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_ready_
           ∧ responseValue ≠ .null := by
   intro hlookup hfuel hready
   rcases hready with ⟨hcoerce, hready⟩
-  exact
-    executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok_fuel_ge
-      schema rootSelectionSet objectRef variableValues fuel source
-      responseName parentType fieldName arguments childSelectionSet
-      fieldDefinition hlookup hcoerce hfuel
-      (by
-        simpa [deepFieldSelectionSetExecutionReadyWithRef] using hready)
+  exact executeField_deepSelectionSetSuccessWithRef_fieldDefinition_ok_of_child_executeSelectionSet_ok_fuel_ge
+    schema rootSelectionSet objectRef variableValues fuel source responseName parentType
+    fieldName arguments childSelectionSet fieldDefinition hlookup hcoerce hfuel
+    (by simpa [deepFieldSelectionSetExecutionReadyWithRef] using hready)
 
 theorem executeSelectionSet_deepSelectionSetSuccessWithRef_deepFieldReady
     {ObjectRef : Type} (schema : Schema)
@@ -2316,18 +2312,17 @@ theorem executeField_schemaLeafProbe_singleton_of_fuel_ge
   rcases
       Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoerce with
     ⟨coercedArguments, hcoercionResult⟩
-  have hresolve :
-      Execution.coerceAndResolveFieldValue schema
-        (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
-        variableValues fieldDefinition parentType fieldName arguments source
-        =
-      some (leafProbeResolverValue (ObjectRef := ObjectRef)
-        fieldDefinition.outputType value) :=
-    by
-      simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
-        hcoercionResult]
-      exact schemaLeafProbeResolvers_resolve_lookup schema value parentType
-        fieldName coercedArguments source fieldDefinition hlookup
+  have hresolve
+      : Execution.coerceAndResolveFieldValue schema
+          (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
+          variableValues fieldDefinition parentType fieldName arguments source
+        = some
+            (leafProbeResolverValue (ObjectRef := ObjectRef)
+              fieldDefinition.outputType value) := by
+    simp only [Execution.coerceAndResolveFieldValue, Execution.resolveFieldValue,
+      hcoercionResult]
+    exact schemaLeafProbeResolvers_resolve_lookup schema value parentType
+      fieldName coercedArguments source fieldDefinition hlookup
   exact
     executeField_leafProbe_singleton_of_resolve_fuel_ge schema
       (schemaLeafProbeResolvers (ObjectRef := ObjectRef) schema value)
@@ -3249,9 +3244,9 @@ theorem executeField_objectProbeWithRuntime_response
         selectionSet := selectionSet
       }]
       fieldDefinition.outputType hinclude
-  simpa [Execution.executeField, hlookup, hresolve,
-    Execution.singleFieldResult, Execution.mergedFieldSelectionSet] using
-    congrArg (Execution.singleFieldResult responseName) hcomplete
+  simpa [Execution.executeField, hlookup, hresolve, Execution.singleFieldResult,
+    Execution.mergedFieldSelectionSet]
+    using congrArg (Execution.singleFieldResult responseName) hcomplete
 
 theorem executeField_objectProbeWithRuntime_response_of_fuel_ge
     {ObjectRef : Type} (schema : Schema)
@@ -3295,7 +3290,8 @@ theorem executeField_objectProbeWithRuntime_response_of_fuel_ge
       fuel + 1 := by
     omega
   simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-    Execution.executeRootSelectionSet, hfuelEq] using hexecute
+    Execution.executeRootSelectionSet, hfuelEq]
+    using hexecute
 
 theorem executeSelectionSetAsResponse_singleton_objectProbeWithRuntime_response
     {ObjectRef : Type} (schema : Schema)

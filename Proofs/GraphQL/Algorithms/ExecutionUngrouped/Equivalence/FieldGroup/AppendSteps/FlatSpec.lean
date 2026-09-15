@@ -801,17 +801,16 @@ theorem ExecutableGroupsFlatSpecEquivalent_collected_nonempty_group_of_appendSte
           [] fields)
     : ExecutableGroupsFlatSpecEquivalent schema resolvers variableValues
         (depth + 1) parentType source [(responseName, field :: fields)] := by
-  exact
-    ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
-      schema resolvers variableValues depth parentType source responseName
-      field fields
-      (resolveFieldValueByName schema resolvers variableValues parentType
-        field.fieldName field.arguments source)
-      rfl hfieldLookup
-      (by
-        intro childDepth runtimeType identity hlt _hincludes
-        exact hfieldChildren childDepth runtimeType identity hlt)
-      hsteps
+  exact ExecutableGroupsFlatSpecEquivalent_nonempty_single_group_of_appendSteps
+    schema resolvers variableValues depth parentType source responseName
+    field fields
+    (resolveFieldValueByName schema resolvers variableValues parentType
+      field.fieldName field.arguments source)
+    rfl hfieldLookup
+    (by
+      intro childDepth runtimeType identity hlt _hincludes
+      exact hfieldChildren childDepth runtimeType identity hlt)
+    hsteps
 
 theorem ExecutableFieldsFlatSpecEquivalent_nonempty_group_of_contained_appendSteps
     {ObjectIdentity : Type}

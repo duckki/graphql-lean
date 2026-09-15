@@ -273,20 +273,18 @@ theorem visitSubfields_executableFieldSelections_single_aligned_of_contained_chi
                       intro childDepth runtimeType identity hlt hcontains
                         hincludes
                       simpa [executable, executableField,
-                        GraphQL.Execution.mergedFieldSelectionSet] using
-                        hchildren childDepth runtimeType identity hlt hcontains
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup] using
-                              hincludes))
+                        GraphQL.Execution.mergedFieldSelectionSet]
+                        using hchildren childDepth runtimeType identity hlt hcontains
+                          (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
                 simpa [executable, executableField,
-                  GraphQL.Execution.mergedFieldSelectionSet] using hgroup
+                  GraphQL.Execution.mergedFieldSelectionSet]
+                  using hgroup
               simpa [visitSubfields, visitSelection, executableFieldSelections,
                 executableFieldSelection, executableField,
-                selectionDirectivesAllowBool_empty,
-                responseObjectField?, lookupResponseField?, executeField,
-                GraphQL.Execution.executeField, hlookup, hresolve,
-                reusablePreviousValue?, executable] using
-                mergeResponseFieldResult_empty_aligned_singleFieldResult
+                selectionDirectivesAllowBool_empty, responseObjectField?,
+                lookupResponseField?, executeField, GraphQL.Execution.executeField,
+                hlookup, hresolve, reusablePreviousValue?, executable]
+                using mergeResponseFieldResult_empty_aligned_singleFieldResult
                   responseName hcomplete
 
 theorem ExecutableFieldsMergedRaw_single_of_guarded_child_states
@@ -787,9 +785,9 @@ theorem executeRootSelectionSet_executableFieldSelections_append_one_aligned_res
         variableValues fieldDefinition.outputType (completionDepth + 1)
         resolvedValue prefixFields later
         hprefixChildren hobjects hchildren
-  simpa [prefixFields, later, prefixCompleted, laterCompleted,
-    executableFieldSelections, List.map_append] using
-    executeRootSelectionSet_append_one_aligned_of_complete schema resolvers
+  simpa [prefixFields, later, prefixCompleted, laterCompleted, executableFieldSelections,
+    List.map_append]
+    using executeRootSelectionSet_append_one_aligned_of_complete schema resolvers
       variableValues (completionDepth + 2) parentType source
       (executableFieldSelections responseName prefixFields)
       (executableFieldSelections responseName [later])
@@ -1020,9 +1018,9 @@ theorem
         variableValues fieldDefinition.outputType (completionDepth + 1)
         resolvedValue prefixFields later
         hprefixChildren hobjects hchildren
-  simpa [prefixFields, later, prefixCompleted, laterCompleted,
-    executableFieldSelections, List.map_append] using
-    executeRootSelectionSet_append_one_visit_aligned_of_complete schema resolvers
+  simpa [prefixFields, later, prefixCompleted, laterCompleted, executableFieldSelections,
+    List.map_append]
+    using executeRootSelectionSet_append_one_visit_aligned_of_complete schema resolvers
       variableValues (completionDepth + 2) parentType source
       (executableFieldSelections responseName prefixFields)
       (executableFieldSelections responseName [later])
@@ -1254,9 +1252,9 @@ theorem
         schema resolvers variableValues fieldDefinition.outputType
         (completionDepth + 1) resolvedValue prefixFields later
         hprefixChildren hobjects hchildren
-  simpa [prefixFields, later, prefixCompleted, laterCompleted,
-    executableFieldSelections, List.map_append] using
-    executeRootSelectionSet_append_one_visit_aligned_of_complete schema resolvers
+  simpa [prefixFields, later, prefixCompleted, laterCompleted, executableFieldSelections,
+    List.map_append]
+    using executeRootSelectionSet_append_one_visit_aligned_of_complete schema resolvers
       variableValues (completionDepth + 2) parentType source
       (executableFieldSelections responseName prefixFields)
       (executableFieldSelections responseName [later])
@@ -1489,9 +1487,9 @@ theorem
         schema resolvers variableValues fieldDefinition.outputType
         (completionDepth + 1) resolvedValue prefixFields later
         hprefixChildren hobjects hchildren
-  simpa [prefixFields, later, prefixCompleted, laterCompleted,
-    executableFieldSelections, List.map_append] using
-    visitSubfields_append_one_visit_aligned_of_complete schema resolvers
+  simpa [prefixFields, later, prefixCompleted, laterCompleted, executableFieldSelections,
+    List.map_append]
+    using visitSubfields_append_one_visit_aligned_of_complete schema resolvers
       variableValues (completionDepth + 2) parentType source
       (executableFieldSelections responseName prefixFields)
       (executableFieldSelections responseName [later])

@@ -168,8 +168,8 @@ theorem selectionSetSemanticsReady_mergeSelectionSets_of_field_subselections
   rcases hshape selection hselection with
     ⟨fieldName, arguments, directives, subselections, hselectionShape⟩
   subst selection
-  simpa [Selection.subselections] using
-    hfields fieldName arguments directives subselections hselection
+  simpa [Selection.subselections]
+    using hfields fieldName arguments directives subselections hselection
 
 theorem selectionSetSemanticsReady_withoutFieldSelectionsWithResponseName
     (schema : Schema) (responseName : Name)

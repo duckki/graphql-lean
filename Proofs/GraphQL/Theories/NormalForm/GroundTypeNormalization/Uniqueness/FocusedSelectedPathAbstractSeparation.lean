@@ -313,13 +313,11 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_taggedWitness_sameFuel
   rcases hwitness with
     ⟨hinclude, leftFields, leftErrors, rightFields, rightErrors,
       hleftResponse, hrightResponse, hdataNot⟩
-  exact
-    selectedPathSelectionSetsResponseDataDiff_of_dataNot
-      hinclude hinclude hleftSpineValid hrightSpineValid
-      (by
-        intro hsemantic
-        exact hdataNot
-          (by simpa [hleftResponse, hrightResponse] using hsemantic))
+  exact selectedPathSelectionSetsResponseDataDiff_of_dataNot
+    hinclude hinclude hleftSpineValid hrightSpineValid
+    (by
+      intro hsemantic
+      exact hdataNot (by simpa [hleftResponse, hrightResponse] using hsemantic))
 
 theorem
     executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
@@ -388,24 +386,22 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           bodySelectionSet] := by
     dsimp [source]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-            spine))
+          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
         hnonObject hruntimeObject hfree hnormal
   have happly :
       Execution.doesFragmentTypeApplyBool schema runtimeType source
         runtimeType = true := by
     dsimp [source]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      (doesFragmentTypeApplyBool_object_self schema
-        (ref :=
-          ProjectionResolverRef.target
-            (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-              spine))
-        hruntimeObject)
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using (doesFragmentTypeApplyBool_object_self schema
+              (ref :=
+                ProjectionResolverRef.target
+                  (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
+              hruntimeObject)
   have hflatten :
       Execution.executeSelectionSet schema resolvers variableValues
         (fuel + 1) runtimeType source
@@ -534,13 +530,12 @@ theorem
       Execution.collectFields schema variableValues runtimeType source
         selectionSet = [] := by
     dsimp [source]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
         schema variableValues (normalParentType := normalParentType)
         (executionParentType := runtimeType) (runtimeType := runtimeType)
         (ProjectionResolverRef.target
-          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-            spine))
+          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
         hnonObject hfree hnormal hruntimeMissing
   have hcollectObject :
       Execution.collectFields schema variableValues runtimeType
@@ -549,8 +544,7 @@ theorem
             (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
               spine)))
         selectionSet = [] := by
-    simpa [source, projectionTargetResolverValue, projectionResolverValue]
-      using hcollect
+    simpa [source, projectionTargetResolverValue, projectionResolverValue] using hcollect
   simp [Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
     Execution.executeSelectionSet, Execution.executeRootSelectionSet,
     projectionTargetResolverValue, projectionResolverValue,
@@ -969,22 +963,21 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_inlineFragme
         rightRuntimeType rightSpine :=
     SelectedFieldSpineRuntimeValid.abstractRuntime hrightNonObject
       hrightRuntimeObject hrightInclude hrightBodySpineValid
-  exact
-    selectedPathSelectionSetsResponseDataDiff_of_dataNot
-      hleftInclude hrightInclude hleftSpineValid hrightSpineValid
-      (by
-        intro hsemantic
-        have hrightEq :=
-          executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
-            schema rootSelectionSet leftInitialSelectionSet
-            rightInitialSelectionSet rightCurrentSelectionSet
-            leftInitialSpine rightInitialSpine rightSpine variableValues
-            rightFuel targetParent leftField rightField rightParentType
-            rightRuntimeType targetLeftArguments targetRightArguments
-            leftRuntime rightRuntime FieldPairProbeTag.right
-            hrightNonObject hrightRuntimeObject hrightFree hrightNormal
-            hrightMem
-        exact hbodyNot (by simpa [hrightEq] using hsemantic))
+  exact selectedPathSelectionSetsResponseDataDiff_of_dataNot hleftInclude hrightInclude
+    hleftSpineValid hrightSpineValid
+    (by
+      intro hsemantic
+      have hrightEq :=
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
+          schema rootSelectionSet leftInitialSelectionSet
+          rightInitialSelectionSet rightCurrentSelectionSet
+          leftInitialSpine rightInitialSpine rightSpine variableValues
+          rightFuel targetParent leftField rightField rightParentType
+          rightRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.right
+          hrightNonObject hrightRuntimeObject hrightFree hrightNormal
+          hrightMem
+      exact hbodyNot (by simpa [hrightEq] using hsemantic))
 
 theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_inlineFragment_body
     {schema : Schema}
@@ -1031,22 +1024,21 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_inlineFragmen
         leftRuntimeType leftSpine :=
     SelectedFieldSpineRuntimeValid.abstractRuntime hleftNonObject
       hleftRuntimeObject hleftInclude hleftBodySpineValid
-  exact
-    selectedPathSelectionSetsResponseDataDiff_of_dataNot
-      hleftInclude hrightInclude hleftSpineValid hrightSpineValid
-      (by
-        intro hsemantic
-        have hleftEq :=
-          executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
-            schema rootSelectionSet leftInitialSelectionSet
-            rightInitialSelectionSet leftCurrentSelectionSet
-            leftInitialSpine rightInitialSpine leftSpine variableValues
-            leftFuel targetParent leftField rightField leftParentType
-            leftRuntimeType targetLeftArguments targetRightArguments
-            leftRuntime rightRuntime FieldPairProbeTag.left
-            hleftNonObject hleftRuntimeObject hleftFree hleftNormal
-            hleftMem
-        exact hbodyNot (by simpa [hleftEq] using hsemantic))
+  exact selectedPathSelectionSetsResponseDataDiff_of_dataNot hleftInclude hrightInclude
+    hleftSpineValid hrightSpineValid
+    (by
+      intro hsemantic
+      have hleftEq :=
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_inlineFragment_body_eq
+          schema rootSelectionSet leftInitialSelectionSet
+          rightInitialSelectionSet leftCurrentSelectionSet
+          leftInitialSpine rightInitialSpine leftSpine variableValues
+          leftFuel targetParent leftField rightField leftParentType
+          leftRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.left
+          hleftNonObject hleftRuntimeObject hleftFree hleftNormal
+          hleftMem
+      exact hbodyNot (by simpa [hleftEq] using hsemantic))
 
 theorem
     selectedPathSelectionSetsResponseDataDiff_of_observableResponsePath_valid_normal_pair_contextReady_fuel_ge
@@ -1288,21 +1280,20 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_right_abstract_missing_runt
           rightCurrentSelectionSet leftSpine rightSpine left right := by
   intro hleftInclude hrightInclude hleftSpineValid hrightSpineValid
     hrightNonObject hrightFree hrightNormal hrightMissing hleftNotEmpty
-  exact
-    selectedPathSelectionSetsResponseDataDiff_of_dataNot
-      hleftInclude hrightInclude hleftSpineValid hrightSpineValid
-      (by
-        intro hsemantic
-        have hrightEq :=
-          executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
-            schema rootSelectionSet leftInitialSelectionSet
-            rightInitialSelectionSet rightCurrentSelectionSet
-            leftInitialSpine rightInitialSpine rightSpine variableValues
-            rightFuel targetParent leftField rightField rightParentType
-            rightRuntimeType targetLeftArguments targetRightArguments
-            leftRuntime rightRuntime FieldPairProbeTag.right
-            hrightNonObject hrightFree hrightNormal hrightMissing
-        exact hleftNotEmpty (by simpa [hrightEq] using hsemantic))
+  exact selectedPathSelectionSetsResponseDataDiff_of_dataNot hleftInclude hrightInclude
+    hleftSpineValid hrightSpineValid
+    (by
+      intro hsemantic
+      have hrightEq :=
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
+          schema rootSelectionSet leftInitialSelectionSet
+          rightInitialSelectionSet rightCurrentSelectionSet
+          leftInitialSpine rightInitialSpine rightSpine variableValues
+          rightFuel targetParent leftField rightField rightParentType
+          rightRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.right
+          hrightNonObject hrightFree hrightNormal hrightMissing
+      exact hleftNotEmpty (by simpa [hrightEq] using hsemantic))
 
 theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runtime
     {schema : Schema}
@@ -1351,21 +1342,20 @@ theorem selectedPathSelectionSetsResponseDataDiff_of_left_abstract_missing_runti
           rightCurrentSelectionSet leftSpine rightSpine left right := by
   intro hleftInclude hrightInclude hleftSpineValid hrightSpineValid
     hleftNonObject hleftFree hleftNormal hleftMissing hrightNotEmpty
-  exact
-    selectedPathSelectionSetsResponseDataDiff_of_dataNot
-      hleftInclude hrightInclude hleftSpineValid hrightSpineValid
-      (by
-        intro hsemantic
-        have hleftEq :=
-          executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
-            schema rootSelectionSet leftInitialSelectionSet
-            rightInitialSelectionSet leftCurrentSelectionSet
-            leftInitialSpine rightInitialSpine leftSpine variableValues
-            leftFuel targetParent leftField rightField leftParentType
-            leftRuntimeType targetLeftArguments targetRightArguments
-            leftRuntime rightRuntime FieldPairProbeTag.left hleftNonObject
-            hleftFree hleftNormal hleftMissing
-        exact hrightNotEmpty (by simpa [hleftEq] using hsemantic))
+  exact selectedPathSelectionSetsResponseDataDiff_of_dataNot hleftInclude hrightInclude
+    hleftSpineValid hrightSpineValid
+    (by
+      intro hsemantic
+      have hleftEq :=
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_abstract_missing_runtime_eq_empty
+          schema rootSelectionSet leftInitialSelectionSet
+          rightInitialSelectionSet leftCurrentSelectionSet
+          leftInitialSpine rightInitialSpine leftSpine variableValues
+          leftFuel targetParent leftField rightField leftParentType
+          leftRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.left hleftNonObject
+          hleftFree hleftNormal hleftMissing
+      exact hrightNotEmpty (by simpa [hleftEq] using hsemantic))
 
 theorem
     responseData_not_semanticEquivalent_empty_object_of_fieldPairOrDeepSuccess_selectedPathProbe_object_valid_normal_contextReady_fuel_ge
@@ -1999,16 +1989,13 @@ theorem
       ({ data := Execution.ResponseValue.object [], errors := 0 } :
         Execution.Response) := by
     simpa [hchildFuelEq] using hchildResponseRaw
-  exact
-    executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_ok_of_child_response
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet currentSelectionSet leftInitialSpine
-      rightInitialSpine spine variableValues fuel targetParent leftField
-      rightField parentType fieldName sourceRuntimeType responseName
-      targetLeftArguments targetRightArguments arguments leftRuntime
-      rightRuntime tag childSelectionSet fieldDefinition runtimeType []
-      0 hlookup hcoercion hcomposite hnonObject hselectedNone hruntime hinclude
-      (by omega) hchildResponse
+  exact executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_abstractFallback_ok_of_child_response
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    currentSelectionSet leftInitialSpine rightInitialSpine spine variableValues fuel
+    targetParent leftField rightField parentType fieldName sourceRuntimeType responseName
+    targetLeftArguments targetRightArguments arguments leftRuntime rightRuntime tag
+    childSelectionSet fieldDefinition runtimeType [] 0 hlookup hcoercion hcomposite
+    hnonObject hselectedNone hruntime hinclude (by omega) hchildResponse
 
 theorem compositeChildResponse_of_selectedPathFieldChildrenReady
     {schema : Schema}

@@ -536,7 +536,8 @@ theorem
           ({ data := Execution.ResponseValue.object leftChildFields,
              errors := leftChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hleftChildResponse
+        Execution.executeRootSelectionSet]
+        using hleftChildResponse
     have hfield :=
       executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
         schema rootSelectionSet leftInitialSelectionSet
@@ -552,8 +553,7 @@ theorem
             + leafProbeFuel leftFieldDefinition.outputType + 1 =
           parentFuel + 1 := by
       omega
-    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult, hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (parentFuel + 1)
         parentType source
@@ -591,7 +591,8 @@ theorem
           ({ data := Execution.ResponseValue.object rightChildFields,
              errors := rightChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hrightChildResponse
+        Execution.executeRootSelectionSet]
+        using hrightChildResponse
     have hnotLeft :=
       hrightNotLeft rightFieldArguments hrightCoerced
     have hfield :=
@@ -609,26 +610,27 @@ theorem
             + leafProbeFuel rightFieldDefinition.outputType + 1 =
           parentFuel + 1 := by
       omega
-    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult, hfuelEq]
+      using hfield
   have hvalueNot :
       ¬ Execution.ResponseValue.semanticEquivalent leftValue rightValue :=
     wrapped_object_values_not_semanticEquivalent_of_child
       leftFieldDefinition.outputType rightFieldDefinition.outputType
       hleftWrapped hrightWrapped hchildNot
-  simpa [resolvers, source] using
+  simpa [resolvers, source]
+    using
     SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
-      (schema := schema) (parentType := parentType) (left := left)
-      (right := right) (responseName := responseName)
-      (leftFieldName := leftFieldName) (rightFieldName := rightFieldName)
-      (leftArguments := leftFieldArguments)
-      (rightArguments := rightFieldArguments)
-      (leftDirectives := leftDirectives) (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
-      variableValues (parentFuel + 1) source source hobject hleftNormal hrightNormal
-      hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      hvalueNot hleftFieldOk hrightFieldOk
+        (schema := schema) (parentType := parentType) (left := left)
+        (right := right) (responseName := responseName)
+        (leftFieldName := leftFieldName) (rightFieldName := rightFieldName)
+        (leftArguments := leftFieldArguments)
+        (rightArguments := rightFieldArguments)
+        (leftDirectives := leftDirectives) (rightDirectives := rightDirectives)
+        (leftChildSelectionSet := leftChildSelectionSet)
+        (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
+        variableValues (parentFuel + 1) source source hobject hleftNormal hrightNormal
+        hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
+        hvalueNot hleftFieldOk hrightFieldOk
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_field_head_diff_composite_pairedPath_finiteSupport
@@ -876,27 +878,27 @@ theorem
       SelectedPathCompositeFieldChildSource schema parentType leftFieldName
         leftArguments currentSelectionSet leftRootSpine leftFieldDefinition
         leftRuntime leftSpine := by
-    simpa [leftRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := leftFieldName)
-        (arguments := leftArguments)
-        (currentSelectionSet := currentSelectionSet)
-        (fieldDefinition := leftFieldDefinition) (childRuntime := leftRuntime)
-        (childSpine := leftSpine) hleftComposite hleftSpineValid)
+    simpa [leftRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := leftFieldName)
+              (arguments := leftArguments)
+              (currentSelectionSet := currentSelectionSet)
+              (fieldDefinition := leftFieldDefinition) (childRuntime := leftRuntime)
+              (childSpine := leftSpine) hleftComposite hleftSpineValid)
   have hrightSource :
       SelectedPathCompositeFieldChildSource schema parentType rightFieldName
         rightArguments currentSelectionSet rightRootSpine
         rightFieldDefinition rightRuntime rightSpine := by
-    simpa [rightRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := rightFieldName)
-        (arguments := rightArguments)
-        (currentSelectionSet := currentSelectionSet)
-        (fieldDefinition := rightFieldDefinition)
-        (childRuntime := rightRuntime) (childSpine := rightSpine)
-        hrightComposite hrightSpineValid)
+    simpa [rightRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := rightFieldName)
+              (arguments := rightArguments)
+              (currentSelectionSet := currentSelectionSet)
+              (fieldDefinition := rightFieldDefinition)
+              (childRuntime := rightRuntime) (childSpine := rightSpine)
+              hrightComposite hrightSpineValid)
   have hsupport :
       PathLocalSupportValidNormal schema parentType currentSelectionSet := by
     exact ⟨members, rfl, by
@@ -1122,31 +1124,28 @@ theorem
           parentType source left).data
         (Execution.executeSelectionSetAsResponse schema resolvers variableValues (parentFuel + 1)
           parentType source right).data := by
-    simpa [resolvers, source, rootSelectionSet, currentSelectionSet] using
-      responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_field_head_child_response_diff_of_field_ok
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet leftSpine rightSpine variableValues parentFuel parentType
-        responseName leftFieldName rightFieldName leftTargetArguments
-        rightTargetArguments leftArguments rightArguments leftRuntime
-        rightRuntime hobject hleftNormal
-        hrightNormal hleftFree hrightFree hleftMem hrightMem hleftLookup
-        hrightLookup
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hleftCoercion hleftFree)
-          responseName leftFieldName leftArguments leftDirectives
-          leftChildSelectionSet hleftMem leftFieldDefinition hleftLookup)
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hrightCoercion hrightFree)
-          responseName rightFieldName rightArguments rightDirectives
-          rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
-        hleftInclude hrightInclude hleftLeafFuel
-        hrightLeafFuel
-        (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
-        (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
-        hrightNotLeft hleftChildResponse
-        hrightChildResponse hchildNot
-        (by simpa [currentSelectionSet] using hleftFieldOk)
-        (by simpa [currentSelectionSet] using hrightFieldOk)
+    simpa [resolvers, source, rootSelectionSet, currentSelectionSet]
+      using
+        responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_field_head_child_response_diff_of_field_ok
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          leftSpine rightSpine variableValues parentFuel parentType responseName
+          leftFieldName rightFieldName leftTargetArguments rightTargetArguments
+          leftArguments rightArguments leftRuntime rightRuntime hobject hleftNormal
+          hrightNormal hleftFree hrightFree hleftMem hrightMem hleftLookup hrightLookup
+          ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+              hleftCoercion hleftFree)
+            responseName leftFieldName leftArguments leftDirectives leftChildSelectionSet
+            hleftMem leftFieldDefinition hleftLookup)
+          ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+              hrightCoercion hrightFree)
+            responseName rightFieldName rightArguments rightDirectives
+            rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
+          hleftInclude hrightInclude hleftLeafFuel hrightLeafFuel
+          (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+          (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+          hrightNotLeft hleftChildResponse hrightChildResponse hchildNot
+          (by simpa [currentSelectionSet] using hleftFieldOk)
+          (by simpa [currentSelectionSet] using hrightFieldOk)
   refine ⟨
     hinclude,
     ProjectionResolverRef FieldPairSelectedPathProbeRef,
@@ -1183,16 +1182,16 @@ theorem
         rightRuntime rightFieldName rightTargetArguments rightArguments
         currentSelectionSet] at hfieldOk
     simpa [resolvers, source, rootSelectionSet, currentSelectionSet,
-      projectionRootResolverValue, projectionResolverValue] using
-      (ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok
-        schema resolvers variableValues (parentFuel + 1) parentType source
-        supportSelectionSet hfree hnormal hobject
-        (by simpa [resolvers, source, rootSelectionSet, currentSelectionSet,
-            leftInitialSelectionSet, rightInitialSelectionSet,
-            selectionSetFieldsExecuteOk]
-          using hfieldOk))
-  · simpa [source, projectionRootResolverValue, projectionResolverValue]
-      using hdataNot
+      projectionRootResolverValue, projectionResolverValue]
+      using (ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok
+              schema resolvers variableValues (parentFuel + 1) parentType source
+              supportSelectionSet hfree hnormal hobject
+              (by
+                simpa [resolvers, source, rootSelectionSet, currentSelectionSet,
+                  leftInitialSelectionSet, rightInitialSelectionSet,
+                  selectionSetFieldsExecuteOk]
+                  using hfieldOk))
+  · simpa [source, projectionRootResolverValue, projectionResolverValue] using hdataNot
 
 theorem
     not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_child_data_diff
@@ -1683,14 +1682,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -1720,14 +1719,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -1931,24 +1930,24 @@ theorem
       SelectedPathCompositeFieldChildSource schema parentType fieldName
         leftArguments (left ++ right) leftRootSpine fieldDefinition
         leftRuntime leftSpine := by
-    simpa [leftRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := fieldName)
-        (arguments := leftArguments) (currentSelectionSet := left ++ right)
-        (fieldDefinition := fieldDefinition) (childRuntime := leftRuntime)
-        (childSpine := leftSpine) hcomposite hleftSpineValid)
+    simpa [leftRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := fieldName)
+              (arguments := leftArguments) (currentSelectionSet := left ++ right)
+              (fieldDefinition := fieldDefinition) (childRuntime := leftRuntime)
+              (childSpine := leftSpine) hcomposite hleftSpineValid)
   have hrightSource :
       SelectedPathCompositeFieldChildSource schema parentType fieldName
         rightArguments (left ++ right) rightRootSpine fieldDefinition
         rightRuntime rightSpine := by
-    simpa [rightRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := fieldName)
-        (arguments := rightArguments) (currentSelectionSet := left ++ right)
-        (fieldDefinition := fieldDefinition) (childRuntime := rightRuntime)
-        (childSpine := rightSpine) hcomposite hrightSpineValid)
+    simpa [rightRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := fieldName)
+              (arguments := rightArguments) (currentSelectionSet := left ++ right)
+              (fieldDefinition := fieldDefinition) (childRuntime := rightRuntime)
+              (childSpine := rightSpine) hcomposite hrightSpineValid)
   have hsupport :
       PathLocalSupportValidNormal schema parentType (left ++ right) :=
     PathLocalSupportValidNormal.append
@@ -2041,34 +2040,28 @@ theorem
                 rightInitialSelectionSet rightSpine)))
           rightChildSelectionSet).data := by
     simpa [NormalSelectionSetPairedPathDataDiffAt,
-      SelectedPathSelectionSetsResponseDataDiff, hchildFuelEq] using
-      hchildDataDiff.2.2.2.2
-  exact
-    not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_child_data_diff
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      (parentType := parentType) (responseName := responseName)
-      (fieldName := fieldName) (leftRuntime := leftRuntime)
-      (rightRuntime := rightRuntime) (leftArguments := leftTargetArguments)
-      (rightArguments := rightTargetArguments)
-      (leftFieldArguments := leftArguments)
-      (rightFieldArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      (left := left) (right := right) (fieldDefinition := fieldDefinition)
-      leftSpine rightSpine hschema hleftValid hrightValid hleftCoercion
-      hrightCoercion hleftFree
-      hrightFree hleftNormal hrightNormal hobject hleftMem hrightMem hlookup
-      hcomposite hleftInclude hrightInclude hleftSpineValid
-      hrightSpineValid htargetArgumentsDiff
-      (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
-      (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments) (by
-        simpa [parentFuel, rootSelectionSet, leftInitialSelectionSet,
-          rightInitialSelectionSet, variableValues, leftTargetArguments,
-          rightTargetArguments] using hchildDataNot)
+      SelectedPathSelectionSetsResponseDataDiff, hchildFuelEq]
+      using hchildDataDiff.2.2.2.2
+  exact not_selectionSetsDataEquivalent_of_selectedPathProbe_root_arguments_child_data_diff
+    (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+    (rightVariableDefinitions := rightVariableDefinitions) (parentType := parentType)
+    (responseName := responseName) (fieldName := fieldName) (leftRuntime := leftRuntime)
+    (rightRuntime := rightRuntime) (leftArguments := leftTargetArguments)
+    (rightArguments := rightTargetArguments) (leftFieldArguments := leftArguments)
+    (rightFieldArguments := rightArguments) (leftDirectives := leftDirectives)
+    (rightDirectives := rightDirectives) (leftChildSelectionSet := leftChildSelectionSet)
+    (rightChildSelectionSet := rightChildSelectionSet) (left := left) (right := right)
+    (fieldDefinition := fieldDefinition) leftSpine rightSpine hschema hleftValid
+    hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal
+    hobject hleftMem hrightMem hlookup hcomposite hleftInclude hrightInclude
+    hleftSpineValid hrightSpineValid htargetArgumentsDiff
+    (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+    (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+    (by
+      simpa [parentFuel, rootSelectionSet, leftInitialSelectionSet,
+        rightInitialSelectionSet, variableValues, leftTargetArguments,
+        rightTargetArguments]
+        using hchildDataNot)
 
 theorem
     not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_composite_pairedPath
@@ -2227,25 +2220,25 @@ theorem
       SelectedPathCompositeFieldChildSource schema parentType leftFieldName
         leftArguments (left ++ right) leftRootSpine leftFieldDefinition
         leftRuntime leftSpine := by
-    simpa [leftRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := leftFieldName)
-        (arguments := leftArguments) (currentSelectionSet := left ++ right)
-        (fieldDefinition := leftFieldDefinition) (childRuntime := leftRuntime)
-        (childSpine := leftSpine) hleftComposite hleftSpineValid)
+    simpa [leftRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := leftFieldName)
+              (arguments := leftArguments) (currentSelectionSet := left ++ right)
+              (fieldDefinition := leftFieldDefinition) (childRuntime := leftRuntime)
+              (childSpine := leftSpine) hleftComposite hleftSpineValid)
   have hrightSource :
       SelectedPathCompositeFieldChildSource schema parentType rightFieldName
         rightArguments (left ++ right) rightRootSpine rightFieldDefinition
         rightRuntime rightSpine := by
-    simpa [rightRootSpine] using
-      (selectedPathCompositeFieldChildSource_cons
-        (schema := schema) (parentType := parentType)
-        (responseName := responseName) (fieldName := rightFieldName)
-        (arguments := rightArguments) (currentSelectionSet := left ++ right)
-        (fieldDefinition := rightFieldDefinition)
-        (childRuntime := rightRuntime) (childSpine := rightSpine)
-        hrightComposite hrightSpineValid)
+    simpa [rightRootSpine]
+      using (selectedPathCompositeFieldChildSource_cons
+              (schema := schema) (parentType := parentType)
+              (responseName := responseName) (fieldName := rightFieldName)
+              (arguments := rightArguments) (currentSelectionSet := left ++ right)
+              (fieldDefinition := rightFieldDefinition)
+              (childRuntime := rightRuntime) (childSpine := rightSpine)
+              hrightComposite hrightSpineValid)
   have hsupport :
       PathLocalSupportValidNormal schema parentType (left ++ right) :=
     PathLocalSupportValidNormal.append
@@ -2345,38 +2338,29 @@ theorem
                 rightInitialSelectionSet rightSpine)))
           rightChildSelectionSet).data := by
     simpa [NormalSelectionSetPairedPathDataDiffAt,
-      SelectedPathSelectionSetsResponseDataDiff, hleftChildFuelEq,
-      hrightChildFuelEq] using hchildDataDiff.2.2.2.2
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_object_output_childDataNot_of_valid_normal_append_context
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      (parentType := parentType) (responseName := responseName)
-      (leftFieldName := leftFieldName) (rightFieldName := rightFieldName)
-      (leftArguments := leftTargetArguments)
-      (rightArguments := rightTargetArguments)
-      (leftFieldArguments := leftArguments)
-      (rightFieldArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      (left := left) (right := right)
-      (leftFieldDefinition := leftFieldDefinition)
-      (rightFieldDefinition := rightFieldDefinition)
-      (leftRuntimeType := leftRuntime) (rightRuntimeType := rightRuntime)
-      leftSpine rightSpine variableValues hschema hleftValid hrightValid
-      hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal
-      hobject hleftMem
-      hrightMem hleftLookup hrightLookup hleftComposite hrightComposite
-      hleftInclude hrightInclude hleftSpineValid hrightSpineValid hfieldDiff
-      (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
-      (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
-      (by
-        simpa [parentFuel, rootSelectionSet, leftInitialSelectionSet,
-          rightInitialSelectionSet, leftTargetArguments,
-          rightTargetArguments] using hchildDataNot)
+      SelectedPathSelectionSetsResponseDataDiff, hleftChildFuelEq, hrightChildFuelEq]
+      using hchildDataDiff.2.2.2.2
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_object_output_childDataNot_of_valid_normal_append_context
+    (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+    (rightVariableDefinitions := rightVariableDefinitions) (parentType := parentType)
+    (responseName := responseName) (leftFieldName := leftFieldName)
+    (rightFieldName := rightFieldName) (leftArguments := leftTargetArguments)
+    (rightArguments := rightTargetArguments) (leftFieldArguments := leftArguments)
+    (rightFieldArguments := rightArguments) (leftDirectives := leftDirectives)
+    (rightDirectives := rightDirectives) (leftChildSelectionSet := leftChildSelectionSet)
+    (rightChildSelectionSet := rightChildSelectionSet) (left := left) (right := right)
+    (leftFieldDefinition := leftFieldDefinition)
+    (rightFieldDefinition := rightFieldDefinition) (leftRuntimeType := leftRuntime)
+    (rightRuntimeType := rightRuntime) leftSpine rightSpine variableValues hschema
+    hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
+    hrightNormal hobject hleftMem hrightMem hleftLookup hrightLookup hleftComposite
+    hrightComposite hleftInclude hrightInclude hleftSpineValid hrightSpineValid hfieldDiff
+    (Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+    (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+    (by
+      simpa [parentFuel, rootSelectionSet, leftInitialSelectionSet,
+        rightInitialSelectionSet, leftTargetArguments, rightTargetArguments]
+        using hchildDataNot)
 
 end GroundTypeNormalization
 

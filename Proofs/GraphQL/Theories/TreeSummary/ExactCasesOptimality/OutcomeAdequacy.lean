@@ -316,10 +316,13 @@ private theorem contextFieldGroupsOutcome_runtimeGroupSemantics_exists
             have hequal := BooleanAssignment.eq_of_extends_complete childAssignment
               assignment variableValues hchildAssignment hassignment
             subst childAssignment
-            refine ⟨children, .some assignment
-              (BooleanEnvironment.concrete variableValues) group
-              (childParentType :: remainingParentTypes) childParentType children
-              (by simp) ?_⟩
+            refine ⟨
+              children,
+              .some assignment
+                (BooleanEnvironment.concrete variableValues) group
+                (childParentType :: remainingParentTypes) childParentType children
+                (by simp) ?_
+            ⟩
             unfold CollectedFieldGroup.childTreeWithKnownFalsePruning
             simpa [selectionSetOutcomes, conditionTreeOutcomes] using hchildOutcome
       rcases hchildren with ⟨children, hchildren⟩
@@ -371,10 +374,11 @@ private theorem contextOutcome_runtimeGroupSemantics_forRuntimeType
     intro ih hruntime
     have hregion := RuntimeCase.chooseTypeRegion_mem possibleTypes
       [branch.body.condition.possibleTypes] runtimeType hruntime
-    cases hselected : possibleTypesSubset
-        (RuntimeCase.chooseTypeRegion runtimeType possibleTypes
-          (possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes]))
-        branch.body.condition.possibleTypes with
+    cases hselected
+          : possibleTypesSubset
+              (RuntimeCase.chooseTypeRegion runtimeType possibleTypes
+                (possibleTypeRegions possibleTypes [branch.body.condition.possibleTypes]))
+              branch.body.condition.possibleTypes with
     | false =>
         simp only [hselected] at ih
         rcases ih hregion.2 with ⟨groups, houtcome, hequal⟩
@@ -532,13 +536,15 @@ private theorem contextOutcome_runtimeGroupSemantics_hasRuntimeType
             cursor possibleTypes runtimeType variableValues
           = groups := by
   apply @CaseCursor.ContextOutcome.rec runtimeGroupSemantics schema assignment
-    (motive_1 := fun environment inherited _caseCondition cursor possibleTypes groups _h =>
-      environment = BooleanEnvironment.concrete variableValues
-      -> possibleTypes ≠ []
-      -> ∃ runtimeType,
-          runtimeType ∈ possibleTypes
-          ∧ runtimeFieldGroupsFrom inherited _caseCondition cursor
-              possibleTypes runtimeType variableValues = groups)
+    (motive_1 :=
+      fun environment inherited _caseCondition cursor possibleTypes groups _h =>
+        environment = BooleanEnvironment.concrete variableValues
+        -> possibleTypes ≠ []
+        -> ∃ runtimeType,
+            runtimeType ∈ possibleTypes
+            ∧ runtimeFieldGroupsFrom inherited _caseCondition cursor
+                possibleTypes runtimeType variableValues
+              = groups)
     (motive_2 := fun _environment groups outcome _h => outcome = groups)
     (motive_3 := fun _environment _group _parentTypes _outcome _h => True)
   case noTypeRegion =>
@@ -727,9 +733,10 @@ theorem selectionSetRuntimeGroupsExact
       refine ⟨assignment, hassignment, ?_⟩
       simpa [runtimeGroupSemantics, BooleanEnvironment.concrete,
         BooleanEnvironment.pruningValues, tree] using houtcome
-    · simpa [groups, runtimeFieldGroupsFrom, RuntimeCase.fieldGroups, tree] using
-        runtimeCaseFieldGroups_representRuntimeGroups schema variableValues parentType
-          runtimeType inheritedBooleanCondition selectionSet hinherited hincludes
+    · simpa [groups, runtimeFieldGroupsFrom, RuntimeCase.fieldGroups, tree]
+        using runtimeCaseFieldGroups_representRuntimeGroups schema variableValues
+          parentType runtimeType inheritedBooleanCondition selectionSet hinherited
+          hincludes
   · intro groups hgroups
     unfold selectionSetOutcomes conditionTreeOutcomes at hgroups
     rcases hgroups with ⟨assignment, hassignment, houtcome⟩
@@ -738,7 +745,8 @@ theorem selectionSetRuntimeGroupsExact
           (BooleanEnvironment.concrete variableValues) inheritedBooleanCondition []
           (.ofConditionTree tree) tree.condition.possibleTypes groups := by
       simpa [runtimeGroupSemantics, BooleanEnvironment.concrete,
-        BooleanEnvironment.pruningValues, tree] using houtcome
+        BooleanEnvironment.pruningValues, tree]
+        using houtcome
     rcases (contextOutcome_runtimeGroupSemantics_iff_runtimeType assignment
         variableValues hassignment inheritedBooleanCondition []
         (.ofConditionTree tree) tree.condition.possibleTypes groups
@@ -750,8 +758,8 @@ theorem selectionSetRuntimeGroupsExact
       exact hruntimeTree
     refine ⟨runtimeType, hincludes, ?_⟩
     rw [← hequal]
-    simpa [runtimeFieldGroupsFrom, RuntimeCase.fieldGroups, tree] using
-      runtimeCaseFieldGroups_representRuntimeGroups schema variableValues parentType
+    simpa [runtimeFieldGroupsFrom, RuntimeCase.fieldGroups, tree]
+      using runtimeCaseFieldGroups_representRuntimeGroups schema variableValues parentType
         runtimeType inheritedBooleanCondition selectionSet hinherited hincludes
 
 end ExactCases

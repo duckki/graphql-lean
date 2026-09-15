@@ -139,9 +139,7 @@ theorem fieldsInSetCanMerge_inlineSelectionSet_inductive
   · intro left right hshape hidentity hsubfields ihSubfields
     refine GraphQL.NamedFragment.Validation.FieldMerge.FieldsForNameCanMerge.intro
       (inlineScopedField left) (inlineScopedField right) ?_ ?_ ?_
-    · simpa [inlineScopedField,
-        GraphQL.FieldMerge.sameResponseShape] using
-        hshape
+    · simpa [inlineScopedField, GraphQL.FieldMerge.sameResponseShape] using hshape
     · intro hparents
       simpa [inlineScopedField] using hidentity hparents
     · intro hparents objectType

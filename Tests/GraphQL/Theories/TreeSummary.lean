@@ -66,28 +66,26 @@ theorem collectedResponseNameCountsOnceSmoke
   native_decide
 
 theorem sameResponseNameInCompatibleConditionsIsGloballyGroupedSmoke
-    : (show Nat from
-        ExactCases.CaseCursor.summarizeSelectionSet
-          (MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema "Animal" []
-          [
-            .field "label" "name" [] [] [],
-            .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
-          ]
-          [])
+    : (show Nat from ExactCases.CaseCursor.summarizeSelectionSet
+        (MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema "Animal" []
+        [
+          .field "label" "name" [] [] [],
+          .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
+        ]
+        [])
       = (1 : Nat) := by
   native_decide
 
 -- The structural backend visits both syntactic response-name groups independently.
 -- For response-size counting this produces the expected less precise result.
 theorem syntacticSameResponseNameKeepsSeparateContributionsSmoke
-    : (show Nat from
-        Syntactic.summarizeSelectionSet (MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema "Animal" []
-          [
-            .field "label" "name" [] [] [],
-            .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
-          ])
+    : (show Nat from Syntactic.summarizeSelectionSet
+        (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
+        [
+          .field "label" "name" [] [] [],
+          .inlineFragment (some "Dog") [] [.field "label" "id" [] [] []]
+        ])
       = (2 : Nat) := by
   native_decide
 
@@ -119,19 +117,17 @@ theorem repeatedConditionalResponseNameCaseIsGloballyGrouped
   native_decide
 
 theorem exactCasesCountRepeatedConditionalResponseNameOnce
-    : (show Nat from
-        ExactCases.CaseCursor.summarizeConditionTree
-          (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
-          repeatedConditionalResponseNameTree
-          [])
+    : (show Nat from ExactCases.CaseCursor.summarizeConditionTree
+        (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
+        repeatedConditionalResponseNameTree
+        [])
       = (1 : Nat) := by
   native_decide
 
 theorem syntacticSummaryCountsRepeatedConditionalResponseNameTwice
-    : (show Nat from
-        Syntactic.summarizeConditionTree
-          (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
-          repeatedConditionalResponseNameTree [])
+    : (show Nat from Syntactic.summarizeConditionTree
+        (MaxResponseSize.algebra conditionSchema 1) conditionSchema "Animal" []
+        repeatedConditionalResponseNameTree [])
       = (2 : Nat) := by
   native_decide
 
@@ -170,11 +166,10 @@ theorem nestedConditionCompositionRecursesOnCaseCursor
   native_decide
 
 theorem nestedConditionCompositionCountsResponseNameOnce
-    : (show Nat from
-        ExactCases.CaseCursor.summarizeConditionTree
-          (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
-          nestedConditionalResponseNameTree
-          [])
+    : (show Nat from ExactCases.CaseCursor.summarizeConditionTree
+        (MaxResponseSize.algebra conditionSchema 1) conditionSchema []
+        nestedConditionalResponseNameTree
+        [])
       = (1 : Nat) := by
   native_decide
 
@@ -293,16 +288,15 @@ theorem explicitKnownBooleanContextSelectsOnePolarity
   native_decide
 
 theorem summarizeSelectionSetUsesInheritedBooleanConditionSmoke
-    : (show Nat from
-        ExactCases.CaseCursor.summarizeSelectionSet
-          (MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema "Animal"
-          [.positive "x"]
-          [
-            .field "excluded" "name" [] [.skip (.variable "x")] [],
-            .field "included" "id" [] [] []
-          ]
-          [])
+    : (show Nat from ExactCases.CaseCursor.summarizeSelectionSet
+        (MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema "Animal"
+        [.positive "x"]
+        [
+          .field "excluded" "name" [] [.skip (.variable "x")] [],
+          .field "included" "id" [] [] []
+        ]
+        [])
       = (1 : Nat) := by
   native_decide
 
@@ -523,64 +517,57 @@ def variableSkipOperation (defaultValue : Option ConstInputValue) : Operation :=
   }
 
 theorem suppliedTrueTakesBooleanBranchSmoke
-    : (show Nat from
-        ExactCases.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema
-          [("showName", .boolean true)] (variableIncludeOperation none))
+    : (show Nat from ExactCases.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema
+        [("showName", .boolean true)] (variableIncludeOperation none))
       = 2 := by
   native_decide
 
 theorem suppliedFalseSkipsBooleanBranchSmoke
-    : (show Nat from
-        ExactCases.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema
-          [("showName", .boolean false)] (variableIncludeOperation none))
+    : (show Nat from ExactCases.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema
+        [("showName", .boolean false)] (variableIncludeOperation none))
       = 1 := by
   native_decide
 
 theorem operationVariableDefaultTakesBooleanBranchSmoke
-    : (show Nat from
-        ExactCases.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema []
-          (variableIncludeOperation (some (.boolean true))))
+    : (show Nat from ExactCases.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema []
+        (variableIncludeOperation (some (.boolean true))))
       = 2 := by
   native_decide
 
 theorem suppliedValueOverridesOperationVariableDefaultSmoke
-    : (show Nat from
-        ExactCases.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema
-          [("showName", .boolean false)]
-          (variableIncludeOperation (some (.boolean true))))
+    : (show Nat from ExactCases.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema
+        [("showName", .boolean false)]
+        (variableIncludeOperation (some (.boolean true))))
       = 1 := by
   native_decide
 
 theorem negativeLiteralUsesOperationVariableDefaultSmoke
-    : (show Nat from
-        ExactCases.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema []
-          (variableSkipOperation (some (.boolean true))))
+    : (show Nat from ExactCases.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema []
+        (variableSkipOperation (some (.boolean true))))
       = 1 := by
   native_decide
 
 theorem syntacticSuppliedFalseSkipsBooleanBranchSmoke
-    : (show Nat from
-        Syntactic.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema [("showName", .boolean false)] (variableIncludeOperation none))
+    : (show Nat from Syntactic.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema [("showName", .boolean false)] (variableIncludeOperation none))
       = 1 := by
   native_decide
 
 theorem syntacticOperationDefaultTakesBooleanBranchSmoke
-    : (show Nat from
-        Syntactic.summarizeOperationWithVariables
-          (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
-          conditionSchema [] (variableIncludeOperation (some (.boolean true))))
+    : (show Nat from Syntactic.summarizeOperationWithVariables
+        (fun _variableValues => MaxResponseSize.algebra conditionSchema 1)
+        conditionSchema [] (variableIncludeOperation (some (.boolean true))))
       = 2 := by
   native_decide
 

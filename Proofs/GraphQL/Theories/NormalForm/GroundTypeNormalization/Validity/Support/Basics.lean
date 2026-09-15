@@ -164,11 +164,9 @@ theorem leafTypeNameBool_eq_true_isLeafType (schema : Schema) {typeName : Name}
   | some typeDefinition =>
       cases typeDefinition with
       | builtinScalar scalar =>
-          exact ⟨.builtinScalar scalar, hlookup,
-            by simp [TypeDefinition.isLeafType]⟩
+          exact ⟨.builtinScalar scalar, hlookup, by simp [TypeDefinition.isLeafType]⟩
       | customScalar scalar =>
-          exact ⟨.customScalar scalar, hlookup,
-            by simp [TypeDefinition.isLeafType]⟩
+          exact ⟨.customScalar scalar, hlookup, by simp [TypeDefinition.isLeafType]⟩
       | object objectType =>
           simp [hlookup] at hleaf
       | interface interfaceType =>
@@ -176,8 +174,7 @@ theorem leafTypeNameBool_eq_true_isLeafType (schema : Schema) {typeName : Name}
       | union unionType =>
           simp [hlookup] at hleaf
       | enum enumType =>
-          exact ⟨.enum enumType, hlookup,
-            by simp [TypeDefinition.isLeafType]⟩
+          exact ⟨.enum enumType, hlookup, by simp [TypeDefinition.isLeafType]⟩
       | inputObject inputObjectType =>
           simp [hlookup] at hleaf
 
@@ -491,8 +488,8 @@ theorem selectionSetValidInPossibleTypes_mergeSelectionSets_of_field_subselectio
   rcases hshape selection hselection with
     ⟨fieldName, arguments, directives, subselections, hselectionShape⟩
   subst selection
-  simpa [Selection.subselections] using
-    hfields fieldName arguments directives subselections hselection
+  simpa [Selection.subselections]
+    using hfields fieldName arguments directives subselections hselection
 
 theorem
     selectionSetValidInPossibleTypes_mergeSelectionSets_fieldSelectionsWithResponseNameInScope

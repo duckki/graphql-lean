@@ -179,8 +179,8 @@ theorem collectFields_normal_object_field_head
     selectionSetNormal_tail hnormal
   have hnames :
       (responseName :: rest.filterMap Selection.responseName?).Nodup := by
-    simpa [responseNamesNodup, Selection.responseName?] using
-      selectionSetNormal_responseNamesNodup hnormal
+    simpa [responseNamesNodup, Selection.responseName?]
+      using selectionSetNormal_responseNamesNodup hnormal
   have hnotRest : responseName ∉ rest.filterMap Selection.responseName? :=
     (List.nodup_cons.mp hnames).1
   have hnotCollect :

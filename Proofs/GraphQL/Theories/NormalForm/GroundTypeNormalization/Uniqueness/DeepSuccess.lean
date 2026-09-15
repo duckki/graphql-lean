@@ -449,13 +449,11 @@ theorem
                   : Execution.Response) := by
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     hvalid hcoercion hfree hnormal hinclude hpromote
-  exact
-    executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
-      schema rootSelectionSet objectRef variableValues hschema
-      (SelectionSet.size selectionSet + 1) parentType variableDefinitions
-      selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
-      sourceRuntimeType (by omega) (by omega) hvalid hcoercion hfree hnormal
-      hinclude hpromote
+  exact executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_promoted_fuel_ge_size
+    schema rootSelectionSet objectRef variableValues hschema
+    (SelectionSet.size selectionSet + 1) parentType variableDefinitions selectionSet
+    (selectionSetDeepProbeFuel schema parentType selectionSet) sourceRuntimeType
+    (by omega) (by omega) hvalid hcoercion hfree hnormal hinclude hpromote
 
 end GroundTypeNormalization
 

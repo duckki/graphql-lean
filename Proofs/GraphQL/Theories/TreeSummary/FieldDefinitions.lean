@@ -175,8 +175,8 @@ theorem fieldGroupsWithContext_definitionsCompatible
     _hselectionSet⟩
   refine ⟨expectedOutputType, ?_⟩
   intro parentType hparentType
-  simpa [CollectedFieldGroup.representativeField, hfieldName] using
-    hcompatible parentType hparentType
+  simpa [CollectedFieldGroup.representativeField, hfieldName]
+    using hcompatible parentType hparentType
 
 /-- Grouping named fields preserves every occurrence-level validation witness. -/
 theorem fieldGroupsWithContext_fieldsValid
@@ -217,7 +217,8 @@ theorem CollectedFieldGroup.FieldsValid.definitionsCompatible
       ConditionTree.FieldGroup.selections, ConditionTree.FieldGroup.fields]
   have hentry := (hvalid _ hrepresentative).definitionsCompatible
   simpa [FieldEntryDefinitionsCompatible, ConditionTree.Field.toSelection,
-    CollectedFieldGroup.FieldDefinitionsCompatible] using hentry
+    CollectedFieldGroup.FieldDefinitionsCompatible]
+    using hentry
 
 private theorem conditionForBranch?_possibleTypes_subset
     (schema : Schema) (inherited : List BooleanLiteral)
@@ -281,8 +282,7 @@ private theorem parentTypeForBranches_map_booleanLiteral
   induction literals generalizing parentType with
   | nil => rfl
   | cons literal rest tail_ih =>
-      simpa [parentTypeForBranches, BranchCondition.parentType] using
-        tail_ih parentType
+      simpa [parentTypeForBranches, BranchCondition.parentType] using tail_ih parentType
 
 private theorem parentTypeForInlineBranches_none
     (currentParentType : Name) (directives : List DirectiveApplication)
@@ -312,8 +312,8 @@ private theorem parentTypeForInlineBranches_some
       simp [branchConditionsForInlineFragment?, branchConditionsForDirectives?,
         hliterals] at hbranches
       subst nextBranches
-      simpa [parentTypeForBranches, BranchCondition.parentType] using
-        parentTypeForBranches_map_booleanLiteral fragmentType literals
+      simpa [parentTypeForBranches, BranchCondition.parentType]
+        using parentTypeForBranches_map_booleanLiteral fragmentType literals
 
 private theorem inlineBranches_possibleTypes_subset_parent
     (schema : Schema) (currentParentType : Name)

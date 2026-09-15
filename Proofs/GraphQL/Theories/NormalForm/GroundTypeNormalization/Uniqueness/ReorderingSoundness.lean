@@ -236,8 +236,7 @@ theorem semanticEquivalent_object_of_canonical_fields_perm_nodup
   unfold ResponseValue.semanticEquivalent ResponseValue.canonical
   apply congrArg ResponseValue.object
   apply sortObjectFieldsByName_eq_of_perm_nodup hperm
-  simpa [ResponseKeys.ResponseValue.canonicalObjectFields_map_fst] using
-    hnodup
+  simpa [ResponseKeys.ResponseValue.canonicalObjectFields_map_fst] using hnodup
 
 theorem responseValue_semanticEquivalent_object_cons
     {name : Name} {leftValue rightValue : ResponseValue}
@@ -264,8 +263,7 @@ theorem responseValueResultEquivalent_nonNullCompletion
   | error leftErrors =>
       cases right with
       | error rightErrors =>
-          simpa [ResponseValueResultEquivalent, nonNullCompletion]
-            using hequivalent
+          simpa [ResponseValueResultEquivalent, nonNullCompletion] using hequivalent
       | ok rightResult =>
           simp [ResponseValueResultEquivalent] at hequivalent
   | ok leftResult =>
@@ -554,13 +552,13 @@ private theorem canonicalObjectFields_perm {left right : List (Name × ResponseV
   | nil => exact List.Perm.nil
   | cons field hperm ih =>
       rcases field with ⟨name, value⟩
-      simpa [ResponseValue.canonicalObjectFields] using
-        ih.cons (name, ResponseValue.canonical value)
+      simpa [ResponseValue.canonicalObjectFields]
+        using ih.cons (name, ResponseValue.canonical value)
   | swap first second rest =>
       rcases first with ⟨firstName, firstValue⟩
       rcases second with ⟨secondName, secondValue⟩
-      simpa [ResponseValue.canonicalObjectFields] using
-        List.Perm.swap
+      simpa [ResponseValue.canonicalObjectFields]
+        using List.Perm.swap
           (firstName, ResponseValue.canonical firstValue)
           (secondName, ResponseValue.canonical secondValue)
           (ResponseValue.canonicalObjectFields rest)
@@ -626,9 +624,9 @@ private theorem executeCollectedFields_cons_equivalent
   have hvalue :
       ResponseValue.semanticEquivalent leftValue rightValue := by
     simpa [ResponseValue.semanticEquivalent, ResponseValue.canonical,
-      ResponseValue.canonicalObjectFields,
-      ResponseValue.sortObjectFieldsByName,
-      ResponseValue.insertObjectFieldSorted] using hheadData
+      ResponseValue.canonicalObjectFields, ResponseValue.sortObjectFieldsByName,
+      ResponseValue.insertObjectFieldSorted]
+      using hheadData
   constructor
   · simpa using
       responseValue_semanticEquivalent_object_cons hvalue htailData
@@ -682,10 +680,9 @@ theorem executeCollectedFields_equivalent_of_perm
       have houtputPerm :
           (secondOutput ++ (firstOutput ++ tailOutput)).Perm
             (firstOutput ++ (secondOutput ++ tailOutput)) := by
-        simpa [List.append_assoc] using
-          (List.Perm.append_right tailOutput
-            (List.perm_append_comm (l₁ := secondOutput)
-              (l₂ := firstOutput)))
+        simpa [List.append_assoc]
+          using (List.Perm.append_right tailOutput
+                  (List.perm_append_comm (l₁ := secondOutput) (l₂ := firstOutput)))
       have hcanonicalPerm :
           (ResponseValue.canonicalObjectFields
               (secondOutput ++ (firstOutput ++ tailOutput))).Perm
@@ -831,8 +828,8 @@ theorem selectionSetResultEquivalent_singleFieldResult
   | error leftErrors =>
       cases right with
       | error rightErrors =>
-          simpa [ResponseValueResultEquivalent,
-            SelectionSetResultEquivalent, singleFieldResult]
+          simpa [ResponseValueResultEquivalent, SelectionSetResultEquivalent,
+            singleFieldResult]
             using hequivalent
       | ok rightResult =>
           simp [ResponseValueResultEquivalent] at hequivalent
@@ -946,8 +943,8 @@ theorem executeField_singleton_equivalent_succ
           have harguments :
               CoercedArgument.argumentsEquivalent leftCoercedArguments
                 rightCoercedArguments := by
-            simpa [ArgumentCoercionResult.equivalent, hleftCoercion,
-              hrightCoercion] using hcoercion
+            simpa [ArgumentCoercionResult.equivalent, hleftCoercion, hrightCoercion]
+              using hcoercion
           have hresolve :
               resolvers.resolve executionParentType fieldName leftCoercedArguments
                   source =
@@ -1165,13 +1162,13 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
   have hleftGroupPerm :
       leftPairGroups.Perm
         (left.map fieldGroupOfSelection) := by
-    simpa [leftPairGroups, List.map_map, Function.comp_def] using
-      hleftPerm.map fieldGroupOfSelection
+    simpa [leftPairGroups, List.map_map, Function.comp_def]
+      using hleftPerm.map fieldGroupOfSelection
   have hrightGroupPerm :
       rightPairGroups.Perm
         (right.map fieldGroupOfSelection) := by
-    simpa [rightPairGroups, List.map_map, Function.comp_def] using
-      hrightPerm.map fieldGroupOfSelection
+    simpa [rightPairGroups, List.map_map, Function.comp_def]
+      using hrightPerm.map fieldGroupOfSelection
   have hleftCollectNodup :
       ((left.map fieldGroupOfSelection).map
         Prod.fst).Nodup := by
@@ -1227,9 +1224,8 @@ private theorem object_selectionSetSoundAtFuel_of_singletonFieldSound
     executeCollectedFields_equivalent_of_perm schema resolvers
       variableValues fuel executionParentType (.object runtimeType ref) hrightGroupPerm
       ((hrightGroupPerm.map Prod.fst).nodup_iff.mpr hrightCollectNodup)
-  simpa [executeSelectionSet, executeRootSelectionSet, hleftCollect,
-    hrightCollect] using
-    selectionSetResultEquivalent_trans hleftReorder
+  simpa [executeSelectionSet, executeRootSelectionSet, hleftCollect, hrightCollect]
+    using selectionSetResultEquivalent_trans hleftReorder
       (selectionSetResultEquivalent_trans hpairsEquivalent hrightReorder)
 
 private theorem executeSelectionSet_singleton_runtimeFragment_eq_child

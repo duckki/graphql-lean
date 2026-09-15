@@ -124,9 +124,11 @@ private theorem guardedFieldGroupsForNames_append_eq_self
           ∧ entry.field.responseName ∉ rest := by
         simpa only [List.mem_cons, not_or] using hname
       simp only [guardedFieldGroupsForNames, List.map_cons, List.cons.injEq]
-      exact ⟨by
-        rw [conditionedFieldsForResponseName_append_eq_self _ _ _ hparts.1],
-        ih hparts.2⟩
+      exact ⟨
+        by
+          rw [conditionedFieldsForResponseName_append_eq_self _ _ _ hparts.1],
+        ih hparts.2
+      ⟩
 
 private theorem addGuardedFieldEntry_not_mem
     (entry : SelectionConditions.ConditionedField) (groups : List GuardedFieldGroup)
@@ -208,8 +210,10 @@ private theorem addGuardedFieldEntry_byFiltering
     have hsource : entry.field.responseName
         ∉ entries.map fun item => item.field.responseName := by
       simpa only [names, List.mem_eraseDups] using hname
-    have hremoved : [entry.field.responseName].removeAll
-        (entries.map fun item => item.field.responseName) = [entry.field.responseName] := by
+    have hremoved
+        : [entry.field.responseName].removeAll
+            (entries.map fun item => item.field.responseName)
+          = [entry.field.responseName] := by
       have hcontains : (entries.map fun item => item.field.responseName).contains
           entry.field.responseName = false := by
         cases hresult
@@ -220,9 +224,9 @@ private theorem addGuardedFieldEntry_byFiltering
       rw [List.cons_removeAll, hcontains]
       rfl
     rw [hremoved]
-    have hadd := addGuardedFieldEntry_not_mem entry
-      (guardedFieldGroupsForNames names entries) (by
-        simpa [guardedFieldGroupsForNames] using hname)
+    have hadd :=
+      addGuardedFieldEntry_not_mem entry (guardedFieldGroupsForNames names entries)
+        (by simpa [guardedFieldGroupsForNames] using hname)
     rw [hadd]
     simp only [List.eraseDups_cons, List.filter_nil, List.eraseDups_nil]
     have hsame := guardedFieldGroupsForNames_append_eq_self names entries entry hname
@@ -242,15 +246,15 @@ private theorem foldl_addGuardedFieldEntry_byFiltering
   | cons entry rest ih =>
       simp only [List.foldl_cons]
       rw [addGuardedFieldEntry_byFiltering]
-      simpa only [List.append_assoc, List.singleton_append] using
-        ih (processed ++ [entry])
+      simpa only [List.append_assoc, List.singleton_append]
+        using ih (processed ++ [entry])
 
 theorem guardedFieldGroups_eq_byFiltering
     (entries : List SelectionConditions.ConditionedField)
     : guardedFieldGroups entries = guardedFieldGroupsByFiltering entries := by
   unfold guardedFieldGroups
-  simpa [guardedFieldGroupsByFiltering, guardedFieldGroupsForNames] using
-    foldl_addGuardedFieldEntry_byFiltering [] entries
+  simpa [guardedFieldGroupsByFiltering, guardedFieldGroupsForNames]
+    using foldl_addGuardedFieldEntry_byFiltering [] entries
 
 def executableGroupsForResponseNames (names : List Name)
     (fields : List (Name × ExecutableField))

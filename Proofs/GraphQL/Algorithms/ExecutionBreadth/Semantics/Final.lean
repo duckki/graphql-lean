@@ -214,8 +214,8 @@ theorem breadthExecutionPreservesSpecExecution_of_empty_root_selectionSet
   · apply executeQueryWithFuel_eq_spec_of_rootSelectionSet_eq
       (ObjectRef := ObjectRef) schema operation resolvers variableValues
       (preservationFuelBound schema operation) source hroot
-    simpa [hselectionSet] using
-      executeRootSelectionSet_eq_spec_empty (ObjectRef := ObjectRef)
+    simpa [hselectionSet]
+      using executeRootSelectionSet_eq_spec_empty (ObjectRef := ObjectRef)
         schema resolvers
         (GraphQL.Execution.coerceVariableValues operation variableValues)
         (preservationFuelBound schema operation) (operation.rootType schema) source
@@ -282,15 +282,15 @@ theorem executeRootSelectionSet_eq_spec_of_drain_ready
   have hscheduledQueue :
       expectedScheduleQueueToQueue expectedScheduled.fst =
         runtimeScheduled.fst := by
-    simpa [expectedScheduled, runtimeScheduled, expectedScheduleQueueToQueue] using
-      expectedScheduleQueueToQueue_scheduleExpectedScope
+    simpa [expectedScheduled, runtimeScheduled, expectedScheduleQueueToQueue]
+      using expectedScheduleQueueToQueue_scheduleExpectedScope
         (ObjectRef := ObjectRef) schema variableValues (operation.rootType schema)
         [source] [fuel] operation.selectionSet
         ([] : ExpectedScheduleQueue ObjectRef)
   have hscheduledFrame :
       expectedScheduled.snd = runtimeScheduled.snd := by
-    simpa [expectedScheduled, runtimeScheduled, expectedScheduleQueueToQueue] using
-      scheduleExpectedScope_frame
+    simpa [expectedScheduled, runtimeScheduled, expectedScheduleQueueToQueue]
+      using scheduleExpectedScope_frame
         (ObjectRef := ObjectRef) schema variableValues (operation.rootType schema)
         [source] [fuel] operation.selectionSet
         ([] : ExpectedScheduleQueue ObjectRef)
@@ -441,8 +441,8 @@ theorem typeRefCompleteValueFuelBound_le_fieldDefinitionsCompleteValueFuelBound
       -> typeRefCompleteValueFuelBound fieldDefinition.outputType
           <= fieldDefinitionsCompleteValueFuelBound fields := by
   intro hmem
-  simpa [fieldDefinitionsCompleteValueFuelBound] using
-    typeRefCompleteValueFuelBound_le_fieldDefinitionsFold_of_mem
+  simpa [fieldDefinitionsCompleteValueFuelBound]
+    using typeRefCompleteValueFuelBound_le_fieldDefinitionsFold_of_mem
       fields 0 fieldDefinition hmem
 
 theorem typeRefCompleteValueFuelBound_le_typeDefinitionCompleteValueFuelBound
@@ -457,14 +457,14 @@ theorem typeRefCompleteValueFuelBound_le_typeDefinitionCompleteValueFuelBound
   | object objectType =>
       simp [TypeDefinition.fields?] at hfields
       subst fields
-      simpa [typeDefinitionCompleteValueFuelBound] using
-        typeRefCompleteValueFuelBound_le_fieldDefinitionsCompleteValueFuelBound
+      simpa [typeDefinitionCompleteValueFuelBound]
+        using typeRefCompleteValueFuelBound_le_fieldDefinitionsCompleteValueFuelBound
           objectType.fields fieldDefinition hmem
   | interface interfaceType =>
       simp [TypeDefinition.fields?] at hfields
       subst fields
-      simpa [typeDefinitionCompleteValueFuelBound] using
-        typeRefCompleteValueFuelBound_le_fieldDefinitionsCompleteValueFuelBound
+      simpa [typeDefinitionCompleteValueFuelBound]
+        using typeRefCompleteValueFuelBound_le_fieldDefinitionsCompleteValueFuelBound
           interfaceType.fields fieldDefinition hmem
   | builtinScalar scalar =>
       simp [TypeDefinition.fields?] at hfields
@@ -524,8 +524,8 @@ theorem typeDefinitionCompleteValueFuelBound_le_schemaCompleteValueFuelBound
       -> typeDefinitionCompleteValueFuelBound typeDefinition
           <= schemaCompleteValueFuelBound schema := by
   intro hmem
-  simpa [schemaCompleteValueFuelBound] using
-    typeDefinitionCompleteValueFuelBound_le_schemaTypesFold_of_mem
+  simpa [schemaCompleteValueFuelBound]
+    using typeDefinitionCompleteValueFuelBound_le_schemaTypesFold_of_mem
       schema.types 0 typeDefinition hmem
 
 theorem lookupField_typeRefCompleteValueFuelBound_le_schemaCompleteValueFuelBound
@@ -628,8 +628,8 @@ theorem expectedChildQueueForItem_fieldBudgetReady
           (ObjectRef := ObjectRef) schema resolvers variableValues
           fieldDefinition.outputType item
           hfieldBound hbudget
-      simpa [hlookup] using
-        scheduleExpectedPendingChildWork_fieldBudgetReady
+      simpa [hlookup]
+        using scheduleExpectedPendingChildWork_fieldBudgetReady
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
             fieldDefinition.outputType item variableValues)
@@ -731,21 +731,24 @@ theorem expectedScheduleQueueFuelsAllEq_scheduleExpectedScope_root
         apply ih
         exact expectedScheduleQueueFuelsAllEq_enqueueExpectedSegment
           (ObjectRef := ObjectRef) fuel group.fst
-          { segment :=
-              { sources := [source]
-                childSelectionSet := childSelectionSetForFields group.snd }
-            specFuels := [fuel] }
+          {
+            segment :=
+              {
+                sources := [source]
+                childSelectionSet := childSelectionSetForFields group.snd
+              }
+            specFuels := [fuel]
+          }
           queue
           (by
             intro segmentFuel hfuel
             simp at hfuel
             exact hfuel)
           hqueue
-  simpa [scheduleExpectedScope, groups, keyedGroups] using
-    hfold keyedGroups ([] : ExpectedScheduleQueue ObjectRef)
-      (by
-        intro item hitem
-        simp at hitem)
+  simpa [scheduleExpectedScope, groups, keyedGroups]
+    using hfold keyedGroups ([] : ExpectedScheduleQueue ObjectRef) (by
+      intro item hitem
+      simp at hitem)
 
 theorem expectedRootScheduleQueue_stepFuelReady
     (schema : Schema) (operation : Operation)
@@ -856,8 +859,8 @@ theorem expectedRootScheduleQueue_frontierBudget_le_breadthQueryFuelBound
             ([] : ExpectedScheduleQueue ObjectRef)).fst <=
         SelectionSet.size operation.selectionSet *
           (schema.objectTypes.length + 1) := by
-    simpa [expectedScheduleQueueRawShapeWeight] using
-      scheduleExpectedScope_rawShapeWeight_le
+    simpa [expectedScheduleQueueRawShapeWeight]
+      using scheduleExpectedScope_rawShapeWeight_le
         (ObjectRef := ObjectRef) schema variableValues (operation.rootType schema)
         [source] [preservationFuelBound schema operation]
         operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)
@@ -868,10 +871,10 @@ theorem expectedRootScheduleQueue_frontierBudget_le_breadthQueryFuelBound
           (schema.objectTypes.length + 1) *
           (schema.objectTypes.length + 1) := by
     have hfactor : 1 <= schema.objectTypes.length + 1 := by omega
-    simpa [Nat.mul_assoc] using
-      Nat.mul_le_mul_left
-        (SelectionSet.size operation.selectionSet *
-          (schema.objectTypes.length + 1)) hfactor
+    simpa [Nat.mul_assoc]
+      using Nat.mul_le_mul_left
+        (SelectionSet.size operation.selectionSet * (schema.objectTypes.length + 1))
+        hfactor
   unfold breadthQueryFuelBound Operation.size
   omega
 
@@ -907,8 +910,8 @@ theorem expectedRootScheduleQueue_drainBudget_le_breadthQueryFuelBound
             ([] : ExpectedScheduleQueue ObjectRef)).fst <=
         SelectionSet.size operation.selectionSet *
           (schema.objectTypes.length + 1) := by
-    simpa [expectedScheduleQueueRawShapeWeight] using
-      scheduleExpectedScope_rawShapeWeight_le
+    simpa [expectedScheduleQueueRawShapeWeight]
+      using scheduleExpectedScope_rawShapeWeight_le
         (ObjectRef := ObjectRef) schema variableValues (operation.rootType schema)
         [source] [preservationFuelBound schema operation]
         operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)
@@ -919,10 +922,10 @@ theorem expectedRootScheduleQueue_drainBudget_le_breadthQueryFuelBound
           (schema.objectTypes.length + 1) *
           (schema.objectTypes.length + 1) := by
     have hfactor : 1 <= schema.objectTypes.length + 1 := by omega
-    simpa [Nat.mul_assoc] using
-      Nat.mul_le_mul_left
-        (SelectionSet.size operation.selectionSet *
-          (schema.objectTypes.length + 1)) hfactor
+    simpa [Nat.mul_assoc]
+      using Nat.mul_le_mul_left
+        (SelectionSet.size operation.selectionSet * (schema.objectTypes.length + 1))
+        hfactor
   unfold breadthQueryFuelBound Operation.size
   omega
 
@@ -1021,8 +1024,8 @@ theorem expectedRootTailQueue_fieldBudgetReady_preservation
       operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
   have hrootBudget :
       expectedScheduleQueueFieldBudgetReady schema rootQueue := by
-    simpa [rootQueue] using
-      expectedRootScheduleQueue_fieldBudgetReady_preservation
+    simpa [rootQueue]
+      using expectedRootScheduleQueue_fieldBudgetReady_preservation
         (ObjectRef := ObjectRef) schema operation variableValues source
   have hitemBudget :
       expectedQueueItemFieldBudgetReady schema item := by
@@ -1069,20 +1072,20 @@ theorem expectedRootTailQueue_shapeInvariants_preservation
       operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
   have hrootAligned :
       expectedScheduleQueueFuelsAligned rootQueue := by
-    simpa [rootQueue] using
-      expectedRootScheduleQueue_fuelsAligned
+    simpa [rootQueue]
+      using expectedRootScheduleQueue_fuelsAligned
         (ObjectRef := ObjectRef) schema operation variableValues
         (preservationFuelBound schema operation) source
   have hrootNonempty :
       expectedScheduleQueueItemsNonempty rootQueue := by
-    simpa [rootQueue] using
-      expectedRootScheduleQueue_itemsNonempty
+    simpa [rootQueue]
+      using expectedRootScheduleQueue_itemsNonempty
         (ObjectRef := ObjectRef) schema operation variableValues
         (preservationFuelBound schema operation) source
   have hrootDistinct :
       expectedScheduleQueueKeysDistinct rootQueue := by
-    simpa [rootQueue] using
-      expectedRootScheduleQueue_keysDistinct
+    simpa [rootQueue]
+      using expectedRootScheduleQueue_keysDistinct
         (ObjectRef := ObjectRef) schema operation variableValues
         (preservationFuelBound schema operation) source
   have hrestAligned :
@@ -1387,13 +1390,18 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_and_stepBudget
             hstepBudget materialized fuel item rest haligned hnonempty hdistinct
               hfieldBudget hbudget
           simp [expectedDrainQueueReady]
-          exact ⟨haligned, hnonempty, hdistinct, hitemReady,
-            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
-                materialized)
+          exact ⟨
+            haligned,
+            hnonempty,
+            hdistinct,
+            hitemReady,
+            ih
+              (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                item materialized)
               (enqueueExpectedScheduleItems rest
                 (expectedChildQueueForItem schema resolvers variableValues item).fst)
-              htailAligned htailNonempty htailDistinct htailBudgetReady
-              htailDrainBudget⟩
+              htailAligned htailNonempty htailDistinct htailBudgetReady htailDrainBudget
+          ⟩
 
 theorem expectedDrainQueueReady_of_runtimeDrainBudget_contains_and_stepBudget
     (schema : Schema)
@@ -1534,13 +1542,19 @@ theorem expectedDrainQueueReady_of_runtimeDrainBudget_contains_and_stepBudget
               hfieldBudget hcontains hbudget
           rcases hstep with ⟨htailDrainBudget, htailContains⟩
           simp [expectedDrainQueueReady]
-          exact ⟨haligned, hnonempty, hdistinct, hitemReady,
-            ih (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
-                materialized)
+          exact ⟨
+            haligned,
+            hnonempty,
+            hdistinct,
+            hitemReady,
+            ih
+              (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues
+                item materialized)
               (enqueueExpectedScheduleItems rest
                 (expectedChildQueueForItem schema resolvers variableValues item).fst)
-              htailAligned htailNonempty htailDistinct htailBudgetReady
-              htailContains htailDrainBudget⟩
+              htailAligned htailNonempty htailDistinct htailBudgetReady htailContains
+              htailDrainBudget
+          ⟩
 
 theorem expectedRuntimeDrainStepBudget_lookup_none
     (schema : Schema)
@@ -1583,9 +1597,10 @@ theorem expectedRuntimeDrainStepBudget_lookup_none
       (expectedChildQueueForItem schema resolvers variableValues item).fst = [] := by
     simp [expectedChildQueueForItem, hlookup]
   simp [expectedScheduleQueueRuntimeDrainBudget, hcredit, hmaterializedEmpty] at hbudget
-  simpa [hmaterialized, hchild, enqueueExpectedScheduleItems] using
-    (by omega : expectedScheduleQueueRuntimeDrainBudget schema resolvers
-        materialized rest <= fuel)
+  simpa [hmaterialized, hchild, enqueueExpectedScheduleItems]
+    using (by omega
+            : expectedScheduleQueueRuntimeDrainBudget schema resolvers materialized rest
+              <= fuel)
 
 theorem expectedRuntimeDrainStepBudget_of_childRuntimeBudget_le
     (schema : Schema)
@@ -1771,8 +1786,7 @@ theorem expectedPendingChildWorkBreadthShapeWeight_lookup_some_le_runtimeCredit
       (ObjectRef := ObjectRef) schema fieldDefinition.outputType item
       hpossibleLength
   exact Nat.le_trans hactual
-    (by
-      simpa [expectedQueueItemRuntimeCreditWeight, hlookup] using hpossible)
+    (by simpa [expectedQueueItemRuntimeCreditWeight, hlookup] using hpossible)
 
 theorem expectedChildQueueForItem_mergedRuntimeStepWeight_lookup_some_le_runtimeCredit
     (schema : Schema)
@@ -1867,8 +1881,8 @@ theorem expectedRootTailQueue_contains_materializedRuntimeScopes
               (expectedChildQueueForItem schema resolvers variableValues item).fst =
             (scheduleExpectedPendingChildWork schema variableValues
               work rest).fst := by
-        simpa [expectedChildQueueForItem, hlookup, work] using
-          queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork_empty
+        simpa [expectedChildQueueForItem, hlookup, work]
+          using queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork_empty
             (ObjectRef := ObjectRef) schema variableValues work rest
       have hcontains :
           expectedScheduleQueueContainsPendingScopeShapeList
@@ -1880,7 +1894,8 @@ theorem expectedRootTailQueue_contains_materializedRuntimeScopes
         intro shape hshape
         simp [pendingScopeShapeMemberBool] at hshape
       simpa [htail, materializeExpectedQueueItemRuntimeScopes,
-        expectedQueueItemRuntimeChildWork, hlookup, work] using hcontains
+        expectedQueueItemRuntimeChildWork, hlookup, work]
+        using hcontains
 
 theorem expectedDrainStepBudget_of_childRawShapeWeight_le
     (schema : Schema)
@@ -2001,8 +2016,8 @@ theorem expectedRootTailQueue_drainBudget_lookup_none
   intro hlookup hfuel hqueue
   have hrootNonempty :
       expectedScheduleQueueItemsNonempty (item :: rest) := by
-    simpa [hqueue] using
-      expectedRootScheduleQueue_itemsNonempty
+    simpa [hqueue]
+      using expectedRootScheduleQueue_itemsNonempty
         (ObjectRef := ObjectRef) schema operation variableValues
         (preservationFuelBound schema operation) source
   have hrootBudget :
@@ -2055,14 +2070,14 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
       expectedScheduleQueueFuelsAligned tailQueue
         ∧ expectedScheduleQueueItemsNonempty tailQueue
         ∧ expectedScheduleQueueKeysDistinct tailQueue := by
-    simpa [tailQueue] using
-      expectedRootTailQueue_shapeInvariants_preservation
+    simpa [tailQueue]
+      using expectedRootTailQueue_shapeInvariants_preservation
         (ObjectRef := ObjectRef) schema operation resolvers variableValues
         source item rest hqueue
   have hbudget :
       expectedScheduleQueueFieldBudgetReady schema tailQueue := by
-    simpa [tailQueue] using
-      expectedRootTailQueue_fieldBudgetReady_preservation
+    simpa [tailQueue]
+      using expectedRootTailQueue_fieldBudgetReady_preservation
         (ObjectRef := ObjectRef) schema operation resolvers variableValues
         source item rest hqueue
   have hfieldReady :
@@ -2088,13 +2103,17 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
           ([] : ExpectedScheduleQueue ObjectRef)).fst = item :: rest := by
       simpa [hfuel] using hqueue
     simpa [hfuel, hqueueFuel] using hrootRuntimeBudget'
-  have htailRuntimeBudget :
-      expectedScheduleQueueRuntimeDrainBudget schema resolvers
-          (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item [])
-          tailQueue <= fuel :=
+  have htailRuntimeBudget
+      : expectedScheduleQueueRuntimeDrainBudget schema resolvers
+          (materializeExpectedQueueItemRuntimeScopes schema resolvers variableValues item
+            [])
+          tailQueue
+        <= fuel :=
     expectedRuntimeDrainStepBudget_of_ready
-      (ObjectRef := ObjectRef) schema resolvers variableValues hschema
-      ([] : MaterializedPendingScopes) fuel item rest
+      (ObjectRef := ObjectRef)
+      schema resolvers variableValues hschema
+      ([] : MaterializedPendingScopes)
+      fuel item rest
       (by
         let rootQueue :=
           (scheduleExpectedScope schema variableValues (operation.rootType schema)
@@ -2102,8 +2121,8 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
             operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
         have hrootAligned :
             expectedScheduleQueueFuelsAligned rootQueue := by
-          simpa [rootQueue] using
-            expectedRootScheduleQueue_fuelsAligned
+          simpa [rootQueue]
+            using expectedRootScheduleQueue_fuelsAligned
               (ObjectRef := ObjectRef) schema operation variableValues
               (preservationFuelBound schema operation) source
         simpa [rootQueue, hqueue] using hrootAligned)
@@ -2114,8 +2133,8 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
             operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
         have hrootNonempty :
             expectedScheduleQueueItemsNonempty rootQueue := by
-          simpa [rootQueue] using
-            expectedRootScheduleQueue_itemsNonempty
+          simpa [rootQueue]
+            using expectedRootScheduleQueue_itemsNonempty
               (ObjectRef := ObjectRef) schema operation variableValues
               (preservationFuelBound schema operation) source
         simpa [rootQueue, hqueue] using hrootNonempty)
@@ -2126,8 +2145,8 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
             operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
         have hrootDistinct :
             expectedScheduleQueueKeysDistinct rootQueue := by
-          simpa [rootQueue] using
-            expectedRootScheduleQueue_keysDistinct
+          simpa [rootQueue]
+            using expectedRootScheduleQueue_keysDistinct
               (ObjectRef := ObjectRef) schema operation variableValues
               (preservationFuelBound schema operation) source
         simpa [rootQueue, hqueue] using hrootDistinct)
@@ -2138,8 +2157,8 @@ theorem expectedDrainQueueReady_root_tail_preservationFuel
             operation.selectionSet ([] : ExpectedScheduleQueue ObjectRef)).fst
         have hrootBudget :
             expectedScheduleQueueFieldBudgetReady schema rootQueue := by
-          simpa [rootQueue] using
-            expectedRootScheduleQueue_fieldBudgetReady_preservation
+          simpa [rootQueue]
+            using expectedRootScheduleQueue_fieldBudgetReady_preservation
               (ObjectRef := ObjectRef) schema operation variableValues source
         simpa [rootQueue, hqueue] using hrootBudget)
       hrootRuntimeBudget
@@ -2188,18 +2207,18 @@ theorem expectedDrainQueueReady_root_preservationFuel
             simpa [hfuel] using hqueue
           simp [expectedDrainQueueReady, hqueue']
           constructor
-          · simpa [hqueue] using
-              expectedRootScheduleQueue_fuelsAligned
+          · simpa [hqueue]
+              using expectedRootScheduleQueue_fuelsAligned
                 (ObjectRef := ObjectRef) schema operation variableValues
                 (preservationFuelBound schema operation) source
           constructor
-          · simpa [hqueue] using
-              expectedRootScheduleQueue_itemsNonempty
+          · simpa [hqueue]
+              using expectedRootScheduleQueue_itemsNonempty
                 (ObjectRef := ObjectRef) schema operation variableValues
                 (preservationFuelBound schema operation) source
           constructor
-          · simpa [hqueue] using
-              expectedRootScheduleQueue_keysDistinct
+          · simpa [hqueue]
+              using expectedRootScheduleQueue_keysDistinct
                 (ObjectRef := ObjectRef) schema operation variableValues
                 (preservationFuelBound schema operation) source
           constructor

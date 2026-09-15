@@ -161,9 +161,10 @@ private theorem foldl_project_max_pair
   | cons first rest ih =>
       simp only [List.foldl_cons]
       rw [hcombined first (by simp), cost_max_interchange]
-      exact ih _ _ (by
-        intro value hvalue
-        exact hcombined value (by simp [hvalue]))
+      exact ih _ _
+        (by
+          intro value hvalue
+          exact hcombined value (by simp [hvalue]))
 
 private theorem actualCost_le_refl (cost : Cost) : cost ≤ cost :=
   ⟨Int.le_refl _, Nat.le_refl _⟩
@@ -866,8 +867,8 @@ private theorem fieldUseCost_max
           (fieldUseCost schema model variableValues group right inheritedSizedFields
             fieldName arguments) := by
   unfold fieldUseCost
-  simpa [Bound.max, Bound.zero] using
-    foldl_project_max_pair
+  simpa [Bound.max, Bound.zero]
+    using foldl_project_max_pair
       (fun parentType =>
         fieldUseCostAtParentTypeWithVariables schema model variableValues parentType
           (fun sizedFields => Bound.max (left sizedFields) (right sizedFields))
@@ -878,7 +879,8 @@ private theorem fieldUseCost_max
       (fun parentType =>
         fieldUseCostAtParentTypeWithVariables schema model variableValues parentType right
           inheritedSizedFields fieldName arguments)
-      group.condition.possibleTypes .zero .zero (by
+      group.condition.possibleTypes .zero .zero
+      (by
         intro parentType _hparentType
         exact fieldUseCostAtParentTypeWithVariables_max schema model variableValues
           parentType left right inheritedSizedFields fieldName arguments)
@@ -1141,12 +1143,12 @@ private theorem fieldUseCostAtParentType_mono
         apply Int.mul_le_mul_of_nonneg_left
         · exact Int.add_le_add_left (Int.ofNat_le.mpr hchild.1) _
         · exact Int.natCast_nonneg _
-      · simpa [childContext] using
-          Nat.add_le_add_left
+      · simpa [childContext]
+          using Nat.add_le_add_left
             (Nat.mul_le_mul_left
               (staticInstanceCount model (fieldCoordinate parentType fieldName) fieldName
-                definition (expectedListSize? model
-                  (fieldCoordinate parentType fieldName) arguments)
+                definition
+                (expectedListSize? model (fieldCoordinate parentType fieldName) arguments)
                 inheritedSizedFields)
               hchild.2)
             (fieldCallCost schema model
@@ -1170,7 +1172,8 @@ private theorem fieldUseCost_mono
     (fun parentType =>
       fieldUseCostAtParentTypeWithVariables schema model variableValues parentType upper
         inheritedSizedFields fieldName arguments)
-    group.condition.possibleTypes .zero .zero (cost_le_refl _) (by
+    group.condition.possibleTypes .zero .zero (cost_le_refl _)
+    (by
       intro parentType _hparent
       unfold fieldUseCostAtParentTypeWithVariables
       split
@@ -1529,11 +1532,11 @@ private theorem representedGroups_capacity
             inheritedSizedFields field.fieldName field.arguments
             (fun definition _hlookup => by
               exact hnonnegative definition.outputType.namedType)
-          exact cost_le_trans (by
-            simpa [TreeSummary.Syntactic.foldChildSummaries, algebra] using hsplit)
+          exact cost_le_trans
+            (by simpa [TreeSummary.Syntactic.foldChildSummaries, algebra] using hsplit)
             (by
-              simpa [TreeSummary.Syntactic.foldFieldGroups, algebra] using
-                cost_add_le_add hgroup hrest)
+              simpa [TreeSummary.Syntactic.foldFieldGroups, algebra]
+                using cost_add_le_add hgroup hrest)
 
 private theorem cost_add_scale (left right : Nat) (cost : Bound)
     : Bound.add (Bound.scale left cost) (Bound.scale right cost)
@@ -1555,8 +1558,8 @@ mutual
     | object runtimeType fields =>
         simp [responseValueTypeCost, actualInstanceCount]
     | list values =>
-        simpa [responseValueTypeCost, actualInstanceCount] using
-          responseValuesTypeCost_le schema model outputType values
+        simpa [responseValueTypeCost, actualInstanceCount]
+          using responseValuesTypeCost_le schema model outputType values
 
   private theorem responseValuesTypeCost_le
       (schema : Schema) (model : CostModel) (outputType : TypeRef)
@@ -1689,8 +1692,9 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
             ≤ staticInstanceCount model coordinate fieldName schemaDefinition
                 expectedSize inheritedSizedFields
         ∧ children.admissible childContext := by
-    simpa [responseFieldAdmissible, hlookup, hlookup', fieldName, arguments,
-      coordinate, expectedSize, childContext] using hadmissible
+    simpa [responseFieldAdmissible, hlookup, hlookup', fieldName, arguments, coordinate,
+      expectedSize, childContext]
+      using hadmissible
   have hchild := hchildren childContext hadmissible'.2
   have htype := responseValueTypeCost_le schema model schemaDefinition.outputType value
   let perInstanceTypeCost :=
@@ -1720,58 +1724,73 @@ private theorem responseFieldCost_le_fieldUseCostAtParentType
       Int.ofNat (actualInstanceCount value) * perInstanceTypeCost
         ≤ (fieldUseCostAtParentType schema model parentType abstractChild
             inheritedSizedFields fieldName arguments).toCost.typeCost := by
-    simpa [fieldUseCostAtParentType, hlookup', coordinate, expectedSize,
-      childContext, perInstanceTypeCost, Bound.toCost] using hscaledType
+    simpa [fieldUseCostAtParentType, hlookup', coordinate, expectedSize, childContext,
+      perInstanceTypeCost, Bound.toCost]
+      using hscaledType
   have hfinalField :
       callWeight.toNat
           + actualInstanceCount value * (abstractChild childContext).fieldCost
         ≤ (fieldUseCostAtParentType schema model parentType abstractChild
             inheritedSizedFields fieldName arguments).toCost.fieldCost := by
-    simpa [fieldUseCostAtParentType, hlookup', coordinate, expectedSize,
-      childContext, fieldCallCost, callWeight, Bound.toCost] using
-      Nat.add_le_add_left hscaledField callWeight.toNat
+    simpa [fieldUseCostAtParentType, hlookup', coordinate, expectedSize, childContext,
+      fieldCallCost, callWeight, Bound.toCost]
+      using Nat.add_le_add_left hscaledField callWeight.toNat
   constructor
   · cases value with
     | null =>
-        exact Int.le_trans (by simp [responseFieldCost, hlookup])
-          (Int.natCast_nonneg _)
+        exact Int.le_trans (by simp [responseFieldCost, hlookup]) (Int.natCast_nonneg _)
     | scalar scalarValue =>
         have hleaf : outputTypeCost schema model schemaDefinition.outputType
             ≤ perInstanceTypeCost := by
           exact Int.le_add_of_nonneg_right (Int.natCast_nonneg _)
-        exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, fieldName, arguments,
-            actualInstanceCount] using hleaf) hfinalType
+        exact Int.le_trans
+          (by
+            simpa [responseFieldCost, hlookup, fieldName, arguments, actualInstanceCount]
+              using hleaf)
+          hfinalType
     | list values =>
-        exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
-            expectedSize, childContext, responseValueTypeCost] using hvalueType) hfinalType
+        exact Int.le_trans
+          (by
+            simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
+              expectedSize, childContext, responseValueTypeCost]
+              using hvalueType)
+          hfinalType
     | object runtimeType fields =>
-        exact Int.le_trans (by
-          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
-            expectedSize, childContext, responseValueTypeCost] using hvalueType) hfinalType
+        exact Int.le_trans
+          (by
+            simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
+              expectedSize, childContext, responseValueTypeCost]
+              using hvalueType)
+          hfinalType
   · cases value with
     | list values | object _ _ =>
-        exact Nat.le_trans (by
-          simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
-            expectedSize, childContext, callWeight] using hvalueField) hfinalField
+        exact Nat.le_trans
+          (by
+            simpa [responseFieldCost, hlookup, fieldName, arguments, coordinate,
+              expectedSize, childContext, callWeight]
+              using hvalueField)
+          hfinalField
     | null =>
         have hcall : callWeight.toNat
             ≤ callWeight.toNat
               + actualInstanceCount .null * (abstractChild childContext).fieldCost :=
           Nat.le_add_right _ _
-        exact Nat.le_trans (by
-          simp [responseFieldCost, hlookup, fieldName, arguments,
-            coordinate, callWeight]) hfinalField
+        exact Nat.le_trans
+          (by
+            simp [responseFieldCost, hlookup, fieldName, arguments,
+              coordinate, callWeight])
+          hfinalField
     | scalar scalarValue =>
         have hcall : callWeight.toNat
             ≤ callWeight.toNat
               + actualInstanceCount (.scalar scalarValue)
                 * (abstractChild childContext).fieldCost :=
           Nat.le_add_right _ _
-        exact Nat.le_trans (by
-          simp [responseFieldCost, hlookup, fieldName, arguments,
-            coordinate, callWeight]) hfinalField
+        exact Nat.le_trans
+          (by
+            simp [responseFieldCost, hlookup, fieldName, arguments,
+              coordinate, callWeight])
+          hfinalField
 
 private theorem actualCost_le_staticBound
     (schema : Schema) (model : CostModel) (response : AnnotatedResponse)
@@ -1794,14 +1813,12 @@ private theorem actualCost_le_staticBound
   · change data = .null at hnull
     subst data
     constructor
-    · simpa [actualCost, responseRootCost, evaluateAnnotatedResponse,
-        concreteAlgebra,
-        TreeSummary.foldAnnotatedResponse,
-        foldAnnotatedResponseValue,
-        ResponseObservation.empty, Cost.add, Cost.zero] using
-        (Int.le_max_left 0
-          (namedTypeCost schema model schema.queryType
-            + Int.ofNat selectionBound.typeCost))
+    · simpa [actualCost, responseRootCost, evaluateAnnotatedResponse, concreteAlgebra,
+        TreeSummary.foldAnnotatedResponse, foldAnnotatedResponseValue,
+        ResponseObservation.empty, Cost.add, Cost.zero]
+        using (Int.le_max_left 0
+                (namedTypeCost schema model schema.queryType
+                  + Int.ofNat selectionBound.typeCost))
     · simp [actualCost, responseRootCost, evaluateAnnotatedResponse, concreteAlgebra,
         TreeSummary.foldAnnotatedResponse,
         foldAnnotatedResponseValue,
@@ -2017,16 +2034,17 @@ def soundness (schema : Schema) (model : CostModel)
                 parentType abstractChildren inheritedSizedFields field.fieldName
                 field.arguments).toCost := by
         simpa [concreteAlgebra, responseFieldObservation,
-          fieldUseCostAtParentTypeWithVariables, hlookup] using hfield
+          fieldUseCostAtParentTypeWithVariables, hlookup]
+          using hfield
       have hparentBound := fieldUseCostAtParentType_le_fieldUseCost schema model group
         variableValues abstractChildren inheritedSizedFields parentType
         field.fieldName field.arguments hparent
       have hselectionBound := fieldUseCost_le_groupCost schema model variableValues group
         abstractChildren inheritedSizedFields field.fieldName field.arguments
         hrepresentative.1.symm harguments hrepresentative.2
-      exact actualCost_le_trans hfield' (bound_toCost_le_toCost
-        (cost_le_trans hparentBound (by
-          simpa [algebra] using hselectionBound)))
+      exact actualCost_le_trans hfield'
+        (bound_toCost_le_toCost
+          (cost_le_trans hparentBound (by simpa [algebra] using hselectionBound)))
   }
 
 -- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.
@@ -2064,10 +2082,9 @@ theorem analysisWithVariablesSoundWithFuel
     (executeQueryAnnotatedWithFuel_rootShape schema resolvers variableValues operation
       fuel source)
     (hrefinement [] hadmissible)
-  simpa [ResponseWithinEstimatedSizes, actualCost,
-    Internal.evaluateAnnotatedResponse, estimateOperationWithVariables,
-    coercedVariableValues] using
-    hcost
+  simpa [ResponseWithinEstimatedSizes, actualCost, Internal.evaluateAnnotatedResponse,
+    estimateOperationWithVariables, coercedVariableValues]
+    using hcost
 
 theorem analysisWithVariablesSound
     (schema : Schema) (model : CostModel) (operation : Operation)
@@ -2127,12 +2144,13 @@ def soundness (schema : Schema) (model : CostModel)
                 parentType combinedChildren inheritedSizedFields field.fieldName
                 field.arguments).toCost := by
         simpa [concreteAlgebra, responseFieldObservation,
-          fieldUseCostAtParentTypeWithVariables, hlookup] using hfield
+          fieldUseCostAtParentTypeWithVariables, hlookup]
+          using hfield
       have hcapacity := representedGroups_capacity schema model hnonnegative variableValues
         parentType field groups abstractChildren inheritedSizedFields hnonempty
         hconditions hmatch hargumentsNodup
-      exact actualCost_le_trans hfield' (bound_toCost_le_toCost (by
-        simpa [combinedChildren, algebra] using hcapacity))
+      exact actualCost_le_trans hfield'
+        (bound_toCost_le_toCost (by simpa [combinedChildren, algebra] using hcapacity))
   }
 
 -- Proof-local explicit-fuel form of `AnalysisWithVariablesSound`.

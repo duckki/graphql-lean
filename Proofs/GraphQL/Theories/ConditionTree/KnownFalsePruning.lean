@@ -199,8 +199,8 @@ theorem collectFlatFields_pruneKnownFalseSelections
           split <;> rename_i hknownFalse
           · have hdirectives :=
               selectionDirectivesAllowBool_eq_false_of_any_knownFalse runtimeValues
-                pruningValues hmatch directives (by
-                  simpa [directivesKnownFalse] using hknownFalse)
+                pruningValues hmatch directives
+                (by simpa [directivesKnownFalse] using hknownFalse)
             simp [collectFlatFields, collectFlatSelection, hdirectives,
               collectFlatFields_pruneKnownFalseSelections schema runtimeValues
                 pruningValues hmatch executionParentType source rest]
@@ -212,8 +212,8 @@ theorem collectFlatFields_pruneKnownFalseSelections
           split <;> rename_i hknownFalse
           · have hdirectives :=
               selectionDirectivesAllowBool_eq_false_of_any_knownFalse runtimeValues
-                pruningValues hmatch directives (by
-                  simpa [directivesKnownFalse] using hknownFalse)
+                pruningValues hmatch directives
+                (by simpa [directivesKnownFalse] using hknownFalse)
             cases typeCondition <;>
               simp [collectFlatFields, collectFlatSelection, hdirectives,
                 collectFlatFields_pruneKnownFalseSelections schema runtimeValues
@@ -308,8 +308,8 @@ theorem knownFalsePruning_runtimeGroups_permutationEquivalent
             (NormalForm.collectFields_namesNodup schema runtimeValues executionParentType
               (.object runtimeType ref) selectionSet)
   · simpa [ConditionTree.flattenExecutableFieldGroups,
-      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-      knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+      using knownFalsePruning_runtimeGroups_occurrence_equivalent schema parentType
         inheritedBooleanCondition runtimeValues pruningValues selectionSet hmatch
         executionParentType runtimeType ref hinherited hpossible
 

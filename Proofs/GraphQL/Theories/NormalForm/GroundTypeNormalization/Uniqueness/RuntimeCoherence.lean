@@ -24,18 +24,14 @@ theorem firstInlineFragmentTypeCondition?_some_mem_filterMap
   | cons selection rest ih =>
       cases selection with
       | field responseName fieldName arguments directives childSelectionSet =>
-          have htail :
-              typeCondition ∈ rest.filterMap inlineFragmentTypeCondition? :=
-            ih (by
-              simpa [firstInlineFragmentTypeCondition?] using hfirst)
+          have htail : typeCondition ∈ rest.filterMap inlineFragmentTypeCondition? :=
+            ih (by simpa [firstInlineFragmentTypeCondition?] using hfirst)
           simpa [inlineFragmentTypeCondition?] using htail
       | inlineFragment maybeTypeCondition directives childSelectionSet =>
           cases maybeTypeCondition with
           | none =>
-              have htail :
-                  typeCondition ∈ rest.filterMap inlineFragmentTypeCondition? :=
-                ih (by
-                  simpa [firstInlineFragmentTypeCondition?] using hfirst)
+              have htail : typeCondition ∈ rest.filterMap inlineFragmentTypeCondition? :=
+                ih (by simpa [firstInlineFragmentTypeCondition?] using hfirst)
               simpa [inlineFragmentTypeCondition?] using htail
           | some headTypeCondition =>
               have hsame : headTypeCondition = typeCondition := by

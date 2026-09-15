@@ -337,30 +337,30 @@ mutual
                               hchildTree).2)
                         completionFuel fieldDefinition.outputType resolved
                         completionPrevious? (by omega) rfl hpreviousTree
-                  have hexecute :
-                      outputResult FieldCacheValue.output
+                  have hexecute
+                      : outputResult FieldCacheValue.output
                           (executeField schema resolvers variableValues completionFuel
                             parentType source
-                            (objectField? responseName
-                              (.object source outputFields))
+                            (objectField? responseName (.object source outputFields))
                             field)
                         = ExecutionUngroupedUncached.executeField schema resolvers
                             variableValues completionFuel parentType source
-                            ((objectField? responseName
-                              (.object source outputFields)).map
+                            ((objectField? responseName (.object source outputFields)).map
                               FieldCacheValue.output)
                             field :=
                     executeField_output_of_completionCacheSound schema resolvers
                       variableValues completionFuel parentType source
-                      (objectField? responseName (.object source outputFields)) field
+                      (objectField? responseName (.object source outputFields))
+                      field
                       (by
                         intro candidateDefinition resolved hlookup hresolve
                         rw [hfieldLookup] at hlookup
                         injection hlookup with hdefinition
                         subst candidateDefinition
-                        exact hcompletionExact resolved none (by
-                          intro previous hprevious
-                          simp at hprevious))
+                        exact hcompletionExact resolved none
+                          (by
+                            intro previous hprevious
+                            simp at hprevious))
                       (by
                         intro candidateDefinition previous hlookup hprevious
                         rw [hfieldLookup] at hlookup
@@ -372,31 +372,30 @@ mutual
                               previous hgroup hfieldGroup hprevious hfieldLookup
                         · cases previous with
                           | object previousSource previousFields =>
-                              exact
-                                hcompletionExact previousSource
-                                  (some (.object previousSource previousFields)) (by
-                                    intro candidate hcandidate
-                                    injection hcandidate with hcandidate
-                                    subst candidate
-                                    exact
-                                      hobjects responseName groupFields
-                                        previousSource previousFields hgroup
-                                        hprevious)
+                              exact hcompletionExact previousSource
+                                (some (.object previousSource previousFields))
+                                (by
+                                  intro candidate hcandidate
+                                  injection hcandidate with hcandidate
+                                  subst candidate
+                                  exact
+                                    hobjects responseName groupFields
+                                      previousSource previousFields hgroup
+                                      hprevious)
                           | list sourceValues? previousValues =>
                               cases sourceValues? with
                               | none => trivial
                               | some sourceValues =>
-                                  exact
-                                    hcompletionExact (.list sourceValues)
-                                      (some (.list (some sourceValues) previousValues))
-                                      (by
-                                        intro candidate hcandidate
-                                        injection hcandidate with hcandidate
-                                        subst candidate
-                                        exact
-                                          hlists responseName groupFields
-                                            sourceValues previousValues hgroup
-                                            hprevious)
+                                  exact hcompletionExact (.list sourceValues)
+                                    (some (.list (some sourceValues) previousValues))
+                                    (by
+                                      intro candidate hcandidate
+                                      injection hcandidate with hcandidate
+                                      subst candidate
+                                      exact
+                                        hlists responseName groupFields
+                                          sourceValues previousValues hgroup
+                                          hprevious)
                           | null => trivial
                           | scalar value => trivial)
                   let incoming :=
@@ -405,11 +404,11 @@ mutual
                         parentType source
                         (objectField? responseName (.object source outputFields))
                         field)
-                  have hincoming :
-                      FieldCacheContinuationTreeSound schema resolvers variableValues
-                        completionFuel
-                        (GraphQL.Execution.mergedFieldSelectionSet groupFields)
-                        incoming :=
+                  have hincoming
+                      : FieldCacheContinuationTreeSound schema resolvers variableValues
+                          completionFuel
+                          (GraphQL.Execution.mergedFieldSelectionSet groupFields)
+                          incoming :=
                     executeField_result_continuationTreeSound schema resolvers
                       variableValues completionFuel parentType source field
                       (objectField? responseName (.object source outputFields))
@@ -428,15 +427,15 @@ mutual
                         subst candidateDefinition
                         cases previous with
                         | object previousSource previousFields =>
-                            simpa [FieldCacheContinuationTreeSound] using
-                              hobjects responseName groupFields previousSource
+                            simpa [FieldCacheContinuationTreeSound]
+                              using hobjects responseName groupFields previousSource
                                 previousFields hgroup hprevious
                         | list sourceValues? previousValues =>
                             cases sourceValues? with
                             | none => trivial
                             | some sourceValues =>
-                                simpa [FieldCacheContinuationTreeSound] using
-                                  hlists responseName groupFields sourceValues
+                                simpa [FieldCacheContinuationTreeSound]
+                                  using hlists responseName groupFields sourceValues
                                     previousValues hgroup hprevious
                         | null => trivial
                         | scalar value => trivial)
@@ -487,21 +486,27 @@ mutual
                           (.field responseName fieldName arguments directives
                             selectionSet)
                           (.object source outputFields)).value := by
-                    simpa [visitSelection, hallows, mergeResponseFieldResult,
-                      incoming, field, source] using
-                      OutputCacheTreeSoundForGroups.merge_field schema resolvers
-                        variableValues completionFuel parentType source source groups outputFields
-                        responseName groupFields incoming hgroupsNodup hgroup
-                        (OutputCacheTreeSoundForGroups.succ completionFuel parentType source
-                          groups (.object source outputFields) hmergeReady haligned
+                    simpa [visitSelection, hallows, mergeResponseFieldResult, incoming,
+                      field, source]
+                      using OutputCacheTreeSoundForGroups.merge_field schema resolvers
+                        variableValues completionFuel parentType source source groups
+                        outputFields responseName groupFields incoming hgroupsNodup hgroup
+                        (OutputCacheTreeSoundForGroups.succ completionFuel parentType
+                          source groups (.object source outputFields) hmergeReady haligned
                           hsource hobjects hlists)
-                        hincoming habsorbs (by
+                        hincoming habsorbs
+                        (by
                           simpa [visitSelection, hallows, mergeResponseFieldResult,
-                            incoming, source] using hpostReady) (by
+                            incoming, source]
+                            using hpostReady)
+                        (by
                           simpa [visitSelection, hallows, mergeResponseFieldResult,
-                            incoming, source] using hpostAligned) (by
+                            incoming, source]
+                            using hpostAligned)
+                        (by
                           simpa [visitSelection, hallows, mergeResponseFieldResult,
-                            incoming, source] using hpostSource)
+                            incoming, source]
+                            using hpostSource)
                   constructor
                   · dsimp [field, source] at hexecute
                     have hpreviousOut := objectField?_output (ObjectRef := ObjectRef)
@@ -515,11 +520,10 @@ mutual
                             (.object
                               (ExecutionUngrouped.outputFields outputFields)))
                         hexecute
-                    simpa [visitSelection,
-                      ExecutionUngroupedUncached.visitSelection, hallows,
-                      mergeResponseFieldResult_output, executableField,
-                      ExecutionUngroupedUncached.executableField, source] using
-                      hmerged
+                    simpa [visitSelection, ExecutionUngroupedUncached.visitSelection,
+                      hallows, mergeResponseFieldResult_output, executableField,
+                      ExecutionUngroupedUncached.executableField, source]
+                      using hmerged
                   · simpa [source, groups] using hpostTree
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
@@ -538,9 +542,8 @@ mutual
           | none =>
               have hwithin' := hwithin
               simp [SelectionFieldsWithin] at hwithin'
-              simpa [visitSelection, ExecutionUngroupedUncached.visitSelection,
-                hallows] using
-                visitSubfields_output_eq_uncached_and_treeSound_object schema
+              simpa [visitSelection, ExecutionUngroupedUncached.visitSelection, hallows]
+                using visitSubfields_output_eq_uncached_and_treeSound_object schema
                   resolvers variableValues fuel parentType runtimeType ref universeSet
                   selectionSet outputFields hschema hobject hparentRuntime hready
                   hmerge hargumentsNodup (hwithin' hallows) htree
@@ -551,9 +554,9 @@ mutual
                   doesFragmentTypeApplyBool schema parentType
                       (.object runtimeType ref) typeCondition
                     = true
-              · simpa [visitSelection,
-                  ExecutionUngroupedUncached.visitSelection, hallows, happly] using
-                  visitSubfields_output_eq_uncached_and_treeSound_object schema
+              · simpa [visitSelection, ExecutionUngroupedUncached.visitSelection, hallows,
+                  happly]
+                  using visitSubfields_output_eq_uncached_and_treeSound_object schema
                     resolvers variableValues fuel parentType runtimeType ref
                     universeSet selectionSet outputFields hschema hobject
                     hparentRuntime hready hmerge hargumentsNodup

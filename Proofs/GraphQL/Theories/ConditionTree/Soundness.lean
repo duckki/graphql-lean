@@ -342,8 +342,8 @@ theorem pathEnd_erasePathCyclesFrom
           have hright : (next :: tail) ≠ [] := by simp
           rw [pathEnd_append_right nextKept (next :: tail) start start hright]
           symm
-          simpa [List.append_assoc] using
-            pathEnd_append_right
+          simpa [List.append_assoc]
+            using pathEnd_append_right
               (kept ++ [(branch, condition)]) (next :: tail) start start hright
 
 theorem pathEnd_erasePathCycles (start : Condition)
@@ -442,8 +442,7 @@ theorem branchFieldEntries_branchesForPath
           simp only [branchesForPath, branchFieldEntries, List.mem_append,
             Tree.fieldEntries, List.flatMap_nil, List.nil_append,
             List.not_mem_nil]
-          simpa [pathEnd] using
-            ih (start := condition) (by simp) entry
+          simpa [pathEnd] using ih (start := condition) (by simp) entry
 
 theorem Tree.appendAtCondition_condition
     (tree : Tree) (target : Condition)
@@ -757,8 +756,7 @@ theorem conditionForBranches?_append
       | none => simp [hnext] at hleft
       | some next =>
           simp only [hnext] at hleft ⊢
-          simpa [conditionForBranches?, hnext] using
-            ih next middle hleft hright
+          simpa [conditionForBranches?, hnext] using ih next middle hleft hright
 
 theorem Tree.insertSelections_condition
     (schema : Schema) (inheritedBooleanCondition : List BooleanLiteral)
@@ -794,13 +792,13 @@ theorem Tree.insertSelections_condition
                       (branches ++ nextBranches) nextCondition storedField
           exact (treeAfterField.insertSelections_condition schema
                   inheritedBooleanCondition currentCondition branches rest).trans
-                  (by
-                    unfold treeAfterField
-                    split
-                    · rfl
-                    · split
-                      · rfl
-                      · apply tree.insertField_condition)
+            (by
+              unfold treeAfterField
+              split
+              · rfl
+              · split
+                · rfl
+                · apply tree.insertField_condition)
       | inlineFragment typeCondition directives childSelectionSet =>
           subst selection
           rw [insertSelections]
@@ -816,16 +814,16 @@ theorem Tree.insertSelections_condition
                       (branches ++ nextBranches) tree childSelectionSet
           exact (treeAfterFragment.insertSelections_condition schema
                   inheritedBooleanCondition currentCondition branches rest).trans
-                  (by
-                    unfold treeAfterFragment
-                    split
-                    · rfl
-                    · split
-                      · rfl
-                      · exact
-                          tree.insertSelections_condition schema
-                            inheritedBooleanCondition ‹_› (branches ++ ‹_›)
-                            childSelectionSet)
+            (by
+              unfold treeAfterFragment
+              split
+              · rfl
+              · split
+                · rfl
+                · exact
+                    tree.insertSelections_condition schema
+                      inheritedBooleanCondition ‹_› (branches ++ ‹_›)
+                      childSelectionSet)
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -1298,9 +1296,9 @@ theorem collectFlatFields_mem_collectFields
             (Execution.collectFields schema variableValues parentType source
               selectionSet) := by
   simpa [ConditionTree.flattenExecutableFieldGroups,
-    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-      Execution.FieldGroups.collectFlatFields_mem_collectFields schema
-        variableValues parentType source selectionSet field
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+    using Execution.FieldGroups.collectFlatFields_mem_collectFields schema
+      variableValues parentType source selectionSet field
 
 theorem extraction_sound
     (schema : Schema) (parentType : Name)
@@ -1352,9 +1350,9 @@ theorem mem_group_key_iff_exists_field_of_wellFormed
     : responseName ∈ groups.map Prod.fst
       ↔ ∃ field, (responseName, field) ∈ flattenExecutableFieldGroups groups := by
   simpa [ConditionTree.flattenExecutableFieldGroups,
-    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-      Execution.FieldGroups.mem_group_key_iff_exists_field_of_wellFormed
-        groups hgroups responseName
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+    using Execution.FieldGroups.mem_group_key_iff_exists_field_of_wellFormed
+      groups hgroups responseName
 
 theorem collectFields_key_iff_exists_flat_field
     {ObjectRef : Type}

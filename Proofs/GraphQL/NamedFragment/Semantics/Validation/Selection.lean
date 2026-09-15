@@ -136,8 +136,8 @@ theorem inlineOperation_valid_of_inlinedSelectionSetValidWithFragments
   apply inlineOperation_valid_of_selectionSetValid hvalid
   cases operation with
   | mk name rootType variableDefinitions fragmentDefinitions selectionSet =>
-      simpa [Inline.inlineOperation] using
-        inlineSelectionSet_valid_changeFragments hselectionValid
+      simpa [Inline.inlineOperation]
+        using inlineSelectionSet_valid_changeFragments hselectionValid
 
 mutual
   theorem selectionValid_inlineSelection_of_localFragmentBodiesValid

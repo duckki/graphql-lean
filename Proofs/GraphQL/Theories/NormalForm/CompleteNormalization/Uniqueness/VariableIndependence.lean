@@ -494,8 +494,8 @@ theorem inputValueBoolean?_eq_of_variableValuesCoercionEquivalent
       | none => simp [hleft, hright] at hlookup
       | some right =>
           simp [hleft, hright] at hlookup
-          simpa [Execution.inputValueBoolean?, hleft, hright] using
-            inputValue_staticBoolean?_eq_of_equivalent hlookup
+          simpa [Execution.inputValueBoolean?, hleft, hright]
+            using inputValue_staticBoolean?_eq_of_equivalent hlookup
 
 theorem directiveAllowsSelectionBool_eq_of_variableValuesCoercionEquivalent
     {leftValues rightValues : Execution.VariableValues}

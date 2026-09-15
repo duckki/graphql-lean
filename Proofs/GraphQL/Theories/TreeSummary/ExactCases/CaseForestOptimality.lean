@@ -340,7 +340,9 @@ private theorem contextOutcome_iff_fold
         · intro h
           cases h with
           | cons _ _ _ _ children fieldOutcome restOutcome hchildOutcome hfield hrest =>
-              exact ⟨fieldOutcome, restOutcome,
+              exact ⟨
+                fieldOutcome,
+                restOutcome,
                 ⟨children, (childIH group (by simp) children).mp hchildOutcome, hfield⟩,
                 (by
                   have hrestIH := restIH
@@ -348,7 +350,8 @@ private theorem contextOutcome_iff_fold
                       childIH candidate (by simp [hcandidate])) restOutcome
                   rw [CaseForest.summarizeFieldGroups.eq_1] at hrestIH
                   exact hrestIH.mp hrest),
-                rfl⟩
+                rfl
+              ⟩
         · rintro ⟨fieldOutcome, restOutcome, ⟨children, hchildFold, hfield⟩,
               hrest, rfl⟩
           exact .cons group rest variableValues fixedVariableValues children fieldOutcome

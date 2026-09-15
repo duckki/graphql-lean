@@ -437,8 +437,7 @@ mutual
               ⟨group, hgroup, hcondition, hselection, hresponseName, hkeyed⟩
             exact ⟨
               group,
-              by
-                simpa [traversedBranchCollectedGroups] using Or.inr hgroup,
+              by simpa [traversedBranchCollectedGroups] using Or.inr hgroup,
               hcondition,
               hselection,
               hresponseName,
@@ -565,8 +564,8 @@ theorem runtimeField_mem_allCollectedGroups
           executionParentType source group.selections (projectStoredFieldEntry entry).2
           field hgselection
         simpa [projectStoredFieldEntry, NamedField.toSelection, Field.toSelection,
-          collectFlatFields, collectFlatSelection, selectionDirectivesAllowBool] using
-          hfield
+          collectFlatFields, collectFlatSelection, selectionDirectivesAllowBool]
+          using hfield
       · exact collectFlatFields_responseName_eq schema variableValues
           executionParentType source (projectStoredFieldEntry entry).2 field
           group.responseName hgresponseName
@@ -785,8 +784,7 @@ mutual
             exact ⟨
               hparent,
               group,
-              by
-                simpa [traversedBranchCollectedGroups] using Or.inr hgroup,
+              by simpa [traversedBranchCollectedGroups] using Or.inr hgroup,
               hcondition,
               hselection,
               hresponseName,
@@ -844,8 +842,8 @@ theorem runtimeField_mem_traversedCollectedGroups
           executionParentType source group.selections (projectStoredFieldEntry entry).2
           field hgselection
         simpa [projectStoredFieldEntry, NamedField.toSelection, Field.toSelection,
-          collectFlatFields, collectFlatSelection, selectionDirectivesAllowBool] using
-          hfield
+          collectFlatFields, collectFlatSelection, selectionDirectivesAllowBool]
+          using hfield
       · exact collectFlatFields_responseName_eq schema variableValues
           executionParentType source (projectStoredFieldEntry entry).2 field
           group.responseName hgresponseName
@@ -902,8 +900,8 @@ theorem Traversal.all_executionComplete (schema : Schema)
           simp [Traversal.atRuntimeType, Traversal.includeBranchAtRuntimeType,
             Traversal.all])
     parentType inheritedBooleanCondition
-    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType inheritedBooleanCondition []
-      selectionSet)
+    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+      inheritedBooleanCondition [] selectionSet)
     field hinherited
     (ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent schema parentType
       inheritedBooleanCondition [] selectionSet)
@@ -937,8 +935,8 @@ theorem Traversal.withVariableValues_executionComplete
             variableValues runtimeType (.booleanLiteral literal) hallows)
     parentType
     inheritedBooleanCondition
-    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType inheritedBooleanCondition
-      variableValues selectionSet)
+    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+      inheritedBooleanCondition variableValues selectionSet)
     field hinherited
     (ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent schema parentType
       inheritedBooleanCondition variableValues selectionSet)
@@ -960,8 +958,9 @@ theorem Traversal.withRuntimeBooleanDefaults_executionComplete
       field).mpr hfield
   exact runtimeField_mem_traversedCollectedGroups schema variableValues
     executionParentType runtimeType (.object runtimeType ref)
-    ((Traversal.withRuntimeBooleanDefaults variableValues summaryVariableValues
-      ).atRuntimeType schema runtimeType)
+    ((Traversal.withRuntimeBooleanDefaults variableValues
+        summaryVariableValues).atRuntimeType
+      schema runtimeType)
     (by
       intro branch hallows
       cases branch with
@@ -974,8 +973,8 @@ theorem Traversal.withRuntimeBooleanDefaults_executionComplete
               have hvalue :
                   inputValueBoolean? variableValues (.variable variableName)
                     = some true := by
-                cases hraw :
-                    inputValueBoolean? variableValues (.variable variableName) with
+                cases hraw
+                      : inputValueBoolean? variableValues (.variable variableName) with
                 | none =>
                     simp [BranchCondition.allows, BooleanLiteral.allows,
                       BooleanLiteral.toDirective, directiveAllowsSelectionBool, hraw]
@@ -990,8 +989,7 @@ theorem Traversal.withRuntimeBooleanDefaults_executionComplete
                 Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault, hvalue,
                 BooleanLiteral.variableName, BooleanLiteral.requiredValue]
           | negative variableName =>
-              cases hraw :
-                  inputValueBoolean? variableValues (.variable variableName) with
+              cases hraw : inputValueBoolean? variableValues (.variable variableName) with
               | none =>
                   simp [Traversal.atRuntimeType, Traversal.includeBranchAtRuntimeType,
                     Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault, hraw,
@@ -1008,8 +1006,8 @@ theorem Traversal.withRuntimeBooleanDefaults_executionComplete
                     Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault, hraw,
                     hvalue, BooleanLiteral.variableName, BooleanLiteral.requiredValue])
     parentType inheritedBooleanCondition
-    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType inheritedBooleanCondition
-      summaryVariableValues selectionSet)
+    (ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+      inheritedBooleanCondition summaryVariableValues selectionSet)
     field hinherited
     (ofSelectionSetInScopeWithKnownFalsePruning_branchesCoherent schema parentType
       inheritedBooleanCondition summaryVariableValues selectionSet)
@@ -1301,8 +1299,8 @@ theorem candidateChildGroupsFor_cover_subfields
             (collectFields schema variableValues childRuntimeType
               (.object childRuntimeType childRef)
               (Execution.mergedFieldSelectionSet fields)) := by
-    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet] using
-      hchild
+    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+      using hchild
   have hchildFlat :
       child
         ∈ collectFlatFields schema variableValues childRuntimeType
@@ -1451,9 +1449,9 @@ theorem summarizeCollectedChildren_append
           (summarizeCollectedChildren algebra schema traversal right) := by
   induction left with
   | nil =>
-      simpa [summarizeCollectedChildren] using
-        (lawful.empty_combine
-          (summarizeCollectedChildren algebra schema traversal right)).symm
+      simpa [summarizeCollectedChildren]
+        using (lawful.empty_combine
+                (summarizeCollectedChildren algebra schema traversal right)).symm
   | cons group rest ih =>
       simp only [List.cons_append, summarizeCollectedChildren]
       rw [ih, lawful.combine_assoc]

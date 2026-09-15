@@ -241,16 +241,15 @@ theorem
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
@@ -1503,38 +1502,34 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup hleftRuntime hrightRuntime hleftInclude
-      hrightInclude
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftChildResponse hrightChildResponse hchildNot hleftChildren
-      hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues fuel targetParent
+    leftProbeField rightProbeField leftParentType rightParentType leftParentType
+    rightParentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
+    hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject hleftMem
+    hrightMem hleftLookup hrightLookup hleftRuntime hrightRuntime hleftInclude
+    hrightInclude
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftChildResponse hrightChildResponse hchildNot hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_valid_normal_support_context_fuel_ge_fuels
@@ -1722,38 +1717,34 @@ theorem
       rightRuntime FieldPairProbeTag.right rightCurrentSelectionSet
       (by omega) hrightFuel hrightValid hrightCoercion hrightFree hrightNormal
       hrightObject hrightSupport hrightContext
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet variableValues leftFuel rightFuel
-      targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem hrightMem
-      hleftLookup hrightLookup hleftRuntime hrightRuntime hleftInclude
-      hrightInclude
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            leftParentType (selectionSet := left)
-            (responseName := responseName) (fieldName := leftFieldName)
-            (arguments := leftArguments) (directives := leftDirectives)
-            (childSelectionSet := leftChildSelectionSet)
-            (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
-        omega)
-      (by
-        have hlocal :=
-          leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
-            rightParentType (selectionSet := right)
-            (responseName := responseName) (fieldName := rightFieldName)
-            (arguments := rightArguments) (directives := rightDirectives)
-            (childSelectionSet := rightChildSelectionSet)
-            (fieldDefinition := rightFieldDefinition) hrightMem
-            hrightLookup
-        omega)
-      hleftChildResponse hrightChildResponse hchildNot hleftChildren
-      hrightChildren
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_pair_of_field_children_fuels
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftCurrentSelectionSet rightCurrentSelectionSet variableValues leftFuel rightFuel
+    targetParent leftProbeField rightProbeField leftParentType rightParentType
+    leftParentType rightParentType targetLeftArguments targetRightArguments leftRuntime
+    rightRuntime hleftFree hrightFree hleftNormal hrightNormal hleftObject hrightObject
+    hleftMem hrightMem hleftLookup hrightLookup hleftRuntime hrightRuntime hleftInclude
+    hrightInclude
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          leftParentType (selectionSet := left)
+          (responseName := responseName) (fieldName := leftFieldName)
+          (arguments := leftArguments) (directives := leftDirectives)
+          (childSelectionSet := leftChildSelectionSet)
+          (fieldDefinition := leftFieldDefinition) hleftMem hleftLookup
+      omega)
+    (by
+      have hlocal :=
+        leafProbeFuel_le_selectionSetDeepProbeFuel_of_field_mem schema
+          rightParentType (selectionSet := right)
+          (responseName := responseName) (fieldName := rightFieldName)
+          (arguments := rightArguments) (directives := rightDirectives)
+          (childSelectionSet := rightChildSelectionSet)
+          (fieldDefinition := rightFieldDefinition) hrightMem
+          hrightLookup
+      omega)
+    hleftChildResponse hrightChildResponse hchildNot hleftChildren hrightChildren
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_object_child_of_valid_normal_support_context_fuel_ge
@@ -3125,10 +3116,8 @@ theorem
   | nil =>
       simp at hfieldsKey
   | cons field fields =>
-      exact
-        SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_empty_object
-          (field := field) (fields := fields)
-          (by simpa [hresponse] using hsemantic)
+      exact SemanticSeparation.responseValue_object_cons_not_semanticEquivalent_empty_object
+        (field := field) (fields := fields) (by simpa [hresponse] using hsemantic)
 
 theorem
     responseData_empty_object_not_semanticEquivalent_of_valid_normal_object_nonempty_response
@@ -3149,13 +3138,12 @@ theorem
             (Execution.executeSelectionSetAsResponse schema resolvers variableValues
               fuel parentType source selectionSet).data := by
   intro hobject hfree hnormal hnonempty hresponse hsemantic
-  exact
-    responseData_not_semanticEquivalent_empty_object_of_valid_normal_object_nonempty_response
-      schema resolvers variableValues fuel parentType source hobject hfree
-      hnormal hnonempty hresponse
-      (by
-        unfold Execution.ResponseValue.semanticEquivalent at hsemantic ⊢
-        exact hsemantic.symm)
+  exact responseData_not_semanticEquivalent_empty_object_of_valid_normal_object_nonempty_response
+    schema resolvers variableValues fuel parentType source hobject hfree hnormal hnonempty
+    hresponse
+    (by
+      unfold Execution.ResponseValue.semanticEquivalent at hsemantic ⊢
+      exact hsemantic.symm)
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_child_field_of_field_ok_of_sound
@@ -3426,12 +3414,11 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           bodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left currentSelectionSet))
         hnonObject hruntimeObject hfree hnormal
   have hrightMiddle :
       Execution.executeSelectionSet schema resolvers variableValues
@@ -3444,20 +3431,19 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           bodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right currentSelectionSet))
         hnonObject hruntimeObject hfree hnormal
   have hleftApply :
       Execution.doesFragmentTypeApplyBool schema runtimeType leftSource
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3468,8 +3454,8 @@ theorem
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3501,7 +3487,8 @@ theorem
         rightSource bodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
+    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair
@@ -3617,12 +3604,11 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           leftBodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left currentSelectionSet))
         hnonObject hruntimeObject hleftFree hleftNormal
   have hrightMiddle :
       Execution.executeSelectionSet schema resolvers variableValues
@@ -3635,20 +3621,19 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           rightBodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right currentSelectionSet))
         hnonObject hruntimeObject hrightFree hrightNormal
   have hleftApply :
       Execution.doesFragmentTypeApplyBool schema runtimeType leftSource
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3659,8 +3644,8 @@ theorem
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3692,7 +3677,8 @@ theorem
         rightSource rightBodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
+    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_abstract_inlineFragment_body_pair_current_pair
@@ -3809,8 +3795,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           leftBodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3827,8 +3813,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           rightBodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3839,8 +3825,8 @@ theorem
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -3851,8 +3837,8 @@ theorem
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -3884,7 +3870,8 @@ theorem
         rightSource rightBodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
+    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body
@@ -3980,20 +3967,19 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           leftBodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left currentSelectionSet))
         hnonObject hruntimeObject hleftFree hleftNormal
   have hleftApply :
       Execution.doesFragmentTypeApplyBool schema runtimeType leftSource
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -4015,8 +4001,8 @@ theorem
       Execution.collectFields schema variableValues runtimeType rightSource
         right = [] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
         (schema := schema) (variableValues := variableValues)
         (normalParentType := normalParentType)
         (executionParentType := runtimeType) (runtimeType := runtimeType)
@@ -4037,7 +4023,8 @@ theorem
   rw [hrightResponse] at hsemantic'
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hleftFlatten] using hsemantic'
+    hleftMiddle, hleftFlatten]
+    using hsemantic'
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body
@@ -4133,20 +4120,19 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           rightBodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
-          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
-            currentSelectionSet))
+          (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right currentSelectionSet))
         hnonObject hruntimeObject hrightFree hrightNormal
   have hrightApply :
       Execution.doesFragmentTypeApplyBool schema runtimeType rightSource
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -4168,8 +4154,8 @@ theorem
       Execution.collectFields schema variableValues runtimeType leftSource
         left = [] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
         (schema := schema) (variableValues := variableValues)
         (normalParentType := normalParentType)
         (executionParentType := runtimeType) (runtimeType := runtimeType)
@@ -4190,7 +4176,8 @@ theorem
   rw [hleftResponse] at hsemantic'
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hrightMiddle, hrightFlatten] using hsemantic'
+    hrightMiddle, hrightFlatten]
+    using hsemantic'
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_typeCondition_body_current_pair
@@ -4287,8 +4274,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           leftBodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -4299,8 +4286,8 @@ theorem
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
@@ -4322,8 +4309,8 @@ theorem
       Execution.collectFields schema variableValues runtimeType rightSource
         right = [] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
         (schema := schema) (variableValues := variableValues)
         (normalParentType := normalParentType)
         (executionParentType := runtimeType) (runtimeType := runtimeType)
@@ -4344,7 +4331,8 @@ theorem
   rw [hrightResponse] at hsemantic'
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hleftFlatten] using hsemantic'
+    hleftMiddle, hleftFlatten]
+    using hsemantic'
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_right_abstract_typeCondition_body_current_pair
@@ -4441,8 +4429,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           rightBodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -4453,8 +4441,8 @@ theorem
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
@@ -4476,8 +4464,8 @@ theorem
       Execution.collectFields schema variableValues runtimeType leftSource
         left = [] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
         (schema := schema) (variableValues := variableValues)
         (normalParentType := normalParentType)
         (executionParentType := runtimeType) (runtimeType := runtimeType)
@@ -4498,7 +4486,8 @@ theorem
   rw [hleftResponse] at hsemantic'
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hrightMiddle, hrightFlatten] using hsemantic'
+    hrightMiddle, hrightFlatten]
+    using hsemantic'
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_left_abstract_inlineFragment_of_valid_normal

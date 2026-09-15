@@ -413,8 +413,8 @@ theorem visitSelection_executableField_prefix_fresh
               rcases hvisit with ⟨hresult, hstatus⟩
               subst result
               subst status
-              simpa [resultValueOrNull, outOfFuel] using
-                mergeResponseField_append_of_not_mem responseName .null
+              simpa [resultValueOrNull, outOfFuel]
+                using mergeResponseField_append_of_not_mem responseName .null
                   prefixFields suffix hfreshName
           | some previous =>
               simp [visitSelection, executableFieldSelection,
@@ -445,14 +445,16 @@ theorem visitSelection_executableField_prefix_fresh
               simp [visitSelection, executableFieldSelection, executableField,
                 selectionDirectivesAllowBool_empty, mergeResponseFieldResult,
                 mergeResponseFieldIntoObject, happend, hprevious]
-              simpa [hprevious] using
-                mergeResponseField_append_of_not_mem responseName
+              simpa [hprevious]
+                using mergeResponseField_append_of_not_mem responseName
                   (resultValueOrNull
                     (executeField schema resolvers variableValues depth' parentType source
                       (responseObjectField? responseName (.object suffix))
-                      { fieldName := fieldName
+                      {
+                        fieldName := fieldName
                         arguments := arguments
-                        selectionSet := selectionSet }))
+                        selectionSet := selectionSet
+                      }))
                   prefixFields suffix hfreshName
           | some previous =>
               cases previous with
@@ -468,14 +470,13 @@ theorem visitSelection_executableField_prefix_fresh
                     executableField, selectionDirectivesAllowBool_empty,
                     mergeResponseFieldResult, mergeResponseFieldIntoObject,
                     happend, hprevious]
-                  simpa [hprevious, executableField] using
-                    mergeResponseField_append_of_not_mem responseName
+                  simpa [hprevious, executableField]
+                    using mergeResponseField_append_of_not_mem responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
                           parentType source
                           (responseObjectField? responseName (.object suffix))
-                          (executableField fieldName
-                            arguments selectionSet)))
+                          (executableField fieldName arguments selectionSet)))
                       prefixFields suffix hfreshName
               | scalar value =>
                   simp [visitSelection, executableFieldSelection,
@@ -488,15 +489,17 @@ theorem visitSelection_executableField_prefix_fresh
                   simp [visitSelection, executableFieldSelection, executableField,
                     selectionDirectivesAllowBool_empty, mergeResponseFieldResult,
                     mergeResponseFieldIntoObject, happend, hprevious]
-                  simpa [hprevious] using
-                    mergeResponseField_append_of_not_mem responseName
+                  simpa [hprevious]
+                    using mergeResponseField_append_of_not_mem responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
                           parentType source
                           (responseObjectField? responseName (.object suffix))
-                          { fieldName := fieldName
+                          {
+                            fieldName := fieldName
                             arguments := arguments
-                            selectionSet := selectionSet }))
+                            selectionSet := selectionSet
+                          }))
                       prefixFields suffix hfreshName
               | object objectFields =>
                   simp [visitSelection, executableFieldSelection,
@@ -509,15 +512,17 @@ theorem visitSelection_executableField_prefix_fresh
                   simp [visitSelection, executableFieldSelection, executableField,
                     selectionDirectivesAllowBool_empty, mergeResponseFieldResult,
                     mergeResponseFieldIntoObject, happend, hprevious]
-                  simpa [hprevious] using
-                    mergeResponseField_append_of_not_mem responseName
+                  simpa [hprevious]
+                    using mergeResponseField_append_of_not_mem responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
                           parentType source
                           (responseObjectField? responseName (.object suffix))
-                          { fieldName := fieldName
+                          {
+                            fieldName := fieldName
                             arguments := arguments
-                            selectionSet := selectionSet }))
+                            selectionSet := selectionSet
+                          }))
                       prefixFields suffix hfreshName
               | list values =>
                   simp [visitSelection, executableFieldSelection,
@@ -530,15 +535,17 @@ theorem visitSelection_executableField_prefix_fresh
                   simp [visitSelection, executableFieldSelection, executableField,
                     selectionDirectivesAllowBool_empty, mergeResponseFieldResult,
                     mergeResponseFieldIntoObject, happend, hprevious]
-                  simpa [hprevious] using
-                    mergeResponseField_append_of_not_mem responseName
+                  simpa [hprevious]
+                    using mergeResponseField_append_of_not_mem responseName
                       (resultValueOrNull
                         (executeField schema resolvers variableValues depth'
                           parentType source
                           (responseObjectField? responseName (.object suffix))
-                          { fieldName := fieldName
+                          {
+                            fieldName := fieldName
                             arguments := arguments
-                            selectionSet := selectionSet }))
+                            selectionSet := selectionSet
+                          }))
                       prefixFields suffix hfreshName
 
 theorem visitSubfields_executableFieldSelections_prefix_fresh
@@ -667,8 +674,8 @@ theorem visitSelection_field_prefix_fresh
             rcases hvisit with ⟨hresult, hstatus⟩
             subst result
             subst status
-            simpa [resultValueOrNull, outOfFuel] using
-              mergeResponseField_append_of_not_mem responseName .null
+            simpa [resultValueOrNull, outOfFuel]
+              using mergeResponseField_append_of_not_mem responseName .null
                 prefixFields suffix hfreshName
         | some previous =>
             simp [visitSelection, hallowed, happend, hprevious,
@@ -696,14 +703,16 @@ theorem visitSelection_field_prefix_fresh
             subst status
             simp [visitSelection, hallowed, mergeResponseFieldResult,
               mergeResponseFieldIntoObject, happend, hprevious]
-            simpa [hprevious, executableField] using
-              mergeResponseField_append_of_not_mem responseName
+            simpa [hprevious, executableField]
+              using mergeResponseField_append_of_not_mem responseName
                 (resultValueOrNull
                   (executeField schema resolvers variableValues depth' parentType source
                     (responseObjectField? responseName (.object suffix))
-                    { fieldName := fieldName
+                    {
+                      fieldName := fieldName
                       arguments := arguments
-                      selectionSet := selectionSet }))
+                      selectionSet := selectionSet
+                    }))
                 prefixFields suffix hfreshName
         | some previous =>
             cases previous with
@@ -715,15 +724,17 @@ theorem visitSelection_field_prefix_fresh
                 subst status
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
                   mergeResponseFieldIntoObject, happend, hprevious]
-                simpa [hprevious, executableField] using
-                  mergeResponseField_append_of_not_mem responseName
+                simpa [hprevious, executableField]
+                  using mergeResponseField_append_of_not_mem responseName
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
                         parentType source
                         (responseObjectField? responseName (.object suffix))
-                        { fieldName := fieldName
+                        {
+                          fieldName := fieldName
                           arguments := arguments
-                          selectionSet := selectionSet }))
+                          selectionSet := selectionSet
+                        }))
                     prefixFields suffix hfreshName
             | scalar value =>
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
@@ -733,15 +744,17 @@ theorem visitSelection_field_prefix_fresh
                 subst status
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
                   mergeResponseFieldIntoObject, happend, hprevious]
-                simpa [hprevious, executableField] using
-                  mergeResponseField_append_of_not_mem responseName
+                simpa [hprevious, executableField]
+                  using mergeResponseField_append_of_not_mem responseName
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
                         parentType source
                         (responseObjectField? responseName (.object suffix))
-                        { fieldName := fieldName
+                        {
+                          fieldName := fieldName
                           arguments := arguments
-                          selectionSet := selectionSet }))
+                          selectionSet := selectionSet
+                        }))
                     prefixFields suffix hfreshName
             | object objectFields =>
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
@@ -751,15 +764,17 @@ theorem visitSelection_field_prefix_fresh
                 subst status
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
                   mergeResponseFieldIntoObject, happend, hprevious]
-                simpa [hprevious, executableField] using
-                  mergeResponseField_append_of_not_mem responseName
+                simpa [hprevious, executableField]
+                  using mergeResponseField_append_of_not_mem responseName
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
                         parentType source
                         (responseObjectField? responseName (.object suffix))
-                        { fieldName := fieldName
+                        {
+                          fieldName := fieldName
                           arguments := arguments
-                          selectionSet := selectionSet }))
+                          selectionSet := selectionSet
+                        }))
                     prefixFields suffix hfreshName
             | list values =>
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
@@ -769,15 +784,17 @@ theorem visitSelection_field_prefix_fresh
                 subst status
                 simp [visitSelection, hallowed, mergeResponseFieldResult,
                   mergeResponseFieldIntoObject, happend, hprevious]
-                simpa [hprevious, executableField] using
-                  mergeResponseField_append_of_not_mem responseName
+                simpa [hprevious, executableField]
+                  using mergeResponseField_append_of_not_mem responseName
                     (resultValueOrNull
                       (executeField schema resolvers variableValues depth'
                         parentType source
                         (responseObjectField? responseName (.object suffix))
-                        { fieldName := fieldName
+                        {
+                          fieldName := fieldName
                           arguments := arguments
-                          selectionSet := selectionSet }))
+                          selectionSet := selectionSet
+                        }))
                     prefixFields suffix hfreshName
   · have hskipped :
         selectionDirectivesAllowBool variableValues directives = false := by
@@ -869,8 +886,7 @@ mutual
                       responseName ∉ prefixFields.map Prod.fst := by
                   intro responseName hmem
                   apply hfresh responseName
-                  simpa [GraphQL.Execution.collectSelection, hallowed, happly]
-                    using hmem
+                  simpa [GraphQL.Execution.collectSelection, hallowed, happly] using hmem
                 have hbodyVisit :
                     visitSubfields schema resolvers variableValues depth
                       parentType source selectionSet (.object suffix) =
@@ -1217,9 +1233,8 @@ theorem visitSubfields_executableFieldSelections_singleton_append_of_mem_succ
       rw [hlookupAppend]
       simpa [visitOk, executeField, executableField, hfieldLookup,
         reusablePreviousValue?_null, mergeResponseFieldResult,
-        mergeResponseFieldIntoObject, resultValueOrNull] using
-        mergeResponseField_append_of_mem_left responseName .null fields
-          suffix hmem
+        mergeResponseFieldIntoObject, resultValueOrNull]
+        using mergeResponseField_append_of_mem_left responseName .null fields suffix hmem
   | scalar value =>
       have hbase :
           visitSubfields schema resolvers variableValues (completionDepth + 1)
@@ -1625,10 +1640,9 @@ theorem collectedGroupsFieldLookupValid_of_executionSelectionSetLookupValid
           (GraphQL.Execution.collectFields schema variableValues parentType source
             selectionSet) := by
   intro hlookup responseName field fields hgroup
-  exact
-    collectedExecutableFields_collectFields_lookupValid schema variableValues
-      parentType source selectionSet hlookup field
-      (collectedExecutableFields_mem_of_group_mem hgroup (by simp))
+  exact collectedExecutableFields_collectFields_lookupValid schema variableValues
+    parentType source selectionSet hlookup field
+    (collectedExecutableFields_mem_of_group_mem hgroup (by simp))
 
 theorem visitSubfields_flattened_empty_key_mem_collectFields
     {ObjectIdentity : Type}
@@ -1657,7 +1671,7 @@ theorem visitSubfields_flattened_empty_key_mem_collectFields
           source selectionSet))
       fields responseName hvisit hmem
   simpa [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
-        using hflatKey
+    using hflatKey
 
 theorem collectedExecutableEntries_responseName_mem
     (groups : List (Name × List ExecutableField))

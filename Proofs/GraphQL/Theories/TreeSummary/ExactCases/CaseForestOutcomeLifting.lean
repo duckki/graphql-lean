@@ -217,12 +217,13 @@ private theorem forestOutcome_of_runtime
       cases htypes : forest.typeBranchPossibleTypes.isEmpty with
       | true =>
           apply CaseForestProof.ContextOutcome.booleanFrontier inheritedBooleanCondition
-            forest possibleTypes variableValues fixedVariableValues outcome hbranches htypes
+            forest possibleTypes variableValues fixedVariableValues outcome hbranches
+            htypes
           apply forestOutcome_of_runtime schema
             (CaseForest.extendBooleanCondition inheritedBooleanCondition
               forest.booleanVariables variableValues)
-            (forest.resolveBranches possibleTypes variableValues) possibleTypes runtimeType
-            variableValues fixedVariableValues outcome hruntime
+            (forest.resolveBranches possibleTypes variableValues) possibleTypes
+            runtimeType variableValues fixedVariableValues outcome hruntime
           unfold CaseForestRuntimeCase.fieldGroups at hgroups
           rw [CaseForestRuntimeCase.resolve.eq_1] at hgroups
           simp only [hbranches, dite_true] at hgroups
@@ -361,8 +362,8 @@ private theorem forestOutcome_of_typeFree
   | true =>
       have hstep := CaseTrace.resolveBranches_typeFree forest possibleTypes runtimeType
         variableValues htypes
-      apply CaseForestProof.ContextOutcome.booleanFrontier inheritedBooleanCondition forest
-        possibleTypes variableValues fixedVariableValues outcome hbranches
+      apply CaseForestProof.ContextOutcome.booleanFrontier inheritedBooleanCondition
+        forest possibleTypes variableValues fixedVariableValues outcome hbranches
         (by simp [hstep.1])
       apply forestOutcome_of_typeFree schema
         (CaseForest.extendBooleanCondition inheritedBooleanCondition
@@ -641,7 +642,8 @@ private theorem cursorOutcome_to_runtime
       rwa [hfieldGroups]
   | knownBoolean assignment inherited caseCondition cursor possibleTypes
       branch rest literal value outcome hbranches hcondition hstatus hnext =>
-      have hvalue : value = CaseForest.booleanValue variableValues literal.variableName := by
+      have hvalue
+          : value = CaseForest.booleanValue variableValues literal.variableName := by
         rw [CaseCursor.BooleanEnvironment.concrete_statusForVariable] at hstatus
         cases hlookup
               : inputValueBoolean? variableValues (.variable literal.variableName) with
@@ -869,7 +871,8 @@ private theorem cursorOutcome_to_typeFree
         CaseTrace.Trace.append, hbranches, hcondition] at htypes
   | knownBoolean assignment inherited caseCondition cursor possibleTypes
       branch rest literal value outcome hbranches hcondition hstatus hnext =>
-      have hvalue : value = CaseForest.booleanValue variableValues literal.variableName := by
+      have hvalue
+          : value = CaseForest.booleanValue variableValues literal.variableName := by
         rw [CaseCursor.BooleanEnvironment.concrete_statusForVariable] at hstatus
         cases hlookup
               : inputValueBoolean? variableValues (.variable literal.variableName) with
@@ -1110,20 +1113,26 @@ private theorem fieldGroupsOutcome_iff_of_context
             exact .cons assignment (.concrete variableValues) group rest children
               fieldOutcome restOutcome
               ((childOutcome_iff_of_context schema assignment variableValues group
-                (childParentTypes schema group) children
-                (hcontext group (by simp))).mp hchildren) hfield
-              ((ih restOutcome (fun candidate hcandidate =>
-                hcontext candidate (by simp [hcandidate]))).mp hrest)
+                  (childParentTypes schema group) children
+                  (hcontext group (by simp))).mp
+                hchildren) hfield
+              ((ih restOutcome
+                  (fun candidate hcandidate =>
+                    hcontext candidate (by simp [hcandidate]))).mp
+                hrest)
       · intro hgroups
         cases hgroups with
         | cons _ _ _ children fieldOutcome restOutcome hchildren hfield hrest =>
             exact .cons group rest variableValues variableValues children fieldOutcome
               restOutcome
               ((childOutcome_iff_of_context schema assignment variableValues group
-                (childParentTypes schema group) children
-                (hcontext group (by simp))).mpr hchildren) hfield
-              ((ih restOutcome (fun candidate hcandidate =>
-                hcontext candidate (by simp [hcandidate]))).mpr hrest)
+                  (childParentTypes schema group) children
+                  (hcontext group (by simp))).mpr
+                hchildren) hfield
+              ((ih restOutcome
+                  (fun candidate hcandidate =>
+                    hcontext candidate (by simp [hcandidate]))).mpr
+                hrest)
 
 private theorem conditionTreeOutcome_iff
     {semantics : OutcomeSemantics.{u}} (schema : Schema)
@@ -1151,8 +1160,8 @@ private theorem conditionTreeOutcome_iff
       have hforestTypes :
           (CaseTrace.ofForest variableValues runtimeType
             (.ofConditionTree tree)).typeConditions = [] := by
-        simpa [trace, CaseTrace.ofForest, CaseTrace.ofTrees,
-          CaseForest.ofConditionTree] using htraceTypes
+        simpa [trace, CaseTrace.ofForest, CaseTrace.ofTrees, CaseForest.ofConditionTree]
+          using htraceTypes
       have hcursorTypes :
           (CaseTrace.withCaseCondition []
             (CaseTrace.ofCursor variableValues runtimeType
@@ -1246,7 +1255,8 @@ private theorem conditionTreeOutcome_iff
         have hgroupDepth' : collectedFieldGroupResponseDepth group ≤
             conditionTreeResponseDepth tree := by
           simpa [CaseForest.ofConditionTree, caseForestResponseDepth,
-            activeTreesResponseDepth] using hgroupDepth
+            activeTreesResponseDepth]
+            using hgroupDepth
         exact Nat.lt_of_le_of_lt hextract
           (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) hgroupDepth')
       apply conditionTreeOutcome_iff schema assignment
@@ -1348,7 +1358,8 @@ private theorem conditionTreeOutcome_iff
           have hgroupDepth' : collectedFieldGroupResponseDepth group ≤
               conditionTreeResponseDepth tree := by
             simpa [CaseForest.ofConditionTree, caseForestResponseDepth,
-              activeTreesResponseDepth] using hgroupDepth
+              activeTreesResponseDepth]
+              using hgroupDepth
           exact Nat.lt_of_le_of_lt hextract
             (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) hgroupDepth')
         apply conditionTreeOutcome_iff schema assignment
@@ -1440,7 +1451,8 @@ private theorem conditionTreeOutcome_iff
           have hgroupDepth' : collectedFieldGroupResponseDepth group ≤
               conditionTreeResponseDepth tree := by
             simpa [CaseForest.ofConditionTree, caseForestResponseDepth,
-              activeTreesResponseDepth] using hgroupDepth
+              activeTreesResponseDepth]
+              using hgroupDepth
           exact Nat.lt_of_le_of_lt hextract
             (Nat.lt_of_lt_of_le (Nat.lt_succ_self _) hgroupDepth')
         apply conditionTreeOutcome_iff schema assignment

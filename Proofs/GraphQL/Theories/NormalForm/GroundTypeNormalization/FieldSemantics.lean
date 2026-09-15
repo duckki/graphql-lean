@@ -113,8 +113,9 @@ theorem executeField_singleton_eq_group_of_completeValue
                       [{ field with selectionSet := normalizedSelectionSet }] value =
                     Execution.completeValue schema resolvers variableValues depth
                       fieldDefinition.outputType (field :: fields) value := by
-                simpa [fieldDefinition?, hlookup,
-                  Execution.coerceAndResolveFieldValue, hcoerce, hresolved] using hcomplete
+                simpa [fieldDefinition?, hlookup, Execution.coerceAndResolveFieldValue,
+                  hcoerce, hresolved]
+                  using hcomplete
               simp [hcoerce, hresolved, Execution.singleFieldResult, hcomplete']
 
 theorem executeField_singleton_eq_group_of_child_object_lt
@@ -160,8 +161,8 @@ theorem executeField_singleton_eq_group_of_child_object_lt
             [{ field with selectionSet := normalizedSelectionSet }]
             (field :: fields) value
           intro childDepth runtimeType ref hlt
-          simpa [Execution.mergedFieldSelectionSet] using
-            hcomplete childDepth runtimeType ref hlt
+          simpa [Execution.mergedFieldSelectionSet]
+            using hcomplete childDepth runtimeType ref hlt
 
 theorem executeCollectedFields_cons_eq_of_parts
     (schema : Schema)
@@ -283,8 +284,8 @@ theorem executeSelectionSet_field_head_eq_of_completeValue
           (responseName, [normalizedField])
             :: Execution.collectFields schema variableValues parentType source
               normalizedRest := by
-        simpa [sourceField, normalizedField] using
-          collectFields_field_noDirectives_cons_of_responseName_not_mem
+        simpa [sourceField, normalizedField]
+          using collectFields_field_noDirectives_cons_of_responseName_not_mem
             schema variableValues parentType source responseName fieldName
             arguments normalizedSubselections normalizedRest hnotin
       simp [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
@@ -301,8 +302,8 @@ theorem executeSelectionSet_field_head_eq_of_completeValue
           (responseName, [normalizedField])
             :: Execution.collectFields schema variableValues parentType source
               normalizedRest := by
-        simpa [sourceField, normalizedField] using
-          collectFields_field_noDirectives_cons_of_responseName_not_mem
+        simpa [sourceField, normalizedField]
+          using collectFields_field_noDirectives_cons_of_responseName_not_mem
             schema variableValues parentType source responseName fieldName
             arguments normalizedSubselections normalizedRest hnotin
       have hhead :
@@ -312,8 +313,8 @@ theorem executeSelectionSet_field_head_eq_of_completeValue
           Execution.executeField schema resolvers variableValues
             (fieldDepth + 1) parentType source responseName
             (sourceField :: sourceFields) := by
-        simpa [sourceField, normalizedField, fieldDefinition?] using
-          executeField_singleton_eq_group_of_completeValue
+        simpa [sourceField, normalizedField, fieldDefinition?]
+          using executeField_singleton_eq_group_of_completeValue
             schema resolvers variableValues fieldDepth parentType source responseName
             sourceField sourceFields normalizedSubselections hcomplete
       simp [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
@@ -591,8 +592,8 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case
               runtimeType = true := by
           simpa [Schema.fieldReturnType?, hlookup] using hinclude
         simpa [Execution.mergedFieldSelectionSet, Schema.fieldReturnType?, hlookup]
-          using hchild childDepth runtimeType ref (Nat.lt_of_lt_of_le hlt
-            (Nat.sub_le depth 1)) hinclude'
+          using hchild childDepth runtimeType ref
+            (Nat.lt_of_lt_of_le hlt (Nat.sub_le depth 1)) hinclude'
   · exact htailCollected
 
 theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
@@ -678,8 +679,8 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
     objectType_of_objectTypeNameBool_eq_true schema hobject
   have hmergedFree :
       selectionSetDirectiveFree mergedSubselections := by
-    simpa [mergedSubselections, matching] using
-      selectionSetDirectiveFree_fieldHead_merged schema parentType responseName
+    simpa [mergedSubselections, matching]
+      using selectionSetDirectiveFree_fieldHead_merged schema parentType responseName
         fieldName arguments subselections rest hfree
   have hreturnEq :
       ((schema.fieldReturnType? parentType fieldName).getD fieldName)
@@ -716,8 +717,8 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
       simpa [hreturnEq] using hinclude
     have hmergedReady :
         selectionSetSemanticsReady schema runtimeType mergedSubselections := by
-      simpa [mergedSubselections, matching] using
-        selectionSetSemanticsReady_fieldHead_merged_of_child_object schema
+      simpa [mergedSubselections, matching]
+        using selectionSetSemanticsReady_fieldHead_merged_of_child_object schema
           parentType responseName fieldName runtimeType arguments
           subselections rest fieldDefinition hparentObject hready
           hlookupValid hmerge hlookup hincludeReturn
@@ -729,8 +730,8 @@ theorem normalizeSelectionSet_executeSelectionSet_field_head_case_of_recursive
     have hmergedCanMerge :
         FieldMerge.fieldsInSetCanMerge schema runtimeType
           mergedSubselections := by
-      simpa [mergedSubselections, matching] using
-        fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
+      simpa [mergedSubselections, matching]
+        using fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
           schema parentType responseName fieldName runtimeType arguments
           subselections rest fieldDefinition hparentObject hlookupValid hmerge
           hlookup

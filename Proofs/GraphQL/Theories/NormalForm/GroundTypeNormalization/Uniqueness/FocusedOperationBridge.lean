@@ -50,8 +50,8 @@ theorem
     have hrightSelectionValid :
         Validation.selectionSetValid schema right.variableDefinitions
           (left.rootType schema) right.selectionSet := by
-      simpa [hroot] using
-        Validation.operationDefinitionValid_selectionSetValid hrightValid
+      simpa [hroot]
+        using Validation.operationDefinitionValid_selectionSetValid hrightValid
     have hleftSelectionNormal :
         selectionSetNormal schema (left.rootType schema) left.selectionSet := by
       simpa [operationNormal] using hleftNormal
@@ -80,10 +80,10 @@ theorem
         Execution.rootSourceAppliesBool schema right source = true := by
       simp [hsource, Execution.rootSourceAppliesBool,
         Execution.runtimeObjectType?, hrightInclude]
-    simpa only [leftValues, rightValues, Execution.executeQueryWithFuel,
-      hleftRoot, hrightRoot, if_true, Execution.executeSelectionSetAsResponse,
-      Execution.executeSelectionSet, hroot] using
-        hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
+    simpa only [leftValues, rightValues, Execution.executeQueryWithFuel, hleftRoot,
+      hrightRoot, if_true, Execution.executeSelectionSetAsResponse,
+      Execution.executeSelectionSet, hroot]
+      using hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
 
 end GroundTypeNormalization
 

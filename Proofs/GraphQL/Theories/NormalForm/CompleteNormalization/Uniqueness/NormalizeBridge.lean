@@ -65,8 +65,8 @@ theorem completeNormalizeOperation_boolVarsEquivalent
       have hnormalizedNonempty :
           completeNormalizeRootSelectionSet schema (varName :: variables)
             (operation.rootType schema) operation.selectionSet ≠ [] := by
-        simpa [hvariables] using
-          completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible schema
+        simpa [hvariables]
+          using completeNormalizeRootSelectionSet_ne_nil_of_boolTypeFeasible schema
             operation hschema hvalid hboolFeasible
       have hnormalizedIff :=
         operationBoolVars_mem_iff_of_completeNormalSelectionSet_cons hnormal

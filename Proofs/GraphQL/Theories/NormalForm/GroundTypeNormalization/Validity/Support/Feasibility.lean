@@ -134,8 +134,7 @@ theorem possibleTypeNormalizations_ne_nil_of_branch_forValidity
           ih hrest
         cases hnormalized : normalizeSelectionSet schema head selectionSet with
         | nil =>
-            simpa [possibleTypeNormalizations, hnormalized] using
-              hrestNonempty
+            simpa [possibleTypeNormalizations, hnormalized] using hrestNonempty
         | cons selection selections =>
             simp [possibleTypeNormalizations, hnormalized]
 
@@ -541,8 +540,8 @@ theorem selectionSetTypeConditionFeasible_mergeSelectionSets_of_field_subselecti
   rcases hshape selection hselection with
     ⟨fieldName, arguments, directives, subselections, hselectionShape⟩
   subst selection
-  simpa [Selection.subselections] using
-    hfields fieldName arguments directives subselections hselection
+  simpa [Selection.subselections]
+    using hfields fieldName arguments directives subselections hselection
 
 theorem
     selectionSetTypeConditionFeasible_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
@@ -912,8 +911,11 @@ theorem typesOverlapBool_eq_true_of_object_stack_feasible_forValidity
       (List.contains_iff_mem.mpr hparentMem)
   subst objectType
   exact typesOverlapBool_eq_true_of_typesOverlap schema
-    ⟨parentType, object_typeIncludesObject_self schema hobject,
-      hobjectType typeCondition (by simp)⟩
+    ⟨
+      parentType,
+      object_typeIncludesObject_self schema hobject,
+      hobjectType typeCondition (by simp)
+    ⟩
 
 theorem normalizeSelectionSet_ne_nil_of_contains (schema : Schema)
     : ∀ parentType selectionSet,
@@ -970,8 +972,7 @@ theorem normalizeSelectionSet_ne_nil_of_contains (schema : Schema)
             schema [parentType] hhead
         · exact selectionSetContainsTypeConditionFeasibleField_append_right_forValidity
             schema [parentType] subselections htail
-      simpa [normalizeSelectionSet] using
-        happend hobject happendReady happendContains
+      simpa [normalizeSelectionSet] using happend hobject happendReady happendContains
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
       intro hobject hready hcontains
@@ -1012,8 +1013,8 @@ theorem normalizeSelectionSet_ne_nil_of_contains (schema : Schema)
             schema [parentType] hsubselectionsContains
         · exact selectionSetContainsTypeConditionFeasibleField_append_right_forValidity
             schema [parentType] subselections htail
-      simpa [normalizeSelectionSet, hoverlap] using
-        happend hobject happendReady happendContains
+      simpa [normalizeSelectionSet, hoverlap]
+        using happend hobject happendReady happendContains
   | case6 parentType rest typeCondition directives subselections hoverlap
       hrest =>
       intro hobject hready hcontains
@@ -1035,8 +1036,7 @@ theorem normalizeSelectionSet_ne_nil_of_contains (schema : Schema)
           typesOverlapBool_eq_true_of_object_stack_feasible_forValidity
             schema hobject hstack
         simp [hfalse] at hoverlapTrue
-      · simpa [normalizeSelectionSet, hfalse] using
-          hrest hobject hrestReady htail
+      · simpa [normalizeSelectionSet, hfalse] using hrest hobject hrestReady htail
 
 theorem normalizeSelectionSet_ne_nil_of_everyNormalizerScope
     (schema : Schema)

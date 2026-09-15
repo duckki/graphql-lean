@@ -197,10 +197,9 @@ theorem inlineOperation_operationVariablesUsed
     : GraphQL.NamedFragment.Validation.operationVariablesUsed
         (Inline.inlineOperation operation) := by
   intro variableDefinition hvariableDefinition
-  have husedName := hused variableDefinition (by
-    simpa [Inline.inlineOperation] using hvariableDefinition)
-  simpa [Inline.inlineOperation,
-    selectionSetVariables_inlineSelectionSet] using husedName
+  have husedName :=
+    hused variableDefinition (by simpa [Inline.inlineOperation] using hvariableDefinition)
+  simpa [Inline.inlineOperation, selectionSetVariables_inlineSelectionSet] using husedName
 
 end Semantics
 end NamedFragment

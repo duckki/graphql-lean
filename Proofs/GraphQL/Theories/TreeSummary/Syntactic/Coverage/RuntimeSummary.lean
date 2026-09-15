@@ -169,8 +169,12 @@ theorem summarizeSelectedTypeBranches_le_runtimeCases
             (items := typeRuntimeCaseSummaries algebra typeScope branches)
             (fun selectedSummary _hselectedSummary => selectedSummary)
             (List.mem_filterMap.mpr
-              ⟨representative :: rest, hregion, by
-                simp [summarizeTypeBranchRegion?, hrepresentativeCase]⟩)
+              ⟨
+                representative :: rest,
+                hregion,
+                by
+                  simp [summarizeTypeBranchRegion?, hrepresentativeCase]
+              ⟩)
 
 def runtimeBooleanAssignment (source : VariableValues) : BooleanAssignment :=
   runtimeBooleanDefault source

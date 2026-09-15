@@ -243,16 +243,14 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_field
         fieldName sourceRuntimeType responseName leftArguments rightArguments
         arguments FieldPairProbeTag.right childSelectionSet fieldDefinition
         hlookup hcoerce hfuel hleaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
-      resolvers resolvers variableValues (fuel + 1)
-      (.object sourceRuntimeType (some FieldPairProbeTag.left))
-      (.object sourceRuntimeType (some FieldPairProbeTag.right))
-      hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
-      hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne
-        fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
+    resolvers resolvers variableValues (fuel + 1)
+    (.object sourceRuntimeType (some FieldPairProbeTag.left))
+    (.object sourceRuntimeType (some FieldPairProbeTag.right)) hobject hnormal hnormal
+    hfree hfree hmem hmem hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne
+      fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_of_field_ok
     (schema : Schema) (rootSelectionSet : List Selection)
@@ -430,16 +428,15 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_of_fiel
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
@@ -643,16 +640,15 @@ theorem responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
@@ -1055,22 +1051,21 @@ theorem
         leftField rightField targetLeftArguments targetRightArguments
         FieldPairProbeTag.right hrightFuel hrightValid hrightCoercion hrightFree
         hrightNormal hobject hinclude hrightPromote hrightHeadPromote
-  exact
-    responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of_field_ok
-      schema rootSelectionSet variableValues fuel targetParent leftField
-      rightField parentType sourceRuntimeType targetLeftArguments
-      targetRightArguments hleftFree hrightFree hleftNormal hrightNormal
-      hobject hleftMem hrightMem hlookup
-      (by
-        exact selectionSetArgumentsCoercible_field_success_of_directiveFree
-          hleftCoercion hleftFree hleftMem hlookup)
-      (by
-        exact selectionSetArgumentsCoercible_field_success_of_directiveFree
-          hrightCoercion hrightFree hrightMem hlookup)
-      hleftRuntime hrightRuntime
-      hruntimeInclude
-      hleafFuel hleftChildResponse hrightChildResponse hchildObjectsNot
-      hleftFieldOk hrightFieldOk
+  exact responseData_not_semanticEquivalent_of_tagged_object_child_field_pair_of_field_ok
+    schema rootSelectionSet variableValues fuel targetParent leftField
+    rightField parentType sourceRuntimeType targetLeftArguments
+    targetRightArguments hleftFree hrightFree hleftNormal hrightNormal
+    hobject hleftMem hrightMem hlookup
+    (by
+      exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+        hleftCoercion hleftFree hleftMem hlookup)
+    (by
+      exact selectionSetArgumentsCoercible_field_success_of_directiveFree
+        hrightCoercion hrightFree hrightMem hlookup)
+    hleftRuntime hrightRuntime
+    hruntimeInclude
+    hleafFuel hleftChildResponse hrightChildResponse hchildObjectsNot
+    hleftFieldOk hrightFieldOk
 
 theorem responseData_not_semanticEquivalent_of_tagged_abstract_inlineFragment_body
     (schema : Schema) (rootSelectionSet : List Selection)
@@ -1196,7 +1191,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_abstract_inlineFragment_bo
         bodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, hleftMiddle, hrightMiddle,
-    hleftFlatten, hrightFlatten] using hsemantic
+    hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem responseData_not_semanticEquivalent_of_tagged_abstract_inlineFragment_body_pair
     (schema : Schema) (rootSelectionSet : List Selection)
@@ -1336,7 +1332,8 @@ theorem responseData_not_semanticEquivalent_of_tagged_abstract_inlineFragment_bo
         rightBodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, hleftMiddle, hrightMiddle,
-    hleftFlatten, hrightFlatten] using hsemantic
+    hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
@@ -1522,16 +1519,14 @@ theorem
         fieldName sourceRuntimeType responseName leftArguments rightArguments
         arguments FieldPairProbeTag.right childSelectionSet fieldDefinition
         hlookup htargetCoerce hleafFuel hleaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
-      resolvers resolvers variableValues (fuel + 1)
-      (.object sourceRuntimeType (some FieldPairProbeTag.left))
-      (.object sourceRuntimeType (some FieldPairProbeTag.right))
-      hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
-      hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne
-        fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
+    resolvers resolvers variableValues (fuel + 1)
+    (.object sourceRuntimeType (some FieldPairProbeTag.left))
+    (.object sourceRuntimeType (some FieldPairProbeTag.right)) hobject hnormal hnormal
+    hfree hfree hmem hmem hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne
+      fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_deepProbeFuel
@@ -1600,15 +1595,12 @@ theorem
     responseName fieldName arguments directives childSelectionSet
     fieldDefinition hvalid hcoercion hfree hnormal hobject hinclude hpromote
     hheadPromote hmem hlookup hleaf
-  exact
-    responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
-      schema rootSelectionSet variableValues hschema parentType
-      variableDefinitions selectionSet
-      (selectionSetDeepProbeFuel schema parentType selectionSet)
-      sourceRuntimeType targetParent leftField rightField leftArguments
-      rightArguments hvalid hcoercion hfree hnormal hobject hinclude hpromote
-      hheadPromote
-      (by omega) hmem hlookup hleaf
+  exact responseData_not_semanticEquivalent_of_tagged_object_leaf_field_of_valid_normal_promoted_fuel_ge
+    schema rootSelectionSet variableValues hschema parentType variableDefinitions
+    selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
+    sourceRuntimeType targetParent leftField rightField leftArguments rightArguments
+    hvalid hcoercion hfree hnormal hobject hinclude hpromote hheadPromote (by omega) hmem
+    hlookup hleaf
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_left_responseName_diff_of_valid_normal_promoted_fuel_ge
@@ -3109,17 +3101,16 @@ theorem
         (fieldArgumentCoercionSucceeds_of_valid hrightValid hrightCoercion hrightFree
           hrightMem hrightLookup)
         hrightLeafFuel hrightLeaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
-      resolvers resolvers variableValues (fuel + 1)
-      (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
-      (.object rightSourceRuntimeType (some FieldPairProbeTag.right))
-      hleftObject hrightObject hleftNormal hrightNormal hleftFree
-      hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-        leftFieldDefinition.outputType rightFieldDefinition.outputType
-        (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
+    resolvers resolvers variableValues (fuel + 1)
+    (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
+    (.object rightSourceRuntimeType (some FieldPairProbeTag.right)) hleftObject
+    hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+    hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
+      leftFieldDefinition.outputType rightFieldDefinition.outputType
+      (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels
@@ -3358,17 +3349,16 @@ theorem
         (fieldArgumentCoercionSucceeds_of_valid hrightValid hrightCoercion hrightFree
           hrightMem hrightLookup)
         hrightLeafFuel hrightLeaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
-      resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1)
-      (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
-      (.object rightSourceRuntimeType (some FieldPairProbeTag.right))
-      hleftObject hrightObject hleftNormal hrightNormal hleftFree
-      hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-        leftFieldDefinition.outputType rightFieldDefinition.outputType
-        (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
+    resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1)
+    (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
+    (.object rightSourceRuntimeType (some FieldPairProbeTag.right)) hleftObject
+    hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+    hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
+      leftFieldDefinition.outputType rightFieldDefinition.outputType
+      (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_tagged_object_leaf_field_pair_of_valid_normal_promoted_fuel_ge_fuels_roots
@@ -3610,18 +3600,16 @@ theorem
         (fieldArgumentCoercionSucceeds_of_valid hrightValid hrightCoercion hrightFree
           hrightMem hrightLookup)
         hrightLeafFuel hrightLeaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
-      leftResolvers rightResolvers variableValues (leftFuel + 1)
-      (rightFuel + 1)
-      (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
-      (.object rightSourceRuntimeType (some FieldPairProbeTag.right))
-      hleftObject hrightObject hleftNormal hrightNormal hleftFree
-      hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
-        leftFieldDefinition.outputType rightFieldDefinition.outputType
-        (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
+    leftResolvers rightResolvers variableValues (leftFuel + 1) (rightFuel + 1)
+    (.object leftSourceRuntimeType (some FieldPairProbeTag.left))
+    (.object rightSourceRuntimeType (some FieldPairProbeTag.right)) hleftObject
+    hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+    hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne_any
+      leftFieldDefinition.outputType rightFieldDefinition.outputType
+      (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 end GroundTypeNormalization
 

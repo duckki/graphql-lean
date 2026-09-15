@@ -805,13 +805,14 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
+    simpa [resolvers, source, rootSelectionSet]
+      using
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := left)
-        variableValues baseFuel fieldName fieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
+          (schema := schema) (parentType := parentType)
+          (members := members) (selectionSet := left)
+          variableValues baseFuel fieldName fieldName leftTargetArguments
+          rightTargetArguments hschema hmembers (by simp [members]) hobject
+          hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
           childSelectionSet,
@@ -827,13 +828,14 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
+    simpa [resolvers, source, rootSelectionSet]
+      using
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := right)
-        variableValues baseFuel fieldName fieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
+          (schema := schema) (parentType := parentType)
+          (members := members) (selectionSet := right)
+          variableValues baseFuel fieldName fieldName leftTargetArguments
+          rightTargetArguments hschema hmembers (by simp [members]) hobject
+          hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName fieldName leftArguments leftDirectives
         leftChildSelectionSet ∈ List.flatten members := by
@@ -985,24 +987,27 @@ theorem
                 }]
               =
               .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-      simpa [resolvers, source, rootSelectionSet] using
-        selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-          (schema := schema) (parentType := parentType)
-          (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel fieldName fieldName leftTargetArguments
-          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
-          hleafOfLookup hleafOfLookup hrightNotLeft
+      simpa [resolvers, source, rootSelectionSet]
+        using
+          selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
+            (schema := schema) (parentType := parentType) (members := members)
+            (selectionSet := supportSelectionSet) variableValues baseFuel fieldName
+            fieldName leftTargetArguments rightTargetArguments hschema hmembers
+            hsupportMember hobject hbaseFuel hleafOfLookup hleafOfLookup hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
           resolvers variableValues (baseFuel + 1) parentType source
           supportSelectionSet hsupportFree hsupportNormal hobject
           hsupportFieldOk with
       ⟨supportFields, supportErrors, hsupportResponse⟩
-    exact ⟨supportFields, supportErrors, by
-      simpa [source, projectionRootResolverValue, projectionResolverValue]
-        using hsupportResponse⟩
-  · simpa [source, projectionRootResolverValue, projectionResolverValue]
-      using hdataNot
+    exact ⟨
+      supportFields,
+      supportErrors,
+      by
+        simpa [source, projectionRootResolverValue, projectionResolverValue]
+          using hsupportResponse
+    ⟩
+  · simpa [source, projectionRootResolverValue, projectionResolverValue] using hdataNot
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_leaf_finiteSupport
@@ -1160,13 +1165,14 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
+    simpa [resolvers, source, rootSelectionSet]
+      using
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := left)
-        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
+          (schema := schema) (parentType := parentType)
+          (members := members) (selectionSet := left)
+          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+          rightTargetArguments hschema hmembers (by simp [members]) hobject
+          hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
           childSelectionSet,
@@ -1182,13 +1188,14 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
+    simpa [resolvers, source, rootSelectionSet]
+      using
       selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := right)
-        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
+          (schema := schema) (parentType := parentType)
+          (members := members) (selectionSet := right)
+          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
+          rightTargetArguments hschema hmembers (by simp [members]) hobject
+          hbaseFuel hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName leftFieldName leftArguments leftDirectives
         leftChildSelectionSet ∈ List.flatten members := by
@@ -1362,24 +1369,28 @@ theorem
                 }]
               =
               .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-      simpa [resolvers, source, rootSelectionSet] using
-        selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
-          (schema := schema) (parentType := parentType)
-          (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
-          hleftLeafOfLookup hrightLeafOfLookup hrightNotLeft
+      simpa [resolvers, source, rootSelectionSet]
+        using
+          selectionSet_fieldPairProjectionFieldOk_framed_leaf_targets_of_valid_normal_members
+            (schema := schema) (parentType := parentType) (members := members)
+            (selectionSet := supportSelectionSet) variableValues baseFuel leftFieldName
+            rightFieldName leftTargetArguments rightTargetArguments hschema hmembers
+            hsupportMember hobject hbaseFuel hleftLeafOfLookup hrightLeafOfLookup
+            hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
           resolvers variableValues (baseFuel + 1) parentType source
           supportSelectionSet hsupportFree hsupportNormal hobject
           hsupportFieldOk with
       ⟨supportFields, supportErrors, hsupportResponse⟩
-    exact ⟨supportFields, supportErrors, by
-      simpa [source, projectionRootResolverValue, projectionResolverValue]
-        using hsupportResponse⟩
-  · simpa [source, projectionRootResolverValue, projectionResolverValue]
-      using hdataNot
+    exact ⟨
+      supportFields,
+      supportErrors,
+      by
+        simpa [source, projectionRootResolverValue, projectionResolverValue]
+          using hsupportResponse
+    ⟩
+  · simpa [source, projectionRootResolverValue, projectionResolverValue] using hdataNot
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_fieldName_diff_left_leaf_right_composite_finiteSupport
@@ -1537,13 +1548,13 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
-      selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := left)
-        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
+    simpa [resolvers, source, rootSelectionSet]
+      using
+        selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
+          (schema := schema) (parentType := parentType) (members := members)
+          (selectionSet := left) variableValues baseFuel leftFieldName rightFieldName
+          leftTargetArguments rightTargetArguments hschema hmembers (by simp [members])
+          hobject hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
   have hrightFieldOk :
       ∀ currentResponseName currentFieldName arguments directives
           childSelectionSet,
@@ -1559,13 +1570,13 @@ theorem
               }]
             =
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, source, rootSelectionSet] using
-      selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
-        (schema := schema) (parentType := parentType)
-        (members := members) (selectionSet := right)
-        variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-        rightTargetArguments hschema hmembers (by simp [members]) hobject
-        hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
+    simpa [resolvers, source, rootSelectionSet]
+      using
+        selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
+          (schema := schema) (parentType := parentType) (members := members)
+          (selectionSet := right) variableValues baseFuel leftFieldName rightFieldName
+          leftTargetArguments rightTargetArguments hschema hmembers (by simp [members])
+          hobject hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
   have hleftMemFlatten :
       Selection.field responseName leftFieldName leftArguments leftDirectives
         leftChildSelectionSet ∈ List.flatten members := by
@@ -1821,8 +1832,8 @@ theorem
         (hrightNotLeft rightTargetArguments
           (Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments))
         (by
-          simpa [rightTargetArguments] using
-            Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+          simpa [rightTargetArguments]
+            using Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
         hrightLookup hrightArgumentCoercion hrightRuntime hrightInclude hrightFuel
     rw [hraw, hrightChildResponse, hrightWrapped]
     simp [Execution.singleFieldResult]
@@ -1873,24 +1884,28 @@ theorem
                 }]
               =
               .ok ([(currentResponseName, responseValue)], fieldErrors) := by
-      simpa [resolvers, source, rootSelectionSet] using
-        selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
-          (schema := schema) (parentType := parentType)
-          (members := members) (selectionSet := supportSelectionSet)
-          variableValues baseFuel leftFieldName rightFieldName leftTargetArguments
-          rightTargetArguments hschema hmembers hsupportMember hobject hbaseFuel
-          hleftLeafOfLookup hrightCompositeOfLookup hrightNotLeft
+      simpa [resolvers, source, rootSelectionSet]
+        using
+          selectionSet_fieldPairProjectionFieldOk_framed_left_leaf_right_composite_targets_of_valid_normal_members
+            (schema := schema) (parentType := parentType) (members := members)
+            (selectionSet := supportSelectionSet) variableValues baseFuel leftFieldName
+            rightFieldName leftTargetArguments rightTargetArguments hschema hmembers
+            hsupportMember hobject hbaseFuel hleftLeafOfLookup hrightCompositeOfLookup
+            hrightNotLeft
     rcases
         ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
           resolvers variableValues (baseFuel + 1) parentType source
           supportSelectionSet hsupportFree hsupportNormal hobject
           hsupportFieldOk with
       ⟨supportFields, supportErrors, hsupportResponse⟩
-    exact ⟨supportFields, supportErrors, by
-      simpa [source, projectionRootResolverValue, projectionResolverValue]
-        using hsupportResponse⟩
-  · simpa [source, projectionRootResolverValue, projectionResolverValue]
-      using hdataNot
+    exact ⟨
+      supportFields,
+      supportErrors,
+      by
+        simpa [source, projectionRootResolverValue, projectionResolverValue]
+          using hsupportResponse
+    ⟩
+  · simpa [source, projectionRootResolverValue, projectionResolverValue] using hdataNot
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_left_responseName_diff_finiteSupport
@@ -2610,14 +2625,12 @@ theorem selectionSetTargetInlineFragmentSelectionSets_of_mem
       · cases selection with
         | field responseName fieldName arguments headDirectives
             headChildSelectionSet =>
-            simpa [selectionSetTargetInlineFragmentSelectionSets] using
-              ih htail
+            simpa [selectionSetTargetInlineFragmentSelectionSets] using ih htail
         | inlineFragment maybeTypeCondition headDirectives
             headChildSelectionSet =>
             cases maybeTypeCondition with
             | none =>
-                simpa [selectionSetTargetInlineFragmentSelectionSets] using
-                  ih htail
+                simpa [selectionSetTargetInlineFragmentSelectionSets] using ih htail
             | some headTypeCondition =>
                 by_cases htarget : headTypeCondition = typeCondition
                 · simp [selectionSetTargetInlineFragmentSelectionSets,

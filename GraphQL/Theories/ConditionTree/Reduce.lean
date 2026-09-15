@@ -49,9 +49,8 @@ private theorem FieldGroup.mergedSelectionSet_responseDepth_lt (group : FieldGro
       < conditionFieldGroupResponseDepth group := by
   simpa [FieldGroup.mergedSelectionSet, conditionFieldGroupResponseDepth,
     FieldGroup.fields, FieldGroup.selections, SelectionSet.mergeSelectionSets,
-    List.flatMap_map, Function.comp_def, Field.toSelection,
-    Selection.subselections] using
-    mergedFields_responseDepth_lt group.responseName group.first group.rest
+    List.flatMap_map, Function.comp_def, Field.toSelection, Selection.subselections]
+    using mergedFields_responseDepth_lt group.responseName group.first group.rest
 
 mutual
   -- Mirrors `executeSelectionSet`: traverse one extracted tree, and call `reduceTree` again only

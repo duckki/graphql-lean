@@ -94,7 +94,8 @@ theorem executeField_result_internallyAligned {ObjectRef : Type}
                   (by
                     intro cached h
                     cases h
-                    exact FieldCacheSourceAligned.object previousSource fields)).internallyAligned
+                    exact FieldCacheSourceAligned.object previousSource
+                      fields)).internallyAligned
       | list sourceValues? values =>
           cases sourceValues? with
           | none =>
@@ -156,10 +157,10 @@ theorem executeField_none_result_internallyAligned {ObjectRef : Type}
                     coercedArguments source with
           | none => simpa [hlookup, hcoerce, hresolve] using hhandled
           | some resolved =>
-              simpa [hlookup, hcoerce, hresolve] using
-                (completeValue_sourceAligned schema resolvers variableValues
-                  completionFuel fieldDefinition.outputType field.selectionSet resolved
-                  none (by intro previous h; cases h)).internallyAligned
+              simpa [hlookup, hcoerce, hresolve]
+                using (completeValue_sourceAligned schema resolvers variableValues
+                        completionFuel fieldDefinition.outputType field.selectionSet
+                        resolved none (by intro previous h; cases h)).internallyAligned
 
 theorem executeField_cacheAbsorptionShape {ObjectRef : Type}
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -273,7 +274,8 @@ theorem ObjectFieldCachesInternallyAligned.mergeResponseFieldIntoObject
               (mergeResponseField responseName incoming fields)
             = some previous := by
         simpa [GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject,
-          objectField?] using hprevious
+          objectField?]
+          using hprevious
       by_cases htarget : fieldResponseName = responseName
       · subst fieldResponseName
         rw [lookupField?_mergeResponseField_self] at hlookup
@@ -317,18 +319,18 @@ theorem visitFieldResult_internallyAligned {ObjectRef : Type}
       | none =>
           simp [outOfFuel, resultValueOrNull, FieldCacheInternallyAligned]
       | some previous =>
-          simpa [hprevious, resultValueOrNull] using
-            houtput responseName previous hprevious
+          simpa [hprevious, resultValueOrNull]
+            using houtput responseName previous hprevious
   | succ completionFuel =>
       cases hprevious : objectField? responseName output with
       | none =>
-          simpa [hprevious] using
-            executeField_none_result_internallyAligned schema resolvers
+          simpa [hprevious]
+            using executeField_none_result_internallyAligned schema resolvers
               variableValues completionFuel parentType source
               (executableField fieldName arguments selectionSet)
       | some previous =>
-          simpa [hprevious] using
-            executeField_result_internallyAligned schema resolvers variableValues
+          simpa [hprevious]
+            using executeField_result_internallyAligned schema resolvers variableValues
               completionFuel parentType source previous
               (executableField fieldName arguments selectionSet)
               (houtput responseName previous hprevious)
@@ -361,16 +363,15 @@ theorem visitFieldResult_absorbs_previous {ObjectRef : Type}
     | scalar value => simp [objectField?] at hprevious
     | list sourceValues? values => simp [objectField?] at hprevious
     | object objectSource fields =>
-        exact
-          lookupField?_some_cacheReady objectSource responseName fields previous
-            hready (by simpa [objectField?] using hprevious)
+        exact lookupField?_some_cacheReady objectSource responseName fields previous
+          hready (by simpa [objectField?] using hprevious)
   cases fuel with
   | zero =>
-      simpa [hprevious, resultValueOrNull] using
-        FieldCacheAbsorbs.refl_of_ready previous hpreviousReady
+      simpa [hprevious, resultValueOrNull]
+        using FieldCacheAbsorbs.refl_of_ready previous hpreviousReady
   | succ completionFuel =>
-      simpa [hprevious] using
-        executeField_result_absorbs_previous schema resolvers variableValues
+      simpa [hprevious]
+        using executeField_result_absorbs_previous schema resolvers variableValues
           completionFuel parentType source previous
           (executableField fieldName arguments selectionSet)
           hpreviousReady (haligned responseName previous hprevious)
@@ -415,16 +416,16 @@ mutual
             selectionDirectivesAllowBool variableValues directives = true
         · cases typeCondition with
           | none =>
-              simpa [visitSelection, hallows] using
-                visitSubfields_objectFieldCachesInternallyAligned schema resolvers
+              simpa [visitSelection, hallows]
+                using visitSubfields_objectFieldCachesInternallyAligned schema resolvers
                   variableValues fuel parentType source selectionSet output hready
                   haligned
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source typeCondition =
                     true
-              · simpa [visitSelection, hallows, happly] using
-                  visitSubfields_objectFieldCachesInternallyAligned schema
+              · simpa [visitSelection, hallows, happly]
+                  using visitSubfields_objectFieldCachesInternallyAligned schema
                     resolvers variableValues fuel parentType source selectionSet
                     output hready haligned
               · have hfalse :

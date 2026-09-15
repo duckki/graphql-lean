@@ -316,12 +316,12 @@ theorem executeSelectionSet_staticCollectForGround_field_skipped_case
               lookupParent source
               (Selection.field responseName fieldName arguments directives selectionSet
                 :: rest) := by
-    intro hagrees hsourceVars hskip hrest
-    apply executeSelectionSet_eq_of_collectFields_eq
-    exact collectFields_staticCollectForGround_field_skipped_case
-      schema variableValues operation lookupParent groundType source boolCase
-      responseName fieldName arguments directives selectionSet rest hagrees
-      hsourceVars hskip hrest
+  intro hagrees hsourceVars hskip hrest
+  apply executeSelectionSet_eq_of_collectFields_eq
+  exact collectFields_staticCollectForGround_field_skipped_case
+    schema variableValues operation lookupParent groundType source boolCase
+    responseName fieldName arguments directives selectionSet rest hagrees
+    hsourceVars hskip hrest
 
 theorem executeSelectionSet_staticCollectForGround_field_skipped_execution_case
     (schema : Schema)
@@ -411,11 +411,11 @@ theorem executeSelectionSet_staticCollectForGround_inline_none_skipped_case
           = Execution.executeSelectionSet schema resolvers variableValues depth
               lookupParent source
               (Selection.inlineFragment none directives selectionSet :: rest) := by
-    intro hagrees hsourceVars hskip hrest
-    apply executeSelectionSet_eq_of_collectFields_eq
-    exact collectFields_staticCollectForGround_inline_none_skipped_case
-      schema variableValues operation lookupParent groundType source boolCase
-      directives selectionSet rest hagrees hsourceVars hskip hrest
+  intro hagrees hsourceVars hskip hrest
+  apply executeSelectionSet_eq_of_collectFields_eq
+  exact collectFields_staticCollectForGround_inline_none_skipped_case
+    schema variableValues operation lookupParent groundType source boolCase
+    directives selectionSet rest hagrees hsourceVars hskip hrest
 
 theorem executeSelectionSet_staticCollectForGround_inline_none_skipped_execution_case
     (schema : Schema)
@@ -504,11 +504,11 @@ theorem executeSelectionSet_staticCollectForGround_inline_none_allowed_case
           = Execution.executeSelectionSet schema resolvers variableValues depth
               lookupParent source
               (Selection.inlineFragment none directives selectionSet :: rest) := by
-    intro hagrees hsourceVars hallow hselection hrest
-    apply executeSelectionSet_eq_of_collectFields_eq
-    exact collectFields_staticCollectForGround_inline_none_allowed_case
-      schema variableValues operation lookupParent groundType source boolCase
-      directives selectionSet rest hagrees hsourceVars hallow hselection hrest
+  intro hagrees hsourceVars hallow hselection hrest
+  apply executeSelectionSet_eq_of_collectFields_eq
+  exact collectFields_staticCollectForGround_inline_none_allowed_case
+    schema variableValues operation lookupParent groundType source boolCase
+    directives selectionSet rest hagrees hsourceVars hallow hselection hrest
 
 theorem executeSelectionSet_staticCollectForGround_inline_none_allowed_flatten_case
     (schema : Schema)
@@ -606,12 +606,12 @@ theorem executeSelectionSet_staticCollectForGround_inline_some_skipped_case
               (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref)
               (Selection.inlineFragment (some typeCondition) directives selectionSet
                 :: rest) := by
-    intro hagrees hsourceVars hskip hrest
-    apply executeSelectionSet_eq_of_collectFields_eq
-    simpa [] using
-      collectFields_staticCollectForGround_inline_some_skipped_case
+  intro hagrees hsourceVars hskip hrest
+  apply executeSelectionSet_eq_of_collectFields_eq
+  simpa []
+    using collectFields_staticCollectForGround_inline_some_skipped_case
       schema variableValues operation lookupParent groundType typeCondition
-        ref boolCase directives selectionSet rest hagrees hsourceVars hskip
+      ref boolCase directives selectionSet rest hagrees hsourceVars hskip
       hrest
 
 theorem executeSelectionSet_staticCollectForGround_inline_some_skipped_execution_case
@@ -725,12 +725,12 @@ theorem executeSelectionSet_staticCollectForGround_inline_some_allowed_case
               (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref)
               (Selection.inlineFragment (some typeCondition) directives selectionSet
                 :: rest) := by
-    intro hagrees hsourceVars hallow hincludes hselection hrest
-    apply executeSelectionSet_eq_of_collectFields_eq
-    simpa [] using
-      collectFields_staticCollectForGround_inline_some_allowed_case
+  intro hagrees hsourceVars hallow hincludes hselection hrest
+  apply executeSelectionSet_eq_of_collectFields_eq
+  simpa []
+    using collectFields_staticCollectForGround_inline_some_allowed_case
       schema variableValues operation lookupParent groundType typeCondition
-        ref boolCase directives selectionSet rest hagrees hsourceVars
+      ref boolCase directives selectionSet rest hagrees hsourceVars
       hallow hincludes hselection hrest
 
 theorem executeSelectionSet_staticCollectForGround_inline_some_allowed_flatten_case

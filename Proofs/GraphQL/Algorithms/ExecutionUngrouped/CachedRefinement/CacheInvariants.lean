@@ -148,93 +148,88 @@ theorem output_mergeResponse {ObjectRef : Type} (left right : FieldCacheValue Ob
       outputFields (mergeResponseField responseName incoming fields) =
         ExecutionUngroupedUncached.mergeResponseField responseName incoming.output
           (outputFields fields)
-  exact
-    mergeResponse.induct motive1 motive2 motive3 motive4
-      (by
-        intro right
-        cases right <;>
-          simp [motive1, mergeResponse,
-            ExecutionUngroupedUncached.mergeResponse])
-      (by
-        intro left hnot
-        cases left <;>
-          simp [motive1, mergeResponse,
-            ExecutionUngroupedUncached.mergeResponse] at hnot ⊢)
-      (by
-        intro _existingSource existingFields _incomingSource incomingFields ih
+  exact mergeResponse.induct motive1 motive2 motive3 motive4
+    (by
+      intro right
+      cases right <;>
         simp [motive1, mergeResponse,
-          ExecutionUngroupedUncached.mergeResponse]
-        simpa [motive3] using ih)
-      (by
-        intro _existingSourceValues existingValues _incomingSourceValues
-          incomingValues ih
+          ExecutionUngroupedUncached.mergeResponse])
+    (by
+      intro left hnot
+      cases left <;>
         simp [motive1, mergeResponse,
-          ExecutionUngroupedUncached.mergeResponse]
-        simpa [motive2] using ih)
-      (by
-        intro existing incoming hExisting hIncoming hNotObject hNotList
-        cases existing <;> cases incoming <;>
-          simp [motive1, mergeResponse, ExecutionUngroupedUncached.mergeResponse] at hExisting hIncoming hNotObject hNotList ⊢
-        · exact False.elim ((hNotObject _ _ _ _ rfl rfl rfl) rfl)
-        · exact False.elim ((hNotList _ _ _ _ rfl rfl rfl) rfl))
-      (by
-        intro incomingValues
-        cases incomingValues <;>
-          simp [motive2, mergeResponseLists,
-            ExecutionUngroupedUncached.mergeResponseLists])
-      (by
-        intro existingValues hnot
-        cases existingValues <;>
-          simp [motive2, mergeResponseLists,
-            ExecutionUngroupedUncached.mergeResponseLists] at hnot ⊢)
-      (by
-        intro existing existingRest incoming incomingRest ihValue ihList
+          ExecutionUngroupedUncached.mergeResponse] at hnot ⊢)
+    (by
+      intro _existingSource existingFields _incomingSource incomingFields ih
+      simp [motive1, mergeResponse,
+        ExecutionUngroupedUncached.mergeResponse]
+      simpa [motive3] using ih)
+    (by
+      intro _existingSourceValues existingValues _incomingSourceValues
+        incomingValues ih
+      simp [motive1, mergeResponse,
+        ExecutionUngroupedUncached.mergeResponse]
+      simpa [motive2] using ih)
+    (by
+      intro existing incoming hExisting hIncoming hNotObject hNotList
+      cases existing <;> cases incoming <;>
+        simp [motive1, mergeResponse, ExecutionUngroupedUncached.mergeResponse] at hExisting hIncoming hNotObject hNotList ⊢
+      · exact False.elim ((hNotObject _ _ _ _ rfl rfl rfl) rfl)
+      · exact False.elim ((hNotList _ _ _ _ rfl rfl rfl) rfl))
+    (by
+      intro incomingValues
+      cases incomingValues <;>
         simp [motive2, mergeResponseLists,
-          ExecutionUngroupedUncached.mergeResponseLists]
-        exact
-          ⟨by simpa [motive1] using ihValue,
-            by simpa [motive2] using ihList⟩)
-      (by
-        intro existingFields
-        cases existingFields <;>
-          simp [motive3, mergeResponseFields,
-            ExecutionUngroupedUncached.mergeResponseFields])
-      (by
-        intro existingFields responseName incoming rest ihField ihFields
+          ExecutionUngroupedUncached.mergeResponseLists])
+    (by
+      intro existingValues hnot
+      cases existingValues <;>
+        simp [motive2, mergeResponseLists,
+          ExecutionUngroupedUncached.mergeResponseLists] at hnot ⊢)
+    (by
+      intro existing existingRest incoming incomingRest ihValue ihList
+      simp [motive2, mergeResponseLists,
+        ExecutionUngroupedUncached.mergeResponseLists]
+      exact ⟨by simpa [motive1] using ihValue, by simpa [motive2] using ihList⟩)
+    (by
+      intro existingFields
+      cases existingFields <;>
         simp [motive3, mergeResponseFields,
-          ExecutionUngroupedUncached.mergeResponseFields]
-        have hfields :
-            outputFields
-                (mergeResponseFields
-                  (mergeResponseField responseName incoming existingFields)
-                  rest)
-              =
-            ExecutionUngroupedUncached.mergeResponseFields
-              (outputFields
-                (mergeResponseField responseName incoming existingFields))
-              (outputFields rest) := by
-          simpa [motive3] using ihFields
-        rw [hfields]
-        exact
-          congrArg
-            (fun fields =>
-              ExecutionUngroupedUncached.mergeResponseFields fields
-                (outputFields rest))
-            (by simpa [motive4] using ihField))
-      (by
-        intro responseName incoming
-        simp [motive4, mergeResponseField,
-          ExecutionUngroupedUncached.mergeResponseField])
-      (by
-        intro responseName incoming fieldResponseName existing _rest h ih
-        simp [motive4, mergeResponseField,
-          ExecutionUngroupedUncached.mergeResponseField, h]
-        simpa [motive1] using ih)
-      (by
-        intro responseName incoming fieldResponseName existing rest h ih
-        simp [motive4, mergeResponseField,
-          ExecutionUngroupedUncached.mergeResponseField, h, ih])
-      left right
+          ExecutionUngroupedUncached.mergeResponseFields])
+    (by
+      intro existingFields responseName incoming rest ihField ihFields
+      simp [motive3, mergeResponseFields,
+        ExecutionUngroupedUncached.mergeResponseFields]
+      have hfields :
+          outputFields
+              (mergeResponseFields
+                (mergeResponseField responseName incoming existingFields)
+                rest)
+            =
+          ExecutionUngroupedUncached.mergeResponseFields
+            (outputFields
+              (mergeResponseField responseName incoming existingFields))
+            (outputFields rest) := by
+        simpa [motive3] using ihFields
+      rw [hfields]
+      exact congrArg
+        (fun fields =>
+          ExecutionUngroupedUncached.mergeResponseFields fields (outputFields rest))
+        (by simpa [motive4] using ihField))
+    (by
+      intro responseName incoming
+      simp [motive4, mergeResponseField,
+        ExecutionUngroupedUncached.mergeResponseField])
+    (by
+      intro responseName incoming fieldResponseName existing _rest h ih
+      simp [motive4, mergeResponseField,
+        ExecutionUngroupedUncached.mergeResponseField, h]
+      simpa [motive1] using ih)
+    (by
+      intro responseName incoming fieldResponseName existing rest h ih
+      simp [motive4, mergeResponseField,
+        ExecutionUngroupedUncached.mergeResponseField, h, ih])
+    left right
 
 theorem output_mergeResponseLists {ObjectRef : Type}
     : ∀ left right : List (FieldCacheValue ObjectRef),
@@ -306,60 +301,59 @@ theorem sizeOf_mergeResponseField_le {ObjectRef : Type}
     fun responseName incoming fields =>
       sizeOf (mergeResponseField responseName incoming fields)
         ≤ sizeOf fields + sizeOf responseName + sizeOf incoming + 2
-  exact
-    mergeResponseField.induct responseMotive listMotive fieldsMotive fieldMotive
-      (by
-        intro right
-        cases right <;> simp [responseMotive, mergeResponse] <;> omega)
-      (by
-        intro left hnot
-        cases left <;> simp [responseMotive, mergeResponse] at hnot ⊢ <;> omega)
-      (by
-        intro existingSource existingFields incomingSource incomingFields ih
-        simp [responseMotive, fieldsMotive, mergeResponse] at ih ⊢
-        omega)
-      (by
-        intro existingSourceValues existingValues incomingSourceValues
-          incomingValues ih
-        simp [responseMotive, listMotive, mergeResponse] at ih ⊢
-        omega)
-      (by
-        intro existing incoming hExisting hIncoming hNotObject hNotList
-        cases existing <;> cases incoming <;>
-          simp [responseMotive, mergeResponse] at hExisting hIncoming hNotObject hNotList ⊢
-        · exact False.elim ((hNotObject _ _ _ _ rfl rfl rfl) rfl)
-        · exact False.elim ((hNotList _ _ _ _ rfl rfl rfl) rfl))
-      (by
-        intro incomingValues
-        cases incomingValues <;> simp [listMotive, mergeResponseLists] <;> omega)
-      (by
-        intro existingValues hnot
-        cases existingValues <;>
-          simp [listMotive, mergeResponseLists] at hnot ⊢ <;> omega)
-      (by
-        intro existing existingRest incoming incomingRest ihValue ihList
-        simp [listMotive, responseMotive, mergeResponseLists] at ihValue ihList ⊢
-        omega)
-      (by
-        intro existingFields
-        cases existingFields <;> simp [fieldsMotive, mergeResponseFields] <;> omega)
-      (by
-        intro existingFields responseName incoming rest ihField ihFields
-        simp [fieldsMotive, fieldMotive, mergeResponseFields] at ihField ihFields ⊢
-        omega)
-      (by
-        intro responseName incoming
-        simp [fieldMotive, mergeResponseField]
-        omega)
-      (by
-        intro responseName incoming fieldResponseName existing rest h ih
-        simp [fieldMotive, responseMotive, mergeResponseField, h] at ih ⊢
-        omega)
-      (by
-        intro responseName incoming fieldResponseName existing rest h ih
-        simp [fieldMotive, mergeResponseField, h] at ih ⊢
-        omega)
-      responseName incoming fields
+  exact mergeResponseField.induct responseMotive listMotive fieldsMotive fieldMotive
+    (by
+      intro right
+      cases right <;> simp [responseMotive, mergeResponse] <;> omega)
+    (by
+      intro left hnot
+      cases left <;> simp [responseMotive, mergeResponse] at hnot ⊢ <;> omega)
+    (by
+      intro existingSource existingFields incomingSource incomingFields ih
+      simp [responseMotive, fieldsMotive, mergeResponse] at ih ⊢
+      omega)
+    (by
+      intro existingSourceValues existingValues incomingSourceValues
+        incomingValues ih
+      simp [responseMotive, listMotive, mergeResponse] at ih ⊢
+      omega)
+    (by
+      intro existing incoming hExisting hIncoming hNotObject hNotList
+      cases existing <;> cases incoming <;>
+        simp [responseMotive, mergeResponse] at hExisting hIncoming hNotObject hNotList ⊢
+      · exact False.elim ((hNotObject _ _ _ _ rfl rfl rfl) rfl)
+      · exact False.elim ((hNotList _ _ _ _ rfl rfl rfl) rfl))
+    (by
+      intro incomingValues
+      cases incomingValues <;> simp [listMotive, mergeResponseLists] <;> omega)
+    (by
+      intro existingValues hnot
+      cases existingValues <;>
+        simp [listMotive, mergeResponseLists] at hnot ⊢ <;> omega)
+    (by
+      intro existing existingRest incoming incomingRest ihValue ihList
+      simp [listMotive, responseMotive, mergeResponseLists] at ihValue ihList ⊢
+      omega)
+    (by
+      intro existingFields
+      cases existingFields <;> simp [fieldsMotive, mergeResponseFields] <;> omega)
+    (by
+      intro existingFields responseName incoming rest ihField ihFields
+      simp [fieldsMotive, fieldMotive, mergeResponseFields] at ihField ihFields ⊢
+      omega)
+    (by
+      intro responseName incoming
+      simp [fieldMotive, mergeResponseField]
+      omega)
+    (by
+      intro responseName incoming fieldResponseName existing rest h ih
+      simp [fieldMotive, responseMotive, mergeResponseField, h] at ih ⊢
+      omega)
+    (by
+      intro responseName incoming fieldResponseName existing rest h ih
+      simp [fieldMotive, mergeResponseField, h] at ih ⊢
+      omega)
+    responseName incoming fields
 
 def FieldCacheKeysNodup {ObjectRef : Type}
     (fields : List (Name × FieldCacheValue ObjectRef))

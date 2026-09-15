@@ -333,18 +333,17 @@ theorem ExecutedFieldAppendStep_two_of_visit_absorbs
     extendedChildren := ?extendedChildren
   }
   · intro childDepth runtimeType identity hlt _hincludes
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hfirstChildren childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hfirstChildren childDepth runtimeType identity hlt
   · intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hobjects childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hobjects childDepth runtimeType identity hlt
   · intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet,
-      VisitSubfieldsErrorNeutral] using
-      herrors childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet, VisitSubfieldsErrorNeutral]
+      using herrors childDepth runtimeType identity hlt
   · intro childDepth runtimeType identity hlt _hincludes
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hchildren childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hchildren childDepth runtimeType identity hlt
 
 theorem ExecutedFieldAppendPlan_two_of_visit_absorbs
     {ObjectIdentity : Type}
@@ -854,17 +853,16 @@ def ExecutedFieldGroup.of_collected_group
           _hincludes
         exact hchildren prefixTail later hlater childDepth runtimeType identity
           hlt)
-  exact
-    ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
-      depth parentType source responseName field fields hfieldLookup
-      (by
-        intro childDepth runtimeType identity hlt
-        simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-          ExecutedFieldAppendPlanState.prefixChildren hstate childDepth
-            runtimeType identity hlt)
-      (ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
-        variableValues depth parentType source groups responseName field fields
-        hgroup hcompatible hstable [] fields hstate)
+  exact ExecutedFieldGroup.of_collected_appendPlan schema resolvers variableValues
+    depth parentType source responseName field fields hfieldLookup
+    (by
+      intro childDepth runtimeType identity hlt
+      simpa [GraphQL.Execution.mergedFieldSelectionSet]
+        using ExecutedFieldAppendPlanState.prefixChildren hstate childDepth
+          runtimeType identity hlt)
+    (ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
+      variableValues depth parentType source groups responseName field fields
+      hgroup hcompatible hstable [] fields hstate)
 
 def ExecutedFieldGroup.of_collected_group_state
     {ObjectIdentity : Type}
@@ -889,8 +887,8 @@ def ExecutedFieldGroup.of_collected_group_state
     depth parentType source responseName field fields hfieldLookup
     (by
       intro childDepth runtimeType identity hlt
-      simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-        ExecutedFieldAppendPlanState.prefixChildren hstate childDepth
+      simpa [GraphQL.Execution.mergedFieldSelectionSet]
+        using ExecutedFieldAppendPlanState.prefixChildren hstate childDepth
           runtimeType identity hlt)
     (ExecutedFieldAppendPlan.of_collected_group_state schema resolvers
       variableValues depth parentType source groups responseName field fields
@@ -1025,8 +1023,8 @@ theorem stateEquivalent_of_collected_field_group_of_invariant
         selectionSet := selectionSet }
       initial := .object [] }
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   apply stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
     variableValues (depth + 1) parentType source selectionSet
@@ -1105,8 +1103,8 @@ theorem stateEquivalent_of_collected_field_group_state_of_invariant
         selectionSet := selectionSet }
       initial := .object [] }
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   apply stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
     variableValues (depth + 1) parentType source selectionSet
@@ -1421,8 +1419,7 @@ theorem stateEquivalent_of_collected_field_group_steps_of_invariant
       (by
         intro prefixTail childDepth runtimeType identity hlt _hincludes
         exact hprefixChildren prefixTail childDepth runtimeType identity hlt)
-      hsteps
-      herrors
+      hsteps herrors
       (by
         intro prefixTail later hlater childDepth runtimeType identity hlt
           _hincludes
@@ -1545,8 +1542,7 @@ theorem executeRootSelectionSet_eq_spec_of_collected_field_group_steps_of_invari
       (by
         intro prefixTail childDepth runtimeType identity hlt _hincludes
         exact hprefixChildren prefixTail childDepth runtimeType identity hlt)
-      hsteps
-      herrors
+      hsteps herrors
       (by
         intro prefixTail later hlater childDepth runtimeType identity hlt
           _hincludes
@@ -1683,8 +1679,7 @@ theorem executeQueryWithFuel_eq_spec_of_collected_field_group_steps_of_invariant
       (by
         intro prefixTail childDepth runtimeType identity hlt _hincludes
         exact hprefixChildren prefixTail childDepth runtimeType identity hlt)
-      hsteps
-      herrors
+      hsteps herrors
       (by
         intro prefixTail later hlater childDepth runtimeType identity hlt
           _hincludes
@@ -1821,8 +1816,7 @@ theorem executeQuery_eq_spec_of_collected_field_group_steps_of_invariant
       (by
         intro prefixTail childDepth runtimeType identity hlt _hincludes
         exact hprefixChildren prefixTail childDepth runtimeType identity hlt)
-      hsteps
-      herrors
+      hsteps herrors
       (by
         intro prefixTail later hlater childDepth runtimeType identity hlt
           _hincludes

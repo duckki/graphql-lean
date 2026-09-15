@@ -195,8 +195,9 @@ theorem selectionDirectivesAllowBool_eq_of_agree
         apply hagrees variableName
         simp only [List.filterMap_cons]
         cases SelectionConditions.directiveBooleanVariable? directive <;> simp [hmember])
-      have hdirective : directiveAllowsSelectionBool left directive
-          = directiveAllowsSelectionBool right directive := by
+      have hdirective
+          : directiveAllowsSelectionBool left directive
+            = directiveAllowsSelectionBool right directive := by
         cases directive <;> rename_i argument <;> cases argument <;> try rfl
         case skip.variable variableName =>
           rw [directiveAllowsSelectionBool_skip_variable,

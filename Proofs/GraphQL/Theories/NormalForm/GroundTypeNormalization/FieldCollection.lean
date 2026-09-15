@@ -118,7 +118,7 @@ theorem collectedResponseSelectionSet_addExecutableGroup
         collectedResponseSelectionSet responseName
           (Execution.addExecutableGroup group groups)
         = collectedResponseSelectionSet responseName groups
-          ++  if group.fst == responseName then
+          ++ if group.fst == responseName then
                 Execution.mergedFieldSelectionSet group.snd
               else
                 []
@@ -286,8 +286,7 @@ theorem mergeExecutableGroups_wellFormed
   | cons group rest ih =>
       simp [Execution.mergeExecutableGroups]
       exact ih (Execution.addExecutableGroup group left)
-        (addExecutableGroup_wellFormed group left
-          (hright group (by simp)) hleft)
+        (addExecutableGroup_wellFormed group left (hright group (by simp)) hleft)
         (executableGroupsWellFormed_tail hright)
 
 theorem mergeExecutableGroups_mem_responseName
@@ -388,8 +387,8 @@ theorem withoutExecutableGroupsWithResponseName_addExecutableGroup
               Execution.addExecutableGroup, hcurrentFalse,
               hcurrentResponseFalse, hgroupResponseFalse]
             exact by
-              simpa [withoutExecutableGroupsWithResponseName,
-                hgroupResponseFalse] using ih
+              simpa [withoutExecutableGroupsWithResponseName, hgroupResponseFalse]
+                using ih
 
 theorem withoutExecutableGroupsWithResponseName_mergeExecutableGroups
     (responseName : Name)
@@ -1157,9 +1156,8 @@ theorem collectFields_withoutFieldSelectionsWithResponseName_eq_sourceRest_of_co
       selectionSet hfree
   have hnodup :
       executableGroupNamesNodup ((responseName, fields) :: sourceRest) := by
-    simpa [hcollect] using
-      collectFields_namesNodup schema variableValues parentType source
-        selectionSet
+    simpa [hcollect]
+      using collectFields_namesNodup schema variableValues parentType source selectionSet
   rw [hcollect] at hfilter
   exact hfilter.trans
     (withoutExecutableGroupsWithResponseName_cons_self_of_namesNodup
@@ -1230,7 +1228,7 @@ theorem collectFields_fieldSelectionsWithResponseNameInScope_responseSelection
   intro hobject hsource hfree
   induction selectionSet
     using fieldSelectionsWithResponseNameInScope.induct schema parentType
-            responseName with
+      responseName with
   | case1 =>
       simp [Execution.collectFields, fieldSelectionsWithResponseNameInScope,
         collectedResponseSelectionSet, mergeSelectionSets]

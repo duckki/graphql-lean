@@ -101,9 +101,8 @@ private theorem
         rw [← hrightExecution]
         exact hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
-        Execution.executeSelectionSetAsResponse,
-        Execution.executeSelectionSet, hrootType] using
-          hselectionResponse'
+        Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet, hrootType]
+        using hselectionResponse'
 
 theorem normal_operations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
@@ -133,25 +132,25 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     normalizeOperation_directiveFree schema right hrightFree
   have hleftNormalizedNormal :
       operationNormal schema (normalizeOperation schema left) := by
-    simpa [normalizeOperationNormal] using
-      normalizeOperation_normal schema left hschema hleftValid
+    simpa [normalizeOperationNormal]
+      using normalizeOperation_normal schema left hschema hleftValid
   have hrightNormalizedNormal :
       operationNormal schema (normalizeOperation schema right) := by
-    simpa [normalizeOperationNormal] using
-      normalizeOperation_normal schema right hschema hrightValid
+    simpa [normalizeOperationNormal]
+      using normalizeOperation_normal schema right hschema hrightValid
   have hnormalizedDefinitions :
       variableDefinitionsSyntacticallyEquivalent
         (normalizeOperation schema left).variableDefinitions
         (normalizeOperation schema right).variableDefinitions := by
     simpa [normalizeOperation_variableDefinitions] using hdefinitions
-  have hnormalizedSemantics :
-      operationsSemanticallyEquivalent schema
-        (normalizeOperation schema left)
-        (normalizeOperation schema right) :=
+  have hnormalizedSemantics
+      : operationsSemanticallyEquivalent schema
+          (normalizeOperation schema left)
+          (normalizeOperation schema right) :=
     normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
       (by
-        simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-          operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid)
+        simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+          using operation_root_objectTypeNameBool_of_wf_valid hschema hleftValid)
       (normalizeOperation_selectionSetArgumentsNodup schema left
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hleftValid)))
@@ -159,11 +158,13 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
       (by
-        simpa [normalizeOperation_variableDefinitions] using
-          (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1)
+        simpa [normalizeOperation_variableDefinitions]
+          using (Validation.operationDefinitionValid_variableDefinitionsValid
+                  hleftValid).1)
       (by
-        simpa [normalizeOperation_variableDefinitions] using
-          (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1)
+        simpa [normalizeOperation_variableDefinitions]
+          using (Validation.operationDefinitionValid_variableDefinitionsValid
+                  hrightValid).1)
       hleftNormalizedFree hrightNormalizedFree hleftNormalizedNormal
       hrightNormalizedNormal hnormalizedDefinitions hequal
   have hleftEquivalent :
@@ -190,8 +191,8 @@ theorem normalizeOperations_equalUpToReordering_semanticallyEquivalent
     hleftEquivalent resolvers variableValues fuel source
   have hrightResponse :=
     hrightEquivalent resolvers variableValues fuel source
-  simpa [hleftResponse, hrightResponse] using
-    hnormalizedSemantics resolvers variableValues fuel source
+  simpa [hleftResponse, hrightResponse]
+    using hnormalizedSemantics resolvers variableValues fuel source
       hleftNormalizedCoercible hrightNormalizedCoercible
 
 theorem normal_operations_semanticallyEquivalent_equalUpToReordering

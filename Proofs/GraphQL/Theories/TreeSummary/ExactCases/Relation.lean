@@ -196,8 +196,9 @@ theorem Related.combineMap (leftAlgebra : Algebra.{u}) (rightAlgebra : Algebra.{
         (BooleanDecision.combineMap leftAlgebra variableOrder items left)
         (BooleanDecision.combineMap rightAlgebra variableOrder items right) := by
   induction items with
-  | nil => simpa [BooleanDecision.combineMap] using
-      (Related.leaf algebraRelation.empty_related)
+  | nil =>
+      simpa [BooleanDecision.combineMap]
+        using (Related.leaf algebraRelation.empty_related)
   | cons item rest ih =>
       rw [BooleanDecision.combineMap, BooleanDecision.combineMap]
       apply Related.zipWith variableOrder leftAlgebra.combine rightAlgebra.combine
@@ -220,8 +221,8 @@ theorem Related.joinMap (leftAlgebra : Algebra.{u}) (rightAlgebra : Algebra.{v})
         (BooleanDecision.joinMap leftAlgebra items left)
         (BooleanDecision.joinMap rightAlgebra items right) := by
   cases items with
-  | nil => simpa [BooleanDecision.joinMap] using
-      (Related.leaf algebraRelation.empty_related)
+  | nil =>
+      simpa [BooleanDecision.joinMap] using (Related.leaf algebraRelation.empty_related)
   | cons item rest =>
       cases rest with
       | nil => simpa [BooleanDecision.joinMap] using hitems item (by simp)
@@ -327,24 +328,27 @@ theorem CaseCursor.summarizeDecisionWithPruning_related
           inheritedBooleanCondition caseCondition cursor possibleTypes environment
           pruningValues) := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema pruningValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      BooleanDecision.Related algebraRelation.related
-        (CaseCursor.summarizeDecisionWithPruning left schema variableOrder inherited
-          caseCondition cursor possibleTypes environment pruningValues)
-        (CaseCursor.summarizeDecisionWithPruning right schema variableOrder inherited
-          caseCondition cursor possibleTypes environment pruningValues))
-    (motive2 := fun groups environment =>
-      BooleanDecision.Related algebraRelation.related
-        (CaseCursor.summarizeFieldGroupsDecisionWithPruning left schema variableOrder groups
-          environment pruningValues)
-        (CaseCursor.summarizeFieldGroupsDecisionWithPruning right schema variableOrder groups
-          environment pruningValues))
-    (motive3 := fun group parentTypes environment =>
-      BooleanDecision.Related algebraRelation.related
-        (CaseCursor.summarizeChildTypesDecisionWithPruning left schema variableOrder group
-          parentTypes environment pruningValues)
-        (CaseCursor.summarizeChildTypesDecisionWithPruning right schema variableOrder group
-          parentTypes environment pruningValues))
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        BooleanDecision.Related algebraRelation.related
+          (CaseCursor.summarizeDecisionWithPruning left schema variableOrder inherited
+            caseCondition cursor possibleTypes environment pruningValues)
+          (CaseCursor.summarizeDecisionWithPruning right schema variableOrder inherited
+            caseCondition cursor possibleTypes environment pruningValues))
+    (motive2 :=
+      fun groups environment =>
+        BooleanDecision.Related algebraRelation.related
+          (CaseCursor.summarizeFieldGroupsDecisionWithPruning left schema variableOrder
+            groups environment pruningValues)
+          (CaseCursor.summarizeFieldGroupsDecisionWithPruning right schema variableOrder
+            groups environment pruningValues))
+    (motive3 :=
+      fun group parentTypes environment =>
+        BooleanDecision.Related algebraRelation.related
+          (CaseCursor.summarizeChildTypesDecisionWithPruning left schema variableOrder
+            group parentTypes environment pruningValues)
+          (CaseCursor.summarizeChildTypesDecisionWithPruning right schema variableOrder
+            group parentTypes environment pruningValues))
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih

@@ -206,8 +206,9 @@ theorem normalizedFieldGroupSources_identity_of_sourcePair
     hleftGroup.sourceRel.fieldName.symm.trans
       (hsourceField.trans hrightGroup.sourceRel.fieldName),
     by
-      simpa [← hleftGroup.sourceRel.arguments,
-        ← hrightGroup.sourceRel.arguments] using hsourceArguments⟩
+      simpa [← hleftGroup.sourceRel.arguments, ← hrightGroup.sourceRel.arguments]
+        using hsourceArguments
+  ⟩
 
 theorem normalizedFieldGroupSources_outputType_eq_of_sourcePair
     (schema : Schema) (variableDefinitions : List VariableDefinition)
@@ -602,8 +603,7 @@ theorem normalizedFields_fieldsForNameCanMerge_of_childPairs_anyParent
     have hparentSubfields :=
       FieldMerge.fieldsForNameCanMerge_subfields hparentMerge
         hsourceParents objectType
-    simpa [hleftSame.2.2.2, hrightSame.2.2.2] using
-      hparentSubfields
+    simpa [hleftSame.2.2.2, hrightSame.2.2.2] using hparentSubfields
   exact
     fieldsForNameCanMerge_of_sameParent_sameSelection_source schema hschema
       hleftField hrightField hleftSame hrightSame htargetParents

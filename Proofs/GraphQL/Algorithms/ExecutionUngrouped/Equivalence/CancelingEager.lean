@@ -244,9 +244,8 @@ mutual
                           (outOfFuel : Result ResponseValue)
                           (outOfFuel : Result ResponseValue) := by
                       simp [StrongResultAligned, outOfFuel]
-                    simpa [visitSelection, Eager.visitSelection, hallows,
-                      hprevious] using
-                      StrongResultAligned.mergeResponseFieldResult responseName
+                    simpa [visitSelection, Eager.visitSelection, hallows, hprevious]
+                      using StrongResultAligned.mergeResponseFieldResult responseName
                         output hresult
                 | some previous =>
                     have hresult :
@@ -254,9 +253,8 @@ mutual
                           (.ok (previous, 0) : Result ResponseValue)
                           (.ok (previous, 0) : Result ResponseValue) := by
                       exact ⟨rfl, ErrorPresenceEquivalent.refl 0⟩
-                    simpa [visitSelection, Eager.visitSelection, hallows,
-                      hprevious] using
-                      StrongResultAligned.mergeResponseFieldResult responseName
+                    simpa [visitSelection, Eager.visitSelection, hallows, hprevious]
+                      using StrongResultAligned.mergeResponseFieldResult responseName
                         output hresult
             | succ completionFuel =>
                 have hfield :=
@@ -264,8 +262,8 @@ mutual
                     (responseObjectField? responseName output)
                     (executableField fieldName arguments selectionSet)
                     rfl
-                simpa [visitSelection, Eager.visitSelection, hallows] using
-                  StrongResultAligned.mergeResponseFieldResult responseName output
+                simpa [visitSelection, Eager.visitSelection, hallows]
+                  using StrongResultAligned.mergeResponseFieldResult responseName output
                     hfield
     | inlineFragment typeCondition directives selectionSet =>
         cases hallows : selectionDirectivesAllowBool variableValues directives with
@@ -278,8 +276,8 @@ mutual
         | true =>
             cases typeCondition with
             | none =>
-                simpa [visitSelection, Eager.visitSelection, hallows] using
-                  visitSubfields_canceling_eager_aligned schema resolvers
+                simpa [visitSelection, Eager.visitSelection, hallows]
+                  using visitSubfields_canceling_eager_aligned schema resolvers
                     variableValues fuel parentType source hexecute selectionSet
                     output
             | some typeCondition =>
@@ -292,10 +290,9 @@ mutual
                       visitOk]
                 | true =>
                     simpa [visitSelection, Eager.visitSelection, hallows, happly]
-                      using
-                        visitSubfields_canceling_eager_aligned schema resolvers
-                          variableValues fuel parentType source hexecute
-                          selectionSet output
+                      using visitSubfields_canceling_eager_aligned schema resolvers
+                        variableValues fuel parentType source hexecute
+                        selectionSet output
   termination_by selection _output => selectionVisitSize selection
   decreasing_by
     all_goals
@@ -417,11 +414,11 @@ mutual
                     | error eagerTailErrors =>
                         have hcancelingTailPositive :
                             0 < cancelingTailErrors := by
-                          simpa [VisitResultAligned, visitResult,
-                            StrongResultAligned] using htail.1
+                          simpa [VisitResultAligned, visitResult, StrongResultAligned]
+                            using htail.1
                         have heagerTailPositive : 0 < eagerTailErrors := by
-                          simpa [VisitResultAligned, visitResult,
-                            StrongResultAligned] using htail.2
+                          simpa [VisitResultAligned, visitResult, StrongResultAligned]
+                            using htail.2
                         simp [visitSubfields, Eager.visitSubfields,
                           hcancelingHead, heagerHead, hcancelingTail, heagerTail,
                           VisitResultAligned, visitResult, StrongResultAligned,
@@ -441,13 +438,13 @@ mutual
                         cases eagerTailUnit
                         have htailValue :
                             cancelingTailValue = eagerTailValue := by
-                          simpa [VisitResultAligned, visitResult,
-                            StrongResultAligned] using htail.1
+                          simpa [VisitResultAligned, visitResult, StrongResultAligned]
+                            using htail.1
                         have htailErrors :
                             ErrorPresenceEquivalent cancelingTailErrors
                               eagerTailErrors := by
-                          simpa [VisitResultAligned, visitResult,
-                            StrongResultAligned] using htail.2
+                          simpa [VisitResultAligned, visitResult, StrongResultAligned]
+                            using htail.2
                         simp [visitSubfields, Eager.visitSubfields,
                           hcancelingHead, heagerHead, hcancelingTail, heagerTail,
                           VisitResultAligned, visitResult, StrongResultAligned,
@@ -528,8 +525,8 @@ private theorem completeValueList_canceling_eager_aligned
       | none =>
           have hhead :=
             hcomplete itemType selectionSet value previousValues.head?
-          simpa [completeValueList, Eager.completeValueList, hprevious] using
-            StrongResultAligned.combine List.cons hhead htail
+          simpa [completeValueList, Eager.completeValueList, hprevious]
+            using StrongResultAligned.combine List.cons hhead htail
       | some previous =>
           cases previous with
           | null =>
@@ -538,23 +535,23 @@ private theorem completeValueList_canceling_eager_aligned
                     (.ok (.null, 0) : Result ResponseValue)
                     (.ok (.null, 0) : Result ResponseValue) := by
                 exact ⟨rfl, ErrorPresenceEquivalent.refl 0⟩
-              simpa [completeValueList, Eager.completeValueList, hprevious] using
-                StrongResultAligned.combine List.cons hhead htail
+              simpa [completeValueList, Eager.completeValueList, hprevious]
+                using StrongResultAligned.combine List.cons hhead htail
           | scalar scalar =>
               have hhead :=
                 hcomplete itemType selectionSet value previousValues.head?
-              simpa [completeValueList, Eager.completeValueList, hprevious] using
-                StrongResultAligned.combine List.cons hhead htail
+              simpa [completeValueList, Eager.completeValueList, hprevious]
+                using StrongResultAligned.combine List.cons hhead htail
           | object fields =>
               have hhead :=
                 hcomplete itemType selectionSet value previousValues.head?
-              simpa [completeValueList, Eager.completeValueList, hprevious] using
-                StrongResultAligned.combine List.cons hhead htail
+              simpa [completeValueList, Eager.completeValueList, hprevious]
+                using StrongResultAligned.combine List.cons hhead htail
           | list items =>
               have hhead :=
                 hcomplete itemType selectionSet value previousValues.head?
-              simpa [completeValueList, Eager.completeValueList, hprevious] using
-                StrongResultAligned.combine List.cons hhead htail
+              simpa [completeValueList, Eager.completeValueList, hprevious]
+                using StrongResultAligned.combine List.cons hhead htail
 
 private theorem fuelImplementations_canceling_eager_aligned
     {ObjectIdentity : Type}
@@ -601,19 +598,20 @@ private theorem fuelImplementations_canceling_eager_aligned
                   : coerceArgumentValues schema variableValues
                       fieldDefinition.arguments field.arguments with
             | error =>
-                simpa [coerceAndResolveFieldValue, hcoerce] using
-                  handleFieldError_strongResultAligned fieldDefinition.outputType
+                simpa [coerceAndResolveFieldValue, hcoerce]
+                  using handleFieldError_strongResultAligned fieldDefinition.outputType
             | success coercedArguments =>
                 cases hresolved
                       : resolveFieldValue resolvers parentType
                           field.fieldName coercedArguments source with
                 | none =>
-                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
-                      handleFieldError_strongResultAligned fieldDefinition.outputType
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved]
+                      using handleFieldError_strongResultAligned
+                        fieldDefinition.outputType
                 | some resolved =>
-                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
-                      hcomplete fieldDefinition.outputType field.selectionSet resolved
-                        previous
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved]
+                      using hcomplete fieldDefinition.outputType field.selectionSet
+                        resolved previous
       refine {
         completeValue := hcomplete
         completeValueList := hlist
@@ -669,8 +667,8 @@ private theorem fuelImplementations_canceling_eager_aligned
                         ih.visitSubfields runtimeType (.object runtimeType ref)
                           selectionSet (.object [])
                       simpa [completeValue, Eager.completeValue, hincludes,
-                        reuseOrCreateObject?] using
-                          hvisit.catchVisitBubbleAsNull
+                        reuseOrCreateObject?]
+                        using hvisit.catchVisitBubbleAsNull
                     · simp [completeValue, Eager.completeValue, hincludes,
                         StrongResultAligned]
                 | some previous =>
@@ -688,8 +686,8 @@ private theorem fuelImplementations_canceling_eager_aligned
                             ih.visitSubfields runtimeType (.object runtimeType ref)
                               selectionSet (.object fields)
                           simpa [completeValue, Eager.completeValue, hincludes,
-                            reuseOrCreateObject?] using
-                              hvisit.catchVisitBubbleAsNull
+                            reuseOrCreateObject?]
+                            using hvisit.catchVisitBubbleAsNull
                         · simp [completeValue, Eager.completeValue, hincludes,
                             StrongResultAligned]
                     | list items =>
@@ -737,9 +735,8 @@ private theorem fuelImplementations_canceling_eager_aligned
                     have hitems :=
                       ih.completeValueList inner selectionSet values []
                     simpa [completeValue, Eager.completeValue, reuseOrCreateList?]
-                      using
-                        StrongResultAligned.catchBubbleAsNull ResponseValue.list
-                          hitems
+                      using StrongResultAligned.catchBubbleAsNull ResponseValue.list
+                        hitems
                 | some previous =>
                     cases previous with
                     | null =>
@@ -754,10 +751,9 @@ private theorem fuelImplementations_canceling_eager_aligned
                     | list items =>
                         have hitems :=
                           ih.completeValueList inner selectionSet values items
-                        simpa [completeValue, Eager.completeValue,
-                          reuseOrCreateList?] using
-                            StrongResultAligned.catchBubbleAsNull ResponseValue.list
-                              hitems
+                        simpa [completeValue, Eager.completeValue, reuseOrCreateList?]
+                          using StrongResultAligned.catchBubbleAsNull ResponseValue.list
+                            hitems
         | nonNull inner innerIh =>
             intro selectionSet value previous
             cases previous with
@@ -769,16 +765,16 @@ private theorem fuelImplementations_canceling_eager_aligned
                 | scalar scalar =>
                     simp [completeValue, Eager.completeValue, StrongResultAligned]
                 | object fields =>
-                    simpa [completeValue, Eager.completeValue] using
-                      StrongResultAligned.nonNullCompletion
+                    simpa [completeValue, Eager.completeValue]
+                      using StrongResultAligned.nonNullCompletion
                         (innerIh selectionSet value (some (.object fields)))
                 | list items =>
-                    simpa [completeValue, Eager.completeValue] using
-                      StrongResultAligned.nonNullCompletion
+                    simpa [completeValue, Eager.completeValue]
+                      using StrongResultAligned.nonNullCompletion
                         (innerIh selectionSet value (some (.list items)))
             | none =>
-                simpa [completeValue, Eager.completeValue] using
-                  StrongResultAligned.nonNullCompletion
+                simpa [completeValue, Eager.completeValue]
+                  using StrongResultAligned.nonNullCompletion
                     (innerIh selectionSet value none)
       have hlist :=
         completeValueList_canceling_eager_aligned schema resolvers variableValues
@@ -808,19 +804,20 @@ private theorem fuelImplementations_canceling_eager_aligned
                   : coerceArgumentValues schema variableValues
                       fieldDefinition.arguments field.arguments with
             | error =>
-                simpa [coerceAndResolveFieldValue, hcoerce] using
-                  handleFieldError_strongResultAligned fieldDefinition.outputType
+                simpa [coerceAndResolveFieldValue, hcoerce]
+                  using handleFieldError_strongResultAligned fieldDefinition.outputType
             | success coercedArguments =>
                 cases hresolved
                       : resolveFieldValue resolvers parentType
                           field.fieldName coercedArguments source with
                 | none =>
-                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
-                      handleFieldError_strongResultAligned fieldDefinition.outputType
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved]
+                      using handleFieldError_strongResultAligned
+                        fieldDefinition.outputType
                 | some resolved =>
-                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved] using
-                      hcomplete fieldDefinition.outputType field.selectionSet resolved
-                        previous
+                    simpa [coerceAndResolveFieldValue, hcoerce, hresolved]
+                      using hcomplete fieldDefinition.outputType field.selectionSet
+                        resolved previous
       refine {
         completeValue := hcomplete
         completeValueList := hlist
@@ -869,14 +866,12 @@ theorem executeRootSelectionSet_canceling_eager_aligned
           simp [VisitResultAligned, visitResult, StrongResultAligned] at haligned
       | error eagerErrors =>
           have hcancelingPositive : 0 < cancelingErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using
-              haligned.1
+            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.1
           have heagerPositive : 0 < eagerErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using
-              haligned.2
-          simpa [executeRootSelectionSet, Eager.executeRootSelectionSet,
-            hcanceling, heager, RootSelectionResultAlignedEquivalent] using
-              ErrorPresenceEquivalent.of_pos hcancelingPositive heagerPositive
+            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.2
+          simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
+            heager, RootSelectionResultAlignedEquivalent]
+            using ErrorPresenceEquivalent.of_pos hcancelingPositive heagerPositive
   | ok cancelingOk =>
       rcases cancelingOk with ⟨cancelingUnit, cancelingErrors⟩
       cases cancelingUnit
@@ -887,12 +882,10 @@ theorem executeRootSelectionSet_canceling_eager_aligned
           rcases eagerOk with ⟨eagerUnit, eagerErrors⟩
           cases eagerUnit
           have hvalue : cancelingValue = eagerValue := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using
-              haligned.1
+            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.1
           have herrors :
               ErrorPresenceEquivalent cancelingErrors eagerErrors := by
-            simpa [VisitResultAligned, visitResult, StrongResultAligned] using
-              haligned.2
+            simpa [VisitResultAligned, visitResult, StrongResultAligned] using haligned.2
           subst eagerValue
           cases cancelingValue with
           | object fields =>
@@ -900,21 +893,21 @@ theorem executeRootSelectionSet_canceling_eager_aligned
                   fields = fields
                     ∧ ErrorPresenceEquivalent cancelingErrors eagerErrors :=
                 ⟨rfl, herrors⟩
-              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet,
-                hcanceling, heager, RootSelectionResultAlignedEquivalent] using
-                  hresult
+              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
+                heager, RootSelectionResultAlignedEquivalent]
+                using hresult
           | null =>
-              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet,
-                hcanceling, heager, RootSelectionResultAlignedEquivalent] using
-                  ErrorPresenceEquivalent.of_pos (by omega) (by omega)
+              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
+                heager, RootSelectionResultAlignedEquivalent]
+                using ErrorPresenceEquivalent.of_pos (by omega) (by omega)
           | scalar value =>
-              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet,
-                hcanceling, heager, RootSelectionResultAlignedEquivalent] using
-                  ErrorPresenceEquivalent.of_pos (by omega) (by omega)
+              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
+                heager, RootSelectionResultAlignedEquivalent]
+                using ErrorPresenceEquivalent.of_pos (by omega) (by omega)
           | list values =>
-              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet,
-                hcanceling, heager, RootSelectionResultAlignedEquivalent] using
-                  ErrorPresenceEquivalent.of_pos (by omega) (by omega)
+              simpa [executeRootSelectionSet, Eager.executeRootSelectionSet, hcanceling,
+                heager, RootSelectionResultAlignedEquivalent]
+                using ErrorPresenceEquivalent.of_pos (by omega) (by omega)
 
 theorem executeQueryWithFuel_canceling_eager_responseEquivalent
     {ObjectIdentity : Type}

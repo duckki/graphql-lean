@@ -178,12 +178,11 @@ theorem branchesForPath_coherent
       rcases edge with ⟨branch, next⟩
       cases rest with
       | nil =>
-          simpa [branchesForPath, branchesCoherent, Tree.BranchesCoherent]
-            using hpath.1
+          simpa [branchesForPath, branchesCoherent, Tree.BranchesCoherent] using hpath.1
       | cons nextEdge tail =>
           have hbody := ih next hpath.2
-          simpa [branchesForPath, branchesCoherent, Tree.BranchesCoherent] using
-            And.intro hpath.1 (And.intro hbody True.intro)
+          simpa [branchesForPath, branchesCoherent, Tree.BranchesCoherent]
+            using And.intro hpath.1 (And.intro hbody True.intro)
 
 theorem branchesCoherent_append
     (schema : Schema) (inheritedBooleanCondition : List BooleanLiteral)
@@ -340,8 +339,8 @@ theorem finishInsert_branchesCoherent
       cases hfinal : tree.appendAtCondition? retainedPrefix.1 [field] [] with
       | none => simp [retainedPrefix, hmissing, hfinal, htree]
       | some finalTree =>
-          simpa [retainedPrefix, hmissing, hfinal] using
-            tree.appendAtCondition?_branchesCoherent schema
+          simpa [retainedPrefix, hmissing, hfinal]
+            using tree.appendAtCondition?_branchesCoherent schema
               inheritedBooleanCondition retainedPrefix.1 [field] [] finalTree htree
               (by simp [branchesCoherent]) hfinal
   | cons edge rest =>
@@ -361,8 +360,8 @@ theorem finishInsert_branchesCoherent
       | none =>
           simp [retainedPrefix, hmissing, simplePath, addedBranches, hfinal, htree]
       | some finalTree =>
-          simpa [retainedPrefix, hmissing, simplePath, addedBranches, hfinal] using
-            tree.appendAtCondition?_branchesCoherent schema
+          simpa [retainedPrefix, hmissing, simplePath, addedBranches, hfinal]
+            using tree.appendAtCondition?_branchesCoherent schema
               inheritedBooleanCondition retainedPrefix.1 [] addedBranches finalTree
               htree hadded hfinal
 
@@ -414,8 +413,8 @@ theorem Tree.insertField_branchesCoherent
             | none => simpa [retainedPath, hshrunk] using hsourcePrefix
             | some path =>
                 by_cases hend : pathEnd sourcePrefix.1 path = target
-                · simpa [retainedPath, hshrunk, hend] using
-                    pathForBranches?_coherent schema inheritedBooleanCondition
+                · simpa [retainedPath, hshrunk, hend]
+                    using pathForBranches?_coherent schema inheritedBooleanCondition
                       sourcePrefix.1 shrunk path hshrunk
                 · simpa [retainedPath, hshrunk, hend] using hsourcePrefix
           exact finishInsert_branchesCoherent schema inheritedBooleanCondition tree

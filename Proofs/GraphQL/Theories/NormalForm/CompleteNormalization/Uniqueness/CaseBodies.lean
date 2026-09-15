@@ -477,8 +477,8 @@ theorem completeNormalBooleanStem_case_body_eq
     have hvariablesNil : variables = [] := by
       simpa using this
     exact hvariablesNonempty hvariablesNil
-  exact wrapWithBoolCase_case_body_injective_of_length_eq hcaseLength
-    hleftNonempty (by
+  exact wrapWithBoolCase_case_body_injective_of_length_eq hcaseLength hleftNonempty
+    (by
       rw [completeNormalBooleanStem_wrapWithBoolCase_eq hleftStem,
         completeNormalBooleanStem_wrapWithBoolCase_eq hrightStem])
 

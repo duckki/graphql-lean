@@ -73,19 +73,19 @@ theorem annotatedGroupedSelections_addFieldWithResponseName_perm
               = group.selections ++ [field.toSelection responseName] := by
           simp [FieldGroup.selections, FieldGroup.fields, List.map_append, hequal]
         rw [hselections, List.map_append]
-        simpa [List.append_assoc] using
-          List.Perm.append_left (group.selections.map (condition, ·))
+        simpa [List.append_assoc]
+          using List.Perm.append_left (group.selections.map (condition, ·))
             (List.perm_append_comm
               (l₁ := [(condition, field.toSelection responseName)])
-              (l₂ := rest.flatMap
-                (fun candidate => candidate.selections.map (condition, ·))))
+              (l₂ :=
+                rest.flatMap (fun candidate => candidate.selections.map (condition, ·))))
       · have hfalse : (responseName == group.responseName) = false := by
           cases hvalue : responseName == group.responseName
           · rfl
           · contradiction
         simp [addFieldWithResponseName, hfalse]
-        simpa [List.append_assoc] using
-          ih.append_left (group.selections.map (condition, ·))
+        simpa [List.append_assoc]
+          using ih.append_left (group.selections.map (condition, ·))
 
 theorem Tree.localFieldEntries_addField_perm (tree : Tree) (field : NamedField)
     : ((addFieldToGroups field tree.fields).flatMap
@@ -96,14 +96,14 @@ theorem Tree.localFieldEntries_addField_perm (tree : Tree) (field : NamedField)
   have hgroups :=
     annotatedGroupedSelections_addFieldWithResponseName_perm tree.condition
       field.responseName field.field tree.fields
-  exact (hgroups.append_right (branchFieldEntries tree.branches)).trans (by
-    simpa [NamedField.toSelection, List.append_assoc] using
-      List.Perm.append_left
-        (tree.fields.flatMap
-          (fun group => group.selections.map (tree.condition, ·)))
-        (List.perm_append_comm
-          (l₁ := [(tree.condition, field.toSelection)])
-          (l₂ := branchFieldEntries tree.branches)))
+  exact (hgroups.append_right (branchFieldEntries tree.branches)).trans
+    (by
+      simpa [NamedField.toSelection, List.append_assoc]
+        using List.Perm.append_left
+          (tree.fields.flatMap (fun group => group.selections.map (tree.condition, ·)))
+          (List.perm_append_comm
+            (l₁ := [(tree.condition, field.toSelection)])
+            (l₂ := branchFieldEntries tree.branches)))
 
 set_option maxRecDepth 10000 in
 mutual
@@ -130,10 +130,9 @@ mutual
         have hrest :=
           branchFieldEntries_modifyBranchesAtCondition?_perm target modify added
             tree.branches modifiedBranches hmodify hbranches
-        simpa [List.append_assoc] using
-          hrest.append_left
-            (tree.fields.flatMap
-              (fun group => group.selections.map (tree.condition, ·)))
+        simpa [List.append_assoc]
+          using hrest.append_left
+            (tree.fields.flatMap (fun group => group.selections.map (tree.condition, ·)))
   termination_by sizeOf tree
   decreasing_by
     cases tree
@@ -174,10 +173,10 @@ mutual
           · rename_i modifiedRest hrest
             cases hresult
             rw [branchFieldEntries, branchFieldEntries]
-            simpa [List.append_assoc] using
-              (branchFieldEntries_modifyBranchesAtCondition?_perm target modify
-                added rest modifiedRest hmodify hrest).append_left
-                  branch.body.fieldEntries
+            simpa [List.append_assoc]
+              using (branchFieldEntries_modifyBranchesAtCondition?_perm target modify
+                      added rest modifiedRest hmodify hrest).append_left
+                branch.body.fieldEntries
   termination_by sizeOf branches
   decreasing_by
     all_goals
@@ -219,8 +218,8 @@ theorem Tree.fieldEntries_appendFieldAtCondition_perm
         [(target, field.toSelection)] tree modifiedTree
       · intro node hequal
         subst target
-        simpa [modify, Tree.fieldEntries] using
-          Tree.localFieldEntries_addField_perm node field
+        simpa [modify, Tree.fieldEntries]
+          using Tree.localFieldEntries_addField_perm node field
       · exact hresult
 
 theorem Tree.fieldEntries_appendBranchesAtCondition_perm
@@ -389,8 +388,8 @@ theorem Tree.fieldEntries_insertField_perm
                 exact hretainedPrefixContains
               simp [happend] at hsome
           | some modifiedTree =>
-              simpa [hequal] using
-                fieldEntries_appendFieldAtCondition?_perm tree retainedPrefix.1
+              simpa [hequal]
+                using fieldEntries_appendFieldAtCondition?_perm tree retainedPrefix.1
                   field modifiedTree happend
       | cons head rest =>
           let simplePath := erasePathCycles (head :: rest)
@@ -495,12 +494,13 @@ theorem insertSelections_fieldEntries_perm
                           inheritedBooleanCondition (branches ++ nextBranches)
                           nextCondition field]
                         exact hcondition)
-                  exact hrest.trans (by
-                    simpa [treeAfter, field, NamedField.toSelection, Field.toSelection,
-                      List.append_assoc]
-                      using hinsert.append_right
-                        (collectConditionEntries schema currentParentType
-                          inheritedBooleanCondition currentCondition rest))
+                  exact hrest.trans
+                    (by
+                      simpa [treeAfter, field, NamedField.toSelection, Field.toSelection,
+                        List.append_assoc]
+                        using hinsert.append_right
+                          (collectConditionEntries schema currentParentType
+                            inheritedBooleanCondition currentCondition rest))
       | inlineFragment typeCondition directives childSelectionSet =>
           subst selection
           rw [insertSelections, collectConditionEntries]
@@ -552,11 +552,12 @@ theorem insertSelections_fieldEntries_perm
                     insertSelections_fieldEntries_perm schema currentParentType
                       inheritedBooleanCondition currentCondition branches treeAfter
                       rest hrestCondition
-                  exact hrest.trans (by
-                    simpa [treeAfter, List.append_assoc] using
-                      hchild.append_right
-                        (collectConditionEntries schema currentParentType
-                          inheritedBooleanCondition currentCondition rest))
+                  exact hrest.trans
+                    (by
+                      simpa [treeAfter, List.append_assoc]
+                        using hchild.append_right
+                          (collectConditionEntries schema currentParentType
+                            inheritedBooleanCondition currentCondition rest))
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals
@@ -575,8 +576,8 @@ theorem ofSelectionSetInScope_fieldEntries_perm
         (collectConditionEntries schema parentType inheritedBooleanCondition
           (rootCondition schema parentType) selectionSet) := by
   unfold ofSelectionSetInScope
-  simpa [Tree.root, Tree.fieldEntries, branchFieldEntries] using
-    insertSelections_fieldEntries_perm schema parentType
+  simpa [Tree.root, Tree.fieldEntries, branchFieldEntries]
+    using insertSelections_fieldEntries_perm schema parentType
       inheritedBooleanCondition (rootCondition schema parentType) []
       (Tree.root (rootCondition schema parentType)) selectionSet
       (by simp [conditionForBranches?, Tree.root])
@@ -608,8 +609,8 @@ theorem collectFlatFields_perm_flatten_collectFields
         (flattenExecutableFieldGroups
           (collectFields schema variableValues parentType source selectionSet)) := by
   simpa [ConditionTree.flattenExecutableFieldGroups,
-    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-    Execution.FieldGroups.collectFlatFields_perm_flatten_collectFields schema
+    Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+    using Execution.FieldGroups.collectFlatFields_perm_flatten_collectFields schema
       variableValues parentType source selectionSet
 
 theorem extraction_runtimeFields_perm
@@ -695,8 +696,8 @@ theorem extracted_runtimeGroups_permutationEquivalent
       (NormalForm.collectFields_namesNodup schema variableValues
         executionParentType (.object runtimeType ref) selectionSet)
   · simpa [ConditionTree.flattenExecutableFieldGroups,
-      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-      extraction_runtimeGroups_occurrence_equivalent schema parentType
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+      using extraction_runtimeGroups_occurrence_equivalent schema parentType
         inheritedBooleanCondition selectionSet variableValues executionParentType
         runtimeType ref hinherited hpossible
 

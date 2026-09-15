@@ -87,9 +87,13 @@ theorem subtractBooleanConditions_exists_allows
   rcases hcondition with ⟨condition, hmember, hallows⟩
   rcases subtractBooleanCondition_exists_allows variableValues condition cover
       hallows hcover hcomplete with ⟨remainder, hremainder, hallows⟩
-  exact ⟨remainder, by
-    simp [subtractBooleanConditions]
-    exact ⟨condition, hmember, hremainder⟩, hallows⟩
+  exact ⟨
+    remainder,
+    by
+      simp [subtractBooleanConditions]
+      exact ⟨condition, hmember, hremainder⟩,
+    hallows
+  ⟩
 
 theorem uncoveredBooleanConditions_exists_allows (variableValues : VariableValues)
     : ∀ conditions covers,

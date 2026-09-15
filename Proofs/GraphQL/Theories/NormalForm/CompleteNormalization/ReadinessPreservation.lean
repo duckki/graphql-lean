@@ -346,8 +346,8 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
           have hnormalizedChild :
               selectionSetArgumentsCoercible schema variableValues returnType
                 (normalizeSelectionSet schema returnType mergedSubselections) := by
-            simpa [normalizedSubselections, hreturnObject] using
-              hnormalizedField.2 returnType hinclude
+            simpa [normalizedSubselections, hreturnObject]
+              using hnormalizedField.2 returnType hinclude
           exact hmerged [returnType] hreturnObjectType (by simp)
             hruntimeStack (hmergedSemanticReady returnType hruntimeMem)
             (hmergedSource returnType hruntimeMem)
@@ -369,8 +369,8 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
                 selectionSetArgumentsCoercible schema variableValues runtimeType
                   (possibleTypeNormalizations schema
                     (schema.getPossibleTypes returnType) mergedSubselections) := by
-              simpa [normalizedSubselections, hreturnObjectFalse] using
-                hnormalizedField.2 runtimeType hinclude
+              simpa [normalizedSubselections, hreturnObjectFalse]
+                using hnormalizedField.2 runtimeType hinclude
             have hnormalizedChild :=
               selectionSetArgumentsCoercible_possibleTypeNormalizations_branch
                 schema variableValues runtimeType (schema.getPossibleTypes returnType)
@@ -439,8 +439,8 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
             subselections := by
-        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible] using
-          hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have htailFeasible := selectionSetTypeConditionFeasible_tail hfeasible
       have hbodyTailFeasible :=
         selectionSetTypeConditionFeasible_append hbodyFeasible htailFeasible
@@ -450,10 +450,12 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
       have hparts :=
         (selectionSetArgumentsCoercible_append schema variableValues parentType
           subselections rest).1 happendCoercible
-      exact ⟨by
+      exact ⟨
+        by
           intro _hdirectives _htypeCondition
           exact hparts.1,
-        hparts.2⟩
+        hparts.2
+      ⟩
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
       intro typeConditions hobject hparent hstack hready hsource hmerge
@@ -504,8 +506,8 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType
             (typeCondition :: typeConditions) subselections := by
-        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible] using
-          hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have htailFeasible := selectionSetTypeConditionFeasible_tail hfeasible
       have hbodyFeasibleOuter :=
         selectionSetTypeConditionFeasible_of_stack_subset schema
@@ -521,10 +523,12 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
       have hparts :=
         (selectionSetArgumentsCoercible_append schema variableValues parentType
           subselections rest).1 happendCoercible
-      exact ⟨by
+      exact ⟨
+        by
           intro _hdirectives _htypeCondition
           exact hparts.1,
-        hparts.2⟩
+        hparts.2
+      ⟩
   | case6 parentType rest typeCondition directives subselections hoverlap hrest =>
       intro typeConditions hobject hparent hstack hready hsource hmerge
         hfree hfeasible hnormalized
@@ -546,8 +550,8 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType
             (typeCondition :: typeConditions) subselections := by
-        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible] using
-          hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have hbodyContainsFalse :
           ¬ selectionSetContainsTypeConditionFeasibleField schema
             (typeCondition :: typeConditions) subselections := by
@@ -564,10 +568,12 @@ theorem selectionSetArgumentsCoercible_of_normalizeFilteredSelectionSet
         selectionSetArgumentsCoercible_of_no_feasible_field schema variableValues
           parentType (typeCondition :: typeConditions) subselections hbodyFeasible
           hbodyContainsFalse
-      exact ⟨by
+      exact ⟨
+        by
           intro _hdirectives _htypeCondition
           exact hbodyCoercible,
-        hrestCoercible⟩
+        hrestCoercible
+      ⟩
 
 theorem selectionSetArgumentsCoercible_filterSelectionSetBoolCase
     (schema : Schema) (variableValues : Execution.VariableValues)
@@ -1176,7 +1182,9 @@ theorem normalizeBoolCaseForType_argumentsCoercible_of_completeRoot
         completeNormalBoolCase_of_mem_allBoolCases
           hvariablesNodup hcase
       exact selectionSetArgumentsCoercible_of_wrapWithBoolCase schema variableValues
-        parentType (selection :: rest) boolCase
+        parentType
+        (selection :: rest)
+        boolCase
         (by
           intro varName value hpair
           exact inputValueBoolean?_eq_of_agrees_completeNormalBoolCase

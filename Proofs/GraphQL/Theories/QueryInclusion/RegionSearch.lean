@@ -502,10 +502,14 @@ theorem executableGroupsIncludeBool_transport
                         ((argumentsSyntacticallyEquivalentBool_iff _ _).mp hguardedArguments)
                         hrightArguments)
                   simp only [Bool.and_eq_true]
-                  refine ⟨hname,
-                    ⟨beq_iff_eq.mpr hruntimeField,
-                      (argumentsSyntacticallyEquivalentBool_iff _ _).mpr hruntimeArguments⟩,
-                    ?_⟩
+                  refine ⟨
+                    hname,
+                    ⟨
+                      beq_iff_eq.mpr hruntimeField,
+                      (argumentsSyntacticallyEquivalentBool_iff _ _).mpr hruntimeArguments
+                    ⟩,
+                    ?_
+                  ⟩
                   have hlookup : schema.lookupField parentType
                       runtimeRightHead.fieldName
                     = schema.lookupField parentType
@@ -539,13 +543,37 @@ theorem executableGroupsIncludeBool_transport
                             (guardedLeftHead :: guardedLeftRest)
                             (runtimeLeftHead :: runtimeLeftRest)
                             (guardedRightHead :: guardedRightRest)
-                            (runtimeRightHead :: runtimeRightRest)
-                            hguardedLeftGroup hruntimeLeftGroup hguardedRightGroup hruntimeRightGroup
+                            (runtimeRightHead :: runtimeRightRest) hguardedLeftGroup
+                            hruntimeLeftGroup hguardedRightGroup hruntimeRightGroup
                             (beq_iff_eq.mp hname) hleftFieldsPerm hrightFieldsPerm'
-                            ⟨guardedLeftHead, definition, by simp, hguardedLeftLookup, rfl⟩
-                            ⟨runtimeLeftHead, definition, by simp, hruntimeLeftLookup, rfl⟩
-                            ⟨guardedRightHead, definition, by simp, hguardedRightLookup, rfl⟩
-                            ⟨runtimeRightHead, definition, by simp, hruntimeRightLookup, rfl⟩
+                            ⟨
+                              guardedLeftHead,
+                              definition,
+                              by simp,
+                              hguardedLeftLookup,
+                              rfl
+                            ⟩
+                            ⟨
+                              runtimeLeftHead,
+                              definition,
+                              by simp,
+                              hruntimeLeftLookup,
+                              rfl
+                            ⟩
+                            ⟨
+                              guardedRightHead,
+                              definition,
+                              by simp,
+                              hguardedRightLookup,
+                              rfl
+                            ⟩
+                            ⟨
+                              runtimeRightHead,
+                              definition,
+                              by simp,
+                              hruntimeRightLookup,
+                              rfl
+                            ⟩
                             hguardedChild
 
 theorem executableGroupsIncludeBool_transport_of_ready
@@ -705,8 +733,7 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                               have hchild := htask _ htaskEq
                               simp only [hcomposite, if_true, Bool.true_and,
                                 Bool.or_eq_true]
-                              exact Or.inl (by
-                                simpa [hcomposite] using hchild)
+                              exact Or.inl (by simpa [hcomposite] using hchild)
 
 theorem executableGroupIncludedBool_eq_false_of_name_not_mem
     (schema : Schema) (parentType : Name)
@@ -855,19 +882,29 @@ theorem matchInclusionChildTask?_exists_of_include
                   · subst candidate
                     cases hcomposite : definition.outputType.isCompositeBool schema with
                     | false =>
-                        exact ⟨.leaf, by
-                          simp [matchInclusionChildTask?, hwitnessName, hcompatible,
-                            hlookup, hcomposite]⟩
+                        exact ⟨
+                          .leaf,
+                          by
+                            simp [matchInclusionChildTask?, hwitnessName, hcompatible,
+                              hlookup, hcomposite]
+                        ⟩
                     | true =>
-                        exact ⟨.composite {
-                            possibleTypes := schema.getPossibleTypes
-                              definition.outputType.namedType
-                            leftSelectionSet := executableFieldsMergedSelectionSet
-                              (witnessField :: witnessRest)
-                            rightSelectionSet := executableFieldsMergedSelectionSet
-                              (rightField :: rightRest) }, by
-                          simp [matchInclusionChildTask?, hwitnessName, hcompatible,
-                            hlookup, hcomposite]⟩
+                        exact ⟨
+                          .composite
+                            {
+                              possibleTypes :=
+                                schema.getPossibleTypes definition.outputType.namedType
+                              leftSelectionSet :=
+                                executableFieldsMergedSelectionSet
+                                  (witnessField :: witnessRest)
+                              rightSelectionSet :=
+                                executableFieldsMergedSelectionSet
+                                  (rightField :: rightRest)
+                            },
+                          by
+                            simp [matchInclusionChildTask?, hwitnessName, hcompatible,
+                              hlookup, hcomposite]
+                        ⟩
                   · have hcandidateName : candidate.1 ≠ rightName := by
                       intro heq
                       apply hnodupParts.1
@@ -910,8 +947,11 @@ theorem inclusionChildTasks?_exists_of_include
       | leaf =>
           exact ⟨tasks, by simp [inclusionChildTasks?, htask, htasks]⟩
       | composite childTask =>
-          exact ⟨childTask :: tasks, by
-            simp [inclusionChildTasks?, htask, htasks]⟩
+          exact ⟨
+            childTask :: tasks,
+            by
+              simp [inclusionChildTasks?, htask, htasks]
+          ⟩
 
 theorem inclusionChildTasks?_children_true
     (schema : Schema) (parentType : Name)
@@ -1171,8 +1211,8 @@ theorem inclusionChildTasksForParentTypes?_exists_of_include
       · simp [inclusionChildTasksForParentTypes?, parentLeftGroups, parentRightGroups,
           hparentTasks, hrestTasks]
       · apply deduplicateInclusionChildTasks_all
-        simpa [List.all_append, Bool.and_eq_true] using
-          And.intro hparentChildren hrestChildren
+        simpa [List.all_append, Bool.and_eq_true]
+          using And.intro hparentChildren hrestChildren
 
 theorem group_eq_of_mem_of_mem_of_keysNodup {groups : List (Name × List ExecutableField)}
     {left right : Name × List ExecutableField} (hnodup : (groups.map Prod.fst).Nodup)
@@ -1279,10 +1319,11 @@ theorem executableGroupsIncludeBool_child_at_runtime
             SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
               fieldType.namedType childRuntimeType hchildRuntime
           rw [selectionSetIncludesBoolWithFuel.eq_def, List.all_eq_true] at hchildSelectionCheck
-          exact hchildSelectionCheck childRuntimeType (by
-            have hself :=
-              NormalForm.object_typeIncludesObjectBool_self schema hchildObject
-            simpa [Schema.typeIncludesObjectBool] using List.contains_iff_mem.mp hself)
+          exact hchildSelectionCheck childRuntimeType
+            (by
+              have hself :=
+                NormalForm.object_typeIncludesObjectBool_self schema hchildObject
+              simpa [Schema.typeIncludesObjectBool] using List.contains_iff_mem.mp hself)
 
 theorem mem_splitPossibleTypeRegion
     {region allowed : List Name} {runtimeType : Name}

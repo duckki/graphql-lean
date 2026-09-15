@@ -571,8 +571,8 @@ theorem resultStatus_completeResolvedValue_nonNull_eq_ok_of_inner_status_eq_ok_o
   | some previous =>
       simp [completeResolvedValue, hreuse, resultStatus, visitOk]
   | none =>
-      simpa [completeResolvedValue, hreuse] using
-        resultStatus_nonNullCompletion_eq_ok_of_status_eq_ok_of_nonNull
+      simpa [completeResolvedValue, hreuse]
+        using resultStatus_nonNullCompletion_eq_ok_of_status_eq_ok_of_nonNull
           (completeResolvedValue schema resolvers variableValues depth inner
             selectionSet resolved previous?)
           hstatus hnonNull
@@ -2777,14 +2777,14 @@ theorem completeValueList_append_result_eq_spec_of_each
                             (prefixFields ++ [later]) value =
                           .error headErrors := by
                         simpa [hhead, hrightHead, resultValueOrNull,
-                          GraphQL.Execution.Result.combine] using hheadAppend.symm
+                          GraphQL.Execution.Result.combine]
+                          using hheadAppend.symm
                       have htailAppend' :
                           GraphQL.Execution.completeValueList schema resolvers
                             variableValues depth itemType
                             (prefixFields ++ [later]) rest =
                           .error tailErrors := by
-                        simpa [htail, GraphQL.Execution.Result.combine] using
-                          ih.symm
+                        simpa [htail, GraphQL.Execution.Result.combine] using ih.symm
                       simp [GraphQL.Execution.completeValueList, hhead, htail,
                         hheadAppend', htailAppend', Result.combine,
                         GraphQL.Execution.Result.combine]
@@ -2809,7 +2809,8 @@ theorem completeValueList_append_result_eq_spec_of_each
                             (prefixFields ++ [later]) value =
                           .error headErrors := by
                         simpa [hhead, hrightHead, resultValueOrNull,
-                          GraphQL.Execution.Result.combine] using hheadAppend.symm
+                          GraphQL.Execution.Result.combine]
+                          using hheadAppend.symm
                       have htailAppend' :
                           GraphQL.Execution.completeValueList schema resolvers
                             variableValues depth itemType
@@ -2886,7 +2887,8 @@ theorem completeValueList_append_result_eq_spec_of_each
                           .ok (mergeResponse headValue rightHeadValue,
                             headErrors) := by
                         simpa [hhead, hrightHead, resultValueOrNull,
-                          GraphQL.Execution.Result.combine] using hheadAppend.symm
+                          GraphQL.Execution.Result.combine]
+                          using hheadAppend.symm
                       simp [GraphQL.Execution.completeValueList, hhead, htail,
                         hheadAppend', htailAppend', Result.combine,
                         GraphQL.Execution.Result.combine]
@@ -2937,7 +2939,8 @@ theorem completeValueList_append_result_eq_spec_of_each
                           .ok (mergeResponse headValue rightHeadValue,
                             headErrors) := by
                         simpa [hhead, hrightHead, resultValueOrNull,
-                          GraphQL.Execution.Result.combine] using hheadAppend.symm
+                          GraphQL.Execution.Result.combine]
+                          using hheadAppend.symm
                       cases hrightTail
                             : completeValueList schema resolvers variableValues
                                 depth itemType later.selectionSet rest tailValues with
@@ -2997,8 +3000,8 @@ theorem completeValueList_append_result_eq_spec_of_each
                               rw [completeValueList_cons_previous, hrightTail]
                               rw [GraphQL.Execution.completeValueList,
                                 hheadAppend', htailAppend', hrightTail]
-                              simpa [GraphQL.Execution.Result.combine,
-                                Result.combine] using hcombinedList
+                              simpa [GraphQL.Execution.Result.combine, Result.combine]
+                                using hcombinedList
                           | succ rightTailErrors =>
                               simp [hrightTail, resultStatus, visitOk] at htailStatus'
                   | succ rightHeadErrors =>

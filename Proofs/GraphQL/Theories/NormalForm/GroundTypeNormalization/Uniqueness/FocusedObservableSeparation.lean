@@ -343,25 +343,24 @@ theorem
           hrightNormal hobject hrightMem hleftNoResponseName
   | objectFieldNameLeaf _hobjectDiff hleftMem hrightMem hleftLookup
       hrightLookup hleftLeaf hrightLeaf hfieldNameDiff =>
-      exact
-        not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_leaf
-          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-          hrightNormal hobject hleftMem hrightMem
-          (by
-            intro candidate hcandidate
-            rw [hleftLookup] at hcandidate
-            have hcandidateEq : candidate = _ :=
-              Option.some.inj hcandidate.symm
-            subst candidate
-            exact hleftLeaf)
-          (by
-            intro candidate hcandidate
-            rw [hrightLookup] at hcandidate
-            have hcandidateEq : candidate = _ :=
-              Option.some.inj hcandidate.symm
-            subst candidate
-            exact hrightLeaf)
-          hfieldNameDiff
+      exact not_selectionSetsDataEquivalent_of_valid_normal_object_fieldName_diff_leaf
+        hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal hobject hleftMem hrightMem
+        (by
+          intro candidate hcandidate
+          rw [hleftLookup] at hcandidate
+          have hcandidateEq : candidate = _ :=
+            Option.some.inj hcandidate.symm
+          subst candidate
+          exact hleftLeaf)
+        (by
+          intro candidate hcandidate
+          rw [hrightLookup] at hcandidate
+          have hcandidateEq : candidate = _ :=
+            Option.some.inj hcandidate.symm
+          subst candidate
+          exact hrightLeaf)
+        hfieldNameDiff
   | objectFieldNameCompositeLeft _hobjectDiff hleftMem hrightMem
       hleftLookup hrightLookup hleftComposite hleftObservable
       hfieldNameDiff =>
@@ -376,45 +375,45 @@ theorem
           hrightComposite hrightObservable hfieldNameDiff
   | objectArgumentsLeaf _hobjectDiff hleftMem hrightMem hlookup hleaf
       hargumentsDiff =>
-      exact
-        not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_leaf
-          hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal
-          hrightNormal hobject hleftMem hrightMem
-          (by
-            intro candidate hcandidate
-            rw [hlookup] at hcandidate
-            have hcandidateEq : candidate = _ :=
-              Option.some.inj hcandidate.symm
-            subst candidate
-            exact hleaf)
-          (by
-            rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
-              ⟨leftDefinition, hleftLookup, hleftArgumentsValid, _⟩
-            rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
-              ⟨rightDefinition, hrightLookup, hrightArgumentsValid, _⟩
-            have hdefinitions : rightDefinition = leftDefinition := by
-              rw [hleftLookup] at hrightLookup
-              exact (Option.some.inj hrightLookup).symm
-            subst rightDefinition
-            have hleftSuccess :=
-              selectionSetArgumentsCoercible_field_success_of_directiveFree
-                hleftCoercion hleftFree hleftMem hleftLookup
-            have hrightSuccess :=
-              selectionSetArgumentsCoercible_field_success_of_directiveFree
-                hrightCoercion hrightFree hrightMem hrightLookup
-            intro hcoerced
-            apply hcoercedArgumentsDiff hargumentsDiff
-            cases hleftResult : Execution.coerceArgumentValues schema []
-                leftDefinition.arguments _ with
-            | error => simp [hleftResult] at hleftSuccess
-            | success leftCoerced =>
-                cases hrightResult : Execution.coerceArgumentValues schema []
-                    leftDefinition.arguments _ with
-                | error => simp [hrightResult] at hrightSuccess
-                | success rightCoerced =>
-                    simpa [Execution.ArgumentCoercionResult.equivalent,
-                      Execution.coercedArgumentsForField, hleftLookup, hleftResult,
-                      hrightResult] using hcoerced)
+      exact not_selectionSetsDataEquivalent_of_valid_normal_object_arguments_diff_leaf
+        hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal hobject hleftMem hrightMem
+        (by
+          intro candidate hcandidate
+          rw [hlookup] at hcandidate
+          have hcandidateEq : candidate = _ :=
+            Option.some.inj hcandidate.symm
+          subst candidate
+          exact hleaf)
+        (by
+          rcases selectionSetValid_field_lookup_of_mem hleftValid hleftMem with
+            ⟨leftDefinition, hleftLookup, hleftArgumentsValid, _⟩
+          rcases selectionSetValid_field_lookup_of_mem hrightValid hrightMem with
+            ⟨rightDefinition, hrightLookup, hrightArgumentsValid, _⟩
+          have hdefinitions : rightDefinition = leftDefinition := by
+            rw [hleftLookup] at hrightLookup
+            exact (Option.some.inj hrightLookup).symm
+          subst rightDefinition
+          have hleftSuccess :=
+            selectionSetArgumentsCoercible_field_success_of_directiveFree
+              hleftCoercion hleftFree hleftMem hleftLookup
+          have hrightSuccess :=
+            selectionSetArgumentsCoercible_field_success_of_directiveFree
+              hrightCoercion hrightFree hrightMem hrightLookup
+          intro hcoerced
+          apply hcoercedArgumentsDiff hargumentsDiff
+          cases hleftResult
+                : Execution.coerceArgumentValues schema [] leftDefinition.arguments _ with
+          | error => simp [hleftResult] at hleftSuccess
+          | success leftCoerced =>
+              cases hrightResult
+                    : Execution.coerceArgumentValues schema []
+                        leftDefinition.arguments _ with
+              | error => simp [hrightResult] at hrightSuccess
+              | success rightCoerced =>
+                  simpa [Execution.ArgumentCoercionResult.equivalent,
+                    Execution.coercedArgumentsForField, hleftLookup, hleftResult,
+                    hrightResult] using hcoerced)
   | objectArgumentsCompositeLeft _hobjectDiff hleftMem hrightMem hlookup
       hcomposite hobservable hargumentsDiff =>
       exact

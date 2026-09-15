@@ -662,9 +662,10 @@ theorem operationDefinitionValid_toSpec_of_inlined
   rw [hfragments] at hselectionValid hmerge
   simp [Translate.reduceOperation,
     GraphQL.Validation.operationDefinitionValid]
-  exact ⟨hrootComposite, hvariables,
-    reduceSelectionSet_nonempty_of_inlined hselectionNonempty
-      hselectionInlined,
+  exact ⟨
+    hrootComposite,
+    hvariables,
+    reduceSelectionSet_nonempty_of_inlined hselectionNonempty hselectionInlined,
     selectionSetValid_toSpec_of_inlined hselectionValid hselectionInlined,
     fieldsInSetCanMerge_toSpec_of_inlined hselectionInlined hmerge,
     by
@@ -673,7 +674,8 @@ theorem operationDefinitionValid_toSpec_of_inlined
       rw [hfragments] at husedName
       simpa [GraphQL.Validation.operationVariablesUsed,
         selectionSetVariables_toSpec_of_inlined operation.selectionSet
-          hselectionInlined] using husedName⟩
+          hselectionInlined] using husedName
+  ⟩
 
 end TranslateValidation
 end Validation

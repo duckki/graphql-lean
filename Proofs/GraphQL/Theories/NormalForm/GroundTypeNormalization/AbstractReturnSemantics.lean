@@ -113,8 +113,7 @@ theorem collectFields_possibleTypeNormalizations_not_mem_eq_nil
         exact hobjects candidate (List.mem_cons_of_mem objectType hcandidate)
       cases hnormalized : normalizeSelectionSet schema objectType selectionSet with
       | nil =>
-          simpa [possibleTypeNormalizations, hnormalized] using
-            ih hrestObjects hrestNotin
+          simpa [possibleTypeNormalizations, hnormalized] using ih hrestObjects hrestNotin
       | cons selection restNormalized =>
           rw [show possibleTypeNormalizations schema (objectType :: rest)
               selectionSet =
@@ -304,14 +303,13 @@ theorem executeSelectionSet_possibleTypeNormalizations_runtime_branch
                 executeSelectionSet_append_possibleTypeNormalizations_not_mem
                   schema resolvers variableValues depth runtimeType (ref := ref)
                   rest selectionSet [] hrestObjects hrestNotin
-            simpa [possibleTypeNormalizations, hnormalized] using
-              hrestEq.trans hnilEq
+            simpa [possibleTypeNormalizations, hnormalized] using hrestEq.trans hnilEq
           · have hrestMem : runtimeType ∈ rest := by
               cases List.mem_cons.mp hmem with
               | inl hmemHead => exact False.elim (heq hmemHead.symm)
               | inr hmemRest => exact hmemRest
-            simpa [possibleTypeNormalizations, hnormalized] using
-              ih hrestObjects hrestNodup hrestMem
+            simpa [possibleTypeNormalizations, hnormalized]
+              using ih hrestObjects hrestNodup hrestMem
       | cons selection restNormalized =>
           rw [show possibleTypeNormalizations schema (objectType :: rest)
               selectionSet =

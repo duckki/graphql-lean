@@ -523,7 +523,8 @@ theorem fieldsInSetCanMerge_fieldHead_merged_pair_of_canMerge_object_lookupValid
       responseName objectType sourceSet leftGroup rightGroup hobject hmerge
       hscopedOf
   simpa [leftGroup, rightGroup, leftHead, rightHead, mergeSelectionSets,
-    Selection.subselections, sourceSet] using hgroups
+    Selection.subselections, sourceSet]
+    using hgroups
 
 theorem fieldsInSetCanMerge_field_cons_pair_of_lookup_none
     (schema : Schema) (parentType responseName fieldName : Name)

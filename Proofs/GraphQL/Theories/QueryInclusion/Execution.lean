@@ -198,24 +198,25 @@ private theorem lookupVariableValue?_foldlDefaults_at_definition
       · simp only [List.foldl_cons]
         cases hlookup : lookupVariableValue? variableValues definition.name with
         | some value =>
-            simpa [hlookup] using
-              lookupVariableValue?_foldlDefaults_of_name_not_mem rest variableValues
+            simpa [hlookup]
+              using lookupVariableValue?_foldlDefaults_of_name_not_mem rest variableValues
                 definition.name hnodup.1
         | none =>
             cases hdefault : definition.defaultValue with
             | none =>
-                simpa [hlookup, hdefault] using
-                  lookupVariableValue?_foldlDefaults_of_name_not_mem rest variableValues
-                    definition.name hnodup.1
+                simpa [hlookup, hdefault]
+                  using lookupVariableValue?_foldlDefaults_of_name_not_mem rest
+                    variableValues definition.name hnodup.1
             | some defaultValue =>
                 have hadded : lookupVariableValue?
                     ((definition.name, defaultValue) :: variableValues)
                     definition.name = some defaultValue := by
                   simp [lookupVariableValue?]
-                simpa [hlookup, hdefault] using
-                  (lookupVariableValue?_foldlDefaults_of_name_not_mem rest
-                    ((definition.name, defaultValue) :: variableValues)
-                    definition.name hnodup.1).trans hadded
+                simpa [hlookup, hdefault]
+                  using (lookupVariableValue?_foldlDefaults_of_name_not_mem rest
+                          ((definition.name, defaultValue) :: variableValues)
+                          definition.name hnodup.1).trans
+                    hadded
       · simp only [List.foldl_cons]
         let nextValues :=
           match lookupVariableValue? variableValues candidate.name with
@@ -724,15 +725,15 @@ theorem selectionSetIncludesBoolWithFuel_groups
                     collectFields schema leftValues parentType (.object runtimeType ())
                       leftSelectionSet := by
                 simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
-                  leftValues parentType runtimeType () leftSelectionSet] using
-                  hleftForValues
+                  leftValues parentType runtimeType () leftSelectionSet]
+                  using hleftForValues
               have hrightGroup :
                   (rightName, rightField :: rightRest) ∈
                     collectFields schema rightValues parentType (.object runtimeType ())
                       rightSelectionSet := by
                 simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
-                  rightValues parentType runtimeType () rightSelectionSet] using
-                  hrightForValues
+                  rightValues parentType runtimeType () rightSelectionSet]
+                  using hrightForValues
               have hleftFieldCollected : leftField ∈ collectedExecutableFields
                     (collectFields schema leftValues parentType
                       (.object runtimeType ()) leftSelectionSet) :=
@@ -802,10 +803,12 @@ theorem selectionSetIncludesBoolWithFuel_groups
                   collectFields_executableGroupsSelectionVarsInOperation schema
                     leftValues scopeOperation parentType (.object runtimeType ())
                     leftSelectionSet (by simp [scopeOperation])
-                have hgroupOrigin := horigin (rightName, leftField :: leftRest) (by
-                  simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
-                    leftValues parentType runtimeType () leftSelectionSet] using
-                    hleftForValues)
+                have hgroupOrigin :=
+                  horigin (rightName, leftField :: leftRest)
+                    (by
+                      simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
+                        leftValues parentType runtimeType () leftSelectionSet]
+                        using hleftForValues)
                 intro variableName hvariable
                 apply hleftBoolean variableName
                 apply executableFieldsSelectionVarsInOperation_merged scopeOperation
@@ -817,10 +820,12 @@ theorem selectionSetIncludesBoolWithFuel_groups
                   collectFields_executableGroupsSelectionVarsInOperation schema
                     rightValues scopeOperation parentType (.object runtimeType ())
                     rightSelectionSet (by simp [scopeOperation])
-                have hgroupOrigin := horigin (rightName, rightField :: rightRest) (by
-                  simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
-                    rightValues parentType runtimeType () rightSelectionSet] using
-                    hrightForValues)
+                have hgroupOrigin :=
+                  horigin (rightName, rightField :: rightRest)
+                    (by
+                      simpa [← collectRuntimeFieldGroups_eq_collectFields_object schema
+                        rightValues parentType runtimeType () rightSelectionSet]
+                        using hrightForValues)
                 intro variableName hvariable
                 apply hrightBoolean variableName
                 apply executableFieldsSelectionVarsInOperation_merged scopeOperation
@@ -1326,8 +1331,8 @@ private theorem annotatedExecution_inclusion_all
         have hcoercedArguments :
             CoercedArgument.argumentsEquivalent coercedArguments
               rightCoercedArguments := by
-          simpa [ArgumentCoercionResult.equivalent, hcoerce,
-            hrightCoercion] using hcoerced
+          simpa [ArgumentCoercionResult.equivalent, hcoerce, hrightCoercion]
+            using hcoerced
         have hrightResolve :
             coerceAndResolveFieldValue schema resolvers rightValues definition
                 parentType rightField.fieldName rightField.arguments source
@@ -1336,12 +1341,11 @@ private theorem annotatedExecution_inclusion_all
           simp only [hrightCoercion]
           unfold resolveFieldValue at hresolve ⊢
           calc
-            resolvers.resolve parentType rightField.fieldName
-                rightCoercedArguments source =
-                resolvers.resolve parentType field.fieldName
-                  rightCoercedArguments source := by rw [hfield]
-            _ = resolvers.resolve parentType field.fieldName
-                coercedArguments source :=
+            resolvers.resolve parentType rightField.fieldName rightCoercedArguments source
+                = resolvers.resolve parentType field.fieldName
+                    rightCoercedArguments source := by
+              rw [hfield]
+            _ = resolvers.resolve parentType field.fieldName coercedArguments source :=
               (resolvers.resolve_argumentsEquivalent parentType field.fieldName
                 _ _ source hcoercedArguments).symm
             _ = some resolved := hresolve
@@ -1385,10 +1389,15 @@ private theorem annotatedExecution_inclusion_all
                 subst rightName
                 subst rightCall
                 subst requestedValue
-                refine ⟨responseName,
+                refine ⟨
+                  responseName,
                   resolvedFieldProvenance schema leftValues parentType definition field,
                   leftValue,
-                  by simp, rfl, ?_, hvalueIncludes⟩
+                  by simp,
+                  rfl,
+                  ?_,
+                  hvalueIncludes
+                ⟩
                 exact (sameFieldProvenance_iff _ _).mpr
                   ⟨rfl, hfield, harguments⟩
   case case10 =>
@@ -1414,73 +1423,73 @@ private theorem annotatedExecution_inclusion_all
     cases fields with
     | nil => simp at hfields
     | cons leftField leftRest =>
-      simp only at hfields
-      rcases hfields with ⟨hleftField, harguments,
-        ⟨checkerDefinition, hcheckerLookup, hcoerced, hcheck⟩, hleftArguments,
-        hrightArguments, hleftChildren, hrightChildren, hleftBooleanChild,
-        hrightBooleanChild, hcommonChild⟩
-      have hcheckerDefinition : checkerDefinition = definition := by
-        rw [hlookup] at hcheckerLookup
-        exact (Option.some.inj hcheckerLookup).symm
-      subst checkerDefinition
-      have hcomposite : definition.outputType.isCompositeBool schema = true := by
-        exact isCompositeBool_eq_true_of_typeIncludesObjectBool schema
-          definition.outputType.namedType runtimeType hincludes
-      have hselection := hcheck hcomposite runtimeType hruntime
-      have hleftCompleted := catchAnnotated_eq_ok_zero_of_error_positive
-        (executeAnnotatedCollectedFields_error_positive schema resolvers leftValues
-          executionFuel runtimeType (.object runtimeType ref)
-          (collectFields schema leftValues runtimeType (.object runtimeType ref)
-            (mergedFieldSelectionSet (leftField :: leftRest)))) hleft
-      have hrightCompleted := catchAnnotated_eq_ok_zero_of_error_positive
-        (executeAnnotatedCollectedFields_error_positive schema resolvers rightValues
-          executionFuel runtimeType (.object runtimeType ref)
-          (collectFields schema rightValues runtimeType (.object runtimeType ref)
-            (mergedFieldSelectionSet (rightField :: rightRest)))) hright
-      rcases hleftCompleted with ⟨leftFields, hleftFields, rfl⟩
-      rcases hrightCompleted with ⟨rightFields, hrightFields, rfl⟩
-      have hobject := SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
-        hschema definition.outputType.namedType runtimeType hruntime
-      have hobjectBool :=
-        NormalForm.GroundTypeNormalization.objectTypeNameBool_eq_true_of_objectType
-          schema hobject
-      have hself :=
-        NormalForm.GroundTypeNormalization.typeIncludesObjectBool_self_of_objectTypeNameBool
-          schema hobjectBool
-      have hruntimeSelf : runtimeType ∈ schema.getPossibleTypes runtimeType :=
-        List.contains_iff_mem.mp hself
-      have hleftMergedNodup : selectionSetArgumentsNodup
-          (mergedFieldSelectionSet (leftField :: leftRest)) :=
-        selectionSetArgumentsNodup_mergedFieldSelectionSet _ (by
-          intro field hfield
-          rcases List.mem_cons.mp hfield with rfl | hfield
-          · exact hleftChildren.1
-          · exact hleftChildren.2 field hfield)
-      have hrightMergedNodup : selectionSetArgumentsNodup
-          (mergedFieldSelectionSet (rightField :: rightRest)) :=
-        selectionSetArgumentsNodup_mergedFieldSelectionSet _ (by
-          intro field hfield
-          rcases List.mem_cons.mp hfield with rfl | hfield
-          · exact hrightChildren.1
-          · exact hrightChildren.2 field hfield)
-      apply childSound rightValues runtimeType runtimeType ref
-        (mergedFieldSelectionSet (leftField :: leftRest))
-        (mergedFieldSelectionSet (rightField :: rightRest)) executionFuel leftFields
-        rightFields
-      · exact hruntimeSelf
-      · simpa using hselection
-      · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-          hleftBooleanChild
-      · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-          hrightBooleanChild
-      · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-          hcommonChild
-      · exact hleftMergedNodup
-      · exact hrightMergedNodup
-      · simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-          using hleftFields
-      · simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-          using hrightFields
+        simp only at hfields
+        rcases hfields with ⟨hleftField, harguments,
+          ⟨checkerDefinition, hcheckerLookup, hcoerced, hcheck⟩, hleftArguments,
+          hrightArguments, hleftChildren, hrightChildren, hleftBooleanChild,
+          hrightBooleanChild, hcommonChild⟩
+        have hcheckerDefinition : checkerDefinition = definition := by
+          rw [hlookup] at hcheckerLookup
+          exact (Option.some.inj hcheckerLookup).symm
+        subst checkerDefinition
+        have hcomposite : definition.outputType.isCompositeBool schema = true := by
+          exact isCompositeBool_eq_true_of_typeIncludesObjectBool schema
+            definition.outputType.namedType runtimeType hincludes
+        have hselection := hcheck hcomposite runtimeType hruntime
+        have hleftCompleted := catchAnnotated_eq_ok_zero_of_error_positive
+          (executeAnnotatedCollectedFields_error_positive schema resolvers leftValues
+            executionFuel runtimeType (.object runtimeType ref)
+            (collectFields schema leftValues runtimeType (.object runtimeType ref)
+              (mergedFieldSelectionSet (leftField :: leftRest)))) hleft
+        have hrightCompleted := catchAnnotated_eq_ok_zero_of_error_positive
+          (executeAnnotatedCollectedFields_error_positive schema resolvers rightValues
+            executionFuel runtimeType (.object runtimeType ref)
+            (collectFields schema rightValues runtimeType (.object runtimeType ref)
+              (mergedFieldSelectionSet (rightField :: rightRest)))) hright
+        rcases hleftCompleted with ⟨leftFields, hleftFields, rfl⟩
+        rcases hrightCompleted with ⟨rightFields, hrightFields, rfl⟩
+        have hobject := SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
+          hschema definition.outputType.namedType runtimeType hruntime
+        have hobjectBool :=
+          NormalForm.GroundTypeNormalization.objectTypeNameBool_eq_true_of_objectType
+            schema hobject
+        have hself :=
+          NormalForm.GroundTypeNormalization.typeIncludesObjectBool_self_of_objectTypeNameBool
+            schema hobjectBool
+        have hruntimeSelf : runtimeType ∈ schema.getPossibleTypes runtimeType :=
+          List.contains_iff_mem.mp hself
+        have hleftMergedNodup : selectionSetArgumentsNodup
+            (mergedFieldSelectionSet (leftField :: leftRest)) :=
+          selectionSetArgumentsNodup_mergedFieldSelectionSet _ (by
+            intro field hfield
+            rcases List.mem_cons.mp hfield with rfl | hfield
+            · exact hleftChildren.1
+            · exact hleftChildren.2 field hfield)
+        have hrightMergedNodup : selectionSetArgumentsNodup
+            (mergedFieldSelectionSet (rightField :: rightRest)) :=
+          selectionSetArgumentsNodup_mergedFieldSelectionSet _ (by
+            intro field hfield
+            rcases List.mem_cons.mp hfield with rfl | hfield
+            · exact hrightChildren.1
+            · exact hrightChildren.2 field hfield)
+        apply childSound rightValues runtimeType runtimeType ref
+          (mergedFieldSelectionSet (leftField :: leftRest))
+          (mergedFieldSelectionSet (rightField :: rightRest)) executionFuel leftFields
+          rightFields
+        · exact hruntimeSelf
+        · simpa using hselection
+        · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using hleftBooleanChild
+        · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using hrightBooleanChild
+        · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using hcommonChild
+        · exact hleftMergedNodup
+        · exact hrightMergedNodup
+        · simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+            using hleftFields
+        · simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+            using hrightFields
   case case16 =>
     intro executionFuel inner fields values listIH parentType rightValues rightFields
       leftResponseValue rightResponseValue hfields rightField rightRest
@@ -1494,8 +1503,8 @@ private theorem annotatedExecution_inclusion_all
         executionFuel inner (rightField :: rightRest) values) hright
     rcases hleftCompleted with ⟨leftValuesResult, hleftValues, rfl⟩
     rcases hrightCompleted with ⟨rightValuesResult, hrightValues, rfl⟩
-    simpa [annotatedResponseValueIncludes] using
-      listIH parentType rightValues (rightField :: rightRest) leftValuesResult
+    simpa [annotatedResponseValueIncludes]
+      using listIH parentType rightValues (rightField :: rightRest) leftValuesResult
         rightValuesResult hfields rightField rightRest rfl definition hlookup
         (by simpa [TypeRef.namedType] using hnamed) hleftValues hrightValues
   case case20 =>
@@ -1712,15 +1721,17 @@ private theorem annotatedExecution_success_mono_all
       catchAnnotatedResponseBubbleAsNull, Result.combine, Nat.add_assoc]
   case case2 =>
     intro fuel parentType source responseName fields rest headIH tailIH value hresult extra
-    cases hhead : executeQueryAnnotatedField schema resolvers variableValues fuel
-        parentType source responseName fields with
+    cases hhead
+          : executeQueryAnnotatedField schema resolvers variableValues fuel
+              parentType source responseName fields with
     | error headErrors =>
         cases htail : executeQueryAnnotatedCollectedFields schema resolvers variableValues
           fuel parentType source rest <;> simp_all
     | ok headResult =>
         rcases headResult with ⟨headFields, headErrors⟩
-        cases htail : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-            fuel parentType source rest with
+        cases htail
+              : executeQueryAnnotatedCollectedFields schema resolvers variableValues
+                  fuel parentType source rest with
         | error tailErrors => simp [hhead, htail] at hresult
         | ok tailResult =>
             rcases tailResult with ⟨tailFields, tailErrors⟩
@@ -1817,15 +1828,17 @@ private theorem annotatedExecution_success_mono_all
     rw [listIH completedValues hcompleted extra]
   case case20 =>
     intro fuel itemType fields value values headIH tailIH result hresult extra
-    cases hhead : completeAnnotatedResponseValue schema resolvers variableValues fuel
-        itemType fields value with
+    cases hhead
+          : completeAnnotatedResponseValue schema resolvers variableValues fuel
+              itemType fields value with
     | error headErrors =>
         cases htail : completeAnnotatedResponseValueList schema resolvers variableValues
           fuel itemType fields values <;> simp_all
     | ok headResult =>
         rcases headResult with ⟨headValue, headErrors⟩
-        cases htail : completeAnnotatedResponseValueList schema resolvers variableValues
-            fuel itemType fields values with
+        cases htail
+              : completeAnnotatedResponseValueList schema resolvers variableValues
+                  fuel itemType fields values with
         | error tailErrors => simp [hhead, htail] at hresult
         | ok tailResult =>
             rcases tailResult with ⟨tailValues, tailErrors⟩
@@ -2097,8 +2110,8 @@ private theorem annotatedExecutionTransfer_all
       executionFuel leftChildFields rightChildFields
     · exact selectionSetArgumentsNodup_mergedFieldSelectionSet _ hleftNodups
     · exact selectionSetArgumentsNodup_mergedFieldSelectionSet _ hrightNodups
-    · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-        hcommonChild
+    · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+        using hcommonChild
     · exact hleftChildren
     · exact hrightChildren
     · exact hchildBound
@@ -2119,8 +2132,8 @@ private theorem annotatedExecutionTransfer_all
       simp only [AnnotatedResponseValue.structuralSize] at hbound
       omega
     simp only [annotatedResponseValueIncludes] at hguide
-    simpa [AnnotatedResponseValue.toResponseValue, responseValueIncludes] using
-      listIH rightValues rightFields leftValuesResult rightValuesResult hfields
+    simpa [AnnotatedResponseValue.toResponseValue, responseValueIncludes]
+      using listIH rightValues rightFields leftValuesResult rightValuesResult hfields
         hlistBound hleftValues hrightValues hguide
   case case19 =>
     intros
@@ -2337,8 +2350,8 @@ private theorem recursiveChildTransfer_proved
                 ArgumentCoercionResult.equivalent_trans hleftReordered hrightEnvironment
               have hcoercedArguments : CoercedArgument.argumentsEquivalent leftCoerced
                   rightCoerced := by
-                simpa [ArgumentCoercionResult.equivalent, hleftCoerce, hrightCoerce] using
-                  hcoerced
+                simpa [ArgumentCoercionResult.equivalent, hleftCoerce, hrightCoerce]
+                  using hcoerced
               have hsameResolved : rightResolved = leftResolved := by
                 unfold resolveFieldValue at hleftResolve hrightResolve
                 have h : resolvers.resolve parentType rightHeadField.fieldName

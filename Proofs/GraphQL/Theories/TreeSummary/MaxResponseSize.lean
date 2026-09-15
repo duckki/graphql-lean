@@ -267,8 +267,9 @@ private theorem annotatedExecution_admissible
       foldAnnotatedResponseFields, ResponseObservation.empty]
   case case2 =>
     intro fuel parentType source responseName fields rest field_ih rest_ih
-    cases hfield : executeQueryAnnotatedField schema resolvers variableValues fuel parentType
-        source responseName fields with
+    cases hfield
+          : executeQueryAnnotatedField schema resolvers variableValues fuel parentType
+              source responseName fields with
     | error fieldErrors =>
         cases hrest : executeQueryAnnotatedCollectedFields schema resolvers variableValues
             fuel parentType source rest <;>
@@ -276,8 +277,9 @@ private theorem annotatedExecution_admissible
             Result.combine]
     | ok fieldResult =>
         rcases fieldResult with ⟨fieldValues, fieldErrors⟩
-        cases hrest : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-            fuel parentType source rest with
+        cases hrest
+              : executeQueryAnnotatedCollectedFields schema resolvers variableValues
+                  fuel parentType source rest with
         | error restErrors =>
             simp_all [executeQueryAnnotatedCollectedFields,
               annotatedFieldsResultAdmissible, Result.combine]
@@ -316,8 +318,9 @@ private theorem annotatedExecution_admissible
     intro parentType source responseName field rest fuel definition hlookup coercedArguments hcoerce
       resolved hresolve complete_ih
     have hcomplete := complete_ih (hresolvers _ _ _ _ _ hresolve)
-    cases hcompleted : completeAnnotatedResponseValue schema resolvers variableValues fuel
-        definition.outputType (field :: rest) resolved with
+    cases hcompleted
+          : completeAnnotatedResponseValue schema resolvers variableValues fuel
+              definition.outputType (field :: rest) resolved with
     | error errors =>
         simp_all [executeQueryAnnotatedField,
           singleAnnotatedResponseFieldResult, annotatedFieldsResultAdmissible]
@@ -334,8 +337,9 @@ private theorem annotatedExecution_admissible
   case case10 =>
     intro fuel inner fields value hfuel complete_ih hsafe
     have hcomplete := complete_ih hsafe
-    cases hcompleted : completeAnnotatedResponseValue schema resolvers variableValues fuel
-        inner fields value with
+    cases hcompleted
+          : completeAnnotatedResponseValue schema resolvers variableValues fuel
+              inner fields value with
     | error errors =>
         simp_all [completeAnnotatedResponseValue,
           completeNonNullAnnotatedResponseValue, annotatedValueResultAdmissible]
@@ -364,8 +368,9 @@ private theorem annotatedExecution_admissible
       ResponseObservation.empty, listMultiplier]
   case case14 =>
     intro fuel parentType fields runtimeType ref hinclude childGroups child_ih _hsafe
-    cases hcompleted : executeQueryAnnotatedCollectedFields schema resolvers variableValues
-        fuel runtimeType (.object runtimeType ref) childGroups with
+    cases hcompleted
+          : executeQueryAnnotatedCollectedFields schema resolvers variableValues
+              fuel runtimeType (.object runtimeType ref) childGroups with
     | error errors =>
         have hcompleted' :
             executeQueryAnnotatedCollectedFields schema resolvers variableValues fuel
@@ -374,8 +379,8 @@ private theorem annotatedExecution_admissible
                   (.object runtimeType ref) (mergedFieldSelectionSet fields))
               = .error errors := by
           simpa [childGroups,
-            NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet] using
-            hcompleted
+            NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+            using hcompleted
         simp_all [completeAnnotatedResponseValue,
           catchAnnotatedResponseBubbleAsNull, annotatedValueResultAdmissible,
           responseValueChildMultiplicity, foldAnnotatedResponseValue,
@@ -389,8 +394,8 @@ private theorem annotatedExecution_admissible
                   (.object runtimeType ref) (mergedFieldSelectionSet fields))
               = .ok (childFields, errors) := by
           simpa [childGroups,
-            NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet] using
-            hcompleted
+            NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
+            using hcompleted
         simp_all [completeAnnotatedResponseValue,
           catchAnnotatedResponseBubbleAsNull, annotatedValueResultAdmissible,
           responseValueChildMultiplicity, foldAnnotatedResponseValue,
@@ -406,8 +411,9 @@ private theorem annotatedExecution_admissible
   case case16 =>
     intro fuel inner fields values list_ih hsafe
     have hlist := list_ih hsafe.2
-    cases hcompleted : completeAnnotatedResponseValueList schema resolvers variableValues
-        fuel inner fields values with
+    cases hcompleted
+          : completeAnnotatedResponseValueList schema resolvers variableValues
+              fuel inner fields values with
     | error errors =>
         simp_all [completeAnnotatedResponseValue, catchAnnotatedResponseBubbleAsNull,
           annotatedValueResultAdmissible, responseValueChildMultiplicity,
@@ -434,8 +440,9 @@ private theorem annotatedExecution_admissible
     intro fuel itemType fields value values head_ih tail_ih hsafe
     have hhead := head_ih hsafe.1
     have htail := tail_ih hsafe.2
-    cases hcompletedHead : completeAnnotatedResponseValue schema resolvers variableValues
-        fuel itemType fields value with
+    cases hcompletedHead
+          : completeAnnotatedResponseValue schema resolvers variableValues
+              fuel itemType fields value with
     | error headErrors =>
         cases hcompletedTail : completeAnnotatedResponseValueList schema resolvers
             variableValues fuel itemType fields values <;>
@@ -443,8 +450,9 @@ private theorem annotatedExecution_admissible
             annotatedValuesResultAdmissible]
     | ok completedHead =>
         rcases completedHead with ⟨headValue, headErrors⟩
-        cases hcompletedTail : completeAnnotatedResponseValueList schema resolvers
-            variableValues fuel itemType fields values with
+        cases hcompletedTail
+              : completeAnnotatedResponseValueList schema resolvers
+                  variableValues fuel itemType fields values with
         | error tailErrors =>
             simp_all [completeAnnotatedResponseValueList, Result.combine,
               annotatedValuesResultAdmissible]
@@ -829,18 +837,17 @@ private def bestTransferLaws (schema : Schema) (listSize : Nat)
 -- multiplicity semantics, recursively through every child selection set.
 theorem analysisOptimal (schema : Schema) (listSize : Nat) (operation : Operation)
     : AnalysisOptimal schema listSize operation := by
-  simpa [AnalysisOptimal, estimateOperation, bestTransferLaws, outcomeSemantics,
-    algebra] using
-    TreeSummary.ExactCases.summarizeOperation_best
+  simpa [AnalysisOptimal, estimateOperation, bestTransferLaws, outcomeSemantics, algebra]
+    using TreeSummary.ExactCases.summarizeOperation_best
       (bestTransferLaws schema listSize) operation
 
 -- Public witness for the variable-aware response-size optimality statement.
 theorem analysisWithVariablesOptimal (schema : Schema) (listSize : Nat)
     (variableValues : Execution.VariableValues) (operation : Operation)
     : AnalysisWithVariablesOptimal schema listSize variableValues operation := by
-  simpa [AnalysisWithVariablesOptimal, estimateOperationWithVariables,
-    bestTransferLaws, outcomeSemantics, algebra] using
-    TreeSummary.ExactCases.summarizeOperationWithVariables_best
+  simpa [AnalysisWithVariablesOptimal, estimateOperationWithVariables, bestTransferLaws,
+    outcomeSemantics, algebra]
+    using TreeSummary.ExactCases.summarizeOperationWithVariables_best
       (fun _values => algebra schema listSize) variableValues operation
       (bestTransferLaws schema listSize)
 
@@ -903,7 +910,8 @@ def soundness (schema : Schema) (listSize : Nat)
                 ≤ max 1 (listMultiplier listSize schemaDefinition.outputType)
             ∧ children.admissible listSize := by
         simpa [concreteAlgebra, responseFieldObservation, resolvedFieldProvenance,
-          hlookup] using hadmissible
+          hlookup]
+          using hadmissible
       have hchild := Nat.le_trans (hchildren hadmissible'.2)
         (foldChildSummaryForValue_le_mul schema listSize abstractChildren value)
       have hmultiplier := Nat.le_trans hadmissible'.1
@@ -988,7 +996,8 @@ def soundness (schema : Schema) (listSize : Nat)
                 ≤ max 1 (listMultiplier listSize definition.outputType)
             ∧ children.admissible listSize := by
         simpa [concreteAlgebra, responseFieldObservation, resolvedFieldProvenance,
-          hlookup] using hadmissible
+          hlookup]
+          using hadmissible
       have hchild := Nat.le_trans (hchildren hadmissible'.2)
         (foldChildSummaryForValue_le_mul schema listSize
           (foldChildSummariesNat schema listSize abstractChildren groups) value)
@@ -1015,13 +1024,12 @@ def soundness (schema : Schema) (listSize : Nat)
         (responseValueChildMultiplicity value) abstractChildren groups hmultipliers
       have hlength : 1 ≤ groups.length := by
         exact List.length_pos_iff.mpr hnonempty
-      have hbeforeCapacity :
-          1 + children.size
+      have hbeforeCapacity
+          : 1 + children.size
             ≤ groups.length
               + responseValueChildMultiplicity value
-                  * foldChildSummariesNat schema listSize abstractChildren groups :=
-        by
-          exact Nat.add_le_add hlength hchild
+                * foldChildSummariesNat schema listSize abstractChildren groups := by
+        exact Nat.add_le_add hlength hchild
       exact Nat.le_trans hbeforeCapacity hcapacity
   }
 
@@ -1098,10 +1106,9 @@ theorem algebraSoundWithFuel (schema : Schema) (listSize : Nat) (operation : Ope
       (soundness schema listSize
         (Execution.coerceVariableValues operation variableValues))
       fuel source hschema hoperation
-  simpa [ResponseWithinListSize, annotatedSize,
-    MaxResponseSize.foldAnnotatedResponse, estimateOperation,
-    MaxResponseSize.ExactCases.estimateOperation] using
-    hrefinement hadmissible
+  simpa [ResponseWithinListSize, annotatedSize, MaxResponseSize.foldAnnotatedResponse,
+    estimateOperation, MaxResponseSize.ExactCases.estimateOperation]
+    using hrefinement hadmissible
 
 theorem algebraSound (schema : Schema) (listSize : Nat) (operation : Operation)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
@@ -1169,9 +1176,9 @@ theorem algebraWithVariablesSoundWithFuel
       (fun _values => algebra schema listSize)
       (fun values => (soundness schema listSize values).toSoundness)
       operation hschema hoperation ObjectRef resolvers variableValues fuel source
-  simpa [ResponseWithinListSize, annotatedSize,
-    MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using
-    hrefinement hadmissible
+  simpa [ResponseWithinListSize, annotatedSize, MaxResponseSize.foldAnnotatedResponse,
+    estimateOperationWithVariables]
+    using hrefinement hadmissible
 
 theorem algebraWithVariablesSound
     (schema : Schema) (listSize : Nat) (operation : Operation)
@@ -1247,9 +1254,9 @@ theorem algebraSoundWithFuel
     _root_.GraphQL.TreeSummary.Syntactic.operationSoundWithFuel
       (fun values => soundness schema listSize values)
       hschema hoperation ObjectRef resolvers variableValues fuel source
-  simpa [ResponseWithinListSize, annotatedSize,
-    MaxResponseSize.foldAnnotatedResponse, estimateOperation] using
-    hrefinement hadmissible
+  simpa [ResponseWithinListSize, annotatedSize, MaxResponseSize.foldAnnotatedResponse,
+    estimateOperation]
+    using hrefinement hadmissible
 
 theorem algebraSound
     (schema : Schema) (listSize : Nat) (operation : Operation)
@@ -1320,9 +1327,9 @@ theorem algebraWithVariablesSoundWithFuel
       (fun _values => algebra schema listSize)
       (fun values => soundness schema listSize values) operation hschema hoperation
       ObjectRef resolvers variableValues fuel source
-  simpa [ResponseWithinListSize, annotatedSize,
-    MaxResponseSize.foldAnnotatedResponse, estimateOperationWithVariables] using
-    hrefinement hadmissible
+  simpa [ResponseWithinListSize, annotatedSize, MaxResponseSize.foldAnnotatedResponse,
+    estimateOperationWithVariables]
+    using hrefinement hadmissible
 
 theorem algebraWithVariablesSound
     (schema : Schema) (listSize : Nat) (operation : Operation)

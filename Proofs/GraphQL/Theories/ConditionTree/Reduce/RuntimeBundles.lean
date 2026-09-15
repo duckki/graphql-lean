@@ -370,8 +370,8 @@ theorem reducedSelectionSet_eq_outputChildUnits
       rw [hvalid bundle (by simp)]
       have hrest := ih fun candidate hcandidate =>
         hvalid candidate (by simp [hcandidate])
-      simpa [reducedFields, allChildUnits, ReductionUnit.outputSelectionSet] using
-        congrArg
+      simpa [reducedFields, allChildUnits, ReductionUnit.outputSelectionSet]
+        using congrArg
           (fun suffix =>
             ReductionUnit.outputSelectionSet schema [bundle.childUnit] ++ suffix)
           hrest
@@ -393,8 +393,8 @@ theorem sourceSelectionSet_eq_inputChildUnits
       rw [hvalid bundle (by simp)]
       have hrest := ih fun candidate hcandidate =>
         hvalid candidate (by simp [hcandidate])
-      simpa [allSourceFields, allChildUnits, ReductionUnit.inputSelectionSet] using
-        congrArg
+      simpa [allSourceFields, allChildUnits, ReductionUnit.inputSelectionSet]
+        using congrArg
           (fun suffix =>
             ReductionUnit.inputSelectionSet [bundle.childUnit] ++ suffix)
           hrest
@@ -869,8 +869,8 @@ theorem RuntimeFieldBundle.reduced_wellFormed
         = group.fields.flatMap Field.selectionSet := by
       exact hmerge group.fields
     simpa [RuntimeFieldBundle.reduced, ReductionUnit.inputSelectionSet,
-      ReductionUnit.selectionSet,
-      hmerged] using hchildren
+      ReductionUnit.selectionSet, hmerged]
+      using hchildren
 
 -- Stable insertion into a list-backed map whose values are accumulated lists.
 -- This generic helper belongs to reduction proof machinery rather than the
@@ -954,8 +954,7 @@ theorem groupRuntimeFieldBundles_keyed (bundles : List RuntimeFieldBundle)
     | cons bundle tail ih =>
         intro groups hgroups
         exact ih _ (RuntimeFieldBundleGroupsKeyed.add bundle groups hgroups)
-  exact hgeneral bundles [] (by
-    simp [RuntimeFieldBundleGroupsKeyed])
+  exact hgeneral bundles [] (by simp [RuntimeFieldBundleGroupsKeyed])
 
 def reducedBundleGroups (groups : List (Name × List RuntimeFieldBundle))
     : List (Name × List ExecutableField) :=
@@ -1025,12 +1024,12 @@ theorem flattenRuntimeFieldBundleGroups_add_perm
       rcases group with ⟨groupName, groupBundles⟩
       simp only [addRuntimeFieldBundleGroup, addNameGroup] at ih ⊢
       split
-      · simpa [flattenRuntimeFieldBundleGroups, List.append_assoc] using
-          List.Perm.append_left bundles
+      · simpa [flattenRuntimeFieldBundleGroups, List.append_assoc]
+          using List.Perm.append_left bundles
             (List.perm_append_comm (l₁ := groupBundles)
               (l₂ := flattenRuntimeFieldBundleGroups rest))
-      · simpa [flattenRuntimeFieldBundleGroups, List.append_assoc] using
-          List.Perm.append_left bundles ih
+      · simpa [flattenRuntimeFieldBundleGroups, List.append_assoc]
+          using List.Perm.append_left bundles ih
 
 theorem flattenRuntimeFieldBundleGroups_foldl_perm
     (bundles : List RuntimeFieldBundle)
@@ -1051,14 +1050,13 @@ theorem flattenRuntimeFieldBundleGroups_foldl_perm
       exact htail.trans <| by
         have hadd := flattenRuntimeFieldBundleGroups_add_perm
           (bundle.responseName, [bundle]) groups
-        exact (hadd.append_right rest).trans (by
-          simp [List.append_assoc])
+        exact (hadd.append_right rest).trans (by simp [List.append_assoc])
 
 theorem flattenRuntimeFieldBundleGroups_group_perm (bundles : List RuntimeFieldBundle)
     : (flattenRuntimeFieldBundleGroups (groupRuntimeFieldBundles bundles)).Perm
         bundles := by
-  simpa [groupRuntimeFieldBundles, flattenRuntimeFieldBundleGroups] using
-    flattenRuntimeFieldBundleGroups_foldl_perm bundles []
+  simpa [groupRuntimeFieldBundles, flattenRuntimeFieldBundleGroups]
+    using flattenRuntimeFieldBundleGroups_foldl_perm bundles []
 
 theorem flatten_sourceBundleGroups
     (groups : List (Name × List RuntimeFieldBundle))
@@ -1096,10 +1094,10 @@ theorem flatten_sourceBundleGroups
               hcurrent bundle (by simp)]
             exact congrArg
               (fun suffix =>
-                bundle.sourceFields.map
-                    (fun field => (responseName, field)) ++ suffix)
-              (tail_ih fun candidate hcandidate =>
-                hcurrent candidate (by simp [hcandidate]))
+                bundle.sourceFields.map (fun field => (responseName, field)) ++ suffix)
+              (tail_ih
+                fun candidate hcandidate =>
+                  hcurrent candidate (by simp [hcandidate]))
       have hlocal := hlocalGeneral bundles hnames
       have htailEq := ih htail
       simp only [sourceBundleGroups] at htailEq
@@ -1299,8 +1297,8 @@ theorem ReductionUnit.collectFlatFields_output_eq_reducedFields
           inheritedBooleanCondition selectionSet)
       have hbundles := tree.runtimeReductionBundles_reducedFields schema
         variableValues parentType runtimeType inheritedBooleanCondition
-      simpa [ReductionUnit.runtimeBundles, reduceInScope, tree] using
-        hcollected.trans hbundles.symm
+      simpa [ReductionUnit.runtimeBundles, reduceInScope, tree]
+        using hcollected.trans hbundles.symm
 
 theorem ReductionUnit.allSourceFields_runtimeBundles_perm
     (schema : Schema) (variableValues : VariableValues)
@@ -1454,7 +1452,8 @@ theorem ReductionUnit.collectFlatFields_outputSelectionSet
             units) := by
   revert happlicable
   induction units with
-  | nil => intro _happlicable; rfl
+  | nil =>
+      intro _happlicable; rfl
   | cons unit rest ih =>
       intro happlicable
       cases unit with
@@ -1467,12 +1466,14 @@ theorem ReductionUnit.collectFlatFields_outputSelectionSet
             (happlicable _ (by simp))]
           have htail := ih fun candidate hcandidate =>
             happlicable candidate (by simp [hcandidate])
-          simpa [RuntimeFieldBundle.reducedEntries,
-            ReductionUnit.outputSelectionSet, ReductionUnit.runtimeBundlesFor] using
-            congrArg
-              (fun tail => RuntimeFieldBundle.reducedEntries
-                ((ReductionUnit.identity selectionSet).runtimeBundles schema variableValues
-                  executionParentType runtimeType ref) ++ tail)
+          simpa [RuntimeFieldBundle.reducedEntries, ReductionUnit.outputSelectionSet,
+            ReductionUnit.runtimeBundlesFor]
+            using congrArg
+              (fun tail =>
+                RuntimeFieldBundle.reducedEntries
+                  ((ReductionUnit.identity selectionSet).runtimeBundles schema
+                    variableValues executionParentType runtimeType ref)
+                ++ tail)
               htail
       | reduce parentType inheritedBooleanCondition selectionSet =>
           simp only [ReductionUnit.outputSelectionSet, List.flatMap_cons,
@@ -1484,13 +1485,15 @@ theorem ReductionUnit.collectFlatFields_outputSelectionSet
             (happlicable _ (by simp))]
           have htail := ih fun candidate hcandidate =>
             happlicable candidate (by simp [hcandidate])
-          simpa [RuntimeFieldBundle.reducedEntries,
-            ReductionUnit.outputSelectionSet, ReductionUnit.runtimeBundlesFor] using
-            congrArg
-              (fun tail => RuntimeFieldBundle.reducedEntries
-                ((ReductionUnit.reduce parentType inheritedBooleanCondition
-                  selectionSet).runtimeBundles
-                  schema variableValues executionParentType runtimeType ref) ++ tail)
+          simpa [RuntimeFieldBundle.reducedEntries, ReductionUnit.outputSelectionSet,
+            ReductionUnit.runtimeBundlesFor]
+            using congrArg
+              (fun tail =>
+                RuntimeFieldBundle.reducedEntries
+                  ((ReductionUnit.reduce parentType inheritedBooleanCondition
+                      selectionSet).runtimeBundles
+                    schema variableValues executionParentType runtimeType ref)
+                ++ tail)
               htail
 
 theorem ReductionUnit.allSourceFields_runtimeBundlesFor_perm
@@ -1506,7 +1509,8 @@ theorem ReductionUnit.allSourceFields_runtimeBundlesFor_perm
           (.object runtimeType ref) (ReductionUnit.inputSelectionSet units)) := by
   revert happlicable
   induction units with
-  | nil => intro _happlicable; exact List.Perm.refl []
+  | nil =>
+      intro _happlicable; exact List.Perm.refl []
   | cons unit rest ih =>
       intro happlicable
       rw [ReductionUnit.runtimeBundlesFor, List.flatMap_cons,
@@ -1516,8 +1520,9 @@ theorem ReductionUnit.allSourceFields_runtimeBundlesFor_perm
       exact List.Perm.append
         (unit.allSourceFields_runtimeBundles_perm schema variableValues
           executionParentType runtimeType ref (happlicable unit (by simp)))
-        (ih fun candidate hcandidate =>
-          happlicable candidate (by simp [hcandidate]))
+        (ih
+          fun candidate hcandidate =>
+            happlicable candidate (by simp [hcandidate]))
 
 theorem ReductionUnit.runtimeBundlesFor_wellFormed
     (schema : Schema) (variableValues : VariableValues)
@@ -1614,8 +1619,8 @@ theorem ReductionUnit.sourceGroups_permutationEquivalent
       (NormalForm.collectFields_namesNodup schema variableValues
         executionParentType (.object runtimeType ref) targetSelectionSet)
   · simpa [ConditionTree.flattenExecutableFieldGroups,
-      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap] using
-      (flatten_sourceBundleGroups_group_perm bundles).trans
+      Execution.FieldGroups.flattenExecutableFieldGroups_eq_flatMap]
+      using (flatten_sourceBundleGroups_group_perm bundles).trans
         (hsource.trans (hinputFlat.trans htarget))
 
 -----------------------------------------------------------------------------------------
@@ -1816,9 +1821,11 @@ mutual
               rw [hbodyCondition] at hfalse
               contradiction
             · rfl
-          have hbranchParentPossible :
-              (schema.getPossibleTypes
-                (branch.condition.parentType parentType)).contains runtimeType = true := by
+          have hbranchParentPossible
+              : (schema.getPossibleTypes
+                  (branch.condition.parentType parentType)).contains
+                  runtimeType
+                = true := by
             cases hbranchCondition : branch.condition with
             | typeCondition typeName =>
                 change (schema.getPossibleTypes typeName).contains runtimeType = true

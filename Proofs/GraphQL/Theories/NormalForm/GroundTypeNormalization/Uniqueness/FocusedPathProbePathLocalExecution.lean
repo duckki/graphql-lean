@@ -198,24 +198,23 @@ theorem
                   childSelectionSet :=
               runtimePrunedSelectionSet_eq_self_of_allFields schema
                 fieldDefinition.outputType.namedType hallFields
-            have hchildSupport :
-                PathLocalSupportValidNormal schema
-                  fieldDefinition.outputType.namedType
-                  (fieldPairPathLocalNextSelectionSet schema
-                    normalParentType fieldDefinition.outputType.namedType
-                    fieldName arguments currentSelectionSet) :=
-              by
-                have hcoercedSupport :=
-                  hsupport.fieldPairPathLocalNextSelectionSet_of_object_output
-                    (targetArguments := Execution.coercedArgumentsForField schema
-                      variableValues normalParentType fieldName arguments)
-                    hparentObject hreturnObject hlookup rfl
-                rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema
-                  normalParentType fieldDefinition.outputType.namedType fieldName
-                  arguments
-                    (Execution.coercedArgumentsForField schema variableValues
-                      normalParentType fieldName arguments) currentSelectionSet] at hcoercedSupport
-                exact hcoercedSupport
+            have hchildSupport
+                : PathLocalSupportValidNormal schema
+                    fieldDefinition.outputType.namedType
+                    (fieldPairPathLocalNextSelectionSet schema
+                      normalParentType fieldDefinition.outputType.namedType
+                      fieldName arguments currentSelectionSet) := by
+              have hcoercedSupport :=
+                hsupport.fieldPairPathLocalNextSelectionSet_of_object_output
+                  (targetArguments := Execution.coercedArgumentsForField schema
+                    variableValues normalParentType fieldName arguments)
+                  hparentObject hreturnObject hlookup rfl
+              rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema
+                normalParentType fieldDefinition.outputType.namedType fieldName
+                arguments
+                  (Execution.coercedArgumentsForField schema variableValues
+                    normalParentType fieldName arguments) currentSelectionSet] at hcoercedSupport
+              exact hcoercedSupport
             have hchildContext :
                 PathLocalSelectionSetCurrentContext childSelectionSet
                   (fieldPairPathLocalNextSelectionSet schema
@@ -298,23 +297,22 @@ theorem
                   fieldDefinition.outputType.namedType childSelectionSet :=
               selectionSetValid_field_child_of_mem_lookup hvalid hmem
                 hchildNonempty hlookup
-            have hchildSupport :
-                PathLocalSupportValidNormal schema childRuntimeType
-                  (fieldPairPathLocalNextSelectionSet schema
-                    normalParentType childRuntimeType fieldName arguments
-                    currentSelectionSet) :=
-              by
-                have hcoercedSupport :=
-                  hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
-                    (targetArguments := Execution.coercedArgumentsForField schema
-                      variableValues normalParentType fieldName arguments)
-                    hparentObject hchildObject hlookup hreturnComposite
-                    hchildInclude
-                rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema
-                  normalParentType childRuntimeType fieldName arguments
-                    (Execution.coercedArgumentsForField schema variableValues
-                      normalParentType fieldName arguments) currentSelectionSet] at hcoercedSupport
-                exact hcoercedSupport
+            have hchildSupport
+                : PathLocalSupportValidNormal schema childRuntimeType
+                    (fieldPairPathLocalNextSelectionSet schema
+                      normalParentType childRuntimeType fieldName arguments
+                      currentSelectionSet) := by
+              have hcoercedSupport :=
+                hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
+                  (targetArguments := Execution.coercedArgumentsForField schema
+                    variableValues normalParentType fieldName arguments)
+                  hparentObject hchildObject hlookup hreturnComposite
+                  hchildInclude
+              rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema
+                normalParentType childRuntimeType fieldName arguments
+                  (Execution.coercedArgumentsForField schema variableValues
+                    normalParentType fieldName arguments) currentSelectionSet] at hcoercedSupport
+              exact hcoercedSupport
             rcases
                 ih fieldDefinition.outputType.namedType variableDefinitions
                   childSelectionSet childFuel childRuntimeType targetParent
@@ -729,18 +727,17 @@ theorem
         childFuel + 1 = fuel - leafProbeFuel fieldDefinition.outputType := by
       dsimp [childFuel]
       omega
-    have hchildSupport :
-        PathLocalSupportValidNormal schema runtimeType
-          (fieldPairPathLocalNextSelectionSet schema parentType runtimeType
-            fieldName pathArguments currentSelectionSet) :=
-      by
-        have hcoercedSupport :=
-          hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
-            (targetArguments := targetLeftArguments)
-            hparentObject hruntimeObject hlookup hcomposite hinclude
-        rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
-          runtimeType fieldName pathArguments targetLeftArguments currentSelectionSet] at hcoercedSupport
-        exact hcoercedSupport
+    have hchildSupport
+        : PathLocalSupportValidNormal schema runtimeType
+            (fieldPairPathLocalNextSelectionSet schema parentType runtimeType
+              fieldName pathArguments currentSelectionSet) := by
+      have hcoercedSupport :=
+        hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
+          (targetArguments := targetLeftArguments)
+          hparentObject hruntimeObject hlookup hcomposite hinclude
+      rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
+        runtimeType fieldName pathArguments targetLeftArguments currentSelectionSet] at hcoercedSupport
+      exact hcoercedSupport
     rcases
         executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_of_valid_normal_support_context_fuel_ge_size
           schema rootSelectionSet leftInitialSelectionSet
@@ -802,8 +799,7 @@ theorem
                 hcontext hmem hbodyMem hchildNormal
                 hruntimeObject) with
       ⟨responseFields, childErrors, hresponse⟩
-    exact ⟨responseFields, childErrors, by
-      simpa [hchildFuelEq] using hresponse⟩
+    exact ⟨responseFields, childErrors, by simpa [hchildFuelEq] using hresponse⟩
 
 theorem
     pathLocalSelectionSetFieldChildrenReady_of_valid_normal_support_context_fuel_ge_size
@@ -924,23 +920,22 @@ theorem
             childSelectionSet :=
         runtimePrunedSelectionSet_eq_self_of_allFields schema
           fieldDefinition.outputType.namedType hallFields
-      have hchildSupport :
-          PathLocalSupportValidNormal schema
-            fieldDefinition.outputType.namedType
-            (fieldPairPathLocalNextSelectionSet schema parentType
-              fieldDefinition.outputType.namedType fieldName arguments
-              currentSelectionSet) :=
-        by
-          have hcoercedSupport :=
-            hsupport.fieldPairPathLocalNextSelectionSet_of_object_output
-              (targetArguments := Execution.coercedArgumentsForField schema
-                variableValues parentType fieldName arguments)
-              hparentObject hreturnObject hlookup rfl
-          rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
-            fieldDefinition.outputType.namedType fieldName arguments
-              (Execution.coercedArgumentsForField schema variableValues parentType
-                fieldName arguments) currentSelectionSet] at hcoercedSupport
-          exact hcoercedSupport
+      have hchildSupport
+          : PathLocalSupportValidNormal schema
+              fieldDefinition.outputType.namedType
+              (fieldPairPathLocalNextSelectionSet schema parentType
+                fieldDefinition.outputType.namedType fieldName arguments
+                currentSelectionSet) := by
+        have hcoercedSupport :=
+          hsupport.fieldPairPathLocalNextSelectionSet_of_object_output
+            (targetArguments := Execution.coercedArgumentsForField schema
+              variableValues parentType fieldName arguments)
+            hparentObject hreturnObject hlookup rfl
+        rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
+          fieldDefinition.outputType.namedType fieldName arguments
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName arguments) currentSelectionSet] at hcoercedSupport
+        exact hcoercedSupport
       have hchildContext :
           PathLocalSelectionSetCurrentContext childSelectionSet
             (fieldPairPathLocalNextSelectionSet schema parentType
@@ -1027,21 +1022,20 @@ theorem
             fieldDefinition.outputType.namedType childSelectionSet :=
         selectionSetValid_field_child_of_mem_lookup hvalid hmem
           hchildNonempty hlookup
-      have hchildSupport :
-          PathLocalSupportValidNormal schema childRuntimeType
-            (fieldPairPathLocalNextSelectionSet schema parentType
-              childRuntimeType fieldName arguments currentSelectionSet) :=
-        by
-          have hcoercedSupport :=
-            hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
-              (targetArguments := Execution.coercedArgumentsForField schema
-                variableValues parentType fieldName arguments)
-              hparentObject hchildObject hlookup hreturnComposite hchildInclude
-          rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
-            childRuntimeType fieldName arguments
-              (Execution.coercedArgumentsForField schema variableValues parentType
-                fieldName arguments) currentSelectionSet] at hcoercedSupport
-          exact hcoercedSupport
+      have hchildSupport
+          : PathLocalSupportValidNormal schema childRuntimeType
+              (fieldPairPathLocalNextSelectionSet schema parentType
+                childRuntimeType fieldName arguments currentSelectionSet) := by
+        have hcoercedSupport :=
+          hsupport.fieldPairPathLocalNextSelectionSet_of_abstract_output
+            (targetArguments := Execution.coercedArgumentsForField schema
+              variableValues parentType fieldName arguments)
+            hparentObject hchildObject hlookup hreturnComposite hchildInclude
+        rw [← fieldPairPathLocalNextSelectionSet_eq_of_arguments schema parentType
+          childRuntimeType fieldName arguments
+            (Execution.coercedArgumentsForField schema variableValues parentType
+              fieldName arguments) currentSelectionSet] at hcoercedSupport
+        exact hcoercedSupport
       rcases
           executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_tagged_of_valid_normal_support_context_fuel_ge_size
             schema rootSelectionSet leftInitialSelectionSet
@@ -1277,12 +1271,10 @@ theorem
         childSelectionSet :=
     runtimePrunedSelectionSet_eq_self_of_allFields schema
       fieldDefinition.outputType.namedType hallFields
-  exact
-    normalSelectionSetObservableLeaf_of_fieldPairPathLocalNextSelectionSet_field_mem
-      (schema := schema) (currentRuntimeType := currentRuntimeType)
-      (childRuntimeType := fieldDefinition.outputType.namedType)
-      (targetField := fieldName) (targetArguments := targetArguments) hmem (by
-        simpa [hpruned] using hchildLeaf)
+  exact normalSelectionSetObservableLeaf_of_fieldPairPathLocalNextSelectionSet_field_mem
+    (schema := schema) (currentRuntimeType := currentRuntimeType)
+    (childRuntimeType := fieldDefinition.outputType.namedType) (targetField := fieldName)
+    (targetArguments := targetArguments) hmem (by simpa [hpruned] using hchildLeaf)
 
 theorem normalSelectionSetObservableLeaf_of_valid_normal_fieldName_composite_mem
     {schema : Schema}
@@ -1460,8 +1452,7 @@ theorem
         (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
           rightCurrentSelectionSet))
       right
-  exact hraw (by
-    simpa [hleftProjection, hrightProjection] using hsemantic)
+  exact hraw (by simpa [hleftProjection, hrightProjection] using hsemantic)
 
 theorem
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_other_root_ok_of_deepSuccessWithRef_ok
@@ -1792,7 +1783,8 @@ theorem
         ({ data := Execution.ResponseValue.object leftChildFields,
            errors := leftChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hleftChildResponse
+        Execution.executeRootSelectionSet]
+        using hleftChildResponse
     have hfield :=
       executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
         schema rootSelectionSet leftInitialSelectionSet
@@ -1809,8 +1801,7 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult, hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (parentFuel + 1)
         parentType source responseName
@@ -1847,7 +1838,8 @@ theorem
         ({ data := Execution.ResponseValue.object rightChildFields,
            errors := rightChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hrightChildResponse
+        Execution.executeRootSelectionSet]
+        using hrightChildResponse
     have hnotLeft :
         ¬ fieldProbeTarget parentType fieldName leftTargetArguments parentType
           fieldName
@@ -1871,8 +1863,8 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult, hfuelEq]
+      using hfield
   have hvalueNot :
       ¬ Execution.ResponseValue.semanticEquivalent leftValue rightValue := by
     intro hvalue
@@ -1887,16 +1879,15 @@ theorem
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   have hsource :
       ∃ runtimeType ref,
@@ -2118,7 +2109,8 @@ theorem
         ({ data := Execution.ResponseValue.object leftChildFields,
            errors := leftChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hleftChildResponse
+        Execution.executeRootSelectionSet]
+        using hleftChildResponse
     have hfield :=
       executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
         schema rootSelectionSet leftInitialSelectionSet
@@ -2135,8 +2127,7 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult, hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
         (parentFuel + 1) parentType source responseName
@@ -2175,7 +2166,8 @@ theorem
         ({ data := Execution.ResponseValue.object rightChildFields,
            errors := rightChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hrightChildResponse
+        Execution.executeRootSelectionSet]
+        using hrightChildResponse
     have hnotLeft :
         ¬ fieldProbeTarget parentType leftFieldName leftTargetArguments parentType
           rightFieldName
@@ -2198,8 +2190,8 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult, hfuelEq]
+      using hfield
   have hvalueNot :
       ¬ Execution.ResponseValue.semanticEquivalent leftValue rightValue :=
     wrapped_object_values_not_semanticEquivalent_of_child
@@ -3187,17 +3179,15 @@ theorem
         schema variableValues parentType fieldName leftArguments fieldDefinition
         leftTargetArguments hlookup hleftArgumentSuccess
         (by
-          simpa [leftTargetArguments] using
-            Execution.CoercedArgument.argumentsEquivalent_refl
-              leftTargetArguments)
+          simpa [leftTargetArguments]
+            using Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
     have hrightResult :=
       Execution.coerceArgumentValues_equivalent_success_of_coercedArgumentsForField
         schema variableValues parentType fieldName rightArguments fieldDefinition
         rightTargetArguments hlookup hrightArgumentSuccess
         (by
-          simpa [rightTargetArguments] using
-            Execution.CoercedArgument.argumentsEquivalent_refl
-              rightTargetArguments)
+          simpa [rightTargetArguments]
+            using Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
     have htargetsResult : Execution.ArgumentCoercionResult.equivalent
         (.success leftTargetArguments) (.success rightTargetArguments) :=
       htargets
@@ -3297,25 +3287,24 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := leftVariableDefinitions)
-        (parentType := parentType) (runtimeType := leftRuntime)
-        (targetParent := parentType) (leftField := fieldName)
-        (rightField := fieldName) (responseName := currentResponseName)
-        (fieldName := fieldName) (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := leftTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := left)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := fieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.left)
-        hleftValid hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel
-        hsupport hleftContext hmem hlookup hcomposite hleftInclude
+    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := leftVariableDefinitions) (parentType := parentType)
+          (runtimeType := leftRuntime) (targetParent := parentType)
+          (leftField := fieldName) (rightField := fieldName)
+          (responseName := currentResponseName) (fieldName := fieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := leftTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := left)
+          (childSelectionSet := childSelectionSet) (fieldDefinition := fieldDefinition)
+          (fuel := parentFuel) (tag := FieldPairProbeTag.left) hleftValid
+          hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel hsupport
+          hleftContext hmem hlookup hcomposite hleftInclude
   have hleftRightTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -3345,25 +3334,24 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := leftVariableDefinitions)
-        (parentType := parentType) (runtimeType := rightRuntime)
-        (targetParent := parentType) (leftField := fieldName)
-        (rightField := fieldName) (responseName := currentResponseName)
-        (fieldName := fieldName) (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := rightTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := left)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := fieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.right)
-        hleftValid hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel
-        hsupport hleftContext hmem hlookup hcomposite hrightInclude
+    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := leftVariableDefinitions) (parentType := parentType)
+          (runtimeType := rightRuntime) (targetParent := parentType)
+          (leftField := fieldName) (rightField := fieldName)
+          (responseName := currentResponseName) (fieldName := fieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := rightTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := left)
+          (childSelectionSet := childSelectionSet) (fieldDefinition := fieldDefinition)
+          (fuel := parentFuel) (tag := FieldPairProbeTag.right) hleftValid
+          hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel hsupport
+          hleftContext hmem hlookup hcomposite hrightInclude
   have hrightLeftTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -3393,26 +3381,24 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := rightVariableDefinitions)
-        (parentType := parentType) (runtimeType := leftRuntime)
-        (targetParent := parentType) (leftField := fieldName)
-        (rightField := fieldName) (responseName := currentResponseName)
-        (fieldName := fieldName) (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := leftTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := right)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := fieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.left)
-        hrightValid hrightCoercionAtValues hrightFree hrightNormal hparentObject
-        hrightFuel
-        hsupport hrightContext hmem hlookup hcomposite hleftInclude
+    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := rightVariableDefinitions) (parentType := parentType)
+          (runtimeType := leftRuntime) (targetParent := parentType)
+          (leftField := fieldName) (rightField := fieldName)
+          (responseName := currentResponseName) (fieldName := fieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := leftTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := right)
+          (childSelectionSet := childSelectionSet) (fieldDefinition := fieldDefinition)
+          (fuel := parentFuel) (tag := FieldPairProbeTag.left) hrightValid
+          hrightCoercionAtValues hrightFree hrightNormal hparentObject hrightFuel hsupport
+          hrightContext hmem hlookup hcomposite hleftInclude
   have hrightRightTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -3442,26 +3428,24 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := rightVariableDefinitions)
-        (parentType := parentType) (runtimeType := rightRuntime)
-        (targetParent := parentType) (leftField := fieldName)
-        (rightField := fieldName) (responseName := currentResponseName)
-        (fieldName := fieldName) (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := rightTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := right)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := fieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.right)
-        hrightValid hrightCoercionAtValues hrightFree hrightNormal hparentObject
-        hrightFuel
-        hsupport hrightContext hmem hlookup hcomposite hrightInclude
+    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := rightVariableDefinitions) (parentType := parentType)
+          (runtimeType := rightRuntime) (targetParent := parentType)
+          (leftField := fieldName) (rightField := fieldName)
+          (responseName := currentResponseName) (fieldName := fieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := rightTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := right)
+          (childSelectionSet := childSelectionSet) (fieldDefinition := fieldDefinition)
+          (fuel := parentFuel) (tag := FieldPairProbeTag.right) hrightValid
+          hrightCoercionAtValues hrightFree hrightNormal hparentObject hrightFuel hsupport
+          hrightContext hmem hlookup hcomposite hrightInclude
   have hleftDeep :
       ∀ responseName siblingFieldName arguments directives childSelectionSet,
         Selection.field responseName siblingFieldName arguments directives
@@ -3485,17 +3469,15 @@ theorem
             .ok ([(responseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, variableValues] using
-      left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, variableValues]
+      using left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairPathLocalProbeRef)
+        (ProjectionResolverRef.filler : ProjectionResolverRef FieldPairPathLocalProbeRef)
         variableValues
-        (projectionRootResolverValue
-          (.object parentType FieldPairPathLocalProbeRef.root))
+        (projectionRootResolverValue (.object parentType FieldPairPathLocalProbeRef.root))
         parentFuel hschema hleftValid hrightValid hleftCoercionAtValues
         hleftFree hrightFree
         hleftNormal hrightNormal hparentObject hfuelAppend
@@ -3524,62 +3506,54 @@ theorem
             .ok ([(responseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, variableValues] using
-      right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, variableValues]
+      using right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairPathLocalProbeRef)
+        (ProjectionResolverRef.filler : ProjectionResolverRef FieldPairPathLocalProbeRef)
         variableValues
-        (projectionRootResolverValue
-          (.object parentType FieldPairPathLocalProbeRef.root))
+        (projectionRootResolverValue (.object parentType FieldPairPathLocalProbeRef.root))
         parentFuel hschema hleftValid hrightValid hrightCoercionAtValues
         hleftFree hrightFree
         hleftNormal hrightNormal hparentObject hfuelAppend
         currentResponseName siblingFieldName arguments directives
         childSelectionSet hmem
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_cases
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet variableValues parentFuel parentType
-      responseName fieldName leftArguments rightArguments leftTargetArguments
-      rightTargetArguments leftRuntime rightRuntime hparentObject hleftNormal
-      hrightNormal hleftFree hrightFree hleftMem hrightMem hlookup
-      (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-        hleftCoercionAtValues hleftFree)
-      (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-        hrightCoercionAtValues hrightFree)
-      (by
-        simpa [leftTargetArguments] using
-          Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
-      (by
-        simpa [rightTargetArguments] using
-          Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
-      hleftInclude hrightInclude hleafFuel htargetArgumentsDiff
-      hleftChildResponse hrightChildResponse hchildNot
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hleftLeftTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hleftRightTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hrightLeftTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hrightRightTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
-      hleftDeep hrightDeep
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_cases
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    variableValues parentFuel parentType responseName fieldName leftArguments
+    rightArguments leftTargetArguments rightTargetArguments leftRuntime rightRuntime
+    hparentObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem hlookup
+    (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+      hleftCoercionAtValues hleftFree)
+    (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+      hrightCoercionAtValues hrightFree)
+    (by
+      simpa [leftTargetArguments]
+        using Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+    (by
+      simpa [rightTargetArguments]
+        using Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+    hleftInclude hrightInclude hleafFuel htargetArgumentsDiff
+    hleftChildResponse hrightChildResponse hchildNot
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hleftLeftTarget responseName arguments directives childSelectionSet
+        hmem (by simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hleftRightTarget responseName arguments directives childSelectionSet
+        hmem (by simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hrightLeftTarget responseName arguments directives childSelectionSet
+        hmem (by simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hrightRightTarget responseName arguments directives childSelectionSet
+        hmem (by simpa [Execution.coercedArgumentsForField, hlookup] using harguments))
+    hleftDeep hrightDeep
 
 theorem
     not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_data_diff_of_valid_normal_append_context_fuel_ge
@@ -3821,26 +3795,25 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := leftVariableDefinitions)
-        (parentType := parentType) (runtimeType := leftRuntime)
-        (targetParent := parentType) (leftField := leftFieldName)
-        (rightField := rightFieldName) (responseName := currentResponseName)
-        (fieldName := leftFieldName)
-        (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := leftTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := left)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := leftFieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.left)
-        hleftValid hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel
-        hsupport hleftContext hmem hleftLookup hleftComposite hleftInclude
+    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := leftVariableDefinitions) (parentType := parentType)
+          (runtimeType := leftRuntime) (targetParent := parentType)
+          (leftField := leftFieldName) (rightField := rightFieldName)
+          (responseName := currentResponseName) (fieldName := leftFieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := leftTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := left)
+          (childSelectionSet := childSelectionSet)
+          (fieldDefinition := leftFieldDefinition) (fuel := parentFuel)
+          (tag := FieldPairProbeTag.left) hleftValid hleftCoercionAtValues hleftFree
+          hleftNormal hparentObject hleftFuel hsupport hleftContext hmem hleftLookup
+          hleftComposite hleftInclude
   have hleftRightTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName rightFieldName arguments directives
@@ -3870,27 +3843,25 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := leftVariableDefinitions)
-        (parentType := parentType) (runtimeType := rightRuntime)
-        (targetParent := parentType) (leftField := leftFieldName)
-        (rightField := rightFieldName) (responseName := currentResponseName)
-        (fieldName := rightFieldName)
-        (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := rightTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := left)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := rightFieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.right)
-        hleftValid hleftCoercionAtValues hleftFree hleftNormal hparentObject hleftFuel
-        hsupport hleftContext hmem hrightLookup hrightComposite
-        hrightInclude
+    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := leftVariableDefinitions) (parentType := parentType)
+          (runtimeType := rightRuntime) (targetParent := parentType)
+          (leftField := leftFieldName) (rightField := rightFieldName)
+          (responseName := currentResponseName) (fieldName := rightFieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := rightTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := left)
+          (childSelectionSet := childSelectionSet)
+          (fieldDefinition := rightFieldDefinition) (fuel := parentFuel)
+          (tag := FieldPairProbeTag.right) hleftValid hleftCoercionAtValues hleftFree
+          hleftNormal hparentObject hleftFuel hsupport hleftContext hmem hrightLookup
+          hrightComposite hrightInclude
   have hrightLeftTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName leftFieldName arguments directives
@@ -3920,27 +3891,25 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := rightVariableDefinitions)
-        (parentType := parentType) (runtimeType := leftRuntime)
-        (targetParent := parentType) (leftField := leftFieldName)
-        (rightField := rightFieldName) (responseName := currentResponseName)
-        (fieldName := leftFieldName)
-        (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := leftTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := right)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := leftFieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.left)
-        hrightValid hrightCoercionAtValues hrightFree hrightNormal hparentObject
-        hrightFuel
-        hsupport hrightContext hmem hleftLookup hleftComposite hleftInclude
+    simpa [rootSelectionSet, leftInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := rightVariableDefinitions) (parentType := parentType)
+          (runtimeType := leftRuntime) (targetParent := parentType)
+          (leftField := leftFieldName) (rightField := rightFieldName)
+          (responseName := currentResponseName) (fieldName := leftFieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := leftTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := right)
+          (childSelectionSet := childSelectionSet)
+          (fieldDefinition := leftFieldDefinition) (fuel := parentFuel)
+          (tag := FieldPairProbeTag.left) hrightValid hrightCoercionAtValues hrightFree
+          hrightNormal hparentObject hrightFuel hsupport hrightContext hmem hleftLookup
+          hleftComposite hleftInclude
   have hrightRightTarget :
       ∀ responseName arguments directives childSelectionSet,
         Selection.field responseName rightFieldName arguments directives
@@ -3970,28 +3939,25 @@ theorem
                  errors := childErrors } : Execution.Response) := by
     intro currentResponseName arguments directives childSelectionSet hmem
       harguments
-    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues] using
-      executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet (left ++ right) variableValues hschema
-        (variableDefinitions := rightVariableDefinitions)
-        (parentType := parentType) (runtimeType := rightRuntime)
-        (targetParent := parentType) (leftField := leftFieldName)
-        (rightField := rightFieldName) (responseName := currentResponseName)
-        (fieldName := rightFieldName)
-        (targetLeftArguments := leftTargetArguments)
-        (targetRightArguments := rightTargetArguments)
-        (pathArguments := rightTargetArguments)
-        (arguments := arguments)
-        (directives := directives) (leftRuntime := leftRuntime)
-        (rightRuntime := rightRuntime) (selectionSet := right)
-        (childSelectionSet := childSelectionSet)
-        (fieldDefinition := rightFieldDefinition) (fuel := parentFuel)
-        (tag := FieldPairProbeTag.right)
-        hrightValid hrightCoercionAtValues hrightFree hrightNormal hparentObject
-        hrightFuel
-        hsupport hrightContext hmem hrightLookup hrightComposite
-        hrightInclude
+    simpa [rootSelectionSet, rightInitialSelectionSet, variableValues]
+      using
+        executeSelectionSetAsResponse_fieldPairOrDeepSuccess_pathLocalProbe_target_child_of_valid_normal_context_fuel_ge
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          (left ++ right) variableValues hschema
+          (variableDefinitions := rightVariableDefinitions) (parentType := parentType)
+          (runtimeType := rightRuntime) (targetParent := parentType)
+          (leftField := leftFieldName) (rightField := rightFieldName)
+          (responseName := currentResponseName) (fieldName := rightFieldName)
+          (targetLeftArguments := leftTargetArguments)
+          (targetRightArguments := rightTargetArguments)
+          (pathArguments := rightTargetArguments) (arguments := arguments)
+          (directives := directives) (leftRuntime := leftRuntime)
+          (rightRuntime := rightRuntime) (selectionSet := right)
+          (childSelectionSet := childSelectionSet)
+          (fieldDefinition := rightFieldDefinition) (fuel := parentFuel)
+          (tag := FieldPairProbeTag.right) hrightValid hrightCoercionAtValues hrightFree
+          hrightNormal hparentObject hrightFuel hsupport hrightContext hmem hrightLookup
+          hrightComposite hrightInclude
   have hleftDeep :
       ∀ responseName siblingFieldName arguments directives childSelectionSet,
         Selection.field responseName siblingFieldName arguments directives
@@ -4015,17 +3981,15 @@ theorem
             .ok ([(responseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, variableValues] using
-      left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, variableValues]
+      using left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairPathLocalProbeRef)
+        (ProjectionResolverRef.filler : ProjectionResolverRef FieldPairPathLocalProbeRef)
         variableValues
-        (projectionRootResolverValue
-          (.object parentType FieldPairPathLocalProbeRef.root))
+        (projectionRootResolverValue (.object parentType FieldPairPathLocalProbeRef.root))
         parentFuel hschema hleftValid hrightValid hleftCoercionAtValues
         hleftFree hrightFree
         hleftNormal hrightNormal hparentObject hfuelAppend
@@ -4054,67 +4018,55 @@ theorem
             .ok ([(responseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, variableValues] using
-      right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, variableValues]
+      using right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairPathLocalProbeRef)
+        (ProjectionResolverRef.filler : ProjectionResolverRef FieldPairPathLocalProbeRef)
         variableValues
-        (projectionRootResolverValue
-          (.object parentType FieldPairPathLocalProbeRef.root))
+        (projectionRootResolverValue (.object parentType FieldPairPathLocalProbeRef.root))
         parentFuel hschema hleftValid hrightValid hrightCoercionAtValues
         hleftFree hrightFree
         hleftNormal hrightNormal hparentObject hfuelAppend
         currentResponseName siblingFieldName arguments directives
         childSelectionSet hmem
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_cases
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet variableValues parentFuel parentType
-      responseName leftFieldName rightFieldName leftArguments rightArguments
-      leftTargetArguments rightTargetArguments leftRuntime rightRuntime
-      hparentObject hleftNormal hrightNormal hleftFree hrightFree hleftMem
-      hrightMem hleftLookup hrightLookup
-      (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-        hleftCoercionAtValues hleftFree)
-      (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-        hrightCoercionAtValues hrightFree)
-      (by
-        simpa [leftTargetArguments] using
-          Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
-      (by
-        simpa [rightTargetArguments] using
-          Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
-      hleftInclude hrightInclude hleftLeafFuel hrightLeafFuel hfieldDiff
-      hleftChildResponse hrightChildResponse hchildNot
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hleftLeftTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hleftLookup] using
-              harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hleftRightTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hrightLookup] using
-              harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hrightLeftTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hleftLookup] using
-              harguments))
-      (by
-        intro responseName arguments directives childSelectionSet hmem harguments
-        exact hrightRightTarget responseName arguments directives childSelectionSet
-          hmem (by
-            simpa [Execution.coercedArgumentsForField, hrightLookup] using
-              harguments))
-      hleftDeep hrightDeep
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_fieldName_child_response_diff_of_field_cases
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    variableValues parentFuel parentType responseName leftFieldName rightFieldName
+    leftArguments rightArguments leftTargetArguments rightTargetArguments leftRuntime
+    rightRuntime hparentObject hleftNormal hrightNormal hleftFree hrightFree hleftMem
+    hrightMem hleftLookup hrightLookup
+    (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+      hleftCoercionAtValues hleftFree)
+    (selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+      hrightCoercionAtValues hrightFree)
+    (by
+      simpa [leftTargetArguments]
+        using Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments)
+    (by
+      simpa [rightTargetArguments]
+        using Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments)
+    hleftInclude hrightInclude hleftLeafFuel hrightLeafFuel hfieldDiff
+    hleftChildResponse hrightChildResponse hchildNot
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hleftLeftTarget responseName arguments directives childSelectionSet hmem
+        (by simpa [Execution.coercedArgumentsForField, hleftLookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hleftRightTarget responseName arguments directives childSelectionSet hmem
+        (by simpa [Execution.coercedArgumentsForField, hrightLookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hrightLeftTarget responseName arguments directives childSelectionSet hmem
+        (by simpa [Execution.coercedArgumentsForField, hleftLookup] using harguments))
+    (by
+      intro responseName arguments directives childSelectionSet hmem harguments
+      exact hrightRightTarget responseName arguments directives childSelectionSet hmem
+        (by simpa [Execution.coercedArgumentsForField, hrightLookup] using harguments))
+    hleftDeep hrightDeep
 
 end GroundTypeNormalization
 

@@ -350,10 +350,9 @@ theorem PathLocalSelectionSetCurrentContext.headReady_of_valid_normal
   intro hsound hcontext hvalid hnormal
   rcases hcontext with ⟨pref, suff, hcurrent⟩
   subst currentSelectionSet
-  exact
-    PathLocalSelectionSetHeadReady.append_context_of_sound
-      (by simpa using hsound)
-      (PathLocalSelectionSetHeadReady.of_valid_normal_self hvalid hnormal)
+  exact PathLocalSelectionSetHeadReady.append_context_of_sound
+    (by simpa using hsound)
+    (PathLocalSelectionSetHeadReady.of_valid_normal_self hvalid hnormal)
 
 theorem PathLocalSelectionSetCurrentContext.trans {inner middle outer : List Selection}
     : PathLocalSelectionSetCurrentContext inner middle
@@ -414,8 +413,7 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_sound
                     some headRuntimeType := by
                 simp [abstractRuntimeForFieldDeep?, hcurrent]
               have hruntimeEq : headRuntimeType = runtimeType := by
-                simpa [abstractRuntimeForFieldDeep?, hcurrent] using
-                  happendedRuntime
+                simpa [abstractRuntimeForFieldDeep?, hcurrent] using happendedRuntime
               subst runtimeType
               exact hleftInclude headRuntimeType hleftRuntime
           | none =>
@@ -425,8 +423,8 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_sound
                         (tail ++ right) with
               | some tailRuntimeType =>
                   have hruntimeEq : tailRuntimeType = runtimeType := by
-                    simpa [abstractRuntimeForFieldDeep?, hcurrent,
-                      happTail] using happendedRuntime
+                    simpa [abstractRuntimeForFieldDeep?, hcurrent, happTail]
+                      using happendedRuntime
                   subst runtimeType
                   have htailInclude :
                       ∀ tailRuntimeType,
@@ -473,9 +471,9 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_sound
                                 fieldDefinition.outputType.namedType
                                 childSelectionSet =
                               some runtimeType := by
-                            simpa [abstractRuntimeForFieldDeep?,
-                              hcurrent, happTail, hlookupHead] using
-                              happendedRuntime
+                            simpa [abstractRuntimeForFieldDeep?, hcurrent, happTail,
+                              hlookupHead]
+                              using happendedRuntime
                           have hchildInclude :
                               ∀ childRuntimeType,
                                 abstractRuntimeForFieldDeep? schema
@@ -501,9 +499,8 @@ theorem abstractRuntimeForFieldDeep?_append_some_include_of_sound
                     currentParent (tail ++ right) with
           | some tailRuntimeType =>
               have hruntimeEq : tailRuntimeType = runtimeType := by
-                cases typeCondition <;>
-                  simpa [abstractRuntimeForFieldDeep?, happTail] using
-                    happendedRuntime
+                cases typeCondition
+                <;> simpa [abstractRuntimeForFieldDeep?, happTail] using happendedRuntime
               subst runtimeType
               have htailInclude :
                   ∀ tailRuntimeType,
@@ -636,8 +633,7 @@ theorem PathLocalCurrentRuntimeSound.flatten
           intro restMember hrestMem
           exact hmembers restMember
             (List.mem_cons_of_mem member hrestMem))
-      simpa [List.flatten_cons] using
-        (PathLocalCurrentRuntimeSound.append hmember hrest)
+      simpa [List.flatten_cons] using (PathLocalCurrentRuntimeSound.append hmember hrest)
 
 theorem PathLocalCurrentRuntimeSound.append_valid_normal_left
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -650,16 +646,15 @@ theorem PathLocalCurrentRuntimeSound.append_valid_normal_left
   intro hleftValid hleftFree hleftNormal hrightSound targetParent
     targetField runtimeType targetArguments targetFieldDefinition hlookup
     hcomposite hnonObject hruntime
-  exact
-    abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
-      hleftValid hleftFree hleftNormal
-      (by
-        intro rightRuntime hrightRuntime
-        exact
-          hrightSound targetParent targetField rightRuntime
-            targetArguments targetFieldDefinition hlookup hcomposite
-            hnonObject hrightRuntime)
-      hlookup hcomposite hnonObject hruntime
+  exact abstractRuntimeForFieldDeep?_append_some_include_of_valid_normal_or_right
+    hleftValid hleftFree hleftNormal
+    (by
+      intro rightRuntime hrightRuntime
+      exact
+        hrightSound targetParent targetField rightRuntime
+          targetArguments targetFieldDefinition hlookup hcomposite
+          hnonObject hrightRuntime)
+    hlookup hcomposite hnonObject hruntime
 
 theorem PathLocalCurrentRuntimeSound.flatten_valid_normal_members
     {schema : Schema} {currentParent : Name}
@@ -829,10 +824,10 @@ theorem PathLocalSupportValidNormal.flatten
       simp at hmember
   | cons memberSelectionSet rest ih =>
       simp [List.flatten]
-      exact
-        PathLocalSupportValidNormal.append
-          (hmembers memberSelectionSet (by simp))
-          (ih (by
+      exact PathLocalSupportValidNormal.append
+        (hmembers memberSelectionSet (by simp))
+        (ih
+          (by
             intro restMember hrestMember
             exact hmembers restMember (List.mem_cons_of_mem _ hrestMember)))
 
@@ -972,8 +967,7 @@ theorem PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
                   exact
                     PathLocalSupportValidNormal.append_valid_normal_left
                       hchildValid hchildFree hchildNormal htailSupport
-                · simpa [runtimePrunedSelectionSet, hincludes] using
-                    htailSupport
+                · simpa [runtimePrunedSelectionSet, hincludes] using htailSupport
 
 theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1113,8 +1107,7 @@ theorem PathLocalCurrentRuntimeSound.runtimePruned_of_valid_normal_runtime
                   exact
                     PathLocalCurrentRuntimeSound.append_valid_normal_left
                       hchildValid hchildFree hchildNormal htailSound
-                · simpa [runtimePrunedSelectionSet, hincludes] using
-                    htailSound
+                · simpa [runtimePrunedSelectionSet, hincludes] using htailSound
 
 theorem fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1243,14 +1236,13 @@ theorem
   intro hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
     hinclude
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-  exact
-    PathLocalCurrentRuntimeSound.flatten
-      (by
-        intro memberSelectionSet hmember
-        exact
-          fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
-            hvalid hfree hnormal hcurrentObject hchildObject
-            htargetLookup hinclude hmember)
+  exact PathLocalCurrentRuntimeSound.flatten
+    (by
+      intro memberSelectionSet hmember
+      exact
+        fieldChildMembersByHeadAtRuntime_sound_of_valid_normal_object
+          hvalid hfree hnormal hcurrentObject hchildObject
+          htargetLookup hinclude hmember)
 
 theorem runtimePrunedSelectionSet_mem_fieldChildMembersByHeadAtRuntime_of_field_mem
     {schema : Schema}
@@ -1282,26 +1274,25 @@ theorem runtimePrunedSelectionSet_mem_fieldChildMembersByHeadAtRuntime_of_field_
           · cases hhead
           · cases typeCondition with
             | none =>
-                simpa [fieldChildMembersByHeadAtRuntime] using
-                  (List.mem_append_right
-                    (fieldChildMembersByHeadAtRuntime schema
-                      currentRuntimeType childRuntimeType targetField
-                      targetArguments headChildSelectionSet)
-                    (ih htail))
+                simpa [fieldChildMembersByHeadAtRuntime]
+                  using (List.mem_append_right
+                          (fieldChildMembersByHeadAtRuntime schema
+                            currentRuntimeType childRuntimeType targetField
+                            targetArguments headChildSelectionSet)
+                          (ih htail))
             | some typeCondition =>
                 by_cases hincludes :
                     schema.typeIncludesObjectBool typeCondition
                       currentRuntimeType
-                · simpa [fieldChildMembersByHeadAtRuntime, hincludes] using
-                    (List.mem_append_right
-                      (fieldChildMembersByHeadAtRuntime schema
-                        currentRuntimeType childRuntimeType targetField
-                        targetArguments headChildSelectionSet)
-                      (by
-                        simpa [fieldChildMembersByHeadAtRuntime, hincludes]
-                          using ih htail))
                 · simpa [fieldChildMembersByHeadAtRuntime, hincludes]
-                    using ih htail
+                    using (List.mem_append_right
+                            (fieldChildMembersByHeadAtRuntime schema
+                              currentRuntimeType childRuntimeType targetField
+                              targetArguments headChildSelectionSet)
+                            (by
+                              simpa [fieldChildMembersByHeadAtRuntime, hincludes]
+                                using ih htail))
+                · simpa [fieldChildMembersByHeadAtRuntime, hincludes] using ih htail
 
 theorem fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
     {ArgumentType : Type}
@@ -1503,15 +1494,14 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_object
     runtimePrunedSelectionSet_eq_self_of_allFields schema
       targetFieldDefinition.outputType.namedType hallFields
   subst memberSelectionSet
-  simpa [hpruned] using
-    (show
-      ∃ variableDefinitions,
-        Validation.selectionSetValid schema variableDefinitions
-          targetFieldDefinition.outputType.namedType childSelectionSet
-        ∧ selectionSetDirectiveFree childSelectionSet
-        ∧ selectionSetNormal schema
-          targetFieldDefinition.outputType.namedType childSelectionSet from
-      ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩)
+  simpa [hpruned]
+    using (show ∃ variableDefinitions,
+                  Validation.selectionSetValid schema variableDefinitions
+                    targetFieldDefinition.outputType.namedType childSelectionSet
+                  ∧ selectionSetDirectiveFree childSelectionSet
+                  ∧ selectionSetNormal schema
+                      targetFieldDefinition.outputType.namedType childSelectionSet
+            from ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩)
 
 theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstract_output
     {ArgumentType : Type}
@@ -1535,32 +1525,31 @@ theorem PathLocalSupportValidNormal.fieldPairPathLocalNextSelectionSet_of_abstra
   intro hsupport hcurrentObject hchildObject htargetLookup htargetComposite
     hinclude
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-  exact
-    PathLocalSupportValidNormal.flatten
-      (by
-        intro memberSelectionSet hmember
-        rcases
-            fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
-              (schema := schema) (currentRuntimeType := currentRuntimeType)
-              (childRuntimeType := childRuntimeType)
-              (targetField := targetField)
-              (targetArguments := targetArguments)
-              (currentSelectionSet := currentSelectionSet)
-              (memberSelectionSet := memberSelectionSet)
-              (hsupport.allFields_of_object hcurrentObject) hmember with
-          ⟨responseName, arguments, directives, childSelectionSet,
-            hfieldMem, hmemberEq⟩
-        rcases
-            hsupport.field_child_valid_normal_of_mem_lookup
-              hfieldMem htargetLookup htargetComposite with
-          ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩
-        have hmemberSupport :
-            PathLocalSupportValidNormal schema childRuntimeType
-              (runtimePrunedSelectionSet schema childRuntimeType
-                childSelectionSet) :=
-          PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
-            hchildValid hchildFree hchildNormal hinclude hchildObject
-        simpa [hmemberEq] using hmemberSupport)
+  exact PathLocalSupportValidNormal.flatten
+    (by
+      intro memberSelectionSet hmember
+      rcases
+          fieldChildMembersByHeadAtRuntime_mem_exists_field_of_allFields
+            (schema := schema) (currentRuntimeType := currentRuntimeType)
+            (childRuntimeType := childRuntimeType)
+            (targetField := targetField)
+            (targetArguments := targetArguments)
+            (currentSelectionSet := currentSelectionSet)
+            (memberSelectionSet := memberSelectionSet)
+            (hsupport.allFields_of_object hcurrentObject) hmember with
+        ⟨responseName, arguments, directives, childSelectionSet,
+          hfieldMem, hmemberEq⟩
+      rcases
+          hsupport.field_child_valid_normal_of_mem_lookup
+            hfieldMem htargetLookup htargetComposite with
+        ⟨variableDefinitions, hchildValid, hchildFree, hchildNormal⟩
+      have hmemberSupport :
+          PathLocalSupportValidNormal schema childRuntimeType
+            (runtimePrunedSelectionSet schema childRuntimeType
+              childSelectionSet) :=
+        PathLocalSupportValidNormal.runtimePruned_of_valid_normal_runtime
+          hchildValid hchildFree hchildNormal hinclude hchildObject
+      simpa [hmemberEq] using hmemberSupport)
 
 theorem
     PathLocalSelectionSetHeadReady.fieldPairPathLocalNextSelectionSet_field_child_of_valid_normal_object_output
@@ -1640,14 +1629,13 @@ theorem
       hvalid hfree hnormal hcurrentObject hchildObject htargetLookup
       hinclude
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-  exact
-    PathLocalSelectionSetHeadReady.member_flatten_of_sound
-      (by
-        simpa [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-          using hsoundNext)
-      hmember
-      (PathLocalSelectionSetHeadReady.of_valid_normal_self
-        hchildValid hchildNormal)
+  exact PathLocalSelectionSetHeadReady.member_flatten_of_sound
+    (by
+      simpa [
+        fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
+        using hsoundNext)
+    hmember
+    (PathLocalSelectionSetHeadReady.of_valid_normal_self hchildValid hchildNormal)
 
 theorem PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -1839,12 +1827,12 @@ theorem
     PathLocalSelectionSetHeadReady.runtimePruned_inlineFragment_body_of_valid_normal
       hchildValid hchildFree hchildNormal hinclude hchildObject hbodyMem
   rw [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-  exact
-    PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
-      (by
-        simpa [fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
-          using hsoundNext)
-      hmemberRoot hlocalReady
+  exact PathLocalSelectionSetHeadReady.selection_in_member_flatten_of_sound
+    (by
+      simpa [
+        fieldPairPathLocalNextSelectionSet_eq_flatten_fieldChildMembersByHeadAtRuntime]
+        using hsoundNext)
+    hmemberRoot hlocalReady
 
 theorem
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_tagged_object_objectProbe_response_of_sound_fuel_ge
@@ -2398,37 +2386,33 @@ theorem
                         bodyResponseName bodyFieldName bodyArguments
                         bodyDirectives bodyChildSelectionSet hfieldMem) with
               ⟨bodyFields, bodyErrors, hbodyResponse⟩
-            have hmiddle :
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                =
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] :=
-              by
-                simpa [source, projectionTargetResolverValue,
-                  projectionResolverValue] using
+            have hmiddle
+                : Execution.executeSelectionSet schema resolvers variableValues
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSet schema resolvers variableValues
+                      (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+              simpa [source, projectionTargetResolverValue, projectionResolverValue]
+                using
                   executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
                     schema resolvers variableValues (fuel + 1)
                     (ProjectionResolverRef.target
-                      (FieldPairPathLocalProbeRef.target tag
-                        currentSelectionSet))
+                      (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
                     hnonObject hruntimeObject hfree hnormal
             have happly :
                 Execution.doesFragmentTypeApplyBool schema runtimeType
                   source runtimeType = true := by
               dsimp [source]
               simpa [projectionTargetResolverValue, projectionResolverValue]
-                using
-                  (doesFragmentTypeApplyBool_object_self schema
-                    (ref :=
-                      ProjectionResolverRef.target
-                        (FieldPairPathLocalProbeRef.target tag
-                          currentSelectionSet))
-                    hruntimeObject)
+                using (doesFragmentTypeApplyBool_object_self schema
+                        (ref :=
+                          ProjectionResolverRef.target
+                            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+                        hruntimeObject)
             have hflatten :
                 Execution.executeSelectionSet schema resolvers variableValues
                   (fuel + 1) runtimeType source
@@ -2462,26 +2446,24 @@ theorem
                     }
                     : Execution.Response) := by
                 simpa [resolvers, source] using hbodyResponse
-  · have hcollect :
-        Execution.collectFields schema variableValues runtimeType source
-          selectionSet = [] :=
-      by
-        simpa [source, projectionTargetResolverValue,
-          projectionResolverValue] using
-          collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
-            schema variableValues (normalParentType := normalParentType)
-            (executionParentType := runtimeType) (runtimeType := runtimeType)
-            (ProjectionResolverRef.target
-              (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
-            hnonObject hfree hnormal hruntimeMem
+  · have hcollect
+        : Execution.collectFields schema variableValues runtimeType source selectionSet
+          = [] := by
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+          schema variableValues (normalParentType := normalParentType)
+          (executionParentType := runtimeType) (runtimeType := runtimeType)
+          (ProjectionResolverRef.target
+            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+          hnonObject hfree hnormal hruntimeMem
     have hcollectObject :
         Execution.collectFields schema variableValues runtimeType
           (Execution.ResolverValue.object runtimeType
             (ProjectionResolverRef.target
               (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
           selectionSet = [] := by
-      simpa [source, projectionTargetResolverValue,
-        projectionResolverValue] using hcollect
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using hcollect
     refine ⟨[], 0, ?_⟩
     simp [projectionTargetResolverValue, projectionResolverValue,
       Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
@@ -2639,37 +2621,33 @@ theorem
                         bodyResponseName bodyFieldName bodyArguments
                         bodyDirectives bodyChildSelectionSet hfieldMem) with
               ⟨bodyFields, bodyErrors, hbodyResponse⟩
-            have hmiddle :
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                =
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] :=
-              by
-                simpa [source, projectionTargetResolverValue,
-                  projectionResolverValue] using
+            have hmiddle
+                : Execution.executeSelectionSet schema resolvers variableValues
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSet schema resolvers variableValues
+                      (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+              simpa [source, projectionTargetResolverValue, projectionResolverValue]
+                using
                   executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
                     schema resolvers variableValues (fuel + 1)
                     (ProjectionResolverRef.target
-                      (FieldPairPathLocalProbeRef.target tag
-                        currentSelectionSet))
+                      (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
                     hnonObject hruntimeObject hfree hnormal
             have happly :
                 Execution.doesFragmentTypeApplyBool schema runtimeType
                   source runtimeType = true := by
               dsimp [source]
               simpa [projectionTargetResolverValue, projectionResolverValue]
-                using
-                  (doesFragmentTypeApplyBool_object_self schema
-                    (ref :=
-                      ProjectionResolverRef.target
-                        (FieldPairPathLocalProbeRef.target tag
-                          currentSelectionSet))
-                    hruntimeObject)
+                using (doesFragmentTypeApplyBool_object_self schema
+                        (ref :=
+                          ProjectionResolverRef.target
+                            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+                        hruntimeObject)
             have hflatten :
                 Execution.executeSelectionSet schema resolvers variableValues
                   (fuel + 1) runtimeType source
@@ -2703,26 +2681,24 @@ theorem
                     }
                     : Execution.Response) := by
                 simpa [resolvers, source] using hbodyResponse
-  · have hcollect :
-        Execution.collectFields schema variableValues runtimeType source
-          selectionSet = [] :=
-      by
-        simpa [source, projectionTargetResolverValue,
-          projectionResolverValue] using
-          collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
-            schema variableValues (normalParentType := normalParentType)
-            (executionParentType := runtimeType) (runtimeType := runtimeType)
-            (ProjectionResolverRef.target
-              (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
-            hnonObject hfree hnormal hruntimeMem
+  · have hcollect
+        : Execution.collectFields schema variableValues runtimeType source selectionSet
+          = [] := by
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+          schema variableValues (normalParentType := normalParentType)
+          (executionParentType := runtimeType) (runtimeType := runtimeType)
+          (ProjectionResolverRef.target
+            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+          hnonObject hfree hnormal hruntimeMem
     have hcollectObject :
         Execution.collectFields schema variableValues runtimeType
           (Execution.ResolverValue.object runtimeType
             (ProjectionResolverRef.target
               (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
           selectionSet = [] := by
-      simpa [source, projectionTargetResolverValue,
-        projectionResolverValue] using hcollect
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using hcollect
     refine ⟨[], 0, ?_⟩
     simp [projectionTargetResolverValue, projectionResolverValue,
       Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
@@ -2816,37 +2792,33 @@ theorem
               exact List.mem_append_right _ (by simp)
             rcases hbodyResponse bodySelectionSet hinlineMem with
               ⟨bodyFields, bodyErrors, hbodyExec⟩
-            have hmiddle :
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                =
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] :=
-              by
-                simpa [source, projectionTargetResolverValue,
-                  projectionResolverValue] using
+            have hmiddle
+                : Execution.executeSelectionSet schema resolvers variableValues
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSet schema resolvers variableValues
+                      (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+              simpa [source, projectionTargetResolverValue, projectionResolverValue]
+                using
                   executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
                     schema resolvers variableValues (fuel + 1)
                     (ProjectionResolverRef.target
-                      (FieldPairPathLocalProbeRef.target tag
-                        currentSelectionSet))
+                      (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
                     hnonObject hruntimeObject hfree hnormal
             have happly :
                 Execution.doesFragmentTypeApplyBool schema runtimeType
                   source runtimeType = true := by
               dsimp [source]
               simpa [projectionTargetResolverValue, projectionResolverValue]
-                using
-                  (doesFragmentTypeApplyBool_object_self schema
-                    (ref :=
-                      ProjectionResolverRef.target
-                        (FieldPairPathLocalProbeRef.target tag
-                          currentSelectionSet))
-                    hruntimeObject)
+                using (doesFragmentTypeApplyBool_object_self schema
+                        (ref :=
+                          ProjectionResolverRef.target
+                            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+                        hruntimeObject)
             have hflatten :
                 Execution.executeSelectionSet schema resolvers variableValues
                   (fuel + 1) runtimeType source
@@ -2880,26 +2852,24 @@ theorem
                     }
                     : Execution.Response) := by
                 simpa [resolvers, source] using hbodyExec
-  · have hcollect :
-        Execution.collectFields schema variableValues runtimeType source
-          selectionSet = [] :=
-      by
-        simpa [source, projectionTargetResolverValue,
-          projectionResolverValue] using
-          collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
-            schema variableValues (normalParentType := normalParentType)
-            (executionParentType := runtimeType) (runtimeType := runtimeType)
-            (ProjectionResolverRef.target
-              (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
-            hnonObject hfree hnormal hruntimeMem
+  · have hcollect
+        : Execution.collectFields schema variableValues runtimeType source selectionSet
+          = [] := by
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+          schema variableValues (normalParentType := normalParentType)
+          (executionParentType := runtimeType) (runtimeType := runtimeType)
+          (ProjectionResolverRef.target
+            (FieldPairPathLocalProbeRef.target tag currentSelectionSet))
+          hnonObject hfree hnormal hruntimeMem
     have hcollectObject :
         Execution.collectFields schema variableValues runtimeType
           (Execution.ResolverValue.object runtimeType
             (ProjectionResolverRef.target
               (FieldPairPathLocalProbeRef.target tag currentSelectionSet)))
           selectionSet = [] := by
-      simpa [source, projectionTargetResolverValue,
-        projectionResolverValue] using hcollect
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using hcollect
     refine ⟨[], 0, ?_⟩
     simp [projectionTargetResolverValue, projectionResolverValue,
       Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
@@ -2928,9 +2898,9 @@ theorem normalSelectionSetResponsePath_of_firstFieldChildByHead?_field_mem
         hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
-  simpa [hcontext] using
-    (NormalSelectionSetResponsePath.append_context
-      (pref := pref) (suff := suff) hpath)
+  simpa [hcontext]
+    using (NormalSelectionSetResponsePath.append_context
+            (pref := pref) (suff := suff) hpath)
 
 theorem normalSelectionSetResponsePath_of_firstFieldChildByHeadAtRuntime?_field_mem
     {schema : Schema}
@@ -2958,9 +2928,9 @@ theorem normalSelectionSetResponsePath_of_firstFieldChildByHeadAtRuntime?_field_
         (targetField := targetField) (targetArguments := targetArguments) hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
-  simpa [hcontext] using
-    (NormalSelectionSetResponsePath.append_context
-      (pref := pref) (suff := suff) hpath)
+  simpa [hcontext]
+    using (NormalSelectionSetResponsePath.append_context
+            (pref := pref) (suff := suff) hpath)
 
 theorem normalSelectionSetResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem
     {schema : Schema}
@@ -3056,9 +3026,9 @@ theorem
         (targetField := targetField) (targetArguments := targetArguments) hmem with
     ⟨mergedSelectionSet, pref, suff, hmerged, hcontext⟩
   refine ⟨mergedSelectionSet, hmerged, ?_⟩
-  simpa [hcontext] using
-    (NormalSelectionSetObservableResponsePath.append_context
-      (pref := pref) (suff := suff) hpath)
+  simpa [hcontext]
+    using (NormalSelectionSetObservableResponsePath.append_context
+            (pref := pref) (suff := suff) hpath)
 
 theorem
     normalSelectionSetObservableResponsePath_of_fieldPairPathLocalNextSelectionSet_field_mem

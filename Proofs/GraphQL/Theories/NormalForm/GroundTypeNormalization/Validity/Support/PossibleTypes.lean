@@ -528,8 +528,8 @@ theorem normalizedField_selectionValidInPossibleTypes
       Validation.selectionValid schema variableDefinitions parentType
         (Selection.field responseName fieldName arguments []
           sourceSubselections) := by
-    simpa [Validation.selectionValidInPossibleTypes, hlookup] using
-      hsourceImplementation.1
+    simpa [Validation.selectionValidInPossibleTypes, hlookup]
+      using hsourceImplementation.1
   rcases Validation.selectionValid_field_lookup hsourceSelection with
     ⟨sourceDefinition, hsourceLookup, harguments, hsourceChild⟩
   have hdefinitionEq : sourceDefinition = fieldDefinition := by

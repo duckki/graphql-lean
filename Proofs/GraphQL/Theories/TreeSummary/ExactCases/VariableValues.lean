@@ -131,8 +131,8 @@ theorem mem_leaves_select_zipWith (variableValues : VariableValues)
         rw [ihTrue]
         rw [select_restrict variableValues leftTest true (by simp [hselected])]
         simp [select]
-      · have hselectedFalse : selectedValue variableValues leftTest = false :=
-          by cases hvalue : selectedValue variableValues leftTest <;> simp_all
+      · have hselectedFalse : selectedValue variableValues leftTest = false := by
+          cases hvalue : selectedValue variableValues leftTest <;> simp_all
         simp only [zipWith, if_neg hne, if_pos horder]
         simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
         rw [ihFalse]
@@ -146,8 +146,8 @@ theorem mem_leaves_select_zipWith (variableValues : VariableValues)
         rw [ihTrue]
         rw [select_restrict variableValues rightTest true (by simp [hselected])]
         simp [select]
-      · have hselectedFalse : selectedValue variableValues rightTest = false :=
-          by cases hvalue : selectedValue variableValues rightTest <;> simp_all
+      · have hselectedFalse : selectedValue variableValues rightTest = false := by
+          cases hvalue : selectedValue variableValues rightTest <;> simp_all
         simp only [zipWith, if_neg hne, if_neg horder]
         simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
         rw [ihFalse]
@@ -177,8 +177,8 @@ theorem zipWith_splitFree (variableOrder : BooleanVariableNames)
           simpa [zipWith] using map_splitFree (fun value => operation value right) hleft
       | split rightTest rightFalse rightTrue => contradiction
       | join rightFirst rightSecond =>
-          simpa [zipWith, SplitFree] using
-            And.intro (ihFirst hleft.1 hright) (ihSecond hleft.2 hright)
+          simpa [zipWith, SplitFree]
+            using And.intro (ihFirst hleft.1 hright) (ihSecond hleft.2 hright)
 
 theorem zipWith_eq_of_splitFree (leftOrder rightOrder : BooleanVariableNames)
     (operation : α -> β -> γ) {left : BooleanDecision α}
@@ -293,8 +293,8 @@ theorem Refines.combineMap (algebra : Algebra) (variableValues : VariableValues)
         (BooleanDecision.combineMap algebra variableOrder items resolved)
         (BooleanDecision.combineMap algebra variableOrder items symbolic) := by
   induction items with
-  | nil => simpa [BooleanDecision.combineMap] using
-      Refines.leaf variableValues algebra.empty
+  | nil =>
+      simpa [BooleanDecision.combineMap] using Refines.leaf variableValues algebra.empty
   | cons item rest ih =>
       rw [BooleanDecision.combineMap, BooleanDecision.combineMap]
       apply Refines.zipWith variableValues variableOrder algebra.combine
@@ -313,8 +313,7 @@ theorem Refines.joinMap (algebra : Algebra) (variableValues : VariableValues)
         (BooleanDecision.joinMap algebra items resolved)
         (BooleanDecision.joinMap algebra items symbolic) := by
   cases items with
-  | nil => simpa [BooleanDecision.joinMap] using
-      Refines.leaf variableValues algebra.empty
+  | nil => simpa [BooleanDecision.joinMap] using Refines.leaf variableValues algebra.empty
   | cons item rest =>
       cases rest with
       | nil => simpa [BooleanDecision.joinMap] using hrefines item (by simp)
@@ -379,10 +378,10 @@ theorem collapse_select_le (algebra : Algebra) (lawful : algebra.Lawful)
   | leaf summary => exact lawful.le_refl summary
   | split test onFalse onTrue ihFalse ihTrue =>
       by_cases hselected : selectedValue variableValues test
-      · simpa [select, collapse, hselected] using
-          lawful.le_trans _ _ _ ihTrue (lawful.le_join_right _ _)
-      · simpa [select, collapse, hselected] using
-          lawful.le_trans _ _ _ ihFalse (lawful.le_join_left _ _)
+      · simpa [select, collapse, hselected]
+          using lawful.le_trans _ _ _ ihTrue (lawful.le_join_right _ _)
+      · simpa [select, collapse, hselected]
+          using lawful.le_trans _ _ _ ihFalse (lawful.le_join_left _ _)
   | join left right ihLeft ihRight =>
       simp only [select, collapse]
       apply hjoinUpper
@@ -548,7 +547,7 @@ theorem combineMap_splitFree (algebra : Algebra)
         (hfree item (by simp))
         (ih
           (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
-              (fun candidate hcandidate => hfree candidate (by simp [hcandidate])))
+          (fun candidate hcandidate => hfree candidate (by simp [hcandidate])))
 
 theorem combineMap_congr_orders (algebra : Algebra)
     (leftOrder rightOrder : BooleanVariableNames) (items : List α)
@@ -606,10 +605,12 @@ theorem joinMap_splitFree (algebra : Algebra)
       | nil => simpa [BooleanDecision.joinMap] using hfree item (by simp)
       | cons next tail =>
           rw [BooleanDecision.joinMap]
-          exact ⟨hfree item (by simp),
+          exact ⟨
+            hfree item (by simp),
             joinMap_splitFree algebra (next :: tail)
               (fun candidate hcandidate => summarize candidate (by simp [hcandidate]))
-              (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))⟩
+              (fun candidate hcandidate => hfree candidate (by simp [hcandidate]))
+          ⟩
 
 private theorem combineMap_congr (algebra : Algebra) (items : List α)
     (left right : ∀ item, item ∈ items -> algebra.Summary)
@@ -671,8 +672,9 @@ theorem collapse_combineMap_le_of_splitFree (algebra : Algebra)
       apply lawful.le_trans _
         (algebra.combine ((summarize item (by simp)).collapse algebra)
           ((BooleanDecision.combineMap algebra variableOrder rest
-            fun candidate hcandidate =>
-              summarize candidate (by simp [hcandidate])).collapse algebra))
+              fun candidate hcandidate =>
+                summarize candidate (by simp [hcandidate])).collapse
+            algebra))
       · apply lawful.combine_mono
         · exact lawful.le_refl _
         · exact ih
@@ -1091,35 +1093,39 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
           inheritedBooleanCondition caseCondition possibleTypes environment
           pruningValues) := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema pruningValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      ∀ variableValues,
-        environment.Realizes variableValues
-        -> environment.IsSymbolic
-        -> BooleanDecision.Refines variableValues
-            (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-              caseCondition possibleTypes
-              (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
-            (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-              caseCondition possibleTypes environment pruningValues))
-    (motive2 := fun groups environment =>
-      ∀ variableValues,
-        environment.Realizes variableValues
-        -> environment.IsSymbolic
-        -> BooleanDecision.Refines variableValues
-            (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
-              (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
-            (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
-              environment pruningValues))
-    (motive3 := fun group parentTypes environment =>
-      ∀ variableValues,
-        environment.Realizes variableValues
-        -> environment.IsSymbolic
-        -> BooleanDecision.Refines variableValues
-            (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-              parentTypes
-              (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
-            (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-              parentTypes environment pruningValues))
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        ∀ variableValues,
+          environment.Realizes variableValues
+          -> environment.IsSymbolic
+          -> BooleanDecision.Refines variableValues
+              (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+                caseCondition possibleTypes
+                (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
+              (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+                caseCondition possibleTypes environment pruningValues))
+    (motive2 :=
+      fun groups environment =>
+        ∀ variableValues,
+          environment.Realizes variableValues
+          -> environment.IsSymbolic
+          -> BooleanDecision.Refines variableValues
+              (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                variableOrder groups
+                (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
+              (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                variableOrder groups environment pruningValues))
+    (motive3 :=
+      fun group parentTypes environment =>
+        ∀ variableValues,
+          environment.Realizes variableValues
+          -> environment.IsSymbolic
+          -> BooleanDecision.Refines variableValues
+              (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                variableOrder group parentTypes
+                (CaseCursor.BooleanEnvironment.concrete variableValues) pruningValues)
+              (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                variableOrder group parentTypes environment pruningValues))
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih variableValues hrealizes hsymbolic
@@ -1164,14 +1170,12 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
         have hfalse : value = false := by simpa [hvalue] using hknown.symm
         subst value
         simp
-        simpa [selectedLiteral, hvalue] using
-          ih variableValues hrealizes hsymbolic
+        simpa [selectedLiteral, hvalue] using ih variableValues hrealizes hsymbolic
     | some actual =>
         have heq : actual = value := by simpa [hvalue] using hknown
         subst actual
         simp
-        simpa [selectedLiteral, hvalue] using
-          ih variableValues hrealizes hsymbolic
+        simpa [selectedLiteral, hvalue] using ih variableValues hrealizes hsymbolic
   case case4 =>
     intro inherited caseCondition cursor possibleTypes environment branch rest
       hbranches literal hcondition hstatus ihFalse ihTrue variableValues
@@ -1191,7 +1195,8 @@ private theorem CaseCursor.summarizeDecisionWithPruning_refines_complete
           (hrealizes.assign hsymbolic literal.variableName false (by simp [hvalue]))
           (hsymbolic.assign literal.variableName false)
         exact BooleanDecision.Refines.of_select_eq variableValues
-          (by simp [BooleanDecision.select, BooleanDecision.selectedValue, hvalue]) hrefines
+          (by simp [BooleanDecision.select, BooleanDecision.selectedValue, hvalue])
+          hrefines
     | some selected =>
         cases selected
         · simp only
@@ -1233,22 +1238,26 @@ theorem CaseCursor.summarizeDecisionWithPruning_complete_splitFree
         (CaseCursor.BooleanEnvironment.concrete variableValues)
         fixedVariableValues).SplitFree := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> (CaseCursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-          caseCondition cursor possibleTypes environment
-          fixedVariableValues).SplitFree)
-    (motive2 := fun groups environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
-          environment fixedVariableValues).SplitFree)
-    (motive3 := fun group parentTypes environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-          parentTypes environment fixedVariableValues).SplitFree)
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> (CaseCursor.summarizeDecisionWithPruning algebra schema variableOrder
+                inherited caseCondition cursor possibleTypes environment
+                fixedVariableValues).SplitFree)
+    (motive2 :=
+      fun groups environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                variableOrder groups environment fixedVariableValues).SplitFree)
+    (motive3 :=
+      fun group parentTypes environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                variableOrder group parentTypes environment
+                fixedVariableValues).SplitFree)
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih variableValues henvironment
@@ -1386,32 +1395,38 @@ theorem summarizeDecisionWithPruning_complete_eq_of_booleanFree
           inheritedBooleanCondition caseCondition possibleTypes
           (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      ∀ left right,
-        environment = CaseCursor.BooleanEnvironment.concrete left
-        -> CaseCursorBooleanFree cursor
-        -> cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-              caseCondition possibleTypes environment
-              fixedVariableValues
-          = cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-              caseCondition possibleTypes
-              (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues)
-    (motive2 := fun groups environment =>
-      ∀ left right,
-        environment = CaseCursor.BooleanEnvironment.concrete left
-        -> CollectedFieldGroupsBooleanFree groups
-        -> CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
-              environment fixedVariableValues
-          = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder groups
-              (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues)
-    (motive3 := fun group parentTypes environment =>
-      ∀ left right,
-        environment = CaseCursor.BooleanEnvironment.concrete left
-        -> SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet = []
-        -> CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-              parentTypes environment fixedVariableValues
-          = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-              parentTypes (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues)
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        ∀ left right,
+          environment = CaseCursor.BooleanEnvironment.concrete left
+          -> CaseCursorBooleanFree cursor
+          -> cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+                caseCondition possibleTypes environment
+                fixedVariableValues
+              = cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+                  caseCondition possibleTypes
+                  (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues)
+    (motive2 :=
+      fun groups environment =>
+        ∀ left right,
+          environment = CaseCursor.BooleanEnvironment.concrete left
+          -> CollectedFieldGroupsBooleanFree groups
+          -> CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                variableOrder groups environment fixedVariableValues
+              = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                  variableOrder groups (CaseCursor.BooleanEnvironment.concrete right)
+                  fixedVariableValues)
+    (motive3 :=
+      fun group parentTypes environment =>
+        ∀ left right,
+          environment = CaseCursor.BooleanEnvironment.concrete left
+          -> SelectionConditions.selectionSetBooleanVariables group.mergedSelectionSet
+              = []
+          -> CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                variableOrder group parentTypes environment fixedVariableValues
+              = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                  variableOrder group parentTypes
+                  (CaseCursor.BooleanEnvironment.concrete right) fixedVariableValues)
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment hbranches ih
       left right henvironment hcursor
@@ -1535,30 +1550,34 @@ theorem summarizeDecisionWithPruning_complete_order_independent
           (CaseCursor.BooleanEnvironment.concrete variableValues)
           fixedVariableValues := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema fixedVariableValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> ∀ leftOrder rightOrder,
-          CaseCursor.summarizeDecisionWithPruning algebra schema leftOrder inherited
-              caseCondition cursor possibleTypes environment fixedVariableValues
-            = CaseCursor.summarizeDecisionWithPruning algebra schema rightOrder inherited
-                caseCondition cursor possibleTypes environment fixedVariableValues)
-    (motive2 := fun groups environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> ∀ leftOrder rightOrder,
-          CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema leftOrder groups environment
-              fixedVariableValues
-            = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema rightOrder groups
-                environment fixedVariableValues)
-    (motive3 := fun group parentTypes environment =>
-      ∀ variableValues,
-        environment = CaseCursor.BooleanEnvironment.concrete variableValues
-        -> ∀ leftOrder rightOrder,
-          CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema leftOrder group parentTypes
-              environment fixedVariableValues
-            = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema rightOrder group
-                parentTypes environment fixedVariableValues)
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> ∀ leftOrder rightOrder,
+              CaseCursor.summarizeDecisionWithPruning algebra schema leftOrder inherited
+                caseCondition cursor possibleTypes environment fixedVariableValues
+              = CaseCursor.summarizeDecisionWithPruning algebra schema rightOrder
+                  inherited caseCondition cursor possibleTypes environment
+                  fixedVariableValues)
+    (motive2 :=
+      fun groups environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> ∀ leftOrder rightOrder,
+              CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema leftOrder
+                groups environment fixedVariableValues
+              = CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema
+                  rightOrder groups environment fixedVariableValues)
+    (motive3 :=
+      fun group parentTypes environment =>
+        ∀ variableValues,
+          environment = CaseCursor.BooleanEnvironment.concrete variableValues
+          -> ∀ leftOrder rightOrder,
+              CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema leftOrder
+                group parentTypes environment fixedVariableValues
+              = CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema
+                  rightOrder group parentTypes environment fixedVariableValues)
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment
       hbranches ih variableValues henvironment leftOrder rightOrder

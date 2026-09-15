@@ -169,11 +169,13 @@ theorem inlinedOperation_specValidAndExecutionEquivalent
             operation fuel source
           = GraphQL.Execution.executeQueryWithFuel schema resolvers variableValues
               (Translate.reduceOperation operation) fuel source := by
-  exact ⟨inlinedOperation_translatesToSpecValid schema operation hvalid hinlined,
+  exact ⟨
+    inlinedOperation_translatesToSpecValid schema operation hvalid hinlined,
     by
       intro ObjectRef resolvers variableValues fuel source
       exact executeQueryWithFuel_eq_spec_of_inlined schema resolvers
-        variableValues operation fuel source hinlined⟩
+        variableValues operation fuel source hinlined
+  ⟩
 
 theorem fragmentAwareValidityPreservedToInline_of_inlineSelectionSetValid
     {schema : Schema} {operation : Operation}

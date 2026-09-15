@@ -48,8 +48,7 @@ theorem collectedExecutableEntries_exists_of_key_mem
   | nil =>
       exact False.elim (hnonempty responseName [] hgroup rfl)
   | cons field rest =>
-      exact ⟨field,
-        collectedExecutableEntries_mem_of_group_mem hgroup (by simp)⟩
+      exact ⟨field, collectedExecutableEntries_mem_of_group_mem hgroup (by simp)⟩
 
 theorem collectedKeyFresh_of_collectedEntryFresh
     (groups : List (Name × List ExecutableField))
@@ -180,10 +179,9 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_single
           apply hbody hallowed happly fields
           intro field hfield
           apply hfresh field
-          simpa [GraphQL.Execution.collectFields,
-            GraphQL.Execution.collectSelection,
-            GraphQL.Execution.mergeExecutableGroups, hallowed, happly] using
-            hfield
+          simpa [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
+            GraphQL.Execution.mergeExecutableGroups, hallowed, happly]
+            using hfield
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_single
     {ObjectIdentity : Type}
@@ -263,8 +261,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_allowed
   rw [visitSubfields_append_equivalence schema resolvers variableValues depth
     parentType source selectionSet rest (ResponseValue.object fields)] at hbody
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hallows,
-    GraphQL.NormalForm.collectFields_append] using hbody
+    GraphQL.Execution.collectSelection, hallows, GraphQL.NormalForm.collectFields_append]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_skipped
     {ObjectIdentity : Type}
@@ -306,7 +304,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons_skipped
   have hbody := hflat fields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hskip, hmergeNil] using hbody
+    GraphQL.Execution.collectSelection, hskip, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_none_cons
     {ObjectIdentity : Type}
@@ -374,7 +373,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_allowed_apply
     parentType source selectionSet rest (ResponseValue.object fields)] at hbody
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hallows, happly,
-    GraphQL.NormalForm.collectFields_append] using hbody
+    GraphQL.NormalForm.collectFields_append]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_skipped
     {ObjectIdentity : Type}
@@ -417,7 +417,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_skipped
   have hbody := hflat fields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hskip, hmergeNil] using hbody
+    GraphQL.Execution.collectSelection, hskip, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_not_apply
     {ObjectIdentity : Type}
@@ -456,14 +457,14 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons_not_apply
         field.1 ∉ fields.map Prod.fst := by
     intro field hfield
     apply hfresh field
-    simpa [GraphQL.Execution.collectFields,
-      GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil] using
-      hfield
+    simpa [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection, hallows,
+      hnotApply, hmergeNil]
+      using hfield
   have hbody := hflat fields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil] using
-    hbody
+    GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_inline_some_cons
     {ObjectIdentity : Type}
@@ -563,8 +564,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_none_cons_allowed
         fieldSelectionSet :: inlineSelectionSet)
       rest (ResponseValue.object prefixFields)] at hbody
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hallows,
-    GraphQL.NormalForm.collectFields_append] using hbody
+    GraphQL.Execution.collectSelection, hallows, GraphQL.NormalForm.collectFields_append]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_none_cons_skipped
     {ObjectIdentity : Type}
@@ -615,7 +616,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_none_cons_skipped
   have hbody := hflat prefixFields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hskip, hmergeNil] using hbody
+    GraphQL.Execution.collectSelection, hskip, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_allowed_apply
     {ObjectIdentity : Type}
@@ -665,7 +667,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_allowed_a
       rest (ResponseValue.object prefixFields)] at hbody
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hallows, happly,
-    GraphQL.NormalForm.collectFields_append] using hbody
+    GraphQL.NormalForm.collectFields_append]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_skipped
     {ObjectIdentity : Type}
@@ -717,7 +720,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_skipped
   have hbody := hflat prefixFields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hskip, hmergeNil] using hbody
+    GraphQL.Execution.collectSelection, hskip, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_not_apply
     {ObjectIdentity : Type}
@@ -765,14 +769,14 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_field_inline_some_cons_not_apply
         executable.1 ∉ prefixFields.map Prod.fst := by
     intro executable hfield
     apply hfresh executable
-    simpa [GraphQL.Execution.collectFields,
-      GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil] using
-      hfield
+    simpa [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection, hallows,
+      hnotApply, hmergeNil]
+      using hfield
   have hbody := hflat prefixFields hflatFields
   unfold VisitSubfieldsFlatCollects at hbody ⊢
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil] using
-    hbody
+    GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_field_cons_allowed
     {ObjectIdentity : Type}
@@ -950,8 +954,9 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_allowed
     (Selection.inlineFragment none inlineDirectives inlineSelectionSet ::
       rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
-    GraphQL.Execution.collectSelection, hallows,
-    GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+    GraphQL.Execution.collectSelection, hallows, GraphQL.NormalForm.collectFields_append,
+    List.append_assoc]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
     {ObjectIdentity : Type}
@@ -1006,7 +1011,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_none_cons_skipped
       rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hskip, hmergeNil,
-    GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+    GraphQL.NormalForm.collectFields_append, List.append_assoc]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_apply
     {ObjectIdentity : Type}
@@ -1058,7 +1064,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_allowed_
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hallows, happly,
-    GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+    GraphQL.NormalForm.collectFields_append, List.append_assoc]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_skipped
     {ObjectIdentity : Type}
@@ -1115,7 +1122,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_skipped
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hskip, hmergeNil,
-    GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+    GraphQL.NormalForm.collectFields_append, List.append_assoc]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_apply
     {ObjectIdentity : Type}
@@ -1173,7 +1181,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_prefix_inline_some_cons_not_appl
       inlineSelectionSet :: rest) (ResponseValue.object prefixOutput)]
   simpa [visitSubfields, visitSelection, GraphQL.Execution.collectFields,
     GraphQL.Execution.collectSelection, hallows, hnotApply, hmergeNil,
-    GraphQL.NormalForm.collectFields_append, List.append_assoc] using hbody
+    GraphQL.NormalForm.collectFields_append, List.append_assoc]
+    using hbody
 
 theorem VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
     {ObjectIdentity : Type}
@@ -1253,8 +1262,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
           (collectFields_fieldsNonempty schema variableValues parentType source left)
           responseName hmem with ⟨field, hentry⟩
       exact hleftFresh (responseName, field) hentry
-    simpa [leftFlatSelections] using
-      visitSubfields_prefix_fresh schema resolvers variableValues depth
+    simpa [leftFlatSelections]
+      using visitSubfields_prefix_fresh schema resolvers variableValues depth
         parentType source leftFlatSelections
         prefixFields [] suffixFields suffixStatus hleftKeyFresh
         (by simpa [leftFlatSelections] using hsuffix)
@@ -1304,8 +1313,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint
   apply VisitSubfieldsFlatCollects_append_of_namesDisjoint schema resolvers
     variableValues depth parentType source left right (.object prefixFields)
     hdisjoint hrightNodup
-  · simpa [VisitSubfieldsRawFlatCollects, VisitSubfieldsFlatCollects] using
-      hleft prefixFields hleftFresh
+  · simpa [VisitSubfieldsRawFlatCollects, VisitSubfieldsFlatCollects]
+      using hleft prefixFields hleftFresh
   · have hrightFlat := hright (prefixFields ++ suffixFields) hrightFresh
     simpa [VisitSubfieldsRawFlatCollects, VisitSubfieldsFlatCollects,
       leftFlatSelections, hleftPrefix] using hrightFlat

@@ -109,8 +109,8 @@ theorem selectionSetResponseNameFree_normalizedFieldWithRest (schema : Schema)
           (normalizedFieldWithRest schema returnType fieldResponseName fieldName
             arguments directives normalizedSubselections normalizedRest) := by
   intro hfield hrest
-  simpa [normalizedFieldWithRest, normalizedField] using
-    selectionSetResponseNameFree_cons hfield hrest
+  simpa [normalizedFieldWithRest, normalizedField]
+    using selectionSetResponseNameFree_cons hfield hrest
 
 theorem selectionSetDirectiveFree_possibleTypeNormalizations
     (schema : Schema)
@@ -373,9 +373,8 @@ theorem possibleTypeNormalizations_groundTyped
         unfold selectionGroundTyped
         exact ⟨
           hpossible objectType hobjectType,
-          by
-            simpa [hnormalized] using
-              hnormalize objectType hobjectType⟩
+          by simpa [hnormalized] using hnormalize objectType hobjectType
+        ⟩
 
 theorem normalizeSelectionSet_groundTyped (schema : Schema)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
@@ -468,8 +467,8 @@ theorem normalizeSelectionSet_responseNameFree (schema : Schema)
   induction parentType, selectionSet using normalizeSelectionSet.induct schema with
   | case1 parentType =>
       intro _hfree
-      simpa [normalizeSelectionSet] using
-        selectionSetResponseNameFree_nil schema parentType responseName
+      simpa [normalizeSelectionSet]
+        using selectionSetResponseNameFree_nil schema parentType responseName
   | case2 parentType rest fieldResponseName fieldName arguments directives
       selectionSet hlookup hrest =>
       intro hfree
@@ -577,8 +576,7 @@ theorem responseName_not_mem_filterMap_of_responseNameFree
           exact hheadNe heq.symm
       | inlineFragment typeCondition directives selectionSet =>
           intro hcandidate
-          exact ih hrest (by
-            simpa [Selection.responseName?] using hcandidate)
+          exact ih hrest (by simpa [Selection.responseName?] using hcandidate)
 
 theorem normalizeSelectionSet_without_responseName_not_mem
     (schema : Schema) (parentType responseName : Name)
@@ -605,8 +603,8 @@ theorem responseNamesNodup_normalizedFieldWithRest
             arguments directives normalizedSubselections normalizedRest) := by
   intro hnotMem hnodup
   unfold responseNamesNodup at hnodup ⊢
-  simpa [normalizedFieldWithRest, normalizedField, Selection.responseName?] using
-    List.nodup_cons.mpr ⟨hnotMem, hnodup⟩
+  simpa [normalizedFieldWithRest, normalizedField, Selection.responseName?]
+    using List.nodup_cons.mpr ⟨hnotMem, hnodup⟩
 
 theorem normalizeSelectionSet_responseNamesNodup (schema : Schema)
     : ∀ parentType selectionSet,
@@ -739,8 +737,7 @@ theorem possibleTypeNormalizations_responseNamesNodup
             unfold possibleTypeNormalizations
             simp [hnormalized]
             exact ih
-  simpa [responseNamesNodup] using
-    hfilterNone possibleTypes
+  simpa [responseNamesNodup] using hfilterNone possibleTypes
 
 theorem possibleTypeNormalizations_inlineFragmentTypeConditionsNodup
     (schema : Schema) (possibleTypes : List Name)
@@ -917,9 +914,8 @@ theorem normalizeOperation_normal (schema : Schema) (operation : Operation)
   have hrootObjectBool :
       objectTypeNameBool schema (operation.rootType schema) = true :=
     objectTypeNameBool_eq_true_of_objectType_forNormality schema hrootObject
-  simpa [normalizeOperation, operationNormal, Operation.rootType,
-    OperationType.rootType] using
-    normalizeSelectionSet_normal schema hschema (operation.rootType schema)
+  simpa [normalizeOperation, operationNormal, Operation.rootType, OperationType.rootType]
+    using normalizeSelectionSet_normal schema hschema (operation.rootType schema)
       operation.selectionSet hrootObjectBool
 
 end GroundTypeNormalization

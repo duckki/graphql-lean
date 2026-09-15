@@ -146,10 +146,10 @@ theorem executeSelectionSet_inlineFragment_some_directives_allowed_flatten_objec
               (selectionSet ++ rest) := by
   intro hallow hincludes
   apply executeSelectionSet_eq_of_collectFields_eq
-  simpa [] using
-    collectFields_inlineFragment_some_directives_allowed_flatten_object
-    schema variableValues lookupParent groundType typeCondition ref
-    directives selectionSet rest hallow hincludes
+  simpa []
+    using collectFields_inlineFragment_some_directives_allowed_flatten_object
+      schema variableValues lookupParent groundType typeCondition ref
+      directives selectionSet rest hallow hincludes
 
 theorem executeSelectionSet_inlineFragment_some_directives_allowed_flatten
     (schema : Schema)
@@ -262,10 +262,10 @@ theorem executeSelectionSet_inlineFragment_some_directives_skipped_eq_object
               rest := by
   intro hskip
   apply executeSelectionSet_eq_of_collectFields_eq
-  simpa [] using
-    collectFields_inlineFragment_some_directives_skipped_eq_object schema
-    variableValues lookupParent groundType typeCondition ref directives
-    selectionSet rest hskip
+  simpa []
+    using collectFields_inlineFragment_some_directives_skipped_eq_object schema
+      variableValues lookupParent groundType typeCondition ref directives
+      selectionSet rest hskip
 
 theorem executeSelectionSet_inlineFragment_some_directives_skipped_eq
     (schema : Schema)

@@ -397,8 +397,8 @@ theorem specExecuteRootSelectionSet_key_mem
               source selectionSet).map
               Prod.fst := by
   intro hmem
-  simpa [GraphQL.Execution.executeRootSelectionSetData] using
-    executeCollectedFields_key_mem schema resolvers variableValues depth parentType
+  simpa [GraphQL.Execution.executeRootSelectionSetData]
+    using executeCollectedFields_key_mem schema resolvers variableValues depth parentType
       source hmem
 
 theorem executeRootSelectionSet_key_mem_of_eq_spec
@@ -421,10 +421,10 @@ theorem executeRootSelectionSet_key_mem_of_eq_spec
           ∈ (GraphQL.Execution.collectFields schema variableValues parentType
               source selectionSet).map
               Prod.fst := by
-    intro hmem
-    apply specExecuteRootSelectionSet_key_mem schema resolvers variableValues
-      depth parentType source selectionSet responseName
-    simpa [hroot, GraphQL.Execution.executeRootSelectionSetData] using hmem
+  intro hmem
+  apply specExecuteRootSelectionSet_key_mem schema resolvers variableValues
+    depth parentType source selectionSet responseName
+  simpa [hroot, GraphQL.Execution.executeRootSelectionSetData] using hmem
 
 theorem responseName_fresh_of_disjoint_single_field
     {ObjectIdentity : Type}
@@ -669,9 +669,8 @@ theorem collectSubfields_pairKeysNodup
         (GraphQL.Execution.collectSubfields schema variableValues objectType
           objectValue fields) := by
   simpa [GraphQL.NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
-    using
-      collectFields_pairKeysNodup schema variableValues objectType objectValue
-        (GraphQL.Execution.mergedFieldSelectionSet fields)
+    using collectFields_pairKeysNodup schema variableValues objectType objectValue
+      (GraphQL.Execution.mergedFieldSelectionSet fields)
 
 mutual
   theorem specExecuteCollectedFields_response_ready
@@ -1114,8 +1113,8 @@ theorem specExecuteRootSelectionSet_response_ready
             variableValues depth parentType source selectionSet)) := by
   simpa [GraphQL.Execution.executeRootSelectionSetData,
     GraphQL.Execution.executeRootSelectionSet,
-    GraphQL.Execution.executeCollectedFieldsData] using
-    specExecuteCollectedFields_collectFields_response_ready schema resolvers
+    GraphQL.Execution.executeCollectedFieldsData]
+    using specExecuteCollectedFields_collectFields_response_ready schema resolvers
       variableValues depth parentType source selectionSet
 
 theorem executeCollectedFields_collectFields_pairKeysNodup
@@ -1148,8 +1147,8 @@ theorem executeRootSelectionSet_pairKeysNodup
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source selectionSet []
   have hnodup : PairKeysNodup fields := by
-    simpa [hfields] using
-      visitSubfields_pairKeysNodup schema resolvers variableValues depth
+    simpa [hfields]
+      using visitSubfields_pairKeysNodup schema resolvers variableValues depth
         parentType source selectionSet [] (by simp [PairKeysNodup])
   unfold executeRootSelectionSet
   cases hstatus
@@ -1177,8 +1176,8 @@ theorem executeRootSelectionSet_response_ready
     visitSubfields_preserves_object schema resolvers variableValues depth
       parentType source selectionSet []
   have hready : ResponseMergeReady (.object fields) := by
-    simpa [hfields] using
-      visitSubfields_response_ready schema resolvers variableValues depth
+    simpa [hfields]
+      using visitSubfields_response_ready schema resolvers variableValues depth
         parentType source selectionSet [] ResponseMergeReady_empty_object
   unfold executeRootSelectionSet
   cases hstatus
@@ -1672,43 +1671,34 @@ theorem stateEquivalent_of_append_single_field_of_disjoint
       variableValues (depth + 1) parentType source left
       [.field responseName fieldName arguments directives selectionSet]
       hdisjoint
-  exact
-    stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
-      variableValues (depth + 1) parentType source
-      (left ++
-        [.field responseName fieldName arguments directives selectionSet])
-      (by
-        calc
-          executeRootSelectionSet schema resolvers variableValues (depth + 1)
+  exact stateEquivalent_of_executeRootSelectionSet_eq_spec schema resolvers
+    variableValues (depth + 1) parentType source
+    (left ++ [.field responseName fieldName arguments directives selectionSet])
+    (by
+      calc
+        executeRootSelectionSet schema resolvers variableValues (depth + 1)
               parentType source
-              (left ++
-                [.field responseName fieldName arguments directives
-                  selectionSet])
-              =
-            Result.combine List.append
-              (executeRootSelectionSet schema resolvers variableValues
-                (depth + 1) parentType source left)
-              (executeRootSelectionSet schema resolvers variableValues
-                (depth + 1) parentType source
-                [.field responseName fieldName arguments directives
-                  selectionSet]) := by
-              exact hungroupedAppend
-          _ =
-            Result.combine List.append
+              (left ++ [.field responseName fieldName arguments directives selectionSet])
+            = Result.combine List.append
+                (executeRootSelectionSet schema resolvers variableValues
+                  (depth + 1) parentType source left)
+                (executeRootSelectionSet schema resolvers variableValues
+                  (depth + 1) parentType source
+                  [.field responseName fieldName arguments directives selectionSet]) := by
+          exact hungroupedAppend
+        _ = Result.combine List.append
               (GraphQL.Execution.executeRootSelectionSet schema resolvers
                 variableValues (depth + 1) parentType source left)
               (GraphQL.Execution.executeRootSelectionSet schema resolvers
                 variableValues (depth + 1) parentType source
-                [.field responseName fieldName arguments directives
-                  selectionSet]) := by
-              rw [hleftEq, hrightEq]
-          _ =
-            GraphQL.Execution.executeRootSelectionSet schema resolvers
+                [.field responseName fieldName arguments directives selectionSet]) := by
+          rw [hleftEq, hrightEq]
+        _ = GraphQL.Execution.executeRootSelectionSet schema resolvers
               variableValues (depth + 1) parentType source
-              (left ++
-                [.field responseName fieldName arguments directives
-                  selectionSet]) := by
-              exact hspecAppend.symm)
+              (left
+                ++ [.field responseName fieldName arguments directives
+                      selectionSet]) := by
+          exact hspecAppend.symm)
 
 theorem executeRootSelectionSet_append_single_field_blocked_eq_left
     {ObjectIdentity : Type}

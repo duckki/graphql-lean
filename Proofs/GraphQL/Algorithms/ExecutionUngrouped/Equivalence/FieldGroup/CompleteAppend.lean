@@ -80,8 +80,8 @@ theorem completeValue_nonNull_append_result_aligned_of_inner
             .null := by
           simp [GraphQL.Execution.completeValue,
             resultValueOrNull_nonNullCompletion, innerPrefix, hnull]
-        simpa [houterNull] using
-          completeResolvedValue_previous_null schema resolvers variableValues
+        simpa [houterNull]
+          using completeResolvedValue_previous_null schema resolvers variableValues
             (childDepth + 1) (.nonNull inner) later.selectionSet resolved
       have hwrappedNonNull :
           resultValueOrNull innerPrefix ≠ .null ->
@@ -109,13 +109,14 @@ theorem completeValue_nonNull_append_result_aligned_of_inner
               resultValueOrNull_nonNullCompletion, innerPrefix] using
               houterNull)
         simpa [innerRight, GraphQL.Execution.completeValue,
-          resultValueOrNull_nonNullCompletion, innerPrefix] using
-          completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
+          resultValueOrNull_nonNullCompletion, innerPrefix]
+          using completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
             schema resolvers variableValues (childDepth + 1) inner
             later.selectionSet resolved
-            (some (resultValueOrNull
-              (GraphQL.Execution.completeValue schema resolvers variableValues
-                (childDepth + 1) (.nonNull inner) prefixFields resolved)))
+            (some
+              (resultValueOrNull
+                (GraphQL.Execution.completeValue schema resolvers variableValues
+                  (childDepth + 1) (.nonNull inner) prefixFields resolved)))
             hprevious
       have hmerge :
           ResponseValueResultAlignedEquivalent
@@ -161,8 +162,8 @@ theorem completeValue_nonNull_append_result_aligned_of_inner
             GraphQL.Execution.completeValue schema resolvers variableValues
               (childDepth + 1) inner (prefixFields ++ [later]) resolved)
           (by simpa [innerPrefix, innerRight] using hinner)
-      simpa [GraphQL.Execution.completeValue, innerPrefix, innerRight] using
-        ResponseValueResultAlignedEquivalent.trans hmerge hwrappedInner
+      simpa [GraphQL.Execution.completeValue, innerPrefix, innerRight]
+        using ResponseValueResultAlignedEquivalent.trans hmerge hwrappedInner
 
 theorem completeValue_group_append_one_result_aligned_spec
     {ObjectIdentity : Type}
@@ -240,19 +241,18 @@ theorem completeValue_group_append_one_result_aligned_spec
   | named typeName =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
-      exact
-        completeValue_named_group_append_one_result_aligned_spec_of_contained
-          schema resolvers variableValues depth typeName resolved
-          prefixFields later
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact hprefixChildren childDepth runtimeType identity hlt
-              hcontains (by simpa using hincludes))
-          hobjects
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact hchildren childDepth runtimeType identity hlt
-              hcontains (by simpa using hincludes))
+      exact completeValue_named_group_append_one_result_aligned_spec_of_contained
+        schema resolvers variableValues depth typeName resolved
+        prefixFields later
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact hprefixChildren childDepth runtimeType identity hlt
+            hcontains (by simpa using hincludes))
+        hobjects
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact hchildren childDepth runtimeType identity hlt
+            hcontains (by simpa using hincludes))
   | list inner ih =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
@@ -367,8 +367,7 @@ theorem completeValue_group_append_one_result_aligned_spec
                       have houterContains :
                           (TypeRef.list inner).isCompositeBool schema =
                             false := by
-                        simpa [TypeRef.isCompositeBool, TypeRef.namedType]
-                          using hcontains
+                        simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                       simp [GraphQL.Execution.completeValue,
                         completeResolvedValue, reusablePreviousValue?,
                         hprefixList, happended, houterContains, hself,
@@ -383,20 +382,17 @@ theorem completeValue_group_append_one_result_aligned_spec
                       later values hcontains hvalueAppend
                   have houterContains :
                       (TypeRef.list inner).isCompositeBool schema = true := by
-                    simpa [TypeRef.isCompositeBool, TypeRef.namedType]
-                      using hcontains
+                    simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                   cases hprefixList
                         : GraphQL.Execution.completeValueList schema resolvers
                             variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
-                      simpa [GraphQL.Execution.completeValue,
-                        completeResolvedValue, reusablePreviousValue?,
-                        houterContains, resultValueOrNull,
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        reusablePreviousValue?, houterContains, resultValueOrNull,
                         GraphQL.Execution.Result.combine, catchBubbleAsNull,
-                        completeValue, reuseOrCreateList?, hprefixList,
-                        mergeResponse]
+                        completeValue, reuseOrCreateList?, hprefixList, mergeResponse]
                         using
                           ListResponseResultAlignedEquivalent.catchBubbleAsNull_mergeResponse
                             (by
@@ -408,12 +404,10 @@ theorem completeValue_group_append_one_result_aligned_spec
                       rcases prefixResult with ⟨prefixValues, prefixErrors⟩
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
-                      simpa [GraphQL.Execution.completeValue,
-                        completeResolvedValue, reusablePreviousValue?,
-                        houterContains, resultValueOrNull,
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        reusablePreviousValue?, houterContains, resultValueOrNull,
                         GraphQL.Execution.Result.combine, catchBubbleAsNull,
-                        completeValue, reuseOrCreateList?, hprefixList,
-                        mergeResponse]
+                        completeValue, reuseOrCreateList?, hprefixList, mergeResponse]
                         using
                           ListResponseResultAlignedEquivalent.catchBubbleAsNull_mergeResponse
                             (by
@@ -423,19 +417,18 @@ theorem completeValue_group_append_one_result_aligned_spec
   | nonNull inner ih =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
-      exact
-        completeValue_nonNull_append_result_aligned_of_inner schema resolvers
-          variableValues depth inner resolved prefixFields later
-          (ih depth resolved prefixFields later
-            (by
-              intro childDepth runtimeType identity hlt hcontains hincludes
-              exact hprefixChildren childDepth runtimeType identity hlt
-                hcontains (by simpa using hincludes))
-            hobjects
-            (by
-              intro childDepth runtimeType identity hlt hcontains hincludes
-              exact hchildren childDepth runtimeType identity hlt hcontains
-                (by simpa using hincludes)))
+      exact completeValue_nonNull_append_result_aligned_of_inner schema resolvers
+        variableValues depth inner resolved prefixFields later
+        (ih depth resolved prefixFields later
+          (by
+            intro childDepth runtimeType identity hlt hcontains hincludes
+            exact hprefixChildren childDepth runtimeType identity hlt
+              hcontains (by simpa using hincludes))
+          hobjects
+          (by
+            intro childDepth runtimeType identity hlt hcontains hincludes
+            exact hchildren childDepth runtimeType identity hlt hcontains
+              (by simpa using hincludes)))
 
 theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
     {ObjectIdentity : Type}
@@ -497,19 +490,18 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
   | named typeName =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
-      exact
-        completeValue_named_group_append_one_result_aligned_spec_of_contained_aligned
-          schema resolvers variableValues depth typeName resolved
-          prefixFields later
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact hprefixChildren childDepth runtimeType identity hlt
-              hcontains (by simpa using hincludes))
-          hobjects
-          (by
-            intro childDepth runtimeType identity hlt hcontains hincludes
-            exact hchildren childDepth runtimeType identity hlt
-              hcontains (by simpa using hincludes))
+      exact completeValue_named_group_append_one_result_aligned_spec_of_contained_aligned
+        schema resolvers variableValues depth typeName resolved
+        prefixFields later
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact hprefixChildren childDepth runtimeType identity hlt
+            hcontains (by simpa using hincludes))
+        hobjects
+        (by
+          intro childDepth runtimeType identity hlt hcontains hincludes
+          exact hchildren childDepth runtimeType identity hlt
+            hcontains (by simpa using hincludes))
   | list inner ih =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
@@ -624,8 +616,7 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                       have houterContains :
                           (TypeRef.list inner).isCompositeBool schema =
                             false := by
-                        simpa [TypeRef.isCompositeBool, TypeRef.namedType]
-                          using hcontains
+                        simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                       simp [GraphQL.Execution.completeValue,
                         completeResolvedValue, reusablePreviousValue?,
                         hprefixList, happended, houterContains, hself,
@@ -640,20 +631,17 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                       later values hcontains hvalueAppend
                   have houterContains :
                       (TypeRef.list inner).isCompositeBool schema = true := by
-                    simpa [TypeRef.isCompositeBool, TypeRef.namedType]
-                      using hcontains
+                    simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                   cases hprefixList
                         : GraphQL.Execution.completeValueList schema resolvers
                             variableValues childDepth inner prefixFields values with
                   | error prefixErrors =>
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
-                      simpa [GraphQL.Execution.completeValue,
-                        completeResolvedValue, reusablePreviousValue?,
-                        houterContains, resultValueOrNull,
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        reusablePreviousValue?, houterContains, resultValueOrNull,
                         GraphQL.Execution.Result.combine, catchBubbleAsNull,
-                        completeValue, reuseOrCreateList?, hprefixList,
-                        mergeResponse]
+                        completeValue, reuseOrCreateList?, hprefixList, mergeResponse]
                         using
                           ListResponseResultAlignedEquivalent.catchBubbleAsNull_mergeResponse
                             (by
@@ -665,12 +653,10 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
                       rcases prefixResult with ⟨prefixValues, prefixErrors⟩
                       have hlistAppend' := hlistAppend
                       simp [hprefixList] at hlistAppend'
-                      simpa [GraphQL.Execution.completeValue,
-                        completeResolvedValue, reusablePreviousValue?,
-                        houterContains, resultValueOrNull,
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        reusablePreviousValue?, houterContains, resultValueOrNull,
                         GraphQL.Execution.Result.combine, catchBubbleAsNull,
-                        completeValue, reuseOrCreateList?, hprefixList,
-                        mergeResponse]
+                        completeValue, reuseOrCreateList?, hprefixList, mergeResponse]
                         using
                           ListResponseResultAlignedEquivalent.catchBubbleAsNull_mergeResponse
                             (by
@@ -680,19 +666,18 @@ theorem completeValue_group_append_one_result_aligned_spec_of_aligned_children
   | nonNull inner ih =>
       intro depth resolved prefixFields later hprefixChildren hobjects
         hchildren
-      exact
-        completeValue_nonNull_append_result_aligned_of_inner schema resolvers
-          variableValues depth inner resolved prefixFields later
-          (ih depth resolved prefixFields later
-            (by
-              intro childDepth runtimeType identity hlt hcontains hincludes
-              exact hprefixChildren childDepth runtimeType identity hlt
-                hcontains (by simpa using hincludes))
-            hobjects
-            (by
-              intro childDepth runtimeType identity hlt hcontains hincludes
-              exact hchildren childDepth runtimeType identity hlt hcontains
-                (by simpa using hincludes)))
+      exact completeValue_nonNull_append_result_aligned_of_inner schema resolvers
+        variableValues depth inner resolved prefixFields later
+        (ih depth resolved prefixFields later
+          (by
+            intro childDepth runtimeType identity hlt hcontains hincludes
+            exact hprefixChildren childDepth runtimeType identity hlt
+              hcontains (by simpa using hincludes))
+          hobjects
+          (by
+            intro childDepth runtimeType identity hlt hcontains hincludes
+            exact hchildren childDepth runtimeType identity hlt hcontains
+              (by simpa using hincludes)))
 
 theorem completeValue_group_append_one_result_eq_spec_and_status
     {ObjectIdentity : Type}
@@ -957,10 +942,8 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                   cases unitValue
                                   have hfirstOutput :
                                       firstOutput = .object previousFields := by
-                                    simpa [completeValue, hincludes,
-                                      reuseOrCreateObject?, hfirst,
-                                      catchVisitBubbleAsNull,
-                                      resultValueOrNull]
+                                    simpa [completeValue, hincludes, reuseOrCreateObject?,
+                                      hfirst, catchVisitBubbleAsNull, resultValueOrNull]
                                       using hprefixPrev
                                   have herrors' :=
                                     herrors childDepth runtimeType identity
@@ -1150,8 +1133,8 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                         have houterContains :
                             (TypeRef.list inner).isCompositeBool schema =
                               false := by
-                          simpa [TypeRef.isCompositeBool,
-                            TypeRef.namedType] using hcontains
+                          simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                            using hcontains
                         simp [GraphQL.Execution.completeValue, completeResolvedValue, reusablePreviousValue?, hprefixList, happended, houterContains, hself, resultValueOrNull, GraphQL.Execution.Result.combine, mergeResponse, catchBubbleAsNull]
                 | true =>
                     have hlistAppend :=
@@ -1209,8 +1192,8 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                     (TypeRef.list inner).isCompositeBool
                                         schema =
                                       true := by
-                                  simpa [TypeRef.isCompositeBool,
-                                    TypeRef.namedType] using hcontains
+                                  simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                                    using hcontains
                                 simp [GraphQL.Execution.completeValue, completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateList?, hprefixList, hrightList, happended, resultValueOrNull, houterContains, GraphQL.Execution.Result.combine, mergeResponse, catchBubbleAsNull]
                             | succ rightErrors =>
                                 simp [hrightList, resultStatus, visitOk]
@@ -1271,8 +1254,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                       have houterContains :
                           (TypeRef.list inner).isCompositeBool schema =
                             false := by
-                        simpa [TypeRef.isCompositeBool,
-                          TypeRef.namedType] using hcontains
+                        simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                       cases hprefixList :
                           GraphQL.Execution.completeValueList schema resolvers
                             variableValues childDepth inner prefixFields
@@ -1313,8 +1295,8 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                       (TypeRef.list inner).isCompositeBool
                                           schema =
                                         true := by
-                                    simpa [TypeRef.isCompositeBool,
-                                      TypeRef.namedType] using hcontains
+                                    simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                                      using hcontains
                                   simp [GraphQL.Execution.completeValue, completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateList?, houterContains, hprefixList, hrightList, resultValueOrNull, resultStatus, visitOk, catchBubbleAsNull]
                               | succ rightErrors =>
                                   simp [hrightList, resultStatus, visitOk]
@@ -1379,8 +1361,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                       have houterContains :
                           (TypeRef.list inner).isCompositeBool schema =
                             false := by
-                        simpa [TypeRef.isCompositeBool,
-                          TypeRef.namedType] using hcontains
+                        simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcontains
                       cases hprefixList
                             : GraphQL.Execution.completeValueList schema resolvers
                                 variableValues childDepth inner prefixFields
@@ -1429,8 +1410,8 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                       (TypeRef.list inner).isCompositeBool
                                           schema =
                                         true := by
-                                    simpa [TypeRef.isCompositeBool,
-                                      TypeRef.namedType] using hcontains
+                                    simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                                      using hcontains
                                   simp [GraphQL.Execution.completeValue, completeResolvedValue, reusablePreviousValue?, completeValue, reuseOrCreateList?, houterContains, hprefixList, hrightList, resultValueOrNull, catchBubbleAsNull]
                               | succ rightErrors =>
                                   simp [hrightList, resultStatus, visitOk]
@@ -1491,8 +1472,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some .null) =
                             .ok (rightValue, 0) := by
-                          simpa [hprefix, resultValueOrNull,
-                            completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar, reusablePreviousValue?]
+                          simpa [hprefix, resultValueOrNull, completeResolvedValue,
+                            completeResolvedValue_previous_null,
+                            completeResolvedValue_previous_scalar,
+                            reusablePreviousValue? ]
                             using hright
                         have happended :
                             GraphQL.Execution.completeValue schema resolvers
@@ -1545,8 +1528,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some prefixValue) =
                             .ok (rightValue, 0) := by
-                          simpa [hprefix, resultValueOrNull,
-                            completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar, reusablePreviousValue?]
+                          simpa [hprefix, resultValueOrNull, completeResolvedValue,
+                            completeResolvedValue_previous_null,
+                            completeResolvedValue_previous_scalar,
+                            reusablePreviousValue? ]
                             using hright
                         have happended :
                             GraphQL.Execution.completeValue schema resolvers
@@ -1576,15 +1561,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 .null :=
                               hnonnull (by
                                 simp [hprefix, resultValueOrNull])
-                            have hrightNonNull :
-                                resultValueOrNull
-                                  (completeResolvedValue schema resolvers variableValues
-                                    (depth + 1) inner later.selectionSet
-                                    resolved (some (.scalar prefixScalar))) ≠
-                                .null :=
-                              by
-                                simpa [hprefix, resultValueOrNull]
-                                  using hrightNonNullRaw
+                            have hrightNonNull
+                                : resultValueOrNull
+                                    (completeResolvedValue schema resolvers variableValues
+                                      (depth + 1) inner later.selectionSet
+                                      resolved (some (.scalar prefixScalar)))
+                                  ≠ .null := by
+                              simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                             have hwrapped :
                                 completeResolvedValue schema resolvers variableValues
                                   (depth + 1) inner.nonNull later.selectionSet
@@ -1601,12 +1584,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 hright' hrightValueNonNull
                             cases rightValue with
                             | null =>
-                                exact False.elim (by
-                                  have hrightValueNonNull : ResponseValue.null ≠ .null := by
-                                    intro hnull
-                                    exact hrightNonNull (by
-                                      simp [hright', resultValueOrNull])
-                                  exact hrightValueNonNull rfl)
+                                exact False.elim
+                                  (by
+                                    have hrightValueNonNull : ResponseValue.null ≠ .null := by
+                                      intro hnull
+                                      exact hrightNonNull (by
+                                        simp [hright', resultValueOrNull])
+                                    exact hrightValueNonNull rfl)
                             | scalar rightScalar =>
                                 simp [GraphQL.Execution.completeValue, hprefix, hwrapped, happended, resultValueOrNull, nonNullCompletion, GraphQL.Execution.Result.combine, mergeResponse]
                             | object rightFields =>
@@ -1626,15 +1610,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 .null :=
                               hnonnull (by
                                 simp [hprefix, resultValueOrNull])
-                            have hrightNonNull :
-                                resultValueOrNull
-                                  (completeResolvedValue schema resolvers variableValues
-                                    (depth + 1) inner later.selectionSet
-                                    resolved (some (.object prefixFieldsValue))) ≠
-                                .null :=
-                              by
-                                simpa [hprefix, resultValueOrNull]
-                                  using hrightNonNullRaw
+                            have hrightNonNull
+                                : resultValueOrNull
+                                    (completeResolvedValue schema resolvers variableValues
+                                      (depth + 1) inner later.selectionSet
+                                      resolved (some (.object prefixFieldsValue)))
+                                  ≠ .null := by
+                              simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                             have hwrapped :
                                 completeResolvedValue schema resolvers variableValues
                                   (depth + 1) inner.nonNull later.selectionSet
@@ -1651,12 +1633,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 hright' hrightValueNonNull
                             cases rightValue with
                             | null =>
-                                exact False.elim (by
-                                  have hrightValueNonNull : ResponseValue.null ≠ .null := by
-                                    intro hnull
-                                    exact hrightNonNull (by
-                                      simp [hright', resultValueOrNull])
-                                  exact hrightValueNonNull rfl)
+                                exact False.elim
+                                  (by
+                                    have hrightValueNonNull : ResponseValue.null ≠ .null := by
+                                      intro hnull
+                                      exact hrightNonNull (by
+                                        simp [hright', resultValueOrNull])
+                                    exact hrightValueNonNull rfl)
                             | scalar rightScalar =>
                                 simp [GraphQL.Execution.completeValue, hprefix, hwrapped, happended, resultValueOrNull, nonNullCompletion, GraphQL.Execution.Result.combine, mergeResponse]
                             | object rightFields =>
@@ -1676,15 +1659,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 .null :=
                               hnonnull (by
                                 simp [hprefix, resultValueOrNull])
-                            have hrightNonNull :
-                                resultValueOrNull
-                                  (completeResolvedValue schema resolvers variableValues
-                                    (depth + 1) inner later.selectionSet
-                                    resolved (some (.list prefixValues))) ≠
-                                .null :=
-                              by
-                                simpa [hprefix, resultValueOrNull]
-                                  using hrightNonNullRaw
+                            have hrightNonNull
+                                : resultValueOrNull
+                                    (completeResolvedValue schema resolvers variableValues
+                                      (depth + 1) inner later.selectionSet
+                                      resolved (some (.list prefixValues)))
+                                  ≠ .null := by
+                              simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                             have hwrapped :
                                 completeResolvedValue schema resolvers variableValues
                                   (depth + 1) inner.nonNull later.selectionSet
@@ -1701,12 +1682,13 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                                 hright' hrightValueNonNull
                             cases rightValue with
                             | null =>
-                                exact False.elim (by
-                                  have hrightValueNonNull : ResponseValue.null ≠ .null := by
-                                    intro hnull
-                                    exact hrightNonNull (by
-                                      simp [hright', resultValueOrNull])
-                                  exact hrightValueNonNull rfl)
+                                exact False.elim
+                                  (by
+                                    have hrightValueNonNull : ResponseValue.null ≠ .null := by
+                                      intro hnull
+                                      exact hrightNonNull (by
+                                        simp [hright', resultValueOrNull])
+                                    exact hrightValueNonNull rfl)
                             | scalar rightScalar =>
                                 simp [GraphQL.Execution.completeValue, hprefix, hwrapped, happended, resultValueOrNull, nonNullCompletion, GraphQL.Execution.Result.combine, mergeResponse]
                             | object rightFields =>
@@ -1759,16 +1741,15 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.scalar prefixScalar))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion, resultStatus, visitOk]
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion, resultStatus, visitOk]
                         using
                           resultStatus_completeResolvedValue_nonNull_eq_ok_of_inner_status_eq_ok_of_nonNull
                             schema resolvers variableValues (depth + 1) inner
-                            later.selectionSet resolved
-                            (some (.scalar prefixScalar))
+                            later.selectionSet resolved (some (.scalar prefixScalar))
                             hrightStatus hrightNonNull
                   | object prefixFieldsValue =>
                       have hrightStatus :
@@ -1794,16 +1775,15 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.object prefixFieldsValue))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion]
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion]
                         using
                           resultStatus_completeResolvedValue_nonNull_eq_ok_of_inner_status_eq_ok_of_nonNull
                             schema resolvers variableValues (depth + 1) inner
-                            later.selectionSet resolved
-                            (some (.object prefixFieldsValue))
+                            later.selectionSet resolved (some (.object prefixFieldsValue))
                             hrightStatus hrightNonNull
                   | list prefixValues =>
                       have hrightStatus :
@@ -1829,16 +1809,15 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.list prefixValues))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion]
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion]
                         using
                           resultStatus_completeResolvedValue_nonNull_eq_ok_of_inner_status_eq_ok_of_nonNull
                             schema resolvers variableValues (depth + 1) inner
-                            later.selectionSet resolved
-                            (some (.list prefixValues))
+                            later.selectionSet resolved (some (.list prefixValues))
                             hrightStatus hrightNonNull
             · intro hprefixNonNull
               cases hprefix
@@ -1870,8 +1849,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.scalar prefixScalar))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                       have hproject :
                           resultValueOrNull
                             (completeResolvedValue schema resolvers variableValues
@@ -1883,9 +1861,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             schema resolvers variableValues (depth + 1) inner
                             later.selectionSet resolved
                             (some (.scalar prefixScalar)) hrightNonNull
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion]
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion]
                         using hproject
                   | object prefixFieldsValue =>
                       have hrightNonNullRaw :
@@ -1904,8 +1883,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.object prefixFieldsValue))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                       have hproject :
                           resultValueOrNull
                             (completeResolvedValue schema resolvers variableValues
@@ -1917,9 +1895,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             schema resolvers variableValues (depth + 1) inner
                             later.selectionSet resolved
                             (some (.object prefixFieldsValue)) hrightNonNull
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion]
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion]
                         using hproject
                   | list prefixValues =>
                       have hrightNonNullRaw :
@@ -1938,8 +1917,7 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                               (depth + 1) inner later.selectionSet resolved
                               (some (.list prefixValues))) ≠
                           .null := by
-                        simpa [hprefix, resultValueOrNull]
-                          using hrightNonNullRaw
+                        simpa [hprefix, resultValueOrNull] using hrightNonNullRaw
                       have hproject :
                           resultValueOrNull
                             (completeResolvedValue schema resolvers variableValues
@@ -1951,9 +1929,10 @@ theorem completeValue_group_append_one_result_eq_spec_and_status
                             schema resolvers variableValues (depth + 1) inner
                             later.selectionSet resolved
                             (some (.list prefixValues)) hrightNonNull
-                      simpa [GraphQL.Execution.completeValue, completeResolvedValue, completeResolvedValue_previous_null, completeResolvedValue_previous_scalar,
-                        completeValue, hprefix, resultValueOrNull,
-                        nonNullCompletion]
+                      simpa [GraphQL.Execution.completeValue, completeResolvedValue,
+                        completeResolvedValue_previous_null,
+                        completeResolvedValue_previous_scalar, completeValue, hprefix,
+                        resultValueOrNull, nonNullCompletion]
                         using hproject
 end Eager
 end ExecutionUngroupedUncached

@@ -86,8 +86,9 @@ private theorem collectFields_completeNormalBooleanStem_of_equivalent_of_agrees
     : Execution.collectFields schema variableValues parentType source [selection]
       = Execution.collectFields schema variableValues parentType source body := by
   rw [← completeNormalBooleanStem_wrapWithBoolCase_eq hstem]
-  exact collectFields_wrapWithBoolCase_of_agrees schema variableValues
-    parentType source body candidate (by
+  exact collectFields_wrapWithBoolCase_of_agrees schema variableValues parentType source
+    body candidate
+    (by
       intro varName value hmem
       exact inputValueBoolean?_eq_of_agrees_completeNormalBoolCase
         hruntime hagrees ((hequivalent varName value).2 hmem))

@@ -423,9 +423,8 @@ theorem completeScopedSelectionSetSemanticsReady_append
       -> completeScopedSelectionSetSemanticsReady schema execParent right
       -> completeScopedSelectionSetSemanticsReady schema execParent (left ++ right) := by
   intro hleft hright
-  simpa [completeScopedSelectionSetSemanticsReady,
-    eraseCompleteScopedSelectionSet_append] using
-    selectionSetSemanticsReady_append hleft hright
+  simpa [completeScopedSelectionSetSemanticsReady, eraseCompleteScopedSelectionSet_append]
+    using selectionSetSemanticsReady_append hleft hright
 
 theorem completeScopedSelectionSetSemanticsReady_append_left
     {schema : Schema} {execParent : Name}
@@ -438,10 +437,10 @@ theorem completeScopedSelectionSetSemanticsReady_append_left
         (eraseCompleteScopedSelectionSet left
           ++ eraseCompleteScopedSelectionSet right) := by
     simpa [completeScopedSelectionSetSemanticsReady,
-      eraseCompleteScopedSelectionSet_append] using hready
-  simpa [completeScopedSelectionSetSemanticsReady,
-    eraseCompleteScopedSelectionSet_append] using
-    selectionSetSemanticsReady_append_left
+      eraseCompleteScopedSelectionSet_append]
+      using hready
+  simpa [completeScopedSelectionSetSemanticsReady, eraseCompleteScopedSelectionSet_append]
+    using selectionSetSemanticsReady_append_left
       (left := eraseCompleteScopedSelectionSet left)
       (right := eraseCompleteScopedSelectionSet right) hraw
 
@@ -456,10 +455,10 @@ theorem completeScopedSelectionSetSemanticsReady_append_right
         (eraseCompleteScopedSelectionSet left
           ++ eraseCompleteScopedSelectionSet right) := by
     simpa [completeScopedSelectionSetSemanticsReady,
-      eraseCompleteScopedSelectionSet_append] using hready
-  simpa [completeScopedSelectionSetSemanticsReady,
-    eraseCompleteScopedSelectionSet_append] using
-    selectionSetSemanticsReady_append_right
+      eraseCompleteScopedSelectionSet_append]
+      using hready
+  simpa [completeScopedSelectionSetSemanticsReady, eraseCompleteScopedSelectionSet_append]
+    using selectionSetSemanticsReady_append_right
       (left := eraseCompleteScopedSelectionSet left)
       (right := eraseCompleteScopedSelectionSet right) hraw
 
@@ -470,9 +469,8 @@ theorem completeScopedSelectionSetSemanticsReady_tail
     : completeScopedSelectionSetSemanticsReady schema execParent (scopedSelection :: rest)
       -> completeScopedSelectionSetSemanticsReady schema execParent rest := by
   intro hready
-  simpa [completeScopedSelectionSetSemanticsReady,
-    eraseCompleteScopedSelectionSet] using
-    selectionSetSemanticsReady_tail
+  simpa [completeScopedSelectionSetSemanticsReady, eraseCompleteScopedSelectionSet]
+    using selectionSetSemanticsReady_tail
       (selection := eraseCompleteScopedSelection scopedSelection)
       (selectionSet := eraseCompleteScopedSelectionSet rest) hready
 
@@ -486,11 +484,10 @@ theorem completeScopedSelectionSetCanMerge_append_left
       FieldMerge.fieldsInSetCanMerge schema execParent
         (eraseCompleteScopedSelectionSet left
           ++ eraseCompleteScopedSelectionSet right) := by
-    simpa [completeScopedSelectionSetCanMerge,
-      eraseCompleteScopedSelectionSet_append] using hmerge
-  simpa [completeScopedSelectionSetCanMerge,
-    eraseCompleteScopedSelectionSet_append] using
-    fieldsInSetCanMerge_append_left schema execParent
+    simpa [completeScopedSelectionSetCanMerge, eraseCompleteScopedSelectionSet_append]
+      using hmerge
+  simpa [completeScopedSelectionSetCanMerge, eraseCompleteScopedSelectionSet_append]
+    using fieldsInSetCanMerge_append_left schema execParent
       (eraseCompleteScopedSelectionSet left)
       (eraseCompleteScopedSelectionSet right) hraw
 
@@ -504,11 +501,10 @@ theorem completeScopedSelectionSetCanMerge_append_right
       FieldMerge.fieldsInSetCanMerge schema execParent
         (eraseCompleteScopedSelectionSet left
           ++ eraseCompleteScopedSelectionSet right) := by
-    simpa [completeScopedSelectionSetCanMerge,
-      eraseCompleteScopedSelectionSet_append] using hmerge
-  simpa [completeScopedSelectionSetCanMerge,
-    eraseCompleteScopedSelectionSet_append] using
-    fieldsInSetCanMerge_append_right schema execParent
+    simpa [completeScopedSelectionSetCanMerge, eraseCompleteScopedSelectionSet_append]
+      using hmerge
+  simpa [completeScopedSelectionSetCanMerge, eraseCompleteScopedSelectionSet_append]
+    using fieldsInSetCanMerge_append_right schema execParent
       (eraseCompleteScopedSelectionSet left)
       (eraseCompleteScopedSelectionSet right) hraw
 
@@ -519,9 +515,8 @@ theorem completeScopedSelectionSetCanMerge_tail
     : completeScopedSelectionSetCanMerge schema execParent (scopedSelection :: rest)
       -> completeScopedSelectionSetCanMerge schema execParent rest := by
   intro hmerge
-  simpa [completeScopedSelectionSetCanMerge,
-    eraseCompleteScopedSelectionSet] using
-    fieldsInSetCanMerge_tail schema execParent
+  simpa [completeScopedSelectionSetCanMerge, eraseCompleteScopedSelectionSet]
+    using fieldsInSetCanMerge_tail schema execParent
       (eraseCompleteScopedSelection scopedSelection)
       (eraseCompleteScopedSelectionSet rest) hmerge
 

@@ -324,12 +324,12 @@ def of_collected_groups_state
     exact collectFields_fieldsNonempty schema variableValues parentType source
       selectionSet
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   have hnodup : PairKeysNodup groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.pairKeysNodup_of_collect_eq state
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.pairKeysNodup_of_collect_eq state
         groups hinvariant hcollect
   exact
     of_executedGroups hcollect hflat
@@ -868,25 +868,24 @@ def
   refine
     ExecutedGroupedSelectionSetAlignedState.of_group_flat_spec
       hcollect hflat ?_
-  exact
-    ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
-      schema resolvers variableValues completionDepth parentType source groups
-      hnonempty hlookups
-      (by
-        intro responseName field fields hgroup childDepth runtimeType identity hlt
-          hcontains hincludes
-        have hchild :=
-          happend.prefixChildren responseName field fields [] hgroup
-            (by intro candidate hmem; simp at hmem) childDepth runtimeType
-            identity hlt hcontains hincludes
-        simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-          hchild.executeRootSelectionSet_aligned)
-      (by
-        intro responseName field fields hgroup
-        exact
-          CollectedFieldGroupRecursiveAlignedAppendState.alignedAppendSteps
-            happend hcompatible hstable responseName field fields hgroup)
-      hnodup
+  exact ExecutableGroupsFlatSpecAlignedEquivalent_of_alignedAppendSteps_positive
+    schema resolvers variableValues completionDepth parentType source groups
+    hnonempty hlookups
+    (by
+      intro responseName field fields hgroup childDepth runtimeType identity hlt
+        hcontains hincludes
+      have hchild :=
+        happend.prefixChildren responseName field fields [] hgroup
+          (by intro candidate hmem; simp at hmem) childDepth runtimeType
+          identity hlt hcontains hincludes
+      simpa [GraphQL.Execution.mergedFieldSelectionSet]
+        using hchild.executeRootSelectionSet_aligned)
+    (by
+      intro responseName field fields hgroup
+      exact
+        CollectedFieldGroupRecursiveAlignedAppendState.alignedAppendSteps
+          happend hcompatible hstable responseName field fields hgroup)
+    hnodup
 
 def ExecutedGroupedSelectionSetState.of_collected_groups_recursiveAppendState
     {ObjectIdentity : Type}

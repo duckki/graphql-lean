@@ -255,8 +255,7 @@ theorem completeScopedFieldOutputsInclude_staticScopedFieldsWithResponseName_obj
       have hlookup' :
           schema.lookupField lookupParent fieldName =
             some matchedDefinition := by
-        simpa [hmatchedParentEq, hmatchedFieldName, hmatchedField] using
-          hmatchedLookup
+        simpa [hmatchedParentEq, hmatchedFieldName, hmatchedField] using hmatchedLookup
       rw [hlookup] at hlookup'
       cases hlookup'
       exact hincludes
@@ -279,9 +278,17 @@ theorem completeScopedFieldOutputsInclude_staticScopedFieldsWithResponseName_obj
           hschema hpossibleParent hmatchedLookup himplementationLookup
       exact typeIncludesObjectBool_of_outputTypeSubtype_namedType schema
         hsubtype hincludes
-  exact ⟨matchedResponseName, matchedFieldName, matchedArguments,
-    matchedDirectives, matchedSubselections, matchedDefinition, hselection,
-    hmatchedLookupSelection, by simpa [hmatchedOutput] using hmatchedIncludes⟩
+  exact ⟨
+    matchedResponseName,
+    matchedFieldName,
+    matchedArguments,
+    matchedDirectives,
+    matchedSubselections,
+    matchedDefinition,
+    hselection,
+    hmatchedLookupSelection,
+    by simpa [hmatchedOutput] using hmatchedIncludes
+  ⟩
 
 end CompleteNormalization
 

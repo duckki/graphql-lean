@@ -513,8 +513,8 @@ theorem selectionSetValid_mergeSelectionSets_of_field_subselections
   rcases hshape selection hselection with
     ⟨fieldName, arguments, directives, subselections, hselectionShape⟩
   subst selection
-  simpa [Selection.subselections] using
-    hfields fieldName arguments directives subselections hselection
+  simpa [Selection.subselections]
+    using hfields fieldName arguments directives subselections hselection
 
 theorem selectionSetValid_mergeSelectionSets_fieldSelectionsWithResponseNameInScope
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -797,13 +797,11 @@ theorem fieldsInSetCanMerge_inlineFragment_none_flatten
   have hleftOriginal :
       left ∈ FieldMerge.collectFields schema parentType
         (Selection.inlineFragment none [] selectionSet :: rest) := by
-    simpa [FieldMerge.collectFields, FieldMerge.collectFields_append]
-      using hleft
+    simpa [FieldMerge.collectFields, FieldMerge.collectFields_append] using hleft
   have hrightOriginal :
       right ∈ FieldMerge.collectFields schema parentType
         (Selection.inlineFragment none [] selectionSet :: rest) := by
-    simpa [FieldMerge.collectFields, FieldMerge.collectFields_append]
-      using hright
+    simpa [FieldMerge.collectFields, FieldMerge.collectFields_append] using hright
   exact FieldMerge.fieldsInSetCanMerge_pair hmerge hleftOriginal
     hrightOriginal hresponse
 
@@ -930,8 +928,8 @@ theorem fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object
         objectType
     rw [hleftSelectionSet, hrightSelectionSet] at hsubfields
     exact hsubfields
-  simpa [group, headSelection, matching, mergeSelectionSets,
-    Selection.subselections] using hgroupMerge
+  simpa [group, headSelection, matching, mergeSelectionSets, Selection.subselections]
+    using hgroupMerge
 
 theorem fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object
     (schema : Schema) (variableDefinitions : List VariableDefinition)

@@ -217,13 +217,12 @@ theorem collectFields_wrapWithBoolCase_of_variableValuesAgree
           = Execution.collectFields schema variableValues parentType source
               selectionSet := by
   intro hcase hagrees
-  exact
-    collectFields_wrapWithBoolCase_of_agrees schema variableValues
-      parentType source selectionSet boolCase
-      (by
-        intro varName value hmem
-        rcases hcase varName value hmem with ⟨hvar, hvalue⟩
-        exact (hagrees varName hvar).trans hvalue)
+  exact collectFields_wrapWithBoolCase_of_agrees schema variableValues
+    parentType source selectionSet boolCase
+    (by
+      intro varName value hmem
+      rcases hcase varName value hmem with ⟨hvar, hvalue⟩
+      exact (hagrees varName hvar).trans hvalue)
 
 theorem collectFields_wrapWithBoolCase_of_mem_allBoolCases
     (schema : Schema)
@@ -239,16 +238,15 @@ theorem collectFields_wrapWithBoolCase_of_mem_allBoolCases
           = Execution.collectFields schema variableValues parentType source
               selectionSet := by
   intro hnodup hmem hagrees
-  exact
-    collectFields_wrapWithBoolCase_of_variableValuesAgree schema
-      variableValues parentType source variables boolCase selectionSet
-      (by
-        intro varName value hpair
-        exact ⟨
-          boolCase_pair_variable_mem_of_allBoolCases hmem hpair,
-          BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
-            hnodup hmem hpair⟩)
-      hagrees
+  exact collectFields_wrapWithBoolCase_of_variableValuesAgree schema
+    variableValues parentType source variables boolCase selectionSet
+    (by
+      intro varName value hpair
+      exact ⟨
+        boolCase_pair_variable_mem_of_allBoolCases hmem hpair,
+        BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
+          hnodup hmem hpair⟩)
+    hagrees
 
 end CompleteNormalization
 

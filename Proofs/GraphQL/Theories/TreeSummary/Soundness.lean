@@ -38,8 +38,8 @@ theorem foldAnnotatedResponseFields_append
           (foldAnnotatedResponseFields algebra right) := by
   induction left with
   | nil =>
-      simpa [foldAnnotatedResponseFields] using
-        (lawful.empty_combine (foldAnnotatedResponseFields algebra right)).symm
+      simpa [foldAnnotatedResponseFields]
+        using (lawful.empty_combine (foldAnnotatedResponseFields algebra right)).symm
   | cons field rest ih =>
       cases field
       simp only [List.cons_append, foldAnnotatedResponseFields]

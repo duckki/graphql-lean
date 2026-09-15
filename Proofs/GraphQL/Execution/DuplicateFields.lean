@@ -34,10 +34,11 @@ theorem FirstOccurrences.weaken (hsubset : ∀ item, item ∈ seen -> item ∈ l
   | nil seen => exact .nil larger
   | keep seen item rest ih =>
       apply FirstOccurrences.keep larger item
-      exact ih (by
-        intro candidate hcandidate
-        simp at hcandidate ⊢
-        exact hcandidate.elim Or.inl (fun hmem => Or.inr (hsubset candidate hmem)))
+      exact ih
+        (by
+          intro candidate hcandidate
+          simp at hcandidate ⊢
+          exact hcandidate.elim Or.inl (fun hmem => Or.inr (hsubset candidate hmem)))
   | duplicate seen item hseen rest ih =>
       exact FirstOccurrences.duplicate larger item (hsubset item hseen) (ih hsubset)
 
@@ -418,13 +419,16 @@ theorem groupsContained_merge_right (left incoming : List (Name × List Executab
       cases hcandidate with
       | inl hcandidate =>
           subst candidate
-          exact groupsContained_merge_left (addExecutableGroup group left) rest [group]
+          exact groupsContained_merge_left
+            (addExecutableGroup group left)
+            rest [group]
             (by
               intro singleton hsingleton
               simp at hsingleton
               subst singleton
               exact groupContained_add_self group left)
-            group (by simp)
+            group
+            (by simp)
       | inr hcandidate =>
           exact ih (addExecutableGroup group left) candidate hcandidate
 

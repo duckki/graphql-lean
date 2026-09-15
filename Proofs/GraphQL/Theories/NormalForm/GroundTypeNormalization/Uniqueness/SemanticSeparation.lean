@@ -201,8 +201,8 @@ theorem responseValue_semanticEquivalent_of_selectionSetsDataEquivalent_object_f
   have hobjectData :
       Execution.ResponseValue.semanticEquivalent (.object leftFields)
         (.object rightFields) := by
-    simpa [hleftResponse, hrightResponse] using
-      hdata resolvers variableValues fuel source hsource
+    simpa [hleftResponse, hrightResponse]
+      using hdata resolvers variableValues fuel source hsource
   exact
     ResponseKeys.ResponseValue.semanticEquivalent_object_field_canonical_eq
       hobjectData hleftNodup hrightNodup hleftMem hrightMem
@@ -489,10 +489,11 @@ theorem responseName_mem_filterMap_of_field_mem
       -> responseName ∈ selectionSet.filterMap Selection.responseName? := by
   intro hmem
   exact List.mem_filterMap.mpr
-    ⟨Selection.field responseName fieldName arguments directives
-        childSelectionSet,
+    ⟨
+      Selection.field responseName fieldName arguments directives childSelectionSet,
       hmem,
-      by simp [Selection.responseName?]⟩
+      by simp [Selection.responseName?]
+    ⟩
 
 theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources
     {schema : Schema} {parentType : Name} {left right : List Selection}
@@ -588,7 +589,7 @@ theorem responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_o
     exact hrightCollectNo hrightKey
   exact (responseValue_object_left_key_mismatch_not_semanticallyEquivalent
           hleftKey hrightNoKey)
-          (by simpa [hleftExec, hrightExec] using hsemantic)
+    (by simpa [hleftExec, hrightExec] using hsemantic)
 
 theorem responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources
     {schema : Schema} {parentType : Name} {left right : List Selection}
@@ -742,7 +743,7 @@ theorem
     exact hrightCollectNo hrightKey
   exact (responseValue_object_left_key_mismatch_not_semanticallyEquivalent
           hleftKey hrightNoKey)
-          (by simpa [hleftExec, hrightExec] using hsemantic)
+    (by simpa [hleftExec, hrightExec] using hsemantic)
 
 theorem
     responseData_not_semanticEquivalent_of_left_responseName_diff_of_field_ok_sources_pair_fuels
@@ -842,7 +843,7 @@ theorem
     exact hrightCollectNo hrightKey
   exact (responseValue_object_left_key_mismatch_not_semanticallyEquivalent
           hleftKey hrightNoKey)
-          (by simpa [hleftExec, hrightExec] using hsemantic)
+    (by simpa [hleftExec, hrightExec] using hsemantic)
 
 theorem
     responseData_not_semanticEquivalent_of_right_responseName_diff_of_field_ok_sources_pair

@@ -349,7 +349,8 @@ theorem argumentsEquivalent_symm {left right : List Argument}
       rcases h.1 argument hargument with
         ⟨argument', hargument', hequivalent⟩
       exact ⟨argument', hargument',
-        argumentEquivalent_symm hequivalent⟩⟩
+        argumentEquivalent_symm hequivalent⟩
+  ⟩
 
 theorem fieldsInSetCanMerge_append_comm
     {schema : Schema} {parentType : Name} {left right : List Selection}

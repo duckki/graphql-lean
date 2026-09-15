@@ -478,9 +478,9 @@ mutual
                               boundary.parentType
                               (.object boundary.runtimeType boundary.ref)
                               ((responseName, rightHead :: rightRest) :: rightTail)) := by
-                          simpa [Execution.executeCollectedFields, Execution.executeField, outOfFuel,
-                            singleFieldResult,
-                            hleftLookup, hrightLookup] using hcombined
+                          simpa [Execution.executeCollectedFields, Execution.executeField,
+                            outOfFuel, singleFieldResult, hleftLookup, hrightLookup]
+                            using hcombined
                         have hleftReorder := executeCollectedFields_equivalent_of_perm
                           schema resolvers variableValues 0
                           boundary.parentType
@@ -526,8 +526,10 @@ mutual
                                   boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, rightHead :: rightRest) :: rightTail)) := by
-                              simpa [Execution.executeCollectedFields, Execution.executeField, hleftLookup,
-                                hrightLookup, hleftResolved, hresolved] using hcombined
+                              simpa [Execution.executeCollectedFields,
+                                Execution.executeField, hleftLookup, hrightLookup,
+                                hleftResolved, hresolved]
+                                using hcombined
                             have hleftReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
                               boundary.parentType
@@ -583,8 +585,10 @@ mutual
                                   boundary.parentType
                                   (.object boundary.runtimeType boundary.ref)
                                   ((responseName, rightHead :: rightRest) :: rightTail)) := by
-                              simpa [Execution.executeCollectedFields, Execution.executeField, hleftLookup,
-                                hrightLookup, hleftResolved, hresolved] using hcombined
+                              simpa [Execution.executeCollectedFields,
+                                Execution.executeField, hleftLookup, hrightLookup,
+                                hleftResolved, hresolved]
+                                using hcombined
                             have hleftReorder := executeCollectedFields_equivalent_of_perm
                               schema resolvers variableValues (completionFuel + 1)
                               boundary.parentType
@@ -674,11 +678,14 @@ mutual
             subst fieldType
             cases hvalue : value with
             | null =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
             | scalar scalarValue =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
             | list values =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
             | object childRuntime childRef =>
                 subst value
                 by_cases hinclude :
@@ -773,22 +780,24 @@ mutual
                       argumentsNodup := hchildArgumentsAndChildrenNodup.1
                       childrenArgumentsNodup := hchildArgumentsAndChildrenNodup.2
                     }
-                  have hchild := reductionUnits_execute_equivalent schema resolvers
-                    variableValues hschema nextFuel childRuntime childRuntime childRef
-                    childUnits leftSelectionSet rightSelectionSet hchildObject hchildSelf
-                    hchildReady
-                    (by simpa [childBoundary, childGroups] using
-                      childBoundary.groupsFieldCompatible)
-                    hchildArgumentsAndChildrenNodup.1
-                    hchildArgumentsAndChildrenNodup.2
-                    (by
-                      intro childResponseName childFields hchildGroup
-                      exact childBoundary.groupRuntimeScoped (by
-                        simpa [childBoundary, childGroups] using hchildGroup))
-                    hchildMerge hchildApplicable hleftSelection hrightSelection
+                  have hchild :=
+                    reductionUnits_execute_equivalent schema resolvers variableValues
+                      hschema nextFuel childRuntime childRuntime childRef childUnits
+                      leftSelectionSet rightSelectionSet hchildObject hchildSelf
+                      hchildReady
+                      (by
+                        simpa [childBoundary, childGroups]
+                          using childBoundary.groupsFieldCompatible)
+                      hchildArgumentsAndChildrenNodup.1 hchildArgumentsAndChildrenNodup.2
+                      (by
+                        intro childResponseName childFields hchildGroup
+                        exact childBoundary.groupRuntimeScoped
+                          (by simpa [childBoundary, childGroups] using hchildGroup))
+                      hchildMerge hchildApplicable hleftSelection hrightSelection
                   have hcaught := selectionSetResultEquivalent_catchBubbleAsNull hchild
-                  simpa [Execution.completeValue, hinclude, leftSelectionSet, rightSelectionSet,
-                    Execution.executeSelectionSet, executeRootSelectionSet,
+                  simpa [Execution.completeValue, hinclude, leftSelectionSet,
+                    rightSelectionSet, Execution.executeSelectionSet,
+                    executeRootSelectionSet,
                     NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
                     using hcaught
                 · have hfalse :
@@ -812,11 +821,14 @@ mutual
                   listResponseValueResultEquivalent_catchBubbleAsNull hlist
                 simpa [Execution.completeValue] using hcaught
             | null =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
             | scalar scalarValue =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
             | object runtime ref =>
-                exact responseValueResultEquivalent_of_eq (by simp [Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [Execution.completeValue])
   termination_by (fuel, 1, sizeOf fieldType + sizeOf value)
   decreasing_by
     all_goals subst_vars

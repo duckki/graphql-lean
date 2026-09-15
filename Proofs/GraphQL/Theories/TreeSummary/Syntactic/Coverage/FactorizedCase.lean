@@ -115,9 +115,9 @@ mutual
               inheritedBooleanCondition runtimeType rest
               (Traversal.withRuntimeBooleanDefaults source summaryVariableValues))
             (algebra.combine tailTypeSummary tailBooleanSummary) := by
-          simpa [tailSummaries, tailTypeSummary, tailBooleanSummary] using
-            summarizeBranchesAtRuntimeType_le_compact algebra lawful schema parentType
-              inheritedBooleanCondition parentCondition runtimeType rest source
+          simpa [tailSummaries, tailTypeSummary, tailBooleanSummary]
+            using summarizeBranchesAtRuntimeType_le_compact algebra lawful schema
+              parentType inheritedBooleanCondition parentCondition runtimeType rest source
               summaryVariableValues hvalues typeScope hrestCoherent hparentMem hscopeMem
         rw [summarizeBranchesAtRuntimeType, summarizeImmediateBranches]
         cases hcondition : branch.condition with
@@ -145,9 +145,9 @@ mutual
                       rw [hempty] at hnonempty
                       contradiction
                 simpa [hcondition, branchScope, hempty,
-                  Traversal.includeBranchAtRuntimeType, hinclude,
-                  tailSummaries, tailTypeSummary, tailBooleanSummary,
-                  lawful.empty_combine] using hrest
+                  Traversal.includeBranchAtRuntimeType, hinclude, tailSummaries,
+                  tailTypeSummary, tailBooleanSummary, lawful.empty_combine]
+                  using hrest
             | false =>
                 cases hinclude : schema.typeIncludesObjectBool typeName runtimeType with
                 | false =>
@@ -176,10 +176,10 @@ mutual
                       rw [summarizeTypeBranchCase?_getD_cons algebra lawful runtimeType,
                         if_neg hnotScope]
                     simpa [hcondition, branchScope, hempty,
-                      Traversal.includeBranchAtRuntimeType, hinclude,
-                      htypeHead,
+                      Traversal.includeBranchAtRuntimeType, hinclude, htypeHead,
                       tailSummaries, tailTypeSummary, tailBooleanSummary,
-                      lawful.empty_combine] using hrest
+                      lawful.empty_combine]
+                      using hrest
                 | true =>
                     have hbodyMem := runtimeType_mem_typeBranchBody schema
                       inheritedBooleanCondition parentCondition branch.body.condition
@@ -209,10 +209,10 @@ mutual
                       summaryVariableValues hvalues
                     have hcombined := lawful.combine_mono _ _ _ _ hrecursive hrest
                     simpa [hcondition, branchScope, hempty,
-                      Traversal.includeBranchAtRuntimeType, hinclude,
-                      htypeHead,
+                      Traversal.includeBranchAtRuntimeType, hinclude, htypeHead,
                       tailSummaries, tailTypeSummary, tailBooleanSummary,
-                      lawful.combine_assoc, BranchCondition.parentType] using hcombined
+                      lawful.combine_assoc, BranchCondition.parentType]
+                      using hcombined
         | booleanLiteral literal =>
             have hbodyMem : runtimeType ∈ branch.body.condition.possibleTypes := by
               rw [booleanBranchBody_possibleTypes schema inheritedBooleanCondition
@@ -229,22 +229,23 @@ mutual
                     have hselected :
                         runtimeBooleanAssignment source literal.variableName
                           ≠ literal.requiredValue := by
-                      cases literal <;>
-                        simpa [runtimeBooleanAssignment,
-                          Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
-                          using hinclude
-                    simpa [hcondition, hevaluation,
-                      Traversal.includeBranchAtRuntimeType, hinclude, hselected,
-                      summarizeSelectedBooleanBranches, tailSummaries, tailTypeSummary,
-                      tailBooleanSummary, lawful.empty_combine] using hrest
+                      cases literal
+                      <;> simpa [runtimeBooleanAssignment,
+                        Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
+                        using hinclude
+                    simpa [hcondition, hevaluation, Traversal.includeBranchAtRuntimeType,
+                      hinclude, hselected, summarizeSelectedBooleanBranches,
+                      tailSummaries, tailTypeSummary, tailBooleanSummary,
+                      lawful.empty_combine]
+                      using hrest
                 | true =>
                     have hselected :
                         runtimeBooleanAssignment source literal.variableName
                           = literal.requiredValue := by
-                      cases literal <;>
-                        simpa [runtimeBooleanAssignment,
-                          Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
-                          using hinclude
+                      cases literal
+                      <;> simpa [runtimeBooleanAssignment,
+                        Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
+                        using hinclude
                     have hrecursive := summarizeTreeAtRuntimeType_le algebra lawful
                       schema parentType inheritedBooleanCondition branch.body typeScope
                       runtimeType hbodyCoherent hscopeMem hbodyMem source
@@ -260,18 +261,19 @@ mutual
                               inheritedBooleanCondition branch.body summaryVariableValues
                               typeScope)
                             tailBooleanSummary) := by
-                      simpa [lawful.empty_combine] using
-                        (_root_.GraphQL.TreeSummary.Algebra.Lawful.combine_interchange
-                          lawful algebra.empty
-                          (summarizeTree algebra schema parentType
-                            inheritedBooleanCondition branch.body summaryVariableValues
-                            typeScope)
-                          tailTypeSummary tailBooleanSummary)
+                      simpa [lawful.empty_combine]
+                        using (_root_.GraphQL.TreeSummary.Algebra.Lawful.combine_interchange
+                                lawful algebra.empty
+                                (summarizeTree algebra schema parentType
+                                  inheritedBooleanCondition branch.body
+                                  summaryVariableValues typeScope)
+                                tailTypeSummary tailBooleanSummary)
                     rw [hreorder] at hcombined
-                    simpa [hcondition, hevaluation,
-                      Traversal.includeBranchAtRuntimeType, hinclude, hselected,
-                      summarizeSelectedBooleanBranches, tailSummaries, tailTypeSummary,
-                      tailBooleanSummary, BranchCondition.parentType] using hcombined
+                    simpa [hcondition, hevaluation, Traversal.includeBranchAtRuntimeType,
+                      hinclude, hselected, summarizeSelectedBooleanBranches,
+                      tailSummaries, tailTypeSummary, tailBooleanSummary,
+                      BranchCondition.parentType]
+                      using hcombined
             | some value =>
                 have hinclude := evaluateBooleanLiteral_eq_runtime_of_some source
                   summaryVariableValues hvalues literal value hevaluation
@@ -285,10 +287,10 @@ mutual
                     have hselected :
                         runtimeBooleanAssignment source literal.variableName
                           = literal.requiredValue := by
-                      cases literal <;>
-                        simpa [runtimeBooleanAssignment,
-                          Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
-                          using hinclude
+                      cases literal
+                      <;> simpa [runtimeBooleanAssignment,
+                        Traversal.withRuntimeBooleanDefaults, runtimeBooleanDefault]
+                        using hinclude
                     have hrecursive := summarizeTreeAtRuntimeType_le algebra lawful
                       schema parentType inheritedBooleanCondition branch.body typeScope
                       runtimeType hbodyCoherent hscopeMem hbodyMem source
@@ -304,18 +306,19 @@ mutual
                               inheritedBooleanCondition branch.body summaryVariableValues
                               typeScope)
                             tailBooleanSummary) := by
-                      simpa [lawful.empty_combine] using
-                        (_root_.GraphQL.TreeSummary.Algebra.Lawful.combine_interchange
-                          lawful algebra.empty
-                          (summarizeTree algebra schema parentType
-                            inheritedBooleanCondition branch.body summaryVariableValues
-                            typeScope)
-                          tailTypeSummary tailBooleanSummary)
+                      simpa [lawful.empty_combine]
+                        using (_root_.GraphQL.TreeSummary.Algebra.Lawful.combine_interchange
+                                lawful algebra.empty
+                                (summarizeTree algebra schema parentType
+                                  inheritedBooleanCondition branch.body
+                                  summaryVariableValues typeScope)
+                                tailTypeSummary tailBooleanSummary)
                     rw [hreorder] at hcombined
-                    simpa [hcondition, hevaluation,
-                      Traversal.includeBranchAtRuntimeType, hinclude, hselected,
-                      summarizeSelectedBooleanBranches, tailSummaries, tailTypeSummary,
-                      tailBooleanSummary, BranchCondition.parentType] using hcombined
+                    simpa [hcondition, hevaluation, Traversal.includeBranchAtRuntimeType,
+                      hinclude, hselected, summarizeSelectedBooleanBranches,
+                      tailSummaries, tailTypeSummary, tailBooleanSummary,
+                      BranchCondition.parentType]
+                      using hcombined
   termination_by sizeOf branches
   decreasing_by
     all_goals
@@ -362,14 +365,15 @@ theorem summarizeChildParentType_le
               · exact summarizeChildParentType_le algebra lawful schema group
                   (next :: tail) childParentType
                   (by simpa only [List.mem_cons] using hrest) variableValues
-              · simpa [summarizeChildTypes, joinMap] using
-                  (lawful.le_join_right
-                    (summarizeTree algebra schema first
-                      group.childInheritedBooleanCondition
-                      (group.childTreeWithKnownFalsePruning schema first variableValues)
-                      variableValues)
-                    (summarizeChildTypes algebra schema group (next :: tail)
-                      variableValues))
+              · simpa [summarizeChildTypes, joinMap]
+                  using (lawful.le_join_right
+                          (summarizeTree algebra schema first
+                            group.childInheritedBooleanCondition
+                            (group.childTreeWithKnownFalsePruning schema first
+                              variableValues)
+                            variableValues)
+                          (summarizeChildTypes algebra schema group (next :: tail)
+                            variableValues))
 termination_by sizeOf parentTypes
 decreasing_by
   rw [htypes]
@@ -386,9 +390,9 @@ theorem summarizeCollectedGroups_append
           (summarizeCollectedGroups algebra schema traversal right) := by
   induction left with
   | nil =>
-      simpa [summarizeCollectedGroups] using
-        (lawful.empty_combine
-          (summarizeCollectedGroups algebra schema traversal right)).symm
+      simpa [summarizeCollectedGroups]
+        using (lawful.empty_combine
+                (summarizeCollectedGroups algebra schema traversal right)).symm
   | cons group rest ih =>
       simp only [List.cons_append, summarizeCollectedGroups]
       rw [ih, lawful.combine_assoc]

@@ -350,8 +350,8 @@ mutual
           · rename_i modifiedRest hrest
             cases hresult
             simp only [branchNodeConditions]
-            simpa [List.append_assoc] using
-              List.Perm.append_left branch.body.nodeConditions
+            simpa [List.append_assoc]
+              using List.Perm.append_left branch.body.nodeConditions
                 (branchConditions_modifyBranchesAtCondition? target modify added
                   rest modifiedRest hmodify hrest)
 end
@@ -1271,11 +1271,7 @@ theorem Tree.root_wellFormed
     have hequal : condition = rootCondition schema parentType := by
       simpa [Tree.root, Tree.nodeConditions, branchNodeConditions] using hcondition
     subst condition
-    exact ⟨
-      hpossible,
-      by
-        simpa [Condition.FeasibleUnder, rootCondition] using hinherited
-    ⟩
+    exact ⟨hpossible, by simpa [Condition.FeasibleUnder, rootCondition] using hinherited⟩
   · intro condition hcondition
     have hequal : condition = rootCondition schema parentType := by
       simpa [Tree.root, Tree.nodeConditions, branchNodeConditions] using hcondition

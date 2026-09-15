@@ -778,8 +778,8 @@ theorem executeField_output_of_completionCacheSound
                   have hcompletion :=
                     hfresh fieldDefinition resolved hlookup hresolved
                   simpa [CompletionCacheSound, hcoerce, hresolve,
-                    ExecutionUngroupedUncached.reusablePreviousValue?] using
-                    hcompletion
+                    ExecutionUngroupedUncached.reusablePreviousValue?]
+                    using hcompletion
       | some previous =>
           have hcontinuation := hprevious fieldDefinition previous hlookup rfl
           cases hreuse

@@ -103,15 +103,14 @@ theorem selectionSetValid_mergedFieldSelectionSet_cons
       -> selectionSetValid schema variableDefinitions parentType
           (Execution.mergedFieldSelectionSet (field :: fields)) := by
   intro hfield hfields
-  exact
-    selectionSetValid_mergedFieldSelectionSet schema variableDefinitions
-      parentType (field :: fields)
-      (by
-        intro candidate hcandidate
-        rcases List.mem_cons.mp hcandidate with hhead | htail
-        · subst candidate
-          exact hfield
-        · exact hfields candidate htail)
+  exact selectionSetValid_mergedFieldSelectionSet schema variableDefinitions
+    parentType (field :: fields)
+    (by
+      intro candidate hcandidate
+      rcases List.mem_cons.mp hcandidate with hhead | htail
+      · subst candidate
+        exact hfield
+      · exact hfields candidate htail)
 
 end Validation
 

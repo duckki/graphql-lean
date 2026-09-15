@@ -608,8 +608,9 @@ theorem
         fieldName leftArguments rightArguments runtimeType runtimeType
         leftInitialSelectionSet rightInitialSelectionSet leftInitialSpine
         rightInitialSpine leftChildSelectionSet rightChildSelectionSet := by
-    simpa [rootSelectionSet, leftInitialSelectionSet,
-      rightInitialSelectionSet, parentFuel] using hchildWitness
+    simpa [rootSelectionSet, leftInitialSelectionSet, rightInitialSelectionSet,
+      parentFuel]
+      using hchildWitness
   rcases hchildWitness' with
     ⟨_hchildInclude, leftChildFields, leftChildErrors,
       rightChildFields, rightChildErrors, hleftChildResponse,
@@ -936,14 +937,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -974,14 +975,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -2057,14 +2058,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using left_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -2094,14 +2095,14 @@ theorem
             .ok ([(currentResponseName, responseValue)], fieldErrors) := by
     intro currentResponseName siblingFieldName arguments directives
       childSelectionSet hmem
-    simpa [rootSelectionSet, parentFuel] using
-      right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
+    simpa [rootSelectionSet, parentFuel]
+      using right_selectionSet_deepSuccessFieldOk_append_framed_of_valid_normal_fuel_ge
         (schema := schema) (parentType := parentType)
         (left := left) (right := right)
         (leftVariableDefinitions := leftVariableDefinitions)
         (rightVariableDefinitions := rightVariableDefinitions)
-        (ProjectionResolverRef.filler :
-          ProjectionResolverRef FieldPairSelectedPathProbeRef)
+        (ProjectionResolverRef.filler
+          : ProjectionResolverRef FieldPairSelectedPathProbeRef)
         variableValues
         (projectionRootResolverValue
           (.object parentType FieldPairSelectedPathProbeRef.root))
@@ -2575,8 +2576,7 @@ theorem objectOutputChildResponse_of_selectedPathFieldChildrenReady
       · rcases hobjectRuntime with ⟨_hobject, hruntimeEq⟩
         subst childRuntimeType
         refine ⟨responseFields, childErrors, ?_⟩
-        simpa [selectedObservableFieldSpineTailForRuntime, hselected] using
-          hchildResponse
+        simpa [selectedObservableFieldSpineTailForRuntime, hselected] using hchildResponse
       · rcases habstractRuntime with ⟨_hcomposite, hnonObject⟩
         rw [hobjectOutput] at hnonObject
         simp at hnonObject

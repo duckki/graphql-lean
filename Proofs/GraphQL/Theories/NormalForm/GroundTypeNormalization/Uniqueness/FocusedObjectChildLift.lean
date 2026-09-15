@@ -68,8 +68,7 @@ theorem focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
           · by_cases htarget : fieldName = targetField
             · simp [focusedSelectionSetTargetChildSelectionSets, htarget,
                 ih htail]
-            · simpa [focusedSelectionSetTargetChildSelectionSets, htarget]
-                using ih htail
+            · simpa [focusedSelectionSetTargetChildSelectionSets, htarget] using ih htail
       | inlineFragment typeCondition headDirectives headSelectionSet =>
           simp only [List.mem_cons] at hmem
           rcases hmem with hhead | htail
@@ -1408,85 +1407,88 @@ theorem
               otherFieldName arguments directives childSelectionSet
               (hsubset otherResponseName otherFieldName arguments
                 directives childSelectionSet hmem))
-  exact
-    not_selectionSetsDataEquivalent_of_object_child_contextualRuntimeDiff_fieldCases_withFuelGe_focused
-      (schema := schema) (parentType := parentType)
-      (returnType := returnType) (responseName := responseName)
-      (fieldName := fieldName) (runtimeType := runtimeType)
-      (leftArguments := leftArguments) (rightArguments := rightArguments)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      (leftPref := leftPref) (rightPref := rightPref)
-      (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
-      (fieldDefinition := fieldDefinition) (support := support)
-      (minFuel :=
-        selectionSetDeepProbeFuel schema parentType
-          (leftSelectionSet ++ rightSelectionSet)
-        - leafProbeFuel fieldDefinition.outputType)
-      rootSelectionSet hlookup hreturnType
-      hleftTargetCoercion hrightTargetCoercion
-      (by simpa [leftSelectionSet] using hleftFree)
-      (by simpa [rightSelectionSet] using hrightFree)
-      (by simpa [leftSelectionSet] using hleftNormal)
-      (by simpa [rightSelectionSet] using hrightNormal)
-      hparentObject
+  exact not_selectionSetsDataEquivalent_of_object_child_contextualRuntimeDiff_fieldCases_withFuelGe_focused
+    (schema := schema)
+    (parentType := parentType)
+    (returnType := returnType)
+    (responseName := responseName)
+    (fieldName := fieldName)
+    (runtimeType := runtimeType)
+    (leftArguments := leftArguments)
+    (rightArguments := rightArguments)
+    (leftChildSelectionSet := leftChildSelectionSet)
+    (rightChildSelectionSet := rightChildSelectionSet)
+    (leftPref := leftPref)
+    (rightPref := rightPref)
+    (leftSuffix := leftSuffix)
+    (rightSuffix := rightSuffix)
+    (fieldDefinition := fieldDefinition)
+    (support := support)
+    (minFuel :=
+      selectionSetDeepProbeFuel schema parentType (leftSelectionSet ++ rightSelectionSet)
+      - leafProbeFuel fieldDefinition.outputType)
+    rootSelectionSet hlookup hreturnType hleftTargetCoercion hrightTargetCoercion
+    (by simpa [leftSelectionSet] using hleftFree)
+    (by simpa [rightSelectionSet] using hrightFree)
+    (by simpa [leftSelectionSet] using hleftNormal)
+    (by simpa [rightSelectionSet] using hrightNormal)
+    hparentObject
+    (by
+      intro currentResponseName currentFieldName arguments directives
+        childSelectionSet hmem
+      exact hleftSelectionCoercion currentResponseName currentFieldName
+        arguments directives childSelectionSet
+        (List.mem_append_left _ hmem))
+    (by
+      intro currentResponseName currentFieldName arguments directives
+        childSelectionSet hmem
+      exact hrightSelectionCoercion currentResponseName currentFieldName
+        arguments directives childSelectionSet
+        (List.mem_append_left _ hmem))
+    (by
+      intro currentResponseName currentFieldName arguments directives
+        childSelectionSet hmem
+      exact hleftSelectionCoercion currentResponseName currentFieldName
+        arguments directives childSelectionSet
+        (List.mem_append_right leftPref
+          (List.mem_cons_of_mem _ hmem)))
+    (by
+      intro currentResponseName currentFieldName arguments directives
+        childSelectionSet hmem
+      exact hrightSelectionCoercion currentResponseName currentFieldName
+        arguments directives childSelectionSet
+        (List.mem_append_right rightPref
+          (List.mem_cons_of_mem _ hmem)))
+    hleftPrefSupported hrightPrefSupported hleftSuffixSupported hrightSuffixSupported
+    (hleftOther leftPref
       (by
-        intro currentResponseName currentFieldName arguments directives
+        intro otherResponseName otherFieldName arguments directives
           childSelectionSet hmem
-        exact hleftSelectionCoercion currentResponseName currentFieldName
-          arguments directives childSelectionSet
-          (List.mem_append_left _ hmem))
+        exact List.mem_append_left _ hmem))
+    (hrightOther rightPref
       (by
-        intro currentResponseName currentFieldName arguments directives
+        intro otherResponseName otherFieldName arguments directives
           childSelectionSet hmem
-        exact hrightSelectionCoercion currentResponseName currentFieldName
-          arguments directives childSelectionSet
-          (List.mem_append_left _ hmem))
+        exact List.mem_append_left _ hmem))
+    (hleftOther leftSuffix
       (by
-        intro currentResponseName currentFieldName arguments directives
+        intro otherResponseName otherFieldName arguments directives
           childSelectionSet hmem
-        exact hleftSelectionCoercion currentResponseName currentFieldName
-          arguments directives childSelectionSet
-          (List.mem_append_right leftPref
-            (List.mem_cons_of_mem _ hmem)))
+        exact
+          List.mem_append_right leftPref
+            (List.mem_cons_of_mem
+              (Selection.field responseName fieldName leftArguments []
+                leftChildSelectionSet) hmem)))
+    (hrightOther rightSuffix
       (by
-        intro currentResponseName currentFieldName arguments directives
+        intro otherResponseName otherFieldName arguments directives
           childSelectionSet hmem
-        exact hrightSelectionCoercion currentResponseName currentFieldName
-          arguments directives childSelectionSet
-          (List.mem_append_right rightPref
-            (List.mem_cons_of_mem _ hmem)))
-      hleftPrefSupported hrightPrefSupported
-      hleftSuffixSupported hrightSuffixSupported
-      (hleftOther leftPref
-        (by
-          intro otherResponseName otherFieldName arguments directives
-            childSelectionSet hmem
-          exact List.mem_append_left _ hmem))
-      (hrightOther rightPref
-        (by
-          intro otherResponseName otherFieldName arguments directives
-            childSelectionSet hmem
-          exact List.mem_append_left _ hmem))
-      (hleftOther leftSuffix
-        (by
-          intro otherResponseName otherFieldName arguments directives
-            childSelectionSet hmem
-          exact
-            List.mem_append_right leftPref
-              (List.mem_cons_of_mem
-                (Selection.field responseName fieldName leftArguments []
-                  leftChildSelectionSet) hmem)))
-      (hrightOther rightSuffix
-        (by
-          intro otherResponseName otherFieldName arguments directives
-            childSelectionSet hmem
-          exact
-            List.mem_append_right rightPref
-              (List.mem_cons_of_mem
-                (Selection.field responseName fieldName rightArguments []
-                  rightChildSelectionSet) hmem)))
-      (by simpa [leftSelectionSet, rightSelectionSet] using hwitness)
+        exact
+          List.mem_append_right rightPref
+            (List.mem_cons_of_mem
+              (Selection.field responseName fieldName rightArguments []
+                rightChildSelectionSet) hmem)))
+    (by simpa [leftSelectionSet, rightSelectionSet] using hwitness)
 
 theorem
     not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_targetSupport_focused
@@ -1570,67 +1572,72 @@ theorem
                   :: rightSuffix) := by
   intro hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
     hrightFree hleftNormal hrightNormal hparentObject hwitness
-  exact
-    not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      (parentType := parentType) (returnType := returnType)
-      (responseName := responseName) (fieldName := fieldName)
-      (runtimeType := runtimeType) (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      (leftPref := leftPref) (rightPref := rightPref)
-      (leftSuffix := leftSuffix) (rightSuffix := rightSuffix)
-      (fieldDefinition := fieldDefinition)
-      (support := fun childSelectionSet =>
-        childSelectionSet ∈
-          focusedSplitTargetChildSelectionSets fieldName leftArguments
+  exact not_selectionSetsDataEquivalent_of_valid_normal_object_child_contextualRuntimeDiff_split_focused
+    (schema := schema)
+    (leftVariableDefinitions := leftVariableDefinitions)
+    (rightVariableDefinitions := rightVariableDefinitions)
+    (parentType := parentType)
+    (returnType := returnType)
+    (responseName := responseName)
+    (fieldName := fieldName)
+    (runtimeType := runtimeType)
+    (leftArguments := leftArguments)
+    (rightArguments := rightArguments)
+    (leftChildSelectionSet := leftChildSelectionSet)
+    (rightChildSelectionSet := rightChildSelectionSet)
+    (leftPref := leftPref)
+    (rightPref := rightPref)
+    (leftSuffix := leftSuffix)
+    (rightSuffix := rightSuffix)
+    (fieldDefinition := fieldDefinition)
+    (support :=
+      fun childSelectionSet =>
+        childSelectionSet
+        ∈ focusedSplitTargetChildSelectionSets fieldName leftArguments
             rightArguments leftPref rightPref leftSuffix rightSuffix)
-      hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType hleftFree
-      hrightFree hleftNormal hrightNormal hparentObject
-      (by
-        intro currentResponseName arguments directives childSelectionSet
+    hschema hleftValid hrightValid hleftCoercion hrightCoercion hlookup hreturnType
+    hleftFree hrightFree hleftNormal hrightNormal hparentObject
+    (by
+      intro currentResponseName arguments directives childSelectionSet
+        hmem
+      have htarget :=
+        focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
+          (targetField := fieldName) (leftArguments := leftArguments)
+          (rightArguments := rightArguments) (selectionSet := leftPref)
+          currentResponseName arguments directives childSelectionSet
           hmem
-        have htarget :=
-          focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
-            (targetField := fieldName) (leftArguments := leftArguments)
-            (rightArguments := rightArguments) (selectionSet := leftPref)
-            currentResponseName arguments directives childSelectionSet
-            hmem
-        simp [focusedSplitTargetChildSelectionSets, htarget])
-      (by
-        intro currentResponseName arguments directives childSelectionSet
+      simp [focusedSplitTargetChildSelectionSets, htarget])
+    (by
+      intro currentResponseName arguments directives childSelectionSet
+        hmem
+      have htarget :=
+        focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
+          (targetField := fieldName) (leftArguments := leftArguments)
+          (rightArguments := rightArguments) (selectionSet := rightPref)
+          currentResponseName arguments directives childSelectionSet
           hmem
-        have htarget :=
-          focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
-            (targetField := fieldName) (leftArguments := leftArguments)
-            (rightArguments := rightArguments) (selectionSet := rightPref)
-            currentResponseName arguments directives childSelectionSet
-            hmem
-        simp [focusedSplitTargetChildSelectionSets, htarget])
-      (by
-        intro currentResponseName arguments directives childSelectionSet
+      simp [focusedSplitTargetChildSelectionSets, htarget])
+    (by
+      intro currentResponseName arguments directives childSelectionSet
+        hmem
+      have htarget :=
+        focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
+          (targetField := fieldName) (leftArguments := leftArguments)
+          (rightArguments := rightArguments) (selectionSet := leftSuffix)
+          currentResponseName arguments directives childSelectionSet
           hmem
-        have htarget :=
-          focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
-            (targetField := fieldName) (leftArguments := leftArguments)
-            (rightArguments := rightArguments) (selectionSet := leftSuffix)
-            currentResponseName arguments directives childSelectionSet
-            hmem
-        simp [focusedSplitTargetChildSelectionSets, htarget])
-      (by
-        intro currentResponseName arguments directives childSelectionSet
+      simp [focusedSplitTargetChildSelectionSets, htarget])
+    (by
+      intro currentResponseName arguments directives childSelectionSet
+        hmem
+      have htarget :=
+        focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
+          (targetField := fieldName) (leftArguments := leftArguments)
+          (rightArguments := rightArguments) (selectionSet := rightSuffix)
+          currentResponseName arguments directives childSelectionSet
           hmem
-        have htarget :=
-          focusedSelectionSetTargetChildrenSupported_targetChildSelectionSets
-            (targetField := fieldName) (leftArguments := leftArguments)
-            (rightArguments := rightArguments) (selectionSet := rightSuffix)
-            currentResponseName arguments directives childSelectionSet
-            hmem
-        simp [focusedSplitTargetChildSelectionSets, htarget])
-      hwitness
+      simp [focusedSplitTargetChildSelectionSets, htarget])
+    hwitness
 
 theorem
     selectionSetContextualRuntimeDataDiffWitnessWithFuelGe_of_valid_normal_object_child_contextualRuntimeDiff_split_focusedFiniteSupport
@@ -1993,31 +2000,33 @@ theorem
           rightArguments selectionSet childSupport) :
       selectionSetFieldsExecuteOk schema parentResolvers variableValues
         parentFuel parentType parentSource selectionSet := by
-    simpa [parentResolvers, parentFuel, parentSource] using
+    simpa [parentResolvers, parentFuel, parentSource]
+      using
       selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_parentObjectProbe_of_field_cases
-        schema rootSelectionSet base variableValues fuel parentType fieldName
-        (Execution.coercedArgumentsForField schema variableValues parentType fieldName leftArguments)
-        (Execution.coercedArgumentsForField schema variableValues parentType fieldName rightArguments)
-        fieldDefinition runtimeType ref
-        selectionSet hlookup hfieldInclude
-        (hcoercionOfSubset selectionSet wholeSelectionSet hmember hsubset)
-        (by
-          intro currentResponseName arguments directives childSelectionSet
-            hmem _harguments
-          exact
-            hsupportResponse childSelectionSet
-              (hsupported currentResponseName arguments directives
-                childSelectionSet hmem))
-        (by
-          intro currentResponseName arguments directives childSelectionSet
-            hmem _harguments
-          exact
-            hsupportResponse childSelectionSet
-              (hsupported currentResponseName arguments directives
-                childSelectionSet hmem))
-        (by
-          simpa [parentResolvers, parentFuel, parentSource] using
-            hotherOfSubset selectionSet wholeSelectionSet hmember hsubset)
+          schema rootSelectionSet base variableValues fuel parentType fieldName
+          (Execution.coercedArgumentsForField schema variableValues parentType fieldName
+            leftArguments)
+          (Execution.coercedArgumentsForField schema variableValues parentType fieldName
+            rightArguments)
+          fieldDefinition runtimeType ref selectionSet hlookup hfieldInclude
+          (hcoercionOfSubset selectionSet wholeSelectionSet hmember hsubset)
+          (by
+            intro currentResponseName arguments directives childSelectionSet
+              hmem _harguments
+            exact
+              hsupportResponse childSelectionSet
+                (hsupported currentResponseName arguments directives
+                  childSelectionSet hmem))
+          (by
+            intro currentResponseName arguments directives childSelectionSet
+              hmem _harguments
+            exact
+              hsupportResponse childSelectionSet
+                (hsupported currentResponseName arguments directives
+                  childSelectionSet hmem))
+          (by
+            simpa [parentResolvers, parentFuel, parentSource]
+              using hotherOfSubset selectionSet wholeSelectionSet hmember hsubset)
   have hleftMember : leftSelectionSet ∈ members := by
     simp [members]
   have hrightMember : rightSelectionSet ∈ members := by
@@ -2079,9 +2088,13 @@ theorem
       (fieldDefinition := fieldDefinition) runtimeType ref hleftFree
       hrightFree hleftNormal hrightNormal hparentObject
       (by
-        simpa [parentResolvers, parentFuel, parentSource] using
-          ⟨hleftPrefFieldsOk, hrightPrefFieldsOk, hleftSuffixFieldsOk,
-            hrightSuffixFieldsOk⟩)
+        simpa [parentResolvers, parentFuel, parentSource]
+          using ⟨
+            hleftPrefFieldsOk,
+            hrightPrefFieldsOk,
+            hleftSuffixFieldsOk,
+            hrightSuffixFieldsOk
+          ⟩)
   refine ⟨
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hparentObject,
     ProjectionResolverRef (Option ObjectRef),

@@ -108,8 +108,8 @@ theorem slots_buildFieldSlotForResolved_snd_eq
   | none =>
       simp [buildFieldSlotForResolved]
   | some value =>
-      simpa [buildFieldSlotForResolved] using
-        slots_buildValueSlot_snd_eq schema selectionSet fieldType value left right
+      simpa [buildFieldSlotForResolved]
+        using slots_buildValueSlot_snd_eq schema selectionSet fieldType value left right
 
 theorem slots_mapAccumList_buildFieldSlotForResolved_snd_eq
     (schema : Schema) (fieldType : TypeRef) (selectionSet : List Selection)
@@ -135,8 +135,8 @@ theorem slots_buildFieldSlotsForResolved_snd_eq
     : (buildFieldSlotsForResolved schema fieldType selectionSet resolved left).snd
       = (buildFieldSlotsForResolved schema fieldType selectionSet resolved
           right).snd := by
-  simpa [buildFieldSlotsForResolved] using
-    slots_mapAccumList_buildFieldSlotForResolved_snd_eq
+  simpa [buildFieldSlotsForResolved]
+    using slots_mapAccumList_buildFieldSlotForResolved_snd_eq
       schema fieldType selectionSet resolved left right
 
 theorem slots_buildFieldSlotsForResolvedSegments_snd_eq
@@ -705,16 +705,17 @@ theorem slots_expectedPendingChildWorkForCompleteValue_append
                         (expectedPendingChildWorkForCompleteValue
                           schema selectionSet fuel inner value [])
                     simpa [expectedPendingChildWorkForCompleteValueList,
-                      List.append_assoc] using htail0.symm
-              simpa [expectedPendingChildWorkForCompleteValue] using
-                hlistAppend values pending
+                      List.append_assoc]
+                      using htail0.symm
+              simpa [expectedPendingChildWorkForCompleteValue]
+                using hlistAppend values pending
   | nonNull inner ih =>
       cases fuel with
       | zero =>
           simp [expectedPendingChildWorkForCompleteValue]
       | succ fuel =>
-          simpa [expectedPendingChildWorkForCompleteValue] using
-            (ih (fuel + 1) value pending)
+          simpa [expectedPendingChildWorkForCompleteValue]
+            using (ih (fuel + 1) value pending)
 
 theorem slots_expectedPendingChildWorkForCompleteValueList_append
     (schema : Schema) (selectionSet : List Selection)
@@ -749,8 +750,8 @@ theorem slots_expectedPendingChildWorkForCompleteValueList_append
       have htail0 :=
         ih (expectedPendingChildWorkForCompleteValue schema selectionSet
           fuel inner value [])
-      simpa [expectedPendingChildWorkForCompleteValueList, List.append_assoc] using
-        htail0.symm
+      simpa [expectedPendingChildWorkForCompleteValueList, List.append_assoc]
+        using htail0.symm
 
 theorem slots_combineListResults_completeValueList
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1064,8 +1065,8 @@ theorem slots_expectedPendingChildWorkForResolved_append
       | none =>
           simp [expectedPendingChildWorkForResolved]
       | some value =>
-          simpa [expectedPendingChildWorkForResolved] using
-            slots_expectedPendingChildWorkForCompleteValue_append
+          simpa [expectedPendingChildWorkForResolved]
+            using slots_expectedPendingChildWorkForCompleteValue_append
               (ObjectRef := ObjectRef) schema selectionSet
               fuel fieldType value pending
 
@@ -1122,8 +1123,8 @@ theorem slots_expectedPendingChildWorkForSegment_append
       = pending
         ++ expectedPendingChildWorkForSegment schema resolvers fieldKey
             fieldType segment [] variableValues := by
-  simpa [expectedPendingChildWorkForSegment] using
-    slots_expectedPendingChildWorkForSources_append
+  simpa [expectedPendingChildWorkForSegment]
+    using slots_expectedPendingChildWorkForSources_append
       (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType
       segment.segment.sources segment.specFuels pending
@@ -1216,10 +1217,10 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
             expectedPendingChildWorkCompletionStack,
-            GraphQL.Execution.resolveFieldValueByName,
-            ScheduleKey.executableField, hlookup, hresolve, hresolveRuntime,
-            slots_singleFieldResultValue_singleFieldResult] using
-            slots_completeSlot_completed_handleFieldError_full
+            GraphQL.Execution.resolveFieldValueByName, ScheduleKey.executableField,
+            hlookup, hresolve, hresolveRuntime,
+            slots_singleFieldResultValue_singleFieldResult]
+            using slots_completeSlot_completed_handleFieldError_full
               fieldDefinition.outputType stack
   | some value =>
       have hresolveRuntime :
@@ -1246,9 +1247,10 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
             (key.executableField selectionSet) [] fieldDefinition
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
-            ScheduleKey.executableField,
-            GraphQL.Execution.resolveFieldValueByName, hlookup, hresolve, hresolveRuntime,
-            slots_singleFieldResultValue_singleFieldResult] using hcomplete
+            ScheduleKey.executableField, GraphQL.Execution.resolveFieldValueByName,
+            hlookup, hresolve, hresolveRuntime,
+            slots_singleFieldResultValue_singleFieldResult]
+            using hcomplete
 
 theorem
     slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
@@ -1326,8 +1328,8 @@ theorem
                 headWork ++ tailWork := by
             rw [expectedPendingChildWorkForSources]
             simp [headWork, tailWork]
-            simpa [headWork, tailWork] using
-              slots_expectedPendingChildWorkForSources_append
+            simpa [headWork, tailWork]
+              using slots_expectedPendingChildWorkForSources_append
                 (ObjectRef := ObjectRef) schema resolvers variableValues key selectionSet
                 fieldDefinition.outputType sources specFuels headWork
           let tailStack : CompletionStack :=
@@ -1425,13 +1427,14 @@ theorem
           rw [hhead, hslots]
           constructor
           · have htailF := congrArg Prod.fst htail'
-            simpa [expectedScheduleSegmentSpecFieldResultsWithFuels] using
-              congrArg
+            simpa [expectedScheduleSegmentSpecFieldResultsWithFuels]
+              using congrArg
                 (fun tail =>
                   singleFieldResultValue key.responseName
                     (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                      key.parentType source key.responseName [key.executableField selectionSet]) ::
-                    tail)
+                      key.parentType source key.responseName
+                      [key.executableField selectionSet])
+                  :: tail)
                 htailF
           · exact congrArg Prod.snd htail'
 
@@ -1469,13 +1472,12 @@ theorem
             stack
           ) := by
   intro hlookup haligned hready
-  simpa [expectedScheduleSegmentSpecFieldResults, expectedPendingChildWorkForSegment] using
-    slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
-      (ObjectRef := ObjectRef) schema resolvers variableValues key fieldDefinition
-      segment.segment.childSelectionSet segment.segment.sources segment.specFuels
-      stack hlookup
-      (by simpa [expectedQueueSegmentFuelsAligned] using haligned)
-      hready
+  simpa [expectedScheduleSegmentSpecFieldResults, expectedPendingChildWorkForSegment]
+    using
+      slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
+        (ObjectRef := ObjectRef) schema resolvers variableValues key fieldDefinition
+        segment.segment.childSelectionSet segment.segment.sources segment.specFuels stack
+        hlookup (by simpa [expectedQueueSegmentFuelsAligned] using haligned) hready
 
 theorem
     slots_completeSlotList_buildFieldSlotsForResolvedSegments_eq_expectedScheduleSegmentResultsFlatten
@@ -1547,8 +1549,8 @@ theorem
             (segment :: segments)) =
           headWork ++ tailWork := by
         rw [List.foldl_cons]
-        simpa [headWork, tailWork] using
-          slots_expectedPendingChildWorkForSegments_append
+        simpa [headWork, tailWork]
+          using slots_expectedPendingChildWorkForSegments_append
             (ObjectRef := ObjectRef) schema resolvers variableValues key
             fieldDefinition.outputType segments headWork
       let tailStack : CompletionStack :=
@@ -1750,8 +1752,8 @@ theorem slots_expectedPendingChildWorkForCompleteValue_toPending_eq_buildValueSl
                         fuel inner value pending)
                   rw [hhead] at htail
                   simpa [expectedPendingChildWorkForCompleteValue,
-                    expectedPendingChildWorkForCompleteValueList,
-                    buildValueSlot, mapAccumList, expectedPendingChildWorkToPending]
+                    expectedPendingChildWorkForCompleteValueList, buildValueSlot,
+                    mapAccumList, expectedPendingChildWorkToPending]
                     using htail
   | nonNull inner ih =>
       intro hfuel
@@ -1762,9 +1764,9 @@ theorem slots_expectedPendingChildWorkForCompleteValue_toPending_eq_buildValueSl
           omega
       | succ fuel =>
           simpa [expectedPendingChildWorkForCompleteValue, buildValueSlot,
-            typeRefCompleteValueFuelBound] using
-            ih (fuel + 1) value pending (by
-              simpa [typeRefCompleteValueFuelBound] using hfuel)
+            typeRefCompleteValueFuelBound]
+            using ih (fuel + 1) value pending
+              (by simpa [typeRefCompleteValueFuelBound] using hfuel)
 
 theorem slots_expectedPendingChildWorkForResolved_toPending_eq_buildFieldSlotForResolved
     (schema : Schema) (selectionSet : List Selection) (fieldType : TypeRef)
@@ -1788,10 +1790,11 @@ theorem slots_expectedPendingChildWorkForResolved_toPending_eq_buildFieldSlotFor
       | some value =>
           have hready : typeRefCompleteValueFuelBound fieldType <= fuel := by
             omega
-          simpa [expectedPendingChildWorkForResolved, buildFieldSlotForResolved] using
-            slots_expectedPendingChildWorkForCompleteValue_toPending_eq_buildValueSlot
-              (ObjectRef := ObjectRef) schema selectionSet fuel fieldType value pending
-              hready
+          simpa [expectedPendingChildWorkForResolved, buildFieldSlotForResolved]
+            using
+              slots_expectedPendingChildWorkForCompleteValue_toPending_eq_buildValueSlot
+                (ObjectRef := ObjectRef) schema selectionSet fuel fieldType value pending
+                hready
 
 theorem slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsForResolved
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1889,8 +1892,8 @@ theorem slots_expectedPendingChildWorkForSegment_toPending_eq_buildFieldSlotsFor
                     fieldKey.arguments source))
               (expectedPendingChildWorkToPending pending)).fst := by
   intro haligned hready
-  simpa [expectedPendingChildWorkForSegment] using
-    slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsForResolved
+  simpa [expectedPendingChildWorkForSegment]
+    using slots_expectedPendingChildWorkForSources_toPending_eq_buildFieldSlotsForResolved
       (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending
@@ -2002,17 +2005,17 @@ theorem slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResults
                 item.key.parentType item.key.fieldName item.key.arguments source) )) := by
     unfold ExpectedQueueItem.toScheduleItem ScheduleItem.sources
     rw [List.map_flatten]
-    simpa [Function.comp_def] using
-      slots_splitResolvedBySegments_map_sources
+    simpa [Function.comp_def]
+      using slots_splitResolvedBySegments_map_sources
         (ObjectRef := ObjectRef) item.segments
         (fun source =>
           GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
             item.key.parentType item.key.fieldName item.key.arguments source)
-  simpa [buildFieldSlots, buildFieldSlotsLoop,
-    expectedPendingChildWorkForItem, hsplit] using
-    slots_completeSlotList_buildFieldSlotsForResolvedSegments_eq_expectedScheduleSegmentResultsFlatten
-      (ObjectRef := ObjectRef) schema resolvers variableValues item.key
-      fieldDefinition item.segments stack hlookup haligned hready
+  simpa [buildFieldSlots, buildFieldSlotsLoop, expectedPendingChildWorkForItem, hsplit]
+    using
+      slots_completeSlotList_buildFieldSlotsForResolvedSegments_eq_expectedScheduleSegmentResultsFlatten
+        (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldDefinition
+        item.segments stack hlookup haligned hready
 
 theorem
     slots_expectedPendingChildWorkForSegments_toPending_eq_buildFieldSlotsForResolvedSegments
@@ -2111,8 +2114,8 @@ theorem slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
                 item.key.parentType item.key.fieldName item.key.arguments source) )) := by
     unfold ExpectedQueueItem.toScheduleItem ScheduleItem.sources
     rw [List.map_flatten]
-    simpa [Function.comp_def] using
-      slots_splitResolvedBySegments_map_sources
+    simpa [Function.comp_def]
+      using slots_splitResolvedBySegments_map_sources
         (ObjectRef := ObjectRef) item.segments
         (fun source =>
           GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
@@ -2130,7 +2133,8 @@ theorem slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
       simp [buildFieldSlots, buildFieldSlotsLoop]]
   rw [hsplit]
   simpa [expectedPendingChildWorkForItem, ExpectedQueueItem.toScheduleItem,
-    expectedPendingChildWorkToPending] using hsegments
+    expectedPendingChildWorkToPending]
+    using hsegments
 
 end ExecutionBreadth
 

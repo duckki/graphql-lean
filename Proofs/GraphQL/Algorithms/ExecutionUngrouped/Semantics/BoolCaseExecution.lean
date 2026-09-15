@@ -499,14 +499,13 @@ theorem visitSubfields_wrapWithBoolCase_of_variableValuesAgree
           = (visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output).fst := by
   intro hcase hagrees
-  exact
-    visitSubfields_wrapWithBoolCase_of_agrees schema resolvers variableValues
-      depth parentType source selectionSet boolCase
-      (by
-        intro varName value hmem
-        rcases hcase varName value hmem with ⟨hvar, hvalue⟩
-        exact (hagrees varName hvar).trans hvalue)
-      output
+  exact visitSubfields_wrapWithBoolCase_of_agrees schema resolvers variableValues
+    depth parentType source selectionSet boolCase
+    (by
+      intro varName value hmem
+      rcases hcase varName value hmem with ⟨hvar, hvalue⟩
+      exact (hagrees varName hvar).trans hvalue)
+    output
 
 theorem visitSubfields_wrapWithBoolCase_of_variableValuesAgree_result
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -527,14 +526,13 @@ theorem visitSubfields_wrapWithBoolCase_of_variableValuesAgree_result
           = visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output := by
   intro hcase hagrees
-  exact
-    visitSubfields_wrapWithBoolCase_of_agrees_result schema resolvers
-      variableValues depth parentType source selectionSet boolCase
-      (by
-        intro varName value hmem
-        rcases hcase varName value hmem with ⟨hvar, hvalue⟩
-        exact (hagrees varName hvar).trans hvalue)
-      output
+  exact visitSubfields_wrapWithBoolCase_of_agrees_result schema resolvers
+    variableValues depth parentType source selectionSet boolCase
+    (by
+      intro varName value hmem
+      rcases hcase varName value hmem with ⟨hvar, hvalue⟩
+      exact (hagrees varName hvar).trans hvalue)
+    output
 
 theorem visitSubfields_wrapWithBoolCase_of_mem_allBoolCases
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -553,18 +551,16 @@ theorem visitSubfields_wrapWithBoolCase_of_mem_allBoolCases
           = (visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output).fst := by
   intro hnodup hmem hagrees
-  exact
-    visitSubfields_wrapWithBoolCase_of_variableValuesAgree schema resolvers
-      variableValues depth parentType source variables boolCase
-      selectionSet output
-      (by
-        intro varName value hpair
-        exact ⟨
-          NormalForm.CompleteNormalization.boolCase_pair_variable_mem_of_allBoolCases
-            hmem hpair,
-          NormalForm.CompleteNormalization.BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
-            hnodup hmem hpair⟩)
-      hagrees
+  exact visitSubfields_wrapWithBoolCase_of_variableValuesAgree schema resolvers
+    variableValues depth parentType source variables boolCase selectionSet output
+    (by
+      intro varName value hpair
+      exact ⟨
+        NormalForm.CompleteNormalization.boolCase_pair_variable_mem_of_allBoolCases
+          hmem hpair,
+        NormalForm.CompleteNormalization.BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
+          hnodup hmem hpair⟩)
+    hagrees
 
 theorem visitSubfields_wrapWithBoolCase_of_mem_allBoolCases_result
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -583,18 +579,16 @@ theorem visitSubfields_wrapWithBoolCase_of_mem_allBoolCases_result
           = visitSubfields schema resolvers variableValues depth parentType source
               selectionSet output := by
   intro hnodup hmem hagrees
-  exact
-    visitSubfields_wrapWithBoolCase_of_variableValuesAgree_result schema
-      resolvers variableValues depth parentType source variables boolCase
-      selectionSet output
-      (by
-        intro varName value hpair
-        exact ⟨
-          NormalForm.CompleteNormalization.boolCase_pair_variable_mem_of_allBoolCases
-            hmem hpair,
-          NormalForm.CompleteNormalization.BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
-            hnodup hmem hpair⟩)
-      hagrees
+  exact visitSubfields_wrapWithBoolCase_of_variableValuesAgree_result schema resolvers
+    variableValues depth parentType source variables boolCase selectionSet output
+    (by
+      intro varName value hpair
+      exact ⟨
+        NormalForm.CompleteNormalization.boolCase_pair_variable_mem_of_allBoolCases
+          hmem hpair,
+        NormalForm.CompleteNormalization.BoolCase.lookup?_eq_of_pair_mem_allBoolCases_nodup
+          hnodup hmem hpair⟩)
+    hagrees
 
 theorem visitSubfields_wrapWithBoolCase_of_nonruntime_case
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -1388,8 +1382,7 @@ mutual
                   completeValue_filterSelectionSetBoolCase_eq schema resolvers
                     variableValues operation boolCase hagrees (depth + 1) inner
                     selectionSet value none hvars
-                simpa [completeValue] using
-                  congrArg Execution.nonNullCompletion hrec
+                simpa [completeValue] using congrArg Execution.nonNullCompletion hrec
     | some previous =>
         cases previous with
         | null =>
@@ -1573,8 +1566,7 @@ mutual
                           selectionSet value
                           (some (Execution.ResponseValue.object previousFields))
                           hvars
-                    simpa [completeValue] using
-                      congrArg Execution.nonNullCompletion hrec
+                    simpa [completeValue] using congrArg Execution.nonNullCompletion hrec
         | list previousValues =>
             cases depth with
             | zero =>
@@ -1674,8 +1666,7 @@ mutual
                           selectionSet value
                           (some (Execution.ResponseValue.list previousValues))
                           hvars
-                    simpa [completeValue] using
-                      congrArg Execution.nonNullCompletion hrec
+                    simpa [completeValue] using congrArg Execution.nonNullCompletion hrec
   termination_by depth parentType selectionSet value previous _hvars =>
     (
       SelectionSet.size selectionSet,
@@ -1782,9 +1773,9 @@ mutual
                     (output, visitOk) := by
                 unfold visitSelection
                 simp [hskip]
-              simpa [NormalForm.filterSelectionSetBoolCase, hallowCase,
-                visitSubfields, hheadSkip,
-                combineVisitStatus_visitOk_left] using htail
+              simpa [NormalForm.filterSelectionSetBoolCase, hallowCase, visitSubfields,
+                hheadSkip, combineVisitStatus_visitOk_left]
+                using htail
             · have hallow :
                   Execution.selectionDirectivesAllowBool variableValues
                       directives =
@@ -1988,9 +1979,9 @@ mutual
                             =
                           visitSubfields schema resolvers variableValues depth
                               parentType source childSelectionSet output := by
-                        simpa [visitSelection,
-                          selectionDirectivesAllowBool_empty, hfiltered] using
-                          hchildVisit
+                        simpa [visitSelection, selectionDirectivesAllowBool_empty,
+                          hfiltered]
+                          using hchildVisit
                       have horiginalInlineHead :
                           visitSelection schema resolvers variableValues depth
                               parentType source
@@ -2032,8 +2023,7 @@ mutual
                                 parentType source childSelectionSet output
                               =
                             (output, visitOk) := by
-                          simpa [hfiltered, visitSubfields] using
-                            hchildVisit.symm
+                          simpa [hfiltered, visitSubfields] using hchildVisit.symm
                         have htail :=
                           visitSubfields_filterSelectionSetBoolCase_eq schema
                             resolvers variableValues operation boolCase hagrees
@@ -2051,9 +2041,9 @@ mutual
                               =
                             visitSubfields schema resolvers variableValues depth
                                 parentType source childSelectionSet output := by
-                          simpa [visitSelection,
-                            selectionDirectivesAllowBool_empty, happly,
-                            hfiltered] using hchildVisit
+                          simpa [visitSelection, selectionDirectivesAllowBool_empty,
+                            happly, hfiltered]
+                            using hchildVisit
                         have horiginalInlineHead :
                             visitSelection schema resolvers variableValues depth
                                 parentType source

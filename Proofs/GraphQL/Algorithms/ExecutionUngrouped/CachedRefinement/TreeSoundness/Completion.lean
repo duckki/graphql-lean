@@ -48,7 +48,9 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
       executableField fieldName arguments selectionSet
     have hexec :=
       executeField_output_of_completionCacheSound schema resolvers variableValues
-        completionFuel parentType source (objectField? responseName output) field
+        completionFuel parentType source
+        (objectField? responseName output)
+        field
         (by
           intro fieldDefinition resolved hlookup hresolve
           change (schema.lookupField parentType fieldName = some fieldDefinition) at hlookup
@@ -57,9 +59,9 @@ theorem visitSelection_field_output_eq_uncached_of_cacheContinuationSound
           intro fieldDefinition previous hlookup hprevious
           change (schema.lookupField parentType fieldName = some fieldDefinition) at hlookup
           change (objectField? responseName output = some previous) at hprevious
-          have hfield' : (responseName, field) ∈ fields := by
-            simpa [field] using hfield
-          exact hsound responseName field fieldDefinition previous hfield' hprevious hlookup)
+          have hfield' : (responseName, field) ∈ fields := by simpa [field] using hfield
+          exact hsound responseName field fieldDefinition previous hfield' hprevious
+            hlookup)
     dsimp [field, executableField,
       ExecutionUngroupedUncached.executableField] at hexec
     have hpreviousOut := objectField?_output (ObjectRef := ObjectRef)
@@ -182,10 +184,9 @@ theorem FieldCacheTreesSound.of_combine_cons_ok
           rcases tailResult with ⟨tailValues, tailErrors⟩
           simp [Result.combine] at hcombine
           rcases hcombine with ⟨rfl, rfl⟩
-          exact
-            FieldCacheTreesSound.cons
-              (by simpa [resultValueOrNull] using hhead)
-              (htail tailValues tailErrors rfl)
+          exact FieldCacheTreesSound.cons
+            (by simpa [resultValueOrNull] using hhead)
+            (htail tailValues tailErrors rfl)
 
 theorem completeValueList_result_treeSound_of_completeValue
     {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -817,8 +818,8 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
       | nonNull inner =>
           cases previous? with
           | none =>
-              simpa [completeValue] using
-                FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
+              simpa [completeValue]
+                using FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
                   resolvers variableValues (completionFuel + 1) universeSet value
                   (completeValue schema resolvers variableValues
                     (completionFuel + 1) inner active value none)
@@ -833,38 +834,48 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                   simpa [completeValue, resultValueOrNull] using htree
               | scalar previousValue =>
                   cases htree
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.scalar previousValue))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.scalar previousValue))
               | object previousSource previousFields =>
-                  simpa [completeValue] using
-                    FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
+                  simpa [completeValue]
+                    using FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
                       resolvers variableValues (completionFuel + 1) universeSet value
                       (completeValue schema resolvers variableValues
                         (completionFuel + 1) inner active value
                         (some (.object previousSource previousFields)))
                       (FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                         schema resolvers variableValues universeSet active
-                        expectedName maxFuel hvisit (completionFuel + 1) inner value
-                        (some (.object previousSource previousFields)) (by
-                          exact hfuel) hnamed (by
+                        expectedName maxFuel hvisit
+                        (completionFuel + 1)
+                        inner value
+                        (some (.object previousSource previousFields))
+                        (by
+                          exact hfuel)
+                        hnamed
+                        (by
                           intro candidate hcandidate
                           injection hcandidate with hcandidate
                           subst candidate
                           exact htree))
               | list sourceValues? previousValues =>
-                  simpa [completeValue] using
-                    FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
+                  simpa [completeValue]
+                    using FieldCacheTreeSound.resultValueOrNull_nonNullCompletion schema
                       resolvers variableValues (completionFuel + 1) universeSet value
                       (completeValue schema resolvers variableValues
                         (completionFuel + 1) inner active value
                         (some (.list sourceValues? previousValues)))
                       (FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                         schema resolvers variableValues universeSet active
-                        expectedName maxFuel hvisit (completionFuel + 1) inner value
-                        (some (.list sourceValues? previousValues)) (by
-                          exact hfuel) hnamed (by
+                        expectedName maxFuel hvisit
+                        (completionFuel + 1)
+                        inner value
+                        (some (.list sourceValues? previousValues))
+                        (by
+                          exact hfuel)
+                        hnamed
+                        (by
                           intro candidate hcandidate
                           injection hcandidate with hcandidate
                           subst candidate
@@ -874,26 +885,26 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
           | none =>
               cases value with
               | null =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.null))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.null))
               | scalar scalarValue =>
                   by_cases hcomposite :
                       (TypeRef.named typeName).isCompositeBool schema = true
-                  · simpa [completeValue, hcomposite, resultValueOrNull] using
-                      (FieldCacheTreeSound.null (schema := schema)
-                        (resolvers := resolvers) (variableValues := variableValues)
-                        completionFuel universeSet (.scalar scalarValue))
+                  · simpa [completeValue, hcomposite, resultValueOrNull]
+                      using (FieldCacheTreeSound.null (schema := schema)
+                              (resolvers := resolvers) (variableValues := variableValues)
+                              completionFuel universeSet (.scalar scalarValue))
                   · have hfalse :
                         (TypeRef.named typeName).isCompositeBool schema = false := by
                       cases h : (TypeRef.named typeName).isCompositeBool schema
                       · rfl
                       · contradiction
-                    simpa [completeValue, hfalse, resultValueOrNull] using
-                      (FieldCacheTreeSound.scalar (schema := schema)
-                        (resolvers := resolvers) (variableValues := variableValues)
-                        completionFuel universeSet scalarValue)
+                    simpa [completeValue, hfalse, resultValueOrNull]
+                      using (FieldCacheTreeSound.scalar (schema := schema)
+                              (resolvers := resolvers) (variableValues := variableValues)
+                              completionFuel universeSet scalarValue)
               | object runtimeType ref =>
                   by_cases hinclude :
                       schema.typeIncludesObjectBool typeName runtimeType = true
@@ -927,44 +938,43 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                     cases hstatus : visited.status with
                     | error errors =>
                         simpa [completeValue, hinclude, reuseOrCreateObject?, initial,
-                          visited, hstatus, catchVisitBubbleAsNull,
-                          resultValueOrNull] using
-                          (FieldCacheTreeSound.null (schema := schema)
-                            (resolvers := resolvers)
-                            (variableValues := variableValues) completionFuel
-                            universeSet (.object runtimeType ref))
+                          visited, hstatus, catchVisitBubbleAsNull, resultValueOrNull]
+                          using (FieldCacheTreeSound.null (schema := schema)
+                                  (resolvers := resolvers)
+                                  (variableValues := variableValues) completionFuel
+                                  universeSet (.object runtimeType ref))
                     | ok ok =>
                         rcases ok with ⟨_unit, errors⟩
                         rw [hvalue] at hpost
                         simpa [completeValue, hinclude, reuseOrCreateObject?, initial,
-                          visited, hstatus, catchVisitBubbleAsNull,
-                          resultValueOrNull, hvalue] using
-                          (FieldCacheTreeSound.object completionFuel universeSet
-                            runtimeType ref resultFields hpost)
+                          visited, hstatus, catchVisitBubbleAsNull, resultValueOrNull,
+                          hvalue]
+                          using (FieldCacheTreeSound.object completionFuel universeSet
+                                  runtimeType ref resultFields hpost)
                   · have hfalse :
                         schema.typeIncludesObjectBool typeName runtimeType = false := by
                       cases h : schema.typeIncludesObjectBool typeName runtimeType
                       · rfl
                       · contradiction
-                    simpa [completeValue, hfalse, resultValueOrNull] using
-                      (FieldCacheTreeSound.null (schema := schema)
-                        (resolvers := resolvers) (variableValues := variableValues)
-                        completionFuel universeSet (.object runtimeType ref))
+                    simpa [completeValue, hfalse, resultValueOrNull]
+                      using (FieldCacheTreeSound.null (schema := schema)
+                              (resolvers := resolvers) (variableValues := variableValues)
+                              completionFuel universeSet (.object runtimeType ref))
               | list values =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.list values))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.list values))
           | some previous =>
               have htree := hprevious previous rfl
               cases previous with
               | null =>
                   simpa [completeValue, resultValueOrNull] using htree
               | scalar previousValue =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet value)
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet value)
               | object previousSource previousFields =>
                   cases htree with
                   | object _ _ runtimeType ref _ houtput =>
@@ -993,19 +1003,19 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                         | error errors =>
                             simpa [completeValue, hinclude, reuseOrCreateObject?,
                               previous, visited, hstatus, catchVisitBubbleAsNull,
-                              resultValueOrNull] using
-                              (FieldCacheTreeSound.null (schema := schema)
-                                (resolvers := resolvers)
-                                (variableValues := variableValues) completionFuel
-                                universeSet (.object runtimeType ref))
+                              resultValueOrNull]
+                              using (FieldCacheTreeSound.null (schema := schema)
+                                      (resolvers := resolvers)
+                                      (variableValues := variableValues) completionFuel
+                                      universeSet (.object runtimeType ref))
                         | ok ok =>
                             rcases ok with ⟨_unit, errors⟩
                             rw [hvalue] at hpost
                             simpa [completeValue, hinclude, reuseOrCreateObject?,
                               previous, visited, hstatus, catchVisitBubbleAsNull,
-                              resultValueOrNull, hvalue] using
-                              (FieldCacheTreeSound.object completionFuel universeSet
-                                runtimeType ref resultFields hpost)
+                              resultValueOrNull, hvalue]
+                              using (FieldCacheTreeSound.object completionFuel universeSet
+                                      runtimeType ref resultFields hpost)
                       · have hfalse :
                             schema.typeIncludesObjectBool typeName runtimeType
                               = false := by
@@ -1013,25 +1023,25 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                             schema.typeIncludesObjectBool typeName runtimeType
                           · rfl
                           · contradiction
-                        simpa [completeValue, hfalse, resultValueOrNull] using
-                          (FieldCacheTreeSound.null (schema := schema)
-                            (resolvers := resolvers)
-                            (variableValues := variableValues) completionFuel
-                            universeSet (.object runtimeType ref))
+                        simpa [completeValue, hfalse, resultValueOrNull]
+                          using (FieldCacheTreeSound.null (schema := schema)
+                                  (resolvers := resolvers)
+                                  (variableValues := variableValues) completionFuel
+                                  universeSet (.object runtimeType ref))
               | list sourceValues? previousValues =>
                   cases htree with
                   | cachedList _ _ sourceValues _ _ =>
-                      simpa [completeValue, resultValueOrNull] using
-                        (FieldCacheTreeSound.null (schema := schema)
-                          (resolvers := resolvers)
-                          (variableValues := variableValues) completionFuel
-                          universeSet (.list sourceValues))
+                      simpa [completeValue, resultValueOrNull]
+                        using (FieldCacheTreeSound.null (schema := schema)
+                                (resolvers := resolvers)
+                                (variableValues := variableValues) completionFuel
+                                universeSet (.list sourceValues))
                   | finalList _ _ sourceValues _ _ =>
-                      simpa [completeValue, resultValueOrNull] using
-                        (FieldCacheTreeSound.null (schema := schema)
-                          (resolvers := resolvers)
-                          (variableValues := variableValues) completionFuel
-                          universeSet (.list sourceValues))
+                      simpa [completeValue, resultValueOrNull]
+                        using (FieldCacheTreeSound.null (schema := schema)
+                                (resolvers := resolvers)
+                                (variableValues := variableValues) completionFuel
+                                universeSet (.list sourceValues))
       | list inner =>
           cases previous? with
           | none =>
@@ -1044,11 +1054,11 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                   cases completed with
                   | error errors =>
                       simpa [completeValue, reuseOrCreateList?, hcompleted,
-                        catchBubbleAsNull, resultValueOrNull] using
-                        (FieldCacheTreeSound.null (schema := schema)
-                          (resolvers := resolvers)
-                          (variableValues := variableValues) completionFuel
-                          universeSet (.list values))
+                        catchBubbleAsNull, resultValueOrNull]
+                        using (FieldCacheTreeSound.null (schema := schema)
+                                (resolvers := resolvers)
+                                (variableValues := variableValues) completionFuel
+                                universeSet (.list values))
                   | ok completed =>
                       rcases completed with ⟨completedValues, errors⟩
                       have hvalues :=
@@ -1066,32 +1076,32 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                           completedValues errors hcompleted
                       by_cases hcomposite : inner.isCompositeBool schema = true
                       · simpa [completeValue, reuseOrCreateList?, hcompleted,
-                          catchBubbleAsNull, resultValueOrNull, hcomposite] using
-                          (FieldCacheTreeSound.cachedList completionFuel universeSet
-                            values completedValues hvalues)
+                          catchBubbleAsNull, resultValueOrNull, hcomposite]
+                          using (FieldCacheTreeSound.cachedList completionFuel universeSet
+                                  values completedValues hvalues)
                       · have hfalse : inner.isCompositeBool schema = false := by
                           cases h : inner.isCompositeBool schema
                           · rfl
                           · contradiction
                         simpa [completeValue, reuseOrCreateList?, hcompleted,
-                          catchBubbleAsNull, resultValueOrNull, hfalse] using
-                          (FieldCacheTreeSound.finalList completionFuel universeSet
-                            values completedValues hvalues)
+                          catchBubbleAsNull, resultValueOrNull, hfalse]
+                          using (FieldCacheTreeSound.finalList completionFuel universeSet
+                                  values completedValues hvalues)
               | null =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.null))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.null))
               | scalar scalarValue =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.scalar scalarValue))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.scalar scalarValue))
               | object runtimeType ref =>
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.object runtimeType ref))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.object runtimeType ref))
           | some previous =>
               have htree := hprevious previous rfl
               cases previous with
@@ -1099,18 +1109,18 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                   simpa [completeValue, resultValueOrNull] using htree
               | scalar previousValue =>
                   cases htree
-                  simpa [completeValue, resultValueOrNull] using
-                    (FieldCacheTreeSound.null (schema := schema)
-                      (resolvers := resolvers) (variableValues := variableValues)
-                      completionFuel universeSet (.scalar previousValue))
+                  simpa [completeValue, resultValueOrNull]
+                    using (FieldCacheTreeSound.null (schema := schema)
+                            (resolvers := resolvers) (variableValues := variableValues)
+                            completionFuel universeSet (.scalar previousValue))
               | object previousSource previousFields =>
                   cases htree with
                   | object _ _ runtimeType ref _ _ =>
-                      simpa [completeValue, resultValueOrNull] using
-                        (FieldCacheTreeSound.null (schema := schema)
-                          (resolvers := resolvers)
-                          (variableValues := variableValues) completionFuel
-                          universeSet (.object runtimeType ref))
+                      simpa [completeValue, resultValueOrNull]
+                        using (FieldCacheTreeSound.null (schema := schema)
+                                (resolvers := resolvers)
+                                (variableValues := variableValues) completionFuel
+                                universeSet (.object runtimeType ref))
               | list sourceValues? previousValues =>
                   cases htree with
                   | cachedList _ _ sourceValues values hvalues =>
@@ -1124,11 +1134,11 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                       cases completed with
                       | error errors =>
                           simpa [completeValue, reuseOrCreateList?, hcompleted,
-                            catchBubbleAsNull, resultValueOrNull] using
-                            (FieldCacheTreeSound.null (schema := schema)
-                              (resolvers := resolvers)
-                              (variableValues := variableValues) completionFuel
-                              universeSet (.list sourceValues))
+                            catchBubbleAsNull, resultValueOrNull]
+                            using (FieldCacheTreeSound.null (schema := schema)
+                                    (resolvers := resolvers)
+                                    (variableValues := variableValues) completionFuel
+                                    universeSet (.list sourceValues))
                       | ok completed =>
                           rcases completed with ⟨completedValues, errors⟩
                           have hcompletedValues :=
@@ -1145,9 +1155,10 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                               sourceValues previousValues hprefix completedValues
                               errors hcompleted
                           simpa [completeValue, reuseOrCreateList?, hcompleted,
-                            catchBubbleAsNull, resultValueOrNull] using
-                            (FieldCacheTreeSound.cachedList completionFuel universeSet
-                              sourceValues completedValues hcompletedValues)
+                            catchBubbleAsNull, resultValueOrNull]
+                            using (FieldCacheTreeSound.cachedList completionFuel
+                                    universeSet sourceValues completedValues
+                                    hcompletedValues)
                   | finalList _ _ sourceValues values hvalues =>
                       have hprefix :=
                         FieldCacheTreesSound.toPrefixSound schema resolvers
@@ -1159,11 +1170,11 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                       cases completed with
                       | error errors =>
                           simpa [completeValue, reuseOrCreateList?, hcompleted,
-                            catchBubbleAsNull, resultValueOrNull] using
-                            (FieldCacheTreeSound.null (schema := schema)
-                              (resolvers := resolvers)
-                              (variableValues := variableValues) completionFuel
-                              universeSet (.list sourceValues))
+                            catchBubbleAsNull, resultValueOrNull]
+                            using (FieldCacheTreeSound.null (schema := schema)
+                                    (resolvers := resolvers)
+                                    (variableValues := variableValues) completionFuel
+                                    universeSet (.list sourceValues))
                       | ok completed =>
                           rcases completed with ⟨completedValues, errors⟩
                           have hcompletedValues :=
@@ -1180,9 +1191,10 @@ theorem FieldCacheTreeSound.completeValue_result_of_treeSound_and_visit
                               sourceValues previousValues hprefix completedValues
                               errors hcompleted
                           simpa [completeValue, reuseOrCreateList?, hcompleted,
-                            catchBubbleAsNull, resultValueOrNull] using
-                            (FieldCacheTreeSound.finalList completionFuel universeSet
-                              sourceValues completedValues hcompletedValues)
+                            catchBubbleAsNull, resultValueOrNull]
+                            using (FieldCacheTreeSound.finalList completionFuel
+                                    universeSet sourceValues completedValues
+                                    hcompletedValues)
 termination_by fuel fieldType _value _previous? _hprevious =>
   (fuel, sizeOf fieldType)
 decreasing_by
@@ -1260,10 +1272,10 @@ theorem executeField_result_continuationTreeSound
                       FieldCacheContinuationTreeSound]
               | some resolved =>
                   simp only [hcoerce, hresolve]
-                  exact
-                    FieldCacheTreeSound.toContinuationTreeSound schema resolvers
-                      variableValues completionFuel universeSet resolved _
-                      (hcomplete fieldDefinition resolved none hlookup (by
+                  exact FieldCacheTreeSound.toContinuationTreeSound schema resolvers
+                    variableValues completionFuel universeSet resolved _
+                    (hcomplete fieldDefinition resolved none hlookup
+                      (by
                         intro previous hprevious
                         simp at hprevious))
       | some previous =>
@@ -1291,15 +1303,15 @@ theorem executeField_result_continuationTreeSound
                     (.object previousSource previousFields) := by
                 simpa [FieldCacheContinuationTreeSound] using hpreviousTree
               simp [reusablePreviousValue?]
-              exact
-                FieldCacheTreeSound.toContinuationTreeSound schema resolvers
-                  variableValues completionFuel universeSet previousSource _
-                  (hcomplete fieldDefinition previousSource
-                    (some (.object previousSource previousFields)) hlookup (by
-                      intro candidate hcandidate
-                      injection hcandidate with hcandidate
-                      subst candidate
-                      exact htree))
+              exact FieldCacheTreeSound.toContinuationTreeSound schema resolvers
+                variableValues completionFuel universeSet previousSource _
+                (hcomplete fieldDefinition previousSource
+                  (some (.object previousSource previousFields)) hlookup
+                  (by
+                    intro candidate hcandidate
+                    injection hcandidate with hcandidate
+                    subst candidate
+                    exact htree))
           | list sourceValues? previousValues =>
               cases sourceValues? with
               | none =>
@@ -1321,16 +1333,16 @@ theorem executeField_result_continuationTreeSound
                         (.list (some sourceValues) previousValues) := by
                     simpa [FieldCacheContinuationTreeSound] using hpreviousTree
                   simp [reusablePreviousValue?]
-                  exact
-                    FieldCacheTreeSound.toContinuationTreeSound schema resolvers
-                      variableValues completionFuel universeSet (.list sourceValues)
-                      _
-                      (hcomplete fieldDefinition (.list sourceValues)
-                        (some (.list (some sourceValues) previousValues)) hlookup (by
-                          intro candidate hcandidate
-                          injection hcandidate with hcandidate
-                          subst candidate
-                          exact htree))
+                  exact FieldCacheTreeSound.toContinuationTreeSound schema resolvers
+                    variableValues completionFuel universeSet (.list sourceValues)
+                    _
+                    (hcomplete fieldDefinition (.list sourceValues)
+                      (some (.list (some sourceValues) previousValues)) hlookup
+                      (by
+                        intro candidate hcandidate
+                        injection hcandidate with hcandidate
+                        subst candidate
+                        exact htree))
 
 end ExecutionUngrouped
 end Algorithms

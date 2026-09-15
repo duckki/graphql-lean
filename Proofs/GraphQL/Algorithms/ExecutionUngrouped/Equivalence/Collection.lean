@@ -952,8 +952,8 @@ theorem executableFieldsRuntimeScopedBy_scopedSelectionSetValid_field
   have hselectionSetValid :
       Validation.selectionSetValid schema variableDefinitions
         scopedField.outputType.namedType scopedField.selectionSet := by
-    simpa [← houtput] using
-      Validation.fieldSelectionSetValid_selectionSetValid schema
+    simpa [← houtput]
+      using Validation.fieldSelectionSetValid_selectionSetValid schema
         variableDefinitions fieldDefinition scopedField.selectionSet
         hfieldSelectionSet
   refine ⟨scopedField, hscopedMem, ?_, hruntime, ?_⟩
@@ -1298,7 +1298,8 @@ mutual
                 selectionSet := selectionSet
               }) := by
             simpa [GraphQL.Execution.collectSelection, collectedExecutableEntries,
-              hallows] using hentry
+              hallows]
+              using hentry
           subst entry
           refine ⟨{
               parentType := scopedParent
@@ -1324,7 +1325,8 @@ mutual
             have hchildren : NormalForm.selectionSetLookupValid schema scopedParent
                 selectionSet := by
               simpa [NormalForm.selectionLookupValid] using hlookupValid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · have hrecursive :=
                 collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
                   variableValues collectParent scopedParent runtimeType identity
@@ -1344,13 +1346,15 @@ mutual
             have hchildren : NormalForm.selectionSetLookupValid schema typeCondition
                 selectionSet := by
               simpa [NormalForm.selectionLookupValid] using hlookupValid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · by_cases happly : doesFragmentTypeApplyBool schema collectParent
                   (.object runtimeType identity) typeCondition = true
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_entriesRuntimeScopedBy_of_selectionSetLookupValid schema
                     variableValues collectParent typeCondition runtimeType identity
@@ -1358,8 +1362,13 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hentry
                 rcases hrecursive entry hentry with
                   ⟨scopedField, hmem, hname, hmatch, hruntime⟩
-                exact ⟨scopedField, by simpa [FieldMerge.collectFields] using hmem,
-                  hname, hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hmem,
+                  hname,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse : doesFragmentTypeApplyBool schema collectParent
                     (.object runtimeType identity) typeCondition = false := by
                   cases hvalue : doesFragmentTypeApplyBool schema collectParent
@@ -1451,7 +1460,8 @@ mutual
                 selectionSet := selectionSet
               }) := by
             simpa [GraphQL.Execution.collectSelection, collectedExecutableEntries,
-              hallows] using hentry
+              hallows]
+              using hentry
           subst entry
           refine ⟨{
               parentType := validParent
@@ -1474,7 +1484,8 @@ mutual
         | none =>
             have hchildren :=
               Validation.selectionValid_inlineFragment_none_selectionSetValid hvalid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · have hrecursive :=
                 collectFields_entriesIdentityScopedBy_of_selectionSetValid schema
                   variableDefinitions variableValues collectParent validParent source
@@ -1493,7 +1504,8 @@ mutual
         | some typeCondition =>
             have hchildren :=
               Validation.selectionValid_inlineFragment_some_selectionSetValid hvalid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · by_cases happly : doesFragmentTypeApplyBool schema collectParent source
                   typeCondition = true
               · have hrecursive :=
@@ -1589,7 +1601,8 @@ mutual
                 selectionSet := selectionSet
               }) := by
             simpa [GraphQL.Execution.collectSelection, collectedExecutableEntries,
-              hallows] using hentry
+              hallows]
+              using hentry
           subst entry
           refine ⟨{
               parentType := validParent
@@ -1614,7 +1627,8 @@ mutual
         | none =>
             have hchildren :=
               Validation.selectionValid_inlineFragment_none_selectionSetValid hvalid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · have hrecursive :=
                 collectFields_entriesRuntimeScopedBy_of_selectionSetValid schema
                   variableDefinitions variableValues collectParent validParent runtimeType
@@ -1633,13 +1647,15 @@ mutual
         | some typeCondition =>
             have hchildren :=
               Validation.selectionValid_inlineFragment_some_selectionSetValid hvalid
-            by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
+            by_cases hallows :
+              selectionDirectivesAllowBool variableValues directives = true
             · by_cases happly : doesFragmentTypeApplyBool schema collectParent
                   (.object runtimeType identity) typeCondition = true
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_entriesRuntimeScopedBy_of_selectionSetValid schema
                     variableDefinitions variableValues collectParent typeCondition runtimeType
@@ -1647,8 +1663,13 @@ mutual
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hentry
                 rcases hrecursive entry hentry with
                   ⟨scopedField, hmem, hname, hmatch, hruntime⟩
-                exact ⟨scopedField, by simpa [FieldMerge.collectFields] using hmem,
-                  hname, hmatch, hruntime⟩
+                exact ⟨
+                  scopedField,
+                  by simpa [FieldMerge.collectFields] using hmem,
+                  hname,
+                  hmatch,
+                  hruntime
+                ⟩
               · have hfalse : doesFragmentTypeApplyBool schema collectParent
                     (.object runtimeType identity) typeCondition = false := by
                   cases hvalue : doesFragmentTypeApplyBool schema collectParent
@@ -1813,7 +1834,8 @@ mutual
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_runtimeScopedBy_of_selectionSetValid schema
                     variableDefinitions variableValues collectParent typeCondition
@@ -2007,7 +2029,8 @@ mutual
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_runtimeScopedBy_of_selectionSetValid_object schema
                     variableDefinitions variableValues collectParent typeCondition
@@ -2199,7 +2222,8 @@ mutual
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_runtimeScopedBy_of_selectionSetLookupValid schema
                     variableValues collectParent typeCondition runtimeType
@@ -2368,14 +2392,16 @@ mutual
                 collectFields_runtimeScopedBy_of_selectionSetLookupValid_object
                   schema variableValues collectParent scopedParent runtimeType
                   identity selectionSet hparentRuntime
-                  (by simpa [NormalForm.selectionLookupValid] using
-                    hlookupValid)
+                  (by simpa [NormalForm.selectionLookupValid] using hlookupValid)
               simp [GraphQL.Execution.collectSelection, hallows] at hfield
               rcases hrecursive field hfield with
                 ⟨scopedField, hscoped, hmatch, hruntime⟩
-              exact ⟨scopedField,
+              exact ⟨
+                scopedField,
                 by simpa [FieldMerge.collectFields] using hscoped,
-                hmatch, hruntime⟩
+                hmatch,
+                hruntime
+              ⟩
             · have hfalse :
                   selectionDirectivesAllowBool variableValues directives =
                     false := by
@@ -2398,7 +2424,8 @@ mutual
               · have htypeRuntime :
                     ScopedParentRuntimeApplies schema runtimeType typeCondition := by
                   simpa [ScopedParentRuntimeApplies, doesFragmentTypeApplyBool,
-                    runtimeObjectType?] using happly
+                    runtimeObjectType?]
+                    using happly
                 have hrecursive :=
                   collectFields_runtimeScopedBy_of_selectionSetLookupValid_object
                     schema variableValues collectParent typeCondition runtimeType
@@ -2590,8 +2617,8 @@ mutual
                   have htypeIncludes :
                       schema.typeIncludesObjectBool typeCondition parentType =
                         true := by
-                    simpa [doesFragmentTypeApplyBool, runtimeObjectType?,
-                      hruntimeEq] using happly
+                    simpa [doesFragmentTypeApplyBool, runtimeObjectType?, hruntimeEq]
+                      using happly
                   have hparentIncludes :
                       schema.typeIncludesObjectBool parentType parentType =
                         true :=
@@ -2783,8 +2810,8 @@ mutual
                   have htypeIncludes :
                       schema.typeIncludesObjectBool typeCondition parentType =
                         true := by
-                    simpa [doesFragmentTypeApplyBool, runtimeObjectType?,
-                      hruntimeEq] using happly
+                    simpa [doesFragmentTypeApplyBool, runtimeObjectType?, hruntimeEq]
+                      using happly
                   have hparentIncludes :
                       schema.typeIncludesObjectBool parentType parentType =
                         true :=

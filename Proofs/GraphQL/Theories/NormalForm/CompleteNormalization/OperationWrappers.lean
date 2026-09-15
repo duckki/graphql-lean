@@ -73,7 +73,8 @@ theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
               (completeNormalizeOperation schema operation) source =
             false := by
         simpa [completeNormalizeOperation_rootSourceAppliesBool
-          schema operation source] using hroot
+          schema operation source]
+          using hroot
       simp [Execution.executeQueryWithFuel, hroot, hnormalizedRoot]
   | true =>
       have hnormalizedRoot :
@@ -81,7 +82,8 @@ theorem completeNormalizationEffectiveSemanticsPreserved_of_selectionSet
               (completeNormalizeOperation schema operation) source =
             true := by
         simpa [completeNormalizeOperation_rootSourceAppliesBool
-          schema operation source] using hroot
+          schema operation source]
+          using hroot
       have hnormalizedRootType :
           (completeNormalizeOperation schema operation).rootType schema =
             (operation.rootType schema) :=

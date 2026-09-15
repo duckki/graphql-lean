@@ -71,10 +71,12 @@ theorem selectionSetSyntacticInclusionShortcutBool_of_perm
       = true := by
   simp only [selectionSetSyntacticInclusionShortcutBool, Bool.and_eq_true,
     decide_eq_true_iff] at hcheck ⊢
-  exact ⟨by simpa [selectionSetResponseDepth_eq_of_perm hright] using hcheck.1,
+  exact ⟨
+    by simpa [selectionSetResponseDepth_eq_of_perm hright] using hcheck.1,
     by
       rw [← selectionSetSyntacticallyIncludesBool_eq_of_perm hleft hright]
-      exact hcheck.2⟩
+      exact hcheck.2
+  ⟩
 
 private theorem selection_size_le_selectionSet_size_of_mem
     {selection : Selection} {selectionSet : List Selection}
@@ -161,8 +163,8 @@ mutual
                 | false =>
                     simp [collectFlatSelection, hallows]
                 | true =>
-                    simpa [collectFlatSelection, hallows] using
-                      collectFlatFields_syntactically_includes schema variableValues
+                    simpa [collectFlatSelection, hallows]
+                      using collectFlatFields_syntactically_includes schema variableValues
                         parentType source leftSelectionSet rightSelectionSet hselectionSet
             | some typeCondition =>
                 cases hallows
@@ -176,10 +178,10 @@ mutual
                     | false =>
                         simp [collectFlatSelection, hallows, happlies]
                     | true =>
-                        simpa [collectFlatSelection, hallows, happlies] using
-                          collectFlatFields_syntactically_includes schema variableValues
-                            parentType source leftSelectionSet rightSelectionSet
-                            hselectionSet
+                        simpa [collectFlatSelection, hallows, happlies]
+                          using collectFlatFields_syntactically_includes schema
+                            variableValues parentType source leftSelectionSet
+                            rightSelectionSet hselectionSet
   termination_by 2 * right.size
   decreasing_by
     all_goals simp_all [Selection.size]
@@ -372,9 +374,11 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
           have hgroupsReady := executableGroupsSemanticsReady_collectFields schema
             variableValues parentType PUnit.unit right hparentObject hrightReady
             hrightMerge
-          have hgroupReady := hgroupsReady responseName fields (by
-            simpa [rightGroups, collectRuntimeFieldGroups] using
-              show (responseName, fields) ∈ rightGroups by simp [hgroups])
+          have hgroupReady :=
+            hgroupsReady responseName fields
+              (by
+                simpa [rightGroups, collectRuntimeFieldGroups]
+                  using show (responseName, fields) ∈ rightGroups by simp [hgroups])
           cases hfields : fields with
           | nil => exact False.elim (hgroupReady.1 hfields)
           | cons field fields =>
@@ -383,8 +387,8 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
               have hgroupMem : (responseName, field :: fields) ∈
                   collectFields schema variableValues parentType
                     (ResolverValue.object parentType PUnit.unit) right := by
-                simpa [rightGroups, collectRuntimeFieldGroups] using
-                  show (responseName, field :: fields) ∈ rightGroups by
+                simpa [rightGroups, collectRuntimeFieldGroups]
+                  using show (responseName, field :: fields) ∈ rightGroups by
                     simp [hgroups, hfields]
               have hfieldFlat : field ∈
                   (collectFields schema variableValues parentType
@@ -422,24 +426,26 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
       · simpa [leftGroups, source, collectRuntimeFieldGroups] using hleftGroup
       cases hleftFieldsEq : leftFields with
       | nil =>
-          have hleftGroupReady := hleftGroupsReady rightName leftFields (by
-            simpa [source] using hleftGroup)
+          have hleftGroupReady :=
+            hleftGroupsReady rightName leftFields (by simpa [source] using hleftGroup)
           exact False.elim (hleftGroupReady.1 hleftFieldsEq)
       | cons leftHead leftRest =>
           cases hrightFieldsEq : rightFields with
           | nil =>
-              have hrightGroupReady := hrightGroupsReady rightName rightFields (by
-                simpa [source] using hrightGroup')
+              have hrightGroupReady :=
+                hrightGroupsReady rightName rightFields
+                  (by simpa [source] using hrightGroup')
               exact False.elim (hrightGroupReady.1 hrightFieldsEq)
           | cons rightHead rightRest =>
               have hleftHead : leftHead ∈ leftFields := by simp [hleftFieldsEq]
               have hrightHead : rightHead ∈ rightFields := by simp [hrightFieldsEq]
               rcases hfields rightHead hrightHead with
                 ⟨leftWitness, hleftWitness, hwitness⟩
-              have hleftGroupReady := hleftGroupsReady rightName leftFields (by
-                simpa [source] using hleftGroup)
-              have hrightGroupReady := hrightGroupsReady rightName rightFields (by
-                simpa [source] using hrightGroup')
+              have hleftGroupReady :=
+                hleftGroupsReady rightName leftFields (by simpa [source] using hleftGroup)
+              have hrightGroupReady :=
+                hrightGroupsReady rightName rightFields
+                  (by simpa [source] using hrightGroup')
               rcases hleftGroupReady.2.2.1 leftHead leftWitness hleftHead
                   hleftWitness with
                 ⟨hleftFieldName, hleftArguments⟩
@@ -502,18 +508,27 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                       (executableFieldsMergedSelectionSet rightFields) ≤ childFuel := by
                     exact selectionSetResponseDepth_flatMap_le rightFields childFuel
                       hrightFieldsDepth
-                  have hresult := ih childRuntimeType
-                    (executableFieldsMergedSelectionSet leftFields)
-                    (executableFieldsMergedSelectionSet rightFields) hchildObject
-                    (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-                      using hleftChildReady)
-                    (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-                      using hleftChildMerge)
-                    (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-                      using hrightChildReady)
-                    (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-                      using hrightChildMerge)
-                    hchildDepth hchildSyntax
+                  have hresult :=
+                    ih childRuntimeType
+                      (executableFieldsMergedSelectionSet leftFields)
+                      (executableFieldsMergedSelectionSet rightFields) hchildObject
+                      (by
+                        simpa [
+                          executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                          using hleftChildReady)
+                      (by
+                        simpa [
+                          executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                          using hleftChildMerge)
+                      (by
+                        simpa [
+                          executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                          using hrightChildReady)
+                      (by
+                        simpa [
+                          executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                          using hrightChildMerge)
+                      hchildDepth hchildSyntax
                   simpa [hleftFieldsEq, hrightFieldsEq] using hresult
 
 end QueryInclusion

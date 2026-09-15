@@ -1408,22 +1408,20 @@ theorem
       FieldPairProbeTag.left.scalar rightResponseValue rightFieldErrors
       rightChildFields rightChildErrors hleftLeaf hrightComposite
       hrightWrapped
-  simpa [resolvers, leftSource, rightSource] using
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
-      (schema := schema) (leftParentType := leftParentType)
-      (rightParentType := rightParentType) (left := left) (right := right)
-      (responseName := responseName) (leftFieldName := leftFieldName)
-      (rightFieldName := rightFieldName)
-      (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      resolvers resolvers variableValues (fuel + 1) leftSource
-      rightSource hleftObject hrightObject hleftNormal hrightNormal
-      hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      hvalueNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
+        (schema := schema) (leftParentType := leftParentType)
+        (rightParentType := rightParentType) (left := left) (right := right)
+        (responseName := responseName) (leftFieldName := leftFieldName)
+        (rightFieldName := rightFieldName) (leftArguments := leftArguments)
+        (rightArguments := rightArguments) (leftDirectives := leftDirectives)
+        (rightDirectives := rightDirectives)
+        (leftChildSelectionSet := leftChildSelectionSet)
+        (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
+        variableValues (fuel + 1) leftSource rightSource hleftObject hrightObject
+        hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
+        hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_objectOutput_field_pair_of_valid_normal_runtimeSpine
@@ -1567,27 +1565,24 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, leftSource] using
-      selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_valid_normal_runtimeSpine
-        (schema := schema)
-        (variableDefinitions := leftVariableDefinitions)
-        (rootSelectionSet := rootSelectionSet)
-        (leftInitialSelectionSet := leftInitialSelectionSet)
-        (rightInitialSelectionSet := rightInitialSelectionSet)
-        (currentSelectionSet := leftCurrentSelectionSet)
-        (leftInitialSpine := leftInitialSpine)
-        (rightInitialSpine := rightInitialSpine)
-        (spine := leftSpine)
-        (variableValues := variableValues) (fuel := fuel)
-        (targetParent := targetParent) (leftField := leftProbeField)
-        (rightField := rightProbeField) (parentType := leftParentType)
-        (sourceRuntimeType := leftSourceRuntimeType)
-        (leftArguments := targetLeftArguments)
-        (rightArguments := targetRightArguments)
-        (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
-        (tag := FieldPairProbeTag.left) (selectionSet := left)
-        hschema hleftValid hleftCoercion hleftFree hleftNormal hleftObject hleftFuel
-        hleftSpineValid hleftSupport hleftContext
+    simpa [resolvers, leftSource]
+      using
+        selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_of_valid_normal_runtimeSpine
+          (schema := schema) (variableDefinitions := leftVariableDefinitions)
+          (rootSelectionSet := rootSelectionSet)
+          (leftInitialSelectionSet := leftInitialSelectionSet)
+          (rightInitialSelectionSet := rightInitialSelectionSet)
+          (currentSelectionSet := leftCurrentSelectionSet)
+          (leftInitialSpine := leftInitialSpine) (rightInitialSpine := rightInitialSpine)
+          (spine := leftSpine) (variableValues := variableValues) (fuel := fuel)
+          (targetParent := targetParent) (leftField := leftProbeField)
+          (rightField := rightProbeField) (parentType := leftParentType)
+          (sourceRuntimeType := leftSourceRuntimeType)
+          (leftArguments := targetLeftArguments) (rightArguments := targetRightArguments)
+          (leftRuntime := leftRuntime) (rightRuntime := rightRuntime)
+          (tag := FieldPairProbeTag.left) (selectionSet := left) hschema hleftValid
+          hleftCoercion hleftFree hleftNormal hleftObject hleftFuel hleftSpineValid
+          hleftSupport hleftContext
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -1602,14 +1597,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, rightSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet rightCurrentSelectionSet leftInitialSpine
-        rightInitialSpine rightSpine variableValues fuel targetParent
-        leftProbeField rightProbeField rightParentType
-        rightSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.right right hrightReady
+    simpa [resolvers, rightSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          rightCurrentSelectionSet leftInitialSpine rightInitialSpine rightSpine
+          variableValues fuel targetParent leftProbeField rightProbeField rightParentType
+          rightSourceRuntimeType targetLeftArguments targetRightArguments leftRuntime
+          rightRuntime FieldPairProbeTag.right right hrightReady
   rcases
       objectOutputChildResponse_of_selectedPathFieldChildrenReady
         (schema := schema)
@@ -1654,28 +1649,26 @@ theorem
         (childSelectionSet := rightChildSelectionSet)
         (fieldDefinition := rightFieldDefinition) hrightMem hrightLookup
     omega
-  simpa [resolvers, leftSource, rightSource] using
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_objectOutput_field_pair_of_field_ok
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet leftInitialSpine rightInitialSpine
-      leftSpine rightSpine variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem
-      hrightMem hleftLookup hrightLookup
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hleftCoercion hleftFree)
-        responseName leftFieldName leftArguments leftDirectives
-        leftChildSelectionSet hleftMem leftFieldDefinition hleftLookup)
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hrightCoercion hrightFree)
-        responseName rightFieldName rightArguments rightDirectives
-        rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
-      hleftLeaf hrightObjectOutput
-      hleftLeafFuel hrightLeafFuel hrightChildResponse hleftFieldOk
-      hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_objectOutput_field_pair_of_field_ok
+        schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+        leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
+        rightInitialSpine leftSpine rightSpine variableValues fuel targetParent
+        leftProbeField rightProbeField leftParentType rightParentType
+        leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
+        targetRightArguments leftRuntime rightRuntime hleftFree hrightFree hleftNormal
+        hrightNormal hleftObject hrightObject hleftMem hrightMem hleftLookup hrightLookup
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hleftCoercion hleftFree)
+          responseName leftFieldName leftArguments leftDirectives leftChildSelectionSet
+          hleftMem leftFieldDefinition hleftLookup)
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hrightCoercion hrightFree)
+          responseName rightFieldName rightArguments rightDirectives
+          rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
+        hleftLeaf hrightObjectOutput hleftLeafFuel hrightLeafFuel hrightChildResponse
+        hleftFieldOk hrightFieldOk
 
 theorem
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_left_leaf_right_objectOutput_field_pair_valid_normal_runtimeSpine
@@ -2101,22 +2094,20 @@ theorem
     wrapped_object_values_not_semanticEquivalent_of_child
       leftFieldDefinition.outputType rightFieldDefinition.outputType
       hleftWrapped hrightWrapped hchildNot
-  simpa [resolvers, leftSource, rightSource] using
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
-      (schema := schema) (leftParentType := leftParentType)
-      (rightParentType := rightParentType) (left := left) (right := right)
-      (responseName := responseName) (leftFieldName := leftFieldName)
-      (rightFieldName := rightFieldName)
-      (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      resolvers resolvers variableValues (fuel + 1) leftSource
-      rightSource hleftObject hrightObject hleftNormal hrightNormal
-      hleftFree hrightFree hleftMem hrightMem hleftTarget hrightTarget
-      hvalueNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair
+        (schema := schema) (leftParentType := leftParentType)
+        (rightParentType := rightParentType) (left := left) (right := right)
+        (responseName := responseName) (leftFieldName := leftFieldName)
+        (rightFieldName := rightFieldName) (leftArguments := leftArguments)
+        (rightArguments := rightArguments) (leftDirectives := leftDirectives)
+        (rightDirectives := rightDirectives)
+        (leftChildSelectionSet := leftChildSelectionSet)
+        (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
+        variableValues (fuel + 1) leftSource rightSource hleftObject hrightObject
+        hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
+        hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_field_ok_fuels
@@ -2386,22 +2377,20 @@ theorem
     wrapped_object_values_not_semanticEquivalent_of_child
       leftFieldDefinition.outputType rightFieldDefinition.outputType
       hleftWrapped hrightWrapped hchildNot
-  simpa [resolvers, leftSource, rightSource] using
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
-      (schema := schema) (leftParentType := leftParentType)
-      (rightParentType := rightParentType) (left := left) (right := right)
-      (responseName := responseName) (leftFieldName := leftFieldName)
-      (rightFieldName := rightFieldName)
-      (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1)
-      leftSource rightSource hleftObject hrightObject hleftNormal
-      hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
-      hrightTarget hvalueNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
+        (schema := schema) (leftParentType := leftParentType)
+        (rightParentType := rightParentType) (left := left) (right := right)
+        (responseName := responseName) (leftFieldName := leftFieldName)
+        (rightFieldName := rightFieldName) (leftArguments := leftArguments)
+        (rightArguments := rightArguments) (leftDirectives := leftDirectives)
+        (rightDirectives := rightDirectives)
+        (leftChildSelectionSet := leftChildSelectionSet)
+        (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
+        variableValues (leftFuel + 1) (rightFuel + 1) leftSource rightSource hleftObject
+        hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+        hleftTarget hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_child_field_pair_of_field_ok_fuels
@@ -2757,22 +2746,20 @@ theorem
     wrapped_object_values_not_semanticEquivalent_of_child
       leftFieldDefinition.outputType rightFieldDefinition.outputType
       hleftWrapped hrightWrapped hchildNot
-  simpa [resolvers, leftSource, rightSource] using
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
-      (schema := schema) (leftParentType := leftParentType)
-      (rightParentType := rightParentType) (left := left) (right := right)
-      (responseName := responseName) (leftFieldName := leftFieldName)
-      (rightFieldName := rightFieldName)
-      (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftDirectives := leftDirectives)
-      (rightDirectives := rightDirectives)
-      (leftChildSelectionSet := leftChildSelectionSet)
-      (rightChildSelectionSet := rightChildSelectionSet)
-      resolvers resolvers variableValues (leftFuel + 1) (rightFuel + 1)
-      leftSource rightSource hleftObject hrightObject hleftNormal
-      hrightNormal hleftFree hrightFree hleftMem hrightMem hleftTarget
-      hrightTarget hvalueNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok_pair_fuels
+        (schema := schema) (leftParentType := leftParentType)
+        (rightParentType := rightParentType) (left := left) (right := right)
+        (responseName := responseName) (leftFieldName := leftFieldName)
+        (rightFieldName := rightFieldName) (leftArguments := leftArguments)
+        (rightArguments := rightArguments) (leftDirectives := leftDirectives)
+        (rightDirectives := rightDirectives)
+        (leftChildSelectionSet := leftChildSelectionSet)
+        (rightChildSelectionSet := rightChildSelectionSet) resolvers resolvers
+        variableValues (leftFuel + 1) (rightFuel + 1) leftSource rightSource hleftObject
+        hrightObject hleftNormal hrightNormal hleftFree hrightFree hleftMem hrightMem
+        hleftTarget hrightTarget hvalueNot hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_child_field_pair_of_field_children_fuels
@@ -2945,14 +2932,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, leftSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet leftCurrentSelectionSet leftInitialSpine
-        rightInitialSpine leftSpine variableValues leftFuel targetParent
-        leftProbeField rightProbeField leftParentType
-        leftSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.left left hleftChildren
+    simpa [resolvers, leftSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          leftCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine
+          variableValues leftFuel targetParent leftProbeField rightProbeField
+          leftParentType leftSourceRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.left left hleftChildren
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -2967,15 +2954,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, rightSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet rightCurrentSelectionSet leftInitialSpine
-        rightInitialSpine rightSpine variableValues rightFuel
-        targetParent leftProbeField rightProbeField rightParentType
-        rightSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.right right
-        hrightChildren
+    simpa [resolvers, rightSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          rightCurrentSelectionSet leftInitialSpine rightInitialSpine rightSpine
+          variableValues rightFuel targetParent leftProbeField rightProbeField
+          rightParentType rightSourceRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.right right hrightChildren
   rcases
       compositeChildResponse_of_selectedPathFieldChildrenReady
         (schema := schema)
@@ -3058,21 +3044,19 @@ theorem
     rw [hrightLookup] at hrightLookup'
     exact Option.some.inj hrightLookup'.symm
   subst rightFieldDefinition'
-  simpa [resolvers, leftSource, rightSource] using
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_child_field_pair_of_field_ok_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet leftInitialSpine rightInitialSpine
-      leftSpine rightSpine variableValues leftFuel rightFuel
-      targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftSourceRuntimeType rightSourceRuntimeType
-      targetLeftArguments targetRightArguments leftRuntime rightRuntime
-      hleftFree hrightFree hleftNormal hrightNormal hleftObject
-      hrightObject hleftMem hrightMem hleftLookup hrightLookup
-      hleftArgumentCoercion hrightArgumentCoercion hleftChildSource
-      hrightChildSource hleftInclude hrightInclude
-      hleftLeafFuel hrightLeafFuel hleftChildResponse
-      hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_child_field_pair_of_field_ok_fuels
+        schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+        leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
+        rightInitialSpine leftSpine rightSpine variableValues leftFuel rightFuel
+        targetParent leftProbeField rightProbeField leftParentType rightParentType
+        leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
+        targetRightArguments leftRuntime rightRuntime hleftFree hrightFree hleftNormal
+        hrightNormal hleftObject hrightObject hleftMem hrightMem hleftLookup hrightLookup
+        hleftArgumentCoercion hrightArgumentCoercion hleftChildSource hrightChildSource
+        hleftInclude hrightInclude hleftLeafFuel hrightLeafFuel hleftChildResponse
+        hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
 theorem
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_composite_sameField_childWitness_valid_normal_runtimeSpine
@@ -3770,14 +3754,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, leftSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet leftCurrentSelectionSet leftInitialSpine
-        rightInitialSpine leftSpine variableValues fuel targetParent
-        leftProbeField rightProbeField leftParentType
-        leftSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.left left hleftReady
+    simpa [resolvers, leftSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          leftCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine
+          variableValues fuel targetParent leftProbeField rightProbeField leftParentType
+          leftSourceRuntimeType targetLeftArguments targetRightArguments leftRuntime
+          rightRuntime FieldPairProbeTag.left left hleftReady
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -3792,14 +3776,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, rightSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet rightCurrentSelectionSet leftInitialSpine
-        rightInitialSpine rightSpine variableValues fuel targetParent
-        leftProbeField rightProbeField rightParentType
-        rightSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.right right hrightReady
+    simpa [resolvers, rightSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          rightCurrentSelectionSet leftInitialSpine rightInitialSpine rightSpine
+          variableValues fuel targetParent leftProbeField rightProbeField rightParentType
+          rightSourceRuntimeType targetLeftArguments targetRightArguments leftRuntime
+          rightRuntime FieldPairProbeTag.right right hrightReady
   rcases
       objectOutputChildResponse_of_selectedPathFieldChildrenReady
         (schema := schema)
@@ -3876,28 +3860,26 @@ theorem
     exact hchildDataNot
       (by simpa [hleftChildResponse, hrightChildResponse] using
         hsemantic)
-  simpa [resolvers, leftSource, rightSource] using
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_field_ok
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet leftInitialSpine rightInitialSpine
-      leftSpine rightSpine variableValues fuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem
-      hrightMem hleftLookup hrightLookup
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hleftCoercion hleftFree)
-        responseName leftFieldName leftArguments leftDirectives
-        leftChildSelectionSet hleftMem leftFieldDefinition hleftLookup)
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hrightCoercion hrightFree)
-        responseName rightFieldName rightArguments rightDirectives
-        rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
-      hleftObjectOutput
-      hrightObjectOutput hleftLeafFuel hrightLeafFuel hleftChildResponse
-      hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_field_ok
+        schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+        leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
+        rightInitialSpine leftSpine rightSpine variableValues fuel targetParent
+        leftProbeField rightProbeField leftParentType rightParentType
+        leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
+        targetRightArguments leftRuntime rightRuntime hleftFree hrightFree hleftNormal
+        hrightNormal hleftObject hrightObject hleftMem hrightMem hleftLookup hrightLookup
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hleftCoercion hleftFree)
+          responseName leftFieldName leftArguments leftDirectives leftChildSelectionSet
+          hleftMem leftFieldDefinition hleftLookup)
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hrightCoercion hrightFree)
+          responseName rightFieldName rightArguments rightDirectives
+          rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
+        hleftObjectOutput hrightObjectOutput hleftLeafFuel hrightLeafFuel
+        hleftChildResponse hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_valid_normal_runtimeSpine_fuels
@@ -4102,14 +4084,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, leftSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet leftCurrentSelectionSet leftInitialSpine
-        rightInitialSpine leftSpine variableValues leftFuel targetParent
-        leftProbeField rightProbeField leftParentType
-        leftSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.left left hleftReady
+    simpa [resolvers, leftSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          leftCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine
+          variableValues leftFuel targetParent leftProbeField rightProbeField
+          leftParentType leftSourceRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.left left hleftReady
   have hrightFieldOk :
       ∀ responseName fieldName arguments directives childSelectionSet,
         Selection.field responseName fieldName arguments directives
@@ -4124,14 +4106,14 @@ theorem
               }]
             =
             .ok ([(responseName, responseValue)], fieldErrors) := by
-    simpa [resolvers, rightSource] using
-      executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
-        schema rootSelectionSet leftInitialSelectionSet
-        rightInitialSelectionSet rightCurrentSelectionSet leftInitialSpine
-        rightInitialSpine rightSpine variableValues rightFuel targetParent
-        leftProbeField rightProbeField rightParentType
-        rightSourceRuntimeType targetLeftArguments targetRightArguments
-        leftRuntime rightRuntime FieldPairProbeTag.right right hrightReady
+    simpa [resolvers, rightSource]
+      using
+        executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_selectedPathFieldChildrenReady
+          schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+          rightCurrentSelectionSet leftInitialSpine rightInitialSpine rightSpine
+          variableValues rightFuel targetParent leftProbeField rightProbeField
+          rightParentType rightSourceRuntimeType targetLeftArguments targetRightArguments
+          leftRuntime rightRuntime FieldPairProbeTag.right right hrightReady
   rcases
       objectOutputChildResponse_of_selectedPathFieldChildrenReady
         (schema := schema)
@@ -4208,28 +4190,26 @@ theorem
     exact hchildDataNot
       (by simpa [hleftChildResponse, hrightChildResponse] using
         hsemantic)
-  simpa [resolvers, leftSource, rightSource] using
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_field_ok_fuels
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftCurrentSelectionSet
-      rightCurrentSelectionSet leftInitialSpine rightInitialSpine
-      leftSpine rightSpine variableValues leftFuel rightFuel targetParent
-      leftProbeField rightProbeField leftParentType rightParentType
-      leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hleftFree hrightFree
-      hleftNormal hrightNormal hleftObject hrightObject hleftMem
-      hrightMem hleftLookup hrightLookup
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hleftCoercion hleftFree)
-        responseName leftFieldName leftArguments leftDirectives
-        leftChildSelectionSet hleftMem leftFieldDefinition hleftLookup)
-      ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
-          hrightCoercion hrightFree)
-        responseName rightFieldName rightArguments rightDirectives
-        rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
-      hleftObjectOutput
-      hrightObjectOutput hleftLeafFuel hrightLeafFuel hleftChildResponse
-      hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
+  simpa [resolvers, leftSource, rightSource]
+    using
+      responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_objectOutput_field_pair_of_field_ok_fuels
+        schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+        leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
+        rightInitialSpine leftSpine rightSpine variableValues leftFuel rightFuel
+        targetParent leftProbeField rightProbeField leftParentType rightParentType
+        leftSourceRuntimeType rightSourceRuntimeType targetLeftArguments
+        targetRightArguments leftRuntime rightRuntime hleftFree hrightFree hleftNormal
+        hrightNormal hleftObject hrightObject hleftMem hrightMem hleftLookup hrightLookup
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hleftCoercion hleftFree)
+          responseName leftFieldName leftArguments leftDirectives leftChildSelectionSet
+          hleftMem leftFieldDefinition hleftLookup)
+        ((selectionSetArgumentCoercionSucceeds_of_argumentsCoercible
+            hrightCoercion hrightFree)
+          responseName rightFieldName rightArguments rightDirectives
+          rightChildSelectionSet hrightMem rightFieldDefinition hrightLookup)
+        hleftObjectOutput hrightObjectOutput hleftLeafFuel hrightLeafFuel
+        hleftChildResponse hrightChildResponse hchildNot hleftFieldOk hrightFieldOk
 
 theorem
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_field_pair_childDataDiff_valid_normal_runtimeSpine

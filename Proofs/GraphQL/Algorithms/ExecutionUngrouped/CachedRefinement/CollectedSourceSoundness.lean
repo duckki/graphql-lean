@@ -85,8 +85,9 @@ theorem OutputCacheSoundForFields.merge_depthZero {ObjectRef : Type}
           PreviousCacheSound.null (parentType := parentType) schema resolvers source
             fieldDefinition field
     | some previous =>
-        simpa [hprevious] using
-          hsound responseName field fieldDefinition previous hfield hprevious hlookup
+        simpa [hprevious]
+          using hsound responseName field fieldDefinition previous hfield hprevious
+            hlookup
 
 mutual
   def SelectionFieldsWithin {ObjectRef : Type}
@@ -167,18 +168,17 @@ mutual
                   simp [outOfFuel, resultValueOrNull]
               simp only [visitSelection, hallows, if_true,
                 mergeResponseFieldResult]
-              exact
-                Eq.mpr
-                  (congrArg
-                    (fun incoming =>
-                      OutputCacheSoundForFields schema resolvers variableValues
-                        parentType source fields
-                        (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
-                          responseName incoming output))
-                    hvalue)
-                  (OutputCacheSoundForFields.merge_depthZero schema resolvers
-                    variableValues parentType source fields output responseName hsound
-                    hready)
+              exact Eq.mpr
+                (congrArg
+                  (fun incoming =>
+                    OutputCacheSoundForFields schema resolvers variableValues
+                      parentType source fields
+                      (GraphQL.Algorithms.ExecutionUngrouped.mergeResponseFieldIntoObject
+                        responseName incoming output))
+                  hvalue)
+                (OutputCacheSoundForFields.merge_depthZero schema resolvers
+                  variableValues parentType source fields output responseName hsound
+                  hready)
           | succ completionFuel =>
               rcases hlookup responseName field hfield with
                 ⟨fieldDefinition, hfieldLookup⟩
@@ -202,8 +202,8 @@ mutual
           | none =>
               have hwithin' := hwithin
               simp [SelectionFieldsWithin] at hwithin'
-              simpa [visitSelection, hallows] using
-                visitSubfields_outputCacheSoundForFields schema resolvers
+              simpa [visitSelection, hallows]
+                using visitSubfields_outputCacheSoundForFields schema resolvers
                   variableValues fuel parentType source fields hschema hcompatible
                   hargumentsNodup hlookup selectionSet output
                   (hwithin' hallows) hready haligned hsound
@@ -213,8 +213,8 @@ mutual
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source typeCondition =
                     true
-              · simpa [visitSelection, hallows, happly] using
-                  visitSubfields_outputCacheSoundForFields schema resolvers
+              · simpa [visitSelection, hallows, happly]
+                  using visitSubfields_outputCacheSoundForFields schema resolvers
                     variableValues fuel parentType source fields hschema hcompatible
                     hargumentsNodup hlookup selectionSet output
                     (hwithin' hallows happly) hready haligned hsound
@@ -617,8 +617,8 @@ theorem collectFields_flat_pair_selectionSets_canMerge_of_canMerge_lookupValid_o
         ∨ ¬schema.objectType laterScoped.parentType :=
     ExecutionUngroupedUncached.Eager.ScopedFieldRuntimeApplies.mergeIdentityCondition
       schema runtimeType firstScoped laterScoped hfirstRuntime hlaterRuntime
-  simpa [hfirstSelectionSet, hlaterSelectionSet] using
-    FieldMerge.fieldsInSetCanMerge_pair_subfields schema validParent selectionSet
+  simpa [hfirstSelectionSet, hlaterSelectionSet]
+    using FieldMerge.fieldsInSetCanMerge_pair_subfields schema validParent selectionSet
       firstScoped laterScoped hmerge hfirstScopedMem hlaterScopedMem
       hscopedResponse hparents objectType
 

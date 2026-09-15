@@ -114,8 +114,8 @@ def ExecutedSingleGroupSelectionState.of_collected_two_visit_absorbs
         selectionSet := selectionSet }
       initial := .object [] }
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hinvariant hcollect
   have hgroupCompatible :
       ExecutableFieldsFieldValidationMergeCompatible [first, later] :=
@@ -264,8 +264,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant
                   GraphQL.Execution.mergedFieldSelectionSet (first :: []) }
               initial := .object [] } := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hfirstChildren childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hfirstChildren childDepth runtimeType identity hlt
   have hobjectsMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -281,8 +281,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant
                 (GraphQL.Execution.mergedFieldSelectionSet (first :: []))
                 (.object []))) := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hobjects childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hobjects childDepth runtimeType identity hlt
   have herrorsMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -293,9 +293,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant
               (GraphQL.Execution.mergedFieldSelectionSet (first :: []))
               (.object [])) := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet,
-      VisitSubfieldsErrorNeutral] using
-      herrors childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet, VisitSubfieldsErrorNeutral]
+      using herrors childDepth runtimeType identity hlt
   have hchildrenMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -312,23 +311,21 @@ theorem stateEquivalent_of_collected_two_field_group_invariant
                     ((first :: []) ++ [later]) }
               initial := .object [] } := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hchildren childDepth runtimeType identity hlt
-  exact
-    stateEquivalent_of_collected_field_group_state_of_invariant schema
-      resolvers variableValues depth parentType source selectionSet groups
-      responseName first [later] hcollect hgroup hexact hdirect hinvariant
-      hcompatible hfieldLookup
-      (ExecutedFieldAppendPlanState.singleton
-        (by
-          intro childDepth runtimeType identity hlt _hincludes
-          exact hprefixChildren childDepth runtimeType identity hlt)
-        (by simp)
-        hobjectsMerged
-        herrorsMerged
-        (by
-          intro childDepth runtimeType identity hlt _hincludes
-          exact hchildrenMerged childDepth runtimeType identity hlt))
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hchildren childDepth runtimeType identity hlt
+  exact stateEquivalent_of_collected_field_group_state_of_invariant schema
+    resolvers variableValues depth parentType source selectionSet groups
+    responseName first [later] hcollect hgroup hexact hdirect hinvariant
+    hcompatible hfieldLookup
+    (ExecutedFieldAppendPlanState.singleton
+      (by
+        intro childDepth runtimeType identity hlt _hincludes
+        exact hprefixChildren childDepth runtimeType identity hlt)
+      (by simp)
+      hobjectsMerged herrorsMerged
+      (by
+        intro childDepth runtimeType identity hlt _hincludes
+        exact hchildrenMerged childDepth runtimeType identity hlt))
 
 theorem stateEquivalent_of_collected_two_field_group_invariant_steps
     {ObjectIdentity : Type}
@@ -449,8 +446,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant_steps
                   GraphQL.Execution.mergedFieldSelectionSet (first :: []) }
               initial := .object [] } := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hfirstChildren childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hfirstChildren childDepth runtimeType identity hlt
   have hstepsMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -466,8 +463,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant_steps
               (GraphQL.Execution.mergedFieldSelectionSet (first :: []))
               (.object [])) := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hobjectSteps childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hobjectSteps childDepth runtimeType identity hlt
   have herrorsMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -478,9 +475,8 @@ theorem stateEquivalent_of_collected_two_field_group_invariant_steps
               (GraphQL.Execution.mergedFieldSelectionSet (first :: []))
               (.object [])) := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet,
-      VisitSubfieldsErrorNeutral] using
-      herrors childDepth runtimeType identity hlt
+    simpa [GraphQL.Execution.mergedFieldSelectionSet, VisitSubfieldsErrorNeutral]
+      using herrors childDepth runtimeType identity hlt
   have hchildrenMerged :
       ∀ childDepth runtimeType identity,
         childDepth < depth ->
@@ -497,21 +493,21 @@ theorem stateEquivalent_of_collected_two_field_group_invariant_steps
                     ((first :: []) ++ [later]) }
               initial := .object [] } := by
     intro childDepth runtimeType identity hlt
-    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hchildren childDepth runtimeType identity hlt
-  exact
-    stateEquivalent_of_collected_field_group_state_of_invariant schema
-      resolvers variableValues depth parentType source selectionSet groups
-      responseName first [later] hcollect hgroup hexact hdirect hinvariant
-      hcompatible hfieldLookup
-      (ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
-        (by
-          intro childDepth runtimeType identity hlt _hincludes
-          exact hprefixChildren childDepth runtimeType identity hlt)
-        (by simp) hstepsMerged herrorsMerged
-        (by
-          intro childDepth runtimeType identity hlt _hincludes
-          exact hchildrenMerged childDepth runtimeType identity hlt))
+    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+      using hchildren childDepth runtimeType identity hlt
+  exact stateEquivalent_of_collected_field_group_state_of_invariant schema
+    resolvers variableValues depth parentType source selectionSet groups
+    responseName first [later] hcollect hgroup hexact hdirect hinvariant
+    hcompatible hfieldLookup
+    (ExecutedFieldAppendPlanState.singleton_of_visit_absorbs
+      (by
+        intro childDepth runtimeType identity hlt _hincludes
+        exact hprefixChildren childDepth runtimeType identity hlt)
+      (by simp)
+      hstepsMerged herrorsMerged
+      (by
+        intro childDepth runtimeType identity hlt _hincludes
+        exact hchildrenMerged childDepth runtimeType identity hlt))
 
 theorem executeRootSelectionSet_eq_spec_of_collected_two_field_group_invariant_steps
     {ObjectIdentity : Type}
@@ -1372,12 +1368,12 @@ def ExecutedFieldGroup.collected_two_of_visit_absorbs
       resolveFieldValueByName schema resolvers variableValues parentType later.fieldName later.arguments source =
       resolveFieldValueByName schema resolvers variableValues parentType first.fieldName first.arguments source :=
     (hgroupStable parentType first later (by simp) (by simp)).symm
-  exact
-    ExecutedFieldGroup.two_of_visit_absorbs schema resolvers variableValues
-      depth parentType source responseName first later
-      (resolveFieldValueByName schema resolvers variableValues parentType first.fieldName first.arguments source)
-      hfieldName rfl hfieldLookup hresolveLater hfirstChildren hobjects herrors
-      hchildren
+  exact ExecutedFieldGroup.two_of_visit_absorbs schema resolvers variableValues
+    depth parentType source responseName first later
+    (resolveFieldValueByName schema resolvers variableValues parentType first.fieldName
+      first.arguments source)
+    hfieldName rfl hfieldLookup hresolveLater hfirstChildren hobjects herrors
+    hchildren
 
 theorem executeRootSelectionSet_eq_spec_of_exact_two_field_group_appendPlan
     {ObjectIdentity : Type}

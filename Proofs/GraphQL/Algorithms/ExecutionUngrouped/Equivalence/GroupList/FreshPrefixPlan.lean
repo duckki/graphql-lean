@@ -485,10 +485,12 @@ theorem executableFieldConsFresh
           (keyedExecutableFieldSelections rest))
     : FreshPrefixSelectionDerivation schema variableValues parentType source
         (keyedExecutableFieldSelections (field :: rest)) := by
-  simpa [keyedExecutableFieldSelections] using
-    FreshPrefixSelectionDerivation.consHeadDisjoint
-      (schema := schema) (variableValues := variableValues)
-      (parentType := parentType) (source := source)
+  simpa [keyedExecutableFieldSelections]
+    using FreshPrefixSelectionDerivation.consHeadDisjoint
+      (schema := schema)
+      (variableValues := variableValues)
+      (parentType := parentType)
+      (source := source)
       (selection := keyedExecutableFieldSelection field)
       (rest := keyedExecutableFieldSelections rest)
       (by simp [keyedExecutableFieldSelection, executableFieldSelection,
@@ -497,11 +499,10 @@ theorem executableFieldConsFresh
       (by
         intro responseName hhead htail
         have hheadEq : responseName = field.responseName := by
-          simpa [GraphQL.Execution.collectFields,
-            GraphQL.Execution.collectSelection,
-            GraphQL.Execution.mergeExecutableGroups,
-            keyedExecutableFieldSelection, executableFieldSelection,
-            selectionDirectivesAllowBool_empty] using hhead
+          simpa [GraphQL.Execution.collectFields, GraphQL.Execution.collectSelection,
+            GraphQL.Execution.mergeExecutableGroups, keyedExecutableFieldSelection,
+            executableFieldSelection, selectionDirectivesAllowBool_empty]
+            using hhead
         have htailName :
             responseName ∈ rest.map (fun field => field.responseName) :=
           (collectFields_executableFieldSelections_key_mem schema
@@ -610,8 +611,8 @@ theorem of_executableFieldSelections_responseNamesNodup
     (hnodup : (fields.map (fun field => field.responseName)).Nodup)
     : FreshPrefixSelectionDerivation schema variableValues parentType source
         (keyedExecutableFieldSelections fields) := by
-  simpa [collectedExecutableSelections_singletonExecutableGroups] using
-    of_collectedGroups schema variableValues parentType source
+  simpa [collectedExecutableSelections_singletonExecutableGroups]
+    using of_collectedGroups schema variableValues parentType source
       (singletonExecutableGroups fields)
       (pairKeysNodup_singletonExecutableGroups hnodup)
       (collectedGroupsFieldsNonempty_singletonExecutableGroups fields)
@@ -804,8 +805,8 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_prefix_empty
       hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
-    simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
+    simpa [fields, List.map_map, Function.comp_def]
+      using responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hgroup' :
       (responseName, field :: fieldsTail) ∈
         GraphQL.Execution.collectFields schema variableValues parentType source
@@ -847,8 +848,8 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_field_mem_prefi
       hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
-    simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
+    simpa [fields, List.map_map, Function.comp_def]
+      using responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hgroup' :
       (responseName, field :: fieldsTail) ∈
         GraphQL.Execution.collectFields schema variableValues parentType source
@@ -860,10 +861,13 @@ theorem collectFields_allFields_directiveFree_responseNamesNodup_field_mem_prefi
         hprefix with
     ⟨keyedField, hkeyedField, _hresponseName, hfieldEq, hfieldsTail,
       hprefixTail⟩
-  exact ⟨by
+  exact ⟨
+    by
       apply List.mem_map.mpr
       exact ⟨keyedField, by simpa [fields] using hkeyedField, hfieldEq⟩,
-    hfieldsTail, hprefixTail⟩
+    hfieldsTail,
+    hprefixTail
+  ⟩
 
 theorem fieldMerge_collectFields_parent_of_allFields (schema : Schema) (parentType : Name)
     : ∀ selectionSet scopedField,
@@ -1078,8 +1082,8 @@ theorem of_allFields_directiveFree_responseNamesNodup
       hall hfree
   have hfieldsNodup :
       (fields.map (fun field => field.responseName)).Nodup := by
-    simpa [fields, List.map_map, Function.comp_def] using
-      responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
+    simpa [fields, List.map_map, Function.comp_def]
+      using responseNamesNodup_map_executableFieldOfSelection selectionSet hall hnodup
   have hderivation :
       FreshPrefixSelectionDerivation schema variableValues parentType source
         (keyedExecutableFieldSelections fields) :=
@@ -1144,8 +1148,7 @@ theorem
             have hrightMem :
                 responseName ∈ rest.map (fun field => field.responseName) := by
               simpa [singletonExecutableGroups_map_fst] using hright
-            exact (List.nodup_cons.mp hnodup).1 (by
-              simpa [hleftEq] using hrightMem)
+            exact (List.nodup_cons.mp hnodup).1 (by simpa [hleftEq] using hrightMem)
           · exact ih (by simpa using (List.nodup_cons.mp hnodup).2)
     · intro selection hselection
       rcases List.mem_map.mp hselection with ⟨field, _hfield, hselectionEq⟩
@@ -1196,7 +1199,8 @@ theorem collectFields_executableFieldSelections_single_prefix_duplicate_fresh_mi
   rw [hmiddleCollect] at hdup
   simpa [keyedExecutableFieldSelections, keyedExecutableFieldSelection,
     executableFieldSelections, List.append_assoc, hsameResponse,
-    FreshPrefixSelectionDerivation.collectedExecutableSelections_singletonExecutableGroups]
+    FreshPrefixSelectionDerivation.collectedExecutableSelections_singletonExecutableGroups
+  ]
     using hdup
 
 namespace FreshPrefixSelectionPlan

@@ -77,10 +77,10 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid
       selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     operation_selectionSetSemanticsReady_of_valid hschema hoperation
-  have himplementation :
-      Validation.selectionSetValidInPossibleTypes schema
-        operation.variableDefinitions (operation.rootType schema) operation.selectionSet :=
-    by simpa [operationFieldsValidInPossibleTypes] using hfields
+  have himplementation
+      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet := by
+    simpa [operationFieldsValidInPossibleTypes] using hfields
   have hmerge :
       FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
         operation.selectionSet :=
@@ -109,10 +109,10 @@ theorem completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
       selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     operation_selectionSetSemanticsReady_of_valid hschema hoperation
-  have himplementation :
-      Validation.selectionSetValidInPossibleTypes schema
-        operation.variableDefinitions (operation.rootType schema) operation.selectionSet :=
-    by simpa [operationFieldsValidInPossibleTypes] using hfields
+  have himplementation
+      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet := by
+    simpa [operationFieldsValidInPossibleTypes] using hfields
   have hmerge :
       FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema)
         operation.selectionSet :=
@@ -251,10 +251,10 @@ theorem completeNormalizedBoolCaseBranchesFieldsCanMerge_of_boolTypeFeasible
       selectionSetSemanticsReady schema (operation.rootType schema)
         operation.selectionSet :=
     operation_selectionSetSemanticsReady_of_valid hschema hoperation
-  have himplementation :
-      Validation.selectionSetValidInPossibleTypes schema
-        operation.variableDefinitions (operation.rootType schema) operation.selectionSet :=
-    by simpa [operationFieldsValidInPossibleTypes] using hfields
+  have himplementation
+      : Validation.selectionSetValidInPossibleTypes schema operation.variableDefinitions
+          (operation.rootType schema) operation.selectionSet := by
+    simpa [operationFieldsValidInPossibleTypes] using hfields
   have hleftReady :
       selectionSetSemanticsReady schema (operation.rootType schema)
         (filterSelectionSetBoolCase leftCase operation.selectionSet) :=
@@ -401,25 +401,23 @@ theorem completeNormalizeOperation_valid (schema : Schema) (operation : Operatio
     by simp [completeNormalizeOperation,
       Validation.operationDefinitionValid_rootType_eq hoperation],
     by
-      simpa [completeNormalizeOperation, Operation.rootType,
-        OperationType.rootType] using
-        (Validation.operationDefinitionValid_rootTypeComposite
-          (operation := operation) hoperation),
+      simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
+        using (Validation.operationDefinitionValid_rootTypeComposite
+                (operation := operation) hoperation),
     by
-      simpa [completeNormalizeOperation] using
-        (Validation.operationDefinitionValid_variableDefinitionsValid
-          (operation := operation) hoperation),
+      simpa [completeNormalizeOperation]
+        using (Validation.operationDefinitionValid_variableDefinitionsValid
+                (operation := operation) hoperation),
+    by simpa [completeNormalizeOperation] using hnormalizedNonempty,
     by
-      simpa [completeNormalizeOperation] using hnormalizedNonempty,
-    by
-      simpa [completeNormalizeOperation, Operation.rootType,
-        OperationType.rootType] using
-        completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
+      simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
+        using completeNormalizeRootSelectionSet_selectionSetValid_of_boolTypeFeasible
           schema operation hschema hboolFeasible hoperation hfields,
     by
-      simpa [completeNormalizeOperation, Operation.rootType,
-        OperationType.rootType] using hnormalizedMerge,
-    hvariablesUsed⟩
+      simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
+        using hnormalizedMerge,
+    hvariablesUsed
+  ⟩
 
 end CompleteNormalization
 

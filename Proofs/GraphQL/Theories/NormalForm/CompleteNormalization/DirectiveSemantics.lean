@@ -155,9 +155,13 @@ theorem allBoolCases_complete_for_variableValues
           Execution.inputValueBoolean? variableValues (.variable varName))
         hcomplete with
     ⟨boolCase, hcase, hagrees⟩
-  exact ⟨boolCase, hcase, by
-    intro varName hmem
-    exact (hagrees varName hmem).symm⟩
+  exact ⟨
+    boolCase,
+    hcase,
+    by
+      intro varName hmem
+      exact (hagrees varName hmem).symm
+  ⟩
 
 theorem allBoolCases_variableValuesAgree_unique
     (variableValues : Execution.VariableValues)

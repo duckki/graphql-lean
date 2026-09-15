@@ -185,8 +185,7 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
         (.object ([(responseName, firstResponse)] ++ suffix),
           middleStatus) := by
       simpa using hflatPrefix
-    simpa [VisitSubfieldsFlatCollects, flatMiddle] using
-      hmiddleFlatBase.trans hflatBase
+    simpa [VisitSubfieldsFlatCollects, flatMiddle] using hmiddleFlatBase.trans hflatBase
   have hlaterVisitAfterMiddle :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source (executableFieldSelections responseName [later])
@@ -398,10 +397,11 @@ theorem VisitSubfieldsFlatCollects_duplicate_field_middle_of_flat_middle_singlet
               (executableFieldSelections responseName [first] ++ middle ++
                 executableFieldSelections responseName [later])) =
       executableFieldSelections responseName [first, later] ++ flatMiddle := by
-    simpa [flatMiddle] using
-      executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
-        schema variableValues parentType source responseName first later middle
-        hnotMiddle
+    simpa [flatMiddle]
+      using
+        executableFieldSelections_collectedExecutableFields_collectFields_duplicate_around_disjoint
+          schema variableValues parentType source responseName first later middle
+          hnotMiddle
   have hlaterVisitAfterFirst :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source (executableFieldSelections responseName [later])
@@ -739,15 +739,14 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
         parentType source rawBlock (.object []) =
       (.object resultFields, status) :=
     Prod.ext hresultFields rfl
-  have hrawPrefix :
-      visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source rawBlock (.object prefixFields) =
-      (.object (prefixFields ++ resultFields), status) :=
-    by
-      simpa using
-        visitSubfields_prefix_fresh schema resolvers variableValues
-          (completionDepth + 1) parentType source rawBlock prefixFields []
-          resultFields status hrawKeyFresh hrawEmpty
+  have hrawPrefix
+      : visitSubfields schema resolvers variableValues (completionDepth + 1)
+          parentType source rawBlock (.object prefixFields)
+        = (.object (prefixFields ++ resultFields), status) := by
+    simpa using
+      visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source rawBlock prefixFields []
+        resultFields status hrawKeyFresh hrawEmpty
   have hflatEmpty :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatFields (.object []) =
@@ -761,26 +760,25 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_duplicate_field_middle
     dsimp [rawBlock, flatFields] at hflat
     rw [← hflat]
     exact hrawEmpty
-  have hflatPrefix :
-      visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source flatFields
-        (.object prefixFields) =
-      (.object (prefixFields ++ resultFields), status) :=
-    by
-      simpa using
-        visitSubfields_prefix_fresh schema resolvers variableValues
-          (completionDepth + 1) parentType source flatFields
-          prefixFields [] resultFields status
-          (by
-            intro key hmem
-            rw [show flatFields =
-                collectedExecutableSelections
-                  (GraphQL.Execution.collectFields schema variableValues
-                    parentType source rawBlock) by rfl] at hmem
-            rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
-              at hmem
-            exact hrawKeyFresh key hmem)
-          hflatEmpty
+  have hflatPrefix
+      : visitSubfields schema resolvers variableValues (completionDepth + 1)
+          parentType source flatFields
+          (.object prefixFields)
+        = (.object (prefixFields ++ resultFields), status) := by
+    simpa using
+      visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source flatFields
+        prefixFields [] resultFields status
+        (by
+          intro key hmem
+          rw [show flatFields =
+              collectedExecutableSelections
+                (GraphQL.Execution.collectFields schema variableValues
+                  parentType source rawBlock) by rfl] at hmem
+          rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+            at hmem
+          exact hrawKeyFresh key hmem)
+        hflatEmpty
   unfold VisitSubfieldsFlatCollects
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
@@ -909,8 +907,8 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
         visitSubfields schema resolvers variableValues (completionDepth + 1)
           parentType source flatMiddle (.object prefixResult) =
         (.object (prefixResult ++ middleSuffix), middleStatus) := by
-      simpa [flatMiddle] using
-        visitSubfields_prefix_fresh schema resolvers variableValues
+      simpa [flatMiddle]
+        using visitSubfields_prefix_fresh schema resolvers variableValues
           (completionDepth + 1) parentType source flatMiddle
           prefixResult [] middleSuffix middleStatus hmiddleKeyFreshPrefix
           (by simpa [flatMiddle] using hmiddleEmpty)
@@ -1059,8 +1057,8 @@ theorem VisitSubfieldsFlatCollects_group_duplicate_field_middle_of_freshPrefixes
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatMiddle (.object laterResult) =
       (.object (laterResult ++ middleSuffix), middleStatus) := by
-    simpa [flatMiddle] using
-      visitSubfields_prefix_fresh schema resolvers variableValues
+    simpa [flatMiddle]
+      using visitSubfields_prefix_fresh schema resolvers variableValues
         (completionDepth + 1) parentType source flatMiddle
         laterResult [] middleSuffix middleStatus hmiddleKeyFreshLater
         (by simpa [flatMiddle] using hmiddleEmpty)
@@ -1164,15 +1162,14 @@ theorem
         parentType source rawBlock (.object []) =
       (.object resultFields, status) :=
     Prod.ext hresultFields rfl
-  have hrawPrefix :
-      visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source rawBlock (.object outputFields) =
-      (.object (outputFields ++ resultFields), status) :=
-    by
-      simpa using
-        visitSubfields_prefix_fresh schema resolvers variableValues
-          (completionDepth + 1) parentType source rawBlock outputFields []
-          resultFields status hrawKeyFresh hrawEmpty
+  have hrawPrefix
+      : visitSubfields schema resolvers variableValues (completionDepth + 1)
+          parentType source rawBlock (.object outputFields)
+        = (.object (outputFields ++ resultFields), status) := by
+    simpa using
+      visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source rawBlock outputFields []
+        resultFields status hrawKeyFresh hrawEmpty
   have hflatEmpty :
       visitSubfields schema resolvers variableValues (completionDepth + 1)
         parentType source flatFields
@@ -1187,26 +1184,25 @@ theorem
     dsimp [rawBlock, flatFields] at hflat
     rw [← hflat]
     exact hrawEmpty
-  have hflatPrefix :
-      visitSubfields schema resolvers variableValues (completionDepth + 1)
-        parentType source flatFields
-        (.object outputFields) =
-      (.object (outputFields ++ resultFields), status) :=
-    by
-      simpa using
-        visitSubfields_prefix_fresh schema resolvers variableValues
-          (completionDepth + 1) parentType source flatFields
-          outputFields [] resultFields status
-          (by
-            intro key hmem
-            rw [show flatFields =
-                collectedExecutableSelections
-                  (GraphQL.Execution.collectFields schema variableValues
-                    parentType source rawBlock) by rfl] at hmem
-            rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
-              at hmem
-            exact hrawKeyFresh key hmem)
-          hflatEmpty
+  have hflatPrefix
+      : visitSubfields schema resolvers variableValues (completionDepth + 1)
+          parentType source flatFields
+          (.object outputFields)
+        = (.object (outputFields ++ resultFields), status) := by
+    simpa using
+      visitSubfields_prefix_fresh schema resolvers variableValues
+        (completionDepth + 1) parentType source flatFields
+        outputFields [] resultFields status
+        (by
+          intro key hmem
+          rw [show flatFields =
+              collectedExecutableSelections
+                (GraphQL.Execution.collectFields schema variableValues
+                  parentType source rawBlock) by rfl] at hmem
+          rw [collectFields_executableFieldSelections_collectedExecutableFields_collectFields]
+            at hmem
+          exact hrawKeyFresh key hmem)
+        hflatEmpty
   unfold VisitSubfieldsFlatCollects
   change
     visitSubfields schema resolvers variableValues (completionDepth + 1)
@@ -1782,11 +1778,12 @@ theorem
       resolvers variableValues completionDepth parentType source responseName first
       later
       middle hlaterLookup hnotMiddle hmiddle
-  simpa [List.append_assoc] using
-    VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
+  simpa [List.append_assoc]
+    using VisitSubfieldsFlatCollectsFreshPrefixes_append_of_namesDisjoint schema
       resolvers variableValues (completionDepth + 1) parentType source
-      (executableFieldSelections responseName [first] ++ middle ++
-        executableFieldSelections responseName [later])
+      (executableFieldSelections responseName [first]
+        ++ middle
+        ++ executableFieldSelections responseName [later])
       suffix hdisjoint hblock hsuffix
 
 theorem

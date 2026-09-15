@@ -161,8 +161,8 @@ theorem zeroDepthResponseNameResult_preserves_lookup_null_or_none
         · simp [zeroDepthResponseNameResult_of_lookup_none responseName fields
             hlookup]
         · right
-          simpa [hlookup] using
-            lookupResponseField?_mergeResponseField_null_same responseName fields
+          simpa [hlookup]
+            using lookupResponseField?_mergeResponseField_null_same responseName fields
     | inr hlookup =>
         refine ⟨fields, ?_, ?_⟩
         · simp [zeroDepthResponseNameResult_of_lookup_null responseName fields
@@ -1015,8 +1015,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_all
           simp at hfield)
         selectionSet hlookupValid with
     ⟨normalized, hnormalized⟩
-  simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections] using
-    hnormalized.rawFreshFlat
+  simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections]
+    using hnormalized.rawFreshFlat
 
 end Eager
 end ExecutionUngroupedUncached

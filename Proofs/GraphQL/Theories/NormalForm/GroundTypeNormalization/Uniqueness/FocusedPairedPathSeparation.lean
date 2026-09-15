@@ -1295,8 +1295,8 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
       ⟩
       intro leftInitialSelectionSet rightInitialSelectionSet
         leftInitialSpine rightInitialSpine leftRuntime rightRuntime
-      simpa [leftSpine, rightSpine, leftChildFuel, rightChildFuel] using
-        normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
+      simpa [leftSpine, rightSpine, leftChildFuel, rightChildFuel]
+        using normalSelectionSetPairedPathDataDiffAt_of_object_composite_pair
           schema rootSelectionSet leftInitialSelectionSet
           rightInitialSelectionSet leftInitialSpine rightInitialSpine
           leftChildSpine rightChildSpine variableValues leftFuel rightFuel
@@ -1305,11 +1305,9 @@ theorem normalSelectionSetPairedPathDataDiff_of_valid_normal
           targetLeftArguments targetRightArguments leftRuntime rightRuntime
           hschema hleftValid hrightValid
           (hleftCoercion pathLeftParentType
-            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
-              hleftObject))
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema hleftObject))
           (hrightCoercion pathRightParentType
-            (typeIncludesObjectBool_self_of_objectTypeNameBool schema
-              hrightObject))
+            (typeIncludesObjectBool_self_of_objectTypeNameBool schema hrightObject))
           hleftFree hrightFree hleftNormal
           hrightNormal hleftObject hrightObject hleftFuel hrightFuel
           hleftMem hrightMem hleftLookup hrightLookup hleftComposite

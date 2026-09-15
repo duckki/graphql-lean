@@ -143,8 +143,11 @@ theorem typesOverlapBool_true_of_feasible_cons_stack_containing_object
       (List.contains_iff_mem.mpr hparentType)
   subst objectType
   exact typesOverlapBool_eq_true_of_typesOverlap schema
-    ⟨parentType, object_typeIncludesObject_self schema hobject,
-      hobjectType typeCondition (by simp)⟩
+    ⟨
+      parentType,
+      object_typeIncludesObject_self schema hobject,
+      hobjectType typeCondition (by simp)
+    ⟩
 
 theorem fieldSelectionsWithResponseNameInScope_matching_argumentsEquivalent
     (schema : Schema) (parentType responseName fieldName : Name)
@@ -789,9 +792,9 @@ theorem normalizeSelectionSet_variables_mem
                   ∈ Validation.selectionSetVariables subselections
               ∨ variableName
                   ∈ Validation.selectionSetVariables rest := by
-          simpa [Validation.selectionSetVariables,
-            Validation.selectionVariables, Validation.directivesVariables,
-            List.append_assoc] using hvariable
+          simpa [Validation.selectionSetVariables, Validation.selectionVariables,
+            Validation.directivesVariables, List.append_assoc]
+            using hvariable
         rcases hsourceParts with harguments | hsubselections | hrestVariable
         · exact Or.inl harguments
         · exact Or.inr (Or.inl (by
@@ -858,9 +861,8 @@ theorem normalizeSelectionSet_variables_mem
               returnType ∈ schema.getPossibleTypes returnType :=
             List.contains_iff_mem.mp
               (object_typeIncludesObjectBool_self schema hreturnObjectType)
-          simpa [hreturnObject] using
-            hchildVariable returnType hreturnType hreturnObjectType
-              hmergedVariable
+          simpa [hreturnObject]
+            using hchildVariable returnType hreturnType hreturnObjectType hmergedVariable
         · have hreturnObjectFalse :
               objectTypeNameBool schema returnType = false := by
             cases hmatch : objectTypeNameBool schema returnType
@@ -905,25 +907,24 @@ theorem normalizeSelectionSet_variables_mem
                   intro hnil
                   subst matchedSubselections
                   exact List.not_mem_nil hmatchedVariable
-                simpa [returnType] using
-                  fieldSelectionsWithResponseNameInScope_field_child_possibleTypes_nonempty
-                    schema parentType responseName rest htailFeasible fieldName
-                    matchedArguments matchedDirectives matchedSubselections
-                    fieldDefinition hmatched hlookup
-                    hmatchedSubselectionsNonempty
+                simpa [returnType]
+                  using
+                    fieldSelectionsWithResponseNameInScope_field_child_possibleTypes_nonempty
+                      schema parentType responseName rest htailFeasible fieldName
+                      matchedArguments matchedDirectives matchedSubselections
+                      fieldDefinition hmatched hlookup hmatchedSubselectionsNonempty
           rcases List.exists_mem_of_ne_nil _ hpossibleTypesNonempty with
             ⟨objectType, hobjectType⟩
           have hobjectBranch :
               schema.objectType objectType :=
             SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
               hschema returnType objectType hobjectType
-          simpa [hreturnObjectFalse] using
-            selectionSetVariables_possibleTypeNormalizations_of_mem
+          simpa [hreturnObjectFalse]
+            using selectionSetVariables_possibleTypeNormalizations_of_mem
               schema variableName objectType
               (schema.getPossibleTypes returnType) mergedSubselections
               hobjectType
-              (hchildVariable objectType hobjectType hobjectBranch
-                hmergedVariable)
+              (hchildVariable objectType hobjectType hobjectBranch hmergedVariable)
       rw [normalizeSelectionSet.eq_2, hlookup]
       change variableName
         ∈ Validation.selectionSetVariables
@@ -973,8 +974,8 @@ theorem normalizeSelectionSet_variables_mem
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
              subselections := by
-        simpa [selectionSetTypeConditionFeasible,
-          selectionTypeConditionFeasible] using hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
              rest :=
@@ -987,11 +988,11 @@ theorem normalizeSelectionSet_variables_mem
           variableName
             ∈ Validation.selectionSetVariables (subselections ++ rest) := by
         rw [selectionSetVariables_append]
-        simpa [Validation.selectionSetVariables,
-          Validation.selectionVariables, Validation.directivesVariables] using
-          hvariable
-      simpa [normalizeSelectionSet] using
-        happend typeConditions hobject hparent hstack hbodyTailReady
+        simpa [Validation.selectionSetVariables, Validation.selectionVariables,
+          Validation.directivesVariables]
+          using hvariable
+      simpa [normalizeSelectionSet]
+        using happend typeConditions hobject hparent hstack hbodyTailReady
           hbodyTailMerge hbodyTailFree hbodyTailFeasible hbodyTailVariable
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
@@ -1047,8 +1048,8 @@ theorem normalizeSelectionSet_variables_mem
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType
             (typeCondition :: typeConditions) subselections := by
-        simpa [selectionSetTypeConditionFeasible,
-          selectionTypeConditionFeasible] using hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have htailFeasible :
           selectionSetTypeConditionFeasible schema parentType typeConditions
              rest :=
@@ -1069,11 +1070,11 @@ theorem normalizeSelectionSet_variables_mem
           variableName
             ∈ Validation.selectionSetVariables (subselections ++ rest) := by
         rw [selectionSetVariables_append]
-        simpa [Validation.selectionSetVariables,
-          Validation.selectionVariables, Validation.directivesVariables] using
-          hvariable
-      simpa [normalizeSelectionSet, hoverlap] using
-        happend typeConditions hobject hparent hstack hbodyTailReady
+        simpa [Validation.selectionSetVariables, Validation.selectionVariables,
+          Validation.directivesVariables]
+          using hvariable
+      simpa [normalizeSelectionSet, hoverlap]
+        using happend typeConditions hobject hparent hstack hbodyTailReady
           hbodyTailMerge hbodyTailFree hbodyTailFeasible hbodyTailVariable
   | case6 parentType rest typeCondition directives subselections hoverlap
       hrest =>
@@ -1097,14 +1098,14 @@ theorem normalizeSelectionSet_variables_mem
       have hbodyFeasible :
           selectionSetTypeConditionFeasible schema parentType
             (typeCondition :: typeConditions) subselections := by
-        simpa [selectionSetTypeConditionFeasible,
-          selectionTypeConditionFeasible] using hfeasible.1
+        simpa [selectionSetTypeConditionFeasible, selectionTypeConditionFeasible]
+          using hfeasible.1
       have hparts :
           variableName ∈ Validation.selectionSetVariables subselections
             ∨ variableName ∈ Validation.selectionSetVariables rest := by
-        simpa [Validation.selectionSetVariables,
-          Validation.selectionVariables, Validation.directivesVariables] using
-          hvariable
+        simpa [Validation.selectionSetVariables, Validation.selectionVariables,
+          Validation.directivesVariables]
+          using hvariable
       have hfalse :
           schema.typesOverlapBool parentType typeCondition = false := by
         cases hmatch : schema.typesOverlapBool parentType typeCondition
@@ -1128,8 +1129,8 @@ theorem normalizeSelectionSet_variables_mem
       have htailVariable : variableName
           ∈ Validation.selectionSetVariables rest :=
         hparts.resolve_left hbodyVariableFalse
-      simpa [normalizeSelectionSet, hfalse] using
-        hrest typeConditions hobject hparent hstack htailReady
+      simpa [normalizeSelectionSet, hfalse]
+        using hrest typeConditions hobject hparent hstack htailReady
           htailMerge htailFree htailFeasible htailVariable
 
 end GroundTypeNormalization

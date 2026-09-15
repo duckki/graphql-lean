@@ -245,8 +245,8 @@ theorem boolCaseVariableValues_coercionEquivalent_of_equivalent
         hleft.2.1 hleftPair]
       rw [lookupVariableValue?_boolCaseVariableValues_of_mem base
         hright.2.1 hrightPair]
-      simpa [ConstInputValue.toInputValue] using
-        GroundTypeNormalization.inputValue_equivalent_refl_forSyntaxDiff
+      simpa [ConstInputValue.toInputValue]
+        using GroundTypeNormalization.inputValue_equivalent_refl_forSyntaxDiff
           (.boolean value)
     · have hrightName : name ∉ rightCase.map Prod.fst := by
         intro hmem

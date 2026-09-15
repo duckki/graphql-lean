@@ -61,9 +61,9 @@ mutual
             simp only [hsource] at hcheck
             simp only [htarget]
             exact guardedFieldGroupIncludesWithFuel_specialize schema responseFuel
-              fixedExecutionParentType sourceValues targetValues rest parentRegion left right
-              hcheck hagrees (booleanVariablesCovered_tail_of_known hcovered
-                ⟨value, hsource⟩)
+              fixedExecutionParentType sourceValues targetValues rest parentRegion left
+              right hcheck hagrees
+              (booleanVariablesCovered_tail_of_known hcovered ⟨value, hsource⟩)
               (by
                 intro candidate hcandidate
                 exact hremainingWithin candidate (by simp [hcandidate]))
@@ -403,34 +403,39 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
       have hruntimeEmpty : runtimeRightGroups.isEmpty = true := by
         rw [← runtimeGroupsPermutationEquivalent_isEmpty_iff hrightEquivalent]
         simpa [hexecutionParent] using hguarded
-      simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups] using hruntimeEmpty
+      simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups]
+        using hruntimeEmpty
   | succ childFuel =>
       let childCheck := fun possibleTypes leftSelectionSet rightSelectionSet =>
         guardedFieldChildIncludesBool schema childFuel targetValues possibleTypes
           leftSelectionSet rightSelectionSet
-      have hregionCases := guardedFieldGroupsIncludeWithFuel_sound_cases schema
-        (childFuel + 1) fixedExecutionParentType checkValues targetValues leftGroups
-        rightGroups childCheck (by simpa [leftGroups, rightGroups] using hcheck)
-        hagrees hgroupComplete (by
-          intro candidateFuel heq knownValues hknownAgrees possibleTypes
-            leftSelectionSet rightSelectionSet hchildCheck
-          have heqFuel : candidateFuel = childFuel := by omega
-          subst candidateFuel
-          unfold childCheck
-          unfold guardedFieldChildIncludesBool at hchildCheck ⊢
-          cases hshortcut
-                : selectionSetSyntacticInclusionShortcutBool childFuel leftSelectionSet
-                    rightSelectionSet with
-          | false =>
-              simp only [hshortcut, Bool.false_or] at hchildCheck ⊢
-              exact guardedFieldGroupsIncludeWithFuel_specialize schema childFuel none
-                knownValues targetValues
-                (guardedFieldGroups
-                  (SelectionConditions.ofTypeRegion schema possibleTypes leftSelectionSet))
-                (guardedFieldGroups
-                  (SelectionConditions.ofTypeRegion schema possibleTypes rightSelectionSet))
-                hchildCheck hknownAgrees
-          | true => simp)
+      have hregionCases :=
+        guardedFieldGroupsIncludeWithFuel_sound_cases schema
+          (childFuel + 1)
+          fixedExecutionParentType checkValues targetValues leftGroups
+          rightGroups childCheck
+          (by simpa [leftGroups, rightGroups] using hcheck)
+          hagrees hgroupComplete
+          (by
+            intro candidateFuel heq knownValues hknownAgrees possibleTypes
+              leftSelectionSet rightSelectionSet hchildCheck
+            have heqFuel : candidateFuel = childFuel := by omega
+            subst candidateFuel
+            unfold childCheck
+            unfold guardedFieldChildIncludesBool at hchildCheck ⊢
+            cases hshortcut
+                  : selectionSetSyntacticInclusionShortcutBool childFuel leftSelectionSet
+                      rightSelectionSet with
+            | false =>
+                simp only [hshortcut, Bool.false_or] at hchildCheck ⊢
+                exact guardedFieldGroupsIncludeWithFuel_specialize schema childFuel none
+                  knownValues targetValues
+                  (guardedFieldGroups
+                    (SelectionConditions.ofTypeRegion schema possibleTypes leftSelectionSet))
+                  (guardedFieldGroups
+                    (SelectionConditions.ofTypeRegion schema possibleTypes rightSelectionSet))
+                  hchildCheck hknownAgrees
+            | true => simp)
       have hcases : ∀ right,
           right ∈ rightGroups
           -> guardedFieldGroupCaseIncludesBool schema (childFuel + 1)
@@ -506,13 +511,13 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
         have hleftChildSelectionSet :
             (executableFieldsMergedSelectionSet guardedLeftFields).Perm
               (executableFieldsMergedSelectionSet runtimeLeftFields) := by
-          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-            Execution.FieldGroups.mergedFieldSelectionSet_perm hleftFieldsPerm
+          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using Execution.FieldGroups.mergedFieldSelectionSet_perm hleftFieldsPerm
         have hrightChildSelectionSet :
             (executableFieldsMergedSelectionSet guardedRightFields).Perm
               (executableFieldsMergedSelectionSet runtimeRightFields) := by
-          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-            Execution.FieldGroups.mergedFieldSelectionSet_perm hrightFieldsPerm
+          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using Execution.FieldGroups.mergedFieldSelectionSet_perm hrightFieldsPerm
         have hleftChildComplete : boolVarsComplete
             (SelectionConditions.selectionSetBooleanVariables
               (executableFieldsMergedSelectionSet guardedLeftFields)) targetValues := by
@@ -569,7 +574,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_sound
           rw [selectionSetIncludesBoolWithFuel,
             getPossibleTypes_eq_singleton_of_object schema hchildObject]
           simpa using hchildResult
-      simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeLeftGroups, runtimeRightGroups]
+      simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeLeftGroups,
+        runtimeRightGroups]
         using hruntimeInclude
 termination_by responseFuel
 decreasing_by omega
@@ -650,10 +656,12 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
     availableBooleanVariables childIncludes (booleanAssignmentsAgree_refl checkValues)
     hknown
   · intro right hright variableName hvariable
-    have hwithin := guardedFieldGroupFor_booleanVariablesWithin schema parentRegion
-      leftExtractedSelectionSet rightExtractedSelectionSet leftGroups (by
-        simp [leftGroups, leftEntries]) right (by
-          simpa [rightGroups, rightEntries] using hright) hvariable
+    have hwithin :=
+      guardedFieldGroupFor_booleanVariablesWithin schema parentRegion
+        leftExtractedSelectionSet rightExtractedSelectionSet leftGroups
+        (by
+          simp [leftGroups, leftEntries])
+        right (by simpa [rightGroups, rightEntries] using hright) hvariable
     exact hwithin.elim (hleftWithin variableName) (hrightWithin variableName)
   · intro childFuel hfuel knownValues _hknownValues _hbaseAgrees possibleTypes
       leftSelectionSet rightSelectionSet hchild
@@ -679,8 +687,10 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
           simpa [guardedFieldParentRegion, hfixed] using hruntimeLocalParent
       | none =>
           apply guardedFieldGroupFor_parentRegion_subset schema parentRegion
-            leftExtractedSelectionSet rightExtractedSelectionSet leftGroups (by
-              simp [leftGroups, leftEntries]) right
+            leftExtractedSelectionSet rightExtractedSelectionSet leftGroups
+            (by
+              simp [leftGroups, leftEntries])
+            right
           · simpa [rightGroups, rightEntries] using hright
           · simpa [hfixed] using hruntimeLocalParent
     have hcheckAgrees : BooleanAssignmentsAgree checkValues targetValues :=
@@ -719,8 +729,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
     cases responseFuel with
     | zero =>
         have hruntimeEmpty : runtimeRightGroups.isEmpty = true := by
-          simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups] using
-            hparentCase.2.2.2.2.2.2.2.2
+          simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups]
+            using hparentCase.2.2.2.2.2.2.2.2
         have hguardedEmpty :
             (guardedFieldRuntimeGroups targetValues runtimeType rightGroups).isEmpty
               = true := by
@@ -780,7 +790,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                         rightSelectionSet)
                 runtimeLeftGroups runtimeRightGroups = true := by
               simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeLeftGroups,
-                runtimeRightGroups] using hparentCase.2.2.2.2.2.2.2.2
+                runtimeRightGroups]
+                using hparentCase.2.2.2.2.2.2.2.2
             have hruntimeRightIncluded := List.all_eq_true.mp hruntimeInclude
               (right.responseName, runtimeRightFields) hruntimeRightGroup
             unfold executableGroupIncludedBool at hruntimeRightIncluded
@@ -1028,8 +1039,9 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                               candidateRuntimeType childValues leftSelectionSet
                               rightSelectionSet)
                       childRuntimeLeftGroups childRuntimeRightGroups = true := by
-                    simpa [selectionSetIncludesAtRuntimeBoolWithFuel, childRuntimeLeftGroups,
-                      childRuntimeRightGroups] using houterCase.2.2.2.2.2.2.2.2
+                    simpa [selectionSetIncludesAtRuntimeBoolWithFuel,
+                      childRuntimeLeftGroups, childRuntimeRightGroups]
+                      using houterCase.2.2.2.2.2.2.2.2
                   have hleftWitness := completionFieldsWitness_of_perm
                     hchildLeftFieldsPerm
                     (by simpa using hguardedLeftWitness)
@@ -1098,7 +1110,8 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                 exact hguardedLeftLocal)
               hguardedRightIncluded
             simpa [guardedRightLocalGroups, executableFieldsAsGroup, hrightFields,
-              executableGroupsIncludeBool] using hlocalIncluded
+              executableGroupsIncludeBool]
+              using hlocalIncluded
 termination_by responseFuel
 decreasing_by omega
 
@@ -1139,10 +1152,10 @@ theorem selectionSetIncludesBool_sound
       (guardedFieldGroups
         (SelectionConditions.ofTypeRegion schema (schema.getPossibleTypes parentType)
           rightSelectionSet)) = true := by
-    simpa [selectionSetIncludesBool,
-      selectionSetIncludesBoolWithPartialAssignment, SelectionConditions.ofSelectionSet,
-      SelectionConditions.ofSelectionSetInScope, SelectionConditions.rootCondition,
-      SelectionConditions.ofTypeRegion] using hcheck
+    simpa [selectionSetIncludesBool, selectionSetIncludesBoolWithPartialAssignment,
+      SelectionConditions.ofSelectionSet, SelectionConditions.ofSelectionSetInScope,
+      SelectionConditions.rootCondition, SelectionConditions.ofTypeRegion]
+      using hcheck
   have hresult := guardedFieldGroupsIncludeWithFuel_semantic_sound schema hschema
     responseFuel (some parentType) [] targetValues
     (schema.getPossibleTypes parentType) leftSelectionSet rightSelectionSet
@@ -1206,10 +1219,10 @@ theorem selectionSetIncludesBool_complete
         List.Perm.refl _, hparentObject, rfl, hleftReady, hleftInhabited,
         hleftMerge, hrightReady, hrightInhabited, hrightMerge,
         hselectionCheck parentType hparentSelf⟩)
-  simpa [selectionSetIncludesBool,
-    selectionSetIncludesBoolWithPartialAssignment, SelectionConditions.ofSelectionSet,
-    SelectionConditions.ofSelectionSetInScope, SelectionConditions.rootCondition,
-    SelectionConditions.ofTypeRegion] using hrootCheck
+  simpa [selectionSetIncludesBool, selectionSetIncludesBoolWithPartialAssignment,
+    SelectionConditions.ofSelectionSet, SelectionConditions.ofSelectionSetInScope,
+    SelectionConditions.rootCondition, SelectionConditions.ofTypeRegion]
+    using hrootCheck
 
 theorem includesBool_to_selectionSetChecks
     {schema : Schema} {left right : Operation}

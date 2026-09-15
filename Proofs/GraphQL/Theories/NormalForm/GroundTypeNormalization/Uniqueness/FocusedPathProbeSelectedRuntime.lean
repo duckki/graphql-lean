@@ -1346,14 +1346,12 @@ theorem selectedFieldSpineRuntimeValid_tailForRuntime_of_objectOutput
   intro hvalid hparentObject hlookup houtputObject
   cases hselected : selectedObservableFieldSpineNext? fieldName arguments spine with
   | none =>
-      exact Or.inl (by
-        simp [selectedObservableFieldSpineTailForRuntime, hselected])
+      exact Or.inl (by simp [selectedObservableFieldSpineTailForRuntime, hselected])
   | some selected =>
       rcases selected with ⟨maybeRuntime, tail⟩
       cases maybeRuntime with
       | none =>
-          exact Or.inl (by
-            simp [selectedObservableFieldSpineTailForRuntime, hselected])
+          exact Or.inl (by simp [selectedObservableFieldSpineTailForRuntime, hselected])
       | some selectedRuntime =>
           rcases
               selectedFieldSpineRuntimeValid_child_of_selectedNext
@@ -1497,8 +1495,7 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
     ⟨coercedArguments, hcoercionResult⟩
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments leftArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   let base :=
     fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
       rightInitialSelectionSet leftInitialSpine rightInitialSpine
@@ -1557,8 +1554,8 @@ theorem executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
         (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
           leftInitialSelectionSet leftInitialSpine))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_response_of_not_left
@@ -1631,13 +1628,11 @@ theorem
     ⟨coercedArguments, hcoercionResult⟩
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments rightArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   have hnotLeft' :
       ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
         rightField coercedArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      hnotLeft
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using hnotLeft
   let base :=
     fieldPairSelectedPathProbeResolvers schema leftInitialSelectionSet
       rightInitialSelectionSet leftInitialSpine rightInitialSpine
@@ -1696,8 +1691,8 @@ theorem
         (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
           rightInitialSelectionSet rightInitialSpine))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_other_root_ok_of_deepSuccessWithRef_ok
@@ -1926,7 +1921,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
       schema rootSelectionSet leftInitialSelectionSet
@@ -1942,8 +1938,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_ok_of_child_object_response_fuel_ge
@@ -2039,7 +2034,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_right_root_response_of_not_left
       schema rootSelectionSet leftInitialSelectionSet
@@ -2055,8 +2051,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem
     selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_selectedPathProbe_of_field_cases

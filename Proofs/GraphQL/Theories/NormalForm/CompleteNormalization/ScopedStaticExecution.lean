@@ -281,8 +281,8 @@ theorem
         execParent (.object groundType ())
         (selectionSet ++ eraseCompleteScopedSelectionSet rest) := by
     simpa [eraseCompleteScopedSelectionSet_append,
-      eraseCompleteScopedSelectionSet_completeScopedSelectionSet] using
-      hflatten
+      eraseCompleteScopedSelectionSet_completeScopedSelectionSet]
+      using hflatten
   exact
     hflattenSource.trans
       (executeSelectionSet_inlineFragment_none_directives_allowed_flatten
@@ -485,8 +485,8 @@ theorem
         execParent (.object groundType ())
         (selectionSet ++ eraseCompleteScopedSelectionSet rest) := by
     simpa [eraseCompleteScopedSelectionSet_append,
-      eraseCompleteScopedSelectionSet_completeScopedSelectionSet] using
-      hflatten
+      eraseCompleteScopedSelectionSet_completeScopedSelectionSet]
+      using hflatten
   exact
     hflattenSource.trans
       (executeSelectionSet_inlineFragment_some_directives_allowed_flatten_object

@@ -416,14 +416,13 @@ theorem completeValue_named_group_aligned_of_guarded_merged_child_states
               GraphQL.Execution.completeValue, hcomposite,
               ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
       | object runtimeType identity =>
-          exact
-            completeValue_object_group_aligned_of_guarded_merged_child_state
-              schema resolvers variableValues childDepth parentType runtimeType
-              identity fields
-              (by
-                intro hincludes
-                exact hchildren childDepth runtimeType identity
-                  (Nat.lt_succ_self childDepth) hincludes)
+          exact completeValue_object_group_aligned_of_guarded_merged_child_state
+            schema resolvers variableValues childDepth parentType runtimeType
+            identity fields
+            (by
+              intro hincludes
+              exact hchildren childDepth runtimeType identity
+                (Nat.lt_succ_self childDepth) hincludes)
       | list values =>
           simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
             GraphQL.Execution.completeValue, ResponseValueResultAlignedEquivalent,
@@ -453,12 +452,11 @@ theorem completeValue_group_aligned_of_guarded_merged_child_states
   induction fieldType with
   | named typeName =>
       intro depth value hchildren
-      exact
-        completeValue_named_group_aligned_of_guarded_merged_child_states
-          schema resolvers variableValues fields depth typeName value
-          (by
-            intro childDepth runtimeType identity hlt hincludes
-            exact hchildren childDepth runtimeType identity hlt hincludes)
+      exact completeValue_named_group_aligned_of_guarded_merged_child_states
+        schema resolvers variableValues fields depth typeName value
+        (by
+          intro childDepth runtimeType identity hlt hincludes
+          exact hchildren childDepth runtimeType identity hlt hincludes)
   | list inner ih =>
       intro depth value hchildren
       cases depth with
@@ -519,14 +517,12 @@ theorem completeValue_group_aligned_of_guarded_merged_child_states
                         (GraphQL.Execution.completeValueList schema resolvers
                           variableValues childDepth inner fields tail) :=
                       ihTail
-                    simpa [completeValueList,
-                      GraphQL.Execution.completeValueList,
-                      GraphQL.Execution.Result.combine] using
-                      ListResponseResultAlignedEquivalent.combine_cons
-                        hhead htail
+                    simpa [completeValueList, GraphQL.Execution.completeValueList,
+                      GraphQL.Execution.Result.combine]
+                      using ListResponseResultAlignedEquivalent.combine_cons hhead htail
               simpa [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
-                GraphQL.Execution.completeValue, reuseOrCreateList?] using
-                ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
+                GraphQL.Execution.completeValue, reuseOrCreateList?]
+                using ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
   | nonNull inner ih =>
       intro depth value hchildren
       cases depth with
@@ -547,8 +543,8 @@ theorem completeValue_group_aligned_of_guarded_merged_child_states
                 intro childDepth runtimeType identity hlt hincludes
                 exact hchildren childDepth runtimeType identity hlt
                   (by simpa [TypeRef.namedType] using hincludes))
-          simpa [completeValue, GraphQL.Execution.completeValue] using
-            ResponseValueResultAlignedEquivalent.nonNullCompletion_aligned hinner
+          simpa [completeValue, GraphQL.Execution.completeValue]
+            using ResponseValueResultAlignedEquivalent.nonNullCompletion_aligned hinner
 
 theorem completeValue_group_aligned_of_contained_child_states
     {ObjectIdentity : Type}
@@ -597,15 +593,14 @@ theorem completeValue_group_aligned_of_contained_child_states
                   GraphQL.Execution.completeValue, hcomposite,
                   ResponseValueResultAlignedEquivalent, ErrorPresenceEquivalent]
           | object runtimeType identity =>
-              exact
-                completeValue_object_group_aligned_of_guarded_merged_child_state
-                  schema resolvers variableValues childDepth typeName
-                  runtimeType identity fields
-                  (by
-                    intro hincludes
-                    exact hchildren childDepth runtimeType identity
-                      (Nat.lt_succ_self childDepth)
-                      ValueContainsObject.here hincludes)
+              exact completeValue_object_group_aligned_of_guarded_merged_child_state
+                schema resolvers variableValues childDepth typeName
+                runtimeType identity fields
+                (by
+                  intro hincludes
+                  exact hchildren childDepth runtimeType identity
+                    (Nat.lt_succ_self childDepth)
+                    ValueContainsObject.here hincludes)
           | list values =>
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
                 GraphQL.Execution.completeValue,
@@ -677,17 +672,14 @@ theorem completeValue_group_aligned_of_contained_child_states
                       | list hmem hinner =>
                           exact hchildren grandChildDepth runtimeType identity
                             hlt
-                            (ValueContainsObject.list (by simp [hmem])
-                              hinner)
+                            (ValueContainsObject.list (by simp [hmem]) hinner)
                             (by simpa [TypeRef.namedType] using hincludes)
-                    simpa [completeValueList,
-                      GraphQL.Execution.completeValueList,
-                      GraphQL.Execution.Result.combine] using
-                      ListResponseResultAlignedEquivalent.combine_cons
-                        hhead htail
+                    simpa [completeValueList, GraphQL.Execution.completeValueList,
+                      GraphQL.Execution.Result.combine]
+                      using ListResponseResultAlignedEquivalent.combine_cons hhead htail
               simpa [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
-                GraphQL.Execution.completeValue, reuseOrCreateList?] using
-                ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
+                GraphQL.Execution.completeValue, reuseOrCreateList?]
+                using ListResponseResultAlignedEquivalent.catchBubbleAsNull hlist
   | nonNull inner ih =>
       intro depth value hchildren
       cases depth with
@@ -708,8 +700,8 @@ theorem completeValue_group_aligned_of_contained_child_states
                 intro childDepth runtimeType identity hlt hcontains hincludes
                 exact hchildren childDepth runtimeType identity hlt hcontains
                   (by simpa [TypeRef.namedType] using hincludes))
-          simpa [completeValue, GraphQL.Execution.completeValue] using
-            ResponseValueResultAlignedEquivalent.nonNullCompletion_aligned hinner
+          simpa [completeValue, GraphQL.Execution.completeValue]
+            using ResponseValueResultAlignedEquivalent.nonNullCompletion_aligned hinner
 
 theorem completeValueList_object_group_eq_spec_of_merged_child_states
     {ObjectIdentity : Type}
@@ -1019,14 +1011,13 @@ theorem completeValue_group_eq_spec_of_guarded_merged_child_states
           simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | object runtimeType identity =>
-          exact
-            completeValue_object_group_eq_spec_of_guarded_merged_child_state
-              schema resolvers variableValues childDepth parentType runtimeType
-              identity fields
-              (by
-                intro hincludes
-                exact hchildren childDepth runtimeType identity
-                  (Nat.lt_succ_self childDepth) hincludes)
+          exact completeValue_object_group_eq_spec_of_guarded_merged_child_state
+            schema resolvers variableValues childDepth parentType runtimeType
+            identity fields
+            (by
+              intro hincludes
+              exact hchildren childDepth runtimeType identity
+                (Nat.lt_succ_self childDepth) hincludes)
       | list values =>
           simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
             GraphQL.Execution.completeValue]
@@ -1073,15 +1064,14 @@ theorem completeValue_group_eq_spec_of_contained_child_states
           simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
             GraphQL.Execution.completeValue]
       | object runtimeType identity =>
-          exact
-            completeValue_object_group_eq_spec_of_guarded_merged_child_state
-              schema resolvers variableValues childDepth parentType runtimeType
-              identity fields
-              (by
-                intro hincludes
-                exact hchildren childDepth runtimeType identity
-                  (Nat.lt_succ_self childDepth)
-                  ValueContainsObject.here hincludes)
+          exact completeValue_object_group_eq_spec_of_guarded_merged_child_state
+            schema resolvers variableValues childDepth parentType runtimeType
+            identity fields
+            (by
+              intro hincludes
+              exact hchildren childDepth runtimeType identity
+                (Nat.lt_succ_self childDepth)
+                ValueContainsObject.here hincludes)
       | list values =>
           simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
             GraphQL.Execution.completeValue]
@@ -1130,15 +1120,15 @@ theorem completeValue_single_field_eq_spec_of_guarded_child_states
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
-              simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-                completeValue_object_group_eq_spec_of_guarded_merged_child_state
+              simpa [GraphQL.Execution.mergedFieldSelectionSet]
+                using completeValue_object_group_eq_spec_of_guarded_merged_child_state
                   schema
                   resolvers variableValues childDepth typeName runtimeType
                   identity [field]
                   (by
                     intro hincludes
-                    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-                      hchildren childDepth runtimeType identity
+                    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+                      using hchildren childDepth runtimeType identity
                         (Nat.lt_succ_self childDepth) hincludes)
           | list values =>
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
@@ -1258,15 +1248,15 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
               simp [GraphQL.Algorithms.ExecutionUngroupedUncached.Eager.completeValue,
                 GraphQL.Execution.completeValue]
           | object runtimeType identity =>
-              simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-                completeValue_object_group_eq_spec_of_guarded_merged_child_state
+              simpa [GraphQL.Execution.mergedFieldSelectionSet]
+                using completeValue_object_group_eq_spec_of_guarded_merged_child_state
                   schema
                   resolvers variableValues childDepth typeName runtimeType
                   identity [field]
                   (by
                     intro hincludes
-                    simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-                      hchildren childDepth runtimeType identity
+                    simpa [GraphQL.Execution.mergedFieldSelectionSet]
+                      using hchildren childDepth runtimeType identity
                         (Nat.lt_succ_self childDepth)
                         ValueContainsObject.here hincludes)
           | list values =>
@@ -1326,8 +1316,7 @@ theorem completeValue_single_field_eq_spec_of_contained_child_states
                             runtimeType identity := by
                         cases hcontains with
                         | list hmem hvalue =>
-                            exact ValueContainsObject.list (by simp [hmem])
-                              hvalue
+                            exact ValueContainsObject.list (by simp [hmem]) hvalue
                       exact hchildren grandChildDepth runtimeType identity hlt
                         hcontainsCons hincludes
                     simp [completeValueList, GraphQL.Execution.completeValueList, hhead, htail, GraphQL.Execution.Result.combine]
@@ -1426,9 +1415,8 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_child_states
                 exact hchildren childDepth runtimeType identity hlt)
           simpa [executeField, GraphQL.Execution.executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
-            GraphQL.Execution.singleFieldResult] using
-            congrArg (GraphQL.Execution.singleFieldResult responseName)
-              hcomplete
+            GraphQL.Execution.singleFieldResult]
+            using congrArg (GraphQL.Execution.singleFieldResult responseName) hcomplete
 
 theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_states
     {ObjectIdentity : Type}
@@ -1506,9 +1494,8 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_guarded_child_state
                   (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
           simpa [executeField, GraphQL.Execution.executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
-            GraphQL.Execution.singleFieldResult] using
-            congrArg (GraphQL.Execution.singleFieldResult responseName)
-              hcomplete
+            GraphQL.Execution.singleFieldResult]
+            using congrArg (GraphQL.Execution.singleFieldResult responseName) hcomplete
 
 theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_states
     {ObjectIdentity : Type}
@@ -1587,9 +1574,8 @@ theorem executeRootSelectionSet_single_field_succ_eq_spec_of_contained_child_sta
                   (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
           simpa [executeField, GraphQL.Execution.executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
-            GraphQL.Execution.singleFieldResult] using
-            congrArg (GraphQL.Execution.singleFieldResult responseName)
-              hcomplete
+            GraphQL.Execution.singleFieldResult]
+            using congrArg (GraphQL.Execution.singleFieldResult responseName) hcomplete
 
 theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_states
     {ObjectIdentity : Type}
@@ -1643,7 +1629,7 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
           cases fieldDefinition with
           | mk definitionName outputType definitionArguments =>
               cases outputType <;>
-                simp [executeField, 
+                simp [executeField,
                   executableField, reusablePreviousValue?_none, hlookup,
                   hresolveRuntime, handleFieldError,
                   GraphQL.Execution.singleFieldResult,
@@ -1665,17 +1651,15 @@ theorem executeRootSelectionSet_single_field_succ_aligned_of_contained_child_sta
                 fieldDefinition.outputType depth resolvedValue
                 (by
                   intro childDepth runtimeType identity hlt hcontains hincludes
-                  simpa [GraphQL.Execution.mergedFieldSelectionSet,
-                    executableField] using
-                    hchildren childDepth runtimeType identity hlt hcontains
-                      (by simpa [Schema.fieldReturnType?, hlookup] using
-                        hincludes))
+                  simpa [GraphQL.Execution.mergedFieldSelectionSet, executableField]
+                    using hchildren childDepth runtimeType identity hlt hcontains
+                      (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
             simpa [GraphQL.Execution.mergedFieldSelectionSet, executableField]
               using hgroup
           simpa [executeField, GraphQL.Execution.executeField, executableField,
             reusablePreviousValue?_none, hlookup, hresolveRuntime,
-            GraphQL.Execution.singleFieldResult] using
-            ResponseValueResultAlignedEquivalent.singleFieldResult responseName
+            GraphQL.Execution.singleFieldResult]
+            using ResponseValueResultAlignedEquivalent.singleFieldResult responseName
               hcomplete
 
 end Eager

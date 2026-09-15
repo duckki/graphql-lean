@@ -214,8 +214,8 @@ theorem conditionFieldGroupsResponseDepth_collectFieldGroups (fields : List Name
     : conditionFieldGroupsResponseDepth (collectFieldGroups fields)
       ≤ selectionSetResponseDepth (fields.map NamedField.toSelection) := by
   unfold collectFieldGroups
-  simpa [conditionFieldGroupsResponseDepth] using
-    conditionFieldGroupsResponseDepth_fold_addFieldToGroups fields []
+  simpa [conditionFieldGroupsResponseDepth]
+    using conditionFieldGroupsResponseDepth_fold_addFieldToGroups fields []
 
 mutual
   private theorem tree_modifyAtCondition?_responseDepth_le
@@ -414,8 +414,8 @@ private theorem tree_insertField_responseDepth_le
                     (conditionBranchesResponseDepth
                       (branchesForPath simplePath [field]))
                   ≤ selectionResponseDepth field.toSelection := by
-              simpa [selectionSetResponseDepth] using
-                conditionBranchesResponseDepth_branchesForPath simplePath [field]
+              simpa [selectionSetResponseDepth]
+                using conditionBranchesResponseDepth_branchesForPath simplePath [field]
             exact Nat.le_trans
               (tree_appendAtCondition?_responseDepth_le tree retainedPrefix.1 []
                 (branchesForPath simplePath [field]) modifiedTree hmodifiedTree)
@@ -466,8 +466,8 @@ private theorem conditionTreeResponseDepth_insertSelections
             · split
               · exact Nat.le_max_left _ _
               · simpa [storedField, sourceField, NamedField.toSelection,
-                  Field.toSelection, selectionResponseDepth] using
-                  tree_insertField_responseDepth_le schema
+                  Field.toSelection, selectionResponseDepth]
+                  using tree_insertField_responseDepth_le schema
                     inheritedBooleanCondition tree (branches ++ ‹_›) ‹_› storedField
           have hrest :=
             conditionTreeResponseDepth_insertSelections schema inheritedBooleanCondition

@@ -2176,8 +2176,8 @@ theorem
         targetParent leftField rightField parentType sourceRuntimeType
         leftArguments rightArguments leftRuntime rightRuntime tag
         selectionSet hchildren
-  simpa [resolvers] using
-    ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
+  simpa [resolvers]
+    using ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
       resolvers variableValues (fuel + 1) parentType
       (projectionTargetResolverValue
         (.object sourceRuntimeType
@@ -2305,25 +2305,23 @@ theorem executeField_fieldPairRuntimeProbe_left_root_objectProbe_response
     Execution.coercedArgumentsForField_eq_of_success schema variableValues
       targetParent leftField arguments fieldDefinition _coercedArguments
       hlookup hcoercionResult
-  have hresolve :
-      Execution.coerceAndResolveFieldValue schema
-        (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime)
-        variableValues fieldDefinition targetParent leftField arguments
-        (.object targetParent none)
-      =
-      some
-        (objectProbeResolverValueWithRuntime leftRuntime
-          (some FieldPairProbeTag.left) fieldDefinition.outputType) :=
-    by
-      simpa [Execution.resolveFieldValue, hcoercionResult,
-        Execution.coercedArgumentsForField, hlookup] using
-        fieldPairRuntimeProbeResolvers_left_root schema childRootSelectionSet
-          targetParent leftField rightField leftArguments rightArguments
-          (Execution.coercedArgumentsForField schema variableValues targetParent
-            leftField arguments)
-          leftRuntime rightRuntime fieldDefinition harguments hlookup
+  have hresolve
+      : Execution.coerceAndResolveFieldValue schema
+          (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
+            targetParent leftField rightField leftArguments rightArguments
+            leftRuntime rightRuntime)
+          variableValues fieldDefinition targetParent leftField arguments
+          (.object targetParent none)
+        = some
+            (objectProbeResolverValueWithRuntime leftRuntime
+              (some FieldPairProbeTag.left) fieldDefinition.outputType) := by
+    simpa [Execution.resolveFieldValue, hcoercionResult,
+      Execution.coercedArgumentsForField, hlookup]
+      using fieldPairRuntimeProbeResolvers_left_root schema childRootSelectionSet
+        targetParent leftField rightField leftArguments rightArguments
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          leftField arguments)
+        leftRuntime rightRuntime fieldDefinition harguments hlookup
   exact
     executeField_objectProbeWithRuntime_response schema
       (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
@@ -2383,26 +2381,24 @@ theorem executeField_fieldPairRuntimeProbe_right_root_objectProbe_response_of_no
   rcases
       Execution.ArgumentCoercionResult.exists_success_of_isSuccess hcoercion with
     ⟨_coercedArguments, hcoercionResult⟩
-  have hresolve :
-      Execution.coerceAndResolveFieldValue schema
-        (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
-          targetParent leftField rightField leftArguments rightArguments
-          leftRuntime rightRuntime)
-        variableValues fieldDefinition targetParent rightField arguments
-        (.object targetParent none)
-      =
-      some
-        (objectProbeResolverValueWithRuntime rightRuntime
-          (some FieldPairProbeTag.right) fieldDefinition.outputType) :=
-    by
-      simpa [Execution.resolveFieldValue, hcoercionResult,
-        Execution.coercedArgumentsForField, hlookup] using
-        fieldPairRuntimeProbeResolvers_right_root_of_not_left schema
-          childRootSelectionSet targetParent leftField rightField leftArguments
-          rightArguments
-          (Execution.coercedArgumentsForField schema variableValues targetParent
-            rightField arguments)
-          leftRuntime rightRuntime fieldDefinition hnotLeft harguments hlookup
+  have hresolve
+      : Execution.coerceAndResolveFieldValue schema
+          (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
+            targetParent leftField rightField leftArguments rightArguments
+            leftRuntime rightRuntime)
+          variableValues fieldDefinition targetParent rightField arguments
+          (.object targetParent none)
+        = some
+            (objectProbeResolverValueWithRuntime rightRuntime
+              (some FieldPairProbeTag.right) fieldDefinition.outputType) := by
+    simpa [Execution.resolveFieldValue, hcoercionResult,
+      Execution.coercedArgumentsForField, hlookup]
+      using fieldPairRuntimeProbeResolvers_right_root_of_not_left schema
+        childRootSelectionSet targetParent leftField rightField leftArguments
+        rightArguments
+        (Execution.coercedArgumentsForField schema variableValues targetParent
+          rightField arguments)
+        leftRuntime rightRuntime fieldDefinition hnotLeft harguments hlookup
   exact
     executeField_objectProbeWithRuntime_response schema
       (fieldPairRuntimeProbeResolvers schema childRootSelectionSet
@@ -2543,8 +2539,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_response
       fieldDefinition leftRuntime
       (ProjectionResolverRef.target (some FieldPairProbeTag.left))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_not_left
     (schema : Schema) (rootSelectionSet childRootSelectionSet : List Selection)
@@ -2667,8 +2663,8 @@ theorem executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_
       fieldDefinition rightRuntime
       (ProjectionResolverRef.target (some FieldPairProbeTag.right))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_ok_of_child_object_response
@@ -2746,7 +2742,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   rw [
     executeField_fieldPairOrDeepSuccess_runtimeProbe_left_root_response
       schema rootSelectionSet childRootSelectionSet variableValues fuel
@@ -2834,7 +2831,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   rw [
     executeField_fieldPairOrDeepSuccess_runtimeProbe_right_root_response_of_not_left
       schema rootSelectionSet childRootSelectionSet variableValues fuel
@@ -3101,8 +3099,8 @@ theorem executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_response
       fieldDefinition leftRuntime
       (ProjectionResolverRef.target (some FieldPairProbeTag.left))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_response_of_not_left
@@ -3229,8 +3227,8 @@ theorem
       fieldDefinition rightRuntime
       (ProjectionResolverRef.target (some FieldPairProbeTag.right))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
     (schema : Schema)
@@ -3359,8 +3357,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
         (FieldPairPathLocalProbeRef.target FieldPairProbeTag.left
           leftInitialSelectionSet))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_of_not_left
     (schema : Schema)
@@ -3493,8 +3491,8 @@ theorem executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_o
         (FieldPairPathLocalProbeRef.target FieldPairProbeTag.right
           rightInitialSelectionSet))
       hlookup hresolve hinclude
-  simpa [base, resolvers, projectionTargetResolverValue,
-    projectionResolverValue] using hfield
+  simpa [base, resolvers, projectionTargetResolverValue, projectionResolverValue]
+    using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_ok_of_child_object_response_fuel_ge
@@ -3580,7 +3578,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_left_root_response
       schema rootSelectionSet leftInitialSelectionSet
@@ -3595,8 +3594,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_ok_of_child_object_response_fuel_ge
@@ -3686,7 +3684,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_pathLocalProbe_right_root_response_of_not_left
       schema rootSelectionSet leftInitialSelectionSet
@@ -3701,8 +3700,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_ok_of_child_object_response_fuel_ge
@@ -3784,7 +3782,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_left_root_response
       schema rootSelectionSet leftChildRootSelectionSet
@@ -3799,8 +3798,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem
     executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_ok_of_child_object_response_fuel_ge
@@ -3886,7 +3884,8 @@ theorem
          errors := childErrors } :
         Execution.Response) := by
     simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-      Execution.executeRootSelectionSet] using hchildResponse
+      Execution.executeRootSelectionSet]
+      using hchildResponse
   have hfield :=
     executeField_fieldPairOrDeepSuccess_sideRuntimeProbe_right_root_response_of_not_left
       schema rootSelectionSet leftChildRootSelectionSet
@@ -3901,8 +3900,7 @@ theorem
         =
       parentFuel + 1 := by
     omega
-  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq]
-    using hfield
+  simpa [hchildRaw, hwrapped, Execution.singleFieldResult, hfuelEq] using hfield
 
 theorem selectionSetFieldsExecuteOk_fieldPairOrDeepSuccess_pathLocalProbe_of_field_cases
     (schema : Schema)
@@ -5023,9 +5021,10 @@ theorem
       schema childRootSelectionSet targetParent leftField rightField
       leftArguments rightArguments leftRuntime rightRuntime variableValues
       fuel runtimeType runtimeType FieldPairProbeTag.right selectionSet
-  exact hraw (by
-    simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
-      using hsemantic)
+  exact hraw
+    (by
+      simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
+        using hsemantic)
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_runtimeProbe_taggedPair
@@ -5099,9 +5098,10 @@ theorem
       schema childRootSelectionSet targetParent leftField rightField
       leftArguments rightArguments leftRuntime rightRuntime variableValues
       rightFuel rightParentType rightRuntime FieldPairProbeTag.right right
-  exact hraw (by
-    simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
-      using hsemantic)
+  exact hraw
+    (by
+      simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged]
+        using hsemantic)
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_sideRuntimeProbe_taggedPair
@@ -5179,9 +5179,11 @@ theorem
       leftField rightField leftArguments rightArguments leftRuntime
       rightRuntime variableValues rightFuel rightParentType rightRuntime
       FieldPairProbeTag.right right
-  exact hraw (by
-    simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged,
-      fieldPairSideRuntimeProbeRoot] using hsemantic)
+  exact hraw
+    (by
+      simpa [hleftProjection, hrightProjection, hleftTagged, hrightTagged,
+        fieldPairSideRuntimeProbeRoot]
+        using hsemantic)
 
 end GroundTypeNormalization
 

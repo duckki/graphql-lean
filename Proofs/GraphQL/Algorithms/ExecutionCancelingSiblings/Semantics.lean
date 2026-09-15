@@ -262,10 +262,9 @@ private theorem fuelImplementationsAligned
               GraphQL.Execution.completeValueList, StrongResultAligned,
               ErrorPresenceEquivalent]
         | cons value values ih =>
-            simpa [completeValueList,
-              GraphQL.Execution.completeValueList] using
-                StrongResultAligned.combine List.cons
-                  (hcomplete itemType fields value) ih
+            simpa [completeValueList, GraphQL.Execution.completeValueList]
+              using StrongResultAligned.combine List.cons
+                (hcomplete itemType fields value) ih
       exact {
         completeValue := hcomplete
         completeValueList := hlist
@@ -304,14 +303,13 @@ private theorem fuelImplementationsAligned
             | object runtimeType ref =>
                 by_cases hinclude :
                     schema.typeIncludesObjectBool typeName runtimeType = true
-                · simpa [completeValue, GraphQL.Execution.completeValue,
-                    hinclude] using
-                      StrongResultAligned.catchBubbleAsNull ResponseValue.object
-                        (ih.executeCollectedFields
-                          runtimeType
-                          (ResolverValue.object runtimeType ref)
-                          (collectSubfields schema variableValues runtimeType
-                            (ResolverValue.object runtimeType ref) fields))
+                · simpa [completeValue, GraphQL.Execution.completeValue, hinclude]
+                    using StrongResultAligned.catchBubbleAsNull ResponseValue.object
+                      (ih.executeCollectedFields
+                        runtimeType
+                        (ResolverValue.object runtimeType ref)
+                        (collectSubfields schema variableValues runtimeType
+                          (ResolverValue.object runtimeType ref) fields))
                 · have hfalse :
                     schema.typeIncludesObjectBool typeName runtimeType = false := by
                     cases hmatch :
@@ -336,13 +334,13 @@ private theorem fuelImplementationsAligned
                 simp [completeValue, GraphQL.Execution.completeValue,
                   StrongResultAligned]
             | list values =>
-                simpa [completeValue, GraphQL.Execution.completeValue] using
-                  StrongResultAligned.catchBubbleAsNull ResponseValue.list
+                simpa [completeValue, GraphQL.Execution.completeValue]
+                  using StrongResultAligned.catchBubbleAsNull ResponseValue.list
                     (ih.completeValueList inner fields values)
         | nonNull inner innerIh =>
             intro fields value
-            simpa [completeValue, GraphQL.Execution.completeValue] using
-              StrongResultAligned.nonNullCompletion (innerIh fields value)
+            simpa [completeValue, GraphQL.Execution.completeValue]
+              using StrongResultAligned.nonNullCompletion (innerIh fields value)
       have hfield :
           ∀ parentType source responseName fields,
             StrongResultAligned
@@ -373,8 +371,8 @@ private theorem fuelImplementationsAligned
                         simp [handleFieldError, StrongResultAligned,
                           ErrorPresenceEquivalent]
                     simpa [executeField, GraphQL.Execution.executeField,
-                      GraphQL.Execution.resolveFieldValue, hlookup, hcoerce] using
-                        StrongResultAligned.singleFieldResult responseName hhandle
+                      GraphQL.Execution.resolveFieldValue, hlookup, hcoerce]
+                      using StrongResultAligned.singleFieldResult responseName hhandle
                 | success coercedArguments =>
                     cases hresolve
                           : resolvers.resolve parentType field.fieldName
@@ -388,16 +386,14 @@ private theorem fuelImplementationsAligned
                             simp [handleFieldError, StrongResultAligned,
                               ErrorPresenceEquivalent]
                         simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce,
-                          hresolve] using
-                            StrongResultAligned.singleFieldResult responseName hhandle
+                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                          using StrongResultAligned.singleFieldResult responseName hhandle
                     | some resolved =>
                         simpa [executeField, GraphQL.Execution.executeField,
-                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce,
-                          hresolve] using
-                            StrongResultAligned.singleFieldResult responseName
-                              (ih.completeValue fieldDefinition.outputType
-                                (field :: fields) resolved)
+                          GraphQL.Execution.resolveFieldValue, hlookup, hcoerce, hresolve]
+                          using StrongResultAligned.singleFieldResult responseName
+                            (ih.completeValue fieldDefinition.outputType
+                              (field :: fields) resolved)
       have hcollected :
           ∀ parentType source groups,
             StrongResultAligned
@@ -459,10 +455,9 @@ private theorem fuelImplementationsAligned
               GraphQL.Execution.completeValueList, StrongResultAligned,
               ErrorPresenceEquivalent]
         | cons value values ih =>
-            simpa [completeValueList,
-              GraphQL.Execution.completeValueList] using
-                StrongResultAligned.combine List.cons
-                  (hcomplete itemType fields value) ih
+            simpa [completeValueList, GraphQL.Execution.completeValueList]
+              using StrongResultAligned.combine List.cons
+                (hcomplete itemType fields value) ih
       exact {
         completeValue := hcomplete
         completeValueList := hlist
@@ -495,11 +490,10 @@ private theorem executeRootSelectionSet_canceling_spec_aligned
           source selectionSet)
         (GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
           fuel parentType source selectionSet) := by
-  simpa [executeRootSelectionSet,
-    GraphQL.Execution.executeRootSelectionSet] using
-      (fuelImplementationsAligned schema resolvers variableValues fuel)
-        |>.executeCollectedFields parentType source
-          (collectFields schema variableValues parentType source selectionSet)
+  simpa [executeRootSelectionSet, GraphQL.Execution.executeRootSelectionSet]
+    using (fuelImplementationsAligned schema resolvers variableValues fuel)
+    |>.executeCollectedFields parentType source
+        (collectFields schema variableValues parentType source selectionSet)
 
 theorem executeQueryWithFuel_canceling_spec_responseEquivalent
     {ObjectRef : Type}

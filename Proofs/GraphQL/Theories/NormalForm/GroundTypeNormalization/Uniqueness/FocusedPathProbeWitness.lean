@@ -459,9 +459,8 @@ theorem
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
-  have hsize :
-      SelectionSet.size selectionSet < SelectionSet.size selectionSet + 1 :=
-    by omega
+  have hsize : SelectionSet.size selectionSet < SelectionSet.size selectionSet + 1 := by
+    omega
   have hleftReady :
       SelectedPathSelectionSetFieldChildrenReady schema rootSelectionSet
         leftInitialSelectionSet rightInitialSelectionSet currentSelectionSet
@@ -595,8 +594,7 @@ theorem
     ?_
   ⟩
   intro hsemantic
-  exact hnotData (by
-    simpa [hleftResponse, hrightResponse] using hsemantic)
+  exact hnotData (by simpa [hleftResponse, hrightResponse] using hsemantic)
 
 theorem
     selectedPathTaggedSelectionSetResponseDiffWitness_of_object_leaf_field_valid_normal_runtimeSpine_pair_support_context_fuel_ge
@@ -649,9 +647,8 @@ theorem
   have hinclude :
       schema.typeIncludesObjectBool parentType parentType = true :=
     typeIncludesObjectBool_self_of_objectTypeNameBool schema hobject
-  have hsize :
-      SelectionSet.size selectionSet < SelectionSet.size selectionSet + 1 :=
-    by omega
+  have hsize : SelectionSet.size selectionSet < SelectionSet.size selectionSet + 1 := by
+    omega
   have hleftReady :
       SelectedPathSelectionSetFieldChildrenReady schema rootSelectionSet
         leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
@@ -787,8 +784,7 @@ theorem
     ?_
   ⟩
   intro hsemantic
-  exact hnotData (by
-    simpa [hleftResponse, hrightResponse] using hsemantic)
+  exact hnotData (by simpa [hleftResponse, hrightResponse] using hsemantic)
 
 theorem
     selectedPathTaggedSelectionSetResponseDiffWitness_of_object_child_field_valid_normal_runtimeSpine_support_context_fuel_ge
@@ -1006,8 +1002,7 @@ theorem
     ?_
   ⟩
   intro hsemantic
-  exact hdataNot (by
-    simpa [hleftResponse, hrightResponse] using hsemantic)
+  exact hdataNot (by simpa [hleftResponse, hrightResponse] using hsemantic)
 
 theorem
     selectedPathTaggedSelectionSetResponseDiffWitness_of_abstract_inlineFragment_body_valid_normal_runtimeSpine_support_context_fuel_ge
@@ -3222,8 +3217,7 @@ theorem
     ⟨_hinclude, leftFields, leftErrors, rightFields, rightErrors,
       hleftResponse, hrightResponse, hnot⟩
   intro hsemantic
-  exact hnot (by
-    simpa [hleftResponse, hrightResponse] using hsemantic)
+  exact hnot (by simpa [hleftResponse, hrightResponse] using hsemantic)
 
 theorem
     not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_observableLeafAtRuntime
@@ -3301,16 +3295,16 @@ theorem
           fieldName leftArguments)
         leftTargetArguments := by
     simpa [Execution.coercedArgumentsForField, variableValues, hlookup,
-      hleftCoercionResult] using
-      Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments
+      hleftCoercionResult]
+      using Execution.CoercedArgument.argumentsEquivalent_refl leftTargetArguments
   have hrightTargetCoerced :
       Execution.CoercedArgument.argumentsEquivalent
         (Execution.coercedArgumentsForField schema variableValues parentType
           fieldName rightArguments)
         rightTargetArguments := by
     simpa [Execution.coercedArgumentsForField, variableValues, hlookup,
-      hrightCoercionResult] using
-      Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments
+      hrightCoercionResult]
+      using Execution.CoercedArgument.argumentsEquivalent_refl rightTargetArguments
   let childFuel :=
     selectionSetDeepProbeFuel schema childParentType childSelectionSet
   let parentFuel := childFuel + 1 + leafProbeFuel fieldDefinition.outputType
@@ -3360,8 +3354,7 @@ theorem
           childSelectionSet =
         ({ data := Execution.ResponseValue.object leftChildFields,
            errors := leftChildErrors } : Execution.Response) := by
-    simpa [rootSelectionSet, variableValues, hparentFuelChild] using
-      hleftChildResponseRaw
+    simpa [rootSelectionSet, variableValues, hparentFuelChild] using hleftChildResponseRaw
   have hrightChildResponse :
       Execution.executeSelectionSetAsResponse schema
           (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -3381,8 +3374,8 @@ theorem
           childSelectionSet =
         ({ data := Execution.ResponseValue.object rightChildFields,
            errors := rightChildErrors } : Execution.Response) := by
-    simpa [rootSelectionSet, variableValues, hparentFuelChild] using
-      hrightChildResponseRaw
+    simpa [rootSelectionSet, variableValues, hparentFuelChild]
+      using hrightChildResponseRaw
   have hleftFieldsOk :
       selectionSetFieldsExecuteOk schema
         (fieldPairOrDeepSuccessResolvers schema rootSelectionSet
@@ -3531,39 +3524,27 @@ theorem
           ⟨rfl,
             Or.inr
               ⟨rfl, hrightTargetCoerced⟩⟩)
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_ok
-      (schema := schema) (rootSelectionSet := rootSelectionSet)
-      (leftInitialSelectionSet := currentSelectionSet)
-      (rightInitialSelectionSet := currentSelectionSet)
-      (variableValues := variableValues) (parentFuel := parentFuel)
-      (parentType := parentType) (responseName := responseName)
-      (fieldName := fieldName) (leftArguments := leftArguments)
-      (rightArguments := rightArguments)
-      (leftTargetArguments := leftTargetArguments)
-      (rightTargetArguments := rightTargetArguments)
-      (leftRuntime := childRuntimeType)
-      (rightRuntime := childRuntimeType)
-      (left := [Selection.field responseName fieldName leftArguments []
-        childSelectionSet])
-      (right := [Selection.field responseName fieldName rightArguments []
-        childSelectionSet])
-      (leftDirectives := []) (rightDirectives := [])
-      (leftChildSelectionSet := childSelectionSet)
-      (rightChildSelectionSet := childSelectionSet)
-      (fieldDefinition := fieldDefinition)
-      hparentObject hleftNormal hrightNormal hleftFree hrightFree
-      (by simp) (by simp) hlookup
-      hleftCoercion hrightCoercion
-      (by
-        simpa [Execution.coercedArgumentsForField, hlookup] using
-          hleftTargetCoerced)
-      (by
-        simpa [Execution.coercedArgumentsForField, hlookup] using
-          hrightTargetCoerced)
-      hfieldInclude hfieldInclude hparentFuelLeaf htargetArgumentsDiff
-      hleftChildResponse hrightChildResponse
-      hchildNot hleftFieldsOk hrightFieldsOk
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_pathLocalProbe_root_arguments_child_response_diff_of_field_ok
+    (schema := schema) (rootSelectionSet := rootSelectionSet)
+    (leftInitialSelectionSet := currentSelectionSet)
+    (rightInitialSelectionSet := currentSelectionSet) (variableValues := variableValues)
+    (parentFuel := parentFuel) (parentType := parentType) (responseName := responseName)
+    (fieldName := fieldName) (leftArguments := leftArguments)
+    (rightArguments := rightArguments) (leftTargetArguments := leftTargetArguments)
+    (rightTargetArguments := rightTargetArguments) (leftRuntime := childRuntimeType)
+    (rightRuntime := childRuntimeType)
+    (left := [Selection.field responseName fieldName leftArguments [] childSelectionSet])
+    (right :=
+      [Selection.field responseName fieldName rightArguments [] childSelectionSet])
+    (leftDirectives := []) (rightDirectives := [])
+    (leftChildSelectionSet := childSelectionSet)
+    (rightChildSelectionSet := childSelectionSet) (fieldDefinition := fieldDefinition)
+    hparentObject hleftNormal hrightNormal hleftFree hrightFree (by simp) (by simp)
+    hlookup hleftCoercion hrightCoercion
+    (by simpa [Execution.coercedArgumentsForField, hlookup] using hleftTargetCoerced)
+    (by simpa [Execution.coercedArgumentsForField, hlookup] using hrightTargetCoerced)
+    hfieldInclude hfieldInclude hparentFuelLeaf htargetArgumentsDiff hleftChildResponse
+    hrightChildResponse hchildNot hleftFieldsOk hrightFieldsOk
 
 theorem
     not_selectionSetsDataEquivalent_of_pathLocalProbe_singleton_arguments_child_object_leaf

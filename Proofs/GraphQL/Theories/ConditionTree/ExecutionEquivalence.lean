@@ -293,10 +293,11 @@ theorem valueCompletionFuelBound_le_after_field
         ≤ depth * (schemaFuel + 1) := by
     rw [hmul]
     omega
-  exact Nat.le_trans hmiddle (by
-    unfold responseDepthFuelBound at hfuel
-    change depth * (schemaFuel + 1) + 1 ≤ completionFuel + 1 at hfuel
-    omega)
+  exact Nat.le_trans hmiddle
+    (by
+      unfold responseDepthFuelBound at hfuel
+      change depth * (schemaFuel + 1) + 1 ≤ completionFuel + 1 at hfuel
+      omega)
 
 theorem responseDepthFuelBound_le_of_value_named
     (schema : Schema) (depth fuel : Nat) (typeName : Name)
@@ -735,16 +736,16 @@ mutual
             cases hvalueEq : value with
             | null =>
                 subst value
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
             | scalar scalarValue =>
                 subst value
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
             | list values =>
                 subst value
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
             | object childRuntime childRef =>
                 subst value
                 cases hright : rightFields with
@@ -897,8 +898,7 @@ mutual
                           simp only [hinclude, if_true]
                           rw [executeSelectionSet.eq_1, hleftSelectionSet]
                           simpa [childBoundary, childGroups, leftSelectionSet,
-                            ofSelectionSet,
-                            rightSelectionSet,
+                            ofSelectionSet, rightSelectionSet,
                             NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet]
                             using hcaught
                         · have hfalse :
@@ -930,15 +930,15 @@ mutual
                 simpa [completeValue, Execution.completeValue] using hcaught
             | null =>
                 subst value
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
             | scalar value =>
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
             | object runtime ref =>
                 subst value
-                exact responseValueResultEquivalent_of_eq (by
-                  simp [completeValue, Execution.completeValue])
+                exact responseValueResultEquivalent_of_eq
+                  (by simp [completeValue, Execution.completeValue])
   termination_by (depth, 2, sizeOf fieldType + sizeOf value)
   decreasing_by
     all_goals
@@ -1037,8 +1037,8 @@ theorem execution_equivalent_of_sufficient_fuel
         collectFields_argumentsAndChildrenNodup schema coercedVariableValues
           (operation.rootType schema) (.object runtimeType ref)
           operation.selectionSet hrootSelectionArgumentsNodup
-      let boundary : ExecutionBoundary (ObjectRef := ObjectRef) schema
-          coercedVariableValues :=
+      let boundary
+          : ExecutionBoundary (ObjectRef := ObjectRef) schema coercedVariableValues :=
         {
           extractionParentType := operation.rootType schema
           parentType := operation.rootType schema
@@ -1047,13 +1047,11 @@ theorem execution_equivalent_of_sufficient_fuel
           selectionSet := operation.selectionSet
           allSpecGroups := specGroups
           allSpecGroups_eq := rfl
-          extractionPossible := by
-            simpa [Schema.typeIncludesObjectBool] using hpossible
+          extractionPossible := by simpa [Schema.typeIncludesObjectBool] using hpossible
           parentObject :=
             NormalForm.CompleteNormalization.operation_root_object_of_valid
               hschema hoperation
-          parentRuntimeApplies := by
-            simpa [ScopedParentRuntimeApplies] using hpossible
+          parentRuntimeApplies := by simpa [ScopedParentRuntimeApplies] using hpossible
           semanticsReady :=
             NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
               hschema hoperation
@@ -1067,17 +1065,17 @@ theorem execution_equivalent_of_sufficient_fuel
             ((ofOperation schema operation).collectRuntimeFieldGroups
               coercedVariableValues runtimeType)
             specGroups := by
-        simpa [ofOperation, ofSelectionSet, specGroups] using
-          (extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
-            schema (operation.rootType schema) [] (List.Perm.refl _)
-            coercedVariableValues (operation.rootType schema) runtimeType ref rfl
-            (by simpa [Schema.typeIncludesObjectBool] using hpossible))
+        simpa [ofOperation, ofSelectionSet, specGroups]
+          using (extracted_runtimeGroups_permutationEquivalent_toPermutedSelectionSet
+                  schema (operation.rootType schema) [] (List.Perm.refl _)
+                  coercedVariableValues (operation.rootType schema) runtimeType ref rfl
+                  (by simpa [Schema.typeIncludesObjectBool] using hpossible))
       have hdepth : RuntimeGroupsResponseDepthBound specGroups
           (selectionSetResponseDepth operation.selectionSet) := by
-        simpa [specGroups] using
-          (collectFields_responseDepth_bound schema coercedVariableValues
-            (operation.rootType schema) (.object runtimeType ref)
-            operation.selectionSet)
+        simpa [specGroups]
+          using (collectFields_responseDepth_bound schema coercedVariableValues
+                  (operation.rootType schema) (.object runtimeType ref)
+                  operation.selectionSet)
       have hresult :=
         executeCollectedFields_equivalent schema resolvers coercedVariableValues
           hschema boundary (selectionSetResponseDepth operation.selectionSet)
@@ -1090,8 +1088,8 @@ theorem execution_equivalent_of_sufficient_fuel
       have hresponse := responseEquivalent_of_selectionSetResultEquivalent hresult
       simpa [executeQuery, Execution.executeQueryWithFuel, hroot,
         Execution.executeRootSelectionSet, executeSelectionSet.eq_1, ofOperation,
-        ofSelectionSet, coercedVariableValues,
-        specGroups, boundary] using hresponse
+        ofSelectionSet, coercedVariableValues, specGroups, boundary]
+        using hresponse
 
 theorem execution_equivalent (schema : Schema) (operation : Operation)
     : ExecutionEquivalent schema operation := by

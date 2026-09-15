@@ -141,8 +141,8 @@ theorem insertObjectFieldSorted_nodup
         intro hmem
         exact hnot (by simp [hmem])
       by_cases hle : field.1 <= head.1
-      · simpa [ResponseValue.insertObjectFieldSorted, hle] using
-          List.nodup_cons.mpr ⟨hnot, hnodup⟩
+      · simpa [ResponseValue.insertObjectFieldSorted, hle]
+          using List.nodup_cons.mpr ⟨hnot, hnodup⟩
       · have hinsertRestNodup :
             ((ResponseValue.insertObjectFieldSorted field rest).map
               Prod.fst).Nodup :=
@@ -250,28 +250,30 @@ theorem canonical_object_eq_mem_fst_iff
           (ResponseValue.sortObjectFieldsByName
             (ResponseValue.canonicalObjectFields left)).map Prod.fst := by
       simpa [mem_map_fst_sortObjectFieldsByName_iff,
-        mem_map_fst_canonicalObjectFields_iff] using hleft
+        mem_map_fst_canonicalObjectFields_iff]
+        using hleft
     have hrightCanonical :
         name ∈
           (ResponseValue.sortObjectFieldsByName
             (ResponseValue.canonicalObjectFields right)).map Prod.fst := by
       simpa [hfields] using hleftCanonical
-    simpa [mem_map_fst_sortObjectFieldsByName_iff,
-      mem_map_fst_canonicalObjectFields_iff] using hrightCanonical
+    simpa [mem_map_fst_sortObjectFieldsByName_iff, mem_map_fst_canonicalObjectFields_iff]
+      using hrightCanonical
   · intro hright
     have hrightCanonical :
         name ∈
           (ResponseValue.sortObjectFieldsByName
             (ResponseValue.canonicalObjectFields right)).map Prod.fst := by
       simpa [mem_map_fst_sortObjectFieldsByName_iff,
-        mem_map_fst_canonicalObjectFields_iff] using hright
+        mem_map_fst_canonicalObjectFields_iff]
+        using hright
     have hleftCanonical :
         name ∈
           (ResponseValue.sortObjectFieldsByName
             (ResponseValue.canonicalObjectFields left)).map Prod.fst := by
       simpa [hfields] using hrightCanonical
-    simpa [mem_map_fst_sortObjectFieldsByName_iff,
-      mem_map_fst_canonicalObjectFields_iff] using hleftCanonical
+    simpa [mem_map_fst_sortObjectFieldsByName_iff, mem_map_fst_canonicalObjectFields_iff]
+      using hleftCanonical
 
 theorem semanticEquivalent_object_mem_fst_iff
     {left right : List (Name × ResponseValue)} {name : Name}
@@ -296,8 +298,7 @@ theorem semanticEquivalent_object_field_canonical_eq
         =
       ResponseValue.sortObjectFieldsByName
           (ResponseValue.canonicalObjectFields right) := by
-    simpa [ResponseValue.semanticEquivalent, ResponseValue.canonical] using
-      hsemantic
+    simpa [ResponseValue.semanticEquivalent, ResponseValue.canonical] using hsemantic
   have hleftFind :
       (ResponseValue.sortObjectFieldsByName
           (ResponseValue.canonicalObjectFields left)).find?

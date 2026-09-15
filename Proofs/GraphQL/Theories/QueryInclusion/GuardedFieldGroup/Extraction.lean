@@ -212,11 +212,13 @@ theorem conditionForBranches?_booleanVariablesWithin
       | none => simp [hnext] at hresult
       | some next =>
           rw [hnext] at hresult
-          exact ih next (conditionForBranch?_booleanVariablesWithin schema inherited
-            variables start next branch hstart (hbranches branch (by simp)) hnext)
+          exact ih next
+            (conditionForBranch?_booleanVariablesWithin schema inherited
+              variables start next branch hstart (hbranches branch (by simp)) hnext)
             (by
               intro candidate hcandidate
-              exact hbranches candidate (by simp [hcandidate])) hresult
+              exact hbranches candidate (by simp [hcandidate]))
+            hresult
 
 theorem conditionForBranch?_possibleTypes_subset
     (schema : Schema) (inherited : List SelectionConditions.BooleanLiteral)

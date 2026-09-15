@@ -134,10 +134,11 @@ theorem valueCompletionFuelBound_le_after_field
         ≤ depth * (schemaFuel + 1) := by
     rw [hmul]
     omega
-  exact Nat.le_trans hmiddle (by
-    unfold responseDepthFuelBound at hfuel
-    change depth * (schemaFuel + 1) + 1 ≤ completionFuel + 1 at hfuel
-    omega)
+  exact Nat.le_trans hmiddle
+    (by
+      unfold responseDepthFuelBound at hfuel
+      change depth * (schemaFuel + 1) + 1 ≤ completionFuel + 1 at hfuel
+      omega)
 
 theorem responseDepthFuelBound_le_of_value_named
     (schema : Schema) (depth fuel : Nat) (typeName : Name)
@@ -166,12 +167,12 @@ mutual
     cases selection with
     | field responseName fieldName arguments directives selectionSet =>
         simp only [selectionResponseDepth, Selection.size]
-        simpa [Nat.add_comm] using
-          Nat.add_le_add_right (selectionSetResponseDepth_le_size selectionSet) 1
+        simpa [Nat.add_comm]
+          using Nat.add_le_add_right (selectionSetResponseDepth_le_size selectionSet) 1
     | inlineFragment typeCondition directives selectionSet =>
         simp only [selectionResponseDepth, Selection.size]
-        simpa [Nat.add_comm] using
-          Nat.le_succ_of_le (selectionSetResponseDepth_le_size selectionSet)
+        simpa [Nat.add_comm]
+          using Nat.le_succ_of_le (selectionSetResponseDepth_le_size selectionSet)
 
   theorem selectionSetResponseDepth_le_size (selectionSet : List Selection)
       : selectionSetResponseDepth selectionSet ≤ SelectionSet.size selectionSet := by

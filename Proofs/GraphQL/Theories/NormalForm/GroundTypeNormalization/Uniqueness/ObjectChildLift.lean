@@ -163,12 +163,13 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_left_root_response
       responseName targetParent targetField arguments childSelectionSet
       fieldDefinition runtimeType (some ref) hlookup
       (by
-        cases hcoercion : Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments with
+        cases hcoercion
+              : Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments arguments with
         | error => simp [hcoercion] at hcoerce
         | success coercedArguments =>
-            simpa [Execution.resolveFieldValue, hcoercion, parentBase] using
-              parentObjectProbeFieldResolvers_target base targetParent targetField
+            simpa [Execution.resolveFieldValue, hcoercion, parentBase]
+              using parentObjectProbeFieldResolvers_target base targetParent targetField
                 runtimeType ref fieldDefinition.outputType coercedArguments)
       hinclude
   simpa [parentBase, hchildResponse] using hparentField
@@ -288,12 +289,13 @@ theorem executeField_fieldPairOrDeepSuccess_parentObjectProbe_right_root_respons
       responseName targetParent targetField arguments childSelectionSet
       fieldDefinition runtimeType (some ref) hlookup
       (by
-        cases hcoercion : Execution.coerceArgumentValues schema variableValues
-            fieldDefinition.arguments arguments with
+        cases hcoercion
+              : Execution.coerceArgumentValues schema variableValues
+                  fieldDefinition.arguments arguments with
         | error => simp [hcoercion] at hcoerce
         | success coercedArguments =>
-            simpa [Execution.resolveFieldValue, hcoercion, parentBase] using
-              parentObjectProbeFieldResolvers_target base targetParent targetField
+            simpa [Execution.resolveFieldValue, hcoercion, parentBase]
+              using parentObjectProbeFieldResolvers_target base targetParent targetField
                 runtimeType ref fieldDefinition.outputType coercedArguments)
       hinclude
   simpa [parentBase, hchildResponse] using hparentField
@@ -801,34 +803,32 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_tail_ok
   rcases htail base variableValues fuel runtimeType ref hfieldInclude with
     ⟨leftTailFields, leftTailErrors, rightTailFields, rightTailErrors,
       hleftTail, hrightTail⟩
-  have hhead :
-      Execution.ResponseValue.semanticEquivalent
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }])).data
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }])).data :=
+  have hhead
+      : Execution.ResponseValue.semanticEquivalent
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := leftArguments,
+                selectionSet := leftChildSelectionSet
+              }])).data
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := rightArguments,
+                selectionSet := rightChildSelectionSet
+              }])).data :=
     target_head_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_tail_ok
       resolvers variableValues parentFuel targetParent parentSource
       responseName fieldName fieldName leftArguments rightArguments
       leftChildSelectionSet rightChildSelectionSet leftRest rightRest
       leftTailFields rightTailFields leftTailErrors rightTailErrors
       hparentSource hleftFree hrightFree hleftNormal hrightNormal hobject
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftTail)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightTail)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftTail)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightTail)
       hparentData
   have hleftField :
       Execution.executeField schema resolvers variableValues parentFuel targetParent
@@ -1590,40 +1590,35 @@ theorem responseData_semanticEquivalent_object_child_of_parent_split_context_ok
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
       rightSuffixFields, rightSuffixErrors, hleftPrefix, hrightPrefix,
       hleftSuffix, hrightSuffix⟩
-  have hhead :
-      Execution.ResponseValue.semanticEquivalent
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }])).data
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }])).data :=
+  have hhead
+      : Execution.ResponseValue.semanticEquivalent
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := leftArguments,
+                selectionSet := leftChildSelectionSet
+              }])).data
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := rightArguments,
+                selectionSet := rightChildSelectionSet
+              }])).data :=
     target_split_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_context_ok
-      resolvers variableValues parentFuel targetParent parentSource
-      responseName fieldName fieldName leftArguments rightArguments
-      leftChildSelectionSet rightChildSelectionSet leftPref rightPref
-      leftSuffix rightSuffix leftPrefixFields rightPrefixFields
+      resolvers variableValues parentFuel targetParent parentSource responseName fieldName
+      fieldName leftArguments rightArguments leftChildSelectionSet rightChildSelectionSet
+      leftPref rightPref leftSuffix rightSuffix leftPrefixFields rightPrefixFields
       leftSuffixFields rightSuffixFields leftPrefixErrors rightPrefixErrors
-      leftSuffixErrors rightSuffixErrors hparentSource hleftFree hrightFree
-      hleftNormal hrightNormal hobject
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftSuffix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightSuffix)
+      leftSuffixErrors rightSuffixErrors hparentSource hleftFree hrightFree hleftNormal
+      hrightNormal hobject
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftSuffix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightSuffix)
       hparentData
   have hleftField :
       Execution.executeField schema resolvers variableValues parentFuel targetParent
@@ -1882,24 +1877,24 @@ theorem
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
       rightSuffixFields, rightSuffixErrors, hleftPrefix, hrightPrefix,
       hleftSuffix, hrightSuffix⟩
-  have hhead :
-      Execution.ResponseValue.semanticEquivalent
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }])).data
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }])).data :=
+  have hhead
+      : Execution.ResponseValue.semanticEquivalent
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := leftArguments,
+                selectionSet := leftChildSelectionSet
+              }])).data
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := rightArguments,
+                selectionSet := rightChildSelectionSet
+              }])).data :=
     target_split_singleton_response_dataEquivalent_of_responseData_context_ok
       resolvers variableValues parentFuel targetParent parentSource
       responseName fieldName fieldName leftArguments rightArguments
@@ -1908,16 +1903,11 @@ theorem
       leftSuffixFields rightSuffixFields leftPrefixErrors rightPrefixErrors
       leftSuffixErrors rightSuffixErrors hparentSource hleftFree hrightFree
       hleftNormal hrightNormal hobject
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftSuffix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightSuffix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hparentData)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftSuffix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightSuffix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hparentData)
   have hleftField :
       Execution.executeField schema resolvers variableValues parentFuel targetParent
         parentSource responseName
@@ -2292,40 +2282,35 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_split_context_ok
       rightPrefixErrors, leftSuffixFields, leftSuffixErrors,
       rightSuffixFields, rightSuffixErrors, hleftPrefix, hrightPrefix,
       hleftSuffix, hrightSuffix⟩
-  have hhead :
-      Execution.ResponseValue.semanticEquivalent
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := leftArguments,
-              selectionSet := leftChildSelectionSet
-            }])).data
-        (Execution.selectionSetResultToResponse
-          (Execution.executeField schema resolvers variableValues parentFuel targetParent
-            parentSource responseName
-            [{
-              fieldName := fieldName,
-              arguments := rightArguments,
-              selectionSet := rightChildSelectionSet
-            }])).data :=
+  have hhead
+      : Execution.ResponseValue.semanticEquivalent
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := leftArguments,
+                selectionSet := leftChildSelectionSet
+              }])).data
+          (Execution.selectionSetResultToResponse
+            (Execution.executeField schema resolvers variableValues parentFuel
+              targetParent parentSource responseName
+              [{
+                fieldName := fieldName,
+                arguments := rightArguments,
+                selectionSet := rightChildSelectionSet
+              }])).data :=
     target_split_singleton_response_dataEquivalent_of_selectionSetsDataEquivalent_context_ok
-      resolvers variableValues parentFuel targetParent parentSource
-      responseName fieldName fieldName leftArguments rightArguments
-      leftChildSelectionSet rightChildSelectionSet leftPref rightPref
-      leftSuffix rightSuffix leftPrefixFields rightPrefixFields
+      resolvers variableValues parentFuel targetParent parentSource responseName fieldName
+      fieldName leftArguments rightArguments leftChildSelectionSet rightChildSelectionSet
+      leftPref rightPref leftSuffix rightSuffix leftPrefixFields rightPrefixFields
       leftSuffixFields rightSuffixFields leftPrefixErrors rightPrefixErrors
-      leftSuffixErrors rightSuffixErrors hparentSource hleftFree hrightFree
-      hleftNormal hrightNormal hobject
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightPrefix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hleftSuffix)
-      (by simpa [resolvers, parentBase, parentFuel, parentSource] using
-        hrightSuffix)
+      leftSuffixErrors rightSuffixErrors hparentSource hleftFree hrightFree hleftNormal
+      hrightNormal hobject
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightPrefix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hleftSuffix)
+      (by simpa [resolvers, parentBase, parentFuel, parentSource] using hrightSuffix)
       hparentData
   have hleftField :
       Execution.executeField schema resolvers variableValues parentFuel targetParent
@@ -2441,23 +2426,22 @@ theorem selectionSetsDataEquivalent_object_child_of_parent_empty_tail
           leftChildSelectionSet rightChildSelectionSet := by
   intro harguments hcoercion hlookup hleftFree hrightFree hleftNormal hrightNormal
     hobject hruntimeObject hfieldInclude hparentData
-  exact
-    selectionSetsDataEquivalent_object_child_of_parent_tail_ok
-      rootSelectionSet targetParent responseName fieldName leftArguments
-      rightArguments leftChildSelectionSet rightChildSelectionSet [] []
-      fieldDefinition runtimeType harguments hcoercion hlookup hleftFree hrightFree
-      hleftNormal hrightNormal hobject hruntimeObject hfieldInclude
-      (by
-        intro ObjectRef base variableValues fuel childRuntimeType ref
-          hchildInclude
-        refine ⟨[], 0, [], 0, ?_, ?_⟩
-        · simp [Execution.executeSelectionSet,
-            Execution.executeRootSelectionSet, Execution.collectFields,
-            Execution.executeCollectedFields]
-        · simp [Execution.executeSelectionSet,
-            Execution.executeRootSelectionSet, Execution.collectFields,
-            Execution.executeCollectedFields])
-      hparentData
+  exact selectionSetsDataEquivalent_object_child_of_parent_tail_ok
+    rootSelectionSet targetParent responseName fieldName leftArguments
+    rightArguments leftChildSelectionSet rightChildSelectionSet [] []
+    fieldDefinition runtimeType harguments hcoercion hlookup hleftFree hrightFree
+    hleftNormal hrightNormal hobject hruntimeObject hfieldInclude
+    (by
+      intro ObjectRef base variableValues fuel childRuntimeType ref
+        hchildInclude
+      refine ⟨[], 0, [], 0, ?_, ?_⟩
+      · simp [Execution.executeSelectionSet,
+          Execution.executeRootSelectionSet, Execution.collectFields,
+          Execution.executeCollectedFields]
+      · simp [Execution.executeSelectionSet,
+          Execution.executeRootSelectionSet, Execution.collectFields,
+          Execution.executeCollectedFields])
+    hparentData
 
 end GroundTypeNormalization
 

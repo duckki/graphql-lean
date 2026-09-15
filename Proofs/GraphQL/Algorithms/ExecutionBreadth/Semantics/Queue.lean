@@ -263,11 +263,13 @@ theorem queue_combineScopeFieldResults_singleton_executeCollectedFields
         | cons group groups ih =>
             simp [List.singleton]
       rw [← hsingleton]
-      simpa [List.map_map, Function.comp_def] using
-        (queue_combineScopeFieldResults_singleton
-          (blocks := groups.map (fun group =>
-            GraphQL.Execution.executeField schema resolvers variableValues fuel
-              parentType source group.fst group.snd)))
+      simpa [List.map_map, Function.comp_def]
+        using (queue_combineScopeFieldResults_singleton
+                (blocks :=
+                  groups.map
+                    (fun group =>
+                      GraphQL.Execution.executeField schema resolvers variableValues fuel
+                        parentType source group.fst group.snd)))
     _ = [objectResultFromFields
           (GraphQL.Execution.executeCollectedFields schema resolvers variableValues
             fuel parentType source groups)] := by
@@ -422,8 +424,7 @@ theorem queue_executeRootSelectionSet_empty
     : executeRootSelectionSet schema resolvers variableValues fuel parentType source []
       = .ok ([], 0) := by
   simpa [executeRootSelectionSet, scheduleScope, collectFieldsByKey, drainLoop]
-    using
-      queue_completeExecutionTrace_singleton_empty_scope
+    using queue_completeExecutionTrace_singleton_empty_scope
 
 theorem queue_executeRootSelectionSet_trace
     (schema : Schema) (resolvers : ResolverMap ObjectRef)
@@ -565,10 +566,11 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
                 restStack.valueStack
             fieldStore := restStack.fieldStore } =
         (blocks.flatten, restStack) := by
-    simpa [GraphQL.Execution.resolveFieldValueByName, hlookup, blocks, restStack] using
-      slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResultsFlatten
-        (ObjectRef := ObjectRef) schema resolvers variableValues item.key
-        fieldDefinition item restStack hlookup rfl haligned hready
+    simpa [GraphQL.Execution.resolveFieldValueByName, hlookup, blocks, restStack]
+      using
+        slots_completeSlotList_buildFieldSlots_eq_expectedScheduleSegmentResultsFlatten
+          (ObjectRef := ObjectRef) schema resolvers variableValues item.key
+          fieldDefinition item restStack hlookup rfl haligned hready
   have hlengths :
       item.toScheduleItem.segmentLengths = blocks.map List.length := by
     simp [blocks, ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentLengths,
@@ -678,8 +680,7 @@ theorem queue_drainLoopMatchesExpectedSpec_cons_of_expected_step
     exact congrArg
       (fun stack => completeFrames executed.snd.reverse stack)
       htail'
-  simpa [executed, expectedChild, expectedScheduleQueueToQueue] using
-    hmid.trans hcomplete
+  simpa [executed, expectedChild, expectedScheduleQueueToQueue] using hmid.trans hcomplete
 
 theorem queue_drainLoopMatchesExpectedSpec_of_ready_and_stepSound
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1175,8 +1176,8 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope_empty
               (scheduleKeyForFields parentType group.fst group.snd).responseName) := by
       simp [entries]
     rw [hentriesMap, hmap]
-    simpa [groups, pairKeysNodup] using
-      collectFieldsByKey_pairKeysNodup schema variableValues parentType selectionSet
+    simpa [groups, pairKeysNodup]
+      using collectFieldsByKey_pairKeysNodup schema variableValues parentType selectionSet
   have hreplay :=
     queue_enqueueExpectedScheduleItems_foldl_enqueueExpectedSegment_nil_of_nodup
       (ObjectRef := ObjectRef) entries queue hnodup
@@ -1457,8 +1458,8 @@ theorem queue_enqueueExpectedScheduleItems_enqueueExpectedSegment
         have htail :=
           ih (enqueueExpectedSegments item.key item.segments queue)
             hrestNonempty hrestDistinct
-        simpa [enqueueExpectedSegment, enqueueExpectedScheduleItems,
-          hkeyFalse] using htail
+        simpa [enqueueExpectedSegment, enqueueExpectedScheduleItems, hkeyFalse]
+          using htail
 
 theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope
     (schema : Schema) (variableValues : VariableValues)
@@ -1544,8 +1545,8 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope
                   queue)
               q)
           hhead)
-  simpa [scheduleExpectedScope, groups, keyedGroups] using
-    hfold keyedGroups base hbaseNonempty hbaseDistinct
+  simpa [scheduleExpectedScope, groups, keyedGroups]
+    using hfold keyedGroups base hbaseNonempty hbaseDistinct
 
 theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScope_enqueue_empty
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2004,10 +2005,11 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
                     fuel parentType source
                     (scheduleKeyForFields parentType responseName (field :: rest)).responseName
                     (field :: rest))] := by
-            simpa [scheduleKeyForFields] using
+            simpa [scheduleKeyForFields]
+              using
               queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singleton
-                (ObjectRef := ObjectRef) schema resolvers variableValues
-                parentType responseName (field :: rest) source fuel hfields
+                  (ObjectRef := ObjectRef) schema resolvers variableValues
+                  parentType responseName (field :: rest) source fuel hfields
           have hhead' :
               expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                   (scheduleKeyForFields parentType responseName (field :: rest))
@@ -2127,8 +2129,8 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
               group.fst.responseName group.snd)] ))
   have hnonempty :
       collectedGroupsNonempty groups := by
-    simpa [groups] using
-      collectFieldsByKey_collectedGroupsNonempty schema variableValues
+    simpa [groups]
+      using collectFieldsByKey_collectedGroupsNonempty schema variableValues
         work.work.runtimeType work.work.selectionSet
   have hnamed :
       nameFieldValueBlocks specEntries =
@@ -2137,8 +2139,8 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
             [GraphQL.Execution.executeField schema resolvers variableValues
               work.specFuel group.fst.parentType work.work.source
               group.fst.responseName group.snd]) := by
-    simpa [specEntries, keyedGroups] using
-      queue_nameFieldValueBlocks_specEntries
+    simpa [specEntries, keyedGroups]
+      using queue_nameFieldValueBlocks_specEntries
         (ObjectRef := ObjectRef) schema resolvers variableValues
         work.work.source work.specFuel keyedGroups
   have hraw :
@@ -2160,9 +2162,9 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
   change combineScopeFieldResults 1 (nameFieldValueBlocks specEntries) =
     [expectedPendingChildWorkSpecResult schema resolvers variableValues work]
   rw [hnamed, hraw]
-  simpa [expectedPendingChildWorkSpecResult, groups] using
-    (queue_expectedPendingChildWorkSpecResult_eq_scopeSingleton
-      (ObjectRef := ObjectRef) schema resolvers variableValues work).symm
+  simpa [expectedPendingChildWorkSpecResult, groups]
+    using (queue_expectedPendingChildWorkSpecResult_eq_scopeSingleton
+            (ObjectRef := ObjectRef) schema resolvers variableValues work).symm
 
 theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2226,14 +2228,14 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
               specFuels := [work.specFuel] } ))
   have hnodupGroups :
       pairKeysNodup groups := by
-    simpa [groups] using
-      collectFieldsByKey_pairKeysNodup schema variableValues
+    simpa [groups]
+      using collectFieldsByKey_pairKeysNodup schema variableValues
         work.work.runtimeType work.work.selectionSet
   have hnodupEntries :
       pairKeysNodup
         (expectedEntries.map (fun entry => (entry.fst.responseName, entry.snd))) := by
-    simpa [groups, keyedGroups, expectedEntries] using
-      queue_expectedEntries_pairKeysNodup
+    simpa [groups, keyedGroups, expectedEntries]
+      using queue_expectedEntries_pairKeysNodup
         (ObjectRef := ObjectRef) schema resolvers variableValues
         work.work.runtimeType work.work.source work.specFuel groups hnodupGroups
   have hpop :
@@ -2242,8 +2244,8 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
             (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
             stack) =
         (expectedEntries, stack) := by
-    simpa [expectedEntries, List.map_map, Function.comp_def] using
-      queue_popFieldValuesByKeys_foldl_pushExpectedFieldSegments
+    simpa [expectedEntries, List.map_map, Function.comp_def]
+      using queue_popFieldValuesByKeys_foldl_pushExpectedFieldSegments
         expectedEntries stack hnodupEntries hstack
   have hcombine :
       combineScopeFieldResults 1 (nameFieldValueBlocks expectedEntries) =
@@ -2259,16 +2261,16 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
     have hentriesSpec : expectedEntries = specEntries := by
       have hnonempty :
           collectedGroupsNonempty groups := by
-        simpa [groups] using
-          collectFieldsByKey_collectedGroupsNonempty schema variableValues
+        simpa [groups]
+          using collectFieldsByKey_collectedGroupsNonempty schema variableValues
             work.work.runtimeType work.work.selectionSet
-      simpa [groups, keyedGroups, expectedEntries, specEntries] using
-        queue_keyedGroups_expectedEntries_eq_spec
+      simpa [groups, keyedGroups, expectedEntries, specEntries]
+        using queue_keyedGroups_expectedEntries_eq_spec
           (ObjectRef := ObjectRef) schema resolvers variableValues
           work.work.runtimeType work.work.source work.specFuel groups hnonempty
     rw [hentriesSpec]
-    simpa [groups, keyedGroups, specEntries] using
-      queue_combineScopeFieldResults_scheduleExpectedScope_singleton
+    simpa [groups, keyedGroups, specEntries]
+      using queue_combineScopeFieldResults_scheduleExpectedScope_singleton
         (ObjectRef := ObjectRef) schema resolvers variableValues work
   have hframe :=
     queue_completeScopeFrame_eq_of_pop
@@ -2386,18 +2388,24 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
         rfl
     | cons group groups0 ih =>
         intro stack0
-        simpa [pushExpectedFieldSegment] using
-          ih
-            { valueStack := stack0.valueStack
+        simpa [pushExpectedFieldSegment]
+          using ih
+            {
+              valueStack := stack0.valueStack
               fieldStore :=
                 pushExpectedFieldSegmentInStore group.fst
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                     group.fst
-                    { segment :=
-                        { sources := [work.work.source]
-                          childSelectionSet := childSelectionSetForFields group.snd }
-                      specFuels := [work.specFuel] })
-                  stack0.fieldStore }
+                    {
+                      segment :=
+                        {
+                          sources := [work.work.source]
+                          childSelectionSet := childSelectionSetForFields group.snd
+                        }
+                      specFuels := [work.specFuel]
+                    })
+                  stack0.fieldStore
+            }
   have hkeyedStore :
       (expectedScheduleQueueCompletionStack schema resolvers variableValues
         (scheduleExpectedScope schema variableValues
@@ -2434,11 +2442,11 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
                 stack)
             (expectedScheduleQueueCompletionStack schema resolvers variableValues
               queue)).fieldStore := by
-      simpa [scheduleExpectedScope, groups, keyedGroups] using
-        congrArg CompletionState.fieldStore
-        (queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
-          (ObjectRef := ObjectRef) schema resolvers variableValues
-          [work.work.source] [work.specFuel] keyedGroups queue)
+      simpa [scheduleExpectedScope, groups, keyedGroups]
+        using congrArg CompletionState.fieldStore
+          (queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
+            (ObjectRef := ObjectRef) schema resolvers variableValues
+            [work.work.source] [work.specFuel] keyedGroups queue)
     exact hfull.trans
       (hfieldStoreFoldIndependent keyedGroups
         (expectedScheduleQueueCompletionStack schema resolvers variableValues queue))
@@ -2487,18 +2495,24 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
           rfl
       | cons group groups0 ih =>
           intro stack0
-          simpa [pushExpectedFieldSegment] using
-            ih
-              { valueStack := stack0.valueStack
+          simpa [pushExpectedFieldSegment]
+            using ih
+              {
+                valueStack := stack0.valueStack
                 fieldStore :=
                   pushExpectedFieldSegmentInStore group.fst
-                    (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                      group.fst
-                      { segment :=
-                          { sources := [work.work.source]
-                            childSelectionSet := childSelectionSetForFields group.snd }
-                        specFuels := [work.specFuel] })
-                    stack0.fieldStore }
+                    (expectedScheduleSegmentSpecFieldResults schema resolvers
+                      variableValues group.fst
+                      {
+                        segment :=
+                          {
+                            sources := [work.work.source]
+                            childSelectionSet := childSelectionSetForFields group.snd
+                          }
+                        specFuels := [work.specFuel]
+                      })
+                    stack0.fieldStore
+              }
     have hnormalize := hnormalizeGeneral keyedGroups baseStack
     have hkeyedState :
         { valueStack := valueStack
@@ -2527,13 +2541,15 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
     exact hkeyedState.trans (hfold baseStack)
   have hbaseNonempty :
       completionStackFieldSegmentsNonempty baseStack := by
-    simpa [baseStack, completionStackFieldSegmentsNonempty] using
-      queue_expectedScheduleQueueCompletionStack_fieldSegmentsNonempty
+    simpa [baseStack, completionStackFieldSegmentsNonempty]
+      using queue_expectedScheduleQueueCompletionStack_fieldSegmentsNonempty
         (ObjectRef := ObjectRef) schema resolvers variableValues queue hqueue
   rw [hstate]
-  simpa [completeFrames, scheduleExpectedScope, groups, keyedGroups, expectedEntries, baseStack] using
-    queue_completeScopeFrame_scheduleExpectedScope_singleton
-      (ObjectRef := ObjectRef) schema resolvers variableValues work baseStack hbaseNonempty
+  simpa [completeFrames, scheduleExpectedScope, groups, keyedGroups, expectedEntries,
+    baseStack]
+    using queue_completeScopeFrame_scheduleExpectedScope_singleton
+      (ObjectRef := ObjectRef) schema resolvers variableValues work baseStack
+      hbaseNonempty
 
 theorem queue_completeFrames_scheduleExpectedPendingChildWork_singleton
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2561,9 +2577,9 @@ theorem queue_completeFrames_scheduleExpectedPendingChildWork_singleton
                 queue).fieldStore
           } := by
   intro hqueue
-  simpa [scheduleExpectedPendingChildWork] using
-    queue_completeFrames_scheduleExpectedScope_singleton
-      (ObjectRef := ObjectRef) schema resolvers variableValues work queue valueStack hqueue
+  simpa [scheduleExpectedPendingChildWork]
+    using queue_completeFrames_scheduleExpectedScope_singleton (ObjectRef := ObjectRef)
+      schema resolvers variableValues work queue valueStack hqueue
 
 theorem queue_completeFrames_scheduleExpectedPendingChildWork
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2601,8 +2617,8 @@ theorem queue_completeFrames_scheduleExpectedPendingChildWork
           [work.work.source] [work.specFuel] work.work.selectionSet queue
       have hheadQueue :
           expectedScheduleQueueItemsNonempty head.fst := by
-        simpa [head] using
-          scheduleExpectedScope_itemsNonempty
+        simpa [head]
+          using scheduleExpectedScope_itemsNonempty
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue hqueue
@@ -2648,7 +2664,8 @@ theorem queue_completeFrames_scheduleExpectedPendingChildWork
                 queue).fieldStore
           } := by
           simpa [expectedPendingChildWorkCompletionStack,
-            expectedPendingChildWorkCompletion] using hheadFrame
+            expectedPendingChildWorkCompletion]
+            using hheadFrame
 
 theorem queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork
     (schema : Schema) (variableValues : VariableValues)
@@ -2670,15 +2687,15 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork
           [work.work.source] [work.specFuel] work.work.selectionSet base
       have hheadNonempty :
           expectedScheduleQueueItemsNonempty head.fst := by
-        simpa [head] using
-          scheduleExpectedScope_itemsNonempty
+        simpa [head]
+          using scheduleExpectedScope_itemsNonempty
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet base hbaseNonempty
       have hheadDistinct :
           expectedScheduleQueueKeysDistinct head.fst := by
-        simpa [head] using
-          scheduleExpectedScope_keysDistinct
+        simpa [head]
+          using scheduleExpectedScope_keysDistinct
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet base hbaseDistinct
@@ -2700,8 +2717,8 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork_empt
     : enqueueExpectedScheduleItems queue
         (scheduleExpectedPendingChildWork schema variableValues work []).fst
       = (scheduleExpectedPendingChildWork schema variableValues work queue).fst := by
-  simpa [enqueueExpectedScheduleItems] using
-    queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork
+  simpa [enqueueExpectedScheduleItems]
+    using queue_enqueueExpectedScheduleItems_scheduleExpectedPendingChildWork
       (ObjectRef := ObjectRef) schema variableValues work
       ([] : ExpectedScheduleQueue ObjectRef) queue
       (by simp [expectedScheduleQueueItemsNonempty])
@@ -2768,8 +2785,7 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
   have htoPending :
       expectedPendingChildWorkToPending work = built.fst := by
     simpa [GraphQL.Execution.resolveFieldValueByName, hlookup, work, built, resolved]
-      using
-      slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
+      using slots_expectedPendingChildWorkForItem_toPending_eq_buildFieldSlots
         (ObjectRef := ObjectRef) schema resolvers variableValues
         fieldDefinition.outputType item
         haligned hready
@@ -2799,8 +2815,8 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
                 source))).fst
           []).snd =
         expectedScheduled.snd := by
-    simpa [runtimeScheduled, built, resolved, ExpectedQueueItem.toScheduleItem] using
-      hframesDirect
+    simpa [runtimeScheduled, built, resolved, ExpectedQueueItem.toScheduleItem]
+      using hframesDirect
   have hchild :
       completeFrames expectedScheduled.snd.reverse
           { valueStack := []
@@ -2813,8 +2829,8 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_direct
           fieldStore :=
             (expectedScheduleQueueCompletionStack schema resolvers variableValues
               rest).fieldStore } := by
-    simpa [expectedScheduled] using
-      queue_completeFrames_scheduleExpectedPendingChildWork
+    simpa [expectedScheduled]
+      using queue_completeFrames_scheduleExpectedPendingChildWork
         (ObjectRef := ObjectRef) schema resolvers variableValues work rest []
         hrestNonempty
   have hfield :=
@@ -2859,12 +2875,13 @@ theorem queue_completeFrames_executeScheduleItem_lookup_some_enqueued
           fieldStore :=
             (expectedScheduleQueueCompletionStack schema resolvers variableValues
               (scheduleExpectedPendingChildWork schema variableValues work rest).fst).fieldStore } := by
-    simpa [expectedChildQueueForItem, hlookup, work] using
-      queue_expectedScheduleQueueCompletionStack_scheduleExpectedPendingChildWork_enqueue_empty
-        (ObjectRef := ObjectRef) schema resolvers variableValues work rest
+    simpa [expectedChildQueueForItem, hlookup, work]
+      using
+        queue_expectedScheduleQueueCompletionStack_scheduleExpectedPendingChildWork_enqueue_empty
+          (ObjectRef := ObjectRef) schema resolvers variableValues work rest
   rw [hstack]
-  simpa [work] using
-    queue_completeFrames_executeScheduleItem_lookup_some_direct
+  simpa [work]
+    using queue_completeFrames_executeScheduleItem_lookup_some_direct
       (ObjectRef := ObjectRef) schema resolvers variableValues item rest
       fieldDefinition hlookup haligned hready hrestNonempty
 

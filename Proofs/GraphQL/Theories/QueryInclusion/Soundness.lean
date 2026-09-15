@@ -251,11 +251,11 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
       ⟨leftDefinition, hleftDefinition, hleftName⟩
     rcases hrightDefinitionOfSelectionVariable variableName hrightVariable with
       ⟨rightDefinition, hrightDefinition, hrightName⟩
-    simpa [hleftName, hrightName] using
-      coerceVariableValues_shared_lookup_equivalent hdefinitions'
-      hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
-      hleftDefinition hrightDefinition (hleftName.trans hrightName.symm)
-      suppliedValues
+    simpa [hleftName, hrightName]
+      using coerceVariableValues_shared_lookup_equivalent hdefinitions'
+        hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
+        hleftDefinition hrightDefinition (hleftName.trans hrightName.symm)
+        suppliedValues
   let conditionValues :=
     coerceVariableValues right suppliedValues
       ++ coerceVariableValues left suppliedValues
@@ -523,11 +523,11 @@ theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
       ⟨leftDefinition, hleftDefinition, hleftName⟩
     rcases hrightDefinitionOfSelectionVariable variableName hrightVariable with
       ⟨rightDefinition, hrightDefinition, hrightName⟩
-    simpa [hleftName, hrightName] using
-      coerceVariableValues_shared_lookup_equivalent hincludes.1
-      hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
-      hleftDefinition hrightDefinition (hleftName.trans hrightName.symm)
-      suppliedValues
+    simpa [hleftName, hrightName]
+      using coerceVariableValues_shared_lookup_equivalent hincludes.1
+        hleftVariableDefinitionsValid.1 hrightVariableDefinitionsValid.1
+        hleftDefinition hrightDefinition (hleftName.trans hrightName.symm)
+        suppliedValues
   let leftFuel := executeQueryFuelBound schema left
   let rightFuel := executeQueryFuelBound schema right
   let commonFuel := max leftFuel rightFuel

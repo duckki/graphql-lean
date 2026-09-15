@@ -345,8 +345,8 @@ theorem collectFields_projectionTargetResolverValue
     : Execution.collectFields schema variableValues parentType
         (projectionTargetResolverValue source) selectionSet
       = Execution.collectFields schema variableValues parentType source selectionSet := by
-  simpa [projectionTargetResolverValue] using
-    collectFields_projectionResolverValue schema variableValues
+  simpa [projectionTargetResolverValue]
+    using collectFields_projectionResolverValue schema variableValues
       ProjectionResolverRef.target parentType source selectionSet
 
 def fieldPairProjectionTarget
@@ -902,14 +902,14 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_other_root_eq_deepSuccessWi
                     selectionSet := childSelectionSet
                   }]
                   parentType fieldName
-              simpa [Execution.executeField, Execution.resolveFieldValue, hlookup, hcoerce,
-                deepSelectionSetSuccessResolversWithRef,
+              simpa [Execution.executeField, Execution.resolveFieldValue, hlookup,
+                hcoerce, deepSelectionSetSuccessResolversWithRef,
                 fieldPairOrDeepSuccessResolvers_other_root schema
                   rootSelectionSet base targetParent leftField rightField
                   parentType fieldName runtimeType leftArguments rightArguments
                   coercedArguments ref
-                  (htarget fieldDefinition coercedArguments hlookup hcoerce)] using
-                congrArg (Execution.singleFieldResult responseName) hcomplete
+                  (htarget fieldDefinition coercedArguments hlookup hcoerce)]
+                using congrArg (Execution.singleFieldResult responseName) hcomplete
 
 mutual
   theorem
@@ -1227,8 +1227,8 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_left_root
               have hcoercedArguments :
                   Execution.CoercedArgument.argumentsEquivalent coercedArguments
                     leftArguments := by
-                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce] using
-                  hcoercion
+                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce]
+                  using hcoercion
               cases hresolve
                     : base.resolve targetParent leftField coercedArguments source with
               | none =>
@@ -1311,8 +1311,8 @@ theorem executeField_fieldPairOrDeepSuccessResolvers_right_root
               have hcoercedArguments :
                   Execution.CoercedArgument.argumentsEquivalent coercedArguments
                     rightArguments := by
-                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce] using
-                  hcoercion
+                simpa [Execution.ArgumentCoercionResult.equivalent, hcoerce]
+                  using hcoercion
               cases hresolve
                     : base.resolve targetParent rightField coercedArguments source with
               | none =>

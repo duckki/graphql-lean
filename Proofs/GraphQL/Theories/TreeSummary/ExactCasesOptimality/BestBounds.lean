@@ -46,11 +46,10 @@ theorem summarizeSelectionSetResolved_best
         (summarizeSelectionSetResolved abstract schema parentType
           inheritedBooleanCondition selectionSet variableValues variableValues) := by
   unfold CaseCursor.selectionSetOutcomes summarizeSelectionSetResolved
-  simpa [summarizeConditionTreeWithPruning,
-    summarizeConditionTreeDecisionWithPruning,
-    Internal.summarizeConditionTreeDecision,
-    CaseCursor.BooleanEnvironment.pruningValues] using
-    Internal.summarizeConditionTreeDecision_best laws schema inheritedBooleanCondition
+  simpa [summarizeConditionTreeWithPruning, summarizeConditionTreeDecisionWithPruning,
+    Internal.summarizeConditionTreeDecision, CaseCursor.BooleanEnvironment.pruningValues]
+    using Internal.summarizeConditionTreeDecision_best laws schema
+      inheritedBooleanCondition
       (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
         inheritedBooleanCondition variableValues selectionSet)
       (.concrete variableValues)

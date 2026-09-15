@@ -249,8 +249,7 @@ private theorem possibleTypesSubset_eq_contains_of_constant
       exact List.all_eq_true.mpr fun typeName hmem => by
         rw [hconstant typeName hmem, hallowed]
   | false =>
-      exact List.all_eq_false.mpr
-        ⟨runtimeType, hruntime, by rw [hallowed]; simp⟩
+      exact List.all_eq_false.mpr ⟨runtimeType, hruntime, by rw [hallowed]; simp⟩
 
 private theorem branchSelected_eq_bodyAllows
     (schema : Schema) (variableValues : VariableValues) (runtimeType : Name)
@@ -690,7 +689,8 @@ private theorem resolveActiveTrees_runtimeNamedFields
       = tree.activeTrees.flatMap (runtimeNamedFields variableValues runtimeType) := by
   have huniform := tree.typeRegions_uniform scope region hregion runtimeType hruntime
   apply resolveActiveTrees_runtimeNamedFields_aux schema variableValues runtimeType
-    parentType inheritedBooleanCondition tree.activeTrees region hinherited hvalid hruntime
+    parentType inheritedBooleanCondition tree.activeTrees region hinherited hvalid
+    hruntime
   intro item hitem branch hbranch
   cases hcondition : branch.condition with
   | typeCondition typeName =>
@@ -848,8 +848,8 @@ private theorem resolve_namedFields
     have hvalidResolved :
         ActiveTreesValid schema fixedInheritedBooleanCondition variableValues
           runtimeType resolvedTree.activeTrees := by
-      simpa [resolvedTree, CaseForest.resolveBranches] using
-        resolveActiveTrees_valid schema variableValues runtimeType parentType
+      simpa [resolvedTree, CaseForest.resolveBranches]
+        using resolveActiveTrees_valid schema variableValues runtimeType parentType
           fixedInheritedBooleanCondition tree possibleTypes region hinherited hvalid
           hregion.2 hregion.1
     have hfields :
@@ -857,8 +857,8 @@ private theorem resolve_namedFields
             (runtimeNamedFields variableValues runtimeType)
           = tree.activeTrees.flatMap
               (runtimeNamedFields variableValues runtimeType) := by
-      simpa [resolvedTree, CaseForest.resolveBranches] using
-        resolveActiveTrees_runtimeNamedFields schema variableValues runtimeType
+      simpa [resolvedTree, CaseForest.resolveBranches]
+        using resolveActiveTrees_runtimeNamedFields schema variableValues runtimeType
           parentType fixedInheritedBooleanCondition tree possibleTypes region
           hinherited hvalid hregion.2 hregion.1
     exact (resolve_namedFields schema parentType fixedInheritedBooleanCondition
@@ -1013,13 +1013,14 @@ theorem internalExtend_append
       (inherited ++ (left ++ right)) hsourceCombined
   have hcanonicalEq : sequentialCanonical = combinedCanonical :=
     SelectionConditions.canonicalBooleanCondition_eq_of_mem_iff hsequentialCanonical
-      hcombinedCanonical fun literal => by
+      hcombinedCanonical
+      fun literal => by
         simpa only [List.mem_append,
           SelectionConditions.canonicalBooleanCondition_mem_iff
-            hleftCanonical literal] using
-          (or_assoc :
-            ((literal ∈ inherited ∨ literal ∈ left) ∨ literal ∈ right) ↔
-              literal ∈ inherited ∨ (literal ∈ left ∨ literal ∈ right))
+            hleftCanonical literal]
+          using (or_assoc
+                  : ((literal ∈ inherited ∨ literal ∈ left) ∨ literal ∈ right)
+                    ↔ literal ∈ inherited ∨ (literal ∈ left ∨ literal ∈ right))
   rw [hextendLeft]
   unfold Internal.extendBooleanCondition
   rw [hsequentialCanonical, hcombinedCanonical]
@@ -1479,21 +1480,21 @@ private theorem resolve_conditions
       runtimeType ∈ resolved.possibleTypes
       ∧ booleanConditionAllows variableValues resolved.inheritedBooleanCondition
         = true := by
-    rw [resolve.eq_1]
-    split <;> rename_i hbranches
-    · have hregion := chooseTypeRegion_mem tree possibleTypes runtimeType hruntime
-      exact resolve_conditions parentType
-        (CaseForest.extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
-          variableValues)
-        (tree.resolveBranches
-          (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
-          variableValues)
+  rw [resolve.eq_1]
+  split <;> rename_i hbranches
+  · have hregion := chooseTypeRegion_mem tree possibleTypes runtimeType hruntime
+    exact resolve_conditions parentType
+      (CaseForest.extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
+        variableValues)
+      (tree.resolveBranches
         (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
-        runtimeType variableValues
-        (extendBooleanCondition_allows inheritedBooleanCondition tree.booleanVariables
-          variableValues hinherited)
-        hregion.2
-    · exact ⟨hruntime, hinherited⟩
+        variableValues)
+      (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
+      runtimeType variableValues
+      (extendBooleanCondition_allows inheritedBooleanCondition tree.booleanVariables
+        variableValues hinherited)
+      hregion.2
+  · exact ⟨hruntime, hinherited⟩
 termination_by
   (caseForestResponseDepth tree, caseForestUnresolvedCount tree, 3, 0)
 decreasing_by
@@ -1577,8 +1578,8 @@ theorem fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
     inheritedBooleanCondition inheritedBooleanCondition (.ofConditionTree tree)
     tree.condition.possibleTypes runtimeType variableValues hinherited hvalid hruntime
   simpa [CaseForest.ofConditionTree, Tree.collectRuntimeFieldGroups,
-    runtimeNamedFields_map runtimeType variableValues tree] using
-    hgroups
+    runtimeNamedFields_map runtimeType variableValues tree]
+    using hgroups
 
 theorem fieldGroups_shape
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
@@ -1613,17 +1614,17 @@ theorem summarize_eq_resolved
           (fieldGroups parentType inheritedBooleanCondition tree possibleTypes
             runtimeType variableValues)
           variableValues fixedVariableValues := by
-    rw [summarize.eq_1, fieldGroups, resolve.eq_1]
-    split <;> rename_i hbranches
-    · exact summarize_eq_resolved algebra schema parentType
-        (CaseForest.extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
-          variableValues)
-        (tree.resolveBranches
-          (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
-          variableValues)
+  rw [summarize.eq_1, fieldGroups, resolve.eq_1]
+  split <;> rename_i hbranches
+  · exact summarize_eq_resolved algebra schema parentType
+      (CaseForest.extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
+        variableValues)
+      (tree.resolveBranches
         (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
-        runtimeType variableValues fixedVariableValues
-    · rfl
+        variableValues)
+      (chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes))
+      runtimeType variableValues fixedVariableValues
+  · rfl
 termination_by
   (caseForestResponseDepth tree, caseForestUnresolvedCount tree, 3, 0)
 decreasing_by
@@ -1656,8 +1657,8 @@ theorem summarize_le
             hempty
         simp only [if_true, hregionEq]
         exact summarize_le algebra lawful schema parentType
-          (CaseForest.extendBooleanCondition inheritedBooleanCondition tree.booleanVariables
-            variableValues)
+          (CaseForest.extendBooleanCondition inheritedBooleanCondition
+            tree.booleanVariables variableValues)
           (tree.resolveBranches possibleTypes variableValues) possibleTypes runtimeType
           variableValues fixedVariableValues hruntime
     | false =>

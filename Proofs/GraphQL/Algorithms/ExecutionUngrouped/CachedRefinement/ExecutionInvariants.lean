@@ -105,8 +105,8 @@ theorem mergeResponseFieldResult_cacheReady_and_shape {ObjectRef : Type}
     FieldCacheFieldsAbsorptionShape.mergeField_of_ready source responseName
       (resultValueOrNull fieldResult) fields hfields hincoming
   have hready := hshape.output_ready
-  simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject] using
-    And.intro hready (FieldCacheAbsorptionShape.object hshape)
+  simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject]
+    using And.intro hready (FieldCacheAbsorptionShape.object hshape)
 
 theorem lookupField?_some_cacheReady {ObjectRef : Type}
     (source : ResolverValue ObjectRef)
@@ -171,21 +171,21 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
                 : coerceArgumentValues schema variableValues
                     fieldDefinition.arguments field.arguments with
           | error =>
-              simpa [hlookup, hcoerce] using
-                (resultValueOrNull_handleFieldError_cacheReady
-                  (ObjectRef := ObjectRef) fieldDefinition.outputType)
+              simpa [hlookup, hcoerce]
+                using (resultValueOrNull_handleFieldError_cacheReady
+                        (ObjectRef := ObjectRef) fieldDefinition.outputType)
           | success coercedArguments =>
               cases hresolve
                     : resolveFieldValue resolvers parentType
                         field.fieldName coercedArguments source with
               | none =>
-                  simpa [hlookup, hcoerce, hresolve] using
-                    (resultValueOrNull_handleFieldError_cacheReady
-                      (ObjectRef := ObjectRef) fieldDefinition.outputType)
+                  simpa [hlookup, hcoerce, hresolve]
+                    using (resultValueOrNull_handleFieldError_cacheReady
+                            (ObjectRef := ObjectRef) fieldDefinition.outputType)
               | some resolved =>
-                  simpa [hlookup, hcoerce, hresolve] using
-                    hcomplete fieldDefinition.outputType field.selectionSet resolved none
-                      (by intro previous h; cases h)
+                  simpa [hlookup, hcoerce, hresolve]
+                    using hcomplete fieldDefinition.outputType field.selectionSet resolved
+                      none (by intro previous h; cases h)
       | some previous =>
           have hpreviousReady : FieldCacheMergeReady previous :=
             hprevious previous rfl
@@ -196,16 +196,15 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
               | null =>
                   simp [reusablePreviousValue?] at hreuse
                   subst reusable
-                  simpa [reusablePreviousValue?, resultValueOrNull] using
-                    hpreviousReady
+                  simpa [reusablePreviousValue?, resultValueOrNull] using hpreviousReady
               | scalar value =>
                   by_cases hcomposite :
                       fieldDefinition.outputType.isCompositeBool schema = true
                   · simp [reusablePreviousValue?, hcomposite] at hreuse
                   · simp [reusablePreviousValue?, hcomposite] at hreuse
                     subst reusable
-                    simpa [reusablePreviousValue?, hcomposite, resultValueOrNull] using
-                      hpreviousReady
+                    simpa [reusablePreviousValue?, hcomposite, resultValueOrNull]
+                      using hpreviousReady
               | object previousSource fields =>
                   simp [reusablePreviousValue?] at hreuse
               | list sourceValues? values =>
@@ -228,21 +227,19 @@ theorem executeField_resultValueOrNull_cacheReady_of_completeValue
                   simp [hreuse, resultValueOrNull]
                   exact FieldCacheMergeReady.null
               | object previousSource fields =>
-                  exact
-                    hcomplete fieldDefinition.outputType field.selectionSet
-                      previousSource (some (.object previousSource fields))
-                      (by intro cached h; cases h; exact hpreviousReady)
+                  exact hcomplete fieldDefinition.outputType field.selectionSet
+                    previousSource (some (.object previousSource fields))
+                    (by intro cached h; cases h; exact hpreviousReady)
               | list sourceValues? values =>
                   cases sourceValues? with
                   | none =>
                       simp [hreuse, resultValueOrNull]
                       exact FieldCacheMergeReady.null
                   | some sourceValues =>
-                      exact
-                        hcomplete fieldDefinition.outputType field.selectionSet
-                          (.list sourceValues)
-                          (some (.list (some sourceValues) values))
-                          (by intro cached h; cases h; exact hpreviousReady)
+                      exact hcomplete fieldDefinition.outputType field.selectionSet
+                        (.list sourceValues)
+                        (some (.list (some sourceValues) values))
+                        (by intro cached h; cases h; exact hpreviousReady)
 
 theorem resultCombine_cons_values_cacheReady {ObjectRef : Type}
     (head : Result (FieldCacheValue ObjectRef))
@@ -322,25 +319,23 @@ mutual
                   cases hlookup
                         : objectField? responseName (.object objectSource fields) with
                   | none =>
-                      simpa [hlookup] using
-                        (resultValueOrNull_outOfFuel_cacheReady
-                          (ObjectRef := ObjectRef))
+                      simpa [hlookup]
+                        using (resultValueOrNull_outOfFuel_cacheReady
+                                (ObjectRef := ObjectRef))
                   | some previous =>
-                      simpa [hlookup, resultValueOrNull] using
-                        hprevious previous hlookup
+                      simpa [hlookup, resultValueOrNull] using hprevious previous hlookup
               | succ completionFuel =>
-                  exact
-                    executeField_resultValueOrNull_cacheReady_of_completeValue
-                      schema resolvers variableValues completionFuel parentType source
-                      (objectField? responseName (.object objectSource fields))
-                      (executableField fieldName arguments selectionSet)
-                      (by
-                        intro fieldType childSelectionSet value previous? hprevious'
-                        exact
-                          completeValue_cacheReady schema resolvers variableValues
-                            completionFuel fieldType childSelectionSet value previous?
-                            hprevious')
-                      hprevious
+                  exact executeField_resultValueOrNull_cacheReady_of_completeValue
+                    schema resolvers variableValues completionFuel parentType source
+                    (objectField? responseName (.object objectSource fields))
+                    (executableField fieldName arguments selectionSet)
+                    (by
+                      intro fieldType childSelectionSet value previous? hprevious'
+                      exact
+                        completeValue_cacheReady schema resolvers variableValues
+                          completionFuel fieldType childSelectionSet value previous?
+                          hprevious')
+                    hprevious
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives
@@ -352,14 +347,14 @@ mutual
             selectionDirectivesAllowBool variableValues directives = true
         · cases typeCondition with
           | none =>
-              simpa [visitSelection, hallows] using
-                visitSubfields_cacheReady schema resolvers variableValues fuel
+              simpa [visitSelection, hallows]
+                using visitSubfields_cacheReady schema resolvers variableValues fuel
                   parentType source selectionSet output houtput
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source typeCondition = true
-              · simpa [visitSelection, hallows, happly] using
-                  visitSubfields_cacheReady schema resolvers variableValues fuel
+              · simpa [visitSelection, hallows, happly]
+                  using visitSubfields_cacheReady schema resolvers variableValues fuel
                     parentType source selectionSet output houtput
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType source typeCondition =
@@ -438,15 +433,15 @@ mutual
     intro fuel fieldType selectionSet value previous? hprevious
     cases fuel with
     | zero =>
-        simpa [completeValue] using
-          (resultValueOrNull_outOfFuel_cacheReady (ObjectRef := ObjectRef))
+        simpa [completeValue]
+          using (resultValueOrNull_outOfFuel_cacheReady (ObjectRef := ObjectRef))
     | succ completionFuel =>
         cases previous? with
         | none =>
             cases fieldType with
             | nonNull inner =>
-                simpa [completeValue] using
-                  resultValueOrNull_nonNullCompletion_cacheReady
+                simpa [completeValue]
+                  using resultValueOrNull_nonNullCompletion_cacheReady
                     (completeValue schema resolvers variableValues
                       (completionFuel + 1) inner selectionSet value none)
                     (completeValue_cacheReady schema resolvers variableValues
@@ -484,8 +479,8 @@ mutual
                         visitSubfields_cacheReady schema resolvers variableValues
                           completionFuel runtimeType (.object runtimeType ref)
                           selectionSet (.object (.object runtimeType ref) []) hbase
-                      simpa [completeValue, hinclude, reuseOrCreateObject?] using
-                        resultValueOrNull_catchVisitBubbleAsNull_cacheReady
+                      simpa [completeValue, hinclude, reuseOrCreateObject?]
+                        using resultValueOrNull_catchVisitBubbleAsNull_cacheReady
                           (visitSubfields schema resolvers variableValues
                             completionFuel runtimeType (.object runtimeType ref)
                             selectionSet (.object (.object runtimeType ref) [])).value
@@ -523,8 +518,8 @@ mutual
                             variableValues completionFuel inner selectionSet values []
                             (by intro previous hmem; simp at hmem) completedValues
                             errors hok)
-                    simpa [completeValue, reuseOrCreateList?, sourceValues?] using
-                      resultValueOrNull_catchBubbleAsNull_cacheReady
+                    simpa [completeValue, reuseOrCreateList?, sourceValues?]
+                      using resultValueOrNull_catchBubbleAsNull_cacheReady
                         (fun completedValues =>
                           FieldCacheValue.list sourceValues? completedValues)
                         (completeValueList schema resolvers variableValues
@@ -551,8 +546,8 @@ mutual
             | object previousSource previousFields =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_cacheReady
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_cacheReady
                         (completeValue schema resolvers variableValues
                           (completionFuel + 1) inner selectionSet value
                           (some (.object previousSource previousFields)))
@@ -570,8 +565,8 @@ mutual
                               completionFuel runtimeType (.object runtimeType ref)
                               selectionSet (.object previousSource previousFields)
                               hpreviousReady
-                          simpa [completeValue, hinclude, reuseOrCreateObject?] using
-                            resultValueOrNull_catchVisitBubbleAsNull_cacheReady
+                          simpa [completeValue, hinclude, reuseOrCreateObject?]
+                            using resultValueOrNull_catchVisitBubbleAsNull_cacheReady
                               (visitSubfields schema resolvers variableValues
                                 completionFuel runtimeType (.object runtimeType ref)
                                 selectionSet
@@ -606,8 +601,8 @@ mutual
             | list sourceValues? previousValues =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_cacheReady
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_cacheReady
                         (completeValue schema resolvers variableValues
                           (completionFuel + 1) inner selectionSet value
                           (some (.list sourceValues? previousValues)))
@@ -645,8 +640,8 @@ mutual
                                 variableValues completionFuel inner selectionSet values
                                 previousValues hpreviousValues completedValues errors
                                 hok)
-                        simpa [completeValue, reuseOrCreateList?] using
-                          resultValueOrNull_catchBubbleAsNull_cacheReady
+                        simpa [completeValue, reuseOrCreateList?]
+                          using resultValueOrNull_catchBubbleAsNull_cacheReady
                             (fun completedValues =>
                               FieldCacheValue.list sourceValues? completedValues)
                             (completeValueList schema resolvers variableValues
@@ -731,43 +726,40 @@ mutual
               simp [remainingPrevious] at hmem
           | cons previous rest =>
               intro previousValue hmem
-              exact hpreviousValues previousValue (by
-                right
-                exact hmem)
+              exact hpreviousValues previousValue
+                (by
+                  right
+                  exact hmem)
         have hheadReady : FieldCacheMergeReady (resultValueOrNull head) := by
           dsimp [head]
           cases hprev : previous? with
           | none =>
-              exact
-                completeValue_cacheReady schema resolvers variableValues fuel
-                  itemType selectionSet value none
-                  (by intro previous h; exact hprevious? previous (by rw [hprev]; exact h))
+              exact completeValue_cacheReady schema resolvers variableValues fuel
+                itemType selectionSet value none
+                (by intro previous h; exact hprevious? previous (by rw [hprev]; exact h))
           | some previous =>
               cases previous with
               | null => exact FieldCacheMergeReady.null
               | scalar previousValue =>
-                  exact
-                    completeValue_cacheReady schema resolvers variableValues fuel
-                      itemType selectionSet value (some (.scalar previousValue))
-                      (by
-                        intro cached h
-                        exact hprevious? cached (by rw [hprev]; exact h))
+                  exact completeValue_cacheReady schema resolvers variableValues fuel
+                    itemType selectionSet value (some (.scalar previousValue))
+                    (by
+                      intro cached h
+                      exact hprevious? cached (by rw [hprev]; exact h))
               | object previousSource fields =>
-                  exact
-                    completeValue_cacheReady schema resolvers variableValues fuel
-                      itemType selectionSet value
-                      (some (.object previousSource fields))
-                      (by
-                        intro cached h
-                        exact hprevious? cached (by rw [hprev]; exact h))
+                  exact completeValue_cacheReady schema resolvers variableValues fuel
+                    itemType selectionSet value
+                    (some (.object previousSource fields))
+                    (by
+                      intro cached h
+                      exact hprevious? cached (by rw [hprev]; exact h))
               | list sourceValues? values =>
-                  exact
-                    completeValue_cacheReady schema resolvers variableValues fuel
-                      itemType selectionSet value
-                      (some (.list sourceValues? values))
-                      (by
-                        intro cached h
-                        exact hprevious? cached (by rw [hprev]; exact h))
+                  exact completeValue_cacheReady schema resolvers variableValues fuel
+                    itemType selectionSet value
+                    (some (.list sourceValues? values))
+                    (by
+                      intro cached h
+                      exact hprevious? cached (by rw [hprev]; exact h))
         have htailReady :
             ∀ tailValues tailErrors,
               tail = .ok (tailValues, tailErrors)
@@ -775,12 +767,12 @@ mutual
                   response ∈ tailValues -> FieldCacheMergeReady response :=
           completeValueList_values_cacheReady schema resolvers variableValues fuel
             itemType selectionSet restValues remainingPrevious hremainingPrevious
-        exact
-          resultCombine_cons_values_cacheReady head tail hheadReady htailReady
-            completedValues errors (by
-              rw [completeValueList.eq_3] at hok
-              change Result.combine List.cons head tail = .ok (completedValues, errors) at hok
-              exact hok)
+        exact resultCombine_cons_values_cacheReady head tail hheadReady htailReady
+          completedValues errors
+          (by
+            rw [completeValueList.eq_3] at hok
+            change Result.combine List.cons head tail = .ok (completedValues, errors) at hok
+            exact hok)
   termination_by values previousValues _hpreviousValues completedValues errors _hok =>
     (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
@@ -823,28 +815,26 @@ theorem visitFieldResult_cacheReady {ObjectRef : Type}
     | scalar value => simp [objectField?] at hlookup
     | list sourceValues? values => simp [objectField?] at hlookup
     | object objectSource fields =>
-        exact
-          lookupField?_some_cacheReady objectSource responseName fields previous
-            houtput (by simpa [objectField?] using hlookup)
+        exact lookupField?_some_cacheReady objectSource responseName fields previous
+          houtput (by simpa [objectField?] using hlookup)
   cases fuel with
   | zero =>
       cases hlookup : objectField? responseName output with
       | none =>
-          simpa [hlookup] using
-            (resultValueOrNull_outOfFuel_cacheReady (ObjectRef := ObjectRef))
+          simpa [hlookup]
+            using (resultValueOrNull_outOfFuel_cacheReady (ObjectRef := ObjectRef))
       | some previous =>
           simpa [hlookup, resultValueOrNull] using hprevious previous hlookup
   | succ completionFuel =>
-      exact
-        executeField_resultValueOrNull_cacheReady_of_completeValue schema resolvers
-          variableValues completionFuel parentType source (objectField? responseName output)
-          (executableField fieldName arguments selectionSet)
-          (by
-            intro fieldType childSelectionSet value previous? hprevious'
-            exact
-              completeValue_cacheReady schema resolvers variableValues
-                completionFuel fieldType childSelectionSet value previous? hprevious')
-          hprevious
+      exact executeField_resultValueOrNull_cacheReady_of_completeValue schema resolvers
+        variableValues completionFuel parentType source (objectField? responseName output)
+        (executableField fieldName arguments selectionSet)
+        (by
+          intro fieldType childSelectionSet value previous? hprevious'
+          exact
+            completeValue_cacheReady schema resolvers variableValues
+              completionFuel fieldType childSelectionSet value previous? hprevious')
+        hprevious
 
 mutual
   theorem visitSelection_cacheAbsorptionShape {ObjectRef : Type}
@@ -864,16 +854,16 @@ mutual
         · cases output with
           | null =>
               simpa [visitSelection, hallows, mergeResponseFieldResult,
-                mergeResponseFieldIntoObject] using
-                FieldCacheAbsorptionShape.refl_of_ready .null houtput
+                mergeResponseFieldIntoObject]
+                using FieldCacheAbsorptionShape.refl_of_ready .null houtput
           | scalar value =>
               simpa [visitSelection, hallows, mergeResponseFieldResult,
-                mergeResponseFieldIntoObject] using
-                FieldCacheAbsorptionShape.refl_of_ready (.scalar value) houtput
+                mergeResponseFieldIntoObject]
+                using FieldCacheAbsorptionShape.refl_of_ready (.scalar value) houtput
           | list sourceValues? values =>
               simpa [visitSelection, hallows, mergeResponseFieldResult,
-                mergeResponseFieldIntoObject] using
-                FieldCacheAbsorptionShape.refl_of_ready
+                mergeResponseFieldIntoObject]
+                using FieldCacheAbsorptionShape.refl_of_ready
                   (.list sourceValues? values) houtput
           | object objectSource fields =>
               simp only [visitSelection, hallows, if_true]
@@ -888,22 +878,22 @@ mutual
             cases h : selectionDirectivesAllowBool variableValues directives
             · rfl
             · contradiction
-          simpa [visitSelection, hfalse] using
-            FieldCacheAbsorptionShape.refl_of_ready output houtput
+          simpa [visitSelection, hfalse]
+            using FieldCacheAbsorptionShape.refl_of_ready output houtput
     | inlineFragment typeCondition directives selectionSet =>
         by_cases hallows :
             selectionDirectivesAllowBool variableValues directives = true
         · cases typeCondition with
           | none =>
-              simpa [visitSelection, hallows] using
-                visitSubfields_cacheAbsorptionShape schema resolvers
+              simpa [visitSelection, hallows]
+                using visitSubfields_cacheAbsorptionShape schema resolvers
                   variableValues fuel parentType source selectionSet output houtput
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source typeCondition =
                     true
-              · simpa [visitSelection, hallows, happly] using
-                  visitSubfields_cacheAbsorptionShape schema resolvers
+              · simpa [visitSelection, hallows, happly]
+                  using visitSubfields_cacheAbsorptionShape schema resolvers
                     variableValues fuel parentType source selectionSet output houtput
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType source typeCondition =
@@ -912,15 +902,16 @@ mutual
                       doesFragmentTypeApplyBool schema parentType source typeCondition
                   · rfl
                   · contradiction
-                simpa [visitSelection, hallows, hfalse] using
-                  FieldCacheAbsorptionShape.refl_of_ready output houtput
+                simpa [visitSelection, hallows, hfalse]
+                  using FieldCacheAbsorptionShape.refl_of_ready output houtput
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives
             · rfl
             · contradiction
-          cases typeCondition <;> simpa [visitSelection, hfalse] using
-            FieldCacheAbsorptionShape.refl_of_ready output houtput
+          cases typeCondition
+          <;> simpa [visitSelection, hfalse]
+            using FieldCacheAbsorptionShape.refl_of_ready output houtput
   termination_by selection output _houtput => (sizeOf selection, 0)
   decreasing_by
     all_goals
@@ -944,8 +935,8 @@ mutual
     intro selectionSet output houtput
     cases selectionSet with
     | nil =>
-        simpa [visitSubfields] using
-          FieldCacheAbsorptionShape.refl_of_ready output houtput
+        simpa [visitSubfields]
+          using FieldCacheAbsorptionShape.refl_of_ready output houtput
     | cons selection rest =>
         let head :=
           visitSelection schema resolvers variableValues fuel parentType source
@@ -961,8 +952,8 @@ mutual
             have htailShape :=
               visitSubfields_cacheAbsorptionShape schema resolvers variableValues
                 fuel parentType source rest head.value hheadReady
-            simpa [visitSubfields, head, hstatus] using
-              FieldCacheAbsorptionShape.trans hheadShape htailShape
+            simpa [visitSubfields, head, hstatus]
+              using FieldCacheAbsorptionShape.trans hheadShape htailShape
   termination_by selectionSet output _houtput => (sizeOf selectionSet, 1)
   decreasing_by
     all_goals

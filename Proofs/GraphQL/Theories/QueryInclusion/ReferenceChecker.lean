@@ -276,7 +276,8 @@ theorem selectionSetIncludesBoolWithFuel_eq_of_boolean_agreement
               cases hlookup : schema.lookupField parentType rightField.fieldName with
               | none => simp [hlookup]
               | some definition =>
-                  by_cases hcomposite : definition.outputType.isCompositeBool schema = true
+                  by_cases hcomposite :
+                    definition.outputType.isCompositeBool schema = true
                   · simp only [hlookup, hcomposite, ↓reduceIte]
                     have hnested :
                         (schema.getPossibleTypes definition.outputType.namedType).all

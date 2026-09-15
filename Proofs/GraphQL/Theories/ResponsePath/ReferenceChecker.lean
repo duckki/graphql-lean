@@ -87,9 +87,11 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
           have hgroupsReady := executableGroupsSemanticsReady_collectFields schema
             variableValues parentType PUnit.unit rightSelectionSet hparentObject
             hrightReady hrightMerge
-          have hgroupReady := hgroupsReady responseName fields (by
-            simpa [rightGroups, collectRuntimeFieldGroups] using
-              show (responseName, fields) ∈ rightGroups by simp [hgroups])
+          have hgroupReady :=
+            hgroupsReady responseName fields
+              (by
+                simpa [rightGroups, collectRuntimeFieldGroups]
+                  using show (responseName, fields) ∈ rightGroups by simp [hgroups])
           cases hfields : fields with
           | nil => exact False.elim (hgroupReady.1 hfields)
           | cons field fields =>
@@ -98,8 +100,8 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
               have hgroupMem : (responseName, field :: fields) ∈
                   collectFields schema variableValues parentType
                     (ResolverValue.object parentType PUnit.unit) rightSelectionSet := by
-                simpa [rightGroups, collectRuntimeFieldGroups] using
-                  show (responseName, field :: fields) ∈ rightGroups by
+                simpa [rightGroups, collectRuntimeFieldGroups]
+                  using show (responseName, field :: fields) ∈ rightGroups by
                     simp [hgroups, hfields]
               have hfieldFlat : field ∈
                   (collectFields schema variableValues parentType
@@ -265,18 +267,23 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
           have hrightChildMerge :=
             completionFieldsSemanticsReady_merged_canMerge hrightCompletion
               childRuntimeType
-          have hresult := ih childRuntimeType
-            (executableFieldsMergedSelectionSet (leftHead :: leftRest))
-            (executableFieldsMergedSelectionSet (rightHead :: rightRest)) hchildObject
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hleftChildReady)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hleftChildMerge)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hrightChildReady)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hrightChildMerge)
-            hchildDepth hchildPaths
+          have hresult :=
+            ih childRuntimeType
+              (executableFieldsMergedSelectionSet (leftHead :: leftRest))
+              (executableFieldsMergedSelectionSet (rightHead :: rightRest)) hchildObject
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hleftChildReady)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hleftChildMerge)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hrightChildReady)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hrightChildMerge)
+              hchildDepth hchildPaths
           exact hresult
 
 -----------------------------------------------------------------------------------------
@@ -475,20 +482,30 @@ theorem selectsPath_of_selectionSetIncludesBoolWithFuel
           have hrightChildMerge :=
             completionFieldsSemanticsReady_merged_canMerge hrightCompletion
               next.parentObject
-          have hchildLeft := ih next childFuel next.parentObject
-            (executableFieldsMergedSelectionSet (leftHead :: leftRest))
-            (executableFieldsMergedSelectionSet (rightHead :: rightRest)) hchildObject
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hleftChildReady)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hleftChildMerge)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hrightChildReady)
-            (by simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
-              using hrightChildMerge)
-            hchildCheck rfl hchildRight'
-          refine ⟨leftHead :: leftRest, hleftMem, ⟨leftHead, by simp, ?_⟩,
-            htypeIncludes, ?_⟩
+          have hchildLeft :=
+            ih next childFuel next.parentObject
+              (executableFieldsMergedSelectionSet (leftHead :: leftRest))
+              (executableFieldsMergedSelectionSet (rightHead :: rightRest)) hchildObject
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hleftChildReady)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hleftChildMerge)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hrightChildReady)
+              (by
+                simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+                  using hrightChildMerge)
+              hchildCheck rfl hchildRight'
+          refine ⟨
+            leftHead :: leftRest,
+            hleftMem,
+            ⟨leftHead, by simp, ?_⟩,
+            htypeIncludes,
+            ?_
+          ⟩
           · refine ⟨?_, ?_, definition, hwitnessLookup, hwitnessOutput⟩
             · exact hfieldNameEq.trans
                 (hheadWitnessFieldName.trans hrightWitnessFieldName)

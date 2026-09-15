@@ -648,8 +648,7 @@ private theorem possibleTypesSubset_eq_contains_of_constant
       intro typeName hmem
       rw [hconstant typeName hmem, hallowed]
   | false =>
-      exact List.all_eq_false.mpr
-        ⟨runtimeType, hruntime, by rw [hallowed]; simp⟩
+      exact List.all_eq_false.mpr ⟨runtimeType, hruntime, by rw [hallowed]; simp⟩
 
 private theorem branchSelected_eq_bodyAllows
     (schema : Schema) (variableValues : VariableValues) (runtimeType : Name)
@@ -727,13 +726,18 @@ private theorem runtimeNamedFields_eq_local_append_pending
         ++ pendingRuntimeNamedFields variableValues runtimeType tree.branches := by
   unfold runtimeNamedFields pendingRuntimeNamedFields CaseCursor.localNamedFields
   rw [Tree.storedFieldEntries, List.filterMap_append]
-  have hbranches :
-      (branchStoredFieldEntries tree.branches).filterMap
+  have hbranches
+      : (branchStoredFieldEntries tree.branches).filterMap
           (fun entry =>
             if entry.1.allows variableValues runtimeType then some entry.2 else none)
-        = tree.branches.flatMap fun branch =>
-            (branch.body.storedFieldEntries).filterMap fun entry =>
-              if entry.1.allows variableValues runtimeType then some entry.2 else none := by
+        = tree.branches.flatMap
+            fun branch =>
+              (branch.body.storedFieldEntries).filterMap
+                fun entry =>
+                  if entry.1.allows variableValues runtimeType then
+                    some entry.2
+                  else
+                    none := by
     induction tree.branches with
     | nil => simp [branchStoredFieldEntries]
     | cons branch rest ih =>
@@ -941,10 +945,11 @@ private theorem resolve_trace
                   CaseTrace.Trace.empty, CaseTrace.branchObservation,
                   CaseTrace.branchSelected, CaseTrace.selectedLiteral,
                   CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
-                  CaseCursor.selectBranch, CaseCursor.skipBranch,
-                  CaseCursor.namedFields, hbranches, hcondition,
-                  BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                  possibleTypeMembershipClass_append, List.append_assoc] using ih
+                  CaseCursor.selectBranch, CaseCursor.skipBranch, CaseCursor.namedFields,
+                  hbranches, hcondition, BooleanLiteral.requiredValue,
+                  BooleanLiteral.variableName, possibleTypeMembershipClass_append,
+                  List.append_assoc]
+                  using ih
             | negative variableName =>
                 simp only [BooleanLiteral.variableName] at hvalue
                 have hlookup :
@@ -959,10 +964,11 @@ private theorem resolve_trace
                   CaseTrace.Trace.empty, CaseTrace.branchObservation,
                   CaseTrace.branchSelected, CaseTrace.selectedLiteral,
                   CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
-                  CaseCursor.selectBranch, CaseCursor.skipBranch,
-                  CaseCursor.namedFields, hbranches, hcondition,
-                  BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                  possibleTypeMembershipClass_append, List.append_assoc] using ih
+                  CaseCursor.selectBranch, CaseCursor.skipBranch, CaseCursor.namedFields,
+                  hbranches, hcondition, BooleanLiteral.requiredValue,
+                  BooleanLiteral.variableName, possibleTypeMembershipClass_append,
+                  List.append_assoc]
+                  using ih
         | some value =>
             cases value with
             | false =>
@@ -977,17 +983,16 @@ private theorem resolve_trace
                       (cursor.resolveBooleanBranch branch.body rest
                         (.positive variableName) false) possibleTypes runtimeType
                         variableValues hruntime
-                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree,
-                      CaseTrace.ofBranches, CaseTrace.ofBranches_append,
-                      CaseTrace.Trace.append, CaseTrace.Trace.empty,
-                      CaseTrace.branchObservation, CaseTrace.branchSelected,
-                      CaseTrace.selectedLiteral, CaseForest.booleanValue, hlookup,
-                      CaseCursor.resolveBooleanBranch, CaseCursor.selectBranch,
-                      CaseCursor.skipBranch, CaseCursor.namedFields, hbranches,
-                      hcondition,
+                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree, CaseTrace.ofBranches,
+                      CaseTrace.ofBranches_append, CaseTrace.Trace.append,
+                      CaseTrace.Trace.empty, CaseTrace.branchObservation,
+                      CaseTrace.branchSelected, CaseTrace.selectedLiteral,
+                      CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
+                      CaseCursor.selectBranch, CaseCursor.skipBranch,
+                      CaseCursor.namedFields, hbranches, hcondition,
                       BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                      possibleTypeMembershipClass_append,
-                      List.append_assoc] using ih
+                      possibleTypeMembershipClass_append, List.append_assoc]
+                      using ih
                 | negative variableName =>
                     simp only [BooleanLiteral.variableName] at hvalue
                     have hlookup :
@@ -998,17 +1003,16 @@ private theorem resolve_trace
                       (cursor.resolveBooleanBranch branch.body rest
                         (.negative variableName) false) possibleTypes runtimeType
                         variableValues hruntime
-                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree,
-                      CaseTrace.ofBranches, CaseTrace.ofBranches_append,
-                      CaseTrace.Trace.append, CaseTrace.Trace.empty,
-                      CaseTrace.branchObservation, CaseTrace.branchSelected,
-                      CaseTrace.selectedLiteral, CaseForest.booleanValue, hlookup,
-                      CaseCursor.resolveBooleanBranch, CaseCursor.selectBranch,
-                      CaseCursor.skipBranch, CaseCursor.namedFields, hbranches,
-                      hcondition,
+                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree, CaseTrace.ofBranches,
+                      CaseTrace.ofBranches_append, CaseTrace.Trace.append,
+                      CaseTrace.Trace.empty, CaseTrace.branchObservation,
+                      CaseTrace.branchSelected, CaseTrace.selectedLiteral,
+                      CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
+                      CaseCursor.selectBranch, CaseCursor.skipBranch,
+                      CaseCursor.namedFields, hbranches, hcondition,
                       BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                      possibleTypeMembershipClass_append,
-                      List.append_assoc] using ih
+                      possibleTypeMembershipClass_append, List.append_assoc]
+                      using ih
             | true =>
                 cases literal with
                 | positive variableName =>
@@ -1021,17 +1025,16 @@ private theorem resolve_trace
                       (cursor.resolveBooleanBranch branch.body rest
                         (.positive variableName) true) possibleTypes runtimeType
                         variableValues hruntime
-                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree,
-                      CaseTrace.ofBranches, CaseTrace.ofBranches_append,
-                      CaseTrace.Trace.append, CaseTrace.Trace.empty,
-                      CaseTrace.branchObservation, CaseTrace.branchSelected,
-                      CaseTrace.selectedLiteral, CaseForest.booleanValue, hlookup,
-                      CaseCursor.resolveBooleanBranch, CaseCursor.selectBranch,
-                      CaseCursor.skipBranch, CaseCursor.namedFields, hbranches,
-                      hcondition,
+                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree, CaseTrace.ofBranches,
+                      CaseTrace.ofBranches_append, CaseTrace.Trace.append,
+                      CaseTrace.Trace.empty, CaseTrace.branchObservation,
+                      CaseTrace.branchSelected, CaseTrace.selectedLiteral,
+                      CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
+                      CaseCursor.selectBranch, CaseCursor.skipBranch,
+                      CaseCursor.namedFields, hbranches, hcondition,
                       BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                      possibleTypeMembershipClass_append,
-                      List.append_assoc] using ih
+                      possibleTypeMembershipClass_append, List.append_assoc]
+                      using ih
                 | negative variableName =>
                     simp only [BooleanLiteral.variableName] at hvalue
                     have hlookup :
@@ -1042,17 +1045,16 @@ private theorem resolve_trace
                       (cursor.resolveBooleanBranch branch.body rest
                         (.negative variableName) true) possibleTypes runtimeType
                         variableValues hruntime
-                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree,
-                      CaseTrace.ofBranches, CaseTrace.ofBranches_append,
-                      CaseTrace.Trace.append, CaseTrace.Trace.empty,
-                      CaseTrace.branchObservation, CaseTrace.branchSelected,
-                      CaseTrace.selectedLiteral, CaseForest.booleanValue, hlookup,
-                      CaseCursor.resolveBooleanBranch, CaseCursor.selectBranch,
-                      CaseCursor.skipBranch, CaseCursor.namedFields, hbranches,
-                      hcondition,
+                    simpa [CaseTrace.ofCursor, CaseTrace.ofTree, CaseTrace.ofBranches,
+                      CaseTrace.ofBranches_append, CaseTrace.Trace.append,
+                      CaseTrace.Trace.empty, CaseTrace.branchObservation,
+                      CaseTrace.branchSelected, CaseTrace.selectedLiteral,
+                      CaseForest.booleanValue, hlookup, CaseCursor.resolveBooleanBranch,
+                      CaseCursor.selectBranch, CaseCursor.skipBranch,
+                      CaseCursor.namedFields, hbranches, hcondition,
                       BooleanLiteral.requiredValue, BooleanLiteral.variableName,
-                      possibleTypeMembershipClass_append,
-                      List.append_assoc] using ih
+                      possibleTypeMembershipClass_append, List.append_assoc]
+                      using ih
 termination_by caseCursorUnresolvedCount cursor
 decreasing_by
   all_goals first
@@ -1162,10 +1164,10 @@ private theorem resolve_namedFields
         | true =>
             have hbodyAllows : branch.body.condition.allows variableValues runtimeType = true :=
               hselected ▸ hselect
-            have hbodyValid := pendingValid_of_coherent schema inheritedBooleanCondition
-              variableValues runtimeType branch.body.condition branch.body.branches
-              hbodyAllows (by
-                simpa [Tree.BranchesCoherent] using hhead.choose_spec.2.2)
+            have hbodyValid :=
+              pendingValid_of_coherent schema inheritedBooleanCondition
+                variableValues runtimeType branch.body.condition branch.body.branches
+                hbodyAllows (by simpa [Tree.BranchesCoherent] using hhead.choose_spec.2.2)
             have hnextValid := pendingValid_append hbodyValid hrest
             have ih := resolve_namedFields schema parentType inheritedBooleanCondition
               caseCondition (cursor.selectBranch branch.body rest) region runtimeType
@@ -1213,18 +1215,23 @@ private theorem resolve_namedFields
             simp [value, hselect]
           have hbodyAllows : branch.body.condition.allows variableValues runtimeType = true :=
             hselected ▸ hliteral
-          have hbodyValid := pendingValid_of_coherent schema inheritedBooleanCondition
-            variableValues runtimeType branch.body.condition branch.body.branches
-            hbodyAllows (by
-              simpa [Tree.BranchesCoherent] using hhead.choose_spec.2.2)
+          have hbodyValid :=
+            pendingValid_of_coherent schema inheritedBooleanCondition
+              variableValues runtimeType branch.body.condition branch.body.branches
+              hbodyAllows (by simpa [Tree.BranchesCoherent] using hhead.choose_spec.2.2)
           have hnextValid := pendingValid_append hbodyValid hrest
-          have ih := resolve_namedFields schema parentType inheritedBooleanCondition
-            ((if value then .positive literal.variableName else .negative literal.variableName)
-              :: caseCondition)
-            (cursor.resolveBooleanBranch branch.body rest literal value) possibleTypes
-            runtimeType variableValues hinherited hruntime (by
-              simpa [CaseCursor.resolveBooleanBranch, hselect,
-                CaseCursor.selectBranch] using hnextValid)
+          have ih :=
+            resolve_namedFields schema parentType inheritedBooleanCondition
+              ((if value then
+                  .positive literal.variableName
+                else
+                  .negative literal.variableName)
+                :: caseCondition)
+              (cursor.resolveBooleanBranch branch.body rest literal value) possibleTypes
+              runtimeType variableValues hinherited hruntime
+              (by
+                simpa [CaseCursor.resolveBooleanBranch, hselect, CaseCursor.selectBranch]
+                  using hnextValid)
           simp only
           apply ih.trans
           simp only [CaseCursor.resolveBooleanBranch, hselect, if_true,
@@ -1242,13 +1249,18 @@ private theorem resolve_namedFields
           have hbodyNil := runtimeNamedFields_eq_nil_of_condition_false schema
             variableValues parentType runtimeType inheritedBooleanCondition branch.body
             hinherited hbodyAllows hhead.choose_spec.2.2
-          have ih := resolve_namedFields schema parentType inheritedBooleanCondition
-            ((if value then .positive literal.variableName else .negative literal.variableName)
-              :: caseCondition)
-            (cursor.resolveBooleanBranch branch.body rest literal value) possibleTypes
-            runtimeType variableValues hinherited hruntime (by
-              simpa [CaseCursor.resolveBooleanBranch, hselect,
-                CaseCursor.skipBranch] using hrest)
+          have ih :=
+            resolve_namedFields schema parentType inheritedBooleanCondition
+              ((if value then
+                  .positive literal.variableName
+                else
+                  .negative literal.variableName)
+                :: caseCondition)
+              (cursor.resolveBooleanBranch branch.body rest literal value) possibleTypes
+              runtimeType variableValues hinherited hruntime
+              (by
+                simpa [CaseCursor.resolveBooleanBranch, hselect, CaseCursor.skipBranch]
+                  using hrest)
           simp only
           apply ih.trans
           simp [CaseCursor.resolveBooleanBranch, hselect, CaseCursor.skipBranch,
@@ -1437,9 +1449,10 @@ theorem fieldGroupsToExecutable_eq_collectRuntimeFieldGroups
         tree.condition.possibleTypes runtimeType variableValues).map
         CollectedFieldGroup.toExecutableGroup
       = tree.collectRuntimeFieldGroups variableValues runtimeType := by
-  have hvalid := pendingValid_of_coherent schema inheritedBooleanCondition variableValues
-    runtimeType tree.condition tree.branches hcondition (by
-      simpa [Tree.BranchesCoherent] using hcoherent)
+  have hvalid :=
+    pendingValid_of_coherent schema inheritedBooleanCondition variableValues runtimeType
+      tree.condition tree.branches hcondition
+      (by simpa [Tree.BranchesCoherent] using hcoherent)
   have hnames := resolve_namedFields schema parentType inheritedBooleanCondition []
     (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
     hinherited hruntime hvalid

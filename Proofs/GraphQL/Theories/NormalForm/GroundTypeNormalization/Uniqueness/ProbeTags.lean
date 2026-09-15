@@ -891,8 +891,7 @@ theorem executeField_fieldPairProbe_left_root_leaf
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments
         leftArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   have hresolve :
       Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -968,13 +967,11 @@ theorem executeField_fieldPairProbe_right_root_leaf_of_not_left
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments
         rightArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   have hnotLeftCoerced :
       ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
         rightField coercedArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      hnotLeft
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using hnotLeft
   have hresolve :
       Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -1057,8 +1054,7 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments
         leftArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   have hresolve :
       Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -1146,7 +1142,8 @@ theorem executeField_fieldPairProbe_left_root_objectProbe_response_of_fuel_ge
       fuel + 1 := by
     omega
   simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-    Execution.executeRootSelectionSet, hfuelEq] using hexecute
+    Execution.executeRootSelectionSet, hfuelEq]
+    using hexecute
 
 theorem executeField_fieldPairProbe_left_root_objectProbe_ok_of_child_response
     (schema : Schema) (rootSelectionSet : List Selection)
@@ -1274,13 +1271,11 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left
   have hcoercedArguments :
       Execution.CoercedArgument.argumentsEquivalent coercedArguments
         rightArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      harguments
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using harguments
   have hnotLeftCoerced :
       ¬ fieldProbeTarget targetParent leftField leftArguments targetParent
         rightField coercedArguments := by
-    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using
-      hnotLeft
+    simpa [Execution.coercedArgumentsForField, hlookup, hcoercionResult] using hnotLeft
   have hresolve :
       Execution.coerceAndResolveFieldValue schema
         (fieldPairProbeResolvers schema rootSelectionSet targetParent
@@ -1372,7 +1367,8 @@ theorem executeField_fieldPairProbe_right_root_objectProbe_response_of_not_left_
       fuel + 1 := by
     omega
   simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-    Execution.executeRootSelectionSet, hfuelEq] using hexecute
+    Execution.executeRootSelectionSet, hfuelEq]
+    using hexecute
 
 theorem executeField_fieldPairProbe_right_root_objectProbe_ok_of_child_response
     (schema : Schema) (rootSelectionSet : List Selection)

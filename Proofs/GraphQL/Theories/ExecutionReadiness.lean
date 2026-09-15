@@ -178,8 +178,8 @@ private theorem inputValueBoolean?_eq_of_variableValuesCoercionEquivalent_forRea
       | none => simp [hleft, hright] at hlookup
       | some right =>
           simp [hleft, hright] at hlookup
-          simpa [Execution.inputValueBoolean?, hleft, hright] using
-            inputValue_staticBoolean?_eq_of_equivalent_forReadiness hlookup
+          simpa [Execution.inputValueBoolean?, hleft, hright]
+            using inputValue_staticBoolean?_eq_of_equivalent_forReadiness hlookup
 
 private theorem
     directiveAllowsSelectionBool_eq_of_variableValuesCoercionEquivalent_forReadiness

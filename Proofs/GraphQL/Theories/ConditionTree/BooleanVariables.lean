@@ -537,7 +537,8 @@ theorem insertSelections_booleanBranchesWithin
           | none =>
               exact insertSelections_booleanBranchesWithin schema
                 inheritedBooleanCondition currentCondition branches tree rest variables
-                htree hbranches (by
+                htree hbranches
+                (by
                   intro variableName hvariable
                   apply hselection variableName
                   simp [selectionSetBooleanVariables, selectionBooleanVariables,
@@ -549,8 +550,9 @@ theorem insertSelections_booleanBranchesWithin
               | none =>
                   simp only [hnextCondition]
                   exact insertSelections_booleanBranchesWithin schema
-                    inheritedBooleanCondition currentCondition branches tree rest variables
-                    htree hbranches (by
+                    inheritedBooleanCondition currentCondition branches tree rest
+                    variables htree hbranches
+                    (by
                       intro variableName hvariable
                       apply hselection variableName
                       simp [selectionSetBooleanVariables, selectionBooleanVariables,
@@ -585,7 +587,8 @@ theorem insertSelections_booleanBranchesWithin
                   simp only [hnextCondition]
                   exact insertSelections_booleanBranchesWithin schema
                     inheritedBooleanCondition currentCondition branches treeAfter rest
-                    variables htreeAfter hbranches (by
+                    variables htreeAfter hbranches
+                    (by
                       intro variableName hvariable
                       apply hselection variableName
                       simp [selectionSetBooleanVariables, selectionBooleanVariables,
@@ -597,7 +600,8 @@ theorem insertSelections_booleanBranchesWithin
           | none =>
               exact insertSelections_booleanBranchesWithin schema
                 inheritedBooleanCondition currentCondition branches tree rest variables
-                htree hbranches (by
+                htree hbranches
+                (by
                   intro variableName hvariable
                   apply hselection variableName
                   simp [selectionSetBooleanVariables, selectionBooleanVariables,
@@ -609,8 +613,9 @@ theorem insertSelections_booleanBranchesWithin
               | none =>
                   simp only [hnextCondition]
                   exact insertSelections_booleanBranchesWithin schema
-                    inheritedBooleanCondition currentCondition branches tree rest variables
-                    htree hbranches (by
+                    inheritedBooleanCondition currentCondition branches tree rest
+                    variables htree hbranches
+                    (by
                       intro variableName hvariable
                       apply hselection variableName
                       simp [selectionSetBooleanVariables, selectionBooleanVariables,
@@ -640,7 +645,8 @@ theorem insertSelections_booleanBranchesWithin
                   simp only [hnextCondition]
                   exact insertSelections_booleanBranchesWithin schema
                     inheritedBooleanCondition currentCondition branches treeAfter rest
-                    variables htreeAfter hbranches (by
+                    variables htreeAfter hbranches
+                    (by
                       intro variableName hvariable
                       apply hselection variableName
                       simp [selectionSetBooleanVariables, selectionBooleanVariables,

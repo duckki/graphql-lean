@@ -260,8 +260,7 @@ theorem guardedScalarFieldIncludesAtRuntimeTypeBool_sound
                 simp [hleftAllows, leftField]
               cases hleftFields : leftFields with
               | nil =>
-                  have : leftField ∈ leftFields := by
-                    simpa [leftFields] using hleftField
+                  have : leftField ∈ leftFields := by simpa [leftFields] using hleftField
                   simp [hleftFields] at this
               | cons leftFieldHead leftFieldsRest =>
                   have hleftFieldHead : leftFieldHead ∈
@@ -411,8 +410,8 @@ theorem guardedCompositeFieldIncludesAtRuntimeTypeBool_sound
                                     = true
                                 ∧ booleanConditionAllows variableValues
                                   rightEntry.condition.booleanCondition = true := by
-                              simpa [Condition.allows, Bool.and_eq_true] using
-                                hrightAllows
+                              simpa [Condition.allows, Bool.and_eq_true]
+                                using hrightAllows
                             exact hparts.2
                           have hcoverComplete : boolVarsComplete
                               (SelectionConditions.booleanConditionsVariables
@@ -641,7 +640,9 @@ theorem guardedFieldGroupIncludesWithFuel_sound
       | some value =>
           exact guardedFieldGroupIncludesWithFuel_sound schema responseFuel
             fixedExecutionParentType checkValues targetValues rest parentRegion left
-            right region runtimeType childIncludes (by simpa [hvalue] using hcheck) hagrees
+            right region runtimeType childIncludes
+            (by simpa [hvalue] using hcheck)
+            hagrees
             (booleanVariablesCovered_tail_of_known hcovered ⟨value, hvalue⟩)
             (by
               intro candidate hcandidate
@@ -777,8 +778,8 @@ theorem booleanAssignmentsAgree_cons_target_of_unknown
     have hcontradiction := hagrees variableName candidateValue hcandidate
     rw [hunknown] at hcontradiction
     simp at hcontradiction
-  · simpa [inputValueBoolean?, lookupVariableValue?, heq] using
-      hagrees candidate candidateValue hcandidate
+  · simpa [inputValueBoolean?, lookupVariableValue?, heq]
+      using hagrees candidate candidateValue hcandidate
 
 set_option maxRecDepth 10000 in
 theorem guardedFieldGroupIncludesWithFuel_complete
@@ -1394,8 +1395,7 @@ theorem guardedFieldGroupCases_complete_runtime
         (fun outputType leftSelectionSet rightSelectionSet =>
           childIncludes (schema.getPossibleTypes outputType.namedType)
             leftSelectionSet rightSelectionSet)
-        (guardedFieldRuntimeGroups variableValues
-          runtimeType leftGroups)
+        (guardedFieldRuntimeGroups variableValues runtimeType leftGroups)
         (executableFieldsAsGroup
           (guardedFieldGroupFor leftGroups right).responseName
           (guardedFieldExecutableFields variableValues
@@ -1448,8 +1448,7 @@ theorem guardedFieldGroupCase_of_region_cases
           guardedFieldParentRegion schema fixedExecutionParentType left right := by
         cases hfixed : fixedExecutionParentType with
         | some parentType =>
-            simpa [guardedFieldParentRegion, hfixed] using
-              hfixedRuntime parentType hfixed
+            simpa [guardedFieldParentRegion, hfixed] using hfixedRuntime parentType hfixed
         | none =>
             have hfield : field ∈ guardedFieldExecutableFields variableValues
                 runtimeType right.entries := by
@@ -1462,7 +1461,8 @@ theorem guardedFieldGroupCase_of_region_cases
                 have hparts : entry.condition.possibleTypes.contains runtimeType = true
                     ∧ SelectionConditions.booleanConditionAllows variableValues
                       entry.condition.booleanCondition = true := by
-                  simpa [SelectionConditions.Condition.allows, Bool.and_eq_true] using hallows
+                  simpa [SelectionConditions.Condition.allows, Bool.and_eq_true]
+                    using hallows
                 exact List.contains_iff_mem.mp hparts.1
               unfold guardedFieldParentRegion
               apply List.mem_eraseDups.mpr

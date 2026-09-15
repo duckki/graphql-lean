@@ -848,28 +848,22 @@ theorem NormalSelectionSetResponsePath.append_context
   intro hpath
   cases hpath with
   | objectHere hobject hmem =>
-      exact
-        NormalSelectionSetResponsePath.objectHere hobject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
+      exact NormalSelectionSetResponsePath.objectHere hobject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
   | objectChild hobject hmem hlookup hchildPath =>
-      exact
-        NormalSelectionSetResponsePath.objectChild hobject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
-          hlookup hchildPath
+      exact NormalSelectionSetResponsePath.objectChild hobject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
+        hlookup hchildPath
   | abstractInlineFragment hnonObject hmem hchildPath =>
-      exact
-        NormalSelectionSetResponsePath.abstractInlineFragment hnonObject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
-          hchildPath
+      exact NormalSelectionSetResponsePath.abstractInlineFragment hnonObject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
+        hchildPath
 
 theorem NormalSelectionSetObservableResponsePath.append_context
     {schema : Schema} {parentType : Name}
@@ -881,30 +875,24 @@ theorem NormalSelectionSetObservableResponsePath.append_context
   intro hpath
   cases hpath with
   | objectLeaf hobject hmem hlookup hleaf =>
-      exact
-        NormalSelectionSetObservableResponsePath.objectLeaf hobject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
-          hlookup hleaf
+      exact NormalSelectionSetObservableResponsePath.objectLeaf hobject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
+        hlookup hleaf
   | objectChild hobject hmem hlookup hcomposite hchildPath =>
-      exact
-        NormalSelectionSetObservableResponsePath.objectChild hobject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
-          hlookup hcomposite hchildPath
+      exact NormalSelectionSetObservableResponsePath.objectChild hobject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
+        hlookup hcomposite hchildPath
   | abstractInlineFragment hnonObject hmem hchildPath =>
-      exact
-        NormalSelectionSetObservableResponsePath.abstractInlineFragment
-          hnonObject
-          (by
-            simpa [List.append_assoc] using
-              (List.mem_append_right pref
-                (List.mem_append_left suff hmem)))
-          hchildPath
+      exact NormalSelectionSetObservableResponsePath.abstractInlineFragment
+        hnonObject
+        (by
+          simpa [List.append_assoc]
+            using (List.mem_append_right pref (List.mem_append_left suff hmem)))
+        hchildPath
 
 theorem normalSelectionSetResponsePath_ne_nil
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}

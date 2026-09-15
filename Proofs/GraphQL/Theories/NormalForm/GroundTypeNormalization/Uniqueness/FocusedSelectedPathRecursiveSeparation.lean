@@ -169,24 +169,20 @@ theorem
           fieldDefinition.outputType.namedType fieldName rightArguments
           rightSpine)
         leftChildSelectionSet rightChildSelectionSet := by
-    simpa [hleftTail, hrightTail] using
-      hchildWitness
-  simpa [leftSpine, rightSpine] using
-    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_runtimeSpine
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
-      rightInitialSpine leftSpine rightSpine variableValues fuel
-      targetParent leftProbeField rightProbeField parentType
-      targetLeftArguments targetRightArguments leftRuntime rightRuntime
-      hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
-      hrightSpineValid hleftSupport hrightSupport hleftContext
-      hrightContext hleftMem hrightMem hlookup hobjectOutput
-      hchildWitnessTail
+    simpa [hleftTail, hrightTail] using hchildWitness
+  simpa [leftSpine, rightSpine]
+    using
+      selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_runtimeSpine
+        (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+        (rightVariableDefinitions := rightVariableDefinitions) rootSelectionSet
+        leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
+        rightCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine rightSpine
+        variableValues fuel targetParent leftProbeField rightProbeField parentType
+        targetLeftArguments targetRightArguments leftRuntime rightRuntime hschema
+        hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal hobject hleftFuel hrightFuel hleftSpineValid
+        hrightSpineValid hleftSupport hrightSupport hleftContext hrightContext hleftMem
+        hrightMem hlookup hobjectOutput hchildWitnessTail
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_leaf_right_normal_object_outputs_of_valid_normal_runtimeSpine
@@ -887,22 +883,18 @@ theorem
         hrightValid hrightNormal hrightObject hrightNonempty with
     ⟨rightSpine, hrightSpineValid, _hrightObservableSpine⟩
   refine ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid, ?_⟩
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_responseName_absent_fuels
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
-      rightInitialSpine leftSpine rightSpine variableValues leftFuel
-      rightFuel targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hschema hleftValid
-      hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal
-      hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
-      hrightSpineValid hleftSupport hrightSupport hleftContext
-      hrightContext (by simpa using hleftObservable) hrightNoResponseName
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_responseName_absent_fuels
+    (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+    (rightVariableDefinitions := rightVariableDefinitions) rootSelectionSet
+    leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
+    rightCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine rightSpine
+    variableValues leftFuel rightFuel targetParent leftProbeField rightProbeField
+    leftParentType rightParentType leftParentType rightParentType targetLeftArguments
+    targetRightArguments leftRuntime rightRuntime hschema hleftValid hrightValid
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
+    hrightObject hleftFuel hrightFuel hleftSpineValid hrightSpineValid hleftSupport
+    hrightSupport hleftContext hrightContext (by simpa using hleftObservable)
+    hrightNoResponseName
 
 theorem
     responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_observable_composite_right_leaf_valid_normal_fuels
@@ -1499,22 +1491,19 @@ theorem
     SelectedFieldSpineRuntimeValid.objectChild hobject hlookup
       hcomposite hrightChildSpineValid
   refine ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid, ?_⟩
-  simpa [leftSpine, rightSpine] using
-    selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
-      rightInitialSpine leftChildSpine rightChildSpine variableValues
-      fuel targetParent leftProbeField rightProbeField parentType
-      targetLeftArguments targetRightArguments leftRuntime rightRuntime
-      hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-      hrightNormal hobject hleftFuel hrightFuel hleftChildSpineValid
-      hrightChildSpineValid hleftSupport hrightSupport hleftContext
-      hrightContext hleftMem hrightMem hlookup hobjectOutput
-      hchildWitness
+  simpa [leftSpine, rightSpine]
+    using
+      selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
+        (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+        (rightVariableDefinitions := rightVariableDefinitions) rootSelectionSet
+        leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
+        rightCurrentSelectionSet leftInitialSpine rightInitialSpine leftChildSpine
+        rightChildSpine variableValues fuel targetParent leftProbeField rightProbeField
+        parentType targetLeftArguments targetRightArguments leftRuntime rightRuntime
+        hschema hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+        hleftNormal hrightNormal hobject hleftFuel hrightFuel hleftChildSpineValid
+        hrightChildSpineValid hleftSupport hrightSupport hleftContext hrightContext
+        hleftMem hrightMem hlookup hobjectOutput hchildWitness
 
 theorem
     selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childLeafPath_valid_normal
@@ -2342,22 +2331,19 @@ theorem
         targetLeftArguments targetRightArguments leftRuntime rightRuntime
         leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
         rightSpine left right := by
-    simpa [leftSpine, rightSpine] using
-      selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
-        (schema := schema)
-        (leftVariableDefinitions := leftVariableDefinitions)
-        (rightVariableDefinitions := rightVariableDefinitions)
-        rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-        leftCurrentSelectionSet rightCurrentSelectionSet leftSpine
-        rightSpine childSpine childSpine variableValues fuel
-        targetParent leftProbeField rightProbeField parentType
-        targetLeftArguments targetRightArguments leftRuntime rightRuntime
-      hschema hleftValid hrightValid hleftCoercion hrightCoercion
-      hleftFree hrightFree hleftNormal
-        hrightNormal hobject hleftFuel hrightFuel hchildSpineValid
-        hchildSpineValid hleftSupport hrightSupport hleftContext
-        hrightContext hleftMem hrightMem hlookup hobjectOutput
-        hchildWitness
+    simpa [leftSpine, rightSpine]
+      using
+        selectedPathTaggedSelectionSetsResponseDiffWitness_of_objectOutput_sameField_childWitness_valid_normal_alignedSpine
+          (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+          (rightVariableDefinitions := rightVariableDefinitions) rootSelectionSet
+          leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
+          rightCurrentSelectionSet leftSpine rightSpine childSpine childSpine
+          variableValues fuel targetParent leftProbeField rightProbeField parentType
+          targetLeftArguments targetRightArguments leftRuntime rightRuntime hschema
+          hleftValid hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
+          hleftNormal hrightNormal hobject hleftFuel hrightFuel hchildSpineValid
+          hchildSpineValid hleftSupport hrightSupport hleftContext hrightContext hleftMem
+          hrightMem hlookup hobjectOutput hchildWitness
   exact ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid,
     hwitness⟩
 
@@ -3068,22 +3054,18 @@ theorem
       hrightObject hrightInclude
   subst rightRuntimeType
   refine ⟨leftSpine, rightSpine, hleftSpineValid, hrightSpineValid, ?_⟩
-  exact
-    responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_right_observable_responseName_absent_fuels
-      (schema := schema)
-      (leftVariableDefinitions := leftVariableDefinitions)
-      (rightVariableDefinitions := rightVariableDefinitions)
-      rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftCurrentSelectionSet rightCurrentSelectionSet leftInitialSpine
-      rightInitialSpine leftSpine rightSpine variableValues leftFuel
-      rightFuel targetParent leftProbeField rightProbeField leftParentType
-      rightParentType leftParentType rightParentType targetLeftArguments
-      targetRightArguments leftRuntime rightRuntime hschema hleftValid
-      hrightValid hleftCoercion hrightCoercion hleftFree hrightFree
-      hleftNormal hrightNormal
-      hleftObject hrightObject hleftFuel hrightFuel hleftSpineValid
-      hrightSpineValid hleftSupport hrightSupport hleftContext
-      hrightContext (by simpa using hrightObservable) hleftNoResponseName
+  exact responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_right_observable_responseName_absent_fuels
+    (schema := schema) (leftVariableDefinitions := leftVariableDefinitions)
+    (rightVariableDefinitions := rightVariableDefinitions) rootSelectionSet
+    leftInitialSelectionSet rightInitialSelectionSet leftCurrentSelectionSet
+    rightCurrentSelectionSet leftInitialSpine rightInitialSpine leftSpine rightSpine
+    variableValues leftFuel rightFuel targetParent leftProbeField rightProbeField
+    leftParentType rightParentType leftParentType rightParentType targetLeftArguments
+    targetRightArguments leftRuntime rightRuntime hschema hleftValid hrightValid
+    hleftCoercion hrightCoercion hleftFree hrightFree hleftNormal hrightNormal hleftObject
+    hrightObject hleftFuel hrightFuel hleftSpineValid hrightSpineValid hleftSupport
+    hrightSupport hleftContext hrightContext (by simpa using hrightObservable)
+    hleftNoResponseName
 
 theorem
     responseData_not_semanticEquivalent_existsSpine_of_fieldPairOrDeepSuccess_selectedPathProbe_left_leaf_right_observable_composite_valid_normal_fuels

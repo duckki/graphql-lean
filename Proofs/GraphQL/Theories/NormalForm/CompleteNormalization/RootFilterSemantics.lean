@@ -50,9 +50,9 @@ theorem collectFields_completeRootBranch_eq_wrapped
           (wrapWithBoolCase boolCase selectionSet) := by
   cases selectionSet with
   | nil =>
-      simpa [Execution.collectFields] using
-        (collectFields_wrapWithBoolCase_empty schema variableValues
-          parentType source boolCase).symm
+      simpa [Execution.collectFields]
+        using (collectFields_wrapWithBoolCase_empty schema variableValues
+                parentType source boolCase).symm
   | cons selection rest =>
       rfl
 

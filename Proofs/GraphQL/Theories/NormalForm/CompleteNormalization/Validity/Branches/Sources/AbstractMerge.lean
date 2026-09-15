@@ -282,7 +282,8 @@ theorem normalizedDistinctBranchesPairwiseMerge_of_groupSources
     exact hrightGroup.childReady objectType (by simpa [hrightReturn] using hpossible)
   exact normalizedDistinctBranchesPairwiseMerge_of_abstractMerge_pair
     schema variableDefinitions hschema returnType
-    (schema.getPossibleTypes returnType) (schema.getPossibleTypes returnType)
+    (schema.getPossibleTypes returnType)
+    (schema.getPossibleTypes returnType)
     hleftGroup.childSource hrightGroup.childSource
     (by
       intro objectType hpossible
@@ -451,14 +452,13 @@ theorem normalizedFieldGroupSources_childPairs_of_sameReturn
   intro hleftReturn hrightReturn hobjectCase habstractCase _hparents
     mergeParent
   by_cases hobjectReturn : objectTypeNameBool schema returnType = true
-  · simpa [hleftReturn, hrightReturn, hobjectReturn] using
-      hobjectCase hobjectReturn mergeParent
+  · simpa [hleftReturn, hrightReturn, hobjectReturn]
+      using hobjectCase hobjectReturn mergeParent
   · have hfalse : objectTypeNameBool schema returnType = false := by
       cases hmatch : objectTypeNameBool schema returnType
       · rfl
       · exact False.elim (hobjectReturn hmatch)
-    simpa [hleftReturn, hrightReturn, hfalse] using
-      habstractCase hfalse mergeParent
+    simpa [hleftReturn, hrightReturn, hfalse] using habstractCase hfalse mergeParent
 
 theorem normalizedFieldGroupSources_childPairs_of_sameReturn_and_branches
     (schema : Schema) (variableDefinitions : List VariableDefinition)
@@ -751,8 +751,7 @@ theorem normalizeSelectionSets_fieldsInSetCanMerge_anyParent
             hchildSourcePair leftGroup.childDirectiveFree
             rightGroup.childDirectiveFree hleftChildFeasible
             hrightChildFeasible objectType
-      simpa [returnType, hreturnObjectFalse, hrightReturn] using
-        habstract hsamePairs
+      simpa [returnType, hreturnObjectFalse, hrightReturn] using habstract hsamePairs
 termination_by _parentType leftSet rightSet =>
   SelectionSet.size leftSet + SelectionSet.size rightSet
 decreasing_by

@@ -379,9 +379,11 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
             normalizeSelectionSetIn schema variables
               boolCase lookupParent selectionSet
         } :: normalizedFields) :: normalizedTail := by
-    simpa [staticCollectForGround_field_allowed schema variables
-      lookupParent groundType responseName fieldName boolCase arguments
-      directives selectionSet rest hallow, hlookup] using hnormalizedCollect
+    simpa [
+      staticCollectForGround_field_allowed schema variables
+        lookupParent groundType responseName fieldName boolCase arguments
+        directives selectionSet rest hallow, hlookup]
+      using hnormalizedCollect
   rw [staticCollectForGround_field_allowed schema variables
     lookupParent groundType responseName fieldName boolCase arguments
     directives selectionSet rest hallow]
@@ -389,11 +391,9 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_gro
   exact executeSelectionSet_field_head_group_eq_of_completeValue
     schema resolvers variableValues depth lookupParent source responseName
     fieldName arguments directives
-    (normalizeSelectionSetIn schema variables boolCase
-      lookupParent selectionSet)
+    (normalizeSelectionSetIn schema variables boolCase lookupParent selectionSet)
     selectionSet
-    (staticCollectForGround schema variables lookupParent
-      groundType boolCase rest)
+    (staticCollectForGround schema variables lookupParent groundType boolCase rest)
     rest normalizedFields sourceFields normalizedTail sourceTail
     hnormalizedCollect' hsourceCollect
     (by simp [hlookup]) htail
@@ -497,31 +497,32 @@ theorem executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_gro
           selectionSet :=
             normalizeBoolCaseForType schema boolCase fieldDefinition.outputType.namedType selectionSet
         } :: normalizedFields) :: normalizedTail := by
-    simpa [staticCollectForGround_field_allowed schema variables
-      lookupParent groundType responseName fieldName boolCase arguments
-      directives selectionSet rest hallow, hlookup] using hnormalizedCollect
+    simpa [
+      staticCollectForGround_field_allowed schema variables
+        lookupParent groundType responseName fieldName boolCase arguments
+        directives selectionSet rest hallow, hlookup]
+      using hnormalizedCollect
   rw [staticCollectForGround_field_allowed schema variables
     lookupParent groundType responseName fieldName boolCase arguments
     directives selectionSet rest hallow]
   simp [hlookup]
-  exact executeSelectionSet_field_head_group_eq_of_completeValue
-    schema resolvers variableValues depth lookupParent source responseName
-    fieldName arguments directives
-    (normalizeBoolCaseForType schema boolCase fieldDefinition.outputType.namedType selectionSet)
+  exact executeSelectionSet_field_head_group_eq_of_completeValue schema resolvers
+    variableValues depth lookupParent source responseName fieldName arguments directives
+    (normalizeBoolCaseForType schema boolCase fieldDefinition.outputType.namedType
+      selectionSet)
     selectionSet
-    (staticCollectForGround schema variables lookupParent
-      groundType boolCase rest)
-    rest normalizedFields sourceFields normalizedTail sourceTail
-    hnormalizedCollect' hsourceCollect
+    (staticCollectForGround schema variables lookupParent groundType boolCase rest) rest
+    normalizedFields sourceFields normalizedTail sourceTail hnormalizedCollect'
+    hsourceCollect
     (by
-      cases hresolved :
-          Execution.coerceAndResolveFieldValue schema resolvers variableValues
-            fieldDefinition lookupParent fieldName arguments source with
+      cases hresolved
+            : Execution.coerceAndResolveFieldValue schema resolvers variableValues
+                fieldDefinition lookupParent fieldName arguments source with
       | none =>
           simp [Execution.resolveFieldValueByName, hlookup, hresolved]
       | some value =>
-          simpa [Execution.resolveFieldValueByName, hlookup, hresolved]
-            using hcomplete) htail
+          simpa [Execution.resolveFieldValueByName, hlookup, hresolved] using hcomplete)
+    htail
 
 theorem
     executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_no_duplicate_case
@@ -649,7 +650,8 @@ theorem
         (Execution.collectFields schema variableValues lookupParent source
           rest) := by
     simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-      normalizedRest] using htail
+      normalizedRest]
+      using htail
   apply executeSelectionSet_staticCollectForGround_field_allowed_lookup_some_group_case
     schema resolvers variableValues
     (operationBoolVars operation) depth lookupParent
@@ -662,8 +664,7 @@ theorem
   · exact hlookup
   · simpa [normalizedSelectionSet, normalizedRest] using hnormalizedCollect
   · exact hsourceCollect
-  · simpa [normalizedSelectionSet, Execution.mergedFieldSelectionSet]
-      using hcomplete
+  · simpa [normalizedSelectionSet, Execution.mergedFieldSelectionSet] using hcomplete
   · exact htailCollected
 
 theorem
@@ -769,7 +770,8 @@ theorem
         (Execution.collectFields schema variableValues lookupParent source
           rest) := by
     simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
-      normalizedRest] using htail
+      normalizedRest]
+      using htail
   apply executeSelectionSet_staticCollectForGround_field_allowed_lookup_none_group_case
     schema resolvers variableValues
     (operationBoolVars operation) depth lookupParent

@@ -821,9 +821,13 @@ theorem PairKeysNodup.append {α : Type} {left right : List (Name × α)}
   unfold PairKeysNodup at hleft hright ⊢
   rw [List.map_append]
   exact List.nodup_append.mpr
-    ⟨hleft, hright, by
-      intro leftName hleftMem rightName hrightMem heq
-      exact hdisjoint leftName hleftMem (by simpa [heq] using hrightMem)⟩
+    ⟨
+      hleft,
+      hright,
+      by
+        intro leftName hleftMem rightName hrightMem heq
+        exact hdisjoint leftName hleftMem (by simpa [heq] using hrightMem)
+    ⟩
 
 theorem executableGroupNamesDisjoint_singleton_tail_of_pairKeysNodup
     {responseName : Name} {fields : List ExecutableField}
@@ -880,7 +884,7 @@ inductive ResponseMergeReady : ResponseValue -> Prop where
 def MergeResponseFieldsReadySteps
     : List (Name × ResponseValue) -> List (Name × ResponseValue) -> Prop
   | _existing, [] => True
-  | existing, (responseName, incoming)::rest =>
+  | existing, (responseName, incoming) :: rest =>
       ResponseMergeReady incoming
       ∧ (∀ existingResponse,
           (responseName, existingResponse) ∈ existing
@@ -891,7 +895,7 @@ def MergeResponseFieldsReadySteps
 def MergeResponseFieldsAbsorbsFrom (base : List (Name × ResponseValue))
     : List (Name × ResponseValue) -> List (Name × ResponseValue) -> Prop
   | current, [] => ResponseAbsorbs (.object base) (.object current)
-  | current, (responseName, incoming)::rest =>
+  | current, (responseName, incoming) :: rest =>
       ResponseAbsorbs (.object base)
         (.object (mergeResponseField responseName incoming current))
       ∧ MergeResponseFieldsAbsorbsFrom base
@@ -1073,15 +1077,16 @@ theorem ValidOperationPrefixSelectionState.of_valid_noAlias
       have hright : Validation.selectionSetValid schema operation.variableDefinitions (operation.rootType schema) (selection :: suffix) :=
         Validation.selectionSetValid_append_right hselSet
       exact (by
-        simp [Validation.selectionSetValid] at hright
-        exact hright.1)
+              simp [Validation.selectionSetValid] at hright
+              exact hright.1)
     fieldsInSetCanMerge := by
       have hmergeAll : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (prefixSelections ++ selection :: suffix) := by
         rw [← hselectionSet]
         exact Validation.operationDefinitionValid_fieldsInSetCanMerge hvalid
       have hright : FieldMerge.fieldsInSetCanMerge schema (operation.rootType schema) (selection :: suffix) :=
         GraphQL.NormalForm.fieldsInSetCanMerge_append_right schema (operation.rootType schema) prefixSelections (selection :: suffix) hmergeAll
-      exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema (operation.rootType schema) [selection] suffix hright
+      exact GraphQL.NormalForm.fieldsInSetCanMerge_append_left schema
+        (operation.rootType schema) [selection] suffix hright
     noAlias :=
       OperationNoAliasCollision.prefix_selection schema operation
         prefixSelections suffix selection hnoAlias hselectionSet
@@ -1515,8 +1520,8 @@ theorem CollectedGroupsFieldsNonempty_addExecutableGroup
   intro hgroup hgroups
   induction groups with
   | nil =>
-      simpa [GraphQL.Execution.addExecutableGroup] using
-        CollectedGroupsFieldsNonempty_singleton groupName groupFields hgroup
+      simpa [GraphQL.Execution.addExecutableGroup]
+        using CollectedGroupsFieldsNonempty_singleton groupName groupFields hgroup
   | cons current rest ih =>
       rcases current with ⟨currentName, currentFields⟩
       by_cases hname : (currentName == groupName) = true
@@ -1725,24 +1730,22 @@ theorem Eager.RootSelectionResultAlignedEquivalent.canceling_combine_append
             simpa [RootSelectionResultAlignedEquivalent] using hleft
           cases specRight with
           | error specRightErrors =>
-              simpa [RootSelectionResultAlignedEquivalent,
-                cancelingRootSelectionAppend,
-                GraphQL.Execution.Result.combine] using
-                ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
+              simpa [RootSelectionResultAlignedEquivalent, cancelingRootSelectionAppend,
+                GraphQL.Execution.Result.combine]
+                using ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
                   hungroupedPositive hleftErrors
           | ok specRightResult =>
               rcases specRightResult with ⟨specRightFields, specRightErrors⟩
-              simpa [RootSelectionResultAlignedEquivalent,
-                cancelingRootSelectionAppend,
-                GraphQL.Execution.Result.combine] using
-                ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
+              simpa [RootSelectionResultAlignedEquivalent, cancelingRootSelectionAppend,
+                GraphQL.Execution.Result.combine]
+                using ErrorPresenceEquivalent.add_spec_right_of_ungrouped_pos
                   hungroupedPositive hleftErrors
       | ok specLeftResult =>
           rcases specLeftResult with ⟨specLeftFields, specLeftErrors⟩
           simp [RootSelectionResultAlignedEquivalent] at hleft
   | ok ungroupedLeftResult =>
-      simpa [cancelingRootSelectionAppend] using
-        RootSelectionResultAlignedEquivalent.combine_append hleft hright
+      simpa [cancelingRootSelectionAppend]
+        using RootSelectionResultAlignedEquivalent.combine_append hleft hright
 
 end ExecutionUngroupedUncached
 end Algorithms

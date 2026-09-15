@@ -255,8 +255,8 @@ theorem normalizeOperation_selectionSetArgumentsNodup
       -> Execution.selectionSetArgumentsNodup
           (normalizeOperation schema operation).selectionSet := by
   intro hnodup
-  simpa [normalizeOperation] using
-    normalizeSelectionSet_argumentsNodup schema (operation.rootType schema)
+  simpa [normalizeOperation]
+    using normalizeSelectionSet_argumentsNodup schema (operation.rootType schema)
       operation.selectionSet hnodup
 
 end GroundTypeNormalization

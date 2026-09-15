@@ -321,11 +321,9 @@ theorem responseNamesNodup_tail {selection : Selection} {selectionSet : List Sel
   intro hnodup
   cases selection with
   | field responseName fieldName arguments directives childSelectionSet =>
-      simpa [responseNamesNodup] using
-        (List.nodup_cons.mp
-          (by
-            simpa [responseNamesNodup, Selection.responseName?] using
-              hnodup)).2
+      simpa [responseNamesNodup]
+        using (List.nodup_cons.mp
+                (by simpa [responseNamesNodup, Selection.responseName?] using hnodup)).2
   | inlineFragment typeCondition directives childSelectionSet =>
       change responseNamesNodup selectionSet
       exact hnodup
@@ -346,11 +344,11 @@ theorem inlineFragmentTypeConditionsNodup_tail
           exact hnodup
       | some typeCondition =>
           simpa [inlineFragmentTypeConditionsNodup, inlineFragmentTypeCondition?]
-            using
-            (List.nodup_cons.mp
-              (by
-                simpa [inlineFragmentTypeConditionsNodup,
-                  inlineFragmentTypeCondition?] using hnodup)).2
+            using (List.nodup_cons.mp
+                    (by
+                      simpa [inlineFragmentTypeConditionsNodup,
+                        inlineFragmentTypeCondition?]
+                        using hnodup)).2
 
 theorem selectionSetNonRedundant_tail
     {selection : Selection} {selectionSet : List Selection}
@@ -429,8 +427,14 @@ theorem selectionSet_field_mem_of_allFields_nonempty {selectionSet : List Select
         hallFields selection (by simp)
       cases selection with
       | field responseName fieldName arguments directives childSelectionSet =>
-          exact ⟨responseName, fieldName, arguments, directives,
-            childSelectionSet, by simp⟩
+          exact ⟨
+            responseName,
+            fieldName,
+            arguments,
+            directives,
+            childSelectionSet,
+            by simp
+          ⟩
       | inlineFragment typeCondition directives childSelectionSet =>
           simp [Selection.isField] at hheadField
 
@@ -1086,8 +1090,7 @@ theorem selectionSetPairedBy_of_field_responseName_matches
         hcoverage
       cases right with
       | nil =>
-          exact ⟨[], List.Perm.nil, List.Perm.nil,
-            (by intro pair hpair; simp at hpair)⟩
+          exact ⟨[], List.Perm.nil, List.Perm.nil, (by intro pair hpair; simp at hpair)⟩
       | cons selection rest =>
           have hselectionField : Selection.isField selection :=
             hrightAll selection (by simp)
@@ -1118,15 +1121,13 @@ theorem selectionSetPairedBy_of_field_responseName_matches
           have hleftNodupCons :
               (responseName ::
                 leftRest.filterMap Selection.responseName?).Nodup := by
-            simpa [responseNamesNodup, Selection.responseName?] using
-              hleftNodup
+            simpa [responseNamesNodup, Selection.responseName?] using hleftNodup
           have hleftHeadNotRest :
               responseName ∉ leftRest.filterMap Selection.responseName? :=
             (List.nodup_cons.mp hleftNodupCons).1
           have hleftRestNodup :
               responseNamesNodup leftRest := by
-            simpa [responseNamesNodup] using
-              (List.nodup_cons.mp hleftNodupCons).2
+            simpa [responseNamesNodup] using (List.nodup_cons.mp hleftNodupCons).2
           rcases hmatch responseName fieldName arguments directives
               childSelectionSet (by simp) with
             ⟨rightFieldName, rightArguments, rightDirectives,
@@ -1193,8 +1194,8 @@ theorem selectionSetPairedBy_of_field_responseName_matches
                 · have hresponseEq : tailResponseName = responseName := by
                     have hsome :
                         some tailResponseName = some responseName := by
-                      simpa [matchedRight, Selection.responseName?] using
-                        congrArg Selection.responseName? hhead
+                      simpa [matchedRight, Selection.responseName?]
+                        using congrArg Selection.responseName? hhead
                     simpa using hsome
                   have htailResponseMem :
                       tailResponseName ∈
@@ -1204,8 +1205,7 @@ theorem selectionSetPairedBy_of_field_responseName_matches
                         tailArguments tailDirectives tailChildSelectionSet,
                         htailMem, by simp [Selection.responseName?]⟩
                   exact False.elim
-                    (hleftHeadNotRest
-                      (by simpa [hresponseEq] using htailResponseMem))
+                    (hleftHeadNotRest (by simpa [hresponseEq] using htailResponseMem))
                 · exact List.mem_append_right _ hsuffix
             exact ⟨matchedFieldName, matchedArguments, matchedDirectives,
               matchedChildSelectionSet, hmatchedMemRest, hmatchedEq⟩
@@ -1336,8 +1336,7 @@ theorem selectionSetPairedBy_of_inlineFragment_typeCondition_matches
         hcoverage
       cases right with
       | nil =>
-          exact ⟨[], List.Perm.nil, List.Perm.nil,
-            (by intro pair hpair; simp at hpair)⟩
+          exact ⟨[], List.Perm.nil, List.Perm.nil, (by intro pair hpair; simp at hpair)⟩
       | cons selection rest =>
           rcases hrightSome selection (by simp) with
             ⟨typeCondition, directives, childSelectionSet, hselection⟩

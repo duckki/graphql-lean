@@ -113,9 +113,9 @@ theorem selectionSetNormal_field_child
   unfold NormalForm.selectionGroundTyped at hselectionGround
   unfold NormalForm.selectionNonRedundant at hselectionNonRedundant
   rcases hselectionGround with ⟨returnType, hreturn, hchildGround⟩
-  simpa [hreturn, NormalForm.selectionSetNormal] using
-    (⟨hchildGround, hselectionNonRedundant⟩ :
-      NormalForm.selectionSetNormal schema returnType selectionSet)
+  simpa [hreturn, NormalForm.selectionSetNormal]
+    using (⟨hchildGround, hselectionNonRedundant⟩
+            : NormalForm.selectionSetNormal schema returnType selectionSet)
 
 theorem selectionSetNormal_inline_child
     {schema : Schema} {parentType typeCondition : Name}
@@ -422,8 +422,8 @@ theorem visitSubfields_possibleTypeNormalizations_runtime_branch
               · exact False.elim (heq hhead.symm)
               · exact htail
             simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-              hnormalized] using
-              ih hrestObjects hrestNodup hrestMem
+              hnormalized]
+              using ih hrestObjects hrestNodup hrestMem
       | cons selection restNormalized =>
           by_cases heq : objectType = runtimeType
           · subst objectType
@@ -555,7 +555,8 @@ theorem executeSelectionSet_possibleTypeNormalizations_runtime_normalized_branch
               | inr htail =>
                   exact htail
             simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-              hnormalized] using ih hrestObjects hrestNodup hrestMem
+              hnormalized]
+              using ih hrestObjects hrestNodup hrestMem
       | cons selection restNormalized =>
           rw [show
               NormalForm.GroundTypeNormalization.possibleTypeNormalizations
@@ -749,8 +750,8 @@ theorem visitSubfields_normalizedFieldSubselections_eq_spec_of_runtime
       cases hmatch : NormalForm.objectTypeNameBool schema childType
       · rfl
       · contradiction
-    simpa [hfalse] using
-      visitSubfields_getPossibleTypesNormalizations_eq_spec_of_runtime_normalized
+    simpa [hfalse]
+      using visitSubfields_getPossibleTypesNormalizations_eq_spec_of_runtime_normalized
         schema resolvers variableValues hschema depth childType runtimeType
         (ref := ref) selectionSet hinclude hnormalized
 
@@ -780,8 +781,8 @@ theorem generatedNormalizedFieldChild_selectionSetDirectiveFree
           NormalForm.normalizeSelectionSet schema childType
             sourceSelectionSet := by
       simpa [hobject] using hchild
-    simpa [hchildEq, NormalForm.selectionSetNormal] using
-      NormalForm.GroundTypeNormalization.normalizeSelectionSet_directiveFree
+    simpa [hchildEq, NormalForm.selectionSetNormal]
+      using NormalForm.GroundTypeNormalization.normalizeSelectionSet_directiveFree
         schema childType sourceSelectionSet hsourceFree
   · have hfalse :
         NormalForm.objectTypeNameBool schema childType = false := by
@@ -793,10 +794,9 @@ theorem generatedNormalizedFieldChild_selectionSetDirectiveFree
           NormalForm.GroundTypeNormalization.possibleTypeNormalizations schema
             (schema.getPossibleTypes childType) sourceSelectionSet := by
       simpa [hfalse] using hchild
-    simpa [hchildEq] using
-      NormalForm.GroundTypeNormalization.selectionSetDirectiveFree_possibleTypeNormalizations
-        schema (schema.getPossibleTypes childType)
-        (selectionSet := sourceSelectionSet)
+    simpa [hchildEq]
+      using NormalForm.GroundTypeNormalization.selectionSetDirectiveFree_possibleTypeNormalizations
+        schema (schema.getPossibleTypes childType) (selectionSet := sourceSelectionSet)
         (fun objectType _hobjectType =>
           NormalForm.GroundTypeNormalization.normalizeSelectionSet_directiveFree
             schema objectType sourceSelectionSet hsourceFree)
@@ -815,8 +815,8 @@ theorem generatedNormalizedFieldChild_selectionSetNormal
           NormalForm.normalizeSelectionSet schema childType
             sourceSelectionSet := by
       simpa [hobject] using hchild
-    simpa [hchildEq] using
-      NormalForm.GroundTypeNormalization.normalizeSelectionSet_normal
+    simpa [hchildEq]
+      using NormalForm.GroundTypeNormalization.normalizeSelectionSet_normal
         schema hschema childType sourceSelectionSet
         hobject
   · have hfalse :
@@ -863,11 +863,11 @@ theorem generatedNormalizedFieldChild_selectionSetNormal
               schema
               (SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
                 hschema childType objectType hobjectType))).2)
-    simpa [hchildEq, NormalForm.selectionSetNormal] using
-      (⟨hground, hnonRedundant⟩ :
-        NormalForm.selectionSetNormal schema childType
-          (NormalForm.GroundTypeNormalization.possibleTypeNormalizations schema
-            (schema.getPossibleTypes childType) sourceSelectionSet))
+    simpa [hchildEq, NormalForm.selectionSetNormal]
+      using (⟨hground, hnonRedundant⟩
+              : NormalForm.selectionSetNormal schema childType
+                  (NormalForm.GroundTypeNormalization.possibleTypeNormalizations schema
+                    (schema.getPossibleTypes childType) sourceSelectionSet))
 
 theorem collectFields_possibleTypeNormalizations_runtime_branch
     (schema : Schema) (variableValues : Execution.VariableValues)
@@ -994,14 +994,15 @@ theorem selectionSetLookupValid_possibleTypeNormalizations_runtime_branch
       | nil =>
           rcases List.mem_cons.mp hmem with hhead | htail
           · subst objectType
-            simpa [hnormalized] using
-              NormalForm.selectionSetLookupValid_nil schema runtimeType
+            simpa [hnormalized]
+              using NormalForm.selectionSetLookupValid_nil schema runtimeType
           · have htailLookup :
                 NormalForm.selectionSetLookupValid schema runtimeType
                   (NormalForm.GroundTypeNormalization.possibleTypeNormalizations
                     schema rest selectionSet) := by
               simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-                hnormalized] using hlookup
+                hnormalized]
+                using hlookup
             exact ih htail htailLookup
       | cons selection normalizedRest =>
           rcases List.mem_cons.mp hmem with hhead | htail
@@ -1182,7 +1183,8 @@ theorem selectionSetValidInPossibleTypes_possibleTypeNormalizations_runtime_bran
                   (NormalForm.GroundTypeNormalization.possibleTypeNormalizations
                     schema rest selectionSet) := by
               simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-                hnormalized] using himplementation
+                hnormalized]
+                using himplementation
             exact ih hrestObjects htail htailImplementation
       | cons selection normalizedRest =>
           rcases List.mem_cons.mp hmem with hhead | htail
@@ -1198,9 +1200,8 @@ theorem selectionSetValidInPossibleTypes_possibleTypeNormalizations_runtime_bran
                     (NormalForm.GroundTypeNormalization.possibleTypeNormalizations
                       schema rest selectionSet) := by
               simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-                hnormalized,
-                Validation.selectionSetValidInPossibleTypes] using
-                himplementation
+                hnormalized, Validation.selectionSetValidInPossibleTypes]
+                using himplementation
             have hheadImplementation :
                 Validation.selectionValidInPossibleTypes schema
                   variableDefinitions runtimeType
@@ -1217,8 +1218,8 @@ theorem selectionSetValidInPossibleTypes_possibleTypeNormalizations_runtime_bran
                     Validation.selectionSetValidInPossibleTypes schema
                       variableDefinitions objectType
                       (selection :: normalizedRest) := by
-              simpa [Validation.selectionValidInPossibleTypes] using
-                hheadImplementation hoverlap
+              simpa [Validation.selectionValidInPossibleTypes]
+                using hheadImplementation hoverlap
             have hruntimePossible :
                 runtimeType ∈ schema.getPossibleTypes runtimeType :=
               List.contains_iff_mem.mp
@@ -1241,9 +1242,8 @@ theorem selectionSetValidInPossibleTypes_possibleTypeNormalizations_runtime_bran
                       (NormalForm.GroundTypeNormalization.possibleTypeNormalizations
                         schema rest selectionSet) := by
                 simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
-                  hnormalized,
-                  Validation.selectionSetValidInPossibleTypes] using
-                  himplementation
+                  hnormalized, Validation.selectionSetValidInPossibleTypes]
+                  using himplementation
               exact hparts.2
             exact ih hrestObjects htail htailImplementation
 
@@ -1294,19 +1294,18 @@ theorem freshPrefixSelectionDerivation_possibleTypeNormalizations_runtime
           simpa [NormalForm.GroundTypeNormalization.possibleTypeNormalizations,
             hnormalizedSet] using hrestDerivation
       | cons selection restSelection =>
-          have hhead :
-              FreshPrefixSelectionDerivation schema variableValues runtimeType
-                (.object runtimeType ref)
-                [Selection.inlineFragment (some objectType) []
-                  (selection :: restSelection)] :=
+          have hhead
+              : FreshPrefixSelectionDerivation schema variableValues runtimeType
+                  (.object runtimeType ref)
+                  [Selection.inlineFragment (some objectType) []
+                    (selection :: restSelection)] :=
             FreshPrefixSelectionDerivation.inlineFragmentSome objectType []
               (selection :: restSelection)
               (by
                 intro _hallow happly
                 by_cases heq : objectType = runtimeType
                 · subst objectType
-                  simpa [hnormalizedSet] using
-                    hnormalized runtimeType (by simp) rfl
+                  simpa [hnormalizedSet] using hnormalized runtimeType (by simp) rfl
                 · have hskip :
                       Execution.doesFragmentTypeApplyBool schema runtimeType
                           (.object runtimeType ref) objectType =
@@ -1511,8 +1510,7 @@ theorem normalizeSelectionSet_field_child_generated (schema : Schema)
           responseName rest (NormalForm.selectionSetDirectiveFree_tail hfree)
       exact hrest targetResponseName targetFieldName targetArguments
         targetDirectives childSelectionSet hrestFree
-        (by
-          simpa [NormalForm.normalizeSelectionSet, hlookup] using hmem)
+        (by simpa [NormalForm.normalizeSelectionSet, hlookup] using hmem)
   | case3 parentType rest responseName fieldName arguments directives
       selectionSet fieldDefinition hlookup matching mergedSubselections
       returnType hrest hmerged hpossible =>
@@ -1534,8 +1532,8 @@ theorem normalizeSelectionSet_field_child_generated (schema : Schema)
           responseName rest (NormalForm.selectionSetDirectiveFree_tail hfree)
       have hmergedFree :
           NormalForm.selectionSetDirectiveFree mergedSubselections := by
-        simpa [matching, mergedSubselections] using
-          NormalForm.selectionSetDirectiveFree_fieldHead_merged schema
+        simpa [matching, mergedSubselections]
+          using NormalForm.selectionSetDirectiveFree_fieldHead_merged schema
             parentType responseName fieldName arguments selectionSet rest hfree
       simp [NormalForm.normalizeSelectionSet, hlookup,
         NormalForm.normalizedField] at hmem
@@ -1917,12 +1915,11 @@ theorem collectFields_fieldNormal_childLocalFacts_object
     ⟨hchildLookup, hchildImplementation, hchildMerge⟩
   exact ⟨
     by simpa [GraphQL.Execution.mergedFieldSelectionSet] using hchildLookup,
-    by simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-      hchildImplementation,
+    by simpa [GraphQL.Execution.mergedFieldSelectionSet] using hchildImplementation,
     by
       intro objectType
-      simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-        hchildMerge objectType⟩
+      simpa [GraphQL.Execution.mergedFieldSelectionSet] using hchildMerge objectType
+  ⟩
 
 theorem collectFields_generatedNormalizedFieldChild_childLocalFacts
     (schema : Schema)
@@ -1974,8 +1971,8 @@ theorem collectFields_generatedNormalizedFieldChild_childLocalFacts
       simpa [hobject] using hchild
     have hall :
         NormalForm.selectionsAllFields childSelectionSet := by
-      simpa [hchildEq] using
-        NormalForm.GroundTypeNormalization.normalizeSelectionSet_allFields
+      simpa [hchildEq]
+        using NormalForm.GroundTypeNormalization.normalizeSelectionSet_allFields
           schema childType sourceSelectionSet
     have hvalid :
         Validation.selectionSetValid schema variableDefinitions childType
@@ -2180,26 +2177,24 @@ theorem selectionSetNormal_field_child_of_mem
           childSelectionSet := by
   intro hnormal hmem
   rcases hnormal with ⟨hground, hnonRedundant⟩
-  have hselectionGround :
-      NormalForm.selectionGroundTyped schema parentType
-        (Selection.field responseName fieldName arguments directives
-          childSelectionSet) :=
-    by
-      unfold NormalForm.selectionSetGroundTyped at hground
-      exact hground.2 _ hmem
-  have hselectionNonRedundant :
-      NormalForm.selectionNonRedundant
-        (Selection.field responseName fieldName arguments directives
-          childSelectionSet) :=
-    by
-      unfold NormalForm.selectionSetNonRedundant at hnonRedundant
-      exact hnonRedundant.2.2 _ hmem
+  have hselectionGround
+      : NormalForm.selectionGroundTyped schema parentType
+          (Selection.field responseName fieldName arguments directives
+            childSelectionSet) := by
+    unfold NormalForm.selectionSetGroundTyped at hground
+    exact hground.2 _ hmem
+  have hselectionNonRedundant
+      : NormalForm.selectionNonRedundant
+          (Selection.field responseName fieldName arguments directives
+            childSelectionSet) := by
+    unfold NormalForm.selectionSetNonRedundant at hnonRedundant
+    exact hnonRedundant.2.2 _ hmem
   unfold NormalForm.selectionGroundTyped at hselectionGround
   unfold NormalForm.selectionNonRedundant at hselectionNonRedundant
   rcases hselectionGround with ⟨returnType, hreturn, hchildGround⟩
-  simpa [hreturn, NormalForm.selectionSetNormal] using
-    (⟨hchildGround, hselectionNonRedundant⟩ :
-      NormalForm.selectionSetNormal schema returnType childSelectionSet)
+  simpa [hreturn, NormalForm.selectionSetNormal]
+    using (⟨hchildGround, hselectionNonRedundant⟩
+            : NormalForm.selectionSetNormal schema returnType childSelectionSet)
 
 theorem allFieldsNormal_responseNamesNodup
     {schema : Schema} {parentType : Name} {selectionSet : List Selection}
@@ -2388,8 +2383,8 @@ theorem collectedFieldGroupLocalAppendInvariant_of_allFieldsNormal
           NormalForm.selectionSetDirectiveFree childSelectionSet :=
         selectionSetDirectiveFree_field_child_of_mem hfree hselectionMem
       simpa [FreshPrefixSelectionDerivation.executableFieldOfSelection,
-        GraphQL.Execution.mergedFieldSelectionSet] using
-        hchild childDepth
+        GraphQL.Execution.mergedFieldSelectionSet]
+        using hchild childDepth
           ((schema.fieldReturnType? parentType selectionFieldName).getD
             selectionFieldName)
           runtimeType identity childSelectionSet

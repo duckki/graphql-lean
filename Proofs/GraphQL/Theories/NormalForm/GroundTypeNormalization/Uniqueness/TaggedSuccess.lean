@@ -1082,15 +1082,12 @@ theorem
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
     hcoercion hfree hnormal hinclude hpromote hheadPromote
-  exact
-    executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
-      schema rootSelectionSet variableValues hschema
-      (SelectionSet.size selectionSet + 1) parentType variableDefinitions
-      selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
-      sourceRuntimeType targetParent leftField rightField leftArguments
-      rightArguments tag (by omega) (by omega) hvalid hcoercion hfree hnormal
-      hinclude hpromote
-      hheadPromote
+  exact executeSelectionSetAsResponse_fieldPairProbe_tagged_of_valid_normal_promoted_fuel_ge_size
+    schema rootSelectionSet variableValues hschema (SelectionSet.size selectionSet + 1)
+    parentType variableDefinitions selectionSet
+    (selectionSetDeepProbeFuel schema parentType selectionSet) sourceRuntimeType
+    targetParent leftField rightField leftArguments rightArguments tag (by omega)
+    (by omega) hvalid hcoercion hfree hnormal hinclude hpromote hheadPromote
 
 theorem
     executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
@@ -1419,14 +1416,11 @@ theorem
   intro hschema parentType variableDefinitions selectionSet sourceRuntimeType
     targetParent leftField rightField leftArguments rightArguments tag hvalid
     hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
-  exact
-    executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
-      schema rootSelectionSet variableValues hschema parentType
-      variableDefinitions selectionSet
-      (selectionSetDeepProbeFuel schema parentType selectionSet)
-      sourceRuntimeType targetParent leftField rightField leftArguments
-      rightArguments tag (by omega) hvalid hcoercion hfree hnormal hobject
-      hinclude hpromote hheadPromote
+  exact executeField_fieldPairProbe_tagged_object_field_ok_of_valid_normal_promoted_fuel_ge
+    schema rootSelectionSet variableValues hschema parentType variableDefinitions
+    selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
+    sourceRuntimeType targetParent leftField rightField leftArguments rightArguments tag
+    (by omega) hvalid hcoercion hfree hnormal hobject hinclude hpromote hheadPromote
 
 end GroundTypeNormalization
 

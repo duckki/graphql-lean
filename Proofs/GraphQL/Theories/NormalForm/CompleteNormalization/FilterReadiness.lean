@@ -357,8 +357,7 @@ theorem fieldsInSetCanMerge_filterSelectionSetBoolCase_forSemantics
   · intro sourceLeft sourceRight hshape hidentity hsubfields ihsubfields
       left right hleftSource hrightSource _hresponse
     refine FieldMerge.FieldsForNameCanMerge.intro left right ?_ ?_ ?_
-    · simpa [hleftSource.outputType, hrightSource.outputType] using
-        hshape
+    · simpa [hleftSource.outputType, hrightSource.outputType] using hshape
     · intro hparents
       have hsourceParents :
           sourceLeft.parentType = sourceRight.parentType

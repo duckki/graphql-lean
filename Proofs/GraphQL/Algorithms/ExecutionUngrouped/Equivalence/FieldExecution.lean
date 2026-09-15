@@ -284,8 +284,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
           by_cases hcomposite : inner.isCompositeBool schema = true
           · have houterComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = true := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hcomposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcomposite
             simp [completeResolvedValue, reusablePreviousValue?,
               houterComposite]
           · have hinnerNonComposite :
@@ -294,8 +293,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
                 simp [h] at hcomposite ⊢
             have houterNonComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = false := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hinnerNonComposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinnerNonComposite
             have hinnerCompleted :
                 completeResolvedValue schema resolvers variableValues depth inner
                   selectionSet resolved (some (.scalar value)) =
@@ -309,8 +307,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
           by_cases hcomposite : inner.isCompositeBool schema = true
           · have houterComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = true := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hcomposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcomposite
             simp [completeResolvedValue, reusablePreviousValue?,
               houterComposite]
           · have hinnerNonComposite :
@@ -319,8 +316,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
                 simp [h] at hcomposite ⊢
             have houterNonComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = false := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hinnerNonComposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinnerNonComposite
             have hinnerReuse :
                 reusablePreviousValue? schema inner
                     (some (.object fields)) =
@@ -338,8 +334,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
           by_cases hcomposite : inner.isCompositeBool schema = true
           · have houterComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = true := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hcomposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcomposite
             simp [completeResolvedValue, reusablePreviousValue?,
               houterComposite]
           · have hinnerNonComposite :
@@ -348,8 +343,7 @@ theorem completeResolvedValue_nonNull_eq_nonNullCompletion_of_previous_ne_null
                 simp [h] at hcomposite ⊢
             have houterNonComposite :
                 (TypeRef.nonNull inner).isCompositeBool schema = false := by
-              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                hinnerNonComposite
+              simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinnerNonComposite
             have hinnerReuse :
                 reusablePreviousValue? schema inner (some (.list values)) =
                   some (.list values) := by
@@ -403,8 +397,8 @@ theorem completeResolvedValue_nonNull_ok_of_inner_ok
                   simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
               have hinnerNonComposite :
                   inner.isCompositeBool schema = false := by
-                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                  houterNonComposite
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                  using houterNonComposite
               simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
@@ -419,8 +413,8 @@ theorem completeResolvedValue_nonNull_ok_of_inner_ok
                   simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
               have hinnerNonComposite :
                   inner.isCompositeBool schema = false := by
-                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                  houterNonComposite
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                  using houterNonComposite
               simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
@@ -435,8 +429,8 @@ theorem completeResolvedValue_nonNull_ok_of_inner_ok
                   simp [reusablePreviousValue?, hcomposite] at hreuse ⊢
               have hinnerNonComposite :
                   inner.isCompositeBool schema = false := by
-                simpa [TypeRef.isCompositeBool, TypeRef.namedType] using
-                  houterNonComposite
+                simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+                  using houterNonComposite
               simp [reusablePreviousValue?, hinnerNonComposite]
             unfold completeResolvedValue
             rw [hreuseInner]
@@ -720,10 +714,9 @@ theorem executeField_object_append_of_mem_eq
           field := by
   rcases lookupResponseField?_some_of_mem responseName fields hmem with
     ⟨previous, hlookup⟩
-  exact
-    executeField_object_append_of_lookup_eq schema resolvers variableValues
-      depth parentType responseName source field fields suffix previous
-      (by simpa [responseObjectField?] using hlookup)
+  exact executeField_object_append_of_lookup_eq schema resolvers variableValues
+    depth parentType responseName source field fields suffix previous
+    (by simpa [responseObjectField?] using hlookup)
 
 theorem executeField_reentry_after_merge
     {ObjectIdentity : Type}
@@ -741,9 +734,9 @@ theorem executeField_reentry_after_merge
             | some existing => some (mergeResponse existing incoming)
             | none => some incoming)
           field := by
-    intro output
-    simp [output, responseObjectField?_mergeResponseFieldIntoObject_same]
-    cases responseObjectField? responseName (.object fields) <;> rfl
+  intro output
+  simp [output, responseObjectField?_mergeResponseFieldIntoObject_same]
+  cases responseObjectField? responseName (.object fields) <;> rfl
 
 theorem completeValue_null_eq_spec
     {ObjectIdentity : Type}
@@ -877,8 +870,9 @@ theorem completeValue_scalar_any_depth_eq_spec
       exact completeValue_zero_eq_spec schema resolvers variableValues
         parentType selectionSet fields (.scalar value) previous?
   | succ depth =>
-      exact completeValue_scalar_eq_spec schema resolvers variableValues depth
-        parentType selectionSet fields value previous? (by
+      exact completeValue_scalar_eq_spec schema resolvers variableValues depth parentType
+        selectionSet fields value previous?
+        (by
           rcases hprevious with hzero | hprevious
           · contradiction
           · exact hprevious)
@@ -1374,8 +1368,8 @@ theorem visitSubfields_executableFieldSelections_singleton_succ
           .object [(responseName, resultValueOrNull fieldResult)],
           resultStatus fieldResult
         ) := by
-  simpa [executableFieldSelections, executableFieldSelection] using
-    visitSubfields_single_field_allowed_succ_fresh_eq_append schema resolvers
+  simpa [executableFieldSelections, executableFieldSelection]
+    using visitSubfields_single_field_allowed_succ_fresh_eq_append schema resolvers
       variableValues depth parentType source responseName field.fieldName
       field.arguments [] field.selectionSet [] rfl (by simp)
 
@@ -1497,17 +1491,17 @@ theorem visitSelection_field_allowed_succ_ready
             parentType source
             (.field responseName fieldName arguments directives selectionSet)
             (.object fields)).fst := by
-    intro hfieldsReady hfieldReady
-    rw [visitSelection_field_allowed_succ schema resolvers variableValues depth
-      parentType source responseName fieldName arguments directives selectionSet
-      (.object fields) hallowed]
-    simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject] using
-      mergeResponseField_object_ready_of_ready responseName
-        (resultValueOrNull
-          (executeField schema resolvers variableValues depth parentType source
-            (responseObjectField? responseName (.object fields))
-            (executableField fieldName arguments selectionSet)))
-        fields hfieldsReady hfieldReady
+  intro hfieldsReady hfieldReady
+  rw [visitSelection_field_allowed_succ schema resolvers variableValues depth
+    parentType source responseName fieldName arguments directives selectionSet
+    (.object fields) hallowed]
+  simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject]
+    using mergeResponseField_object_ready_of_ready responseName
+      (resultValueOrNull
+        (executeField schema resolvers variableValues depth parentType source
+          (responseObjectField? responseName (.object fields))
+          (executableField fieldName arguments selectionSet)))
+      fields hfieldsReady hfieldReady
 
 theorem visitSelection_field_allowed_succ_absorbs
     {ObjectIdentity : Type}
@@ -1532,17 +1526,17 @@ theorem visitSelection_field_allowed_succ_absorbs
             parentType source
             (.field responseName fieldName arguments directives selectionSet)
             (.object fields)).fst := by
-    intro hfieldsReady hcollisionAbsorbs
-    rw [visitSelection_field_allowed_succ schema resolvers variableValues depth
-      parentType source responseName fieldName arguments directives selectionSet
-      (.object fields) hallowed]
-    simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject] using
-      mergeResponseField_object_absorbs responseName
-        (resultValueOrNull
-          (executeField schema resolvers variableValues depth parentType source
-            (responseObjectField? responseName (.object fields))
-            (executableField fieldName arguments selectionSet)))
-        fields hfieldsReady hcollisionAbsorbs
+  intro hfieldsReady hcollisionAbsorbs
+  rw [visitSelection_field_allowed_succ schema resolvers variableValues depth
+    parentType source responseName fieldName arguments directives selectionSet
+    (.object fields) hallowed]
+  simpa [mergeResponseFieldResult, mergeResponseFieldIntoObject]
+    using mergeResponseField_object_absorbs responseName
+      (resultValueOrNull
+        (executeField schema resolvers variableValues depth parentType source
+          (responseObjectField? responseName (.object fields))
+          (executableField fieldName arguments selectionSet)))
+      fields hfieldsReady hcollisionAbsorbs
 
 theorem visitSelection_field_allowed_succ_absorbs_of_fresh
     {ObjectIdentity : Type}
@@ -1565,8 +1559,7 @@ theorem visitSelection_field_allowed_succ_absorbs_of_fresh
     variableValues depth parentType source responseName fieldName arguments
     directives selectionSet fields hallowed hfieldsReady
   intro existing hmem
-  exact False.elim (hfresh (by
-    simpa [List.mem_map] using ⟨existing, hmem⟩))
+  exact False.elim (hfresh (by simpa [List.mem_map] using ⟨existing, hmem⟩))
 
 theorem visitSubfields_single_field_allowed_succ_absorbs
     {ObjectIdentity : Type}
@@ -1592,8 +1585,8 @@ theorem visitSubfields_single_field_allowed_succ_absorbs
             [.field responseName fieldName arguments directives selectionSet]
             (.object fields)).fst := by
   intro hfieldsReady hcollisionAbsorbs
-  simpa [visitSubfields] using
-    visitSelection_field_allowed_succ_absorbs schema resolvers variableValues
+  simpa [visitSubfields]
+    using visitSelection_field_allowed_succ_absorbs schema resolvers variableValues
       depth parentType source responseName fieldName arguments directives
       selectionSet fields hallowed hfieldsReady hcollisionAbsorbs
 
@@ -1614,8 +1607,8 @@ theorem visitSubfields_single_field_allowed_succ_absorbs_of_fresh
             [.field responseName fieldName arguments directives selectionSet]
             (.object fields)).fst := by
   intro hfieldsReady
-  simpa [visitSubfields] using
-    visitSelection_field_allowed_succ_absorbs_of_fresh schema resolvers
+  simpa [visitSubfields]
+    using visitSelection_field_allowed_succ_absorbs_of_fresh schema resolvers
       variableValues depth parentType source responseName fieldName arguments
       directives selectionSet fields hallowed hfresh hfieldsReady
 
@@ -1982,17 +1975,17 @@ theorem visitSelection_field_depth_zero_absorbs_of_ready
     output hallowed]
   cases output with
   | null =>
-      simpa [responseObjectField?, mergeResponseFieldResult,
-        mergeResponseFieldIntoObject, outOfFuel] using
-        ResponseAbsorbs_refl_of_ready .null hready
+      simpa [responseObjectField?, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+        outOfFuel]
+        using ResponseAbsorbs_refl_of_ready .null hready
   | scalar value =>
-      simpa [responseObjectField?, mergeResponseFieldResult,
-        mergeResponseFieldIntoObject, outOfFuel] using
-        ResponseAbsorbs_refl_of_ready (.scalar value) hready
+      simpa [responseObjectField?, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+        outOfFuel]
+        using ResponseAbsorbs_refl_of_ready (.scalar value) hready
   | list values =>
-      simpa [responseObjectField?, mergeResponseFieldResult,
-        mergeResponseFieldIntoObject, outOfFuel] using
-        ResponseAbsorbs_refl_of_ready (.list values) hready
+      simpa [responseObjectField?, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+        outOfFuel]
+        using ResponseAbsorbs_refl_of_ready (.list values) hready
   | object fields =>
       cases hprevious : responseObjectField? responseName (.object fields) with
       | none =>
@@ -2012,7 +2005,8 @@ theorem visitSelection_field_depth_zero_absorbs_of_ready
               rw [hlookupNone] at hlookup
               contradiction
           simpa [hprevious, mergeResponseFieldResult, resultValueOrNull,
-            mergeResponseFieldIntoObject, outOfFuel] using hfield
+            mergeResponseFieldIntoObject, outOfFuel]
+            using hfield
       | some previous =>
           have hpreviousMem :
               (responseName, previous) ∈ fields := by
@@ -2033,7 +2027,8 @@ theorem visitSelection_field_depth_zero_absorbs_of_ready
                     hready hmem)
                   hpreviousReady)
           simpa [hprevious, mergeResponseFieldResult, resultValueOrNull,
-            mergeResponseFieldIntoObject, outOfFuel] using hfield
+            mergeResponseFieldIntoObject, outOfFuel]
+            using hfield
 
 theorem visitSelection_inline_none_blocked_absorbs_of_ready
     {ObjectIdentity : Type}
@@ -2555,17 +2550,15 @@ mutual
                   cases hprevious : lookupResponseField? fieldResponseName fields with
                   | none =>
                       simpa [visitSelection, hallowed, mergeResponseFieldResult,
-                        resultValueOrNull, outOfFuel,
-                        mergeResponseFieldIntoObject, responseObjectField?,
-                        hprevious] using
-                        responseObjectField?_mergeResponseFieldIntoObject_other
+                        resultValueOrNull, outOfFuel, mergeResponseFieldIntoObject,
+                        responseObjectField?, hprevious]
+                        using responseObjectField?_mergeResponseFieldIntoObject_other
                           responseName fieldResponseName .null fields hne
                   | some previous =>
                       simpa [visitSelection, hallowed, mergeResponseFieldResult,
-                        resultValueOrNull,
-                        mergeResponseFieldIntoObject, responseObjectField?,
-                        hprevious] using
-                        responseObjectField?_mergeResponseFieldIntoObject_other
+                        resultValueOrNull, mergeResponseFieldIntoObject,
+                        responseObjectField?, hprevious]
+                        using responseObjectField?_mergeResponseFieldIntoObject_other
                           responseName fieldResponseName previous fields hne
           | succ depth' =>
               cases output with
@@ -2584,8 +2577,8 @@ mutual
                       simp [visitSelection, hallowed, mergeResponseFieldResult,
                         mergeResponseFieldIntoObject, responseObjectField?,
                         hprevious]
-                      simpa [hprevious] using
-                        lookupResponseField?_mergeResponseField_other
+                      simpa [hprevious]
+                        using lookupResponseField?_mergeResponseField_other
                           responseName fieldResponseName
                           (resultValueOrNull
                             (executeField schema resolvers variableValues depth'
@@ -2600,14 +2593,13 @@ mutual
                             mergeResponseFieldResult,
                             mergeResponseFieldIntoObject,
                             responseObjectField?, hprevious]
-                          simpa [hprevious] using
-                            lookupResponseField?_mergeResponseField_other
+                          simpa [hprevious]
+                            using lookupResponseField?_mergeResponseField_other
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
                                   depth' parentType source
-                                  (lookupResponseField? fieldResponseName
-                                    fields)
+                                  (lookupResponseField? fieldResponseName fields)
                                   (executableField fieldName arguments selectionSet)))
                               fields hne
                       | scalar value =>
@@ -2615,14 +2607,13 @@ mutual
                             mergeResponseFieldResult,
                             mergeResponseFieldIntoObject,
                             responseObjectField?, hprevious]
-                          simpa [hprevious] using
-                            lookupResponseField?_mergeResponseField_other
+                          simpa [hprevious]
+                            using lookupResponseField?_mergeResponseField_other
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
                                   depth' parentType source
-                                  (lookupResponseField? fieldResponseName
-                                    fields)
+                                  (lookupResponseField? fieldResponseName fields)
                                   (executableField fieldName arguments selectionSet)))
                               fields hne
                       | object objectFields =>
@@ -2630,14 +2621,13 @@ mutual
                             mergeResponseFieldResult,
                             mergeResponseFieldIntoObject,
                             responseObjectField?, hprevious]
-                          simpa [hprevious] using
-                            lookupResponseField?_mergeResponseField_other
+                          simpa [hprevious]
+                            using lookupResponseField?_mergeResponseField_other
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
                                   depth' parentType source
-                                  (lookupResponseField? fieldResponseName
-                                    fields)
+                                  (lookupResponseField? fieldResponseName fields)
                                   (executableField fieldName arguments selectionSet)))
                               fields hne
                       | list values =>
@@ -2645,14 +2635,13 @@ mutual
                             mergeResponseFieldResult,
                             mergeResponseFieldIntoObject,
                             responseObjectField?, hprevious]
-                          simpa [hprevious] using
-                            lookupResponseField?_mergeResponseField_other
+                          simpa [hprevious]
+                            using lookupResponseField?_mergeResponseField_other
                               responseName fieldResponseName
                               (resultValueOrNull
                                 (executeField schema resolvers variableValues
                                   depth' parentType source
-                                  (lookupResponseField? fieldResponseName
-                                    fields)
+                                  (lookupResponseField? fieldResponseName fields)
                                   (executableField fieldName arguments selectionSet)))
                               fields hne
         · have hblocked :
@@ -2672,10 +2661,9 @@ mutual
                       (GraphQL.Execution.collectFields schema
                         variableValues parentType source selectionSet).map
                         Prod.fst := by
-                simpa [GraphQL.Execution.collectSelection, hallowed]
-                  using hnot
-              simpa [visitSelection, hallowed] using
-                visitSubfields_responseObjectField?_of_not_mem_collectFields
+                simpa [GraphQL.Execution.collectSelection, hallowed] using hnot
+              simpa [visitSelection, hallowed]
+                using visitSubfields_responseObjectField?_of_not_mem_collectFields
                   schema resolvers variableValues depth parentType source
                   responseName selectionSet output hbody
           | some typeCondition =>
@@ -2687,10 +2675,9 @@ mutual
                       (GraphQL.Execution.collectFields schema
                         variableValues parentType source selectionSet).map
                         Prod.fst := by
-                    simpa [GraphQL.Execution.collectSelection, hallowed,
-                      happly] using hnot
-                simpa [visitSelection, hallowed, happly] using
-                  visitSubfields_responseObjectField?_of_not_mem_collectFields
+                  simpa [GraphQL.Execution.collectSelection, hallowed, happly] using hnot
+                simpa [visitSelection, hallowed, happly]
+                  using visitSubfields_responseObjectField?_of_not_mem_collectFields
                     schema resolvers variableValues depth parentType source
                     responseName selectionSet output hbody
               · simp [visitSelection, hallowed, happly]
@@ -3004,9 +2991,10 @@ theorem executeRootSelectionSet_eq_spec_of_flatCollects_and_flattened_spec
         depth parentType source flatSelectionSet =
       GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
         depth parentType source selectionSet := by
-    simpa [flatSelectionSet] using
-      specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
-        schema resolvers variableValues depth parentType source selectionSet
+    simpa [flatSelectionSet]
+      using
+        specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
+          schema resolvers variableValues depth parentType source selectionSet
   exact hdirectRoot.trans (hflatSpec'.trans hspecFlat)
 
 def ExecutableFieldsFlatSpecEquivalent
@@ -3232,16 +3220,16 @@ theorem executeRootSelectionSet_aligned_of_flatCollects_and_flatSpecAligned
           parentType source flatSelectionSet)
         (GraphQL.Execution.executeRootSelectionSet schema resolvers
           variableValues depth parentType source flatSelectionSet) := by
-    simpa [ExecutableGroupsFlatSpecAlignedEquivalent, flatSelectionSet] using
-      hflatSpec
+    simpa [ExecutableGroupsFlatSpecAlignedEquivalent, flatSelectionSet] using hflatSpec
   have hspecFlat :
       GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
         depth parentType source flatSelectionSet =
       GraphQL.Execution.executeRootSelectionSet schema resolvers variableValues
         depth parentType source selectionSet := by
-    simpa [flatSelectionSet] using
-      specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
-        schema resolvers variableValues depth parentType source selectionSet
+    simpa [flatSelectionSet]
+      using
+        specExecuteRootSelectionSet_executableFieldSelections_collectedExecutableFields_collectFields
+          schema resolvers variableValues depth parentType source selectionSet
   exact
     RootSelectionResultAlignedEquivalent.trans
       (RootSelectionResultAlignedEquivalent.of_eq hdirectRoot)

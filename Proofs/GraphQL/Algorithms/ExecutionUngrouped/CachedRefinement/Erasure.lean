@@ -447,10 +447,9 @@ theorem resultCombine_cons_sourcesAligned {ObjectRef : Type}
           simp [GraphQL.Execution.Result.combine] at hok
           rcases hok with ⟨hcompletedValues, _herrors⟩
           subst completedValues
-          exact
-            FieldCacheSourcesAligned.cons
-              (by simpa [resultValueOrNull] using hheadAligned)
-              (htailAligned tailValues tailErrors rfl)
+          exact FieldCacheSourcesAligned.cons
+            (by simpa [resultValueOrNull] using hheadAligned)
+            (htailAligned tailValues tailErrors rfl)
 
 mutual
   theorem completeValue_sourceAligned {ObjectRef : Type}
@@ -473,8 +472,8 @@ mutual
         | none =>
             cases fieldType with
             | nonNull inner =>
-                simpa [completeValue] using
-                  resultValueOrNull_nonNullCompletion_sourceAligned value
+                simpa [completeValue]
+                  using resultValueOrNull_nonNullCompletion_sourceAligned value
                     (completeValue schema resolvers variableValues
                       (completionFuel + 1) inner selectionSet value none)
                     (completeValue_sourceAligned schema resolvers variableValues
@@ -598,8 +597,8 @@ mutual
                 | object _source _fields =>
                     cases fieldType with
                     | nonNull inner =>
-                        simpa [completeValue] using
-                          resultValueOrNull_nonNullCompletion_sourceAligned value
+                        simpa [completeValue]
+                          using resultValueOrNull_nonNullCompletion_sourceAligned value
                             (completeValue schema resolvers variableValues
                               (completionFuel + 1) inner selectionSet value
                               (some (.object value previousFields)))
@@ -681,8 +680,8 @@ mutual
                 | cachedList sourceValues _ halignedValues =>
                     cases fieldType with
                     | nonNull inner =>
-                        simpa [completeValue] using
-                          resultValueOrNull_nonNullCompletion_sourceAligned
+                        simpa [completeValue]
+                          using resultValueOrNull_nonNullCompletion_sourceAligned
                             (.list sourceValues)
                             (completeValue schema resolvers variableValues
                               (completionFuel + 1) inner selectionSet
@@ -731,8 +730,8 @@ mutual
                 | finalList sourceValues _ halignedValues =>
                     cases fieldType with
                     | nonNull inner =>
-                        simpa [completeValue] using
-                          resultValueOrNull_nonNullCompletion_sourceAligned
+                        simpa [completeValue]
+                          using resultValueOrNull_nonNullCompletion_sourceAligned
                             (.list sourceValues)
                             (completeValue schema resolvers variableValues
                               (completionFuel + 1) inner selectionSet
@@ -829,10 +828,9 @@ mutual
               completeValueList_sourcesAligned schema resolvers variableValues fuel
                 itemType selectionSet sourceRest []
                 (FieldCacheSourcesPrefixAligned.nil sourceRest)
-            exact
-              resultCombine_cons_sourcesAligned source sourceRest head tail
-                hheadResultAligned htailAligned completedValues errors (by
-                  simpa [completeValueList, head, tail] using hok)
+            exact resultCombine_cons_sourcesAligned source sourceRest head tail
+              hheadResultAligned htailAligned completedValues errors
+              (by simpa [completeValueList, head, tail] using hok)
     | @cons source previous sourceRest previousRest hheadAligned hrestAligned =>
         let tail : Result (List (FieldCacheValue ObjectRef)) :=
           completeValueList schema resolvers variableValues fuel itemType
@@ -846,11 +844,9 @@ mutual
         cases previous with
         | null =>
             let head : Result (FieldCacheValue ObjectRef) := .ok (.null, 0)
-            exact
-              resultCombine_cons_sourcesAligned source sourceRest head tail
-                (FieldCacheSourceAligned.null source) htailAligned completedValues
-                errors (by
-                  simpa [completeValueList, head, tail] using hok)
+            exact resultCombine_cons_sourcesAligned source sourceRest head tail
+              (FieldCacheSourceAligned.null source) htailAligned completedValues
+              errors (by simpa [completeValueList, head, tail] using hok)
         | scalar previousValue =>
             let head : Result (FieldCacheValue ObjectRef) :=
               completeValue schema resolvers variableValues fuel itemType
@@ -860,10 +856,9 @@ mutual
               completeValue_sourceAligned schema resolvers variableValues fuel
                 itemType selectionSet source (some (.scalar previousValue))
                 (by intro cached h; cases h; exact hheadAligned)
-            exact
-              resultCombine_cons_sourcesAligned source sourceRest head tail
-                hheadResultAligned htailAligned completedValues errors (by
-                  simpa [completeValueList, head, tail] using hok)
+            exact resultCombine_cons_sourcesAligned source sourceRest head tail
+              hheadResultAligned htailAligned completedValues errors
+              (by simpa [completeValueList, head, tail] using hok)
         | object previousSource fields =>
             let head : Result (FieldCacheValue ObjectRef) :=
               completeValue schema resolvers variableValues fuel itemType
@@ -873,10 +868,9 @@ mutual
               completeValue_sourceAligned schema resolvers variableValues fuel
                 itemType selectionSet source (some (.object previousSource fields))
                 (by intro cached h; cases h; exact hheadAligned)
-            exact
-              resultCombine_cons_sourcesAligned source sourceRest head tail
-                hheadResultAligned htailAligned completedValues errors (by
-                  simpa [completeValueList, head, tail] using hok)
+            exact resultCombine_cons_sourcesAligned source sourceRest head tail
+              hheadResultAligned htailAligned completedValues errors
+              (by simpa [completeValueList, head, tail] using hok)
         | list sourceValues? values =>
             let head : Result (FieldCacheValue ObjectRef) :=
               completeValue schema resolvers variableValues fuel itemType
@@ -886,10 +880,9 @@ mutual
               completeValue_sourceAligned schema resolvers variableValues fuel
                 itemType selectionSet source (some (.list sourceValues? values))
                 (by intro cached h; cases h; exact hheadAligned)
-            exact
-              resultCombine_cons_sourcesAligned source sourceRest head tail
-                hheadResultAligned htailAligned completedValues errors (by
-                  simpa [completeValueList, head, tail] using hok)
+            exact resultCombine_cons_sourcesAligned source sourceRest head tail
+              hheadResultAligned htailAligned completedValues errors
+              (by simpa [completeValueList, head, tail] using hok)
   termination_by values previousValues _hprevious completedValues errors _hok =>
     (fuel, sizeOf itemType, sizeOf values)
   decreasing_by
@@ -947,8 +940,8 @@ mutual
             | object _source _fields =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
                         (.object value previousFields)
                         (completeValue schema resolvers variableValues
                           (completionFuel + 1) inner selectionSet value
@@ -986,10 +979,10 @@ mutual
                                   (.object (.object runtimeType ref) previousFields)
                           | ok ok =>
                               rcases ok with ⟨_unit, errors⟩
-                              simpa [completeValue, hinclude,
-                                reuseOrCreateObject?, visited, hstatus,
-                                catchVisitBubbleAsNull, resultValueOrNull] using
-                                hvisitShape
+                              simpa [completeValue, hinclude, reuseOrCreateObject?,
+                                visited, hstatus, catchVisitBubbleAsNull,
+                                resultValueOrNull]
+                                using hvisitShape
                         · have hfalse :
                               schema.typeIncludesObjectBool typeName runtimeType =
                                 false := by
@@ -1026,8 +1019,8 @@ mutual
             | cachedList sourceValues _ halignedValues =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
                         (.list (some sourceValues) previousValues)
                         (completeValue schema resolvers variableValues
                           (completionFuel + 1) inner selectionSet
@@ -1071,8 +1064,8 @@ mutual
             | finalList sourceValues _ halignedValues =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_cacheAbsorptionShape
                         (.list none previousValues)
                         (completeValue schema resolvers variableValues
                           (completionFuel + 1) inner selectionSet
@@ -1229,10 +1222,9 @@ mutual
                             (previous :: previousRest) cached hpreviousReady hmem)
                       (headValue :: tailValues) (headErrors + tailErrors) (by
                         exact hok))
-                exact
-                  FieldCacheListAbsorptionShape.cons hcompletedReady
-                    (by simpa [hheadResult, resultValueOrNull] using hheadShape)
-                    htailShape
+                exact FieldCacheListAbsorptionShape.cons hcompletedReady
+                  (by simpa [hheadResult, resultValueOrNull] using hheadShape)
+                  htailShape
   termination_by values previousValues _sourceValues? _haligned _hpreviousReady
       completedValues errors _hok =>
     (fuel, 2, sizeOf itemType, sizeOf values + sizeOf previousValues)

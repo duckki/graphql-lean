@@ -54,24 +54,22 @@ theorem
         hcomposite with
     ⟨childRuntime, hruntime, _hinclude, _hchildSupport, _hobjectContext,
       _habstractContext⟩
-  exact
-    PathLocalSelectionSetObservableLeafAtRuntime.objectChild hobject hmem
-      hlookup
-      (by
-        unfold Schema.isCompositeType
-        unfold TypeRef.isCompositeBool TypeRef.namedType at hcomposite
-        cases hlookupType : schema.lookupType
-            fieldDefinition.outputType.namedType with
-        | none =>
-            simp [hlookupType] at hcomposite
-        | some typeDefinition =>
-            have htypeComposite :
-                TypeDefinition.isCompositeType typeDefinition := by
-              cases typeDefinition <;>
-                simp [hlookupType, TypeDefinition.isCompositeType] at hcomposite ⊢
-            exact ⟨typeDefinition, rfl, htypeComposite⟩)
-      hruntime
-      (hchildObservable childRuntime hruntime)
+  exact PathLocalSelectionSetObservableLeafAtRuntime.objectChild hobject hmem
+    hlookup
+    (by
+      unfold Schema.isCompositeType
+      unfold TypeRef.isCompositeBool TypeRef.namedType at hcomposite
+      cases hlookupType : schema.lookupType fieldDefinition.outputType.namedType with
+      | none =>
+          simp [hlookupType] at hcomposite
+      | some typeDefinition =>
+          have htypeComposite :
+              TypeDefinition.isCompositeType typeDefinition := by
+            cases typeDefinition <;>
+              simp [hlookupType, TypeDefinition.isCompositeType] at hcomposite ⊢
+          exact ⟨typeDefinition, rfl, htypeComposite⟩)
+    hruntime
+    (hchildObservable childRuntime hruntime)
 
 def PathLocalTaggedSelectionSetResponseDiffWitness
     (schema : Schema)
@@ -385,14 +383,12 @@ theorem
         responseName leftArguments rightArguments arguments leftRuntime
         rightRuntime FieldPairProbeTag.right childSelectionSet
         fieldDefinition hlookup hcoercion hfuel hleaf
-  exact
-    SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
-      resolvers resolvers variableValues (fuel + 1) leftSource rightSource
-      hobject hnormal hnormal hfree hfree hmem hmem hleftTarget
-      hrightTarget
-      (leafProbeResponseValue_not_semanticEquivalent_of_ne
-        fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
-      hleftFieldOk hrightFieldOk
+  exact SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
+    resolvers resolvers variableValues (fuel + 1) leftSource rightSource hobject hnormal
+    hnormal hfree hfree hmem hmem hleftTarget hrightTarget
+    (leafProbeResponseValue_not_semanticEquivalent_of_ne
+      fieldDefinition.outputType (by simp [FieldPairProbeTag.scalar]))
+    hleftFieldOk hrightFieldOk
 
 theorem
     responseData_not_semanticEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_child_field_of_field_ok
@@ -646,16 +642,15 @@ theorem
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   exact
     SemanticSeparation.responseData_not_semanticEquivalent_of_field_value_diff_of_field_ok
@@ -939,7 +934,8 @@ theorem
         ({ data := Execution.ResponseValue.object leftChildFields,
            errors := leftChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hleftChildResponse
+        Execution.executeRootSelectionSet]
+        using hleftChildResponse
     have hfield :=
       executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
         schema rootSelectionSet leftInitialSelectionSet
@@ -957,8 +953,7 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult, hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues (parentFuel + 1)
         parentType source responseName
@@ -999,7 +994,8 @@ theorem
         ({ data := Execution.ResponseValue.object rightChildFields,
            errors := rightChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hrightChildResponse
+        Execution.executeRootSelectionSet]
+        using hrightChildResponse
     have hnotLeft :
         ¬ fieldProbeTarget parentType fieldName leftArguments parentType
           fieldName
@@ -1024,8 +1020,8 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult, hfuelEq]
+      using hfield
   have hvalueNot :
       ¬ Execution.ResponseValue.semanticEquivalent leftValue rightValue := by
     intro hvalue
@@ -1040,16 +1036,15 @@ theorem
         responseName fieldDefinition.outputType
         (left := leftChildResponse) (right := rightChildResponse)
     · simpa [leftChildResponse, rightChildResponse] using hchildNot
-    · have hsingle :
-          Execution.ResponseValue.semanticEquivalent
-            (Execution.ResponseValue.object [(responseName, leftValue)])
-            (Execution.ResponseValue.object [(responseName, rightValue)]) :=
+    · have hsingle
+          : Execution.ResponseValue.semanticEquivalent
+              (Execution.ResponseValue.object [(responseName, leftValue)])
+              (Execution.ResponseValue.object [(responseName, rightValue)]) :=
         responseValue_semanticEquivalent_singleton_object_field_of_canonical_eq
-          (by
-            simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
-      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse,
-        rightChildResponse, hleftWrapped, hrightWrapped,
-        Execution.singleFieldResult, Execution.selectionSetResultToResponse]
+          (by simpa [Execution.ResponseValue.semanticEquivalent] using hvalue)
+      simpa [wrapTypeRefSelectionSetResponse, leftChildResponse, rightChildResponse,
+        hleftWrapped, hrightWrapped, Execution.singleFieldResult,
+        Execution.selectionSetResultToResponse]
         using hsingle
   rcases
       ExecutionSuccess.executeSelectionSetAsResponse_object_field_mem_of_field_ok
@@ -1081,15 +1076,13 @@ theorem
     rw [hrightKeys]
     exact ExecutionKeys.collectFields_normal_object_keys_nodup schema
       variableValues parentType source right hrightFree hrightNormal hobject
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
-      schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftInitialSpine rightInitialSpine variableValues parentFuel
-      parentType responseName fieldName fieldName leftArguments
-      rightArguments leftRuntime rightRuntime hobject
-      (by simpa [resolvers, source] using hleftResponse)
-      (by simpa [resolvers, source] using hrightResponse)
-      hleftNodup hrightNodup hleftValueMem hrightValueMem hvalueNot
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftInitialSpine rightInitialSpine variableValues parentFuel parentType responseName
+    fieldName fieldName leftArguments rightArguments leftRuntime rightRuntime hobject
+    (by simpa [resolvers, source] using hleftResponse)
+    (by simpa [resolvers, source] using hrightResponse) hleftNodup hrightNodup
+    hleftValueMem hrightValueMem hvalueNot
 
 theorem
     not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_fieldName_child_response_diff_of_field_ok
@@ -1301,7 +1294,8 @@ theorem
         ({ data := Execution.ResponseValue.object leftChildFields,
            errors := leftChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hleftChildResponse
+        Execution.executeRootSelectionSet]
+        using hleftChildResponse
     have hfield :=
       executeField_fieldPairOrDeepSuccess_selectedPathProbe_left_root_response
         schema rootSelectionSet leftInitialSelectionSet
@@ -1319,8 +1313,7 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hleftChildRaw, hleftWrapped, Execution.singleFieldResult, hfuelEq] using hfield
   have hrightTarget :
       Execution.executeField schema resolvers variableValues
         (parentFuel + 1) parentType source responseName
@@ -1362,7 +1355,8 @@ theorem
         ({ data := Execution.ResponseValue.object rightChildFields,
            errors := rightChildErrors } : Execution.Response) := by
       simpa [Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet] using hrightChildResponse
+        Execution.executeRootSelectionSet]
+        using hrightChildResponse
     have hnotLeft :
         ¬ fieldProbeTarget parentType leftFieldName leftArguments parentType
           rightFieldName
@@ -1386,8 +1380,8 @@ theorem
           =
         parentFuel + 1 := by
       omega
-    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult,
-      hfuelEq] using hfield
+    simpa [hrightChildRaw, hrightWrapped, Execution.singleFieldResult, hfuelEq]
+      using hfield
   have hvalueNot :
       ¬ Execution.ResponseValue.semanticEquivalent leftValue rightValue :=
     wrapped_object_values_not_semanticEquivalent_of_child
@@ -1425,15 +1419,13 @@ theorem
     rw [hrightKeys]
     exact ExecutionKeys.collectFields_normal_object_keys_nodup schema
       variableValues parentType source right hrightFree hrightNormal hobject
-  exact
-    not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
-      schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
-      leftInitialSpine rightInitialSpine variableValues parentFuel
-      parentType responseName leftFieldName rightFieldName leftArguments
-      rightArguments leftRuntime rightRuntime hobject
-      (by simpa [resolvers, source] using hleftResponse)
-      (by simpa [resolvers, source] using hrightResponse)
-      hleftNodup hrightNodup hleftValueMem hrightValueMem hvalueNot
+  exact not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_responseName_value_diff_of_object_responses
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftInitialSpine rightInitialSpine variableValues parentFuel parentType responseName
+    leftFieldName rightFieldName leftArguments rightArguments leftRuntime rightRuntime
+    hobject (by simpa [resolvers, source] using hleftResponse)
+    (by simpa [resolvers, source] using hrightResponse) hleftNodup hrightNodup
+    hleftValueMem hrightValueMem hvalueNot
 
 theorem
     not_selectionSetsDataEquivalent_of_fieldPairOrDeepSuccess_selectedPathProbe_root_arguments_child_response_diff_of_field_cases
@@ -2370,8 +2362,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           bodySelectionSet] := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
@@ -2388,8 +2380,8 @@ theorem
         [Selection.inlineFragment (some runtimeType) []
           bodySelectionSet] := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
         schema resolvers variableValues (fuel + 1)
         (ProjectionResolverRef.target
           (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
@@ -2400,8 +2392,8 @@ theorem
           runtimeType =
         true := by
     dsimp [leftSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.left
@@ -2412,8 +2404,8 @@ theorem
           runtimeType =
         true := by
     dsimp [rightSource]
-    simpa [projectionTargetResolverValue, projectionResolverValue] using
-      doesFragmentTypeApplyBool_object_self schema
+    simpa [projectionTargetResolverValue, projectionResolverValue]
+      using doesFragmentTypeApplyBool_object_self schema
         (ref :=
           ProjectionResolverRef.target
             (FieldPairSelectedPathProbeRef.target FieldPairProbeTag.right
@@ -2445,7 +2437,8 @@ theorem
         rightSource bodySelectionSet [] hrightApply
   apply hbodyNot
   simpa [Execution.executeSelectionSetAsResponse, resolvers, leftSource, rightSource,
-    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten] using hsemantic
+    hleftMiddle, hrightMiddle, hleftFlatten, hrightFlatten]
+    using hsemantic
 
 theorem
     executeField_fieldPairOrDeepSuccess_selectedPathProbe_tagged_object_field_ok_of_field_children
@@ -2933,13 +2926,12 @@ theorem
         rightInitialSpine spine variableValues fuel targetParent
         leftField rightField parentType sourceRuntimeType leftArguments
         rightArguments leftRuntime rightRuntime tag selectionSet hcoercion hchildren
-  simpa [resolvers] using
-    ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
+  simpa [resolvers]
+    using ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
       resolvers variableValues (fuel + 1) parentType
       (projectionTargetResolverValue
         (.object sourceRuntimeType
-          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-            spine)))
+          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
       selectionSet hfree hnormal hobject hfieldOk
 
 theorem
@@ -3012,13 +3004,12 @@ theorem
         rightInitialSpine spine variableValues fuel targetParent
         leftField rightField parentType sourceRuntimeType leftArguments
         rightArguments leftRuntime rightRuntime tag selectionSet hchildren
-  simpa [resolvers] using
-    ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
+  simpa [resolvers]
+    using ExecutionSuccess.executeSelectionSetAsResponse_object_of_field_ok schema
       resolvers variableValues (fuel + 1) parentType
       (projectionTargetResolverValue
         (.object sourceRuntimeType
-          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-            spine)))
+          (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine)))
       selectionSet hfree hnormal hobject hfieldOk
 
 theorem
@@ -3117,19 +3108,18 @@ theorem
               exact List.mem_append_right _ (by simp)
             rcases hbodyResponse bodySelectionSet hinlineMem with
               ⟨bodyFields, bodyErrors, hbodyExec⟩
-            have hmiddle :
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  (pref ++ Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet :: suffix)
-                =
-                Execution.executeSelectionSet schema resolvers variableValues
-                  (fuel + 1) runtimeType source
-                  [Selection.inlineFragment (some runtimeType) []
-                    bodySelectionSet] :=
-              by
-                simpa [source, projectionTargetResolverValue,
-                  projectionResolverValue] using
+            have hmiddle
+                : Execution.executeSelectionSet schema resolvers variableValues
+                    (fuel + 1) runtimeType source
+                    (pref
+                      ++ Selection.inlineFragment (some runtimeType) [] bodySelectionSet
+                          :: suffix)
+                  = Execution.executeSelectionSet schema resolvers variableValues
+                      (fuel + 1) runtimeType source
+                      [Selection.inlineFragment (some runtimeType) []
+                        bodySelectionSet] := by
+              simpa [source, projectionTargetResolverValue, projectionResolverValue]
+                using
                   executeSelectionSet_middle_inlineFragment_only_eq_singleton_at_runtime_parent
                     schema resolvers variableValues (fuel + 1)
                     (ProjectionResolverRef.target
@@ -3141,13 +3131,12 @@ theorem
                   source runtimeType = true := by
               dsimp [source]
               simpa [projectionTargetResolverValue, projectionResolverValue]
-                using
-                  (doesFragmentTypeApplyBool_object_self schema
-                    (ref :=
-                      ProjectionResolverRef.target
-                        (FieldPairSelectedPathProbeRef.target tag
-                          currentSelectionSet spine))
-                    hruntimeObject)
+                using (doesFragmentTypeApplyBool_object_self schema
+                        (ref :=
+                          ProjectionResolverRef.target
+                            (FieldPairSelectedPathProbeRef.target tag
+                              currentSelectionSet spine))
+                        hruntimeObject)
             have hflatten :
                 Execution.executeSelectionSet schema resolvers variableValues
                   (fuel + 1) runtimeType source
@@ -3181,19 +3170,16 @@ theorem
                     }
                     : Execution.Response) := by
                 simpa [resolvers, source] using hbodyExec
-  · have hcollect :
-        Execution.collectFields schema variableValues runtimeType source
-          selectionSet = [] :=
-      by
-        simpa [source, projectionTargetResolverValue,
-          projectionResolverValue] using
-          collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
-            schema variableValues (normalParentType := normalParentType)
-            (executionParentType := runtimeType) (runtimeType := runtimeType)
-            (ProjectionResolverRef.target
-              (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
-                spine))
-            hnonObject hfree hnormal hruntimeMem
+  · have hcollect
+        : Execution.collectFields schema variableValues runtimeType source selectionSet
+          = [] := by
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using collectFields_inlineFragments_without_typeCondition_eq_nil_at_runtime_parent
+          schema variableValues (normalParentType := normalParentType)
+          (executionParentType := runtimeType) (runtimeType := runtimeType)
+          (ProjectionResolverRef.target
+            (FieldPairSelectedPathProbeRef.target tag currentSelectionSet spine))
+          hnonObject hfree hnormal hruntimeMem
     have hcollectObject :
         Execution.collectFields schema variableValues runtimeType
           (Execution.ResolverValue.object runtimeType
@@ -3201,8 +3187,8 @@ theorem
               (FieldPairSelectedPathProbeRef.target tag currentSelectionSet
                 spine)))
           selectionSet = [] := by
-      simpa [source, projectionTargetResolverValue,
-        projectionResolverValue] using hcollect
+      simpa [source, projectionTargetResolverValue, projectionResolverValue]
+        using hcollect
     refine ⟨[], 0, ?_⟩
     simp [projectionTargetResolverValue, projectionResolverValue,
       Execution.executeSelectionSetAsResponse, Execution.selectionSetResultToResponse,
@@ -3441,8 +3427,8 @@ theorem
             refine Or.inr (Or.inr (Or.inl ?_))
             refine ⟨responseFields, errors, hreturnObject, ?_⟩
             simpa [selectedObservableFieldSpineTailForRuntime,
-              selectedObservableFieldSpineNext?, hchildFuelEq] using
-              hchildResponse
+              selectedObservableFieldSpineNext?, hchildFuelEq]
+              using hchildResponse
           · have hreturnNonObject :
                 objectTypeNameBool schema
                     fieldDefinition.outputType.namedType = false := by
@@ -4221,16 +4207,13 @@ theorem
     rightArguments leftRuntime rightRuntime tag currentSelectionSet spine
     hfuel hvalid hcoercion hfree hnormal hspineValid hsupport hobjectContext
     habstractContext
-  exact
-    executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
-      schema rootSelectionSet leftInitialSelectionSet
-      rightInitialSelectionSet leftInitialSpine rightInitialSpine
-      variableValues hschema (SelectionSet.size selectionSet + 1)
-      normalParentType variableDefinitions selectionSet fuel runtimeType
-      targetParent leftField rightField leftArguments rightArguments
-      leftRuntime rightRuntime tag currentSelectionSet spine (by omega)
-      hfuel hvalid hcoercion hfree hnormal hspineValid hsupport hobjectContext
-      habstractContext
+  exact executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_tagged_of_valid_normal_runtimeSpine_support_context_fuel_ge_size
+    schema rootSelectionSet leftInitialSelectionSet rightInitialSelectionSet
+    leftInitialSpine rightInitialSpine variableValues hschema
+    (SelectionSet.size selectionSet + 1) normalParentType variableDefinitions selectionSet
+    fuel runtimeType targetParent leftField rightField leftArguments rightArguments
+    leftRuntime rightRuntime tag currentSelectionSet spine (by omega) hfuel hvalid
+    hcoercion hfree hnormal hspineValid hsupport hobjectContext habstractContext
 
 theorem
     executeSelectionSetAsResponse_fieldPairOrDeepSuccess_selectedPathProbe_left_argument_target_child_of_valid_normal_field_mem

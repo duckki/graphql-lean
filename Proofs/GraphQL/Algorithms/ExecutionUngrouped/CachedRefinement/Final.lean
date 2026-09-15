@@ -152,8 +152,8 @@ theorem ungroupedExecutionPreservesSpecExecution_of_executeQueryWithFuel_eq_unca
       hcomplete
   rw [hbridge hschema hvalid resolvers variableValues fuel source hcomplete]
   simpa [responseDataAndErrorPresenceEquivalent,
-    ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent] using
-    huncached
+    ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent]
+    using huncached
 
 theorem
     ungroupedExecutionEquivalentToCancelingSiblingsExecution_of_executeQueryWithFuel_eq_uncached
@@ -177,8 +177,8 @@ theorem
       hcomplete
   rw [hbridge hschema hvalid resolvers variableValues fuel source hcomplete]
   simpa [responseDataAndErrorPresenceEquivalent,
-    ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent] using
-    huncached
+    ExecutionUngroupedUncached.responseDataAndErrorPresenceEquivalent]
+    using huncached
 
 theorem ungroupedExecutionPreservesSpecExecution_proof
     (schema : Schema) (operation : Operation)

@@ -239,7 +239,8 @@ theorem traversedCollectedGroup_definitionsCompatible
       ConditionTree.FieldGroup.selections, ConditionTree.FieldGroup.fields]
   rcases hshape.2 _ hrepresentative with ⟨_field, _heq, hentry⟩
   simpa [FieldEntryDefinitionsCompatible, ConditionTree.Field.toSelection,
-    CollectedFieldGroup.FieldDefinitionsCompatible] using htree _ hentry
+    CollectedFieldGroup.FieldDefinitionsCompatible]
+    using htree _ hentry
 
 theorem summarizeCollectedGroups_filter_le
     (algebra : Algebra.{v}) (lawful : algebra.Lawful)

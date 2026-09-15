@@ -95,8 +95,7 @@ theorem expanded_addExecutableGroup
       · simp [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec,
           Execution.addExecutableGroup, GraphQL.Execution.addExecutableGroup,
           hname]
-        simpa [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec]
-          using ih
+        simpa [expandedExecutableGroupsToSpec, expandedExecutableGroupToSpec] using ih
 
 theorem expanded_mergeExecutableGroups
     (fragments : List FragmentDefinition)
@@ -464,8 +463,7 @@ theorem lookupFragment?_removed_none
               GraphQL.NamedFragment.Validation.lookupFragment?_found_name hrest
             have hheadName : head.name = fragmentName := by simpa using hhead
             exact False.elim
-              (hunique.1 candidate hcandidateMem
-                (by simp [hheadName, hcandidateName]))
+              (hunique.1 candidate hcandidateMem (by simp [hheadName, hcandidateName]))
       · simp [lookupFragmentAndRestLt?, hhead] at hlookup
         cases hrest : lookupFragmentAndRestLt? fragmentName rest with
         | none => simp [hrest] at hlookup
@@ -484,8 +482,7 @@ theorem lookupFragment?_removed_none
                 = none
             rw [List.find?_cons]
             simp [hhead]
-            simpa [GraphQL.NamedFragment.lookupFragment?] using
-              (ih hunique.2 hrest)
+            simpa [GraphQL.NamedFragment.lookupFragment?] using (ih hunique.2 hrest)
 
 theorem VisitedContained.merge_left
     (hvisited

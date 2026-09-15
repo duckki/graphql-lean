@@ -330,9 +330,8 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
             ih hrestVars
           cases fields with
           | nil =>
-              simpa [filterExecutableGroupsBoolCase,
-                filterExecutableGroupBoolCase] using
-                GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
+              simpa [filterExecutableGroupsBoolCase, filterExecutableGroupBoolCase]
+                using GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
                   schema resolvers variableValues depth parentType source
                   (responseName, []) (responseName, [])
                   (filterExecutableGroupsBoolCase boolCase rest)
@@ -377,26 +376,24 @@ theorem executeCollectedFields_filterExecutableGroupsBoolCase_of_rec
                           intro childDepth runtimeType ref hlt
                           have hltDepth : childDepth < depth :=
                             Nat.lt_of_lt_of_le hlt (Nat.sub_le depth 1)
-                          simpa [
-                            Execution.mergedFieldSelectionSet,
+                          simpa [Execution.mergedFieldSelectionSet,
                             filterExecutableFieldBoolCase,
                             filterSelectionSetBoolCase_append,
                             mergedFieldSelectionSet_map_filterExecutableFieldBoolCase]
-                            using
-                              hrec childDepth hltDepth runtimeType
-                                (Execution.ResolverValue.object runtimeType ref)
-                                (Execution.mergedFieldSelectionSet (field :: fields))
-                                (executableFieldsSelectionVarsInOperation_merged
-                                  operation (field :: fields) hfieldsVars)
-              simpa [filterExecutableGroupsBoolCase,
-                filterExecutableGroupBoolCase,
-                Execution.executeCollectedFields] using
-                GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
+                            using hrec childDepth hltDepth runtimeType
+                              (Execution.ResolverValue.object runtimeType ref)
+                              (Execution.mergedFieldSelectionSet (field :: fields))
+                              (executableFieldsSelectionVarsInOperation_merged
+                                operation (field :: fields) hfieldsVars)
+              simpa [filterExecutableGroupsBoolCase, filterExecutableGroupBoolCase,
+                Execution.executeCollectedFields]
+                using GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
                   schema resolvers variableValues depth parentType source
-                  (responseName,
+                  (
+                    responseName,
                     filterExecutableFieldBoolCase boolCase field
-                      :: fields.map
-                        (filterExecutableFieldBoolCase boolCase))
+                    :: fields.map (filterExecutableFieldBoolCase boolCase)
+                  )
                   (responseName, field :: fields)
                   (filterExecutableGroupsBoolCase boolCase rest)
                   rest hhead htail

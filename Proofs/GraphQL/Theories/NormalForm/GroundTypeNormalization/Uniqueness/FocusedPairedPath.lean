@@ -384,11 +384,10 @@ theorem normalSelectionSetPairedPath_of_valid_normal_nonempty
           left right := by
   intro hleftValid hrightValid hleftNormal hrightNormal hleftNonempty
     hrightNonempty
-  exact
-    normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
-      (SelectionSet.size left + SelectionSet.size right + 1)
-      hleftValid hrightValid hleftNormal hrightNormal hleftNonempty
-      hrightNonempty (by omega)
+  exact normalSelectionSetPairedPath_of_valid_normal_nonempty_aux
+    (SelectionSet.size left + SelectionSet.size right + 1)
+    hleftValid hrightValid hleftNormal hrightNormal hleftNonempty
+    hrightNonempty (by omega)
 
 end GroundTypeNormalization
 

@@ -179,8 +179,8 @@ theorem groundTypeNormalFormSemanticsPreservation
     normalizeSelectionSet_executeSelectionSet schema resolvers variableValues
       hschema depth (operation.rootType schema) source operation.selectionSet hobject
       hsource hfree hready hmerge
-  simpa [normalizeOperation, Operation.rootType, OperationType.rootType] using
-    hpreserved.symm
+  simpa [normalizeOperation, Operation.rootType, OperationType.rootType]
+    using hpreserved.symm
 
 end GroundTypeNormalization
 

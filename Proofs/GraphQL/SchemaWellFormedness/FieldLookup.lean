@@ -16,8 +16,7 @@ theorem fieldDefinitionsWellFormed_lookupFieldDefinition_wellFormed
       -> fieldDefinitionWellFormed schema fieldDefinition := by
   intro hfields hlookup
   have hmem : fieldDefinition ∈ fields := by
-    simpa [Schema.lookupFieldDefinition] using
-      List.mem_of_find?_eq_some hlookup
+    simpa [Schema.lookupFieldDefinition] using List.mem_of_find?_eq_some hlookup
   exact hfields.2.2 fieldDefinition hmem
 
 theorem fieldDefinitionsWellFormed_lookupFieldDefinition_outputType
@@ -147,8 +146,8 @@ theorem schemaWellFormed_lookupField_outputType
           have hfield :
               Schema.lookupFieldDefinition fields fieldName =
                 some fieldDefinition := by
-            simpa [Schema.lookupField, htype, hfields,
-              Schema.lookupFieldDefinition] using hlookup
+            simpa [Schema.lookupField, htype, hfields, Schema.lookupFieldDefinition]
+              using hlookup
           exact typeDefinitionWellFormed_lookupFieldDefinition_outputType
             htypeWell hfields hfield
 

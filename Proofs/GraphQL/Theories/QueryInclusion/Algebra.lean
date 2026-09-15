@@ -139,7 +139,8 @@ theorem argumentsEquivalent_trans {left middle right : List Argument}
       rcases hleft.2 middleArgument hmiddle with ⟨leftArgument, hleftMember, hequivalentLeft⟩
       exact ⟨leftArgument, hleftMember,
         ⟨hequivalentLeft.1.trans hequivalentRight.1,
-          inputValueStructuralEquivalent_trans hequivalentLeft.2 hequivalentRight.2⟩⟩⟩
+          inputValueStructuralEquivalent_trans hequivalentLeft.2 hequivalentRight.2⟩⟩
+  ⟩
 
 theorem inputValueStructuralEquivalentBool_iff (left right : InputValue)
     : left.structuralEquivalentBool right = true ↔ left.structuralEquivalent right := by

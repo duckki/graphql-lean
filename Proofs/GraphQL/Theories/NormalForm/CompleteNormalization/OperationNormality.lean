@@ -508,8 +508,8 @@ theorem selectionSetDirectiveFree_wrapWithBoolCase_cons_false
     (selectionSet : List Selection)
     : ¬ selectionSetDirectiveFree
           (wrapWithBoolCase ((varName, value) :: rest) selectionSet) := by
-      simp [wrapWithBoolCase, selectionSetDirectiveFree,
-        selectionDirectiveFree]
+  simp [wrapWithBoolCase, selectionSetDirectiveFree,
+    selectionDirectiveFree]
 
 theorem selectionBooleanVariables_of_completeNormalBooleanStem
     {boolCase : BoolCase} {selection : Selection}
@@ -766,16 +766,15 @@ theorem completeNormalizeRootSelectionSet_normal_nil
       simp [hbody] at hnormalized
       cases hnormalized
       refine ⟨by simp, ?_, ?_⟩
-      · simpa [hbody] using
-        GroundTypeNormalization.normalizeSelectionSet_normal schema hschema
-          parentType
-          (filterSelectionSetBoolCase [] selectionSet) hparentObject
-      · simpa [hbody] using
-          GroundTypeNormalization.normalizeSelectionSet_directiveFree schema
+      · simpa [hbody]
+          using GroundTypeNormalization.normalizeSelectionSet_normal schema hschema
+            parentType
+            (filterSelectionSetBoolCase [] selectionSet) hparentObject
+      · simpa [hbody]
+          using GroundTypeNormalization.normalizeSelectionSet_directiveFree schema
             parentType
             (filterSelectionSetBoolCase [] selectionSet)
-            (filterSelectionSetBoolCase_directiveFree schema []
-              selectionSet)
+            (filterSelectionSetBoolCase_directiveFree schema [] selectionSet)
 
 private def completeNormalizeRootBranch
     (schema : Schema) (parentType : Name) (selectionSet : List Selection)
@@ -890,12 +889,14 @@ theorem completeNormalizeRootBranch_mem_boolCase_injective
           simp [hrightBody] at hrightMem
           have hleftBodyFree :
               selectionSetDirectiveFree (leftHead :: leftTail) := by
-            simpa [hleftBody] using
-              normalize_filterSelectionSetBoolCase_directiveFree schema parentType left selectionSet
+            simpa [hleftBody]
+              using normalize_filterSelectionSetBoolCase_directiveFree schema parentType
+                left selectionSet
           have hrightBodyFree :
               selectionSetDirectiveFree (rightHead :: rightTail) := by
-            simpa [hrightBody] using
-              normalize_filterSelectionSetBoolCase_directiveFree schema parentType right selectionSet
+            simpa [hrightBody]
+              using normalize_filterSelectionSetBoolCase_directiveFree schema parentType
+                right selectionSet
           rcases wrapWithBoolCase_singleton_of_ne left
             (leftHead :: leftTail) hleftNe with
             ⟨leftSelection, hleftWrap⟩
@@ -1029,13 +1030,13 @@ theorem completeNormalizeRootSelectionSet_normal_cons
             · exact completeNormalBooleanStem_of_mem_wrapWithBoolCase
                 (boolCase_ne_nil_of_mem_allBoolCases_cons hcase)
                 hselectionBranch
-            · simpa [hbody] using
-                GroundTypeNormalization.normalizeSelectionSet_normal schema
+            · simpa [hbody]
+                using GroundTypeNormalization.normalizeSelectionSet_normal schema
                   hschema parentType
-                  (filterSelectionSetBoolCase boolCase
-                    selectionSet) hparentObject
-            · simpa [hbody] using
-                normalize_filterSelectionSetBoolCase_directiveFree schema parentType boolCase selectionSet
+                  (filterSelectionSetBoolCase boolCase selectionSet) hparentObject
+            · simpa [hbody]
+                using normalize_filterSelectionSetBoolCase_directiveFree schema parentType
+                  boolCase selectionSet
       · intro left right leftCase rightCase leftBody rightBody
           hleftMem hrightMem hleftComplete hrightComplete hleftStem
           hrightStem hleftBodyFree hrightBodyFree hequiv
@@ -1081,8 +1082,9 @@ theorem completeNormalizeRootSelectionSet_normal_cons
               have hgeneratedFree :
                   selectionSetDirectiveFree
                     (generatedHead :: generatedTail) := by
-                simpa [hleftBody] using
-                  normalize_filterSelectionSetBoolCase_directiveFree schema parentType leftGeneratedCase selectionSet
+                simpa [hleftBody]
+                  using normalize_filterSelectionSetBoolCase_directiveFree schema
+                    parentType leftGeneratedCase selectionSet
               exact completeNormalBooleanStem_boolCase_eq_of_generated
                 hleftGeneratedMem hleftComplete hgeneratedFree
                 hleftBodyFree hleftInBranchForParse hleftStem
@@ -1100,8 +1102,9 @@ theorem completeNormalizeRootSelectionSet_normal_cons
               have hgeneratedFree :
                   selectionSetDirectiveFree
                     (generatedHead :: generatedTail) := by
-                simpa [hrightBody] using
-                  normalize_filterSelectionSetBoolCase_directiveFree schema parentType rightGeneratedCase selectionSet
+                simpa [hrightBody]
+                  using normalize_filterSelectionSetBoolCase_directiveFree schema
+                    parentType rightGeneratedCase selectionSet
               exact completeNormalBooleanStem_boolCase_eq_of_generated
                 hrightGeneratedMem hrightComplete hgeneratedFree
                 hrightBodyFree hrightInBranchForParse hrightStem
@@ -1194,8 +1197,8 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
             completeNormalizeRootSelectionSet schema (varName :: variables)
                 schema.queryType operation.selectionSet =
               [] := by
-          simpa [normalizedSelectionSet, Operation.rootType,
-            OperationType.rootType] using hnormalizedEmpty
+          simpa [normalizedSelectionSet, Operation.rootType, OperationType.rootType]
+            using hnormalizedEmpty
         simp [completeNormalSelectionSet, selectionSetNormal,
           selectionSetGroundTyped, selectionsAllFields,
           selectionSetNonRedundant, responseNamesNodup,
@@ -1215,8 +1218,8 @@ theorem completeNormalizeOperation_normal (schema : Schema) (operation : Operati
                   { operation with selectionSet := normalizedSelectionSet }
                 ↔ candidate ∈ varName :: variables := by
           intro candidate
-          simpa [operationBoolVars] using
-            operationBoolVars_mem_iff_of_completeNormalSelectionSet_cons
+          simpa [operationBoolVars]
+            using operationBoolVars_mem_iff_of_completeNormalSelectionSet_cons
               hrootNormal hnormalizedEmpty candidate
         have htransported :=
           completeNormalSelectionSet_of_variable_mem_iff hrootNormal

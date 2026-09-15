@@ -1373,15 +1373,16 @@ private theorem coerceInputValueBounded_equivalent
                               inputCoercionResultsEquivalent]
                       | some defaultValue =>
                           simpa [coerceInputObjectFieldValueBounded, hleftLookup,
-                            hrightLookup, hdefault] using
-                            ih definition.inputType defaultValue.toInputValue
+                            hrightLookup, hdefault]
+                            using ih definition.inputType defaultValue.toInputValue
                               defaultValue.toInputValue
                               (inputValue_equivalent_refl_forCoercion
-                                defaultValue.toInputValue) (by
-                                  intro name hname
-                                  exact False.elim
-                                    (constInputValue_toInputValue_has_no_variables
-                                      defaultValue name hname))
+                                defaultValue.toInputValue)
+                              (by
+                                intro name hname
+                                exact False.elim
+                                  (constInputValue_toInputValue_has_no_variables
+                                    defaultValue name hname))
               | some leftValue =>
                   cases hrightLookup
                         : lookupInputObjectFieldValue? rightFields definition.name with
@@ -1415,15 +1416,16 @@ private theorem coerceInputValueBounded_equivalent
                             cases hnonNull : definition.inputType.isNonNull <;>
                               simp [inputCoercionResultsEquivalent]
                         | some defaultValue =>
-                            simpa [hdefaultValue] using
-                              ih definition.inputType defaultValue.toInputValue
+                            simpa [hdefaultValue]
+                              using ih definition.inputType defaultValue.toInputValue
                                 defaultValue.toInputValue
                                 (inputValue_equivalent_refl_forCoercion
-                                  defaultValue.toInputValue) (by
-                                    intro name hname
-                                    exact False.elim
-                                      (constInputValue_toInputValue_has_no_variables
-                                        defaultValue name hname))
+                                  defaultValue.toInputValue)
+                                (by
+                                  intro name hname
+                                  exact False.elim
+                                    (constInputValue_toInputValue_has_no_variables
+                                      defaultValue name hname))
                       cases hleftSupplied : coerceInputValueBounded schema left fuel
                               definition.inputType leftValue
                       <;>
@@ -1467,8 +1469,8 @@ private theorem coerceInputValueBounded_equivalent
         subst rightInt
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.int leftInt) (.int leftInt)
+            simpa [coerceInputValueBounded]
+              using ih inner (.int leftInt) (.int leftInt)
                 (inputValue_equivalent_refl_forCoercion (.int leftInt)) hlookups
         | list inner =>
             have hcoerced := ih inner (.int leftInt) (.int leftInt)
@@ -1490,8 +1492,8 @@ private theorem coerceInputValueBounded_equivalent
         subst rightFloat
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.float leftFloat) (.float leftFloat)
+            simpa [coerceInputValueBounded]
+              using ih inner (.float leftFloat) (.float leftFloat)
                 (inputValue_equivalent_refl_forCoercion (.float leftFloat)) hlookups
         | list inner =>
             have hcoerced := ih inner (.float leftFloat) (.float leftFloat)
@@ -1513,8 +1515,8 @@ private theorem coerceInputValueBounded_equivalent
         subst rightString
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.string leftString) (.string leftString)
+            simpa [coerceInputValueBounded]
+              using ih inner (.string leftString) (.string leftString)
                 (inputValue_equivalent_refl_forCoercion (.string leftString)) hlookups
         | list inner =>
             have hcoerced := ih inner (.string leftString) (.string leftString)
@@ -1536,8 +1538,8 @@ private theorem coerceInputValueBounded_equivalent
         subst rightBool
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.boolean leftBool) (.boolean leftBool)
+            simpa [coerceInputValueBounded]
+              using ih inner (.boolean leftBool) (.boolean leftBool)
                 (inputValue_equivalent_refl_forCoercion (.boolean leftBool)) hlookups
         | list inner =>
             have hcoerced := ih inner (.boolean leftBool) (.boolean leftBool)
@@ -1559,8 +1561,8 @@ private theorem coerceInputValueBounded_equivalent
         subst rightEnum
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.enum leftEnum) (.enum leftEnum)
+            simpa [coerceInputValueBounded]
+              using ih inner (.enum leftEnum) (.enum leftEnum)
                 (inputValue_equivalent_refl_forCoercion (.enum leftEnum)) hlookups
         | list inner =>
             have hcoerced := ih inner (.enum leftEnum) (.enum leftEnum)
@@ -1581,14 +1583,18 @@ private theorem coerceInputValueBounded_equivalent
       case list.list leftValues rightValues =>
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.list leftValues) (.list rightValues)
-                (inputValue_equivalent_of_canonical_eq_forCoercion (by
-                  simpa [InputValue.canonical] using hcanonical)) hlookups
+            simpa [coerceInputValueBounded]
+              using ih inner (.list leftValues) (.list rightValues)
+                (inputValue_equivalent_of_canonical_eq_forCoercion
+                  (by simpa [InputValue.canonical] using hcanonical)) hlookups
         | list inner =>
-            have hcoerced := hlist inner leftValues rightValues (by
-              simpa [InputValue.equivalent, InputValue.canonical,
-                InputValue.structuralEquivalent] using hequivalent) hlookups
+            have hcoerced :=
+              hlist inner leftValues rightValues
+                (by
+                  simpa [InputValue.equivalent, InputValue.canonical,
+                    InputValue.structuralEquivalent]
+                    using hequivalent)
+                hlookups
             cases hleft : coerceInputValueListBounded schema left fuel inner
                     leftValues <;>
               cases hright : coerceInputValueListBounded schema right fuel inner
@@ -1603,10 +1609,10 @@ private theorem coerceInputValueBounded_equivalent
                 simp [coerceInputValueBounded, hinputObject,
                   inputCoercionResultsEquivalent]
             | none =>
-                have hvalue : (InputValue.list leftValues).equivalent
-                    (.list rightValues) :=
-                  inputValue_equivalent_of_canonical_eq_forCoercion (by
-                    simpa [InputValue.canonical] using hcanonical)
+                have hvalue
+                    : (InputValue.list leftValues).equivalent (.list rightValues) :=
+                  inputValue_equivalent_of_canonical_eq_forCoercion
+                    (by simpa [InputValue.canonical] using hcanonical)
                 have hconst :=
                   constInputValue_ofInputValue?_rel_of_equivalent hvalue
                 cases hleft : ConstInputValue.ofInputValue? (.list leftValues) <;>
@@ -1617,15 +1623,15 @@ private theorem coerceInputValueBounded_equivalent
       case object.object leftFields rightFields =>
         cases inputType with
         | nonNull inner =>
-            simpa [coerceInputValueBounded] using
-              ih inner (.object leftFields) (.object rightFields)
-                (inputValue_equivalent_of_canonical_eq_forCoercion (by
-                  simpa [InputValue.canonical] using hcanonical)) hlookups
+            simpa [coerceInputValueBounded]
+              using ih inner (.object leftFields) (.object rightFields)
+                (inputValue_equivalent_of_canonical_eq_forCoercion
+                  (by simpa [InputValue.canonical] using hcanonical)) hlookups
         | list inner =>
-            have hvalue : (InputValue.object leftFields).equivalent
-                (.object rightFields) :=
-              inputValue_equivalent_of_canonical_eq_forCoercion (by
-                simpa [InputValue.canonical] using hcanonical)
+            have hvalue
+                : (InputValue.object leftFields).equivalent (.object rightFields) :=
+              inputValue_equivalent_of_canonical_eq_forCoercion
+                (by simpa [InputValue.canonical] using hcanonical)
             have hcoerced := ih inner (.object leftFields) (.object rightFields) hvalue
               hlookups
             cases hleft : coerceInputValueBounded schema left fuel inner
@@ -1708,12 +1714,13 @@ private theorem coerceInputValueBounded_equivalent
                 have hvalue : leftValue.toInputValue.equivalent
                     rightValue.toInputValue := by
                   simpa [hleft, hright] using hrelated
-                simpa [coerceInputValueBounded, hleft, hright] using
-                  ih inputType leftValue.toInputValue rightValue.toInputValue hvalue (by
-                    intro name hname
-                    exact False.elim
-                      (constInputValue_toInputValue_has_no_variables leftValue name
-                        hname))
+                simpa [coerceInputValueBounded, hleft, hright]
+                  using ih inputType leftValue.toInputValue rightValue.toInputValue hvalue
+                    (by
+                      intro name hname
+                      exact False.elim
+                        (constInputValue_toInputValue_has_no_variables leftValue name
+                          hname))
 
 theorem coerceInputValue_equivalent_of_equivalent
     (schema : Schema) {left right : VariableValues}
@@ -1726,8 +1733,8 @@ theorem coerceInputValue_equivalent_of_equivalent
   have hfuel := referencedVariableValuesCoercionFuel_eq_of_equivalent
     hvalues.1 hvalue
   have hvalueFuel := inputValueCoercionFuel_eq_of_equivalent hvalue
-  simpa [coerceInputValue, coerceInputValueFuel, hfuel, hvalueFuel] using
-    coerceInputValueBounded_equivalent schema
+  simpa [coerceInputValue, coerceInputValueFuel, hfuel, hvalueFuel]
+    using coerceInputValueBounded_equivalent schema
       (schemaInputCoercionFuel schema
         + referencedVariableValuesCoercionFuel right rightValue
         + inputValueCoercionFuel rightValue)
@@ -1758,8 +1765,8 @@ theorem coerceInputValue_equivalent_of_lookup_agreement
         (coerceInputValue schema right inputType value) := by
   have hfuel := referencedVariableValuesCoercionFuel_eq_of_lookup_agreement value
     hlookups
-  simpa [coerceInputValue, coerceInputValueFuel, hfuel] using
-    coerceInputValueBounded_equivalent schema
+  simpa [coerceInputValue, coerceInputValueFuel, hfuel]
+    using coerceInputValueBounded_equivalent schema
       (schemaInputCoercionFuel schema
         + referencedVariableValuesCoercionFuel right value
         + inputValueCoercionFuel value)
@@ -1995,8 +2002,8 @@ private theorem coerceArgumentDefault_equivalent
         simp [coerceArgumentDefault, hdefault, hnonNull,
           inputCoercionResultsEquivalent]
   | some defaultValue =>
-      simpa [coerceArgumentDefault, hdefault] using
-        coerceInputValue_equivalent_of_variableValuesCoercionEquivalent
+      simpa [coerceArgumentDefault, hdefault]
+        using coerceInputValue_equivalent_of_variableValuesCoercionEquivalent
           schema hvalues definition.inputType defaultValue.toInputValue
 
 private theorem coerceArgumentValue_equivalent_of_lookup
@@ -2014,8 +2021,8 @@ private theorem coerceArgumentValue_equivalent_of_lookup
   | none =>
       cases hrightLookup : Argument.lookupValue? rightArguments definition.name with
       | none =>
-          simpa [coerceArgumentValue, hleftLookup, hrightLookup] using
-            coerceArgumentDefault_equivalent schema hvalues definition
+          simpa [coerceArgumentValue, hleftLookup, hrightLookup]
+            using coerceArgumentDefault_equivalent schema hvalues definition
       | some rightValue => simp [hleftLookup, hrightLookup] at hlookup
   | some leftValue =>
       cases hrightLookup : Argument.lookupValue? rightArguments definition.name with
@@ -2134,9 +2141,10 @@ private theorem coerceArgumentDefault_equivalent_of_lookup_agreement
         simp [coerceArgumentDefault, hdefault, hnonNull,
           inputCoercionResultsEquivalent]
   | some defaultValue =>
-      simpa [coerceArgumentDefault, hdefault] using
-        coerceInputValue_equivalent_of_lookup_agreement schema definition.inputType
-          defaultValue.toInputValue (by
+      simpa [coerceArgumentDefault, hdefault]
+        using coerceInputValue_equivalent_of_lookup_agreement schema definition.inputType
+          defaultValue.toInputValue
+          (by
             intro name hname
             exact False.elim
               (constInputValue_toInputValue_has_no_variables defaultValue name hname))
@@ -2156,8 +2164,8 @@ private theorem coerceArgumentValue_equivalent_of_lookup_agreement
         (coerceArgumentValue schema right definition arguments) := by
   cases hlookup : Argument.lookupValue? arguments definition.name with
   | none =>
-      simpa [coerceArgumentValue, hlookup] using
-        coerceArgumentDefault_equivalent_of_lookup_agreement schema definition
+      simpa [coerceArgumentValue, hlookup]
+        using coerceArgumentDefault_equivalent_of_lookup_agreement schema definition
   | some value =>
       have hsupplied := coerceInputValue_equivalent_of_lookup_agreement schema
         definition.inputType value (by
@@ -2210,8 +2218,8 @@ theorem coerceArgumentValues_equivalent_of_lookup_agreement
         · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
             hrightEffective, ArgumentCoercionResult.equivalent] using ih
         · simpa [coerceArgumentValues, hleftRest, hrightRest, hleftEffective,
-            hrightEffective, ArgumentCoercionResult.equivalent] using
-            coercedArgumentsEquivalent_cons
+            hrightEffective, ArgumentCoercionResult.equivalent]
+            using coercedArgumentsEquivalent_cons
               (leftArgument := ⟨definition.name, _⟩)
               (rightArgument := ⟨definition.name, _⟩)
               (by exact ⟨rfl, heffective⟩) ih
@@ -2335,24 +2343,27 @@ private theorem lookupVariableValue?_foldl_materializeVariableDefault_at_definit
       · simp only [List.foldl_cons, materializeVariableDefault]
         cases hlookup : lookupVariableValue? variableValues definition.name with
         | some value =>
-            simpa [hlookup] using
-              lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+            simpa [hlookup]
+              using lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
                 rest variableValues definition.name hnodup.1
         | none =>
             cases hdefault : definition.defaultValue with
             | none =>
-                simpa [hlookup, hdefault] using
-                  lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
-                    rest variableValues definition.name hnodup.1
+                simpa [hlookup, hdefault]
+                  using
+                    lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+                      rest variableValues definition.name hnodup.1
             | some defaultValue =>
                 have hadded : lookupVariableValue?
                     ((definition.name, defaultValue) :: variableValues)
                     definition.name = some defaultValue := by
                   simp [lookupVariableValue?]
-                simpa [hlookup, hdefault] using
-                  (lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
-                    rest ((definition.name, defaultValue) :: variableValues)
-                    definition.name hnodup.1).trans hadded
+                simpa [hlookup, hdefault]
+                  using
+                    (lookupVariableValue?_foldl_materializeVariableDefault_of_name_not_mem
+                      rest ((definition.name, defaultValue) :: variableValues)
+                      definition.name hnodup.1).trans
+                      hadded
       · simp only [List.foldl_cons]
         let nextValues := materializeVariableDefault variableValues candidate
         have hne : candidate.name ≠ definition.name := by
@@ -2597,20 +2608,20 @@ private theorem
             = match lookupVariableValue? leftValues name with
               | some value => some value
               | none => leftDefinition.defaultValue := by
-        simpa only [hleftDefinitionName] using
-          lookupVariableValue?_foldl_materializeVariableDefault_at_definition
+        simpa only [hleftDefinitionName]
+          using lookupVariableValue?_foldl_materializeVariableDefault_at_definition
             hleftNodup hleftDefinition leftValues
       have hrightLookup :
           lookupVariableValue? (right.foldl materializeVariableDefault rightValues) name
             = match lookupVariableValue? rightValues name with
               | some value => some value
               | none => rightDefinition.defaultValue := by
-        simpa only [hrightDefinitionName] using
-          lookupVariableValue?_foldl_materializeVariableDefault_at_definition
+        simpa only [hrightDefinitionName]
+          using lookupVariableValue?_foldl_materializeVariableDefault_at_definition
             hrightNodup hrightDefinition rightValues
       rw [hleftLookup, hrightLookup]
-      simpa only [hleftDefinitionName, hrightDefinitionName] using
-        variableLookupWithDefault_equivalent hvalues hequivalent
+      simpa only [hleftDefinitionName, hrightDefinitionName]
+        using variableLookupWithDefault_equivalent hvalues hequivalent
     · have hrightName : name ∉ right.map VariableDefinition.name := by
         intro hmember
         rcases List.mem_map.mp hmember with

@@ -120,8 +120,8 @@ theorem responseObjectField?_object_append_of_some_left
       -> responseObjectField? responseName (.object (fields ++ suffix))
           = some response := by
   intro hlookup
-  simpa [responseObjectField?] using
-    lookupResponseField?_append_of_some_left responseName fields suffix
+  simpa [responseObjectField?]
+    using lookupResponseField?_append_of_some_left responseName fields suffix
       response (by simpa [responseObjectField?] using hlookup)
 
 theorem lookupResponseField?_none_of_not_mem
@@ -147,8 +147,8 @@ theorem responseObjectField?_none_of_not_mem
     : responseName ∉ fields.map Prod.fst
       -> responseObjectField? responseName (.object fields) = none := by
   intro hnot
-  simpa [responseObjectField?] using
-    lookupResponseField?_none_of_not_mem responseName fields hnot
+  simpa [responseObjectField?]
+    using lookupResponseField?_none_of_not_mem responseName fields hnot
 
 theorem responseObjectField?_mergeResponseFieldIntoObject_same (responseName : Name)
     (incoming : ResponseValue) (fields : List (Name × ResponseValue))
@@ -296,8 +296,7 @@ theorem PairKeysNodup_append_of_disjoint {α : Type} (left right : List (Name ×
         rcases List.mem_append.mp hmem with hrestMem | hrightMem
         · exact hresponseNotRest hrestMem
         · exact hresponseNotRight hrightMem
-      · simpa [PairKeysNodup, List.map_append] using
-          ih hparts.2 hrestDisjoint
+      · simpa [PairKeysNodup, List.map_append] using ih hparts.2 hrestDisjoint
 
 theorem mergeResponse_object_append_of_disjoint
     (existing incoming : List (Name × ResponseValue))
@@ -458,7 +457,8 @@ theorem ResponseMergeReady_list_value
   | list _ hvalues => exact hvalues response hmem
 
 theorem ResponseMergeReady_empty_object : ResponseMergeReady (.object []) :=
-  ResponseMergeReady.object [] (by simp [PairKeysNodup])
+  ResponseMergeReady.object []
+    (by simp [PairKeysNodup])
     (by intro responseName response hmem; simp at hmem)
 
 theorem ResponseMergeReady_empty_list : ResponseMergeReady (.list []) :=
@@ -1417,9 +1417,8 @@ theorem mergeResponseFields_object_ready_of_ready
       -> ResponseMergeReady (.object incoming)
       -> ResponseMergeReady (.object (mergeResponseFields existing incoming)) := by
   intro hexisting hincoming
-  simpa [mergeResponse] using
-    mergeResponse_ready (.object existing) (.object incoming) hexisting
-      hincoming
+  simpa [mergeResponse]
+    using mergeResponse_ready (.object existing) (.object incoming) hexisting hincoming
 
 mutual
   theorem ResponseAbsorbs_merge_of_ready
@@ -1636,11 +1635,11 @@ theorem emptySelectionStateEquivalent
             }
           initial := initial
         } := by
-    simp [ExecutionStateEquivalent, ResponseResultEquivalent,
-      ExecutionEquivalenceState.ungroupedProjectionResult,
-      ExecutionEquivalenceState.specProjectionResult,
-      GraphQL.Execution.collectFields, GraphQL.Execution.executeCollectedFields,
-      mergeResponse_empty_object_right]
+  simp [ExecutionStateEquivalent, ResponseResultEquivalent,
+    ExecutionEquivalenceState.ungroupedProjectionResult,
+    ExecutionEquivalenceState.specProjectionResult,
+    GraphQL.Execution.collectFields, GraphQL.Execution.executeCollectedFields,
+    mergeResponse_empty_object_right]
 
 end Eager
 end ExecutionUngroupedUncached

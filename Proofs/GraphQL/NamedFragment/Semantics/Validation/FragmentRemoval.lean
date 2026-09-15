@@ -785,7 +785,8 @@ theorem fragmentInlineSelectionSetValid_after_reachable_removals_aux
             fragment.selectionSet :=
         selectionSetValid_after_fragment_removal hlookup hnoFragmentName
           hselectionSetValidCurrent
-      exact ⟨hnonempty,
+      exact ⟨
+        hnonempty,
         selectionSetValid_inlineSelectionSet_of_localFragmentBodiesValid
           (fun {childName} {childFragment} {childRemaining} hchildSpread
               hchildLookup => by
@@ -823,7 +824,8 @@ theorem fragmentInlineSelectionSetValid_after_reachable_removals_aux
               omega
             exact ih hremainingLength hchildRemovals
               hchildLookupOriginal hchildLookup)
-          hselectionSetValidRemaining⟩
+          hselectionSetValidRemaining
+      ⟩
 
 theorem fragmentInlineSelectionSetValid_after_reachable_removals
     {schema : Schema} {variableDefinitions : List VariableDefinition}

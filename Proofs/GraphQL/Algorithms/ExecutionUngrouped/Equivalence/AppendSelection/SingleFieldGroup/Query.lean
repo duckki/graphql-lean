@@ -388,10 +388,9 @@ theorem stateEquivalent_of_collected_single_field_group
             }
           initial := .object []
         } := by
-  exact
-    stateEquivalent_of_exact_single_field_group schema resolvers
-      variableValues depth parentType source selectionSet responseName field
-      (by simpa [hexact] using hcollect) hdirect hchildren
+  exact stateEquivalent_of_exact_single_field_group schema resolvers
+    variableValues depth parentType source selectionSet responseName field
+    (by simpa [hexact] using hcollect) hdirect hchildren
 
 theorem executeQueryWithFuel_eq_spec_of_exact_single_field_group
     {ObjectIdentity : Type}

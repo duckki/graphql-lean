@@ -290,11 +290,11 @@ theorem NormalSelectionSetResponsePath.runtimePruned_of_normal
       · rw [hselectionSet]
         simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
           hincludeSelf]
-        simpa [List.append_assoc] using
-          (NormalSelectionSetResponsePath.append_context
-            (pref := runtimePrunedSelectionSet schema typeCondition pref)
-            (suff := runtimePrunedSelectionSet schema typeCondition suff)
-            hchildPrunedPath)
+        simpa [List.append_assoc]
+          using (NormalSelectionSetResponsePath.append_context
+                  (pref := runtimePrunedSelectionSet schema typeCondition pref)
+                  (suff := runtimePrunedSelectionSet schema typeCondition suff)
+                  hchildPrunedPath)
 
 theorem NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
     {schema : Schema} {selectionSet : List Selection}
@@ -411,11 +411,11 @@ theorem NormalSelectionSetObservableResponsePath.runtimePruned_of_normal
       · rw [hselectionSet]
         simp [runtimePrunedSelectionSet_append, runtimePrunedSelectionSet,
           hincludeSelf]
-        simpa [List.append_assoc] using
-          (NormalSelectionSetObservableResponsePath.append_context
-            (pref := runtimePrunedSelectionSet schema typeCondition pref)
-            (suff := runtimePrunedSelectionSet schema typeCondition suff)
-            hchildPrunedPath)
+        simpa [List.append_assoc]
+          using (NormalSelectionSetObservableResponsePath.append_context
+                  (pref := runtimePrunedSelectionSet schema typeCondition pref)
+                  (suff := runtimePrunedSelectionSet schema typeCondition suff)
+                  hchildPrunedPath)
 
 theorem SelectionSetProbePathCoherent.runtimeActive_of_normal
     {schema : Schema} {rootSelectionSet selectionSet : List Selection}

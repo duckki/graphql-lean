@@ -521,8 +521,8 @@ private theorem ResolvedBy.combineMap (algebra : Algebra)
     : ResolvedBy environment
         (BooleanDecision.combineMap algebra variableOrder items summarize) := by
   induction items with
-  | nil => simpa [BooleanDecision.combineMap] using
-      (ResolvedBy.leaf environment algebra.empty)
+  | nil =>
+      simpa [BooleanDecision.combineMap] using (ResolvedBy.leaf environment algebra.empty)
   | cons item rest ih =>
       rw [BooleanDecision.combineMap]
       apply ResolvedBy.zipWith variableOrder algebra.combine
@@ -537,8 +537,8 @@ private theorem ResolvedBy.joinMap (algebra : Algebra) (items : List α)
     (hitems : ∀ item hitem, ResolvedBy environment (summarize item hitem))
     : ResolvedBy environment (BooleanDecision.joinMap algebra items summarize) := by
   cases items with
-  | nil => simpa [BooleanDecision.joinMap] using
-      (ResolvedBy.leaf environment algebra.empty)
+  | nil =>
+      simpa [BooleanDecision.joinMap] using (ResolvedBy.leaf environment algebra.empty)
   | cons item rest =>
       cases rest with
       | nil => simpa [BooleanDecision.joinMap] using hitems item (by simp)
@@ -961,9 +961,13 @@ private theorem evaluateOutcome_joinMap_cases
       ∨ ∃ item hitem, evaluateOutcome assignment (summarize item hitem) outcome := by
   induction items with
   | nil =>
-      exact Or.inl ⟨rfl, by
-        rw [BooleanDecision.joinMap.eq_def, evaluateOutcome] at houtcome
-        simpa [OutcomeSet.singleton] using houtcome⟩
+      exact Or.inl
+        ⟨
+          rfl,
+          by
+            rw [BooleanDecision.joinMap.eq_def, evaluateOutcome] at houtcome
+            simpa [OutcomeSet.singleton] using houtcome
+        ⟩
   | cons head rest ih =>
       cases rest with
       | nil =>
@@ -1062,18 +1066,21 @@ private theorem CaseCursor.summarizeDecisionWithPruning_resolvedBy
           inheritedBooleanCondition caseCondition possibleTypes environment
           pruningValues) := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema pruningValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      BooleanDecision.ResolvedBy environment
-        (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
-          caseCondition possibleTypes environment pruningValues))
-    (motive2 := fun groups environment =>
-      BooleanDecision.ResolvedBy environment
-        (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder
-          groups environment pruningValues))
-    (motive3 := fun group parentTypes environment =>
-      BooleanDecision.ResolvedBy environment
-        (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder group
-          parentTypes environment pruningValues))
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        BooleanDecision.ResolvedBy environment
+          (cursor.summarizeDecisionWithPruning algebra schema variableOrder inherited
+            caseCondition possibleTypes environment pruningValues))
+    (motive2 :=
+      fun groups environment =>
+        BooleanDecision.ResolvedBy environment
+          (CaseCursor.summarizeFieldGroupsDecisionWithPruning algebra schema variableOrder
+            groups environment pruningValues))
+    (motive3 :=
+      fun group parentTypes environment =>
+        BooleanDecision.ResolvedBy environment
+          (CaseCursor.summarizeChildTypesDecisionWithPruning algebra schema variableOrder
+            group parentTypes environment pruningValues))
   case case1 =>
     intro inherited caseCondition cursor possibleTypes environment hbranches ih
     rw [CaseCursor.summarizeDecisionWithPruning_nil_optimality algebra schema variableOrder
@@ -1151,8 +1158,7 @@ private theorem ContextOutcome.toEvaluate
           environment environment.pruningValues)
         outcome := by
   apply @ContextOutcome.rec semantics schema assignment
-    (fun environment inherited caseCondition cursor possibleTypes
-        outcome _h =>
+    (fun environment inherited caseCondition cursor possibleTypes outcome _h =>
       BooleanDecision.evaluateOutcome assignment
         (cursor.summarizeDecisionWithPruning (OutcomeSemantics.proofAlgebra semantics)
           schema variableOrder inherited caseCondition possibleTypes environment
@@ -1161,8 +1167,8 @@ private theorem ContextOutcome.toEvaluate
     (fun environment groups outcome _h =>
       BooleanDecision.evaluateOutcome assignment
         (CaseCursor.summarizeFieldGroupsDecisionWithPruning
-          (OutcomeSemantics.proofAlgebra semantics) schema variableOrder groups environment
-          environment.pruningValues)
+          (OutcomeSemantics.proofAlgebra semantics) schema variableOrder groups
+          environment environment.pruningValues)
         outcome)
     (fun environment group parentTypes outcome _h =>
       BooleanDecision.evaluateOutcome assignment
@@ -1290,34 +1296,37 @@ private theorem ContextOutcome.ofEvaluateWithPruning
     : ContextOutcome semantics schema assignment environment inheritedBooleanCondition
         caseCondition cursor possibleTypes outcome := by
   apply CaseCursor.summarizeDecisionWithPruning.induct schema pruningValues
-    (motive1 := fun inherited caseCondition cursor possibleTypes environment =>
-      ∀ assignment outcome,
-        pruningValues = environment.pruningValues ->
-        BooleanDecision.evaluateOutcome assignment
-            (cursor.summarizeDecisionWithPruning (OutcomeSemantics.proofAlgebra semantics)
-              schema variableOrder inherited caseCondition possibleTypes environment
-              pruningValues)
-            outcome
+    (motive1 :=
+      fun inherited caseCondition cursor possibleTypes environment =>
+        ∀ assignment outcome,
+          pruningValues = environment.pruningValues
+          -> BooleanDecision.evaluateOutcome assignment
+              (cursor.summarizeDecisionWithPruning
+                (OutcomeSemantics.proofAlgebra semantics) schema variableOrder inherited
+                caseCondition possibleTypes environment pruningValues)
+              outcome
           -> ContextOutcome semantics schema assignment environment inherited
               caseCondition cursor possibleTypes outcome)
-    (motive2 := fun groups environment =>
-      ∀ assignment outcome,
-        pruningValues = environment.pruningValues ->
-        BooleanDecision.evaluateOutcome assignment
-            (CaseCursor.summarizeFieldGroupsDecisionWithPruning
-              (OutcomeSemantics.proofAlgebra semantics) schema variableOrder groups
-              environment pruningValues)
-            outcome
+    (motive2 :=
+      fun groups environment =>
+        ∀ assignment outcome,
+          pruningValues = environment.pruningValues
+          -> BooleanDecision.evaluateOutcome assignment
+              (CaseCursor.summarizeFieldGroupsDecisionWithPruning
+                (OutcomeSemantics.proofAlgebra semantics) schema variableOrder groups
+                environment pruningValues)
+              outcome
           -> ContextFieldGroupsOutcome semantics schema assignment environment groups
               outcome)
-    (motive3 := fun group parentTypes environment =>
-      ∀ assignment outcome,
-        pruningValues = environment.pruningValues ->
-        BooleanDecision.evaluateOutcome assignment
-            (CaseCursor.summarizeChildTypesDecisionWithPruning
-              (OutcomeSemantics.proofAlgebra semantics) schema variableOrder group parentTypes
-              environment pruningValues)
-            outcome
+    (motive3 :=
+      fun group parentTypes environment =>
+        ∀ assignment outcome,
+          pruningValues = environment.pruningValues
+          -> BooleanDecision.evaluateOutcome assignment
+              (CaseCursor.summarizeChildTypesDecisionWithPruning
+                (OutcomeSemantics.proofAlgebra semantics) schema variableOrder group
+                parentTypes environment pruningValues)
+              outcome
           -> ContextChildTypesOutcome semantics schema assignment environment group
               parentTypes outcome)
   case case1 =>
@@ -1675,8 +1684,8 @@ theorem CaseCursor.summarizeConditionTree_best
           inheritedBooleanCondition tree (.symbolic caseValues))
         (CaseCursor.summarizeConditionTree abstract schema inheritedBooleanCondition tree
           caseValues) := by
-  simpa [CaseCursor.summarizeConditionTree] using
-    Internal.summarizeConditionTreeDecision_best laws schema
+  simpa [CaseCursor.summarizeConditionTree]
+    using Internal.summarizeConditionTreeDecision_best laws schema
       inheritedBooleanCondition tree (.symbolic caseValues)
 
 end ExactCases

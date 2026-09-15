@@ -164,14 +164,14 @@ mutual
         by_cases hallows : selectionDirectivesAllowBool variableValues directives = true
         · cases typeCondition with
           | none =>
-              simpa [GraphQL.Execution.collectSelection, hallows] using
-                collectFields_argumentsAndChildrenNodup schema variableValues
+              simpa [GraphQL.Execution.collectSelection, hallows]
+                using collectFields_argumentsAndChildrenNodup schema variableValues
                   parentType source selectionSet hnodup
           | some typeCondition =>
               by_cases happlies :
                   doesFragmentTypeApplyBool schema parentType source typeCondition = true
-              · simpa [GraphQL.Execution.collectSelection, hallows, happlies] using
-                  collectFields_argumentsAndChildrenNodup schema variableValues
+              · simpa [GraphQL.Execution.collectSelection, hallows, happlies]
+                  using collectFields_argumentsAndChildrenNodup schema variableValues
                     parentType source selectionSet hnodup
               · have hfalse :
                     doesFragmentTypeApplyBool schema parentType source typeCondition = false := by
@@ -557,8 +557,7 @@ mutual
               · have hcondition :
                     schema.typeIncludesObjectBool typeCondition runtimeType =
                       true := by
-                  simpa [doesFragmentTypeApplyBool, runtimeObjectType?] using
-                    happly
+                  simpa [doesFragmentTypeApplyBool, runtimeObjectType?] using happly
                 have hoverlap :
                     schema.typesOverlapBool validParent typeCondition =
                       true := by
@@ -574,8 +573,7 @@ mutual
                         objectType ∈ schema.getPossibleTypes typeCondition ->
                           Validation.selectionSetValidInPossibleTypes schema
                             variableDefinitions objectType selectionSet := by
-                    simpa [Validation.selectionValidInPossibleTypes] using
-                      hvalid hoverlap
+                    simpa [Validation.selectionValidInPossibleTypes] using hvalid hoverlap
                   exact hchildren runtimeType
                     (List.contains_iff_mem.mp hcondition)
                 have hruntimeSelf :
@@ -634,13 +632,11 @@ mutual
         have hhead :
             Validation.selectionValidInPossibleTypes schema variableDefinitions
               validParent selection := by
-          simpa [Validation.selectionSetValidInPossibleTypes] using
-            himplementation.1
+          simpa [Validation.selectionSetValidInPossibleTypes] using himplementation.1
         have htail :
             Validation.selectionSetValidInPossibleTypes schema
               variableDefinitions validParent rest := by
-          simpa [Validation.selectionSetValidInPossibleTypes] using
-            himplementation.2
+          simpa [Validation.selectionSetValidInPossibleTypes] using himplementation.2
         simp [GraphQL.Execution.collectFields]
         exact CollectedGroupsArgumentsNodup_mergeExecutableGroups
           (GraphQL.Execution.collectSelection schema variableValues
@@ -1035,8 +1031,8 @@ theorem fieldsInSetCanMerge_mergedFieldSelectionSet_of_runtimeScoped
         ∨ ¬schema.objectType laterScoped.parentType :=
     ScopedFieldRuntimeApplies.mergeIdentityCondition schema runtimeType
       firstScoped laterScoped hfirstRuntime hlaterRuntime
-  simpa [hfirstSelectionSet, hlaterSelectionSet] using
-    FieldMerge.fieldsInSetCanMerge_pair_subfields schema parentType
+  simpa [hfirstSelectionSet, hlaterSelectionSet]
+    using FieldMerge.fieldsInSetCanMerge_pair_subfields schema parentType
       selectionSet firstScoped laterScoped hmerge hfirstScopedMem
       hlaterScopedMem hscopedResponse hparents objectType
 

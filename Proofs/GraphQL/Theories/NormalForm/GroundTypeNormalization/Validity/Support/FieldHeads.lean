@@ -163,8 +163,7 @@ theorem fieldsInSetCanMerge_field_cons_of_rest_responseNameFree
     · intro _hparents
       exact ⟨rfl, harguments⟩
     · intro _hparents objectType
-      simpa [FieldMerge.fieldsInSetCanMerge, headScoped]
-        using hchildSelf objectType
+      simpa [FieldMerge.fieldsInSetCanMerge, headScoped] using hchildSelf objectType
   have hrestNoResponse :
       ∀ scopedField,
         scopedField ∈ FieldMerge.collectFields schema parentType rest ->
@@ -383,9 +382,8 @@ theorem selectionSetLookupValid_of_fieldSelectionSetValid_namedType
   simp [Validation.fieldSelectionSetValid] at hvalid
   rcases hvalid with ⟨_houtput, hchild⟩
   rcases hchild with hleaf | hcomposite
-  · simpa [hleaf.2] using
-      selectionSetLookupValid_nil schema
-        fieldDefinition.outputType.namedType
+  · simpa [hleaf.2]
+      using selectionSetLookupValid_nil schema fieldDefinition.outputType.namedType
   · exact selectionSetLookupValid_of_selectionSetValid selectionSet
       hcomposite.2.2
 

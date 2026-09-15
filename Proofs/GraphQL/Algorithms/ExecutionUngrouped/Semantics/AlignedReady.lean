@@ -425,8 +425,8 @@ theorem VisitSubfieldsFlatCollectsFreshPrefixes_of_selectionSetSemanticsReady_ob
           simp at hfield)
         selectionSet hobject hparentRuntime hready with
     ⟨normalized, hnormalized⟩
-  simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections] using
-    hnormalized.rawFreshFlat
+  simpa [FreshPrefixSelectionDerivation.keyedExecutableFieldSelections]
+    using hnormalized.rawFreshFlat
 
 theorem executionCollectedFieldInvariant_of_collectedFieldCompatibility
     (schema : Schema) (resolvers : Execution.Resolvers ObjectRef)
@@ -528,15 +528,14 @@ noncomputable def
                   GraphQL.Execution.collectFields schema variableValues parentType
                     (.object runtimeType identity) selectionSet := by
               simpa [groups] using hgroup
-            exact
-              collectFields_lookupValid_of_selectionSetSemanticsReady_object
-                schema variableValues parentType runtimeType identity selectionSet
-                hobject hparentRuntime hready field
-                (collectedExecutableFields_mem_of_group_mem hgroupMem (by simp))
+            exact collectFields_lookupValid_of_selectionSetSemanticsReady_object
+              schema variableValues parentType runtimeType identity selectionSet
+              hobject hparentRuntime hready field
+              (collectedExecutableFields_mem_of_group_mem hgroupMem (by simp))
           have hcompatible :
               CollectedGroupsFieldValidationMergeCompatible groups := by
-            simpa [groups] using
-              collectFields_fieldCompatible_of_canMerge_lookupValid_object
+            simpa [groups]
+              using collectFields_fieldCompatible_of_canMerge_lookupValid_object
                 schema variableValues parentType parentType runtimeType identity
                 selectionSet hmerge hparentRuntime hlookupReady
           have hcollected :
@@ -564,11 +563,12 @@ noncomputable def
                     (CollectedFieldGroupAppendInvariant.depth_zero schema
                       resolvers variableValues parentType groups))
           | succ completionDepth =>
-              let happend :
-                  CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
-                    variableValues completionDepth parentType
-                    (.object runtimeType identity) groups :=
-                { prefixChildren := by
+              let happend
+                  : CollectedFieldGroupRecursiveAlignedAppendState schema resolvers
+                      variableValues completionDepth parentType
+                      (.object runtimeType identity) groups :=
+                {
+                  prefixChildren := by
                     intro responseName field fields prefixTail hgroup hprefix
                       childDepth childRuntime childIdentity hlt _hcontains
                       hincludes
@@ -624,8 +624,8 @@ noncomputable def
                               candidateDefinition.outputType.namedType
                               childRuntime =
                             true := by
-                        simpa [Schema.fieldReturnType?, hcandidateLookup] using
-                          hcandidateIncludeReturn
+                        simpa [Schema.fieldReturnType?, hcandidateLookup]
+                          using hcandidateIncludeReturn
                       exact
                         collectFields_childSemanticsReady_of_selectionSetSemanticsReady_object
                           schema variableValues parentType runtimeType identity
@@ -685,13 +685,11 @@ noncomputable def
                           childRuntime :=
                       ScopedParentRuntimeApplies.runtimeSelf schema hschema
                         hchildParentRuntime
-                    exact
-                      ih childDepth (by omega) childRuntime childRuntime
-                        childIdentity
-                        (GraphQL.Execution.mergedFieldSelectionSet
-                          (field :: prefixTail))
-                        hschema hchildObject hchildSelf hchildReady hchildMerge
-                        hchildArgumentsNodup
+                    exact ih childDepth (by omega) childRuntime childRuntime
+                      childIdentity
+                      (GraphQL.Execution.mergedFieldSelectionSet (field :: prefixTail))
+                      hschema hchildObject hchildSelf hchildReady hchildMerge
+                      hchildArgumentsNodup
                   absorbs := by
                     intro responseName field fields prefixTail later hgroup
                       hprefix hlater childDepth childRuntime childIdentity _hlt
@@ -702,7 +700,8 @@ noncomputable def
                         childIdentity
                         (GraphQL.Execution.mergedFieldSelectionSet
                           (field :: prefixTail))
-                        later.selectionSet }
+                        later.selectionSet
+                }
               exact
                 ExecutedGroupedSelectionSetAlignedState.of_collected_groups_recursiveAlignedAppendState
                   hcollect hflat hcollected hlookups hcompatible happend

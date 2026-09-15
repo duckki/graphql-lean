@@ -206,8 +206,7 @@ theorem VisitSubfieldsAbsorbsFrom_nil_of_ready
       -> VisitSubfieldsAbsorbsFrom schema resolvers variableValues depth
           parentType source output [] output := by
   intro hready
-  simpa [VisitSubfieldsAbsorbsFrom] using
-    ResponseAbsorbs_refl_of_ready output hready
+  simpa [VisitSubfieldsAbsorbsFrom] using ResponseAbsorbs_refl_of_ready output hready
 
 theorem VisitSubfieldsAbsorbsFrom_single_field_blocked
     {ObjectIdentity : Type}
@@ -400,8 +399,7 @@ theorem visitSubfieldsResult_empty_eq_executeRootSelectionSet_object
         : visitSubfields schema resolvers variableValues depth parentType source
             selectionSet (.object []) with
   | mk output status =>
-      have houtput : output = .object fields := by
-        simpa [hvisit] using hfields
+      have houtput : output = .object fields := by simpa [hvisit] using hfields
       subst output
       cases status with
       | error errors =>
@@ -432,21 +430,19 @@ mutual
           | zero =>
               cases hprevious : responseObjectField? responseName (.object fields) with
               | none =>
-                  simpa [visitSelection, hallowed, hprevious,
-                    mergeResponseFieldResult, mergeResponseFieldIntoObject,
-                    resultValueOrNull, outOfFuel] using
-                    mergeResponseField_pairKeysNodup responseName .null
+                  simpa [visitSelection, hallowed, hprevious, mergeResponseFieldResult,
+                    mergeResponseFieldIntoObject, resultValueOrNull, outOfFuel]
+                    using mergeResponseField_pairKeysNodup responseName .null
                       fields hnodup
               | some previous =>
-                  simpa [visitSelection, hallowed, hprevious,
-                    mergeResponseFieldResult, mergeResponseFieldIntoObject,
-                    resultValueOrNull] using
-                    mergeResponseField_pairKeysNodup responseName previous
+                  simpa [visitSelection, hallowed, hprevious, mergeResponseFieldResult,
+                    mergeResponseFieldIntoObject, resultValueOrNull]
+                    using mergeResponseField_pairKeysNodup responseName previous
                       fields hnodup
           | succ depth' =>
               simpa [visitSelection, hallowed, mergeResponseFieldResult,
-                mergeResponseFieldIntoObject] using
-                mergeResponseField_pairKeysNodup responseName
+                mergeResponseFieldIntoObject]
+                using mergeResponseField_pairKeysNodup responseName
                   (resultValueOrNull
                     (executeField schema resolvers variableValues depth'
                       parentType source
@@ -465,15 +461,15 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases typeCondition with
           | none =>
-              simpa [visitSelection, hallowed] using
-                visitSubfields_pairKeysNodup schema resolvers variableValues
+              simpa [visitSelection, hallowed]
+                using visitSubfields_pairKeysNodup schema resolvers variableValues
                   depth parentType source selectionSet fields hnodup
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source
                     typeCondition
-              · simpa [visitSelection, hallowed, happly] using
-                  visitSubfields_pairKeysNodup schema resolvers variableValues
+              · simpa [visitSelection, hallowed, happly]
+                  using visitSubfields_pairKeysNodup schema resolvers variableValues
                     depth parentType source selectionSet fields hnodup
               · simpa [visitSelection, hallowed, happly] using hnodup
         · have hblocked :
@@ -506,8 +502,8 @@ mutual
             depth parentType source selection fields
         with ⟨headFields, hhead⟩
         have hheadNodup : PairKeysNodup headFields := by
-          simpa [hhead] using
-            visitSelection_pairKeysNodup schema resolvers variableValues
+          simpa [hhead]
+            using visitSelection_pairKeysNodup schema resolvers variableValues
               depth parentType source selection fields hnodup
         have htail :=
           visitSubfields_pairKeysNodup schema resolvers variableValues
@@ -621,9 +617,9 @@ mutual
                         (.object (mergeResponseField responseName previous fields)) :=
                     mergeResponseField_object_ready_of_ready responseName previous
                       fields hfieldsReady hpreviousReady
-                  simpa [visitSelection, hallowed, hprevious,
-                    mergeResponseFieldResult, mergeResponseFieldIntoObject,
-                    resultValueOrNull] using hmergedReady
+                  simpa [visitSelection, hallowed, hprevious, mergeResponseFieldResult,
+                    mergeResponseFieldIntoObject, resultValueOrNull]
+                    using hmergedReady
           | succ depth' =>
               have hpreviousReady :
                   ∀ previous,
@@ -664,15 +660,15 @@ mutual
             selectionDirectivesAllowBool variableValues directives
         · cases typeCondition with
           | none =>
-              simpa [visitSelection, hallowed] using
-                visitSubfields_response_ready schema resolvers variableValues
+              simpa [visitSelection, hallowed]
+                using visitSubfields_response_ready schema resolvers variableValues
                   depth parentType source selectionSet fields hfieldsReady
           | some typeCondition =>
               by_cases happly :
                   doesFragmentTypeApplyBool schema parentType source
                     typeCondition
-              · simpa [visitSelection, hallowed, happly] using
-                  visitSubfields_response_ready schema resolvers variableValues
+              · simpa [visitSelection, hallowed, happly]
+                  using visitSubfields_response_ready schema resolvers variableValues
                     depth parentType source selectionSet fields hfieldsReady
               · simpa [visitSelection, hallowed, happly] using hfieldsReady
         · have hblocked :
@@ -713,8 +709,8 @@ mutual
           visitSelection_preserves_object schema resolvers variableValues depth
             parentType source selection fields
         have hheadReady : ResponseMergeReady (.object headFields) := by
-          simpa [hhead] using
-            visitSelection_response_ready schema resolvers variableValues depth
+          simpa [hhead]
+            using visitSelection_response_ready schema resolvers variableValues depth
               parentType source selection fields hfieldsReady
         have htailReady :=
           visitSubfields_response_ready schema resolvers variableValues depth
@@ -750,13 +746,12 @@ mutual
     | none =>
         cases depth with
         | zero =>
-            simpa [completeValue] using
-              resultValueOrNull_outOfFuel_ready
+            simpa [completeValue] using resultValueOrNull_outOfFuel_ready
         | succ depth' =>
             cases fieldType with
             | nonNull inner =>
-                simpa [completeValue] using
-                  resultValueOrNull_nonNullCompletion_ready
+                simpa [completeValue]
+                  using resultValueOrNull_nonNullCompletion_ready
                     (completeValue schema resolvers variableValues (depth' + 1)
                       inner selectionSet value none)
                     (completeValue_response_ready schema resolvers variableValues
@@ -786,8 +781,8 @@ mutual
                           variableValues depth' runtimeType
                           (.object runtimeType identity) selectionSet []
                           ResponseMergeReady_empty_object
-                      simpa [completeValue, hinclude, reuseOrCreateObject?] using
-                        resultValueOrNull_catchVisitBubbleAsNull_ready
+                      simpa [completeValue, hinclude, reuseOrCreateObject?]
+                        using resultValueOrNull_catchVisitBubbleAsNull_ready
                           (visitSubfields schema resolvers variableValues
                             depth' runtimeType (.object runtimeType identity)
                             selectionSet (.object [])).fst
@@ -805,10 +800,9 @@ mutual
                 | list values =>
                     cases values with
                     | nil =>
-                        simpa [completeValue, resultValueOrNull,
-                          reuseOrCreateList?, completeValueList,
-                          catchBubbleAsNull] using
-                          ResponseMergeReady_empty_list
+                        simpa [completeValue, resultValueOrNull, reuseOrCreateList?,
+                          completeValueList, catchBubbleAsNull]
+                          using ResponseMergeReady_empty_list
                     | cons value rest =>
                         have hcompleted :
                             (∀ completedValues errors,
@@ -824,8 +818,8 @@ mutual
                               (value :: rest) []
                               (by intro previous hmem; simp at hmem)
                               completedValues errors hok)
-                        simpa [completeValue, reuseOrCreateList?] using
-                          resultValueOrNull_catchBubbleAsNull_ready
+                        simpa [completeValue, reuseOrCreateList?]
+                          using resultValueOrNull_catchBubbleAsNull_ready
                             ResponseValue.list
                             (completeValueList schema resolvers variableValues
                               depth' inner selectionSet (value :: rest) [])
@@ -848,21 +842,19 @@ mutual
         | null =>
             cases depth with
             | zero =>
-                simpa [completeValue] using
-                  resultValueOrNull_outOfFuel_ready
+                simpa [completeValue] using resultValueOrNull_outOfFuel_ready
             | succ depth' =>
                 simp [completeValue, resultValueOrNull]
                 exact ResponseMergeReady.null
         | scalar previousValue =>
             cases depth with
             | zero =>
-                simpa [completeValue] using
-                  resultValueOrNull_outOfFuel_ready
+                simpa [completeValue] using resultValueOrNull_outOfFuel_ready
             | succ depth' =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue, nonNullCompletion] using
-                      resultValueOrNull_nonNullCompletion_ready
+                    simpa [completeValue, nonNullCompletion]
+                      using resultValueOrNull_nonNullCompletion_ready
                         (completeValue schema resolvers variableValues
                           (depth' + 1) inner selectionSet value
                           (some (.scalar previousValue)))
@@ -891,13 +883,12 @@ mutual
         | object previousFields =>
             cases depth with
             | zero =>
-                simpa [completeValue] using
-                  resultValueOrNull_outOfFuel_ready
+                simpa [completeValue] using resultValueOrNull_outOfFuel_ready
             | succ depth' =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_ready
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_ready
                         (completeValue schema resolvers variableValues
                           (depth' + 1) inner selectionSet value
                           (some (.object previousFields)))
@@ -925,8 +916,8 @@ mutual
                               variableValues depth' runtimeType
                               (.object runtimeType identity) selectionSet
                               previousFields hpreviousReady
-                          simpa [completeValue, hinclude, reuseOrCreateObject?] using
-                            resultValueOrNull_catchVisitBubbleAsNull_ready
+                          simpa [completeValue, hinclude, reuseOrCreateObject?]
+                            using resultValueOrNull_catchVisitBubbleAsNull_ready
                               (visitSubfields schema resolvers variableValues
                                 depth' runtimeType (.object runtimeType identity)
                                 selectionSet (.object previousFields)).fst
@@ -962,13 +953,12 @@ mutual
         | list previousValues =>
             cases depth with
             | zero =>
-                simpa [completeValue] using
-                  resultValueOrNull_outOfFuel_ready
+                simpa [completeValue] using resultValueOrNull_outOfFuel_ready
             | succ depth' =>
                 cases fieldType with
                 | nonNull inner =>
-                    simpa [completeValue] using
-                      resultValueOrNull_nonNullCompletion_ready
+                    simpa [completeValue]
+                      using resultValueOrNull_nonNullCompletion_ready
                         (completeValue schema resolvers variableValues
                           (depth' + 1) inner selectionSet value
                           (some (.list previousValues)))
@@ -990,8 +980,8 @@ mutual
                             | nil =>
                                 simpa [completeValue, resultValueOrNull,
                                   reuseOrCreateList?, completeValueList,
-                                  catchBubbleAsNull] using
-                                  ResponseMergeReady_empty_list
+                                  catchBubbleAsNull]
+                                  using ResponseMergeReady_empty_list
                             | cons previous rest =>
                                 simp [completeValue, resultValueOrNull,
                                   reuseOrCreateList?, completeValueList]
@@ -1018,8 +1008,8 @@ mutual
                                   selectionSet (value :: rest) previousValues
                                   hpreviousValuesReady completedValues
                                   errors hok)
-                            simpa [completeValue, reuseOrCreateList?] using
-                              resultValueOrNull_catchBubbleAsNull_ready
+                            simpa [completeValue, reuseOrCreateList?]
+                              using resultValueOrNull_catchBubbleAsNull_ready
                                 ResponseValue.list
                                 (completeValueList schema resolvers
                                   variableValues depth' inner selectionSet
@@ -1076,8 +1066,8 @@ mutual
     | none =>
         cases fieldType with
         | nonNull inner =>
-            simpa [completeResolvedValue, hreuse] using
-              resultValueOrNull_nonNullCompletion_ready
+            simpa [completeResolvedValue, hreuse]
+              using resultValueOrNull_nonNullCompletion_ready
                 (completeResolvedValue schema resolvers variableValues
                   completionDepth inner selectionSet resolved previous?)
                 (completeResolvedValue_response_ready schema resolvers
@@ -1216,9 +1206,10 @@ mutual
               simp [remainingPrevious] at hmem
           | cons previous remainingPrevious =>
               intro previousValue hmem
-              exact hpreviousValues previousValue (by
-                right
-                exact hmem)
+              exact hpreviousValues previousValue
+                (by
+                  right
+                  exact hmem)
         have hheadReady :
             ResponseMergeReady (resultValueOrNull head) := by
           dsimp [head]
@@ -1263,14 +1254,13 @@ mutual
             completeValueList_values_ready schema resolvers variableValues
               depth itemType selectionSet restValues remainingPrevious
               hremainingPrevious
-        exact
-          resultCombine_cons_values_ready head tail hheadReady htailReady
-            completedValues errors
-            (by
-              rw [completeValueList.eq_3] at hok
-              change Result.combine List.cons head tail =
-                .ok (completedValues, errors) at hok
-              exact hok)
+        exact resultCombine_cons_values_ready head tail hheadReady htailReady
+          completedValues errors
+          (by
+            rw [completeValueList.eq_3] at hok
+            change Result.combine List.cons head tail =
+              .ok (completedValues, errors) at hok
+            exact hok)
   termination_by values previousValues _hpreviousValues completedValues errors _hok =>
     (depth, 2, sizeOf itemType, sizeOf values)
   decreasing_by
@@ -1312,12 +1302,12 @@ mutual
                       fieldDefinition parentType field.fieldName field.arguments
                       source with
             | none =>
-                simpa [executeField, hlookup, hreuse, hresolve] using
-                  resultValueOrNull_handleFieldError_ready
+                simpa [executeField, hlookup, hreuse, hresolve]
+                  using resultValueOrNull_handleFieldError_ready
                     fieldDefinition.outputType
             | some resolved =>
-                simpa [executeField, hlookup, hreuse, hresolve] using
-                  completeValue_response_ready schema resolvers
+                simpa [executeField, hlookup, hreuse, hresolve]
+                  using completeValue_response_ready schema resolvers
                     variableValues depth fieldDefinition.outputType
                     field.selectionSet resolved none hprevious
     | some previous =>
@@ -1346,20 +1336,20 @@ mutual
                         (reusablePreviousValue?_some_eq schema
                           fieldDefinition.outputType (some (.scalar value))
                           previous hreuse)
-                    simpa [executeField, hlookup, hreuse, resultValueOrNull] using
-                      hpreviousReady
+                    simpa [executeField, hlookup, hreuse, resultValueOrNull]
+                      using hpreviousReady
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          resultValueOrNull_handleFieldError_ready
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using resultValueOrNull_handleFieldError_ready
                             fieldDefinition.outputType
                     | some resolved =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          completeValue_response_ready schema resolvers
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using completeValue_response_ready schema resolvers
                             variableValues depth fieldDefinition.outputType
                             field.selectionSet resolved (some (.scalar value))
                             hprevious
@@ -1378,20 +1368,20 @@ mutual
                         (reusablePreviousValue?_some_eq schema
                           fieldDefinition.outputType (some (.object fields))
                           previous hreuse)
-                    simpa [executeField, hlookup, hreuse, resultValueOrNull] using
-                      hpreviousReady
+                    simpa [executeField, hlookup, hreuse, resultValueOrNull]
+                      using hpreviousReady
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          resultValueOrNull_handleFieldError_ready
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using resultValueOrNull_handleFieldError_ready
                             fieldDefinition.outputType
                     | some resolved =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          completeValue_response_ready schema resolvers
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using completeValue_response_ready schema resolvers
                             variableValues depth fieldDefinition.outputType
                             field.selectionSet resolved (some (.object fields))
                             hprevious
@@ -1410,20 +1400,20 @@ mutual
                         (reusablePreviousValue?_some_eq schema
                           fieldDefinition.outputType (some (.list values))
                           previous hreuse)
-                    simpa [executeField, hlookup, hreuse, resultValueOrNull] using
-                      hpreviousReady
+                    simpa [executeField, hlookup, hreuse, resultValueOrNull]
+                      using hpreviousReady
                 | none =>
                     cases hresolve
                           : coerceAndResolveFieldValue schema resolvers variableValues
                               fieldDefinition parentType field.fieldName
                               field.arguments source with
                     | none =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          resultValueOrNull_handleFieldError_ready
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using resultValueOrNull_handleFieldError_ready
                             fieldDefinition.outputType
                     | some resolved =>
-                        simpa [executeField, hlookup, hreuse, hresolve] using
-                          completeValue_response_ready schema resolvers
+                        simpa [executeField, hlookup, hreuse, hresolve]
+                          using completeValue_response_ready schema resolvers
                             variableValues depth fieldDefinition.outputType
                             field.selectionSet resolved (some (.list values))
                             hprevious
@@ -1452,10 +1442,10 @@ theorem executeField_response_ready
           (resultValueOrNull
             (executeField schema resolvers variableValues depth parentType source
               (some (.object fields)) field)) := by
-    intro hfieldsReady
-    exact executeField_response_ready_of_previous schema resolvers variableValues
-      depth parentType source (some (.object fields)) field
-      (by intro previous h; cases h; exact hfieldsReady)
+  intro hfieldsReady
+  exact executeField_response_ready_of_previous schema resolvers variableValues
+    depth parentType source (some (.object fields)) field
+    (by intro previous h; cases h; exact hfieldsReady)
 
 mutual
   theorem visitSelection_local_absorbs_from_ready
@@ -1511,23 +1501,22 @@ mutual
                   (responseObjectField? responseName (.object fields))
                   (executableField fieldName arguments selectionSet)
                   hpreviousReady
-              exact
-                visitSelection_field_allowed_succ_absorbs schema resolvers
-                  variableValues depth' parentType source responseName fieldName
-                  arguments directives selectionSet fields hallowed
-                  hfieldsReady
-                  (by
-                    intro existing hmem
-                    exact
-                      ResponseAbsorbs_merge_of_ready existing
-                        (resultValueOrNull
-                          (executeField schema resolvers variableValues depth'
-                            parentType source
-                            (responseObjectField? responseName (.object fields))
-                            (executableField fieldName arguments selectionSet)))
-                        (ResponseMergeReady_object_field fields responseName
-                          existing hfieldsReady hmem)
-                        hfieldReady)
+              exact visitSelection_field_allowed_succ_absorbs schema resolvers
+                variableValues depth' parentType source responseName fieldName
+                arguments directives selectionSet fields hallowed
+                hfieldsReady
+                (by
+                  intro existing hmem
+                  exact
+                    ResponseAbsorbs_merge_of_ready existing
+                      (resultValueOrNull
+                        (executeField schema resolvers variableValues depth'
+                          parentType source
+                          (responseObjectField? responseName (.object fields))
+                          (executableField fieldName arguments selectionSet)))
+                      (ResponseMergeReady_object_field fields responseName
+                        existing hfieldsReady hmem)
+                      hfieldReady)
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives with
@@ -1577,18 +1566,16 @@ mutual
                     variableValues depth parentType source (.object fields)
                     selectionSet (.object fields) hsteps
                 simpa [visitSelection, hallowed, happly] using habsorbs
-              · simpa [visitSelection, hallowed, happly] using
-                  ResponseAbsorbs_refl_of_ready (.object fields)
-                    hfieldsReady
+              · simpa [visitSelection, hallowed, happly]
+                  using ResponseAbsorbs_refl_of_ready (.object fields) hfieldsReady
         · have hblocked :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases h : selectionDirectivesAllowBool variableValues directives with
             | false => rfl
             | true => exact False.elim (hallowed h)
           cases typeCondition
-          <;>
-              simpa [visitSelection, hblocked] using
-                ResponseAbsorbs_refl_of_ready (.object fields) hfieldsReady
+          <;> simpa [visitSelection, hblocked]
+            using ResponseAbsorbs_refl_of_ready (.object fields) hfieldsReady
 
   theorem visitSubfields_local_absorbs_from_ready
       {ObjectIdentity : Type}
@@ -1618,8 +1605,12 @@ mutual
             variableValues depth parentType source rest headFields hheadReady
         simp [VisitSubfieldsLocalAbsorbsFrom]
         rw [hhead]
-        exact ⟨hcurrentReady, by simpa [hhead] using hnextReady,
-          by simpa [hhead] using habsorbs, hrest⟩
+        exact ⟨
+          hcurrentReady,
+          by simpa [hhead] using hnextReady,
+          by simpa [hhead] using habsorbs,
+          hrest
+        ⟩
 end
 
 theorem VisitSubfieldsAbsorbsFrom_single_field_allowed_succ_of_visit_fresh
@@ -1652,8 +1643,8 @@ theorem VisitSubfieldsAbsorbsFrom_single_field_allowed_succ_of_visit_fresh
     schema resolvers variableValues depth parentType source responseName
     fieldName arguments directives selectionSet fields hallowed
     (hfresh fields hfields)
-  simpa [hfields] using
-    visitSubfields_response_ready schema resolvers variableValues (depth + 1)
+  simpa [hfields]
+    using visitSubfields_response_ready schema resolvers variableValues (depth + 1)
       parentType source firstSelectionSet [] ResponseMergeReady_empty_object
 
 end Eager

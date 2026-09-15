@@ -273,11 +273,17 @@ theorem lookupFragmentAndRestLt?_some_of_lookupFragment?
             lookupFragment? rest fragmentName = some fragment := by
           simpa [GraphQL.NamedFragment.lookupFragment?] using hlookup
         rcases ih hlookupRest with ⟨remaining, hremaining⟩
-        exact ⟨⟨head :: remaining.val, by
-          have hlt := remaining.property
-          simp at hlt ⊢
-          omega⟩, by
-          simp [lookupFragmentAndRestLt?, hname, hremaining]⟩
+        exact ⟨
+          ⟨
+            head :: remaining.val,
+            by
+              have hlt := remaining.property
+              simp at hlt ⊢
+              omega
+          ⟩,
+          by
+            simp [lookupFragmentAndRestLt?, hname, hremaining]
+        ⟩
 
 theorem lookupFragment?_remaining_of_ne
     {removedName otherName : Name} {fragments : List FragmentDefinition}
@@ -480,10 +486,17 @@ theorem lookupFragmentAndRestLt?_remaining_lift
                           rcases ih hremoveRest htargetRest with
                             ⟨sourceRemainingRest, hsourceLookupRest,
                               liftedRemaining, hliftVal, hliftLookup⟩
-                          refine ⟨⟨head :: sourceRemainingRest.val, by
-                            have hlt := sourceRemainingRest.property
-                            simp at hlt ⊢
-                            omega⟩, ?_, ?_⟩
+                          refine ⟨
+                            ⟨
+                              head :: sourceRemainingRest.val,
+                              by
+                                have hlt := sourceRemainingRest.property
+                                simp at hlt ⊢
+                                omega
+                            ⟩,
+                            ?_,
+                            ?_
+                          ⟩
                           · simp [lookupFragmentAndRestLt?, htargetHead,
                               hsourceLookupRest]
                           · refine ⟨⟨head :: liftedRemaining.val, by

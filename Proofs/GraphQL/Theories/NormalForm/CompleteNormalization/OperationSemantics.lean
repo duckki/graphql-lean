@@ -81,8 +81,8 @@ theorem completeNormalizationSelectionSetSemanticsPreserved
           (normalizeSelectionSet schema (operation.rootType schema)
             (filterSelectionSetBoolCase runtimeCase
               operation.selectionSet)) := by
-    simpa [completeNormalizeOperation] using
-      executeSelectionSet_completeNormalizeRootSelectionSet_runtime
+    simpa [completeNormalizeOperation]
+      using executeSelectionSet_completeNormalizeRootSelectionSet_runtime
         schema resolvers variableValues operation depth (operation.rootType schema)
         source runtimeCase operation.selectionSet hruntimeCase hagrees
   have hground :

@@ -430,12 +430,13 @@ theorem
         selectionSetDirectiveFree_field_child_of_mem hrightFree hrightMem
       have hleftChildNormal :
           selectionSetNormal schema returnType leftChildSelectionSet := by
-        simpa [returnType] using
-          selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem hlookup
+        simpa [returnType]
+          using selectionSetNormal_field_child_of_mem_lookup hleftNormal hleftMem hlookup
       have hrightChildNormal :
           selectionSetNormal schema returnType rightChildSelectionSet := by
-        simpa [returnType] using
-          selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem hlookup
+        simpa [returnType]
+          using selectionSetNormal_field_child_of_mem_lookup hrightNormal hrightMem
+            hlookup
       rcases List.mem_iff_append.mp hleftMem with
         ⟨leftPref, leftSuffix, hleftEq⟩
       rcases List.mem_iff_append.mp hrightMem with
@@ -445,14 +446,14 @@ theorem
       have hleftChildCoercion :
           selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
             returnType leftChildSelectionSet := by
-        simpa [returnType] using
-          selectionSetArgumentsCoercible_field_children_of_directiveFree
+        simpa [returnType]
+          using selectionSetArgumentsCoercible_field_children_of_directiveFree
             hleftObjectCoercion hleftFree hleftMem hlookup
       have hrightChildCoercion :
           selectionSetArgumentsCoercibleInPossibleTypes schema variableValues
             returnType rightChildSelectionSet := by
-        simpa [returnType] using
-          selectionSetArgumentsCoercible_field_children_of_directiveFree
+        simpa [returnType]
+          using selectionSetArgumentsCoercible_field_children_of_directiveFree
             hrightObjectCoercion hrightFree hrightMem hlookup
       have hchildSupportValid :
           ∀ supportSelectionSet,

@@ -257,8 +257,7 @@ theorem addExecutableGroup_namesNodup
       by_cases hname : (currentName == group.fst) = true
       · have hcurrent : currentName = group.fst := beq_iff_eq.mp hname
         subst currentName
-        simpa [Execution.addExecutableGroup, executableGroupNamesNodup]
-          using hnodup
+        simpa [Execution.addExecutableGroup, executableGroupNamesNodup] using hnodup
       · have hfalse : (currentName == group.fst) = false := by
           cases hmatch : currentName == group.fst
           · rfl
@@ -907,11 +906,11 @@ theorem completeValue_eq_of_mergedFieldSelectionSet_eq
             fieldType leftFields value
           = Execution.completeValue schema resolvers variableValues depth
               fieldType rightFields value := by
-    intro hmerged
-    apply completeValue_eq_of_child_object_lt_includes schema resolvers
-      variableValues
-    · intro childDepth runtimeType ref hlt hinclude
-      simp [hmerged]
+  intro hmerged
+  apply completeValue_eq_of_child_object_lt_includes schema resolvers
+    variableValues
+  · intro childDepth runtimeType ref hlt hinclude
+    simp [hmerged]
 
 theorem completeValue_eq_mergedFieldSelectionSet
     (schema : Schema)

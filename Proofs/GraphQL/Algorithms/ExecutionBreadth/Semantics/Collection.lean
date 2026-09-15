@@ -103,8 +103,8 @@ theorem childSelectionSetForFields_size (fields : List ExecutableField)
             fields.foldr
               (fun field size => SelectionSet.size field.selectionSet + size) 0
       rw [selectionSet_size_append]
-      simpa [childSelectionSetForFields] using
-        congrArg (fun size => SelectionSet.size field.selectionSet + size) ih
+      simpa [childSelectionSetForFields]
+        using congrArg (fun size => SelectionSet.size field.selectionSet + size) ih
 
 theorem childSelectionSetForFields_size_le_executableFieldsSize
     (fields : List ExecutableField)
@@ -139,8 +139,8 @@ theorem childSelectionSetForFields_size_succ_le_executableFieldsSize
           fields.foldr
               (fun field size => SelectionSet.size field.selectionSet + size) 0 <=
             executableFieldsSize fields := by
-        simpa [childSelectionSetForFields_size] using
-          childSelectionSetForFields_size_le_executableFieldsSize fields
+        simpa [childSelectionSetForFields_size]
+          using childSelectionSetForFields_size_le_executableFieldsSize fields
       omega
 
 theorem childSelectionSetForFields_breadthWeight
@@ -162,8 +162,8 @@ theorem childSelectionSetForFields_breadthWeight
               (fun field weight =>
                 selectionSetBreadthWeight schema field.selectionSet + weight) 0
       rw [selectionSetBreadthWeight_append]
-      simpa [childSelectionSetForFields] using
-        congrArg
+      simpa [childSelectionSetForFields]
+        using congrArg
           (fun weight =>
             selectionSetBreadthWeight schema field.selectionSet + weight)
           ih
@@ -298,8 +298,7 @@ theorem collectedGroupsNonempty_mergeExecutableGroups
             exact collectedGroupsNonempty_tail responseName fields rest hright
       simpa [mergeExecutableGroups, List.foldl]
         using ih (addExecutableGroup group left)
-          (collectedGroupsNonempty_addExecutableGroup group left
-            hgroupFields hleft)
+          (collectedGroupsNonempty_addExecutableGroup group left hgroupFields hleft)
           hrest
 
 theorem executableGroupsSize_addExecutableGroup
@@ -623,8 +622,8 @@ theorem pairKeysNodup_mergeExecutableGroups
         cases group with
         | mk responseName fields =>
             exact pairKeysNodup_tail responseName fields rest hright
-      simpa [mergeExecutableGroups, List.foldl] using
-        ih (addExecutableGroup group left)
+      simpa [mergeExecutableGroups, List.foldl]
+        using ih (addExecutableGroup group left)
           (pairKeysNodup_addExecutableGroup group left hleft) hrest
 
 mutual
@@ -645,8 +644,8 @@ mutual
         | none =>
             by_cases hdirectives :
                 selectionDirectivesAllowBool variableValues directives = true
-            · simpa [collectSelectionByKey, hdirectives] using
-                collectFieldsByKey_pairKeysNodup schema variableValues
+            · simpa [collectSelectionByKey, hdirectives]
+                using collectFieldsByKey_pairKeysNodup schema variableValues
                   parentType selectionSet
             · simp [collectSelectionByKey, hdirectives, pairKeysNodup]
         | some typeCondition =>
@@ -654,8 +653,8 @@ mutual
                 selectionDirectivesAllowBool variableValues directives = true
             · by_cases hpossible :
                   parentTypeIsPossible schema parentType typeCondition = true
-              · simpa [collectSelectionByKey, hdirectives, hpossible] using
-                  collectFieldsByKey_pairKeysNodup schema variableValues
+              · simpa [collectSelectionByKey, hdirectives, hpossible]
+                  using collectFieldsByKey_pairKeysNodup schema variableValues
                     parentType selectionSet
               · simp [collectSelectionByKey, hdirectives, hpossible,
                   pairKeysNodup]
@@ -803,8 +802,8 @@ mutual
         | none =>
             by_cases hdirectives :
                 selectionDirectivesAllowBool variableValues directives = true
-            · simpa [collectSelectionByKey, hdirectives] using
-                collectFieldsByKey_collectedGroupsNonempty schema
+            · simpa [collectSelectionByKey, hdirectives]
+                using collectFieldsByKey_collectedGroupsNonempty schema
                   variableValues parentType selectionSet
             · simp [collectSelectionByKey, hdirectives, collectedGroupsNonempty]
         | some typeCondition =>
@@ -812,8 +811,8 @@ mutual
                 selectionDirectivesAllowBool variableValues directives = true
             · by_cases hpossible :
                   parentTypeIsPossible schema parentType typeCondition = true
-              · simpa [collectSelectionByKey, hdirectives, hpossible] using
-                  collectFieldsByKey_collectedGroupsNonempty schema
+              · simpa [collectSelectionByKey, hdirectives, hpossible]
+                  using collectFieldsByKey_collectedGroupsNonempty schema
                     variableValues parentType selectionSet
               · simp [collectSelectionByKey, hdirectives, hpossible,
                   collectedGroupsNonempty]

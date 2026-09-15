@@ -457,8 +457,8 @@ theorem scheduleFieldShape_mem_shapeSet_of_mem
     (shape : ScheduleFieldShape) (shapes : List ScheduleFieldShape)
     : shape ∈ shapes -> shape ∈ scheduleFieldShapeSet shapes := by
   intro hmem
-  simpa [scheduleFieldShapeSet] using
-    scheduleFieldShape_mem_foldl_insert_of_mem shape shapes
+  simpa [scheduleFieldShapeSet]
+    using scheduleFieldShape_mem_foldl_insert_of_mem shape shapes
       ([] : List ScheduleFieldShape) hmem
 
 def expectedScheduleQueueShapeSet (queue : ExpectedScheduleQueue ObjectRef)
@@ -626,8 +626,8 @@ theorem selectionSetShape_mem_shapeSet_of_mem
     (shape : SelectionSetShape) (shapes : List SelectionSetShape)
     : shape ∈ shapes -> shape ∈ selectionSetShapeSet shapes := by
   intro hmem
-  simpa [selectionSetShapeSet] using
-    selectionSetShape_mem_foldl_insert_of_mem shape shapes
+  simpa [selectionSetShapeSet]
+    using selectionSetShape_mem_foldl_insert_of_mem shape shapes
       ([] : List SelectionSetShape) hmem
 
 theorem selectionSetShape_mem_insert_cases (inserted shape : SelectionSetShape)
@@ -1054,8 +1054,8 @@ theorem materializeExpectedQueueItem_extends
     (materialized : MaterializedChildSelections)
     : materializedSelectionExtends
         (materializeExpectedQueueItem item materialized) materialized := by
-  simpa [materializeExpectedQueueItem] using
-    materializedSelectionExtends_foldl_insert
+  simpa [materializeExpectedQueueItem]
+    using materializedSelectionExtends_foldl_insert
       (expectedQueueItemChildSelectionSetShapes item) materialized
 
 theorem materializeExpectedQueueItem_extends_of_extends
@@ -1095,8 +1095,8 @@ theorem selectionSetShapeMemberBool_materializeExpectedQueueItem_of_mem
             (materializeExpectedQueueItem item materialized)
           = true := by
   intro hmem
-  simpa [materializeExpectedQueueItem] using
-    selectionSetShapeMemberBool_foldl_insert_of_mem
+  simpa [materializeExpectedQueueItem]
+    using selectionSetShapeMemberBool_foldl_insert_of_mem
       shape (expectedQueueItemChildSelectionSetShapes item)
       materialized hmem
 
@@ -1220,9 +1220,8 @@ theorem selectionSetShapeSet_foldl_weight_le
 theorem selectionSetShapeSet_weight_le (schema : Schema) (shapes : List SelectionSetShape)
     : selectionSetShapeSetWeight schema (selectionSetShapeSet shapes)
       <= selectionSetShapeSetWeight schema shapes := by
-  simpa [selectionSetShapeSet, selectionSetShapeSetWeight] using
-    selectionSetShapeSet_foldl_weight_le schema
-      ([] : List SelectionSetShape) shapes
+  simpa [selectionSetShapeSet, selectionSetShapeSetWeight]
+    using selectionSetShapeSet_foldl_weight_le schema ([] : List SelectionSetShape) shapes
 
 theorem selectionSetShapeBreadthSet_foldl_weight_le
     (schema : Schema) (pending shapes : List SelectionSetShape)
@@ -1245,8 +1244,8 @@ theorem selectionSetShapeBreadthSet_weight_le
     (schema : Schema) (shapes : List SelectionSetShape)
     : selectionSetShapeBreadthSetWeight schema (selectionSetShapeSet shapes)
       <= selectionSetShapeBreadthSetWeight schema shapes := by
-  simpa [selectionSetShapeSet, selectionSetShapeBreadthSetWeight] using
-    selectionSetShapeBreadthSet_foldl_weight_le schema
+  simpa [selectionSetShapeSet, selectionSetShapeBreadthSetWeight]
+    using selectionSetShapeBreadthSet_foldl_weight_le schema
       ([] : List SelectionSetShape) shapes
 
 theorem selectionSetShapeSetWeight_insert_le_of_mem
@@ -1510,8 +1509,8 @@ theorem expectedQueueItemUnmaterializedCreditWeight_mono
       -> expectedQueueItemUnmaterializedCreditWeight schema newer item
           <= expectedQueueItemUnmaterializedCreditWeight schema older item := by
   intro hextends
-  simpa [expectedQueueItemUnmaterializedCreditWeight] using
-    selectionSetShapeSetWeight_unmaterialized_mono
+  simpa [expectedQueueItemUnmaterializedCreditWeight]
+    using selectionSetShapeSetWeight_unmaterialized_mono
       schema hextends (expectedQueueItemChildSelectionSetShapes item)
 
 theorem expectedScheduleQueueDrainBudget_mono (schema : Schema)
@@ -1587,9 +1586,9 @@ theorem expectedQueueItemOrderedBudget_le_shapeWeight
         selectionSetShapeSetWeight schema
           (shapes.map scheduleFieldShapeChildSelectionSetShape) := by
     simpa [expectedQueueItemUnmaterializedCreditWeight,
-      unmaterializedChildSelectionSetShapes,
-      expectedQueueItemChildSelectionSetShapes, shapes] using
-      selectionSetShapeSetWeight_filter_le schema
+      unmaterializedChildSelectionSetShapes, expectedQueueItemChildSelectionSetShapes,
+      shapes]
+      using selectionSetShapeSetWeight_filter_le schema
         (fun shape => !selectionSetShapeMemberBool shape materialized)
         (shapes.map scheduleFieldShapeChildSelectionSetShape)
   have hbudget :=
@@ -1732,8 +1731,8 @@ theorem scheduleFieldShapeSet_weight_le
     (schema : Schema) (shapes : List ScheduleFieldShape)
     : scheduleFieldShapeSetWeight schema (scheduleFieldShapeSet shapes)
       <= scheduleFieldShapeSetWeight schema shapes := by
-  simpa [scheduleFieldShapeSet, scheduleFieldShapeSetWeight] using
-    scheduleFieldShapeSet_foldl_weight_le schema
+  simpa [scheduleFieldShapeSet, scheduleFieldShapeSetWeight]
+    using scheduleFieldShapeSet_foldl_weight_le schema
       ([] : List ScheduleFieldShape) shapes
 
 theorem scheduleFieldShapeSetWeight_insert_le_of_mem
@@ -1873,9 +1872,8 @@ theorem expectedScheduleQueueFrontierBudget_le_rawShapeWeight
   have hset :
       scheduleFieldShapeSetWeight schema shapes <=
         scheduleFieldShapeSetWeight schema (expectedScheduleQueueShapes queue) := by
-    simpa [shapes, expectedScheduleQueueShapeSet] using
-      scheduleFieldShapeSet_weight_le schema
-        (expectedScheduleQueueShapes queue)
+    simpa [shapes, expectedScheduleQueueShapeSet]
+      using scheduleFieldShapeSet_weight_le schema (expectedScheduleQueueShapes queue)
   have hraw :
       scheduleFieldShapeSetWeight schema (expectedScheduleQueueShapes queue) =
         expectedScheduleQueueRawShapeWeight schema queue :=
@@ -1902,9 +1900,8 @@ theorem expectedQueueItemShapeWeight_appendSegment_le
   unfold scheduleFieldShapeSet
   rw [List.foldl_append]
   simp
-  simpa [expectedQueueItemShapeSet, scheduleFieldShapeSet,
-    scheduleFieldShapeSetWeight] using
-    scheduleFieldShapeSet_foldl_weight_le schema
+  simpa [expectedQueueItemShapeSet, scheduleFieldShapeSet, scheduleFieldShapeSetWeight]
+    using scheduleFieldShapeSet_foldl_weight_le schema
       ((expectedQueueItemShapes item).foldl
         (fun shapes shape => insertScheduleFieldShape shape shapes) [])
       [expectedQueueSegmentShape item.key segment]
@@ -1966,17 +1963,17 @@ theorem materializeExpectedQueueItem_appendSegment_extends
     rcases List.mem_map.mp hshapeMem with ⟨fieldShape, hfieldShape, hfieldEq⟩
     subst shape
     simpa [expectedQueueItemChildSelectionSetShapes,
-      expectedQueueItemShapeSet_appendSegment] using
-      selectionSetShapeMemberBool_foldl_insert_of_mem
+      expectedQueueItemShapeSet_appendSegment]
+      using selectionSetShapeMemberBool_foldl_insert_of_mem
         (scheduleFieldShapeChildSelectionSetShape fieldShape)
         ((insertScheduleFieldShape
-          (expectedQueueSegmentShape item.key segment)
-          (expectedQueueItemShapeSet item)).map
-            scheduleFieldShapeChildSelectionSetShape)
+            (expectedQueueSegmentShape item.key segment)
+            (expectedQueueItemShapeSet item)).map
+          scheduleFieldShapeChildSelectionSetShape)
         materialized
         (List.mem_map_of_mem hfieldShape)
-  · simpa [materializeExpectedQueueItem] using
-      materializeExpectedQueueItem_extends
+  · simpa [materializeExpectedQueueItem]
+      using materializeExpectedQueueItem_extends
         (ObjectRef := ObjectRef)
         { item with segments := item.segments ++ [segment] } materialized
 
@@ -2058,8 +2055,8 @@ theorem expectedQueueItemShapeWeight_le_raw
     : expectedQueueItemShapeWeight schema item
       <= expectedQueueItemRawShapeWeight schema item := by
   simpa [expectedQueueItemShapeWeight, expectedQueueItemShapeSet,
-    expectedQueueItemRawShapeWeight] using
-    scheduleFieldShapeSet_weight_le schema (expectedQueueItemShapes item)
+    expectedQueueItemRawShapeWeight]
+    using scheduleFieldShapeSet_weight_le schema (expectedQueueItemShapes item)
 
 theorem expectedScheduleQueueShapeWeight_le_raw (schema : Schema)
     : ∀ queue : ExpectedScheduleQueue ObjectRef,
@@ -2118,8 +2115,7 @@ theorem collectedGroupsShapeWeight_le_executableGroupsSize
           scheduleFieldShapeSetWeight schema
               (groups.map (collectedGroupScheduleShape parentType)) <=
             executableGroupsSize groups * (schema.objectTypes.length + 1) := by
-        simpa [collectedGroupsShapeWeight, collectedGroupsScheduleShapes] using
-          htail
+        simpa [collectedGroupsShapeWeight, collectedGroupsScheduleShapes] using htail
       simp [collectedGroupsShapeWeight, collectedGroupsScheduleShapes,
         scheduleFieldShapeSetWeight, executableGroupsSize]
       rw [Nat.add_mul]
@@ -3191,9 +3187,9 @@ theorem expectedScheduleQueueToQueue_enqueueExpectedSegment
           cases h : scheduleKeyEqBool key item.key with
           | false => rfl
           | true => exact False.elim (hkey h)
-        simpa [enqueueExpectedSegment, enqueueSegment,
-          expectedScheduleQueueToQueue, ExpectedQueueItem.toScheduleItem,
-          hkeyFalse] using ih
+        simpa [enqueueExpectedSegment, enqueueSegment, expectedScheduleQueueToQueue,
+          ExpectedQueueItem.toScheduleItem, hkeyFalse]
+          using ih
 
 theorem expectedScheduleQueueToQueue_enqueueExpectedSegments
     (key : ScheduleKey) (segments : List (ExpectedQueueSegment ObjectRef))
@@ -3608,8 +3604,8 @@ theorem pendingScopeShape_mem_shapeSet_of_mem
     (shape : PendingScopeShape) (shapes : List PendingScopeShape)
     : shape ∈ shapes -> shape ∈ pendingScopeShapeSet shapes := by
   intro hmem
-  simpa [pendingScopeShapeSet] using
-    pendingScopeShape_mem_foldl_insert_of_mem shape shapes
+  simpa [pendingScopeShapeSet]
+    using pendingScopeShape_mem_foldl_insert_of_mem shape shapes
       ([] : List PendingScopeShape) hmem
 
 def pendingScopeShapeMemberBool (shape : PendingScopeShape)
@@ -3835,9 +3831,8 @@ theorem pendingScopeShapeSet_foldl_weight_le
 theorem pendingScopeShapeSet_weight_le (schema : Schema) (shapes : List PendingScopeShape)
     : pendingScopeShapeSetWeight schema (pendingScopeShapeSet shapes)
       <= pendingScopeShapeSetWeight schema shapes := by
-  simpa [pendingScopeShapeSet, pendingScopeShapeSetWeight] using
-    pendingScopeShapeSet_foldl_weight_le schema
-      ([] : List PendingScopeShape) shapes
+  simpa [pendingScopeShapeSet, pendingScopeShapeSetWeight]
+    using pendingScopeShapeSet_foldl_weight_le schema ([] : List PendingScopeShape) shapes
 
 theorem pendingScopeShapeUnseenWeight_add_seen_eq_foldl (schema : Schema)
     : ∀ (shapes seen : List PendingScopeShape),
@@ -3881,9 +3876,9 @@ theorem expectedPendingChildWorkUnseenShapeWeight_nil_eq_shapeWeight
     (schema : Schema) (work : ExpectedPendingChildWorkList ObjectRef)
     : expectedPendingChildWorkUnseenShapeWeight schema [] work
       = expectedPendingChildWorkShapeWeight schema work := by
-  simpa [expectedPendingChildWorkUnseenShapeWeight,
-    expectedPendingChildWorkShapeWeight, expectedPendingChildWorkShapeSet] using
-    pendingScopeShapeUnseenWeight_nil_eq_shapeSetWeight
+  simpa [expectedPendingChildWorkUnseenShapeWeight, expectedPendingChildWorkShapeWeight,
+    expectedPendingChildWorkShapeSet]
+    using pendingScopeShapeUnseenWeight_nil_eq_shapeSetWeight
       schema (expectedPendingChildWorkShapes work)
 
 def pendingScopeShapeBreadthStepWeight (schema : Schema) (shape : PendingScopeShape)
@@ -4026,8 +4021,8 @@ theorem expectedPendingChildWorkUnseenBreadthShapeWeight_nil_eq_shapeWeight
     : expectedPendingChildWorkUnseenBreadthShapeWeight schema [] work
       = expectedPendingChildWorkBreadthShapeWeight schema work := by
   simpa [expectedPendingChildWorkUnseenBreadthShapeWeight,
-    expectedPendingChildWorkBreadthShapeWeight, expectedPendingChildWorkShapeSet] using
-    pendingScopeShapeBreadthUnseenWeight_nil_eq_shapeSetWeight
+    expectedPendingChildWorkBreadthShapeWeight, expectedPendingChildWorkShapeSet]
+    using pendingScopeShapeBreadthUnseenWeight_nil_eq_shapeSetWeight
       schema (expectedPendingChildWorkShapes work)
 
 theorem pendingScopeShapeBreadthSet_foldl_weight_le
@@ -4051,8 +4046,8 @@ theorem pendingScopeShapeBreadthSet_weight_le
     (schema : Schema) (shapes : List PendingScopeShape)
     : pendingScopeShapeBreadthSetWeight schema (pendingScopeShapeSet shapes)
       <= pendingScopeShapeBreadthSetWeight schema shapes := by
-  simpa [pendingScopeShapeSet, pendingScopeShapeBreadthSetWeight] using
-    pendingScopeShapeBreadthSet_foldl_weight_le schema
+  simpa [pendingScopeShapeSet, pendingScopeShapeBreadthSetWeight]
+    using pendingScopeShapeBreadthSet_foldl_weight_le schema
       ([] : List PendingScopeShape) shapes
 
 def erasePendingScopeShape (shape : PendingScopeShape)
@@ -4150,8 +4145,8 @@ theorem pendingScopeShapeNoDup_foldl_insert
 
 theorem pendingScopeShapeNoDup_shapeSet (shapes : List PendingScopeShape)
     : pendingScopeShapeNoDup (pendingScopeShapeSet shapes) := by
-  simpa [pendingScopeShapeSet, pendingScopeShapeNoDup] using
-    pendingScopeShapeNoDup_foldl_insert shapes
+  simpa [pendingScopeShapeSet, pendingScopeShapeNoDup]
+    using pendingScopeShapeNoDup_foldl_insert shapes
       ([] : List PendingScopeShape) (by simp [pendingScopeShapeNoDup])
 
 theorem pendingScopeShapeMemberBool_erase_of_ne_of_member
@@ -4349,8 +4344,8 @@ theorem pendingScopeShapeMemberBool_shapeSet_of_all
           pendingScopeShapeMemberBool shape (pendingScopeShapeSet raw) = true
           -> pendingScopeShapeMemberBool shape possible = true := by
   intro hall shape hshape
-  exact pendingScopeShapeMemberBool_foldl_insert_of_all
-    raw possible ([] : List PendingScopeShape)
+  exact pendingScopeShapeMemberBool_foldl_insert_of_all raw possible
+    ([] : List PendingScopeShape)
     (by intro candidate hcandidate; simp [pendingScopeShapeMemberBool] at hcandidate)
     hall shape
     (by simpa [pendingScopeShapeSet] using hshape)
@@ -4505,16 +4500,15 @@ mutual
         intro value pending childWork hmem
         cases fuel with
         | zero =>
-            exact Or.inl (by
-              simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+            exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
         | succ fuel =>
             cases value with
             | null =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
             | scalar value =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
             | object runtimeType ref =>
                 by_cases hincludes :
                     schema.typeIncludesObjectBool typeName runtimeType = true
@@ -4527,31 +4521,32 @@ mutual
                     simpa [expectedPendingChildWorkForCompleteValue, hincludes]
                       using hmem)
             | list values =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
     | list inner ih =>
         intro value pending childWork hmem
         cases fuel with
         | zero =>
-            exact Or.inl (by
-              simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+            exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
         | succ fuel =>
             cases value with
             | null =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
             | scalar value =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
             | object runtimeType ref =>
-                exact Or.inl (by
-                  simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+                exact Or.inl
+                  (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
             | list values =>
                 induction values generalizing pending with
                 | nil =>
-                    exact Or.inl (by
-                      simpa [expectedPendingChildWorkForCompleteValue,
-                        expectedPendingChildWorkForCompleteValueList] using hmem)
+                    exact Or.inl
+                      (by
+                        simpa [expectedPendingChildWorkForCompleteValue,
+                          expectedPendingChildWorkForCompleteValueList]
+                          using hmem)
                 | cons value values ihValues =>
                     have htail :=
                       ihValues
@@ -4559,7 +4554,8 @@ mutual
                           selectionSet fuel inner value pending)
                         (by
                           simpa [expectedPendingChildWorkForCompleteValue,
-                            expectedPendingChildWorkForCompleteValueList] using hmem)
+                            expectedPendingChildWorkForCompleteValueList]
+                            using hmem)
                     rcases htail with hheadPending | hselection
                     · have hhead :=
                         ih fuel value pending childWork hheadPending
@@ -4569,11 +4565,10 @@ mutual
         intro value pending childWork hmem
         cases fuel with
         | zero =>
-            exact Or.inl (by
-              simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+            exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
         | succ fuel =>
-            exact ih (fuel + 1) value pending childWork (by
-              simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+            exact ih (fuel + 1) value pending childWork
+              (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
 
   theorem expectedPendingChildWorkForCompleteValueList_selectionSet_mem
       (schema : Schema) (selectionSet : List Selection) (fuel : Nat)
@@ -4589,8 +4584,7 @@ mutual
     induction values with
     | nil =>
         intro pending childWork hmem
-        exact Or.inl (by
-          simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
+        exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
     | cons value values ih =>
         intro pending childWork hmem
         have htail :=
@@ -4598,8 +4592,7 @@ mutual
             (expectedPendingChildWorkForCompleteValue schema selectionSet
               fuel inner value pending)
             childWork
-            (by
-              simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
+            (by simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
         rcases htail with hheadPending | hselection
         · exact
             expectedPendingChildWorkForCompleteValue_selectionSet_mem
@@ -4621,13 +4614,11 @@ theorem expectedPendingChildWorkForResolved_selectionSet_mem
   intro hmem
   cases fuel with
   | zero =>
-      exact Or.inl (by
-        simpa [expectedPendingChildWorkForResolved] using hmem)
+      exact Or.inl (by simpa [expectedPendingChildWorkForResolved] using hmem)
   | succ fuel =>
       cases resolved with
       | none =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForResolved] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForResolved] using hmem)
       | some value =>
           exact expectedPendingChildWorkForCompleteValue_selectionSet_mem
             (ObjectRef := ObjectRef) schema selectionSet fuel fieldType value
@@ -4650,14 +4641,12 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
   induction sources with
   | nil =>
       intro specFuels pending childWork hmem
-      exact Or.inl (by
-        simpa [expectedPendingChildWorkForSources] using hmem)
+      exact Or.inl (by simpa [expectedPendingChildWorkForSources] using hmem)
   | cons source sources ih =>
       intro specFuels pending childWork hmem
       cases specFuels with
       | nil =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForSources] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForSources] using hmem)
       | cons fuel fuels =>
           let resolved :=
             GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
@@ -4667,8 +4656,7 @@ theorem expectedPendingChildWorkForSources_selectionSet_mem
               (expectedPendingChildWorkForResolved schema selectionSet
                 fieldType fuel resolved pending)
               childWork
-              (by
-                simpa [expectedPendingChildWorkForSources, resolved] using hmem)
+              (by simpa [expectedPendingChildWorkForSources, resolved] using hmem)
           rcases htail with hheadPending | hselection
           · exact
               expectedPendingChildWorkForResolved_selectionSet_mem
@@ -4689,8 +4677,8 @@ theorem expectedPendingChildWorkForSegment_selectionSet_mem
       -> childWork ∈ pending
           ∨ childWork.work.selectionSet = segment.segment.childSelectionSet := by
   intro hmem
-  simpa [expectedPendingChildWorkForSegment] using
-    expectedPendingChildWorkForSources_selectionSet_mem
+  simpa [expectedPendingChildWorkForSegment]
+    using expectedPendingChildWorkForSources_selectionSet_mem
       (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending childWork hmem
@@ -4767,13 +4755,17 @@ theorem expectedPendingChildWorkForItem_selectionSet_mem
       exact List.mem_map.mpr ⟨segment, hsegmentMem, rfl⟩
     have hset :
         shape ∈ expectedQueueItemShapeSet item := by
-      simpa [expectedQueueItemShapeSet] using
-        scheduleFieldShape_mem_shapeSet_of_mem shape
+      simpa [expectedQueueItemShapeSet]
+        using scheduleFieldShape_mem_shapeSet_of_mem shape
           (expectedQueueItemShapes item) hraw
     exact List.mem_map.mpr
-      ⟨shape, hset, by
-        simp [shape, expectedQueueSegmentShape,
-          scheduleFieldShapeChildSelectionSetShape, hselection]⟩
+      ⟨
+        shape,
+        hset,
+        by
+          simp [shape, expectedQueueSegmentShape,
+            scheduleFieldShapeChildSelectionSetShape, hselection]
+      ⟩
 
 theorem expectedPendingChildWorkForItem_selectionSet_materialized
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -4803,8 +4795,8 @@ theorem expectedPendingChildWorkForItem_selectionSetShape_mem
   intro hshape
   rcases List.mem_map.mp hshape with ⟨childWork, hchildWork, hshapeEq⟩
   subst shape
-  simpa [expectedPendingChildWorkSelectionSetShape] using
-    expectedPendingChildWorkForItem_selectionSet_mem
+  simpa [expectedPendingChildWorkSelectionSetShape]
+    using expectedPendingChildWorkForItem_selectionSet_mem
       (ObjectRef := ObjectRef) schema resolvers [] fieldType item childWork
       hchildWork
 
@@ -4845,16 +4837,15 @@ theorem expectedPendingChildWorkForCompleteValue_runtimeType_includes
       intro value pending childWork hmem
       cases fuel with
       | zero =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
       | succ fuel =>
           cases value with
           | null =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
           | scalar value =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
           | object runtimeType ref =>
               by_cases hincludes :
                   schema.typeIncludesObjectBool typeName runtimeType = true
@@ -4867,31 +4858,32 @@ theorem expectedPendingChildWorkForCompleteValue_runtimeType_includes
                   simpa [expectedPendingChildWorkForCompleteValue, hincludes]
                     using hmem)
           | list values =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
   | list inner ih =>
       intro value pending childWork hmem
       cases fuel with
       | zero =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
       | succ fuel =>
           cases value with
           | null =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
           | scalar value =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
           | object runtimeType ref =>
-              exact Or.inl (by
-                simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+              exact Or.inl
+                (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
           | list values =>
               induction values generalizing pending with
               | nil =>
-                  exact Or.inl (by
-                    simpa [expectedPendingChildWorkForCompleteValue,
-                      expectedPendingChildWorkForCompleteValueList] using hmem)
+                  exact Or.inl
+                    (by
+                      simpa [expectedPendingChildWorkForCompleteValue,
+                        expectedPendingChildWorkForCompleteValueList]
+                        using hmem)
               | cons value values ihValues =>
                   have htail :=
                     ihValues
@@ -4899,7 +4891,8 @@ theorem expectedPendingChildWorkForCompleteValue_runtimeType_includes
                         selectionSet fuel inner value pending)
                       (by
                         simpa [expectedPendingChildWorkForCompleteValue,
-                          expectedPendingChildWorkForCompleteValueList] using hmem)
+                          expectedPendingChildWorkForCompleteValueList]
+                          using hmem)
                   rcases htail with hheadPending | hincludes
                   · exact
                       ih fuel value pending childWork hheadPending
@@ -4908,11 +4901,10 @@ theorem expectedPendingChildWorkForCompleteValue_runtimeType_includes
       intro value pending childWork hmem
       cases fuel with
       | zero =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
       | succ fuel =>
-          exact ih (fuel + 1) value pending childWork (by
-            simpa [expectedPendingChildWorkForCompleteValue] using hmem)
+          exact ih (fuel + 1) value pending childWork
+            (by simpa [expectedPendingChildWorkForCompleteValue] using hmem)
 
 theorem expectedPendingChildWorkForCompleteValueList_runtimeType_includes
     (schema : Schema) (selectionSet : List Selection) (fuel : Nat)
@@ -4930,8 +4922,7 @@ theorem expectedPendingChildWorkForCompleteValueList_runtimeType_includes
   induction values with
   | nil =>
       intro pending childWork hmem
-      exact Or.inl (by
-        simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
+      exact Or.inl (by simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
   | cons value values ih =>
       intro pending childWork hmem
       have htail :=
@@ -4939,8 +4930,7 @@ theorem expectedPendingChildWorkForCompleteValueList_runtimeType_includes
           (expectedPendingChildWorkForCompleteValue schema selectionSet
             fuel inner value pending)
           childWork
-          (by
-            simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
+          (by simpa [expectedPendingChildWorkForCompleteValueList] using hmem)
       rcases htail with hheadPending | hincludes
       · exact
           expectedPendingChildWorkForCompleteValue_runtimeType_includes
@@ -4962,13 +4952,11 @@ theorem expectedPendingChildWorkForResolved_runtimeType_includes
   intro hmem
   cases fuel with
   | zero =>
-      exact Or.inl (by
-        simpa [expectedPendingChildWorkForResolved] using hmem)
+      exact Or.inl (by simpa [expectedPendingChildWorkForResolved] using hmem)
   | succ fuel =>
       cases resolved with
       | none =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForResolved] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForResolved] using hmem)
       | some value =>
           exact expectedPendingChildWorkForCompleteValue_runtimeType_includes
             (ObjectRef := ObjectRef) schema selectionSet fuel fieldType value
@@ -4993,14 +4981,12 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
   induction sources with
   | nil =>
       intro specFuels pending childWork hmem
-      exact Or.inl (by
-        simpa [expectedPendingChildWorkForSources] using hmem)
+      exact Or.inl (by simpa [expectedPendingChildWorkForSources] using hmem)
   | cons source sources ih =>
       intro specFuels pending childWork hmem
       cases specFuels with
       | nil =>
-          exact Or.inl (by
-            simpa [expectedPendingChildWorkForSources] using hmem)
+          exact Or.inl (by simpa [expectedPendingChildWorkForSources] using hmem)
       | cons fuel fuels =>
           let resolved :=
             GraphQL.Execution.resolveFieldValueByName schema resolvers variableValues
@@ -5010,8 +4996,7 @@ theorem expectedPendingChildWorkForSources_runtimeType_includes
               (expectedPendingChildWorkForResolved schema selectionSet
                 fieldType fuel resolved pending)
               childWork
-              (by
-                simpa [expectedPendingChildWorkForSources, resolved] using hmem)
+              (by simpa [expectedPendingChildWorkForSources, resolved] using hmem)
           rcases htail with hheadPending | hincludes
           · exact
               expectedPendingChildWorkForResolved_runtimeType_includes
@@ -5033,8 +5018,8 @@ theorem expectedPendingChildWorkForSegment_runtimeType_includes
           ∨ schema.typeIncludesObjectBool fieldType.namedType childWork.work.runtimeType
             = true := by
   intro hmem
-  simpa [expectedPendingChildWorkForSegment] using
-    expectedPendingChildWorkForSources_runtimeType_includes
+  simpa [expectedPendingChildWorkForSegment]
+    using expectedPendingChildWorkForSources_runtimeType_includes
       (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending childWork hmem
@@ -5162,8 +5147,7 @@ theorem expectedPendingChildWorkForCompleteValue_scopeBudgetReady
                   unfold specFuelValueBudget at hbudget
                   simp [typeRefCompleteValueFuelBound] at hbudget
                   omega
-              · simpa [expectedPendingChildWorkForCompleteValue, hincludes] using
-                  hpending
+              · simpa [expectedPendingChildWorkForCompleteValue, hincludes] using hpending
           | list values =>
               simpa [expectedPendingChildWorkForCompleteValue] using hpending
   | list inner ih =>
@@ -5212,10 +5196,9 @@ theorem expectedPendingChildWorkForCompleteValue_scopeBudgetReady
       | succ fuel =>
           have hinnerBudget :
               specFuelValueBudget schema selectionSet inner (fuel + 1) := by
-            simpa [specFuelValueBudget, typeRefCompleteValueFuelBound] using
-              hbudget
-          simpa [expectedPendingChildWorkForCompleteValue] using
-            ih (fuel + 1) value pending hinnerBudget hpending
+            simpa [specFuelValueBudget, typeRefCompleteValueFuelBound] using hbudget
+          simpa [expectedPendingChildWorkForCompleteValue]
+            using ih (fuel + 1) value pending hinnerBudget hpending
 
 theorem expectedPendingChildWorkForResolved_scopeBudgetReady
     (schema : Schema) (selectionSet : List Selection)
@@ -5252,8 +5235,8 @@ theorem expectedPendingChildWorkForResolved_scopeBudgetReady
             unfold specFuelFieldBudget at hbudget
             rw [hmul] at hbudget
             omega
-          simpa [expectedPendingChildWorkForResolved] using
-            expectedPendingChildWorkForCompleteValue_scopeBudgetReady
+          simpa [expectedPendingChildWorkForResolved]
+            using expectedPendingChildWorkForCompleteValue_scopeBudgetReady
               (ObjectRef := ObjectRef) schema selectionSet fuel fieldType value
               pending hvalueBudget hpending
 
@@ -5316,8 +5299,8 @@ theorem expectedPendingChildWorkForSegment_scopeBudgetReady
           (expectedPendingChildWorkForSegment schema resolvers fieldKey
             fieldType segment pending variableValues) := by
   intro hfieldBound hbudget hpending
-  simpa [expectedPendingChildWorkForSegment] using
-    expectedPendingChildWorkForSources_scopeBudgetReady
+  simpa [expectedPendingChildWorkForSegment]
+    using expectedPendingChildWorkForSources_scopeBudgetReady
       (ObjectRef := ObjectRef) schema resolvers variableValues fieldKey
       segment.segment.childSelectionSet fieldType segment.segment.sources
       segment.specFuels pending hfieldBound hbudget hpending
@@ -5360,8 +5343,8 @@ theorem expectedPendingChildWorkForSegments_scopeBudgetReady
             expectedQueueSegmentFieldBudgetReady schema restSegment := by
         intro restSegment hrestSegment
         exact hbudget restSegment (by simp [hrestSegment])
-      simpa [List.foldl_cons] using
-        ih
+      simpa [List.foldl_cons]
+        using ih
           (expectedPendingChildWorkForSegment schema resolvers fieldKey
             fieldType segment pending variableValues)
           hfieldBound hrestBudget hhead
@@ -5376,11 +5359,10 @@ theorem expectedPendingChildWorkForItem_scopeBudgetReady
           (expectedPendingChildWorkForItem schema resolvers fieldType item
             variableValues) := by
   intro hfieldBound hbudget
-  simpa [expectedPendingChildWorkForItem] using
-    expectedPendingChildWorkForSegments_scopeBudgetReady
-      (ObjectRef := ObjectRef) schema resolvers variableValues item.key fieldType item.segments
-      [] hfieldBound hbudget
-      (by simp [expectedPendingChildWorkScopeBudgetReady])
+  simpa [expectedPendingChildWorkForItem]
+    using expectedPendingChildWorkForSegments_scopeBudgetReady (ObjectRef := ObjectRef)
+      schema resolvers variableValues item.key fieldType item.segments [] hfieldBound
+      hbudget (by simp [expectedPendingChildWorkScopeBudgetReady])
 
 -----------------------------------------------------------------------------------------
 -- Expected scheduling for child work
@@ -5721,8 +5703,8 @@ theorem scheduleExpectedScope_fuelsAligned
           (scheduleExpectedScope schema variableValues parentType
             sources specFuels selectionSet queue).fst := by
   intro hlength hqueue
-  simpa [scheduleExpectedScope] using
-    scheduleExpectedKeyedGroups_fuelsAligned
+  simpa [scheduleExpectedScope]
+    using scheduleExpectedKeyedGroups_fuelsAligned
       (ObjectRef := ObjectRef) sources specFuels
       ((collectFieldsByKey schema variableValues parentType selectionSet).map
         (fun group => (scheduleKeyForFields parentType group.fst group.snd, group.snd)))
@@ -5740,8 +5722,8 @@ theorem scheduleExpectedScope_itemsNonempty
           (scheduleExpectedScope schema variableValues parentType
             sources specFuels selectionSet queue).fst := by
   intro hqueue
-  simpa [scheduleExpectedScope] using
-    scheduleExpectedKeyedGroups_itemsNonempty
+  simpa [scheduleExpectedScope]
+    using scheduleExpectedKeyedGroups_itemsNonempty
       (ObjectRef := ObjectRef) sources specFuels
       ((collectFieldsByKey schema variableValues parentType selectionSet).map
         (fun group => (scheduleKeyForFields parentType group.fst group.snd, group.snd)))
@@ -5759,8 +5741,8 @@ theorem scheduleExpectedScope_keysDistinct
           (scheduleExpectedScope schema variableValues parentType
             sources specFuels selectionSet queue).fst := by
   intro hqueue
-  simpa [scheduleExpectedScope] using
-    scheduleExpectedKeyedGroups_keysDistinct
+  simpa [scheduleExpectedScope]
+    using scheduleExpectedKeyedGroups_keysDistinct
       (ObjectRef := ObjectRef) sources specFuels
       ((collectFieldsByKey schema variableValues parentType selectionSet).map
         (fun group => (scheduleKeyForFields parentType group.fst group.snd, group.snd)))
@@ -5792,8 +5774,9 @@ theorem scheduleExpectedScope_contains_collected_group
     scheduleExpectedKeyedGroups_contains_group
       (ObjectRef := ObjectRef) sources specFuels keyedGroups queue
       keyedGroup hkeyedMem
-  simpa [scheduleExpectedScope, keyedGroups, keyedGroup,
-    collectedGroupScheduleShape, expectedQueueSegmentShape] using hcontains
+  simpa [scheduleExpectedScope, keyedGroups, keyedGroup, collectedGroupScheduleShape,
+    expectedQueueSegmentShape]
+    using hcontains
 
 theorem scheduleExpectedScope_shapeWeight_repeat_le
     (schema : Schema) (variableValues : VariableValues)
@@ -5817,8 +5800,8 @@ theorem scheduleExpectedScope_shapeWeight_repeat_le
         (scheduleKeyForFields parentType group.fst group.snd, group.snd))
   have hdistinct :
       expectedScheduleQueueKeysDistinct firstQueue := by
-    simpa [firstQueue] using
-      scheduleExpectedScope_keysDistinct
+    simpa [firstQueue]
+      using scheduleExpectedScope_keysDistinct
         (ObjectRef := ObjectRef) schema variableValues parentType
         firstSources firstSpecFuels selectionSet
         ([] : ExpectedScheduleQueue ObjectRef)
@@ -5836,14 +5819,13 @@ theorem scheduleExpectedScope_shapeWeight_repeat_le
     have hfirstContains :
         expectedScheduleQueueContainsShape firstQueue
           (collectedGroupScheduleShape parentType group) := by
-      simpa [firstQueue] using
-        scheduleExpectedScope_contains_collected_group
+      simpa [firstQueue]
+        using scheduleExpectedScope_contains_collected_group
           (ObjectRef := ObjectRef) schema variableValues parentType
           firstSources firstSpecFuels selectionSet
           ([] : ExpectedScheduleQueue ObjectRef) group
           (by simpa [groups] using hgroup)
-    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using
-      hfirstContains
+    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using hfirstContains
   have hrepeat :=
     scheduleExpectedKeyedGroups_shapeWeight_le_of_contains
       (ObjectRef := ObjectRef) schema secondSources secondSpecFuels
@@ -5885,8 +5867,7 @@ theorem scheduleExpectedScope_shapeWeight_le_of_contains_groups
         expectedScheduleQueueContainsShape queue
           (collectedGroupScheduleShape parentType group) :=
       hcontains group (by simpa [groups] using hgroup)
-    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using
-      hgroupContains
+    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using hgroupContains
   have hfold :=
     scheduleExpectedKeyedGroups_shapeWeight_le_of_contains
       (ObjectRef := ObjectRef) schema sources specFuels keyedGroups queue
@@ -6279,8 +6260,8 @@ theorem scheduleExpectedScope_shapeWeight_le
         SelectionSet.size selectionSet * (schema.objectTypes.length + 1) := by
     have hnonempty :
         collectedGroupsNonempty groups := by
-      simpa [groups] using
-        collectFieldsByKey_collectedGroupsNonempty schema variableValues
+      simpa [groups]
+        using collectFieldsByKey_collectedGroupsNonempty schema variableValues
           parentType selectionSet
     have hshape :=
       collectedGroupsShapeWeight_le_executableGroupsSize schema parentType
@@ -6306,8 +6287,8 @@ theorem scheduleExpectedScope_shapeWeight_le_selectionSetShapeWeight
           sources specFuels selectionSet
           ([] : ExpectedScheduleQueue ObjectRef)).fst
       <= selectionSetShapeWeight schema { selectionSet := selectionSet } := by
-  simpa [expectedScheduleQueueShapeWeight, selectionSetShapeWeight] using
-    scheduleExpectedScope_shapeWeight_le
+  simpa [expectedScheduleQueueShapeWeight, selectionSetShapeWeight]
+    using scheduleExpectedScope_shapeWeight_le
       (ObjectRef := ObjectRef) schema variableValues parentType sources
       specFuels selectionSet ([] : ExpectedScheduleQueue ObjectRef)
 
@@ -6455,8 +6436,8 @@ theorem scheduleExpectedScope_rawShapeWeight_le
         SelectionSet.size selectionSet * (schema.objectTypes.length + 1) := by
     have hnonempty :
         collectedGroupsNonempty groups := by
-      simpa [groups] using
-        collectFieldsByKey_collectedGroupsNonempty schema variableValues
+      simpa [groups]
+        using collectFieldsByKey_collectedGroupsNonempty schema variableValues
           parentType selectionSet
     have hshape :=
       collectedGroupsShapeWeight_le_executableGroupsSize schema parentType
@@ -6482,8 +6463,8 @@ theorem scheduleExpectedScope_rawShapeWeight_le_selectionSetShapeWeight
           sources specFuels selectionSet
           ([] : ExpectedScheduleQueue ObjectRef)).fst
       <= selectionSetShapeWeight schema { selectionSet := selectionSet } := by
-  simpa [expectedScheduleQueueRawShapeWeight, selectionSetShapeWeight] using
-    scheduleExpectedScope_rawShapeWeight_le
+  simpa [expectedScheduleQueueRawShapeWeight, selectionSetShapeWeight]
+    using scheduleExpectedScope_rawShapeWeight_le
       (ObjectRef := ObjectRef) schema variableValues parentType sources
       specFuels selectionSet ([] : ExpectedScheduleQueue ObjectRef)
 
@@ -6506,8 +6487,8 @@ theorem scheduleExpectedPendingChildWork_fuelsAligned
           expectedScheduleQueueFuelsAligned head.fst := by
         have haligned : [work.specFuel].length = [work.work.source].length := by
           simp
-        simpa [head] using
-          scheduleExpectedScope_fuelsAligned
+        simpa [head]
+          using scheduleExpectedScope_fuelsAligned
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue haligned hqueue
@@ -6530,8 +6511,8 @@ theorem scheduleExpectedPendingChildWork_itemsNonempty
           [work.work.source] [work.specFuel] work.work.selectionSet queue
       have hhead :
           expectedScheduleQueueItemsNonempty head.fst := by
-        simpa [head] using
-          scheduleExpectedScope_itemsNonempty
+        simpa [head]
+          using scheduleExpectedScope_itemsNonempty
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue hqueue
@@ -6554,8 +6535,8 @@ theorem scheduleExpectedPendingChildWork_keysDistinct
           [work.work.source] [work.specFuel] work.work.selectionSet queue
       have hhead :
           expectedScheduleQueueKeysDistinct head.fst := by
-        simpa [head] using
-          scheduleExpectedScope_keysDistinct
+        simpa [head]
+          using scheduleExpectedScope_keysDistinct
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue hqueue
@@ -6586,8 +6567,8 @@ theorem scheduleExpectedPendingChildWork_fieldBudgetReady
           simp at hfuel
           subst fuel
           exact hwork work (by simp)
-        simpa [head] using
-          scheduleExpectedScope_fieldBudgetReady
+        simpa [head]
+          using scheduleExpectedScope_fieldBudgetReady
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue hfuel hqueue
@@ -6595,8 +6576,7 @@ theorem scheduleExpectedPendingChildWork_fieldBudgetReady
           expectedPendingChildWorkScopeBudgetReady schema rest := by
         intro childWork hchildWork
         exact hwork childWork (by simp [hchildWork])
-      simpa [scheduleExpectedPendingChildWork, head] using
-        ih head.fst hrestWork hhead
+      simpa [scheduleExpectedPendingChildWork, head] using ih head.fst hrestWork hhead
 
 theorem scheduleExpectedPendingChildWork_shapeWeight_le_unseenShapeWeight
     (schema : Schema) (variableValues : VariableValues)
@@ -6736,8 +6716,7 @@ theorem scheduleExpectedPendingChildWork_shapeWeight_le_shapeWeight
     scheduleExpectedPendingChildWork_shapeWeight_le_unseenShapeWeight
       (ObjectRef := ObjectRef) schema variableValues work queue
       ([] : List PendingScopeShape) hdistinct hseen
-  simpa [expectedPendingChildWorkUnseenShapeWeight_nil_eq_shapeWeight] using
-    hbound
+  simpa [expectedPendingChildWorkUnseenShapeWeight_nil_eq_shapeWeight] using hbound
 
 theorem scheduleExpectedPendingChildWork_shapeWeight_le_pendingShapeWeight
     (schema : Schema) (variableValues : VariableValues)
@@ -6787,8 +6766,8 @@ theorem scheduleExpectedPendingChildWork_drainBudget_le_pendingShapeWeight
       (scheduleExpectedPendingChildWork schema variableValues
         work ([] : ExpectedScheduleQueue ObjectRef)).fst)
     (by
-      simpa [expectedScheduleQueueShapeWeight] using
-        scheduleExpectedPendingChildWork_shapeWeight_le_pendingShapeWeight
+      simpa [expectedScheduleQueueShapeWeight]
+        using scheduleExpectedPendingChildWork_shapeWeight_le_pendingShapeWeight
           (ObjectRef := ObjectRef) schema variableValues work
           ([] : ExpectedScheduleQueue ObjectRef))
 
@@ -6799,8 +6778,8 @@ theorem scheduleExpectedPendingChildWork_singleton_drainBudget_le_selectionSetSh
         (scheduleExpectedPendingChildWork schema variableValues
           [work] ([] : ExpectedScheduleQueue ObjectRef)).fst
       <= selectionSetShapeWeight schema { selectionSet := work.work.selectionSet } := by
-  simpa [scheduleExpectedPendingChildWork] using
-    scheduleExpectedScope_drainBudget_le_selectionSetShapeWeight
+  simpa [scheduleExpectedPendingChildWork]
+    using scheduleExpectedScope_drainBudget_le_selectionSetShapeWeight
       (ObjectRef := ObjectRef) schema variableValues work.work.runtimeType
       [work.work.source] [work.specFuel] work.work.selectionSet
 
@@ -6872,14 +6851,13 @@ theorem scheduleExpectedPendingChildWork_preserve_contains_pendingScopeShapeList
       have hhead :
           expectedScheduleQueueContainsPendingScopeShapeList
             schema variableValues head.fst seen := by
-        simpa [head] using
-          scheduleExpectedScope_preserve_contains_pendingScopeShapeList
+        simpa [head]
+          using scheduleExpectedScope_preserve_contains_pendingScopeShapeList
             (ObjectRef := ObjectRef) schema variableValues
             childWork.work.runtimeType [childWork.work.source]
             [childWork.specFuel] childWork.work.selectionSet queue seen
             hseen
-      simpa [scheduleExpectedPendingChildWork, head] using
-        ih head.fst hhead
+      simpa [scheduleExpectedPendingChildWork, head] using ih head.fst hhead
 
 theorem scheduleExpectedPendingChildWork_contains_materialized_scopes
     (schema : Schema) (variableValues : VariableValues)
@@ -6907,8 +6885,8 @@ theorem scheduleExpectedPendingChildWork_contains_materialized_scopes
       have hpreserved :
           expectedScheduleQueueContainsPendingScopeShapeList
             schema variableValues head.fst materialized := by
-        simpa [head] using
-          scheduleExpectedScope_preserve_contains_pendingScopeShapeList
+        simpa [head]
+          using scheduleExpectedScope_preserve_contains_pendingScopeShapeList
             (ObjectRef := ObjectRef) schema variableValues
             childWork.work.runtimeType [childWork.work.source]
             [childWork.specFuel] childWork.work.selectionSet queue
@@ -6916,8 +6894,8 @@ theorem scheduleExpectedPendingChildWork_contains_materialized_scopes
       have hself :
           expectedScheduleQueueContainsPendingScopeShape
             schema variableValues head.fst shape := by
-        simpa [head, shape, expectedPendingChildWorkShape] using
-          scheduleExpectedScope_contains_pendingScopeShape_self
+        simpa [head, shape, expectedPendingChildWorkShape]
+          using scheduleExpectedScope_contains_pendingScopeShape_self
             (ObjectRef := ObjectRef) schema variableValues
             childWork.work.runtimeType [childWork.work.source]
             [childWork.specFuel] childWork.work.selectionSet queue
@@ -6930,10 +6908,9 @@ theorem scheduleExpectedPendingChildWork_contains_materialized_scopes
           materialized shape hpreserved hself
       have htail :=
         ih head.fst (insertPendingScopeShape shape materialized) hhead
-      simpa [scheduleExpectedPendingChildWork,
-        materializeExpectedPendingChildWorkScopes,
-        expectedPendingChildWorkShapes, expectedPendingChildWorkShape,
-        head, shape] using htail
+      simpa [scheduleExpectedPendingChildWork, materializeExpectedPendingChildWorkScopes,
+        expectedPendingChildWorkShapes, expectedPendingChildWorkShape, head, shape]
+        using htail
 
 def expectedQueueItemRuntimeChildWork
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -7068,10 +7045,8 @@ theorem expectedQueueItemPossibleRuntimeChildShapes_breadthWeight_le_credit
       schema fieldType (expectedQueueItemChildSelectionSetShapes item)
       hlength
   exact Nat.le_trans
-    (by
-      simpa [expectedQueueItemPossibleRuntimeChildShapes] using hset)
-    (by
-      simpa [expectedQueueItemPossibleRuntimeCreditWeight] using hraw)
+    (by simpa [expectedQueueItemPossibleRuntimeChildShapes] using hset)
+    (by simpa [expectedQueueItemPossibleRuntimeCreditWeight] using hraw)
 
 theorem expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le
     (schema : Schema) (fieldType : TypeRef)
@@ -7188,9 +7163,8 @@ theorem expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChi
   have hactualNoDup :
       pendingScopeShapeNoDup
         (expectedPendingChildWorkShapeSet work) := by
-    simpa [expectedPendingChildWorkShapeSet] using
-      pendingScopeShapeNoDup_shapeSet
-        (expectedPendingChildWorkShapes work)
+    simpa [expectedPendingChildWorkShapeSet]
+      using pendingScopeShapeNoDup_shapeSet (expectedPendingChildWorkShapes work)
   have hrawPossible :
       ∀ shape, shape ∈ expectedPendingChildWorkShapes work ->
         pendingScopeShapeMemberBool shape possible = true := by
@@ -7199,10 +7173,10 @@ theorem expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChi
     subst shape
     have hpossible :
         expectedPendingChildWorkShape childWork ∈ possible := by
-      simpa [work, possible] using
-        expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
-          (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item childWork
-          hchildWork
+      simpa [work, possible]
+        using expectedPendingChildWorkForItem_shape_mem_possibleRuntimeChildShapes
+          (ObjectRef := ObjectRef) schema resolvers variableValues fieldType item
+          childWork hchildWork
     exact pendingScopeShapeMemberBool_true_of_mem
       (expectedPendingChildWorkShape childWork) possible hpossible
   have hsubset :
@@ -7215,8 +7189,8 @@ theorem expectedPendingChildWorkForItem_breadthShapeWeight_le_possibleRuntimeChi
       (expectedPendingChildWorkShapes work) possible hrawPossible
       shape
       (by simpa [expectedPendingChildWorkShapeSet] using hshape)
-  simpa [expectedPendingChildWorkBreadthShapeWeight, work, possible] using
-    pendingScopeShapeBreadthSetWeight_le_of_memberBool_subset
+  simpa [expectedPendingChildWorkBreadthShapeWeight, work, possible]
+    using pendingScopeShapeBreadthSetWeight_le_of_memberBool_subset
       schema
       (expectedPendingChildWorkShapeSet work) possible
       hactualNoDup hsubset
@@ -7337,8 +7311,8 @@ theorem expectedQueueItemRuntimeCreditWeight_appendSegment_le
   | none =>
       simp [expectedQueueItemRuntimeCreditWeight, hlookup]
   | some fieldDefinition =>
-      simpa [expectedQueueItemRuntimeCreditWeight, hlookup] using
-        expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le
+      simpa [expectedQueueItemRuntimeCreditWeight, hlookup]
+        using expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le
           (ObjectRef := ObjectRef) schema fieldDefinition.outputType item
           segment
 
@@ -7356,8 +7330,8 @@ theorem expectedQueueItemRuntimeCreditWeight_appendSegment_le_of_shape_mem
   | none =>
       simp [expectedQueueItemRuntimeCreditWeight, hlookup]
   | some fieldDefinition =>
-      simpa [expectedQueueItemRuntimeCreditWeight, hlookup] using
-        expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le_of_shape_mem
+      simpa [expectedQueueItemRuntimeCreditWeight, hlookup]
+        using expectedQueueItemPossibleRuntimeCreditWeight_appendSegment_le_of_shape_mem
           (ObjectRef := ObjectRef) schema fieldDefinition.outputType item
           segment hmem
 
@@ -7482,8 +7456,8 @@ theorem scheduleFieldShapeRuntimeSet_weight_le
     (schema : Schema) (shapes : List ScheduleFieldShape)
     : scheduleFieldShapeRuntimeSetWeight schema (scheduleFieldShapeSet shapes)
       <= scheduleFieldShapeRuntimeSetWeight schema shapes := by
-  simpa [scheduleFieldShapeSet, scheduleFieldShapeRuntimeSetWeight] using
-    scheduleFieldShapeRuntimeSet_foldl_weight_le schema
+  simpa [scheduleFieldShapeSet, scheduleFieldShapeRuntimeSetWeight]
+    using scheduleFieldShapeRuntimeSet_foldl_weight_le schema
       ([] : List ScheduleFieldShape) shapes
 
 theorem scheduleFieldShapeMemberBool_insert_self
@@ -8211,8 +8185,8 @@ theorem expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedSegment_unseen_le
       have hself :
           expectedScheduleQueueContainsShape
             (enqueueExpectedSegment key segment queue) shape := by
-        simpa [shape] using
-          expectedScheduleQueueContainsShape_enqueueExpectedSegment_self
+        simpa [shape]
+          using expectedScheduleQueueContainsShape_enqueueExpectedSegment_self
             key segment queue
       have hcontainsList :
           expectedScheduleQueueContainsShapeList
@@ -8438,10 +8412,9 @@ theorem expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedScheduleItems_mer
     expectedScheduleQueueRuntimeDrainBudget_enqueueExpectedScheduleItems_unseen_le
       (ObjectRef := ObjectRef) schema resolvers materialized items queue
       ([] : List ScheduleFieldShape) hdistinct hseen
-  simpa [expectedScheduleQueueMergedRuntimeStepWeight,
-    expectedScheduleQueueShapeSet,
-    scheduleFieldShapeUnseenRuntimeWeight_nil_eq_shapeSetWeight] using
-    hbudget.1
+  simpa [expectedScheduleQueueMergedRuntimeStepWeight, expectedScheduleQueueShapeSet,
+    scheduleFieldShapeUnseenRuntimeWeight_nil_eq_shapeSetWeight]
+    using hbudget.1
 
 def expectedScheduleQueueRuntimeItemStepWeight (schema : Schema)
     : ExpectedScheduleQueue ObjectRef -> Nat
@@ -8747,8 +8720,7 @@ theorem scheduleExpectedScope_runtimeItemStepWeight_le_of_contains_groups
         expectedScheduleQueueContainsShape queue
           (collectedGroupScheduleShape parentType group) :=
       hcontains group (by simpa [groups] using hgroup)
-    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using
-      hgroupContains
+    simpa [collectedGroupScheduleShape, expectedQueueSegmentShape] using hgroupContains
   have hfold :=
     scheduleExpectedKeyedGroups_runtimeItemStepWeight_le_of_contains
       (ObjectRef := ObjectRef) schema sources specFuels keyedGroups queue
@@ -8763,10 +8735,10 @@ theorem collectedGroupScheduleShape_runtimeStepWeight_le
             (collectedGroupScheduleShape parentType (responseName, fields))
           <= executableFieldsBreadthWeight schema fields := by
   intro hfields
-  simpa [scheduleFieldShapeRuntimeStepWeight,
-    collectedGroupScheduleShape, scheduleFieldShapeChildSelectionSetShape,
-    selectionSetShapeBreadthWeight, Nat.mul_comm] using
-    childSelectionSetForFields_runtimeStepWeight_le_executableFieldsBreadthWeight
+  simpa [scheduleFieldShapeRuntimeStepWeight, collectedGroupScheduleShape,
+    scheduleFieldShapeChildSelectionSetShape, selectionSetShapeBreadthWeight,
+    Nat.mul_comm]
+    using childSelectionSetForFields_runtimeStepWeight_le_executableFieldsBreadthWeight
       schema fields hfields
 
 theorem scheduleExpectedCollectedGroups_runtimeItemStepWeight_le
@@ -8815,9 +8787,9 @@ theorem scheduleExpectedCollectedGroups_runtimeItemStepWeight_le
                     childSelectionSet := childSelectionSetForFields fields }
                 specFuels := specFuels } <=
             executableFieldsBreadthWeight schema fields := by
-        simpa [expectedQueueSegmentRuntimeStepWeight_eq_shape,
-          expectedQueueSegmentShape, collectedGroupScheduleShape] using
-          collectedGroupScheduleShape_runtimeStepWeight_le
+        simpa [expectedQueueSegmentRuntimeStepWeight_eq_shape, expectedQueueSegmentShape,
+          collectedGroupScheduleShape]
+          using collectedGroupScheduleShape_runtimeStepWeight_le
             schema parentType responseName fields
             (hnonempty responseName fields (by simp))
       have htailNonempty : collectedGroupsNonempty groups := by
@@ -8877,31 +8849,35 @@ theorem scheduleExpectedScope_runtimeItemStepWeight_le
         rfl
     | cons group groups ih =>
         exact ih _
-  have hscheduled :
-      expectedScheduleQueueRuntimeItemStepWeight schema
+  have hscheduled
+      : expectedScheduleQueueRuntimeItemStepWeight schema
           (List.foldl
             (fun queue (group : Name × List ExecutableField) =>
               enqueueExpectedSegment
                 (scheduleKeyForFields parentType group.fst group.snd)
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
+                {
+                  segment :=
+                    {
+                      sources := sources
+                      childSelectionSet := childSelectionSetForFields group.snd
+                    }
+                  specFuels := specFuels
+                }
                 queue)
-            queue groups) <=
-        expectedScheduleQueueRuntimeItemStepWeight schema queue
-          + executableGroupsBreadthWeight schema groups :=
+            queue groups)
+        <= expectedScheduleQueueRuntimeItemStepWeight schema queue
+            + executableGroupsBreadthWeight schema groups :=
     scheduleExpectedCollectedGroups_runtimeItemStepWeight_le
       (ObjectRef := ObjectRef) schema parentType sources specFuels groups queue
       (by
-        simpa [groups] using
-          collectFieldsByKey_collectedGroupsNonempty schema variableValues
+        simpa [groups]
+          using collectFieldsByKey_collectedGroupsNonempty schema variableValues
             parentType selectionSet)
   have hgroupsWeight :
       executableGroupsBreadthWeight schema groups <=
         selectionSetBreadthWeight schema selectionSet := by
-    simpa [groups] using
-      collectFieldsByKey_executableGroupsBreadthWeight_le
+    simpa [groups]
+      using collectFieldsByKey_executableGroupsBreadthWeight_le
         schema variableValues parentType selectionSet
   unfold scheduleExpectedScope
   simp
@@ -9048,8 +9024,7 @@ theorem scheduleExpectedPendingChildWork_runtimeItemStepWeight_le_breadthShapeWe
     scheduleExpectedPendingChildWork_runtimeItemStepWeight_le_unseenBreadthShapeWeight
       (ObjectRef := ObjectRef) schema variableValues work queue
       ([] : List PendingScopeShape) hdistinct hseen
-  simpa [expectedPendingChildWorkUnseenBreadthShapeWeight_nil_eq_shapeWeight] using
-    hbound
+  simpa [expectedPendingChildWorkUnseenBreadthShapeWeight_nil_eq_shapeWeight] using hbound
 
 theorem expectedScheduleQueueRuntimeDrainBudget_le_itemStepWeight
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -9085,8 +9060,8 @@ theorem expectedChildQueueForItem_fuelsAligned
   | none =>
       simp [expectedScheduleQueueFuelsAligned]
   | some fieldDefinition =>
-      simpa [hlookup] using
-        scheduleExpectedPendingChildWork_fuelsAligned
+      simpa [hlookup]
+        using scheduleExpectedPendingChildWork_fuelsAligned
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
             fieldDefinition.outputType item variableValues)
@@ -9104,8 +9079,8 @@ theorem expectedChildQueueForItem_itemsNonempty
   | none =>
       simp [expectedScheduleQueueItemsNonempty]
   | some fieldDefinition =>
-      simpa [hlookup] using
-        scheduleExpectedPendingChildWork_itemsNonempty
+      simpa [hlookup]
+        using scheduleExpectedPendingChildWork_itemsNonempty
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
             fieldDefinition.outputType item variableValues)
@@ -9123,8 +9098,8 @@ theorem expectedChildQueueForItem_keysDistinct
   | none =>
       simp [expectedScheduleQueueKeysDistinct]
   | some fieldDefinition =>
-      simpa [hlookup] using
-        scheduleExpectedPendingChildWork_keysDistinct
+      simpa [hlookup]
+        using scheduleExpectedPendingChildWork_keysDistinct
           (ObjectRef := ObjectRef) schema variableValues
           (expectedPendingChildWorkForItem schema resolvers
             fieldDefinition.outputType item variableValues)
@@ -9157,8 +9132,8 @@ theorem expectedChildQueueForItem_shapeWeight_lookup_some_le_pendingShapeWeight
   intro hlookup
   unfold expectedChildQueueForItem
   simp [hlookup]
-  simpa [expectedScheduleQueueShapeWeight] using
-    scheduleExpectedPendingChildWork_shapeWeight_le_shapeWeight
+  simpa [expectedScheduleQueueShapeWeight]
+    using scheduleExpectedPendingChildWork_shapeWeight_le_shapeWeight
       (ObjectRef := ObjectRef) schema variableValues
       (expectedPendingChildWorkForItem schema resolvers
         fieldDefinition.outputType item variableValues)
@@ -9368,15 +9343,16 @@ theorem expectedScheduleQueueToQueue_scheduleExpectedPendingChildWork
       have hscheduled :
           expectedScheduleQueueToQueue expectedScheduled.fst =
             runtimeScheduled.fst := by
-        simpa [expectedScheduled, runtimeScheduled] using
-          expectedScheduleQueueToQueue_scheduleExpectedScope
+        simpa [expectedScheduled, runtimeScheduled]
+          using expectedScheduleQueueToQueue_scheduleExpectedScope
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue
       have htail := ih expectedScheduled.fst
       rw [hscheduled] at htail
       simpa [scheduleExpectedPendingChildWork, schedulePendingChildWork,
-        expectedPendingChildWorkToPending, expectedScheduled, runtimeScheduled] using htail
+        expectedPendingChildWorkToPending, expectedScheduled, runtimeScheduled]
+        using htail
 
 theorem scheduleExpectedPendingChildWork_frames
     (schema : Schema) (variableValues : VariableValues)
@@ -9400,15 +9376,15 @@ theorem scheduleExpectedPendingChildWork_frames
       have hscheduled :
           expectedScheduleQueueToQueue expectedScheduled.fst =
             runtimeScheduled.fst := by
-        simpa [expectedScheduled, runtimeScheduled] using
-          expectedScheduleQueueToQueue_scheduleExpectedScope
+        simpa [expectedScheduled, runtimeScheduled]
+          using expectedScheduleQueueToQueue_scheduleExpectedScope
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue
       have hframe :
           expectedScheduled.snd = runtimeScheduled.snd := by
-        simpa [expectedScheduled, runtimeScheduled] using
-          scheduleExpectedScope_frame
+        simpa [expectedScheduled, runtimeScheduled]
+          using scheduleExpectedScope_frame
             (ObjectRef := ObjectRef) schema variableValues
             work.work.runtimeType [work.work.source] [work.specFuel]
             work.work.selectionSet queue
@@ -9441,8 +9417,8 @@ theorem scheduleExpectedPendingChildWork_frames_independent
         scheduleExpectedScope schema variableValues work.work.runtimeType
           [work.work.source] [work.specFuel] work.work.selectionSet right
       have hhead : leftHead.snd = rightHead.snd := by
-        simpa [leftHead, rightHead] using
-          scheduleExpectedScope_frame_independent
+        simpa [leftHead, rightHead]
+          using scheduleExpectedScope_frame_independent
             (ObjectRef := ObjectRef) schema variableValues work.work.runtimeType
             [work.work.source] [work.specFuel] work.work.selectionSet left right
       have htail : (scheduleExpectedPendingChildWork schema variableValues rest

@@ -1030,8 +1030,8 @@ theorem ResponseMergeReady_responseFieldSlice
     : ResponseMergeReady
         (responseFieldSlice schema resolvers variableValues completionDepth parentType
           source field) := by
-  simpa [responseFieldSlice] using
-    executeField_response_ready_of_previous schema resolvers variableValues
+  simpa [responseFieldSlice]
+    using executeField_response_ready_of_previous schema resolvers variableValues
       completionDepth parentType source none field
       (by intro previous h; cases h)
 
@@ -1595,8 +1595,8 @@ theorem responseFieldSlice_eq_null_or_scalar_of_resolve_scalar
               parentType field.fieldName field.arguments source =
             some (.scalar value) := by
         simpa [resolveFieldValueByName, hlookup] using hresolve
-      simpa [executeField, hlookup, hresolveRuntime, hreuse, hreturn] using
-        completeValue_scalar_object_empty_resultValueOrNull schema resolvers
+      simpa [executeField, hlookup, hresolveRuntime, hreuse, hreturn]
+        using completeValue_scalar_object_empty_resultValueOrNull schema resolvers
           variableValues fieldDefinition.outputType completionDepth
           field.selectionSet value
 
@@ -1807,14 +1807,13 @@ theorem visitFieldSlice_succ_object_eq_mergeResponseSlice_of_step
             parentType
             source field := by
         simpa [hlookup] using hstep
-      simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice,
-        mergeResponse, mergeResponseFields, mergeResponseFieldResult,
-        mergeResponseFieldIntoObject, hlookup] using
-          congrArg
-            (fun incoming =>
-              ResponseValue.object
-                (mergeResponseField field.responseName incoming fields))
-            hstep'
+      simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice, mergeResponse,
+        mergeResponseFields, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+        hlookup]
+        using congrArg
+          (fun incoming =>
+            ResponseValue.object (mergeResponseField field.responseName incoming fields))
+          hstep'
   | some existing =>
       have hstep' :
           resultValueOrNull
@@ -1857,23 +1856,23 @@ theorem visitFieldSlice_succ_object_eq_mergeResponseSlice_of_step
       | null =>
           simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice,
             mergeResponse, mergeResponseFields, mergeResponseFieldResult,
-            mergeResponseFieldIntoObject, hlookup] using
-              congrArg ResponseValue.object hmergeEq
+            mergeResponseFieldIntoObject, hlookup]
+            using congrArg ResponseValue.object hmergeEq
       | scalar value =>
           simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice,
             mergeResponse, mergeResponseFields, mergeResponseFieldResult,
-            mergeResponseFieldIntoObject, hlookup] using
-              congrArg ResponseValue.object hmergeEq
+            mergeResponseFieldIntoObject, hlookup]
+            using congrArg ResponseValue.object hmergeEq
       | object objectFields =>
           simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice,
             mergeResponse, mergeResponseFields, mergeResponseFieldResult,
-            mergeResponseFieldIntoObject, hlookup] using
-              congrArg ResponseValue.object hmergeEq
+            mergeResponseFieldIntoObject, hlookup]
+            using congrArg ResponseValue.object hmergeEq
       | list values =>
           simpa [visitFieldSlice, visitFieldSliceResult, responseObjectSlice,
             mergeResponse, mergeResponseFields, mergeResponseFieldResult,
-            mergeResponseFieldIntoObject, hlookup] using
-              congrArg ResponseValue.object hmergeEq
+            mergeResponseFieldIntoObject, hlookup]
+            using congrArg ResponseValue.object hmergeEq
 
 structure FieldSliceMergeStep
     {ObjectIdentity : Type}

@@ -323,10 +323,11 @@ theorem sourceSelectionSetVariables_append_left
           varName ∈ selectionSetBooleanVariables left
           -> varName ∈ selectionSetBooleanVariables operation.selectionSet := by
   intro hsourceVars varName hmem
-  exact hsourceVars varName (by
-    rw [selectionSetBooleanVariables_append]
-    exact List.mem_append_left
-      (selectionSetBooleanVariables right) hmem)
+  exact hsourceVars varName
+    (by
+      rw [selectionSetBooleanVariables_append]
+      exact List.mem_append_left
+        (selectionSetBooleanVariables right) hmem)
 
 theorem sourceSelectionSetVariables_append_right
     (operation : Operation) (left right : List Selection)
@@ -337,10 +338,11 @@ theorem sourceSelectionSetVariables_append_right
           varName ∈ selectionSetBooleanVariables right
           -> varName ∈ selectionSetBooleanVariables operation.selectionSet := by
   intro hsourceVars varName hmem
-  exact hsourceVars varName (by
-    rw [selectionSetBooleanVariables_append]
-    exact List.mem_append_right
-      (selectionSetBooleanVariables left) hmem)
+  exact hsourceVars varName
+    (by
+      rw [selectionSetBooleanVariables_append]
+      exact List.mem_append_right
+        (selectionSetBooleanVariables left) hmem)
 
 theorem selectionSetBooleanVariables_withoutFieldSelectionsWithResponseName_mem
     (schema : Schema) (responseName : Name) (varName : BoolVar)
@@ -462,7 +464,7 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
   intro selectionSet
   induction selectionSet
     using fieldSelectionsWithResponseNameInScope.induct schema parentType
-            responseName with
+      responseName with
   | case1 =>
       simp [fieldSelectionsWithResponseNameInScope, selectionSetBooleanVariables]
   | case2 rest selectionResponseName fieldName arguments directives
@@ -477,7 +479,8 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
                 (fieldSelectionsWithResponseNameInScope schema parentType responseName
                   rest) := by
         simpa [fieldSelectionsWithResponseNameInScope, hname,
-          selectionSetBooleanVariables] using hmem
+          selectionSetBooleanVariables]
+          using hmem
       rcases hmem' with hhead | htail
       · exact selectionBooleanVariables_mem_selectionSetBooleanVariables_head
           varName
@@ -497,7 +500,8 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
             (fieldSelectionsWithResponseNameInScope schema parentType responseName
               rest) := by
         simpa [fieldSelectionsWithResponseNameInScope, hname,
-          selectionSetBooleanVariables] using hmem
+          selectionSetBooleanVariables]
+          using hmem
       exact selectionSetBooleanVariables_mem_selectionSetBooleanVariables_tail
         varName
         (Selection.field selectionResponseName fieldName arguments directives
@@ -521,7 +525,8 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
                   (fieldSelectionsWithResponseNameInScope schema parentType responseName
                     rest) := by
           simpa [fieldSelectionsWithResponseNameInScope,
-            selectionSetBooleanVariables_append] using hmem
+            selectionSetBooleanVariables_append]
+            using hmem
         exact List.mem_append.mp hmemAppend
       rcases hmem' with hfragmentVar | htail
       · exact selectionBooleanVariables_mem_selectionSetBooleanVariables_head
@@ -554,7 +559,8 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
                   (fieldSelectionsWithResponseNameInScope schema parentType responseName
                     rest) := by
           simpa [fieldSelectionsWithResponseNameInScope, hoverlap,
-            selectionSetBooleanVariables_append] using hmem
+            selectionSetBooleanVariables_append]
+            using hmem
         exact List.mem_append.mp hmemAppend
       rcases hmem' with hfragmentVar | htail
       · exact selectionBooleanVariables_mem_selectionSetBooleanVariables_head
@@ -577,7 +583,8 @@ theorem fieldSelectionsWithResponseNameInScope_variables_mem
             (fieldSelectionsWithResponseNameInScope schema parentType responseName
               rest) := by
         simpa [fieldSelectionsWithResponseNameInScope, hoverlap,
-          selectionSetBooleanVariables] using hmem
+          selectionSetBooleanVariables]
+          using hmem
       exact selectionSetBooleanVariables_mem_selectionSetBooleanVariables_tail
         varName
         (Selection.inlineFragment (some typeCondition) directives

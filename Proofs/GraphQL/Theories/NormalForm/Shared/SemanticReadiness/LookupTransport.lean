@@ -343,8 +343,8 @@ theorem fieldsInSetCanMerge_fieldHead_merged_of_canMerge_object_lookupValid
         objectType
     rw [hleftSelectionSet, hrightSelectionSet] at hsubfields
     exact hsubfields
-  simpa [group, headSelection, matching, mergeSelectionSets,
-    Selection.subselections] using hgroupMerge
+  simpa [group, headSelection, matching, mergeSelectionSets, Selection.subselections]
+    using hgroupMerge
 
 theorem
     fieldSelectionsWithResponseNameInScope_matching_same_field_of_canMerge_object_lookupValid
@@ -540,8 +540,7 @@ theorem
           matchedDefinition = fieldDefinition := by
         have hlookup' :
             schema.lookupField parentType fieldName = some matchedDefinition := by
-          simpa [hparentEq, hmatchedFieldName, hmatchedField] using
-            hmatchedLookup
+          simpa [hparentEq, hmatchedFieldName, hmatchedField] using hmatchedLookup
         rw [hlookup] at hlookup'
         cases hlookup'
         rfl

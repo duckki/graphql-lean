@@ -448,8 +448,8 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
           hrightBody.2 hleftBody.1 hrightBody.1 hobject hbodiesEqualSame
       unfold Execution.executeSelectionSetAsResponse
       rw [hleftExecute, hrightExecute]
-      simpa [Execution.executeSelectionSetAsResponse] using
-        hbodySem resolvers fuel source hsource
+      simpa [Execution.executeSelectionSetAsResponse]
+        using hbodySem resolvers fuel source hsource
     · have hnoneLeft : ¬ ∃ selection candidate body,
           selection ∈ left
             ∧ completeNormalBoolCase (leftVar :: leftVariables) candidate
@@ -477,8 +477,8 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
             CompleteNormalBodyEquality schema leftOperation rightOperation
               parentType (leftVar :: leftVariables) (rightVar :: rightVariables)
               candidate rightCase body rightBody := by
-          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2] using
-            hbodiesEqual
+          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2]
+            using hbodiesEqual
         exact hmatch ⟨pair, candidate, rightCase, body, rightBody,
           hpair, hcandidate, hrightCase, hcandidateStemAtPair, hrightStem,
           hcandidateCasesEqual, hcandidateBodiesEqual, hequivalent⟩
@@ -509,8 +509,8 @@ private theorem completeNormalSelectionSets_semanticallyEquivalent_of_equal
             CompleteNormalBodyEquality schema leftOperation rightOperation
               parentType (leftVar :: leftVariables) (rightVar :: rightVariables)
               leftCase candidate leftBody body := by
-          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2] using
-            hbodiesEqual
+          simpa [CompleteNormalBodyEquality, hcaseBodyEq.1, hcaseBodyEq.2]
+            using hbodiesEqual
         have hruntimeLeftCase := completeNormalBoolCasesEquivalent_trans
           hequivalent
           (completeNormalBoolCasesEquivalent_symm hleftCandidateCasesEqual)
@@ -588,8 +588,7 @@ private theorem
             right.variableDefinitions := by
         constructor
         <;> intro definition hmember
-        <;>
-            refine ⟨definition, hmember, rfl, rfl, ?_⟩
+        <;> refine ⟨definition, hmember, rfl, rfl, ?_⟩
         <;> cases definition.defaultValue with
         | none => trivial
         | some defaultValue =>
@@ -673,8 +672,8 @@ private theorem
                 have hrightComplete : completeNormalSelectionSet schema
                     (rightVar :: rightVariables) (left.rootType schema)
                     right.selectionSet := by
-                  simpa [completeNormalOperation, hrightVars, hrootType] using
-                    hrightNormal
+                  simpa [completeNormalOperation, hrightVars, hrootType]
+                    using hrightNormal
                 have hselectionEqualComplete :
                     CompleteNormalSelectionSetEqualUpToReorderingWithCoercion
                       schema left right (left.rootType schema)
@@ -722,7 +721,8 @@ private theorem
         exact hselectionResponse
       simpa [Execution.executeQueryWithFuel, hleftRoot, hrightRoot,
         Execution.executeSelectionSetAsResponse, Execution.executeSelectionSet,
-        Execution.executeRootSelectionSet, hrootType] using hselectionResponse'
+        Execution.executeRootSelectionSet, hrootType]
+        using hselectionResponse'
 
 theorem complete_normal_operations_equalUpToReordering_semanticallyEquivalent
     {schema : Schema} {left right : Operation}
@@ -757,16 +757,15 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
         (completeNormalizeOperation schema left).variableDefinitions
         (completeNormalizeOperation schema right).variableDefinitions := by
     simpa [completeNormalizeOperation_variableDefinitions] using hdefinitions
-  have hnormalizedSemantics :
-      operationsSemanticallyEquivalentForCompleteBoolVars schema
-        (operationBoolVars (completeNormalizeOperation schema left))
-        (completeNormalizeOperation schema left)
-        (completeNormalizeOperation schema right) :=
+  have hnormalizedSemantics
+      : operationsSemanticallyEquivalentForCompleteBoolVars schema
+          (operationBoolVars (completeNormalizeOperation schema left))
+          (completeNormalizeOperation schema left)
+          (completeNormalizeOperation schema right) :=
     complete_normal_operations_equalUpToReordering_semanticallyEquivalent_of_argumentsNodup
       (by
-        simpa [completeNormalizeOperation, Operation.rootType,
-          OperationType.rootType] using
-          GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
+        simpa [completeNormalizeOperation, Operation.rootType, OperationType.rootType]
+          using GroundTypeNormalization.operation_root_objectTypeNameBool_of_wf_valid
             hschema hleftValid)
       (completeNormalizeOperation_selectionSetArgumentsNodup schema left
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
@@ -775,11 +774,13 @@ theorem completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent
         (Execution.selectionSetArgumentsNodup_of_selectionSetValid
           (Validation.operationDefinitionValid_selectionSetValid hrightValid)))
       (by
-        simpa [completeNormalizeOperation_variableDefinitions] using
-          (Validation.operationDefinitionValid_variableDefinitionsValid hleftValid).1)
+        simpa [completeNormalizeOperation_variableDefinitions]
+          using (Validation.operationDefinitionValid_variableDefinitionsValid
+                  hleftValid).1)
       (by
-        simpa [completeNormalizeOperation_variableDefinitions] using
-          (Validation.operationDefinitionValid_variableDefinitionsValid hrightValid).1)
+        simpa [completeNormalizeOperation_variableDefinitions]
+          using (Validation.operationDefinitionValid_variableDefinitionsValid
+                  hrightValid).1)
       hleftNormal hrightNormal hnormalizedDefinitions hequal
   intro ObjectRef resolvers variableValues fuel source hleftComplete hleftReady
     hrightReady

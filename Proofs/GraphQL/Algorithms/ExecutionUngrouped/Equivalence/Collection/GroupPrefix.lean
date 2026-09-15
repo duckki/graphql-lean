@@ -281,8 +281,8 @@ mutual
                   arguments := arguments,
                   selectionSet := selectionSet
                 } := by
-            simpa [GraphQL.Execution.collectSelection, hallows,
-              collectedExecutableFields] using hcandidate
+            simpa [GraphQL.Execution.collectSelection, hallows, collectedExecutableFields]
+              using hcandidate
           subst candidate
           rcases Validation.selectionValid_field_lookup himplementation with
             ⟨fieldDefinition, hlookup, _harguments, hchild⟩
@@ -307,14 +307,14 @@ mutual
                   selectionSet := selectionSet
                 } := by
             simp [scopedField, ScopedFieldMatchesExecutableIdentity]
-          have hinclude :
-              schema.typeIncludesObjectBool
-                  scopedField.outputType.namedType childRuntime =
-                true :=
+          have hinclude
+              : schema.typeIncludesObjectBool
+                  scopedField.outputType.namedType childRuntime
+                = true :=
             hcompatible scopedField hscopedMem hmatch
               (by
-                simpa [scopedField, ScopedFieldRuntimeApplies,
-                  ScopedParentRuntimeApplies] using hparentRuntime)
+                simpa [scopedField, ScopedFieldRuntimeApplies, ScopedParentRuntimeApplies]
+                  using hparentRuntime)
           have hchildValid :
               Validation.selectionSetValid schema variableDefinitions
                 fieldDefinition.outputType.namedType selectionSet :=
@@ -373,8 +373,7 @@ mutual
               · have hcondition :
                     schema.typeIncludesObjectBool typeCondition runtimeType =
                       true := by
-                  simpa [doesFragmentTypeApplyBool, runtimeObjectType?] using
-                    happly
+                  simpa [doesFragmentTypeApplyBool, runtimeObjectType?] using happly
                 have hoverlap :
                     schema.typesOverlapBool validParent typeCondition =
                       true := by
@@ -388,20 +387,17 @@ mutual
                   Validation.selectionValid_inlineFragment_some_selectionSetValid
                     himplementation
                 simp [GraphQL.Execution.collectSelection, hallows, happly] at hcandidate
-                exact
-                  collectFields_childLookupValid_of_selectionSetValidInPossibleTypes_object
-                    schema variableDefinitions variableValues collectParent
-                    typeCondition runtimeType identity selectionSet candidate
-                    childRuntime hschema
-                    (ScopedParentRuntimeApplies.of_typeIncludesObjectBool
-                      schema runtimeType typeCondition hcondition)
-                    hbody hcandidate
-                    (by
-                      intro scopedField hscoped hmatch hruntime
-                      exact hcompatible scopedField
-                        (by
-                          simpa [FieldMerge.collectFields] using hscoped)
-                        hmatch hruntime)
+                exact collectFields_childLookupValid_of_selectionSetValidInPossibleTypes_object
+                  schema variableDefinitions variableValues collectParent typeCondition
+                  runtimeType identity selectionSet candidate childRuntime hschema
+                  (ScopedParentRuntimeApplies.of_typeIncludesObjectBool
+                    schema runtimeType typeCondition hcondition)
+                  hbody hcandidate
+                  (by
+                    intro scopedField hscoped hmatch hruntime
+                    exact hcompatible scopedField
+                      (by simpa [FieldMerge.collectFields] using hscoped)
+                      hmatch hruntime)
               · have hfalse :
                     doesFragmentTypeApplyBool schema collectParent
                       (.object runtimeType identity) typeCondition = false := by
@@ -584,8 +580,8 @@ mutual
                   arguments := arguments,
                   selectionSet := selectionSet
                 } := by
-            simpa [GraphQL.Execution.collectSelection, hallows,
-              collectedExecutableFields] using hcandidate
+            simpa [GraphQL.Execution.collectSelection, hallows, collectedExecutableFields]
+              using hcandidate
           subst candidate
           cases hlookup : schema.lookupField validParent fieldName with
           | none =>
@@ -612,20 +608,18 @@ mutual
                       selectionSet := selectionSet
                     } := by
                 simp [scopedField, ScopedFieldMatchesExecutableIdentity]
-              have hinclude :
-                  schema.typeIncludesObjectBool
-                      scopedField.outputType.namedType childRuntime =
-                    true :=
+              have hinclude
+                  : schema.typeIncludesObjectBool
+                      scopedField.outputType.namedType childRuntime
+                    = true :=
                 hcompatible scopedField hscopedMem hmatch
                   (by
                     simpa [scopedField, ScopedFieldRuntimeApplies,
-                      ScopedParentRuntimeApplies] using hparentRuntime)
-              exact
-                NormalForm.GroundTypeNormalization.selectionValidInPossibleTypes_field_child
-                  himplementation hlookup
-                  (by
-                    simpa [scopedField] using
-                      (List.contains_iff_mem.mp hinclude))
+                      ScopedParentRuntimeApplies]
+                      using hparentRuntime)
+              exact NormalForm.GroundTypeNormalization.selectionValidInPossibleTypes_field_child
+                himplementation hlookup
+                (by simpa [scopedField] using (List.contains_iff_mem.mp hinclude))
         · have hfalse :
               selectionDirectivesAllowBool variableValues directives = false := by
             cases hmatch :
@@ -671,8 +665,7 @@ mutual
         have hhead :
             Validation.selectionValidInPossibleTypes schema variableDefinitions
               validParent selection := by
-          simpa [Validation.selectionSetValidInPossibleTypes] using
-            himplementation.1
+          simpa [Validation.selectionSetValidInPossibleTypes] using himplementation.1
         have hheadAll : Selection.isField selection :=
           hall selection (by simp)
         have htailAll : NormalForm.selectionsAllFields rest := by
@@ -681,8 +674,7 @@ mutual
         have htail :
             Validation.selectionSetValidInPossibleTypes schema
               variableDefinitions validParent rest := by
-          simpa [Validation.selectionSetValidInPossibleTypes] using
-            himplementation.2
+          simpa [Validation.selectionSetValidInPossibleTypes] using himplementation.2
         simp [GraphQL.Execution.collectFields] at hcandidate
         rcases
             (collectedExecutableFields_mem_mergeExecutableGroups

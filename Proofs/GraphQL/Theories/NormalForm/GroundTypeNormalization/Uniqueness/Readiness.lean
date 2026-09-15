@@ -751,8 +751,9 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                                   (childHead :: childTail)
                                 =
                                   some runtimeType := by
-                              simpa [abstractRuntimeForFieldDeep?, hmatch,
-                                hrest, hlookup, hchild] using hruntime
+                              simpa [abstractRuntimeForFieldDeep?, hmatch, hrest, hlookup,
+                                hchild]
+                                using hruntime
                             have hchildValid :
                                 Validation.selectionSetValid schema
                                   variableDefinitions
@@ -771,15 +772,15 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                             have hchildFree :
                                 selectionSetDirectiveFree
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetDirectiveFree_field_child_of_mem
+                              simpa [hchild]
+                                using selectionSetDirectiveFree_field_child_of_mem
                                   hfree hheadMem
                             have hchildNormal :
                                 selectionSetNormal schema
                                   fieldDefinition.outputType.namedType
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetNormal_field_child_of_mem_lookup
+                              simpa [hchild]
+                                using selectionSetNormal_field_child_of_mem_lookup
                                   hnormal hheadMem hlookup
                             have hchildSize :
                                 SelectionSet.size (childHead :: childTail) <
@@ -803,8 +804,7 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                 | some restRuntime =>
                     have hrestRuntime :
                         restRuntime = runtimeType := by
-                      simpa [abstractRuntimeForFieldDeep?, hmatch, hrest]
-                        using hruntime
+                      simpa [abstractRuntimeForFieldDeep?, hmatch, hrest] using hruntime
                     subst runtimeType
                     have hrestSize : SelectionSet.size rest < n := by
                       simp [SelectionSet.size, Selection.size] at hsize
@@ -834,8 +834,7 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                       rw [hfirst] at hcandidateRuntime
                       exact (Option.some.inj hcandidateRuntime).symm
                     have hruntimeEq : headRuntime = runtimeType := by
-                      simpa [abstractRuntimeForFieldDeep?, hmatch, hfirst]
-                        using hruntime
+                      simpa [abstractRuntimeForFieldDeep?, hmatch, hfirst] using hruntime
                     subst candidateRuntime
                     subst runtimeType
                     exact hcandidateInclude
@@ -868,8 +867,8 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                                     =
                                       some runtimeType := by
                                   simpa [abstractRuntimeForFieldDeep?, hmatch,
-                                    hfirstChild, hrest, hlookup, hchild] using
-                                    hruntime
+                                    hfirstChild, hrest, hlookup, hchild]
+                                    using hruntime
                                 have hchildValid :
                                     Validation.selectionSetValid schema
                                       variableDefinitions
@@ -888,15 +887,15 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                                 have hchildFree :
                                     selectionSetDirectiveFree
                                       (childHead :: childTail) := by
-                                  simpa [hchild] using
-                                    selectionSetDirectiveFree_field_child_of_mem
+                                  simpa [hchild]
+                                    using selectionSetDirectiveFree_field_child_of_mem
                                       hfree hheadMem
                                 have hchildNormal :
                                     selectionSetNormal schema
                                       fieldDefinition.outputType.namedType
                                       (childHead :: childTail) := by
-                                  simpa [hchild] using
-                                    selectionSetNormal_field_child_of_mem_lookup
+                                  simpa [hchild]
+                                    using selectionSetNormal_field_child_of_mem_lookup
                                       hnormal hheadMem hlookup
                                 have hchildSize :
                                     SelectionSet.size
@@ -922,8 +921,8 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                     | some restRuntime =>
                         have hrestRuntime :
                             restRuntime = runtimeType := by
-                          simpa [abstractRuntimeForFieldDeep?, hmatch,
-                            hfirst, hrest] using hruntime
+                          simpa [abstractRuntimeForFieldDeep?, hmatch, hfirst, hrest]
+                            using hruntime
                         subst runtimeType
                         have hrestSize : SelectionSet.size rest < n := by
                           simp [SelectionSet.size, Selection.size] at hsize
@@ -967,8 +966,7 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                   | some restRuntime =>
                       have hrestRuntime :
                           restRuntime = runtimeType := by
-                        simpa [abstractRuntimeForFieldDeep?, hrest] using
-                          hruntime
+                        simpa [abstractRuntimeForFieldDeep?, hrest] using hruntime
                       subst runtimeType
                       have hrestSize : SelectionSet.size rest < n := by
                         simp [SelectionSet.size, Selection.size] at hsize
@@ -990,27 +988,27 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size
                                 (childHead :: childTail)
                               =
                                 some runtimeType := by
-                            simpa [abstractRuntimeForFieldDeep?, hrest,
-                              hchild] using hruntime
+                            simpa [abstractRuntimeForFieldDeep?, hrest, hchild]
+                              using hruntime
                           have hchildValid :
                               Validation.selectionSetValid schema
                                 variableDefinitions typeCondition
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              selectionSetValid_inlineFragment_some_child_of_mem
+                            simpa [hchild]
+                              using selectionSetValid_inlineFragment_some_child_of_mem
                                 hvalid hheadMem
                           have hchildFree :
                               selectionSetDirectiveFree
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              selectionSetDirectiveFree_inlineFragment_child_of_mem
+                            simpa [hchild]
+                              using selectionSetDirectiveFree_inlineFragment_child_of_mem
                                 hfree hheadMem
                           have hchildNormal :
                               selectionSetNormal schema typeCondition
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              (selectionSetNormal_inlineFragment_child_of_mem
-                                hnormal hheadMem).2
+                            simpa [hchild]
+                              using (selectionSetNormal_inlineFragment_child_of_mem
+                                      hnormal hheadMem).2
                           have hchildSize :
                               SelectionSet.size (childHead :: childTail) <
                                 n := by
@@ -1050,11 +1048,10 @@ theorem abstractRuntimeForFieldDeep?_some_include_of_valid_normal
           = true := by
   intro hvalid hfree hnormal htargetLookup htargetComposite htargetNonObject
     hruntime
-  exact
-    abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size schema
-      htargetLookup htargetComposite htargetNonObject
-      (SelectionSet.size selectionSet + 1) currentParent selectionSet
-      runtimeType (by omega) hvalid hfree hnormal hruntime
+  exact abstractRuntimeForFieldDeep?_some_include_of_valid_normal_size schema
+    htargetLookup htargetComposite htargetNonObject
+    (SelectionSet.size selectionSet + 1) currentParent selectionSet
+    runtimeType (by omega) hvalid hfree hnormal hruntime
 
 theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
     (schema : Schema)
@@ -1120,8 +1117,8 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                       rw [hfirst] at hcandidateRuntime
                       exact (Option.some.inj hcandidateRuntime).symm
                     have hruntimeEq : headRuntime = runtimeType := by
-                      simpa [abstractRuntimeForFieldHeadDeep?, hmatch,
-                        hfirst] using hruntime
+                      simpa [abstractRuntimeForFieldHeadDeep?, hmatch, hfirst]
+                        using hruntime
                     subst candidateRuntime
                     subst runtimeType
                     exact hcandidateInclude
@@ -1142,8 +1139,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                           simpa [hmatch.1] using hrest
                         have hrestRuntime :
                             restRuntime = runtimeType := by
-                          simpa [abstractRuntimeForFieldHeadDeep?, hmatch,
-                            hfirst, hrestTarget] using hruntime
+                          simpa [abstractRuntimeForFieldHeadDeep?, hmatch, hfirst,
+                            hrestTarget]
+                            using hruntime
                         subst runtimeType
                         have hrestSize : SelectionSet.size rest < n := by
                           simp [SelectionSet.size, Selection.size] at hsize
@@ -1179,10 +1177,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                                   (childHead :: childTail)
                                 =
                                   some runtimeType := by
-                              simpa [abstractRuntimeForFieldHeadDeep?,
-                                hmatch, hfirstChild, hrestTarget,
-                                htargetLookup,
-                                hchild] using hruntime
+                              simpa [abstractRuntimeForFieldHeadDeep?, hmatch,
+                                hfirstChild, hrestTarget, htargetLookup, hchild]
+                                using hruntime
                             have hchildValid :
                                 Validation.selectionSetValid schema
                                   variableDefinitions
@@ -1201,15 +1198,15 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                             have hchildFree :
                                 selectionSetDirectiveFree
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetDirectiveFree_field_child_of_mem
+                              simpa [hchild]
+                                using selectionSetDirectiveFree_field_child_of_mem
                                   hfree hheadMem
                             have hchildNormal :
                                 selectionSetNormal schema
                                   targetFieldDefinition.outputType.namedType
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetNormal_field_child_of_mem_lookup
+                              simpa [hchild]
+                                using selectionSetNormal_field_child_of_mem_lookup
                                   hnormal hheadMem hheadLookup
                             have hchildSize :
                                 SelectionSet.size (childHead :: childTail) <
@@ -1265,9 +1262,9 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                                   (childHead :: childTail)
                                 =
                                   some runtimeType := by
-                              simpa [abstractRuntimeForFieldHeadDeep?,
-                                hmatch, hrest, hlookup, hchild] using
-                                hruntime
+                              simpa [abstractRuntimeForFieldHeadDeep?, hmatch, hrest,
+                                hlookup, hchild]
+                                using hruntime
                             have hchildValid :
                                 Validation.selectionSetValid schema
                                   variableDefinitions
@@ -1286,15 +1283,15 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                             have hchildFree :
                                 selectionSetDirectiveFree
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetDirectiveFree_field_child_of_mem
+                              simpa [hchild]
+                                using selectionSetDirectiveFree_field_child_of_mem
                                   hfree hheadMem
                             have hchildNormal :
                                 selectionSetNormal schema
                                   fieldDefinition.outputType.namedType
                                   (childHead :: childTail) := by
-                              simpa [hchild] using
-                                selectionSetNormal_field_child_of_mem_lookup
+                              simpa [hchild]
+                                using selectionSetNormal_field_child_of_mem_lookup
                                   hnormal hheadMem hlookup
                             have hchildSize :
                                 SelectionSet.size (childHead :: childTail) <
@@ -1349,8 +1346,7 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                   | some restRuntime =>
                       have hrestRuntime :
                           restRuntime = runtimeType := by
-                        simpa [abstractRuntimeForFieldHeadDeep?, hrest] using
-                          hruntime
+                        simpa [abstractRuntimeForFieldHeadDeep?, hrest] using hruntime
                       subst runtimeType
                       have hrestSize : SelectionSet.size rest < n := by
                         simp [SelectionSet.size, Selection.size] at hsize
@@ -1372,27 +1368,27 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size
                                 typeCondition (childHead :: childTail)
                               =
                                 some runtimeType := by
-                            simpa [abstractRuntimeForFieldHeadDeep?, hrest,
-                              hchild] using hruntime
+                            simpa [abstractRuntimeForFieldHeadDeep?, hrest, hchild]
+                              using hruntime
                           have hchildValid :
                               Validation.selectionSetValid schema
                                 variableDefinitions typeCondition
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              selectionSetValid_inlineFragment_some_child_of_mem
+                            simpa [hchild]
+                              using selectionSetValid_inlineFragment_some_child_of_mem
                                 hvalid hheadMem
                           have hchildFree :
                               selectionSetDirectiveFree
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              selectionSetDirectiveFree_inlineFragment_child_of_mem
+                            simpa [hchild]
+                              using selectionSetDirectiveFree_inlineFragment_child_of_mem
                                 hfree hheadMem
                           have hchildNormal :
                               selectionSetNormal schema typeCondition
                                 (childHead :: childTail) := by
-                            simpa [hchild] using
-                              (selectionSetNormal_inlineFragment_child_of_mem
-                                hnormal hheadMem).2
+                            simpa [hchild]
+                              using (selectionSetNormal_inlineFragment_child_of_mem
+                                      hnormal hheadMem).2
                           have hchildSize :
                               SelectionSet.size (childHead :: childTail) <
                                 n := by
@@ -1433,11 +1429,10 @@ theorem abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal
           = true := by
   intro hvalid hfree hnormal htargetLookup htargetComposite htargetNonObject
     hruntime
-  exact
-    abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size schema
-      htargetLookup htargetComposite htargetNonObject
-      (SelectionSet.size selectionSet + 1) currentParent selectionSet
-      runtimeType (by omega) hvalid hfree hnormal hruntime
+  exact abstractRuntimeForFieldHeadDeep?_some_include_of_valid_normal_size schema
+    htargetLookup htargetComposite htargetNonObject
+    (SelectionSet.size selectionSet + 1) currentParent selectionSet
+    runtimeType (by omega) hvalid hfree hnormal hruntime
 
 theorem abstractRuntimeForFieldDeep?_object_field_child_promote_some_of_valid_normal
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -2085,15 +2080,14 @@ theorem selectionSetNormal_inlineFragment_some_of_nonObject_mem
   | inlineFragment typeCondition directives childSelectionSet =>
       cases typeCondition with
       | none =>
-          have hselectionGround :
-              selectionGroundTyped schema parentType
-                (Selection.inlineFragment none directives childSelectionSet) :=
-            by
-              have hground := hnormal.1
-              unfold selectionSetGroundTyped at hground
-              exact hground.2
-                (Selection.inlineFragment none directives childSelectionSet)
-                hmem
+          have hselectionGround
+              : selectionGroundTyped schema parentType
+                  (Selection.inlineFragment none directives childSelectionSet) := by
+            have hground := hnormal.1
+            unfold selectionSetGroundTyped at hground
+            exact hground.2
+              (Selection.inlineFragment none directives childSelectionSet)
+              hmem
           simp [selectionGroundTyped] at hselectionGround
       | some typeCondition =>
           exact ⟨typeCondition, directives, childSelectionSet, rfl⟩
@@ -3153,13 +3147,12 @@ theorem deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_deepPr
   intro hschema parentType variableDefinitions selectionSet hvalid hcoercion hfree
     hnormal hobject hpromote responseName fieldName arguments directives
     childSelectionSet hmem
-  exact
-    deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
-      schema rootSelectionSet objectRef variableValues hschema
-      (SelectionSet.size selectionSet + 1) parentType variableDefinitions
-      selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
-      (by omega) (by omega) hvalid hcoercion hfree hnormal hobject hpromote
-      responseName fieldName arguments directives childSelectionSet hmem
+  exact deepFieldSelectionSetReadyWithRef_of_valid_normal_object_promoted_fuel_ge_size
+    schema rootSelectionSet objectRef variableValues hschema
+    (SelectionSet.size selectionSet + 1) parentType variableDefinitions
+    selectionSet (selectionSetDeepProbeFuel schema parentType selectionSet)
+    (by omega) (by omega) hvalid hcoercion hfree hnormal hobject hpromote
+    responseName fieldName arguments directives childSelectionSet hmem
 
 theorem
     executeSelectionSetAsResponse_deepSelectionSetSuccessWithRef_valid_normal_object_promoted_fuel_ge

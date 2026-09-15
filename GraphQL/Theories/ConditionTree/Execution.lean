@@ -150,32 +150,32 @@ private theorem collectFlatFields_responseDepth_le
             by_cases hallows :
                 selectionDirectivesAllowBool variableValues directives = true
             · simpa [collectFlatSelection, hallows, executableFieldsResponseDepth,
-                executableFieldResponseDepth, selectionResponseDepth] using
-                (Nat.le_max_left
-                  (selectionSetResponseDepth childSelectionSet + 1)
-                  (selectionSetResponseDepth rest))
+                executableFieldResponseDepth, selectionResponseDepth]
+                using (Nat.le_max_left
+                        (selectionSetResponseDepth childSelectionSet + 1)
+                        (selectionSetResponseDepth rest))
             · simp [collectFlatSelection, hallows, executableFieldsResponseDepth]
         | inlineFragment typeCondition directives childSelectionSet =>
             cases typeCondition with
             | none =>
                 by_cases hallows :
                     selectionDirectivesAllowBool variableValues directives = true
-                · simpa [collectFlatSelection, hallows, selectionResponseDepth] using
-                    Nat.le_trans
-                    (collectFlatFields_responseDepth_le schema variableValues
-                      executionParentType source childSelectionSet)
-                    (Nat.le_max_left _ _)
+                · simpa [collectFlatSelection, hallows, selectionResponseDepth]
+                    using Nat.le_trans
+                      (collectFlatFields_responseDepth_le schema variableValues
+                        executionParentType source childSelectionSet)
+                      (Nat.le_max_left _ _)
                 · simp [collectFlatSelection, hallows, executableFieldsResponseDepth]
             | some typeName =>
                 by_cases hallows :
                     (selectionDirectivesAllowBool variableValues directives
                       && doesFragmentTypeApplyBool schema executionParentType source
                         typeName) = true
-                · simpa [collectFlatSelection, hallows, selectionResponseDepth] using
-                    Nat.le_trans
-                    (collectFlatFields_responseDepth_le schema variableValues
-                      executionParentType source childSelectionSet)
-                    (Nat.le_max_left _ _)
+                · simpa [collectFlatSelection, hallows, selectionResponseDepth]
+                    using Nat.le_trans
+                      (collectFlatFields_responseDepth_le schema variableValues
+                        executionParentType source childSelectionSet)
+                      (Nat.le_max_left _ _)
                 · simp [collectFlatSelection, hallows, executableFieldsResponseDepth]
       · exact Nat.le_trans
           (collectFlatFields_responseDepth_le schema variableValues

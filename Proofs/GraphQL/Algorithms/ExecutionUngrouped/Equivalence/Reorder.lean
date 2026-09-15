@@ -173,13 +173,13 @@ theorem mergeResponseSliceFold_adjacent_existing_second_swap
         source [first, second] (.object fields)
       = mergeResponseSliceFold schema resolvers variableValues completionDepth parentType
           source [second, first] (.object fields) := by
-  simpa [mergeResponseSliceFold, responseObjectSlice] using
-    mergeResponse_singleton_comm_of_existing_left_ne second.responseName
+  simpa [mergeResponseSliceFold, responseObjectSlice]
+    using mergeResponse_singleton_comm_of_existing_left_ne second.responseName
       first.responseName
-      (responseFieldSlice schema resolvers variableValues completionDepth parentType source
-        second)
-      (responseFieldSlice schema resolvers variableValues completionDepth parentType source
-        first)
+      (responseFieldSlice schema resolvers variableValues completionDepth parentType
+        source second)
+      (responseFieldSlice schema resolvers variableValues completionDepth parentType
+        source first)
       fields hsecond hne
 
 theorem mergeResponseSliceFold_middle_existing_last_swap
@@ -208,12 +208,11 @@ theorem mergeResponseSliceFold_middle_existing_last_swap
     rw [responseObjectSlices_key_mem schema resolvers variableValues
       completionDepth parentType source middle later.responseName] at hmem
     exact hnotMiddle hmem
-  simpa [responseObjectSlices, mergeResponseFields,
-    mergeResponseFields_append_singleton] using
-    mergeResponseField_comm_across_mergeResponseFields_of_mem_not_mem
+  simpa [responseObjectSlices, mergeResponseFields, mergeResponseFields_append_singleton]
+    using mergeResponseField_comm_across_mergeResponseFields_of_mem_not_mem
       later.responseName
-      (responseFieldSlice schema resolvers variableValues completionDepth parentType source
-        later)
+      (responseFieldSlice schema resolvers variableValues completionDepth parentType
+        source later)
       (responseObjectSlices schema resolvers variableValues completionDepth
         parentType
         source middle)
@@ -728,8 +727,8 @@ theorem mergeResponseSliceFold_adjacent_existing_second_swap_cons
               completionDepth parentType source second))
           (responseObjectSlice schema resolvers variableValues
             completionDepth parentType source first) := by
-    simpa [responseObjectSlice] using
-      mergeResponse_singleton_comm_of_existing_left_ne second.responseName
+    simpa [responseObjectSlice]
+      using mergeResponse_singleton_comm_of_existing_left_ne second.responseName
         first.responseName
         (responseFieldSlice schema resolvers variableValues completionDepth
           parentType

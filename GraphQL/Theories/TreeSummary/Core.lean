@@ -357,8 +357,8 @@ theorem collectedFieldGroupsResponseDepth_fieldGroupsWithContext
       rw [ih]
       congr 1
       simpa [FieldGroup.mergedSelectionSet, FieldGroup.selections, FieldGroup.fields,
-        conditionFieldGroupResponseDepth] using
-        mergedFieldSelections_responseDepth_succ group.responseName group.first
+        conditionFieldGroupResponseDepth]
+        using mergedFieldSelections_responseDepth_succ group.responseName group.first
           group.rest
 
 theorem quadruple_lt_of_depth_le_of_control_lt

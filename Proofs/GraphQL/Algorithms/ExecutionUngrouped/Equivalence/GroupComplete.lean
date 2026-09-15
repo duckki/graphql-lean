@@ -76,8 +76,8 @@ def of_containedAppendInvariant
       rfl
       (hlookups responseName field fields hgroup)
     · intro childDepth runtimeType identity hlt hcontains hincludes
-      simpa [GraphQL.Execution.mergedFieldSelectionSet] using
-        hinvariant.prefixChildren responseName field fields [] hgroup
+      simpa [GraphQL.Execution.mergedFieldSelectionSet]
+        using hinvariant.prefixChildren responseName field fields [] hgroup
           (by intro candidate hmem; simp at hmem)
           childDepth runtimeType identity hlt hcontains hincludes
     · exact
@@ -408,12 +408,12 @@ theorem executeRootSelectionSet_eq_spec_of_collected_groups_containedAppendInvar
     exact collectFields_fieldsNonempty schema variableValues parentType source
       selectionSet
   have hstable : CollectedGroupsResolveStable schema resolvers variableValues source groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.resolveStable_of_collect_eq state groups
         hcollected hcollect
   have hnodup : PairKeysNodup groups := by
-    simpa [state] using
-      ExecutionCollectedFieldInvariant.pairKeysNodup_of_collect_eq state
+    simpa [state]
+      using ExecutionCollectedFieldInvariant.pairKeysNodup_of_collect_eq state
         groups hcollected hcollect
   apply executeRootSelectionSet_eq_spec_of_flatCollects_and_groupFlatSpecEquivalent
     schema resolvers variableValues (depth + 1) parentType source selectionSet

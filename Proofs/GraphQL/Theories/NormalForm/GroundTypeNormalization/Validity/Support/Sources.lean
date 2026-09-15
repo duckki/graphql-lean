@@ -318,10 +318,13 @@ theorem collectFields_normalizeSelectionSet_mem_source
       rcases happend normalizedField hobject hbodyTailReady
           (by simpa [normalizeSelectionSet] using hfieldMem) with
         ⟨sourceField, hsourceMem, hsource⟩
-      exact ⟨sourceField, by
-        simpa [FieldMerge.collectFields, FieldMerge.collectFields_append]
-          using hsourceMem,
-        hsource⟩
+      exact ⟨
+        sourceField,
+        by
+          simpa [FieldMerge.collectFields, FieldMerge.collectFields_append]
+            using hsourceMem,
+        hsource
+      ⟩
   | case5 parentType rest typeCondition directives subselections hoverlap
       _hrest happend =>
       intro normalizedField hobject hready hfieldMem

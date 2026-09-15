@@ -50,19 +50,20 @@ theorem flattenExecutableFieldGroups_addExecutableGroup_perm
         subst groupName
         simp only [addExecutableGroup, hname, if_true,
           flattenExecutableFieldGroups, List.map_append]
-        simpa [List.append_assoc] using
-          (List.Perm.append_left (currentFields.map fun field => (currentName, field))
-            (List.perm_append_comm
-              (l₁ := groupFields.map fun field => (currentName, field))
-              (l₂ := flattenExecutableFieldGroups rest)))
+        simpa [List.append_assoc]
+          using (List.Perm.append_left
+                  (currentFields.map fun field => (currentName, field))
+                  (List.perm_append_comm
+                    (l₁ := groupFields.map fun field => (currentName, field))
+                    (l₂ := flattenExecutableFieldGroups rest)))
       · have hfalse : (currentName == groupName) = false := by
           cases hvalue : currentName == groupName
           · rfl
           · contradiction
         simp only [addExecutableGroup, hfalse, Bool.false_eq_true, if_false,
           flattenExecutableFieldGroups]
-        simpa [List.append_assoc] using
-          ih.append_left (currentFields.map fun field => (currentName, field))
+        simpa [List.append_assoc]
+          using ih.append_left (currentFields.map fun field => (currentName, field))
 
 theorem flattenExecutableFieldGroups_mem_addExecutableGroup
     (group : Name × List ExecutableField)
@@ -177,8 +178,8 @@ theorem groupExecutableFields_exact (fields : List (Name × ExecutableField))
           have haddPerm :
               (flattenExecutableFieldGroups added).Perm
                 (flattenExecutableFieldGroups groups ++ [field]) := by
-            simpa [added] using
-              flattenExecutableFieldGroups_addExecutableGroup_perm
+            simpa [added]
+              using flattenExecutableFieldGroups_addExecutableGroup_perm
                 (field.1, [field.2]) groups
           simpa [List.append_assoc] using haddPerm.append_right rest
   simpa [flattenExecutableFieldGroups] using hgeneral fields [] (by simp)
@@ -218,8 +219,8 @@ theorem mem_groupExecutableFields_key_iff
     (fields : List (Name × ExecutableField)) (responseName : Name)
     : responseName ∈ (groupExecutableFields fields).map Prod.fst
       ↔ ∃ field, field ∈ fields ∧ responseName = field.1 := by
-  simpa [groupExecutableFields] using
-    mem_foldExecutableFields_key_iff fields [] responseName
+  simpa [groupExecutableFields]
+    using mem_foldExecutableFields_key_iff fields [] responseName
 
 theorem groupExecutableFields_wellFormed (fields : List (Name × ExecutableField))
     : NormalForm.executableGroupsWellFormed (groupExecutableFields fields) := by
@@ -239,13 +240,13 @@ theorem groupExecutableFields_wellFormed (fields : List (Name × ExecutableField
     | cons field rest ih =>
         intro groups hgroups
         apply ih
-        exact
-          NormalForm.GroundTypeNormalization.addExecutableGroup_wellFormed
-            (field.1, [field.2]) groups (by simp [NormalForm.executableGroupWellFormed])
-            hgroups
-  exact hfold fields [] (by
-    intro group hgroup
-    simp at hgroup)
+        exact NormalForm.GroundTypeNormalization.addExecutableGroup_wellFormed
+          (field.1, [field.2]) groups (by simp [NormalForm.executableGroupWellFormed])
+          hgroups
+  exact hfold fields []
+    (by
+      intro group hgroup
+      simp at hgroup)
 
 theorem mem_map_snd_flattenExecutableFieldGroups_iff
     (groups : List (Name × List ExecutableField)) (field : ExecutableField)
@@ -309,14 +310,13 @@ theorem mergedFieldSelectionSet_perm
   induction hfields with
   | nil => exact List.Perm.refl []
   | cons head _tail ih =>
-      simpa only [List.flatMap_cons] using
-        ih.append_left head.selectionSet
+      simpa only [List.flatMap_cons] using ih.append_left head.selectionSet
   | swap first second rest =>
       simp only [List.flatMap_cons]
-      simpa [List.append_assoc] using
-        (List.perm_append_comm
-          (l₁ := second.selectionSet) (l₂ := first.selectionSet)).append_right
-            (rest.flatMap ExecutableField.selectionSet)
+      simpa [List.append_assoc]
+        using (List.perm_append_comm
+                (l₁ := second.selectionSet) (l₂ := first.selectionSet)).append_right
+          (rest.flatMap ExecutableField.selectionSet)
   | trans _ _ ihleft ihright => exact ihleft.trans ihright
 
 theorem mergedFieldSelectionSet_eq_flatMap (fields : List ExecutableField)
@@ -391,10 +391,11 @@ theorem flattenExecutableFieldGroups_mergeExecutableGroups_perm
       rw [mergeExecutableGroups]
       have hrest := ih (addExecutableGroup group left)
       have hadded := flattenExecutableFieldGroups_addExecutableGroup_perm group left
-      exact hrest.trans (by
-        rw [flattenExecutableFieldGroups]
-        simpa [List.append_assoc] using
-          hadded.append_right (flattenExecutableFieldGroups rest))
+      exact hrest.trans
+        (by
+          rw [flattenExecutableFieldGroups]
+          simpa [List.append_assoc]
+            using hadded.append_right (flattenExecutableFieldGroups rest))
 
 theorem collectFlatFields_perm_flatten_collectFields
     {ObjectRef : Type}
@@ -651,8 +652,8 @@ theorem mem_group_key_iff_exists_field_of_wellFormed
     | nil => exact False.elim (hwellFormed rfl)
     | cons field rest =>
         refine ⟨field, ?_⟩
-        exact (mem_flattenExecutableFieldGroups_iff groups
-          (responseName, field)).2 ⟨field :: rest, hgroup, by simp⟩
+        exact (mem_flattenExecutableFieldGroups_iff groups (responseName, field)).2
+          ⟨field :: rest, hgroup, by simp⟩
   · rintro ⟨field, hfield⟩
     rcases (mem_flattenExecutableFieldGroups_iff groups
       (responseName, field)).1 hfield with ⟨fields, hgroup, _hfield⟩
@@ -715,8 +716,9 @@ theorem filter_eq_nil_of_all_false {α : Type}
   | cons value rest ih =>
       rw [List.filter_cons, hfalse value (by simp)]
       simp only [Bool.false_eq_true, if_false]
-      exact ih fun candidate hcandidate =>
-        hfalse candidate (by simp [hcandidate])
+      exact ih
+        fun candidate hcandidate =>
+          hfalse candidate (by simp [hcandidate])
 
 theorem filter_flattenExecutableFieldGroups_eq_nil_of_key_not_mem
     (responseName : Name) (groups : List (Name × List ExecutableField))
@@ -808,7 +810,8 @@ theorem RuntimeGroupsPermutationEquivalent.headFields
       filter_flattenExecutableFieldGroups_head_eq responseName leftFields leftTail
         equivalent.leftKeysNodup,
       filter_flattenExecutableFieldGroups_head_eq responseName rightFields rightTail
-        equivalent.rightKeysNodup] using hfiltered
+        equivalent.rightKeysNodup]
+      using hfiltered
   have hfields := hpairs.map Prod.snd
   simpa [Function.comp_def] using hfields
 
@@ -843,8 +846,9 @@ theorem RuntimeGroupsPermutationEquivalent.leftDepthBound
     : RuntimeGroupsResponseDepthBound left depth := by
   intro field hfield
   apply hright field
-  have hfield' := (equivalent.fieldsPerm.map Prod.snd).mem_iff.mp (by
-    simpa only [flattenExecutableFieldGroups_map_snd] using hfield)
+  have hfield' :=
+    (equivalent.fieldsPerm.map Prod.snd).mem_iff.mp
+      (by simpa only [flattenExecutableFieldGroups_map_snd] using hfield)
   simpa only [flattenExecutableFieldGroups_map_snd] using hfield'
 
 def RuntimeGroupsCrossCompatible (left right : List (Name × List ExecutableField))

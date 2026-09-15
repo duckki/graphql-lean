@@ -450,8 +450,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                             (.object runtimeType identity)
                                             prefixValue hlookup
                                             hresolveLater
-                                        simpa [hprefixCompleted,
-                                          groupedFieldVisitResult,
+                                        simpa [hprefixCompleted, groupedFieldVisitResult,
                                           GraphQL.Execution.singleFieldResult,
                                           resultValueOrNull, Nat.add_assoc]
                                           using hlaterVisit
@@ -600,8 +599,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           arguments := definitionArguments }
                                         resolvedValue prefixValue hlookup
                                         hresolveLater
-                                    simpa [hprefixCompleted,
-                                      groupedFieldVisitResult,
+                                    simpa [hprefixCompleted, groupedFieldVisitResult,
                                       GraphQL.Execution.singleFieldResult,
                                       resultValueOrNull, Nat.add_assoc]
                                       using hlaterVisit
@@ -748,8 +746,7 @@ theorem ExecutableFieldsMergedRaw_append_one_of_prefix
                                           arguments := definitionArguments }
                                         resolvedValue prefixValue hlookup
                                         hresolveLater
-                                    simpa [hprefixCompleted,
-                                      groupedFieldVisitResult,
+                                    simpa [hprefixCompleted, groupedFieldVisitResult,
                                       GraphQL.Execution.singleFieldResult,
                                       resultValueOrNull, Nat.add_assoc]
                                       using hlaterVisit
@@ -923,8 +920,8 @@ theorem
                     (GraphQL.Execution.singleFieldResult responseName
                       (.error 1)) := by
                 simpa [GraphQL.Execution.executeField, hlookup,
-                  GraphQL.Execution.singleFieldResult] using
-                  hprefixAligned
+                  GraphQL.Execution.singleFieldResult]
+                  using hprefixAligned
               have htail :
                   visitSubfields schema resolvers variableValues
                     (completionDepth + 2) parentType source
@@ -962,21 +959,24 @@ theorem
                     (.error 1 : Result ResponseValue) := by
                 simp [ResponseValueResultAlignedEquivalent,
                   GraphQL.Execution.Result.combine, ErrorPresenceEquivalent]
-              simpa [GraphQL.Execution.executeField, hlookup,
-                executableFieldSelections, List.map_append,
-                GraphQL.Execution.singleFieldResult] using
-                visitSubfields_append_one_visit_aligned_of_complete
+              simpa [GraphQL.Execution.executeField, hlookup, executableFieldSelections,
+                List.map_append, GraphQL.Execution.singleFieldResult]
+                using visitSubfields_append_one_visit_aligned_of_complete
                   schema resolvers variableValues (completionDepth + 2)
                   parentType source
                   (executableFieldSelections responseName
-                    ({ fieldName := fieldName
-                       arguments := arguments
-                       selectionSet := selectionSet } ::
-                      fields))
+                    ({
+                        fieldName := fieldName
+                        arguments := arguments
+                        selectionSet := selectionSet
+                      }
+                      :: fields))
                   (executableFieldSelections responseName
-                    [{ fieldName := fieldName
-                       arguments := laterArguments
-                       selectionSet := laterSelectionSet }])
+                    [{
+                      fieldName := fieldName
+                      arguments := laterArguments
+                      selectionSet := laterSelectionSet
+                    }])
                   responseName (.error 1 : Result ResponseValue)
                   (.ok (.null, 0)) (.error 1 : Result ResponseValue)
                   hprefix htail haligned
@@ -996,8 +996,8 @@ theorem
                           (.object []))
                         (GraphQL.Execution.singleFieldResult responseName
                           (handleFieldError fieldDefinition.outputType)) := by
-                    simpa [GraphQL.Execution.executeField, hlookup,
-                      hresolveFirst] using hprefixAligned
+                    simpa [GraphQL.Execution.executeField, hlookup, hresolveFirst]
+                      using hprefixAligned
                   have htail :
                       visitSubfields schema resolvers variableValues
                         (completionDepth + 2) parentType source
@@ -1046,58 +1046,56 @@ theorem
                             ResponseValueResultAlignedEquivalent,
                             GraphQL.Execution.Result.combine,
                             ErrorPresenceEquivalent, mergeResponse]
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst, executableFieldSelections,
-                    List.map_append] using
-                    visitSubfields_append_one_visit_aligned_of_complete
+                  simpa [GraphQL.Execution.executeField, hlookup, hresolveFirst,
+                    executableFieldSelections, List.map_append]
+                    using visitSubfields_append_one_visit_aligned_of_complete
                       schema resolvers variableValues (completionDepth + 2)
                       parentType source
                       (executableFieldSelections responseName
-                        ({ fieldName := fieldName
-                           arguments := arguments
-                           selectionSet := selectionSet } ::
-                          fields))
+                        ({
+                            fieldName := fieldName
+                            arguments := arguments
+                            selectionSet := selectionSet
+                          }
+                          :: fields))
                       (executableFieldSelections responseName
-                        [{ fieldName := fieldName
-                           arguments := laterArguments
-                           selectionSet := laterSelectionSet }])
+                        [{
+                          fieldName := fieldName
+                          arguments := laterArguments
+                          selectionSet := laterSelectionSet
+                        }])
                       responseName (handleFieldError fieldDefinition.outputType)
                       (.ok (.null, 0))
                       (handleFieldError fieldDefinition.outputType)
                       hprefix htail haligned
               | some resolvedValue =>
-                  simpa [GraphQL.Execution.executeField, hlookup,
-                    hresolveFirst] using
-                    visitSubfields_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
-                      schema resolvers variableValues completionDepth
-                      parentType source responseName fieldName arguments
-                      laterArguments selectionSet laterSelectionSet fields
-                      fieldDefinition resolvedValue
-                      (by
-                        simpa [GraphQL.Execution.executeField, hlookup,
-                          hresolveFirst] using hprefixAligned)
-                      hlookup
-                      (by simpa using hresolveLater)
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hprefixChildren childDepth runtimeType identity
-                          hlt (by simpa using hcontains)
-                          (by
-                            simpa [Schema.fieldReturnType?, hlookup]
-                              using hincludes))
-                      (by
-                        intro childDepth runtimeType identity hlt hcontains
-                        exact hobjects childDepth runtimeType identity hlt
-                          (by simpa using hcontains))
-                      (by
-                        intro childDepth runtimeType identity hlt
-                          hcontains hincludes
-                        exact hchildren childDepth runtimeType identity hlt
-                          (by simpa using hcontains)
-                            (by
-                              simpa [Schema.fieldReturnType?, hlookup]
-                                using hincludes))
+                  simpa [GraphQL.Execution.executeField, hlookup, hresolveFirst]
+                    using
+                      visitSubfields_executableFieldSelections_append_one_visit_aligned_resolved_of_aligned_children
+                        schema resolvers variableValues completionDepth parentType source
+                        responseName fieldName arguments laterArguments selectionSet
+                        laterSelectionSet fields fieldDefinition resolvedValue
+                        (by
+                          simpa [GraphQL.Execution.executeField, hlookup, hresolveFirst]
+                            using hprefixAligned)
+                        hlookup
+                        (by simpa using hresolveLater)
+                        (by
+                          intro childDepth runtimeType identity hlt
+                            hcontains hincludes
+                          exact hprefixChildren childDepth runtimeType identity
+                            hlt (by simpa using hcontains)
+                            (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
+                        (by
+                          intro childDepth runtimeType identity hlt hcontains
+                          exact hobjects childDepth runtimeType identity hlt
+                            (by simpa using hcontains))
+                        (by
+                          intro childDepth runtimeType identity hlt
+                            hcontains hincludes
+                          exact hchildren childDepth runtimeType identity hlt
+                            (by simpa using hcontains)
+                            (by simpa [Schema.fieldReturnType?, hlookup] using hincludes))
 
 theorem ExecutableFieldsMergedResponse_append_one_of_prefix
     {ObjectIdentity : Type}
@@ -1199,22 +1197,21 @@ theorem ExecutableFieldsMergedResponse_append_one_of_prefix
         parentType source responseName field (fields ++ [later]) resolved := by
   apply ExecutableFieldsMergedResponse_of_raw schema resolvers variableValues
     depth parentType source responseName field (fields ++ [later]) resolved
-  exact
-    ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
-      variableValues depth parentType source responseName field fields later
-      resolved hprefixRaw hfieldName htailLookups hresolveFirst hresolveLater
-      (by
-        intro childDepth runtimeType identity hlt _hcontains hincludes
-        exact hprefixChildren childDepth runtimeType identity hlt hincludes)
-      (by
-        intro childDepth runtimeType identity hlt _hcontains
-        exact hobjects childDepth runtimeType identity hlt)
-      (by
-        intro childDepth runtimeType identity hlt _hcontains
-        exact herrors childDepth runtimeType identity hlt)
-      (by
-        intro childDepth runtimeType identity hlt _hcontains hincludes
-        exact hchildren childDepth runtimeType identity hlt hincludes)
+  exact ExecutableFieldsMergedRaw_append_one_of_prefix schema resolvers
+    variableValues depth parentType source responseName field fields later
+    resolved hprefixRaw hfieldName htailLookups hresolveFirst hresolveLater
+    (by
+      intro childDepth runtimeType identity hlt _hcontains hincludes
+      exact hprefixChildren childDepth runtimeType identity hlt hincludes)
+    (by
+      intro childDepth runtimeType identity hlt _hcontains
+      exact hobjects childDepth runtimeType identity hlt)
+    (by
+      intro childDepth runtimeType identity hlt _hcontains
+      exact herrors childDepth runtimeType identity hlt)
+    (by
+      intro childDepth runtimeType identity hlt _hcontains hincludes
+      exact hchildren childDepth runtimeType identity hlt hincludes)
 
 theorem ExecutableFieldsMergedComplete_append_one_of_prefix
     {ObjectIdentity : Type}

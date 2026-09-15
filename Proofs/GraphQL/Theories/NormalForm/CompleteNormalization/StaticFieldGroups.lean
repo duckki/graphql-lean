@@ -439,8 +439,7 @@ theorem mergedFieldSelectionSet_source_completeScoped_field_head_eq_staticFields
         arguments := arguments,
         selectionSet := selectionSet
       } :: sourceFields) :: sourceTail := by
-    simpa [eraseCompleteScopedSelectionSet, eraseCompleteScopedSelection]
-      using hcollect
+    simpa [eraseCompleteScopedSelectionSet, eraseCompleteScopedSelection] using hcollect
   simp [collectedResponseSelectionSet, hcollectRaw,
     completeScopedSelectionSetStaticFieldsWithResponseName, hallow,
     eraseCompleteScopedSelectionSet, eraseCompleteScopedSelection,
@@ -637,9 +636,8 @@ theorem
   have hnodup :
       executableGroupNamesNodup
         ((responseName, fields) :: sourceRest) := by
-    simpa [hcollect] using
-      collectFields_namesNodup schema variableValues
-        parentType source selectionSet
+    simpa [hcollect]
+      using collectFields_namesNodup schema variableValues parentType source selectionSet
   rw [hcollect] at hfilter
   exact hfilter.trans
     (GroundTypeNormalization.withoutExecutableGroupsWithResponseName_cons_self_of_namesNodup
@@ -1089,8 +1087,7 @@ theorem
           have hmapped :=
             congrArg (List.map Execution.selectionExecutableField)
               hnormalizedProjection
-          simpa [Execution.mergedFieldSelectionSet, List.map_append]
-            using hmapped.symm
+          simpa [Execution.mergedFieldSelectionSet, List.map_append] using hmapped.symm
         have hsourceProjectionMap :
             List.map Execution.selectionExecutableField
                 (selectionSet
@@ -1106,8 +1103,7 @@ theorem
           have hmapped :=
             congrArg (List.map Execution.selectionExecutableField)
               hsourceProjection
-          simpa [Execution.mergedFieldSelectionSet, List.map_append]
-            using hmapped.symm
+          simpa [Execution.mergedFieldSelectionSet, List.map_append] using hmapped.symm
         have hprojected :
             Execution.completeValue schema resolvers variableValues
                 (depth - 1) fieldDefinition.outputType
@@ -1133,18 +1129,13 @@ theorem
           simpa [hresolved] using hprojectedComplete
         rw [hnormalizedProjectionMap, hsourceProjectionMap] at hprojected
         simpa [List.map_append] using hprojected
-  exact
-    executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_case
-      schema resolvers variableValues operation depth lookupParent groundType
-      (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref) boolCase
-      responseName fieldName
-      arguments directives selectionSet rest fieldDefinition normalizedFields
-      sourceFields normalizedTail sourceTail hallow hlookup
-      (by
-        simpa [] using hnormalizedCollect)
-      (by
-        simpa [] using hsourceCollect)
-      hcomplete hfiltered
+  exact executeSelectionSet_filterSelectionSetBoolCase_field_allowed_lookup_some_duplicate_group_case
+    schema resolvers variableValues operation depth lookupParent groundType
+    (Execution.ResolverValue.object (ObjectRef := ObjectRef) groundType ref) boolCase
+    responseName fieldName arguments directives selectionSet rest fieldDefinition
+    normalizedFields sourceFields normalizedTail sourceTail hallow hlookup
+    (by simpa [] using hnormalizedCollect) (by simpa [] using hsourceCollect) hcomplete
+    hfiltered
 
 end CompleteNormalization
 

@@ -152,29 +152,35 @@ theorem completeSpineValue_composite_decompose
           have hincludes :
               schema.typeIncludesObjectBool typeName (plan 0 typeName) = true :=
             List.contains_iff_mem.mpr (hplan 0 typeName hpossible)
-          have hcaught := catchAnnotated_eq_ok_zero_of_error_positive
-            ((annotatedExecution_error_positive_all schema
-              (spineResolvers schema) variableValues).1 childFuel
-              (plan 0 typeName)
-              (.object (plan 0 typeName) plan.shift)
-              (collectSubfields schema variableValues (plan 0 typeName)
-                (.object (plan 0 typeName) plan.shift) fields))
-            (by simpa [completeAnnotatedResponseValue, spineResolverValue,
-                hcomposite, hruntime, hincludes]
-              using hresult)
+          have hcaught :=
+            catchAnnotated_eq_ok_zero_of_error_positive
+              ((annotatedExecution_error_positive_all schema
+                  (spineResolvers schema) variableValues).1
+                childFuel (plan 0 typeName) (.object (plan 0 typeName) plan.shift)
+                (collectSubfields schema variableValues (plan 0 typeName)
+                  (.object (plan 0 typeName) plan.shift) fields))
+              (by
+                simpa [completeAnnotatedResponseValue, spineResolverValue, hcomposite,
+                  hruntime, hincludes]
+                  using hresult)
           rcases hcaught with ⟨childFields, hchild, hvalue⟩
-          exact ⟨childFuel, childFields, hchild, by
-            simpa [wrapCompositeResponse, TypeRef.namedType] using hvalue⟩
+          exact ⟨
+            childFuel,
+            childFields,
+            hchild,
+            by simpa [wrapCompositeResponse, TypeRef.namedType] using hvalue
+          ⟩
   | list inner ih =>
       cases fuel with
       | zero => simp [completeAnnotatedResponseValue] at hresult
       | succ listFuel =>
-          have hcaught := catchAnnotated_eq_ok_zero_of_error_positive
-            ((annotatedExecution_error_positive_all schema
-              (spineResolvers schema) variableValues).2.2.2 listFuel inner
-              fields [spineResolverValue schema plan inner])
-            (by simpa [completeAnnotatedResponseValue, spineResolverValue]
-              using hresult)
+          have hcaught :=
+            catchAnnotated_eq_ok_zero_of_error_positive
+              ((annotatedExecution_error_positive_all schema
+                  (spineResolvers schema) variableValues).2.2.2
+                listFuel inner fields [spineResolverValue schema plan inner])
+              (by
+                simpa [completeAnnotatedResponseValue, spineResolverValue] using hresult)
           rcases hcaught with ⟨completedValues, hvalues, hresponse⟩
           simp only [completeAnnotatedResponseValueList] at hvalues
           change Result.combine List.cons
@@ -214,9 +220,12 @@ theorem completeSpineValue_composite_decompose
           rcases ih (innerFuel + 1) responseValue hinnerComposite (by
               simpa [TypeRef.namedType] using hpossible) hinner.1 with
             ⟨childFuel, childFields, hchild, hvalue⟩
-          exact ⟨childFuel, childFields, by
-            simpa [TypeRef.namedType] using hchild, by
-            simpa [wrapCompositeResponse, TypeRef.namedType] using hvalue⟩
+          exact ⟨
+            childFuel,
+            childFields,
+            by simpa [TypeRef.namedType] using hchild,
+            by simpa [wrapCompositeResponse, TypeRef.namedType] using hvalue
+          ⟩
 
 theorem executeAnnotatedCollectedFields_success_unique
     (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -509,9 +518,18 @@ private theorem spineSelectionIncludes_group_match
   subst originFields
   rcases hcall with ⟨_hparent, hfield, harguments⟩
   simp only [resolvedFieldProvenance] at hfield harguments
-  exact ⟨leftField, leftRest, rightField, rightRest, definition,
-    by simpa [plan] using horiginGroup, hrightFields, hfield,
-    harguments, hrightLookup⟩
+  exact ⟨
+    leftField,
+    leftRest,
+    rightField,
+    rightRest,
+    definition,
+    by simpa [plan] using horiginGroup,
+    hrightFields,
+    hfield,
+    harguments,
+    hrightLookup
+  ⟩
 
 private theorem spineSelectionIncludes_child
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
@@ -718,8 +736,9 @@ private theorem spineSelectionIncludes_child
         (.object childRuntimeType childPlan)
         (mergedFieldSelectionSet (leftField :: leftRest)))
       = .ok (actualLeftFields, 0) := by
-    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet,
-      htarget, hshift] using hactualLeft
+    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet, htarget,
+      hshift]
+      using hactualLeft
   have hactualRight' : executeQueryAnnotatedCollectedFields schema
       (spineResolvers schema) rightValues actualRightFuel
       childRuntimeType
@@ -728,8 +747,9 @@ private theorem spineSelectionIncludes_child
         (.object childRuntimeType childPlan)
         (mergedFieldSelectionSet (rightField :: rightRest)))
       = .ok (actualRightFields, 0) := by
-    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet,
-      htarget, hshift] using hactualRight
+    simpa [NormalForm.collectSubfields_eq_collectFields_mergedFieldSelectionSet, htarget,
+      hshift]
+      using hactualRight
   have hleftEq : leftResponseFields = actualLeftFields :=
     executeAnnotatedCollectedFields_success_unique schema
       (spineResolvers schema) leftValues childRuntimeType
@@ -934,8 +954,8 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           apply mergedSelectionSet_variables_within_of_group_mem schema rightValues
             runtimeType runtimeType rightSelectionSet
               (rightName, rightField :: rightRest) hrightGroup'
-          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-            hvariable
+          simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+            using hvariable
         have hchildCheck := ih leftValues rightValues childRuntimeType
             (mergedFieldSelectionSet (leftField :: leftRest))
             (mergedFieldSelectionSet (rightField :: rightRest))
@@ -944,8 +964,8 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
             hrightChildReady hrightChildCoercion hrightChildInhabited hrightChildMerge
             hchildIncludes hrightChildDepth
         rw [selectionSetIncludesBoolWithFuel.eq_def, List.all_eq_true] at hchildCheck
-        simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet] using
-          hchildCheck
+        simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
+          using hchildCheck
       · have hleaf : definition.outputType.isCompositeBool schema = false := by
           simpa using hcomposite
         simp [hleaf]

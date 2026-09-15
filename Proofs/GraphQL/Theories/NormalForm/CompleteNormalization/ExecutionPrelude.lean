@@ -261,7 +261,8 @@ theorem mergedFieldSelectionSet_staticCollect_field_head_eq_staticScopedFields
   simpa [normalizedSelectionSet, normalizedRest, normalizedField,
     fieldSelectionsWithResponseNameInScope_staticCollectForGround_scoped
       schema variables lookupParent lookupParent groundType responseName
-      boolCase rest] using hprojection
+      boolCase rest]
+    using hprojection
 
 theorem selectionsAllFields_append {left right : List Selection}
     : selectionsAllFields left
@@ -319,7 +320,8 @@ theorem staticCollectCompleteScopedSelectionSet_fields_no_directives
                   staticCollectCompleteScopedSelectionSet schema variables
                     groundType boolCase rest := by
             simpa [staticCollectCompleteScopedSelectionSet,
-              staticCollectCompleteScopedSelection] using hmem
+              staticCollectCompleteScopedSelection]
+              using hmem
           rcases hmem' with hhead | htail
           · rcases
               staticCollectForGround_field_shape schema variables
@@ -654,12 +656,11 @@ theorem executeSelectionSet_field_head_group_eq_of_completeValue
     · simpa [normalizedField, sourceField] using hcomplete
   simpa [Execution.executeSelectionSet, Execution.executeRootSelectionSet,
     hnormalizedCollect, hsourceCollect]
-    using
-      GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
-        schema resolvers variableValues depth parentType source
-        (responseName, normalizedField :: normalizedFields)
-        (responseName, sourceField :: sourceFields)
-        normalizedTail sourceTail hhead htail
+    using GroundTypeNormalization.executeCollectedFields_cons_eq_of_parts
+      schema resolvers variableValues depth parentType source
+      (responseName, normalizedField :: normalizedFields)
+      (responseName, sourceField :: sourceFields)
+      normalizedTail sourceTail hhead htail
 
 end CompleteNormalization
 
