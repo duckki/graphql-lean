@@ -12,8 +12,8 @@ open GraphQL.SelectionConditions
 
 /-- A conditioned source field has a common validated output type for every possible
 runtime parent retained by its condition. -/
-def FieldEntryDefinitionsCompatible (schema : Schema)
-    (entry : Condition × Selection) : Prop :=
+def FieldEntryDefinitionsCompatible (schema : Schema) (entry : Condition × Selection)
+    : Prop :=
   match entry.2 with
   | .field _responseName fieldName _arguments _directives _selectionSet =>
       ∃ expectedOutputType,
@@ -30,16 +30,17 @@ definition. This is proof-only provenance; executable condition-tree fields rema
 unchanged. -/
 def FieldEntryValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (entry : Condition × Selection) : Prop :=
+    (entry : Condition × Selection)
+    : Prop :=
   match entry.2 with
   | .field _responseName fieldName _arguments _directives selectionSet =>
       ∃ expectedDefinition,
-        ( ∀ parentType,
-            parentType ∈ entry.1.possibleTypes
-            -> ∃ implementation,
-                schema.lookupField parentType fieldName = some implementation
-                ∧ schema.outputTypeSubtype implementation.outputType
-                    expectedDefinition.outputType )
+        (∀ parentType,
+          parentType ∈ entry.1.possibleTypes
+          -> ∃ implementation,
+              schema.lookupField parentType fieldName = some implementation
+              ∧ schema.outputTypeSubtype implementation.outputType
+                  expectedDefinition.outputType)
         ∧ Validation.fieldSelectionSetValid schema variableDefinitions
             expectedDefinition selectionSet
   | .inlineFragment _typeCondition _directives _selectionSet => True
@@ -47,22 +48,24 @@ def FieldEntryValid (schema : Schema)
 /-- Every stored field in a condition tree retains its source validation witness. -/
 def TreeFieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (tree : ConditionTree.Tree) : Prop :=
-  ∀ entry, entry ∈ tree.fieldEntries ->
-    FieldEntryValid schema variableDefinitions entry
+    (tree : ConditionTree.Tree)
+    : Prop :=
+  ∀ entry, entry ∈ tree.fieldEntries -> FieldEntryValid schema variableDefinitions entry
 
 /-- Every occurrence in a collected group retains its source validation witness. -/
 def CollectedFieldGroup.FieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (group : CollectedFieldGroup) : Prop :=
-  ∀ selection, selection ∈ group.selections ->
-    FieldEntryValid schema variableDefinitions (group.condition, selection)
+    (group : CollectedFieldGroup)
+    : Prop :=
+  ∀ selection,
+    selection ∈ group.selections
+    -> FieldEntryValid schema variableDefinitions (group.condition, selection)
 
 theorem FieldEntryValid.definitionsCompatible
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {entry : Condition × Selection}
-    (hvalid : FieldEntryValid schema variableDefinitions entry) :
-    FieldEntryDefinitionsCompatible schema entry := by
+    (hvalid : FieldEntryValid schema variableDefinitions entry)
+    : FieldEntryDefinitionsCompatible schema entry := by
   cases entry with
   | mk condition selection =>
       cases selection with
@@ -77,7 +80,8 @@ def TreeDefinitionsCompatible (schema : Schema) (tree : ConditionTree.Tree) : Pr
 
 /-- One selected named field is valid throughout the current exact-case region. -/
 def NamedFieldDefinitionsCompatible (schema : Schema) (possibleTypes : List Name)
-    (field : ConditionTree.NamedField) : Prop :=
+    (field : ConditionTree.NamedField)
+    : Prop :=
   ∃ expectedOutputType,
     ∀ parentType,
       parentType ∈ possibleTypes
@@ -88,11 +92,10 @@ def NamedFieldDefinitionsCompatible (schema : Schema) (possibleTypes : List Name
 theorem FieldEntryDefinitionsCompatible.mono
     (schema : Schema) (condition : Condition) (field : ConditionTree.NamedField)
     (possibleTypes : List Name)
-    (hentry : FieldEntryDefinitionsCompatible schema
-      (condition, field.toSelection))
-    (hsubset : ∀ parentType, parentType ∈ possibleTypes
-      -> parentType ∈ condition.possibleTypes) :
-    NamedFieldDefinitionsCompatible schema possibleTypes field := by
+    (hentry : FieldEntryDefinitionsCompatible schema (condition, field.toSelection))
+    (hsubset
+      : ∀ parentType, parentType ∈ possibleTypes -> parentType ∈ condition.possibleTypes)
+    : NamedFieldDefinitionsCompatible schema possibleTypes field := by
   rcases hentry with ⟨expectedOutputType, hdefinitions⟩
   exact ⟨expectedOutputType, fun parentType hparent =>
     hdefinitions parentType (hsubset parentType hparent)⟩
@@ -101,9 +104,10 @@ theorem FieldEntryValid.mono
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (source target : Condition) (selection : Selection)
     (hvalid : FieldEntryValid schema variableDefinitions (source, selection))
-    (hsubset : ∀ parentType, parentType ∈ target.possibleTypes ->
-      parentType ∈ source.possibleTypes) :
-    FieldEntryValid schema variableDefinitions (target, selection) := by
+    (hsubset
+      : ∀ parentType,
+          parentType ∈ target.possibleTypes -> parentType ∈ source.possibleTypes)
+    : FieldEntryValid schema variableDefinitions (target, selection) := by
   cases selection with
   | field responseName fieldName arguments directives selectionSet =>
       rcases hvalid with ⟨definition, hdefinitions, hchildren⟩
@@ -112,9 +116,10 @@ theorem FieldEntryValid.mono
   | inlineFragment typeCondition directives selectionSet => trivial
 
 private theorem selection_mem_collectFieldGroups
-    (fields : List ConditionTree.NamedField) (selection : Selection) :
-    selection ∈ (ConditionTree.collectFieldGroups fields).flatMap
-        ConditionTree.FieldGroup.selections
+    (fields : List ConditionTree.NamedField) (selection : Selection)
+    : selection
+        ∈ (ConditionTree.collectFieldGroups fields).flatMap
+            ConditionTree.FieldGroup.selections
       ↔ selection ∈ fields.map ConditionTree.NamedField.toSelection := by
   unfold ConditionTree.collectFieldGroups
   have aux : ∀ (rest : List ConditionTree.NamedField)
@@ -138,12 +143,15 @@ representative chosen for each nonempty group. -/
 theorem fieldGroupsWithContext_definitionsCompatible
     (schema : Schema) (inherited : List BooleanLiteral) (condition : Condition)
     (fields : List ConditionTree.NamedField)
-    (hfields : ∀ field, field ∈ fields
-      -> NamedFieldDefinitionsCompatible schema condition.possibleTypes field) :
-    ∀ group,
-      group ∈ fieldGroupsWithContext inherited condition
-          (ConditionTree.collectFieldGroups fields)
-      -> group.FieldDefinitionsCompatible schema := by
+    (hfields
+      : ∀ field,
+          field ∈ fields
+          -> NamedFieldDefinitionsCompatible schema condition.possibleTypes field)
+    : ∀ group,
+        group
+          ∈ fieldGroupsWithContext inherited condition
+              (ConditionTree.collectFieldGroups fields)
+        -> group.FieldDefinitionsCompatible schema := by
   intro group hgroup
   unfold fieldGroupsWithContext at hgroup
   rcases List.mem_map.mp hgroup with ⟨sourceGroup, hsourceGroup, rfl⟩
@@ -175,12 +183,15 @@ theorem fieldGroupsWithContext_fieldsValid
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (inherited : List BooleanLiteral) (condition : Condition)
     (fields : List ConditionTree.NamedField)
-    (hfields : ∀ field, field ∈ fields ->
-      FieldEntryValid schema variableDefinitions (condition, field.toSelection)) :
-    ∀ group,
-      group ∈ fieldGroupsWithContext inherited condition
-          (ConditionTree.collectFieldGroups fields)
-      -> group.FieldsValid schema variableDefinitions := by
+    (hfields
+      : ∀ field,
+          field ∈ fields
+          -> FieldEntryValid schema variableDefinitions (condition, field.toSelection))
+    : ∀ group,
+        group
+          ∈ fieldGroupsWithContext inherited condition
+              (ConditionTree.collectFieldGroups fields)
+        -> group.FieldsValid schema variableDefinitions := by
   intro group hgroup selection hselection
   unfold fieldGroupsWithContext at hgroup
   rcases List.mem_map.mp hgroup with ⟨sourceGroup, hsourceGroup, rfl⟩
@@ -197,8 +208,8 @@ theorem fieldGroupsWithContext_fieldsValid
 theorem CollectedFieldGroup.FieldsValid.definitionsCompatible
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {group : CollectedFieldGroup}
-    (hvalid : group.FieldsValid schema variableDefinitions) :
-    group.FieldDefinitionsCompatible schema := by
+    (hvalid : group.FieldsValid schema variableDefinitions)
+    : group.FieldDefinitionsCompatible schema := by
   have hrepresentative :
       group.representativeField.toSelection group.responseName ∈ group.selections := by
     simp [CollectedFieldGroup.selections, CollectedFieldGroup.responseName,
@@ -211,9 +222,9 @@ theorem CollectedFieldGroup.FieldsValid.definitionsCompatible
 private theorem conditionForBranch?_possibleTypes_subset
     (schema : Schema) (inherited : List BooleanLiteral)
     (start target : Condition) (branch : BranchCondition)
-    (hresult : conditionForBranch? schema inherited start branch = some target) :
-    ∀ runtimeType,
-      runtimeType ∈ target.possibleTypes -> runtimeType ∈ start.possibleTypes := by
+    (hresult : conditionForBranch? schema inherited start branch = some target)
+    : ∀ runtimeType,
+        runtimeType ∈ target.possibleTypes -> runtimeType ∈ start.possibleTypes := by
   intro runtimeType hruntime
   cases branch with
   | typeCondition typeName =>
@@ -225,8 +236,8 @@ private theorem conditionForBranch?_possibleTypes_subset
         exact (List.mem_filter.mp hruntime).1
   | booleanLiteral literal =>
       simp only [conditionForBranch?] at hresult
-      cases hcandidate : canonicalBooleanCondition
-          (start.booleanCondition ++ [literal]) with
+      cases hcandidate
+            : canonicalBooleanCondition (start.booleanCondition ++ [literal]) with
       | none => simp [hcandidate] at hresult
       | some candidate =>
           let filtered := candidate.filter fun item => !inherited.contains item
@@ -245,9 +256,9 @@ private theorem conditionForBranch?_possibleTypes_subset
 private theorem conditionForBranches?_possibleTypes_subset
     (schema : Schema) (inherited : List BooleanLiteral)
     (start target : Condition) (branches : List BranchCondition)
-    (hresult : conditionForBranches? schema inherited start branches = some target) :
-    ∀ runtimeType,
-      runtimeType ∈ target.possibleTypes -> runtimeType ∈ start.possibleTypes := by
+    (hresult : conditionForBranches? schema inherited start branches = some target)
+    : ∀ runtimeType,
+        runtimeType ∈ target.possibleTypes -> runtimeType ∈ start.possibleTypes := by
   induction branches generalizing start with
   | nil =>
       simp [conditionForBranches?] at hresult
@@ -264,8 +275,8 @@ private theorem conditionForBranches?_possibleTypes_subset
             branch hnext runtimeType (ih next hresult runtimeType hruntime)
 
 private theorem parentTypeForBranches_map_booleanLiteral
-    (parentType : Name) (literals : List BooleanLiteral) :
-    parentTypeForBranches parentType (literals.map BranchCondition.booleanLiteral)
+    (parentType : Name) (literals : List BooleanLiteral)
+    : parentTypeForBranches parentType (literals.map BranchCondition.booleanLiteral)
       = parentType := by
   induction literals generalizing parentType with
   | nil => rfl
@@ -276,9 +287,8 @@ private theorem parentTypeForBranches_map_booleanLiteral
 private theorem parentTypeForInlineBranches_none
     (currentParentType : Name) (directives : List DirectiveApplication)
     (nextBranches : List BranchCondition)
-    (hbranches : branchConditionsForInlineFragment? none directives =
-      some nextBranches) :
-    parentTypeForBranches currentParentType nextBranches = currentParentType := by
+    (hbranches : branchConditionsForInlineFragment? none directives = some nextBranches)
+    : parentTypeForBranches currentParentType nextBranches = currentParentType := by
   cases hliterals : literalsForDirectives directives with
   | none => simp [branchConditionsForInlineFragment?, branchConditionsForDirectives?,
       hliterals] at hbranches
@@ -291,9 +301,10 @@ private theorem parentTypeForInlineBranches_none
 private theorem parentTypeForInlineBranches_some
     (currentParentType fragmentType : Name)
     (directives : List DirectiveApplication) (nextBranches : List BranchCondition)
-    (hbranches : branchConditionsForInlineFragment? (some fragmentType) directives =
-      some nextBranches) :
-    parentTypeForBranches currentParentType nextBranches = fragmentType := by
+    (hbranches
+      : branchConditionsForInlineFragment? (some fragmentType) directives
+        = some nextBranches)
+    : parentTypeForBranches currentParentType nextBranches = fragmentType := by
   cases hliterals : literalsForDirectives directives with
   | none => simp [branchConditionsForInlineFragment?, branchConditionsForDirectives?,
       hliterals] at hbranches
@@ -309,18 +320,20 @@ private theorem inlineBranches_possibleTypes_subset_parent
     (inherited : List BooleanLiteral) (currentCondition nextCondition : Condition)
     (typeCondition : Option Name) (directives : List DirectiveApplication)
     (nextBranches : List BranchCondition)
-    (hcurrent : ∀ runtimeType,
-      runtimeType ∈ currentCondition.possibleTypes
-        -> runtimeType ∈ schema.getPossibleTypes currentParentType)
-    (hbranches : branchConditionsForInlineFragment? typeCondition directives =
-      some nextBranches)
-    (hnext : conditionForBranches? schema inherited currentCondition nextBranches =
-      some nextCondition) :
-    ∀ runtimeType,
-      runtimeType ∈ nextCondition.possibleTypes
-        -> runtimeType ∈
-          schema.getPossibleTypes
-            (parentTypeForBranches currentParentType nextBranches) := by
+    (hcurrent
+      : ∀ runtimeType,
+          runtimeType ∈ currentCondition.possibleTypes
+          -> runtimeType ∈ schema.getPossibleTypes currentParentType)
+    (hbranches
+      : branchConditionsForInlineFragment? typeCondition directives = some nextBranches)
+    (hnext
+      : conditionForBranches? schema inherited currentCondition nextBranches
+        = some nextCondition)
+    : ∀ runtimeType,
+        runtimeType ∈ nextCondition.possibleTypes
+        -> runtimeType
+            ∈ schema.getPossibleTypes
+                (parentTypeForBranches currentParentType nextBranches) := by
   cases hliterals : literalsForDirectives directives with
   | none =>
       simp [branchConditionsForInlineFragment?, branchConditionsForDirectives?,
@@ -345,8 +358,9 @@ private theorem inlineBranches_possibleTypes_subset_parent
           subst nextBranches
           rw [hparent]
           rw [conditionForBranches?] at hnext
-          cases htype : conditionForBranch? schema inherited currentCondition
-              (.typeCondition fragmentType) with
+          cases htype
+                : conditionForBranch? schema inherited currentCondition
+                    (.typeCondition fragmentType) with
           | none => simp [htype] at hnext
           | some afterType =>
               rw [htype] at hnext
@@ -365,8 +379,8 @@ private theorem inlineBranches_possibleTypes_subset_parent
 -- which known-false pruning need not preserve.
 mutual
   def SelectionSourceValid (schema : Schema)
-      (variableDefinitions : List VariableDefinition) (parentType : Name) :
-      Selection -> Prop
+      (variableDefinitions : List VariableDefinition) (parentType : Name)
+      : Selection -> Prop
     | .field _responseName fieldName _arguments _directives selectionSet =>
         ∃ definition,
           schema.lookupField parentType fieldName = some definition
@@ -379,17 +393,18 @@ mutual
 
   def SelectionSetSourceValid (schema : Schema)
       (variableDefinitions : List VariableDefinition) (parentType : Name)
-      (selectionSet : List Selection) : Prop :=
-    ∀ selection, selection ∈ selectionSet ->
-      SelectionSourceValid schema variableDefinitions parentType selection
+      (selectionSet : List Selection)
+      : Prop :=
+    ∀ selection,
+      selection ∈ selectionSet
+      -> SelectionSourceValid schema variableDefinitions parentType selection
 end
 
 theorem SelectionSourceValid.of_selectionValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType : Name} {selection : Selection}
-    (hvalid : Validation.selectionValid schema variableDefinitions parentType
-      selection) :
-    SelectionSourceValid schema variableDefinitions parentType selection := by
+    (hvalid : Validation.selectionValid schema variableDefinitions parentType selection)
+    : SelectionSourceValid schema variableDefinitions parentType selection := by
   cases selection with
   | field responseName fieldName arguments directives selectionSet =>
       simp only [SelectionSourceValid]
@@ -420,9 +435,9 @@ theorem SelectionSourceValid.of_selectionValid
 theorem SelectionSetSourceValid.of_selectionSetValid
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {parentType : Name} {selectionSet : List Selection}
-    (hvalid : Validation.selectionSetValid schema variableDefinitions parentType
-      selectionSet) :
-    SelectionSetSourceValid schema variableDefinitions parentType selectionSet := by
+    (hvalid
+      : Validation.selectionSetValid schema variableDefinitions parentType selectionSet)
+    : SelectionSetSourceValid schema variableDefinitions parentType selectionSet := by
   unfold SelectionSetSourceValid
   unfold Validation.selectionSetValid at hvalid
   intro selection hselection
@@ -432,13 +447,15 @@ theorem SelectionSetSourceValid.of_selectionSetValid
 current condition's runtime region is contained in that parent's possible objects. -/
 def SelectionsValidForCondition (schema : Schema)
     (variableDefinitions : List VariableDefinition) (condition : Condition)
-    (selectionSet : List Selection) : Prop :=
-  ∀ selection, selection ∈ selectionSet ->
-    ∃ validationParent,
-      SelectionSourceValid schema variableDefinitions validationParent selection
-      ∧ ∀ runtimeType,
-          runtimeType ∈ condition.possibleTypes ->
-            runtimeType ∈ schema.getPossibleTypes validationParent
+    (selectionSet : List Selection)
+    : Prop :=
+  ∀ selection,
+    selection ∈ selectionSet
+    -> ∃ validationParent,
+        SelectionSourceValid schema variableDefinitions validationParent selection
+        ∧ ∀ runtimeType,
+            runtimeType ∈ condition.possibleTypes
+            -> runtimeType ∈ schema.getPossibleTypes validationParent
 
 mutual
   theorem collectConditionEntries_fieldsValid
@@ -447,12 +464,14 @@ mutual
       (inherited : List BooleanLiteral) (currentCondition : Condition)
       (selectionSet : List Selection)
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
-      (hsources : SelectionsValidForCondition schema variableDefinitions
-        currentCondition selectionSet) :
-      ∀ entry,
-        entry ∈ collectConditionEntries schema currentParentType inherited
-            currentCondition selectionSet
-        -> FieldEntryValid schema variableDefinitions entry := by
+      (hsources
+        : SelectionsValidForCondition schema variableDefinitions
+            currentCondition selectionSet)
+      : ∀ entry,
+          entry
+            ∈ collectConditionEntries schema currentParentType inherited
+                currentCondition selectionSet
+          -> FieldEntryValid schema variableDefinitions entry := by
     cases selectionSet with
     | nil => simp [collectConditionEntries]
     | cons selection rest =>
@@ -474,8 +493,9 @@ mutual
                   currentParentType inherited currentCondition rest hschema hrest
                   entry hentry
             | some nextBranches =>
-                cases hnext : conditionForBranches? schema inherited currentCondition
-                    nextBranches with
+                cases hnext
+                      : conditionForBranches? schema inherited currentCondition
+                          nextBranches with
                 | none =>
                     simp [hbranches, hnext] at hentry
                     exact collectConditionEntries_fieldsValid schema variableDefinitions
@@ -507,15 +527,17 @@ mutual
         | inlineFragment typeCondition directives childSelectionSet =>
             intro entry hentry
             rw [collectConditionEntries] at hentry
-            cases hbranches : branchConditionsForInlineFragment? typeCondition directives with
+            cases hbranches
+                  : branchConditionsForInlineFragment? typeCondition directives with
             | none =>
                 simp [hbranches] at hentry
                 exact collectConditionEntries_fieldsValid schema variableDefinitions
                   currentParentType inherited currentCondition rest hschema hrest
                   entry hentry
             | some nextBranches =>
-                cases hnext : conditionForBranches? schema inherited currentCondition
-                    nextBranches with
+                cases hnext
+                      : conditionForBranches? schema inherited currentCondition
+                          nextBranches with
                 | none =>
                     simp [hbranches, hnext] at hentry
                     exact collectConditionEntries_fieldsValid schema variableDefinitions
@@ -570,13 +592,15 @@ mutual
       (selectionSet : List Selection)
       (hschema : SchemaWellFormedness.schemaWellFormed schema)
       (hlookup : NormalForm.selectionSetLookupValid schema currentParentType selectionSet)
-      (hcurrent : ∀ runtimeType,
-        runtimeType ∈ currentCondition.possibleTypes
-          -> runtimeType ∈ schema.getPossibleTypes currentParentType) :
-      ∀ entry,
-        entry ∈ collectConditionEntries schema currentParentType inherited
-            currentCondition selectionSet
-        -> FieldEntryDefinitionsCompatible schema entry := by
+      (hcurrent
+        : ∀ runtimeType,
+            runtimeType ∈ currentCondition.possibleTypes
+            -> runtimeType ∈ schema.getPossibleTypes currentParentType)
+      : ∀ entry,
+          entry
+            ∈ collectConditionEntries schema currentParentType inherited
+                currentCondition selectionSet
+          -> FieldEntryDefinitionsCompatible schema entry := by
     cases selectionSet with
     | nil => simp [collectConditionEntries]
     | cons selection rest =>
@@ -593,8 +617,9 @@ mutual
                   currentParentType inherited currentCondition rest hschema htail
                   hcurrent entry hentry
             | some nextBranches =>
-                cases hnext : conditionForBranches? schema inherited currentCondition
-                    nextBranches with
+                cases hnext
+                      : conditionForBranches? schema inherited currentCondition
+                          nextBranches with
                 | none =>
                     simp [hbranches, hnext] at hentry
                     exact collectConditionEntries_definitionsCompatible schema
@@ -626,15 +651,17 @@ mutual
         | inlineFragment typeCondition directives childSelectionSet =>
             intro entry hentry
             rw [collectConditionEntries] at hentry
-            cases hbranches : branchConditionsForInlineFragment? typeCondition directives with
+            cases hbranches
+                  : branchConditionsForInlineFragment? typeCondition directives with
             | none =>
                 simp [hbranches] at hentry
                 exact collectConditionEntries_definitionsCompatible schema
                   currentParentType inherited currentCondition rest hschema htail
                   hcurrent entry hentry
             | some nextBranches =>
-                cases hnext : conditionForBranches? schema inherited currentCondition
-                    nextBranches with
+                cases hnext
+                      : conditionForBranches? schema inherited currentCondition
+                          nextBranches with
                 | none =>
                     simp [hbranches, hnext] at hentry
                     exact collectConditionEntries_definitionsCompatible schema
@@ -674,11 +701,11 @@ mutual
 end
 
 theorem selectionSetLookupValid_pruneKnownFalseSelections
-    (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name) :
-    ∀ selectionSet,
-      NormalForm.selectionSetLookupValid schema parentType selectionSet
-      -> NormalForm.selectionSetLookupValid schema parentType
-          (pruneKnownFalseSelections variableValues selectionSet)
+    (schema : Schema) (variableValues : Execution.VariableValues) (parentType : Name)
+    : ∀ selectionSet,
+        NormalForm.selectionSetLookupValid schema parentType selectionSet
+        -> NormalForm.selectionSetLookupValid schema parentType
+            (pruneKnownFalseSelections variableValues selectionSet)
   | [], hlookup => by simpa [pruneKnownFalseSelections] using hlookup
   | selection :: rest, hlookup => by
       have hhead := NormalForm.selectionSetLookupValid_head hlookup
@@ -722,20 +749,20 @@ theorem selectionSetLookupValid_pruneKnownFalseSelections
                   variableValues parentType rest htail
               unfold NormalForm.selectionSetLookupValid at htailPruned
               exact htailPruned candidate hrest
-  termination_by selectionSet => SelectionSet.size selectionSet
-  decreasing_by
-    all_goals
-      simp_wf
-      simp_all [SelectionSet.size, Selection.size]
-      omega
+termination_by selectionSet => SelectionSet.size selectionSet
+decreasing_by
+  all_goals
+    simp_wf
+    simp_all [SelectionSet.size, Selection.size]
+    omega
 
 theorem SelectionSetSourceValid.pruneKnownFalseSelections
     (schema : Schema) (variableDefinitions : List VariableDefinition)
-    (variableValues : Execution.VariableValues) (parentType : Name) :
-    ∀ selectionSet,
-      SelectionSetSourceValid schema variableDefinitions parentType selectionSet
-      -> SelectionSetSourceValid schema variableDefinitions parentType
-          (pruneKnownFalseSelections variableValues selectionSet)
+    (variableValues : Execution.VariableValues) (parentType : Name)
+    : ∀ selectionSet,
+        SelectionSetSourceValid schema variableDefinitions parentType selectionSet
+        -> SelectionSetSourceValid schema variableDefinitions parentType
+            (pruneKnownFalseSelections variableValues selectionSet)
   | [], _hvalid => by
       simp [GraphQL.ConditionTree.pruneKnownFalseSelections,
         SelectionSetSourceValid]
@@ -798,11 +825,10 @@ theorem ofSelectionSetInScope_fieldsValid
     (parentType : Name) (inherited : List BooleanLiteral)
     (selectionSet : List Selection)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hvalid : SelectionSetSourceValid schema variableDefinitions parentType
-      selectionSet) :
-    TreeFieldsValid schema variableDefinitions
-      (ConditionTree.ofSelectionSetInScope schema parentType inherited
-        selectionSet) := by
+    (hvalid : SelectionSetSourceValid schema variableDefinitions parentType selectionSet)
+    : TreeFieldsValid schema variableDefinitions
+        (ConditionTree.ofSelectionSetInScope schema parentType inherited
+          selectionSet) := by
   intro entry hentry
   rw [ofSelectionSetInScope_fieldEntries_mem schema parentType inherited selectionSet]
     at hentry
@@ -821,11 +847,10 @@ theorem ofSelectionSetInScopeWithKnownFalsePruning_fieldsValid
     (parentType : Name) (inherited : List BooleanLiteral)
     (variableValues : Execution.VariableValues) (selectionSet : List Selection)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hvalid : SelectionSetSourceValid schema variableDefinitions parentType
-      selectionSet) :
-    TreeFieldsValid schema variableDefinitions
-      (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
-        inherited variableValues selectionSet) := by
+    (hvalid : SelectionSetSourceValid schema variableDefinitions parentType selectionSet)
+    : TreeFieldsValid schema variableDefinitions
+        (ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning schema parentType
+          inherited variableValues selectionSet) := by
   unfold ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning
   exact ofSelectionSetInScope_fieldsValid schema variableDefinitions parentType
     inherited _ hschema
@@ -834,11 +859,11 @@ theorem ofSelectionSetInScopeWithKnownFalsePruning_fieldsValid
 
 theorem SelectionsValidForCondition.pruneKnownFalseSelections
     (schema : Schema) (variableDefinitions : List VariableDefinition)
-    (variableValues : Execution.VariableValues) (condition : Condition) :
-    ∀ selectionSet,
-      SelectionsValidForCondition schema variableDefinitions condition selectionSet
-      -> SelectionsValidForCondition schema variableDefinitions condition
-          (ConditionTree.pruneKnownFalseSelections variableValues selectionSet)
+    (variableValues : Execution.VariableValues) (condition : Condition)
+    : ∀ selectionSet,
+        SelectionsValidForCondition schema variableDefinitions condition selectionSet
+        -> SelectionsValidForCondition schema variableDefinitions condition
+            (ConditionTree.pruneKnownFalseSelections variableValues selectionSet)
   | [], _hvalid => by
       simp [GraphQL.ConditionTree.pruneKnownFalseSelections,
         SelectionsValidForCondition]
@@ -901,13 +926,15 @@ theorem CollectedFieldGroup.mergedSelectionSet_validForImplementation
     (definition : FieldDefinition)
     (hvalid : group.FieldsValid schema variableDefinitions)
     (hparent : runtimeParent ∈ group.condition.possibleTypes)
-    (hfieldNames : ∀ field, field ∈ group.fields ->
-      field.fieldName = group.representativeField.fieldName)
-    (hlookup : schema.lookupField runtimeParent
-      group.representativeField.fieldName = some definition) :
-    SelectionsValidForCondition schema variableDefinitions
-      (rootCondition schema definition.outputType.namedType)
-      group.mergedSelectionSet := by
+    (hfieldNames
+      : ∀ field,
+          field ∈ group.fields -> field.fieldName = group.representativeField.fieldName)
+    (hlookup
+      : schema.lookupField runtimeParent group.representativeField.fieldName
+        = some definition)
+    : SelectionsValidForCondition schema variableDefinitions
+        (rootCondition schema definition.outputType.namedType)
+        group.mergedSelectionSet := by
   intro selection hselection
   unfold CollectedFieldGroup.mergedSelectionSet
     ConditionTree.FieldGroup.mergedSelectionSet
@@ -958,13 +985,15 @@ theorem CollectedFieldGroup.childTreeWithKnownFalsePruning_fieldsValid
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hvalid : group.FieldsValid schema variableDefinitions)
     (hparent : runtimeParent ∈ group.condition.possibleTypes)
-    (hfieldNames : ∀ field, field ∈ group.fields ->
-      field.fieldName = group.representativeField.fieldName)
-    (hlookup : schema.lookupField runtimeParent
-      group.representativeField.fieldName = some definition) :
-    TreeFieldsValid schema variableDefinitions
-      (group.childTreeWithKnownFalsePruning schema definition.outputType.namedType
-        variableValues) := by
+    (hfieldNames
+      : ∀ field,
+          field ∈ group.fields -> field.fieldName = group.representativeField.fieldName)
+    (hlookup
+      : schema.lookupField runtimeParent group.representativeField.fieldName
+        = some definition)
+    : TreeFieldsValid schema variableDefinitions
+        (group.childTreeWithKnownFalsePruning schema definition.outputType.namedType
+          variableValues) := by
   unfold CollectedFieldGroup.childTreeWithKnownFalsePruning
   intro entry hentry
   unfold ConditionTree.ofSelectionSetInScopeWithKnownFalsePruning at hentry
@@ -989,11 +1018,12 @@ theorem ofSelectionSetInScope_fieldEntries_definitionsCompatible
     (schema : Schema) (parentType : Name) (inherited : List BooleanLiteral)
     (selectionSet : List Selection)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hlookup : NormalForm.selectionSetLookupValid schema parentType selectionSet) :
-    ∀ entry,
-      entry ∈ (ConditionTree.ofSelectionSetInScope schema parentType inherited
-          selectionSet).fieldEntries
-      -> FieldEntryDefinitionsCompatible schema entry := by
+    (hlookup : NormalForm.selectionSetLookupValid schema parentType selectionSet)
+    : ∀ entry,
+        entry
+          ∈ (ConditionTree.ofSelectionSetInScope schema parentType inherited
+              selectionSet).fieldEntries
+        -> FieldEntryDefinitionsCompatible schema entry := by
   intro entry hentry
   rw [ofSelectionSetInScope_fieldEntries_mem schema parentType inherited selectionSet]
     at hentry

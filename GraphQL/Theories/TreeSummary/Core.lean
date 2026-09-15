@@ -132,8 +132,8 @@ def FieldDefinitionsCompatible (schema : Schema) (group : CollectedFieldGroup) :
     ∀ parentType,
       parentType ∈ group.condition.possibleTypes
       -> ∃ implementation,
-          schema.lookupField parentType group.representativeField.fieldName =
-            some implementation
+          schema.lookupField parentType group.representativeField.fieldName
+            = some implementation
           ∧ schema.outputTypeSubtype implementation.outputType expectedOutputType
 
 end CollectedFieldGroup

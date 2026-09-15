@@ -47,7 +47,8 @@ def fieldListMultiplier (schema : Schema) (listSize : Nat) (group : CollectedFie
 original `fieldListMultiplier` definition, retained to state the shortcut's correctness
 theorem. -/
 def fieldListMultiplierForAllDefinitions (schema : Schema) (listSize : Nat)
-    (group : CollectedFieldGroup) : Nat :=
+    (group : CollectedFieldGroup)
+    : Nat :=
   (group.fieldOutputTypes schema).foldl
     (fun multiplier outputType =>
       max multiplier (listMultiplier listSize outputType))

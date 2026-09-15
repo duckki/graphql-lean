@@ -236,33 +236,36 @@ def StaticGroupsValid (variableValues : VariableValues) (runtimeType : Name)
 
 private def StaticGroupsFieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (groups : List CollectedFieldGroup) : Prop :=
+    (groups : List CollectedFieldGroup)
+    : Prop :=
   ∀ group, group ∈ groups -> group.FieldsValid schema variableDefinitions
 
 private theorem StaticGroupsFieldsValid.perm
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {left right : List CollectedFieldGroup}
     (hvalid : StaticGroupsFieldsValid schema variableDefinitions left)
-    (hperm : left.Perm right) :
-    StaticGroupsFieldsValid schema variableDefinitions right := by
+    (hperm : left.Perm right)
+    : StaticGroupsFieldsValid schema variableDefinitions right := by
   intro group hgroup
   exact hvalid group (hperm.mem_iff.mpr hgroup)
 
 private def ActiveTreesFieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
     (inheritedBooleanCondition : List BooleanLiteral)
-    (region : PossibleTypeRegion) (trees : List Tree) : Prop :=
-  ∀ tree, tree ∈ trees ->
-    TreeFieldsValid schema variableDefinitions tree
-    ∧ (∀ runtimeType, runtimeType ∈ region ->
-        runtimeType ∈ tree.condition.possibleTypes)
-    ∧ tree.BranchesCoherent schema inheritedBooleanCondition
+    (region : PossibleTypeRegion) (trees : List Tree)
+    : Prop :=
+  ∀ tree,
+    tree ∈ trees
+    -> TreeFieldsValid schema variableDefinitions tree
+        ∧ (∀ runtimeType,
+            runtimeType ∈ region -> runtimeType ∈ tree.condition.possibleTypes)
+        ∧ tree.BranchesCoherent schema inheritedBooleanCondition
 
 private theorem branchFieldEntries_mem_of_body
     (branches : List (Branch Tree)) (branch : Branch Tree)
     (hbranch : branch ∈ branches) (entry : Condition × Selection)
-    (hentry : entry ∈ branch.body.fieldEntries) :
-    entry ∈ branchFieldEntries branches := by
+    (hentry : entry ∈ branch.body.fieldEntries)
+    : entry ∈ branchFieldEntries branches := by
   induction branches with
   | nil => simp at hbranch
   | cons head rest ih =>
@@ -273,12 +276,12 @@ private theorem branchFieldEntries_mem_of_body
 private theorem conditionForBooleanBranch_possibleTypes
     (schema : Schema) (inherited : List BooleanLiteral)
     (source target : Condition) (literal : BooleanLiteral)
-    (hcondition : conditionForBranch? schema inherited source
-      (.booleanLiteral literal) = some target) :
-    target.possibleTypes = source.possibleTypes := by
+    (hcondition
+      : conditionForBranch? schema inherited source (.booleanLiteral literal)
+        = some target)
+    : target.possibleTypes = source.possibleTypes := by
   simp only [conditionForBranch?] at hcondition
-  cases hcandidate : canonicalBooleanCondition
-      (source.booleanCondition ++ [literal]) with
+  cases hcandidate : canonicalBooleanCondition (source.booleanCondition ++ [literal]) with
   | none => simp [hcandidate] at hcondition
   | some candidate =>
       rw [hcandidate] at hcondition
@@ -299,13 +302,15 @@ private theorem selectedChildren_fieldsValid
     (inherited : List BooleanLiteral) (parentCondition : Condition)
     (region : PossibleTypeRegion) (variableValues : VariableValues)
     (branches : List (Branch Tree))
-    (hfields : ∀ branch, branch ∈ branches ->
-      TreeFieldsValid schema variableDefinitions branch.body)
-    (hregion : ∀ runtimeType, runtimeType ∈ region ->
-      runtimeType ∈ parentCondition.possibleTypes)
-    (hcoherent : branchesCoherent schema inherited parentCondition branches) :
-    ActiveTreesFieldsValid schema variableDefinitions inherited region
-      (CaseForest.selectedChildren region variableValues branches) := by
+    (hfields
+      : ∀ branch,
+          branch ∈ branches -> TreeFieldsValid schema variableDefinitions branch.body)
+    (hregion
+      : ∀ runtimeType,
+          runtimeType ∈ region -> runtimeType ∈ parentCondition.possibleTypes)
+    (hcoherent : branchesCoherent schema inherited parentCondition branches)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited region
+        (CaseForest.selectedChildren region variableValues branches) := by
   induction branches with
   | nil => simp [CaseForest.selectedChildren, ActiveTreesFieldsValid]
   | cons branch rest ih =>
@@ -351,9 +356,9 @@ private theorem resolveActiveTrees_fieldsValid
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (inherited : List BooleanLiteral) (region : PossibleTypeRegion)
     (variableValues : VariableValues) (trees : List Tree)
-    (hvalid : ActiveTreesFieldsValid schema variableDefinitions inherited region trees) :
-    ActiveTreesFieldsValid schema variableDefinitions inherited region
-      (CaseForest.resolveActiveTrees region variableValues trees) := by
+    (hvalid : ActiveTreesFieldsValid schema variableDefinitions inherited region trees)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited region
+        (CaseForest.resolveActiveTrees region variableValues trees) := by
   induction trees with
   | nil => simp [CaseForest.resolveActiveTrees, ActiveTreesFieldsValid]
   | cons tree rest ih =>
@@ -393,8 +398,8 @@ private theorem ActiveTreesFieldsValid.mono
     {inherited : List BooleanLiteral} {source target : PossibleTypeRegion}
     {trees : List Tree}
     (hvalid : ActiveTreesFieldsValid schema variableDefinitions inherited source trees)
-    (hsubset : ∀ runtimeType, runtimeType ∈ target -> runtimeType ∈ source) :
-    ActiveTreesFieldsValid schema variableDefinitions inherited target trees := by
+    (hsubset : ∀ runtimeType, runtimeType ∈ target -> runtimeType ∈ source)
+    : ActiveTreesFieldsValid schema variableDefinitions inherited target trees := by
   intro tree htree
   rcases hvalid tree htree with ⟨hfields, hregion, hcoherent⟩
   exact ⟨hfields, fun runtimeType hruntime =>
@@ -406,13 +411,15 @@ private theorem resolve_fieldsValid
     (parentType : Name) (inherited : List BooleanLiteral)
     (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
-    (hvalid : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
-      possibleTypes tree.activeTrees)
-    (hruntime : runtimeType ∈ possibleTypes) :
-    let resolved := CaseForestRuntimeCase.resolve parentType inherited tree
-      possibleTypes runtimeType variableValues
-    ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
-      resolved.possibleTypes resolved.tree.activeTrees := by
+    (hvalid
+      : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+          possibleTypes tree.activeTrees)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : let resolved :=
+        CaseForestRuntimeCase.resolve parentType inherited tree
+          possibleTypes runtimeType variableValues
+      ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+        resolved.possibleTypes resolved.tree.activeTrees := by
   rw [CaseForestRuntimeCase.resolve.eq_1]
   split <;> rename_i hbranches
   · let region := CaseForestRuntimeCase.chooseTypeRegion runtimeType possibleTypes
@@ -445,13 +452,15 @@ private theorem runtimeCaseGroups_fieldsValid
     (parentType : Name) (inherited coherenceInherited : List BooleanLiteral)
     (tree : CaseForest) (possibleTypes : PossibleTypeRegion)
     (runtimeType : Name) (variableValues : VariableValues)
-    (hvalid : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
-      possibleTypes tree.activeTrees)
-    (hruntime : runtimeType ∈ possibleTypes) :
-    ∀ group,
-      group ∈ CaseForestRuntimeCase.fieldGroups parentType inherited tree
-        possibleTypes runtimeType variableValues
-      -> group.FieldsValid schema variableDefinitions := by
+    (hvalid
+      : ActiveTreesFieldsValid schema variableDefinitions coherenceInherited
+          possibleTypes tree.activeTrees)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : ∀ group,
+        group
+          ∈ CaseForestRuntimeCase.fieldGroups parentType inherited tree
+              possibleTypes runtimeType variableValues
+        -> group.FieldsValid schema variableDefinitions := by
   intro group hgroup
   unfold CaseForestRuntimeCase.fieldGroups at hgroup
   let resolved := CaseForestRuntimeCase.resolve parentType inherited tree possibleTypes
@@ -495,11 +504,13 @@ theorem conditionTreeRuntimeCaseGroups_fieldsValidWithCoherence
     (runtimeType : Name) (variableValues : VariableValues)
     (hfields : TreeFieldsValid schema variableDefinitions tree)
     (hcoherent : tree.BranchesCoherent schema coherenceInherited)
-    (hruntime : runtimeType ∈ tree.condition.possibleTypes) :
-    ∀ group,
-      group ∈ CaseForestRuntimeCase.fieldGroups parentType resolveInherited
-        (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
-      -> group.FieldsValid schema variableDefinitions := by
+    (hruntime : runtimeType ∈ tree.condition.possibleTypes)
+    : ∀ group,
+        group
+          ∈ CaseForestRuntimeCase.fieldGroups parentType resolveInherited
+              (.ofConditionTree tree) tree.condition.possibleTypes runtimeType
+              variableValues
+        -> group.FieldsValid schema variableDefinitions := by
   apply runtimeCaseGroups_fieldsValid schema variableDefinitions parentType
     resolveInherited coherenceInherited (.ofConditionTree tree)
     tree.condition.possibleTypes runtimeType variableValues
@@ -517,11 +528,12 @@ theorem conditionTreeRuntimeCaseGroups_fieldsValid
     (runtimeType : Name) (variableValues : VariableValues)
     (hfields : TreeFieldsValid schema variableDefinitions tree)
     (hcoherent : tree.BranchesCoherent schema inherited)
-    (hruntime : runtimeType ∈ tree.condition.possibleTypes) :
-    ∀ group,
-      group ∈ CaseForestRuntimeCase.fieldGroups parentType inherited
-        (.ofConditionTree tree) tree.condition.possibleTypes runtimeType variableValues
-      -> group.FieldsValid schema variableDefinitions :=
+    (hruntime : runtimeType ∈ tree.condition.possibleTypes)
+    : ∀ group,
+        group
+          ∈ CaseForestRuntimeCase.fieldGroups parentType inherited (.ofConditionTree tree)
+              tree.condition.possibleTypes runtimeType variableValues
+        -> group.FieldsValid schema variableDefinitions :=
   conditionTreeRuntimeCaseGroups_fieldsValidWithCoherence schema variableDefinitions
     parentType inherited inherited tree runtimeType variableValues hfields hcoherent
     hruntime
@@ -992,8 +1004,8 @@ private theorem fieldName_eq_representative_of_mapped_perm
     (group : CollectedFieldGroup) (fields : List ExecutableField)
     (field : Field) (hfield : field ∈ group.fields)
     (hfields : group.toExecutableGroup.2.Perm fields)
-    (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields) :
-    field.fieldName = group.representativeField.fieldName := by
+    (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields)
+    : field.fieldName = group.representativeField.fieldName := by
   let executable : ExecutableField :=
     { fieldName := field.fieldName
       arguments := field.arguments

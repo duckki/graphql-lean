@@ -506,8 +506,7 @@ theorem listMultiplier_eq_of_outputTypeSubtype (schema : Schema) (listSize : Nat
 private theorem foldlListMultiplier_eq_of_nonempty_constant (listSize value : Nat)
     (outputTypes : List TypeRef) (accumulator : Nat)
     (hnonempty : outputTypes ≠ [])
-    (hconstant : ∀ outputType ∈ outputTypes,
-      listMultiplier listSize outputType = value)
+    (hconstant : ∀ outputType ∈ outputTypes, listMultiplier listSize outputType = value)
     : outputTypes.foldl
         (fun maximum outputType =>
           max maximum (listMultiplier listSize outputType))
@@ -533,20 +532,21 @@ theorem fieldListMultiplierForAllDefinitions_eq_forDefinition
     (schema : Schema) (listSize : Nat)
     (group : CollectedFieldGroup) (definition : FieldDefinition)
     (hnonempty : group.condition.possibleTypes ≠ [])
-    (hruntime : ∀ parentType ∈ group.condition.possibleTypes,
-      ∃ implementation,
-        schema.lookupField parentType group.representativeField.fieldName =
-          some implementation
-        ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
-    : fieldListMultiplierForAllDefinitions schema listSize group =
-        fieldListMultiplierForDefinition listSize definition := by
+    (hruntime
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          ∃ implementation,
+            schema.lookupField parentType group.representativeField.fieldName
+              = some implementation
+            ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
+    : fieldListMultiplierForAllDefinitions schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
   have houtputNonempty : group.fieldOutputTypes schema ≠ [] := by
     cases hpossible : group.condition.possibleTypes with
     | nil => exact (hnonempty hpossible).elim
     | cons parentType rest =>
-      rcases hruntime parentType (by simp [hpossible]) with
-        ⟨implementation, hlookup, _hsubtype⟩
-      simp [CollectedFieldGroup.fieldOutputTypes, hpossible, hlookup]
+        rcases hruntime parentType (by simp [hpossible]) with
+          ⟨implementation, hlookup, _hsubtype⟩
+        simp [CollectedFieldGroup.fieldOutputTypes, hpossible, hlookup]
   have hconstant : ∀ outputType ∈ group.fieldOutputTypes schema,
       listMultiplier listSize outputType =
         listMultiplier listSize definition.outputType := by
@@ -567,13 +567,14 @@ possible runtime implementation is covariant. -/
 theorem fieldListMultiplier_eq_forDefinition (schema : Schema) (listSize : Nat)
     (group : CollectedFieldGroup) (definition : FieldDefinition)
     (hnonempty : group.condition.possibleTypes ≠ [])
-    (hruntime : ∀ parentType ∈ group.condition.possibleTypes,
-      ∃ implementation,
-        schema.lookupField parentType group.representativeField.fieldName =
-          some implementation
-        ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
-    : fieldListMultiplier schema listSize group =
-        fieldListMultiplierForDefinition listSize definition := by
+    (hruntime
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          ∃ implementation,
+            schema.lookupField parentType group.representativeField.fieldName
+              = some implementation
+            ∧ schema.outputTypeSubtype implementation.outputType definition.outputType)
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
   cases hpossible : group.condition.possibleTypes with
   | nil => exact (hnonempty hpossible).elim
   | cons parentType rest =>
@@ -591,8 +592,8 @@ theorem fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier
     (group : CollectedFieldGroup)
     (hnonempty : group.condition.possibleTypes ≠ [])
     (hcompatible : group.FieldDefinitionsCompatible schema)
-    : fieldListMultiplierForAllDefinitions schema listSize group =
-        fieldListMultiplier schema listSize group := by
+    : fieldListMultiplierForAllDefinitions schema listSize group
+      = fieldListMultiplier schema listSize group := by
   rcases hcompatible with ⟨expectedOutputType, hruntime⟩
   let definition : FieldDefinition :=
     { name := group.representativeField.fieldName, outputType := expectedOutputType }
@@ -607,13 +608,15 @@ theorem fieldListMultiplier_eq_forDefinition_of_schemaWellFormed
     (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
     (staticParentType : Name) (definition : FieldDefinition)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hdefinition : schema.lookupField staticParentType
-      group.representativeField.fieldName = some definition)
-    (hpossible : ∀ parentType ∈ group.condition.possibleTypes,
-      parentType ∈ schema.getPossibleTypes staticParentType)
+    (hdefinition
+      : schema.lookupField staticParentType group.representativeField.fieldName
+        = some definition)
+    (hpossible
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          parentType ∈ schema.getPossibleTypes staticParentType)
     (hnonempty : group.condition.possibleTypes ≠ [])
-    : fieldListMultiplier schema listSize group =
-        fieldListMultiplierForDefinition listSize definition := by
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition := by
   apply fieldListMultiplier_eq_forDefinition schema listSize group definition hnonempty
   intro parentType hparentType
   have hparentPossible := hpossible parentType hparentType
@@ -658,8 +661,8 @@ private theorem listMultiplier_le_foldl_of_mem (listSize : Nat)
 theorem listMultiplier_le_fieldListMultiplierForAllDefinitions
     (schema : Schema) (listSize : Nat)
     (group : CollectedFieldGroup) (outputType : TypeRef)
-    (hmem : outputType ∈ group.fieldOutputTypes schema) :
-    listMultiplier listSize outputType
+    (hmem : outputType ∈ group.fieldOutputTypes schema)
+    : listMultiplier listSize outputType
       ≤ fieldListMultiplierForAllDefinitions schema listSize group := by
   exact listMultiplier_le_foldl_of_mem listSize outputType
     (group.fieldOutputTypes schema) 1 hmem
@@ -683,8 +686,8 @@ theorem max_one_listMultiplier_le_fieldListMultiplierForAllDefinitions
 theorem max_one_listMultiplier_le_fieldListMultiplier
     (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
     (outputType : TypeRef) (hmem : outputType ∈ group.fieldOutputTypes schema)
-    (hcompatible : group.FieldDefinitionsCompatible schema) :
-    max 1 (listMultiplier listSize outputType)
+    (hcompatible : group.FieldDefinitionsCompatible schema)
+    : max 1 (listMultiplier listSize outputType)
       ≤ fieldListMultiplier schema listSize group := by
   have hnonempty : group.condition.possibleTypes ≠ [] := by
     intro hempty

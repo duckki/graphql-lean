@@ -18,7 +18,8 @@ universe u v
 
 private def GroupsFieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (groups : List CollectedFieldGroup) : Prop :=
+    (groups : List CollectedFieldGroup)
+    : Prop :=
   ∀ group, group ∈ groups -> group.FieldsValid schema variableDefinitions
 
 theorem Soundness.singleFieldResult_sound
@@ -34,8 +35,7 @@ theorem Soundness.singleFieldResult_sound
     (hnonempty : groups ≠ [])
     (hconditions : conditionsAllowGroupsAt variableValues parentType groups)
     (hmatch : groupsRepresentField groups field)
-    (hdefinitions : ∀ group, group ∈ groups ->
-      group.FieldDefinitionsCompatible schema)
+    (hdefinitions : ∀ group, group ∈ groups -> group.FieldDefinitionsCompatible schema)
     (hcompleted
       : soundness.approximates (foldAnnotatedResponseValueResult concrete completed)
           (foldChildSummaryForValueResult abstract
@@ -116,8 +116,8 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups
                 (fields.map fun field => (responseName, field))
             -> groupsRepresentFields schema variableValues parentType runtimeType
-              (.object runtimeType ref) groups
-              (fields.map fun field => (responseName, field))
+                (.object runtimeType ref) groups
+                (fields.map fun field => (responseName, field))
             -> GroupsFieldsValid schema variableDefinitions groups
             -> soundness.approximates
                 (foldAnnotatedResponseFieldsResult concrete
@@ -138,8 +138,8 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups
                 (fields.map fun field => (responseName, field))
             -> groupsRepresentFields schema variableValues runtimeType runtimeType
-              (.object runtimeType ref) groups
-              (fields.map fun field => (responseName, field))
+                (.object runtimeType ref) groups
+                (fields.map fun field => (responseName, field))
             -> GroupsFieldsValid schema variableDefinitions groups
             -> soundness.approximates
                 (foldAnnotatedResponseValueResult concrete
@@ -163,8 +163,8 @@ private theorem annotatedResponseExecution_related_all
                 (.object runtimeType ref) groups
                 (fields.map fun field => (responseName, field))
             -> groupsRepresentFields schema variableValues runtimeType runtimeType
-              (.object runtimeType ref) groups
-              (fields.map fun field => (responseName, field))
+                (.object runtimeType ref) groups
+                (fields.map fun field => (responseName, field))
             -> GroupsFieldsValid schema variableDefinitions groups
             -> soundness.approximates
                 (foldAnnotatedResponseValuesResult concrete

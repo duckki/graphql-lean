@@ -271,11 +271,12 @@ private theorem stringOutputTypeSubtypeSelf
 
 private theorem multiplierRuntimeDefinitionsCovariant
     : ∀ parentType ∈ multiplierGroup.condition.possibleTypes,
-      ∃ implementation,
-        multiplierSchema.lookupField parentType
-            multiplierGroup.representativeField.fieldName = some implementation
-        ∧ multiplierSchema.outputTypeSubtype implementation.outputType
-            multiplierStaticDefinition.outputType := by
+        ∃ implementation,
+          multiplierSchema.lookupField parentType
+              multiplierGroup.representativeField.fieldName
+            = some implementation
+          ∧ multiplierSchema.outputTypeSubtype implementation.outputType
+              multiplierStaticDefinition.outputType := by
   intro parentType hparentType
   have hparent : parentType = "A" ∨ parentType = "B" := by
     simpa [multiplierGroup] using hparentType
@@ -289,13 +290,13 @@ private theorem multiplierRuntimeDefinitionsCovariant
     · simpa [multiplierImplementationB, multiplierStaticDefinition,
         Schema.outputTypeSubtype] using stringOutputTypeSubtypeSelf
 
-private theorem multiplierDefinitionsCompatible :
-    multiplierGroup.FieldDefinitionsCompatible multiplierSchema :=
+private theorem multiplierDefinitionsCompatible
+    : multiplierGroup.FieldDefinitionsCompatible multiplierSchema :=
   ⟨multiplierStaticDefinition.outputType, multiplierRuntimeDefinitionsCovariant⟩
 
-theorem fieldListMultiplierReferenceEquivalenceSmoke :
-    fieldListMultiplierForAllDefinitions multiplierSchema 3 multiplierGroup =
-      fieldListMultiplier multiplierSchema 3 multiplierGroup := by
+theorem fieldListMultiplierReferenceEquivalenceSmoke
+    : fieldListMultiplierForAllDefinitions multiplierSchema 3 multiplierGroup
+      = fieldListMultiplier multiplierSchema 3 multiplierGroup := by
   apply fieldListMultiplierForAllDefinitions_eq_fieldListMultiplier
   · simp [multiplierGroup]
   · exact multiplierDefinitionsCompatible
@@ -303,8 +304,8 @@ theorem fieldListMultiplierReferenceEquivalenceSmoke :
 -- The old scan and the definition-based shortcut agree for multiple runtime parents,
 -- duplicate output definitions, and strengthened nullability at several wrapper levels.
 theorem fieldListMultiplierDefinitionShortcutSmoke
-    : fieldListMultiplier multiplierSchema 3 multiplierGroup =
-        fieldListMultiplierForDefinition 3 multiplierStaticDefinition := by
+    : fieldListMultiplier multiplierSchema 3 multiplierGroup
+      = fieldListMultiplierForDefinition 3 multiplierStaticDefinition := by
   apply fieldListMultiplier_eq_forDefinition
   · simp [multiplierGroup]
   · exact multiplierRuntimeDefinitionsCovariant
@@ -319,16 +320,18 @@ theorem fieldListMultiplierDefinitionBoundarySmoke
 
 theorem singularFieldListMultiplierDefinitionSmoke
     : fieldListMultiplierForDefinition 3
-        ({ name := "value", outputType := .named "String" } : FieldDefinition) = 1 := by
+        ({ name := "value", outputType := .named "String" } : FieldDefinition)
+      = 1 := by
   native_decide
 
 -- Covariance may also narrow the named output while preserving the enclosing list
 -- shape; the proof does not require equality of the names.
 theorem covariantNamedOutputsPreserveListMultiplierSmoke (schema : Schema)
-    (hsubtype : schema.outputTypeSubtype
-      (.list (.named "Implementation")) (.list (.named "Expected")))
-    : listMultiplier 3 (.list (.named "Implementation")) =
-        listMultiplier 3 (.list (.named "Expected")) :=
+    (hsubtype
+      : schema.outputTypeSubtype
+          (.list (.named "Implementation")) (.list (.named "Expected")))
+    : listMultiplier 3 (.list (.named "Implementation"))
+      = listMultiplier 3 (.list (.named "Expected")) :=
   listMultiplier_eq_of_outputTypeSubtype schema 3 hsubtype
 
 def emptyMultiplierGroup : CollectedFieldGroup :=
@@ -348,13 +351,15 @@ theorem fieldListMultiplierSchemaCorollaryApiSmoke
     (schema : Schema) (listSize : Nat) (group : CollectedFieldGroup)
     (staticParentType : Name) (definition : FieldDefinition)
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (hdefinition : schema.lookupField staticParentType
-      group.representativeField.fieldName = some definition)
-    (hpossible : ∀ parentType ∈ group.condition.possibleTypes,
-      parentType ∈ schema.getPossibleTypes staticParentType)
+    (hdefinition
+      : schema.lookupField staticParentType group.representativeField.fieldName
+        = some definition)
+    (hpossible
+      : ∀ parentType ∈ group.condition.possibleTypes,
+          parentType ∈ schema.getPossibleTypes staticParentType)
     (hnonempty : group.condition.possibleTypes ≠ [])
-    : fieldListMultiplier schema listSize group =
-        fieldListMultiplierForDefinition listSize definition :=
+    : fieldListMultiplier schema listSize group
+      = fieldListMultiplierForDefinition listSize definition :=
   fieldListMultiplier_eq_forDefinition_of_schemaWellFormed schema listSize group
     staticParentType definition hschema hdefinition hpossible hnonempty
 

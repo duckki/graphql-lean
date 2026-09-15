@@ -208,9 +208,10 @@ theorem traversedCollectedGroup_fieldsValid
     (parentType : Name) (inheritedBooleanCondition : List BooleanLiteral)
     (tree : Tree) (traversal : Traversal) (group : CollectedFieldGroup)
     (htree : TreeFieldsValid schema variableDefinitions tree)
-    (hgroup : group ∈ traversedCollectedGroups parentType
-      inheritedBooleanCondition tree traversal) :
-    group.FieldsValid schema variableDefinitions := by
+    (hgroup
+      : group
+        ∈ traversedCollectedGroups parentType inheritedBooleanCondition tree traversal)
+    : group.FieldsValid schema variableDefinitions := by
   intro selection hselection
   have hshape := traversedCollectedGroup_shape parentType inheritedBooleanCondition
     tree traversal group hgroup
@@ -222,11 +223,13 @@ theorem traversedCollectedGroup_definitionsCompatible
     (schema : Schema) (parentType : Name)
     (inheritedBooleanCondition : List BooleanLiteral)
     (tree : Tree) (traversal : Traversal) (group : CollectedFieldGroup)
-    (htree : ∀ entry, entry ∈ tree.fieldEntries
-      -> FieldEntryDefinitionsCompatible schema entry)
-    (hgroup : group ∈ traversedCollectedGroups parentType
-      inheritedBooleanCondition tree traversal) :
-    group.FieldDefinitionsCompatible schema := by
+    (htree
+      : ∀ entry,
+          entry ∈ tree.fieldEntries -> FieldEntryDefinitionsCompatible schema entry)
+    (hgroup
+      : group
+        ∈ traversedCollectedGroups parentType inheritedBooleanCondition tree traversal)
+    : group.FieldDefinitionsCompatible schema := by
   have hshape := traversedCollectedGroup_shape parentType inheritedBooleanCondition
     tree traversal group hgroup
   have hrepresentative :

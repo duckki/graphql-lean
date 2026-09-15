@@ -222,7 +222,8 @@ def StaticGroupsValid (variableValues : VariableValues) (runtimeType : Name)
 
 private def StaticGroupsFieldsValid (schema : Schema)
     (variableDefinitions : List VariableDefinition)
-    (groups : List CollectedFieldGroup) : Prop :=
+    (groups : List CollectedFieldGroup)
+    : Prop :=
   ∀ group, group ∈ groups -> group.FieldsValid schema variableDefinitions
 
 theorem runtimeCaseGroups_valid
@@ -246,12 +247,13 @@ private theorem CaseTrace.fieldGroups_fieldsValid_of_emptyInherited
     (schema : Schema) (variableDefinitions : List VariableDefinition)
     (inherited : List BooleanLiteral) (scope : PossibleTypes)
     (runtimeType : Name) (trace : CaseTrace.Trace)
-    (hvalid : ∀ group,
-      group ∈ CaseTrace.fieldGroups [] scope runtimeType trace ->
-        group.FieldsValid schema variableDefinitions) :
-    ∀ group,
-      group ∈ CaseTrace.fieldGroups inherited scope runtimeType trace ->
-        group.FieldsValid schema variableDefinitions := by
+    (hvalid
+      : ∀ group,
+          group ∈ CaseTrace.fieldGroups [] scope runtimeType trace
+          -> group.FieldsValid schema variableDefinitions)
+    : ∀ group,
+        group ∈ CaseTrace.fieldGroups inherited scope runtimeType trace
+        -> group.FieldsValid schema variableDefinitions := by
   intro group hgroup
   unfold CaseTrace.fieldGroups at hgroup
   unfold fieldGroupsWithContext at hgroup
@@ -274,11 +276,12 @@ private theorem runtimeCaseGroups_fieldsValid
     (runtimeType : Name) (variableValues : VariableValues)
     (hfields : TreeFieldsValid schema variableDefinitions tree)
     (hcoherent : tree.BranchesCoherent schema inherited)
-    (hruntime : runtimeType ∈ tree.condition.possibleTypes) :
-    ∀ group,
-      group ∈ RuntimeCase.fieldGroups inherited (.ofConditionTree tree)
-        tree.condition.possibleTypes runtimeType variableValues
-      -> group.FieldsValid schema variableDefinitions := by
+    (hruntime : runtimeType ∈ tree.condition.possibleTypes)
+    : ∀ group,
+        group
+          ∈ RuntimeCase.fieldGroups inherited (.ofConditionTree tree)
+              tree.condition.possibleTypes runtimeType variableValues
+        -> group.FieldsValid schema variableDefinitions := by
   have hcursor := RuntimeCase.fieldGroups_eq_trace inherited (.ofConditionTree tree)
     tree.condition.possibleTypes runtimeType variableValues hruntime
   have hforest := CaseForestRuntimeCase.fieldGroups_eq_trace parentType []
@@ -345,8 +348,8 @@ private theorem StaticGroupsFieldsValid.perm
     {schema : Schema} {variableDefinitions : List VariableDefinition}
     {left right : List CollectedFieldGroup}
     (hvalid : StaticGroupsFieldsValid schema variableDefinitions left)
-    (hperm : left.Perm right) :
-    StaticGroupsFieldsValid schema variableDefinitions right := by
+    (hperm : left.Perm right)
+    : StaticGroupsFieldsValid schema variableDefinitions right := by
   intro group hgroup
   exact hvalid group (hperm.mem_iff.mpr hgroup)
 
@@ -749,8 +752,8 @@ private theorem fieldName_eq_representative_of_mapped_perm
     (group : CollectedFieldGroup) (fields : List ExecutableField)
     (field : Field) (hfield : field ∈ group.fields)
     (hfields : group.toExecutableGroup.2.Perm fields)
-    (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields) :
-    field.fieldName = group.representativeField.fieldName := by
+    (hcompatible : ExecutableFieldsFieldValidationMergeCompatible fields)
+    : field.fieldName = group.representativeField.fieldName := by
   let executable : ExecutableField :=
     { fieldName := field.fieldName
       arguments := field.arguments
