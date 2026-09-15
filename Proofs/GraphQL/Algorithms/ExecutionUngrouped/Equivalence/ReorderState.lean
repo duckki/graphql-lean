@@ -35,9 +35,9 @@ theorem visitFieldSliceFold_succ_single_empty_eq_object
               parentType
               source field
           )] := by
-    simp [visitFieldSliceFold, visitFieldSlice, visitFieldSliceResult,
-      responseFieldSlice, mergeResponseFieldResult, mergeResponseFieldIntoObject,
-      mergeResponseField, responseObjectField?, lookupResponseField?]
+  simp [visitFieldSliceFold, visitFieldSlice, visitFieldSliceResult,
+    responseFieldSlice, mergeResponseFieldResult, mergeResponseFieldIntoObject,
+    mergeResponseField, responseObjectField?, lookupResponseField?]
 
 namespace ExecutedGroupedSelectionSetState
 

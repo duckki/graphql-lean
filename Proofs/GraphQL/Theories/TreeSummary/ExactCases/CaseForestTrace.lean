@@ -57,8 +57,8 @@ private theorem frontierBooleanLiterals_append (variableValues : VariableValues)
 
 private theorem perm_move_left (left middle right : List α)
     : (left ++ (middle ++ right)).Perm (middle ++ (left ++ right)) := by
-  simpa [List.append_assoc] using
-    List.Perm.append_right right (List.perm_append_comm (l₁ := left) (l₂ := middle))
+  simpa [List.append_assoc]
+    using List.Perm.append_right right (List.perm_append_comm (l₁ := left) (l₂ := middle))
 
 private theorem booleanConditionAllows_singleton
     (variableValues : VariableValues) (literal : BooleanLiteral)
@@ -233,9 +233,9 @@ private theorem ofBranches_typeConditions
               have hselected : branchSelected variableValues runtimeType branch = false :=
                 hhead.symm.trans hvalue
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierTypeConditions, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                List.Perm.cons branch.body.condition.possibleTypes hih
+                frontierTypeConditions, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using List.Perm.cons branch.body.condition.possibleTypes hih
           | true =>
               have hselected : branchSelected variableValues runtimeType branch = true :=
                 hhead.symm.trans hvalue
@@ -249,9 +249,9 @@ private theorem ofBranches_typeConditions
                   (ofTrees variableValues runtimeType
                     (CaseForest.selectedChildren possibleTypes variableValues rest)).typeConditions)
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierTypeConditions, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                hfirst.trans hsecond
+                frontierTypeConditions, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using hfirst.trans hsecond
       | booleanLiteral literal =>
           simp only [hcondition] at hhead
           cases hvalue : booleanConditionAllows variableValues [literal] with
@@ -272,9 +272,9 @@ private theorem ofBranches_typeConditions
                 (ofTrees variableValues runtimeType
                   (CaseForest.selectedChildren possibleTypes variableValues rest)).typeConditions
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierTypeConditions, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                hfirst.trans hsecond
+                frontierTypeConditions, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using hfirst.trans hsecond
 
 private theorem ofBranches_booleanLiterals
     (variableValues : VariableValues) (runtimeType : Name)
@@ -330,9 +330,9 @@ private theorem ofBranches_booleanLiterals
                 (ofTrees variableValues runtimeType
                   (CaseForest.selectedChildren possibleTypes variableValues rest)).booleanLiterals
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierBooleanLiterals, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                hfirst.trans hsecond
+                frontierBooleanLiterals, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using hfirst.trans hsecond
       | booleanLiteral literal =>
           simp only [hcondition] at hhead
           cases hvalue : booleanConditionAllows variableValues [literal] with
@@ -340,9 +340,10 @@ private theorem ofBranches_booleanLiterals
               have hselected : branchSelected variableValues runtimeType branch = false :=
                 hhead.symm.trans hvalue
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierBooleanLiterals, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                List.Perm.cons (selectedLiteral variableValues literal.variableName) hih
+                frontierBooleanLiterals, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using List.Perm.cons (selectedLiteral variableValues literal.variableName)
+                  hih
           | true =>
               have hselected : branchSelected variableValues runtimeType branch = true :=
                 hhead.symm.trans hvalue
@@ -358,9 +359,9 @@ private theorem ofBranches_booleanLiterals
                   (ofTrees variableValues runtimeType
                     (CaseForest.selectedChildren possibleTypes variableValues rest)).booleanLiterals)
               simpa [ofBranches, ofTrees, CaseForest.selectedChildren,
-                frontierBooleanLiterals, branchObservation, hcondition, hvalue,
-                hselected, Trace.append, Trace.empty, List.append_assoc] using
-                hfirst.trans hsecond
+                frontierBooleanLiterals, branchObservation, hcondition, hvalue, hselected,
+                Trace.append, Trace.empty, List.append_assoc]
+                using hfirst.trans hsecond
 
 private theorem ofTrees_namedFields
     (variableValues : VariableValues) (runtimeType : Name)
@@ -734,10 +735,12 @@ theorem resolveBranches_typeFree
     change (ofTrees variableValues runtimeType forest.activeTrees).typeConditions = [] at htypes
     rw [htypes] at htypesPerm
     exact (List.Perm.nil_eq htypesPerm).symm
-  exact ⟨htypeBranches,
+  exact ⟨
+    htypeBranches,
     by simpa [ofForest, CaseForest.resolveBranches] using hnamed,
     hnextTypes,
-    by simpa [ofForest, CaseForest.resolveBranches, CaseForest.branches] using hbooleans⟩
+    by simpa [ofForest, CaseForest.resolveBranches, CaseForest.branches] using hbooleans
+  ⟩
 
 private theorem frontierBooleanLiterals_eq_map
     (variableValues : VariableValues) (branches : List (Branch Tree))

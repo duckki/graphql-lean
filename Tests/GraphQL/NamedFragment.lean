@@ -194,17 +194,16 @@ theorem undefinedFragmentOperationRejectedSmoke
       _hfragmentsAcyclic, _hfragmentDefinitionsUsed,
       _hfragmentDefinitionsValid, _hselectionNonempty, hselectionValid, _hmerge,
       _hvariablesUsed⟩
-  have hrootFieldValid :
-      GraphQL.NamedFragment.Validation.selectionValid Execution.sampleSchema
-        undefinedFragmentOperation.variableDefinitions
-        undefinedFragmentOperation.fragmentDefinitions
-        (undefinedFragmentOperation.rootType Execution.sampleSchema)
-        (.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []]) :=
-    by
-      unfold GraphQL.NamedFragment.Validation.selectionSetValid at hselectionValid
-      exact hselectionValid
-        (.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []])
-        (by simp [undefinedFragmentOperation])
+  have hrootFieldValid
+      : GraphQL.NamedFragment.Validation.selectionValid Execution.sampleSchema
+          undefinedFragmentOperation.variableDefinitions
+          undefinedFragmentOperation.fragmentDefinitions
+          (undefinedFragmentOperation.rootType Execution.sampleSchema)
+          (.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []]) := by
+    unfold GraphQL.NamedFragment.Validation.selectionSetValid at hselectionValid
+    exact hselectionValid
+      (.field "mainHero" "hero" [] [] [.fragmentSpread "MissingFragment" []])
+      (by simp [undefinedFragmentOperation])
   simp [undefinedFragmentOperation,
     GraphQL.NamedFragment.Validation.selectionValid,
     GraphQL.NamedFragment.Validation.fieldSelectionSetValid,

@@ -248,11 +248,11 @@ theorem executeSelectionSet_boolCaseBranchesForGround_runtime
               (staticCollectForGround schema
                 (operationBoolVars operation) groundType groundType
                 runtimeCase selectionSet) := by
-    intro hruntime hagrees
-    apply executeSelectionSet_eq_of_collectFields_eq
-    exact collectFields_boolCaseBranchesForGround_runtime schema
-      variableValues operation groundType source runtimeCase selectionSet
-      hruntime hagrees
+  intro hruntime hagrees
+  apply executeSelectionSet_eq_of_collectFields_eq
+  exact collectFields_boolCaseBranchesForGround_runtime schema
+    variableValues operation groundType source runtimeCase selectionSet
+    hruntime hagrees
 
 end CompleteNormalization
 
