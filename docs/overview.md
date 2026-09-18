@@ -35,6 +35,10 @@ a public correctness statement is not itself a proof.
   defaults and composite-output inhabitance after validation.
 - **Named fragments:** fragment-aware syntax, validation, execution, and translation
   to the core operation model.
+- **Incremental delivery:** a separate draft model for `@defer` and `@stream`,
+  with explicit scheduling assumptions and observable-response correctness
+  statements. See [incremental delivery](incremental-delivery.md) for its target,
+  design, specification correspondence, and proof status.
 - **Alternative execution strategies:** algorithms whose behavior is compared with
   the specification-facing executor. See [algorithms](algorithms.md).
 - **Query transformations and comparisons:** [normal forms](theories/normal-form.md)

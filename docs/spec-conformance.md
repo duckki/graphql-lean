@@ -2,10 +2,12 @@
 
 The main model targets the
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
+A separate incremental-delivery model targets
+[PR #1110, revision 045e193](https://github.com/graphql/graphql-spec/tree/045e19363c2b55f127960bd3b5e8072a15b29aec).
 
 This page records coverage and exclusions, not full-spec conformance or proof
 completion. Representation details and specification mappings are documented in
-[execution](execution.md).
+[execution](execution.md) and [incremental delivery](incremental-delivery.md).
 
 ## Main model: covered
 
@@ -44,6 +46,36 @@ Not covered:
 - Asynchronous resolver effects, host scheduling, resolver context, and resolver
   information metadata.
 - Schema extensions and type-system extension syntax.
+
+## Incremental-delivery draft: covered
+
+The separate draft model shares the main schema, input, resolver, and response
+abstractions. It covers:
+
+- Inline-fragment `@defer`, field `@stream`, directive conditions and labels,
+  aliases, runtime type conditions, and overlapping deferred selections.
+- Deferred field grouping and shared work, initial list prefixes, and subsequent
+  streamed items.
+- Initial and subsequent responses, pending IDs, patches, completion notices,
+  batching, counted errors, and modeled failure/cancellation.
+- Alternative finite work schedules, interrupted observations, and completed runs,
+  under an explicit model-supplied scheduler contract.
+
+The draft leaves scheduler behavior underspecified. The additional scheduler
+contract is a proposed model contribution, not a claim of literal specification
+coverage.
+
+## Incremental-delivery draft: assumptions and exclusions
+
+The main model's exclusions also apply. In addition:
+
+- Incremental validation and named-fragment delivery are not implemented.
+- Directive placement/types, non-repeatability, literal unique labels, and
+  non-overlapping streamed field selections are assumed valid.
+- Stream execution includes a model extension for steps absent from the pinned draft.
+- Effectful resolvers, infinite sources, real-time availability, fairness, host
+  future termination, and external transport cancellation are not modeled.
+- Optional coalescing of later updates into the initial response is not modeled.
 
 ## Conformance checks: coverage boundary
 

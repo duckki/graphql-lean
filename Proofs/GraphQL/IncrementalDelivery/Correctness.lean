@@ -1,0 +1,67 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler
+import Proofs.GraphQL.IncrementalDelivery.Correctness.RootExecution
+import Proofs.GraphQL.IncrementalDelivery.Correctness.Observation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.InputObservation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceObservation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceRealization
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryObservation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.Query
+import Proofs.GraphQL.IncrementalDelivery.Correctness.IDUsageProperties
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LifecycleProperties
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LifecycleControl
+import Proofs.GraphQL.IncrementalDelivery.Correctness.ResponseMerging
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryIdentity
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryLifecycle
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SuccessfulWork
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SourcePositions
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceTaskProvenance
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamCoordinates
+import Proofs.GraphQL.IncrementalDelivery.Correctness.HistoryStreamCursors
+import Proofs.GraphQL.IncrementalDelivery.Correctness.HistoryAbsolutePositions
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryDisjointness
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QuerySourceCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryReconstruction
+import Proofs.GraphQL.IncrementalDelivery.Correctness.PublicationCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
+import Proofs.GraphQL.IncrementalDelivery.Correctness.OwnerAvailability
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.NestedStreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamContinuation
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferredStreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferredPhase
+import Proofs.GraphQL.IncrementalDelivery.Correctness.InitialDeferredExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.RootSingletonExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SingletonDeferDependencies
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferDependencies
+import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeMetadata
+import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeExtension
+import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedProgressEvents
+import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryOutcomeExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.SingletonDeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRootSingletonExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QuerySingletonDeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryDeferExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
+import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryStreamExistence
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastKeyProgress
+import Proofs.GraphQL.IncrementalDelivery.Correctness.LeafCoverage
+import Proofs.GraphQL.IncrementalDelivery.Correctness.NoticeMetadata
+import Proofs.GraphQL.IncrementalDelivery.Correctness.PatchPositions
+import Proofs.GraphQL.IncrementalDelivery.Correctness.PositionComposition
+
+/-! Rebuilt correctness witnesses for the direct-result, opaque-source interface.
+Finite input replay connects source observations to independently admitted work histories.
+Stable allocation and grouped replay derive public ID uniqueness, finite-run liveness,
+and exactly-once completion. Open references and final-marker control now also yield
+public ID safety and full lifecycle validity. Source ownership, causal attachment, and
+typed reconstruction prove disjointness, basic-position coverage, exactly-once leaves,
+and successful merging to the ordinary response. Generated mixed-work progress also
+supplies complete-outcome existence. All public correctness statements have witnesses
+without adding response-correctness or progress premises to scheduler admission.
+-/

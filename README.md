@@ -91,9 +91,13 @@ lake build
 
 ## Documentation
 
-- [docs/overview.md](docs/overview.md): module map and architecture overview.
+- [docs/overview.md](docs/overview.md): project introduction and architecture.
 - [docs/spec-conformance.md](docs/spec-conformance.md): implemented
   spec-conformance scope and out-of-scope boundaries.
+- [docs/execution.md](docs/execution.md): main execution model, shared abstractions,
+  and specification correspondence.
+- [docs/incremental-delivery.md](docs/incremental-delivery.md): draft execution model,
+  specification mapping, scheduler contract, correctness statements, and proof status.
 - [docs/algorithms.md](docs/algorithms.md): algorithmic alternatives to the
   spec-facing executor and their proof status.
 - [docs/theories/query-inclusion.md](docs/theories/query-inclusion.md): query-inclusion

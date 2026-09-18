@@ -1,0 +1,31 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Causality
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.EventAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureCauses
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SpecificationSource
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Nonblocking
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.PublicationExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FiniteHistories
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.TaskReadiness
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Minimality
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Independence
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.GroupAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeFrontiers
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SingletonOwners
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.ReleasedStreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.EventLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.BatchLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.References
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Termination
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Publication
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.PublicationOrder
+
+/-! Structural and causal equivalence, work-history accounting, and conditional liveness.
+These are node-key properties; transport to wire IDs and public query claims remains separate.
+-/

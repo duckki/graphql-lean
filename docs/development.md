@@ -110,4 +110,6 @@ introduce a new root only for a durable major test family.
 
 Fixture generation and graphql-js oracle commands are documented in the
 [conformance fixture guide](../conformance/graphql-js/README.md). The
-[conformance summary](spec-conformance.md) records coverage.
+[conformance summary](spec-conformance.md) records coverage; the
+[incremental-delivery guide](incremental-delivery.md#focused-checks) records its
+focused verification commands.
