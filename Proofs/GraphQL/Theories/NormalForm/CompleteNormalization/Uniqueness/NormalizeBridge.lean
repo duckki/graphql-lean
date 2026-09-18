@@ -84,7 +84,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     {schema : Schema} {left right : Operation}
     : completeNormalizeOperationUniqueUpToReordering schema left right := by
   intro hschema hleftValid hrightValid hleftFields hrightFields
-    hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hjoint hsem
+    hleftBoolFeasible hrightBoolFeasible hdefinitions hvariables hsem
   have hleftNormalizedValid :
       Validation.operationDefinitionValid schema
         (completeNormalizeOperation schema left) :=
@@ -161,7 +161,7 @@ theorem completeNormalizeOperation_uniqueUpToReordering
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftNormalizedValid hrightNormalizedValid
       hleftNormalizedNormal hrightNormalizedNormal hnormalizedVariables
-      hnormalizedDefinitions hjoint hnormalizedSemantics
+      hnormalizedDefinitions hnormalizedSemantics
 
 end CompleteNormalization
 

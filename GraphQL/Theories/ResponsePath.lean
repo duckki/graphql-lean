@@ -1,14 +1,13 @@
-import GraphQL.Theories.QueryInclusion
+import GraphQL.Theories.ExecutionReadiness
 
 /-!
-GraphQL response paths and path-based syntactic query inclusion.
+GraphQL response paths and selected-field footprints.
 
 A response path is a chain of concrete field steps. The footprint predicate is grounded
 directly in `Execution.collectFields` and `Execution.collectSubfields`: it describes which
 paths an operation selects under one Boolean assignment, without executing resolvers and
-without computing any intermediate response structure. Path-based inclusion then compares
-two operations' footprints pathwise. It is oriented like `QueryInclusion.includes`: the
-left operation must select every path the right operation selects.
+without computing any intermediate response structure. Query inclusion compares two
+operations' footprints pathwise in `GraphQL.Theories.QueryInclusion`.
 -/
 
 namespace GraphQL
@@ -36,7 +35,7 @@ structure PathStep where
 deriving Repr
 
 -----------------------------------------------------------------------------------------
--- Selected-field footprint
+-- Selected-path footprint
 -----------------------------------------------------------------------------------------
 
 -- A collected executable field has the identity and concrete-object schema entry recorded
@@ -88,58 +87,6 @@ def operationSelectsPath (schema : Schema) (operation : Operation) (assignment :
           (collectFields schema variableValues (operation.rootType schema)
             (.object step.parentObject PUnit.unit) operation.selectionSet)
           (step :: rest)
-
------------------------------------------------------------------------------------------
--- Path-based syntactic query inclusion
------------------------------------------------------------------------------------------
-
--- Path-based syntactic query inclusion. `left` includes `right` when shared variable
--- definitions have the same types and equivalent defaults and, under every Boolean
--- assignment covering the comparison condition variables, every response path selected by
--- `right` is selected by `left`. Path steps carry the right operation's own argument
--- syntax, and the step matcher absorbs argument reordering, so a shared path witnesses
--- provenance-compatible selections on both sides without a separate path envelope.
-def includes (schema : Schema) (left right : Operation) : Prop :=
-  QueryInclusion.sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
-    right.variableDefinitions
-  ∧ ∀ (assignment : BoolCase),
-      boolVarsComplete
-        (QueryInclusion.comparisonConditionVariables left.selectionSet right.selectionSet)
-        (boolCaseVariableValues assignment)
-      -> ∀ path,
-          operationSelectsPath schema right assignment path
-          -> operationSelectsPath schema left assignment path
-
------------------------------------------------------------------------------------------
--- Agreement with semantic query inclusion
------------------------------------------------------------------------------------------
-
--- Correspondence, first direction: syntactic inclusion entails semantic query
--- inclusion. For valid operations under a well-formed schema, path-based inclusion
--- implies query inclusion. Its theorem witness is
--- `ResponsePath.includesSyntacticToSemantic` in the corresponding proof module.
-def IncludesSyntacticToSemantic (schema : Schema) (left right : Operation) : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema left
-  -> Validation.operationDefinitionValid schema right
-  -> includes schema left right
-  -> QueryInclusion.includes schema left right
-
--- Correspondence, second direction: semantic query inclusion entails the path-based
--- syntactic relation. The premises mirror `QueryInclusion.IncludesBoolComplete`:
--- argument-coercible branch extensions and composite-return inhabitance rule out vacuous
--- semantic inclusion by supplying an error-free execution witness for every selected
--- path. Its theorem witness is `ResponsePath.includesSemanticToSyntactic` in the
--- corresponding proof module.
-def IncludesSemanticToSyntactic (schema : Schema) (left right : Operation) : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema left
-  -> Validation.operationDefinitionValid schema right
-  -> QueryInclusion.operationCompositeFieldTypesInhabited schema left
-  -> QueryInclusion.operationCompositeFieldTypesInhabited schema right
-  -> QueryInclusion.comparisonBranchesArgumentCoercible schema left right
-  -> QueryInclusion.includes schema left right
-  -> includes schema left right
 
 end ResponsePath
 end GraphQL

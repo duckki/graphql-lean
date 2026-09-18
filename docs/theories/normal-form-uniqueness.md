@@ -122,9 +122,9 @@ normalization also preserves source-operation execution on exactly that domain
 statements for the same reason.
 
 The precise characterization is that normal-form equality abstracts execution at
-complete Boolean environments and nothing more. Under the stated validity,
-normality, support-equivalence, and joint-coercibility assumptions the two
-directions combine to: `N(left) =c N(right)` exactly when `left` and `right` are
+complete Boolean environments and nothing more. Under the assumptions in the
+public statements below, the two directions combine to: `N(left) =c N(right)`
+exactly when `left` and `right` are
 semantically equivalent on complete Boolean environments — both public directions
 are stated at the restricted relation, the soundness conclusion and the uniqueness
 premise. An operation's normal form
@@ -140,6 +140,38 @@ relation can capture both fragments.
 
 For directive-free ground normalization the restriction is vacuous: there are no
 Boolean condition variables, and the ground statements remain unrestricted.
+
+Input-coercion fuel accounts for type-wrapper depth as well as input syntax,
+referenced variable values, and schema defaults. Singleton-list coercion can
+traverse several wrappers without descending into the supplied value; recursive
+input objects can revisit wrapped field types. The budget scales the syntax bound
+by the maximum depth of the target input type and schema input types. The regression
+in `Tests/GraphQL/Theories/NormalForm/ArgumentCoercibility.lean` checks that
+`{ f(a: 1) }` at `f(a: [[[Int]]]): String` admits joint coercion, including after
+normalization.
+
+`CompleteNormalization.completeBoolCasesJointlyCoercible_of_possibleTypes`
+now derives joint coercibility from schema well-formedness, left-operation
+validity, possible-type field validity for both operations, and equivalent
+variable definitions. It constructs one fully supplied, non-null typed base
+environment and overrides its Boolean variables for each complete case.
+Operation-default coercion leaves these supplied values unchanged.
+
+The coercion bridge covers validated literals, variables, singleton lists, and
+input-object defaults. Schema default-cycle validation bounds default expansion:
+each expanded composite default removes its syntax cost from the remaining
+reserve, and type-depth scaling covers wrapper steps. Thus the source-level
+normalization uniqueness theorem needs no explicit joint-coercibility premise.
+The already-normal uniqueness theorem also derives joint coercibility from its
+existing assumptions: ordinary validity and complete normality imply
+`operationFieldsValidInPossibleTypes`. Grounded bodies use concrete object field
+definitions, and the anonymous Boolean stems preserve their validity.
+`CompleteNormalization.operationFieldsValidInPossibleTypes_of_completeNormal`
+proves this implication, and
+`CompleteNormalization.completeBoolCasesJointlyCoercible_of_completeNormal`
+constructs the shared environments. `completeBoolCasesJointlyCoercible` now lives
+under `Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/ArgumentCoercibility.lean`
+as a proof-facing helper. Both public uniqueness statements omit this premise.
 
 For operations that are already complete-normal, equality up to reordering implies
 semantic equivalence on complete Boolean environments when
@@ -397,7 +429,6 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> completeNormalOperation schema right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
   -> operationBoolVarsEquivalent left right
-  -> completeBoolCasesJointlyCoercible schema left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
@@ -424,11 +455,8 @@ def completeNormalizeOperationUniqueUpToReordering
   -> operationFieldsValidInPossibleTypes schema right
   -> operationBoolTypeConditionFeasible schema left
   -> operationBoolTypeConditionFeasible schema right
-  -> operationBoolVarsEquivalent left right
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions right.variableDefinitions
-  -> completeBoolCasesJointlyCoercible schema
-      (completeNormalizeOperation schema left)
-      (completeNormalizeOperation schema right)
+  -> operationBoolVarsEquivalent left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema

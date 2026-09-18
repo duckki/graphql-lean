@@ -1,18 +1,15 @@
-import GraphQL.Theories.AnnotatedExecution
+import GraphQL.SchemaWellFormedness
 import GraphQL.Algorithms.Common
-import GraphQL.Theories.ExecutionReadiness
 import GraphQL.Theories.SelectionConditions
 import GraphQL.Theories.ResponseMeasure
-import GraphQL.SchemaWellFormedness
+import GraphQL.Theories.ResponsePath
 
-/-! GraphQL query inclusion over concrete annotated execution. -/
+/-! Syntactic GraphQL query inclusion over selected response paths. -/
 
 namespace GraphQL
 namespace QueryInclusion
 
 open Execution
-open AnnotatedExecution
-open scoped SyntacticEquivalence
 
 -----------------------------------------------------------------------------------------
 -- Shared variable definitions and comparison condition variables
@@ -54,82 +51,23 @@ def comparisonConditionVariables (left right : List Selection) : List Name :=
     ++ SelectionConditions.selectionSetBooleanVariables right).eraseDups
 
 -----------------------------------------------------------------------------------------
--- ResolvedFieldProvenance equality
+-- Path-based syntactic query inclusion
 -----------------------------------------------------------------------------------------
 
--- The annotated executor records the representative field call for every response-name
--- group. Provenance uses the nominal arguments from the selected field;
--- `ResolvedFieldProvenance.coercedArguments` separately records whether argument coercion
--- succeeded and, when it did, the coerced arguments. GraphQL argument order is
--- immaterial, so compare nominal arguments by the syntactic equivalence relation.
-def sameFieldProvenance (left right : ResolvedFieldProvenance) : Prop :=
-  left.parentType = right.parentType
-  ∧ left.fieldName = right.fieldName
-  ∧ left.originalArguments ≡ right.originalArguments
-
-instance sameFieldProvenanceDecidable : DecidableRel sameFieldProvenance :=
-  fun left right => by
-    unfold sameFieldProvenance
-    infer_instance
-
------------------------------------------------------------------------------------------
--- Query inclusion statement
------------------------------------------------------------------------------------------
-
--- `left.includes right` recursively preserves every response field of `right` in
--- `left`. Object fields are matched by response name and concrete resolver-call
--- provenance. List elements are matched recursively at their response positions.
--- Leaves must agree exactly. For executed response pairs the parent-level provenance
--- match already forces equal leaf values, so the explicit leaf equations keep the
--- relation self-contained without changing `includes`.
-def annotatedResponseValueIncludes
-    : AnnotatedResponseValue -> AnnotatedResponseValue -> Prop
-  | .object _ leftFields, .object _ rightFields =>
-      ∀ rightName rightCall rightValue,
-        (hmember : .resolved rightName rightCall rightValue ∈ rightFields)
-        -> ∃ leftName leftCall leftValue,
-            .resolved leftName leftCall leftValue ∈ leftFields
-            ∧ leftName = rightName
-            ∧ sameFieldProvenance leftCall rightCall
-            ∧ annotatedResponseValueIncludes leftValue rightValue
-  | .list leftValues, .list rightValues =>
-      ∀ (index : Nat) rightValue,
-        (hmember : rightValues[index]? = some rightValue)
-        -> ∃ leftValue,
-            leftValues[index]? = some leftValue
-            ∧ annotatedResponseValueIncludes leftValue rightValue
-  | _, .object _ _ => False
-  | _, .list _ => False
-  | left, .null => left = .null
-  | left, .scalar value => left = .scalar value
-termination_by _left right => right.structuralSize
-decreasing_by
-  all_goals
-    first
-    | exact AnnotatedResponseValue.structuralSize_lt_of_object_field_mem hmember
-    | exact AnnotatedResponseValue.structuralSize_lt_of_list_get? hmember
-
--- Query `left` includes query `right` when shared variable definitions have the same
--- types and equivalent defaults and every pair of error-free concrete executions
--- recursively preserves right response fields. One-sided definitions are unrestricted.
--- Every variable environment is constrained, including environments whose condition
--- variables do not all resolve to Booleans: an unresolvable `@skip`/`@include`
--- condition behaves like `false` during field collection, so those executions are
--- ordinary error-free executions. Resolver failures and null bubbling can erase
--- otherwise present response structure, so executions with errors are deliberately
--- outside this relation.
+-- Syntactic inclusion compares selected response paths under every complete Boolean
+-- assignment over the comparison conditions. Path steps carry the right operation's
+-- argument syntax; their matcher handles argument reordering and field provenance.
+-- One-sided variable definitions are unrestricted.
 def includes (schema : Schema) (left right : Operation) : Prop :=
   sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
     right.variableDefinitions
-  ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (source : ResolverValue ObjectRef),
-      let leftResponse :=
-        executeQueryAnnotated schema resolvers variableValues left source
-      let rightResponse :=
-        executeQueryAnnotated schema resolvers variableValues right source
-      leftResponse.errors = 0
-      -> rightResponse.errors = 0
-      -> annotatedResponseValueIncludes leftResponse.data rightResponse.data
+  ∧ ∀ (assignment : BoolCase),
+      boolVarsComplete
+        (comparisonConditionVariables left.selectionSet right.selectionSet)
+        (boolCaseVariableValues assignment)
+      -> ∀ path,
+          ResponsePath.operationSelectsPath schema right assignment path
+          -> ResponsePath.operationSelectsPath schema left assignment path
 
 -----------------------------------------------------------------------------------------
 -- Common implementation utilities
@@ -137,20 +75,6 @@ def includes (schema : Schema) (left right : Operation) : Prop :=
 
 def executableFieldsMergedSelectionSet (fields : List ExecutableField) : List Selection :=
   fields.flatMap ExecutableField.selectionSet
-
--- Every total Boolean assignment over the variables that can affect modeled directives.
--- Because each variable is explicitly present, operation defaults cannot affect field
--- collection in these cases.
-def booleanVariableAssignments : List Name -> List VariableValues
-  | [] => [[]]
-  | variableName :: rest =>
-      let tailCases : List VariableValues := booleanVariableAssignments rest
-      let falseCases : List VariableValues :=
-        tailCases.map
-          fun values => (variableName, ConstInputValue.boolean false) :: values
-      let trueCases : List VariableValues :=
-        tailCases.map fun values => (variableName, ConstInputValue.boolean true) :: values
-      falseCases ++ trueCases
 
 -----------------------------------------------------------------------------------------
 -- Exhaustive query-inclusion decision procedure (reference implementation)
@@ -236,6 +160,20 @@ mutual
         selectionSetIncludesAtRuntimeBoolWithFuel schema fuel parentType runtimeType
           variableValues leftSelectionSet rightSelectionSet
 end
+
+-- Every total Boolean assignment over the variables that can affect modeled directives.
+-- Because each variable is explicitly present, operation defaults cannot affect field
+-- collection in these cases.
+def booleanVariableAssignments : List Name -> List VariableValues
+  | [] => [[]]
+  | variableName :: rest =>
+      let tailCases : List VariableValues := booleanVariableAssignments rest
+      let falseCases : List VariableValues :=
+        tailCases.map
+          fun values => (variableName, ConstInputValue.boolean false) :: values
+      let trueCases : List VariableValues :=
+        tailCases.map fun values => (variableName, ConstInputValue.boolean true) :: values
+      falseCases ++ trueCases
 
 -- Complete enumeration used as the proof-facing reference checker.
 def includesBoolReference (schema : Schema) (left right : Operation) : Bool :=
@@ -741,9 +679,9 @@ def selectionSetIncludesBool (schema : Schema) (responseFuel : Nat)
 -- field group, then recursively analyzes merged composite children. Both
 -- operations are explored under the same assignments, and field arguments are
 -- compared symbolically. The function is total on raw syntax; callers should establish
--- schema well-formedness, operation validity, and composite-return inhabitance before
--- using it as a semantic decision procedure. An accepted result then applies to every
--- pair of error-free executions, with no per-run premises.
+-- schema well-formedness and operation validity before using acceptance as a syntactic
+-- inclusion result. An accepted result also implies inclusion of every pair of
+-- error-free executions through `QueryInclusionSemantics.IncludesSyntacticToSemantic`.
 def includesBool (schema : Schema) (left right : Operation) : Bool :=
   if left.rootType schema == right.rootType schema
       && sharedVariableDefinitionsSyntacticallyCompatibleBool left.variableDefinitions
@@ -758,7 +696,7 @@ def includesBool (schema : Schema) (left right : Operation) : Bool :=
 -----------------------------------------------------------------------------------------
 
 -- Public soundness statement for the executable checker: whenever it accepts two valid
--- operations under a well-formed schema, semantic query inclusion follows. Its theorem
+-- operations under a well-formed schema, selected-path inclusion follows. Its theorem
 -- witness is `QueryInclusion.includesBool_sound` in the corresponding proof module.
 def IncludesBoolSound (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
@@ -767,145 +705,18 @@ def IncludesBoolSound (schema : Schema) (left right : Operation) : Prop :=
   -> includesBool schema left right = true
   -> includes schema left right
 
--- An operation-local inhabitance condition for composite field returns. It requires
--- possible object types only for fields that can occur in the operation. Runtime-type
--- and directive conditions are not themselves required to be feasible: an impossible
--- inline-fragment scope contributes no field-execution obligation.
-mutual
-  def selectionCompositeFieldTypesInhabited (schema : Schema) (parentType : Name)
-      : Selection -> Prop
-    | .field _responseName fieldName _arguments _directives selectionSet =>
-        ∀ definition,
-          schema.lookupField parentType fieldName = some definition
-          -> definition.outputType.isCompositeBool schema = true
-          -> schema.getPossibleTypes definition.outputType.namedType ≠ []
-              ∧ ∀ runtimeType,
-                  schema.typeIncludesObjectBool definition.outputType.namedType
-                      runtimeType
-                    = true
-                  -> selectionSetCompositeFieldTypesInhabited schema runtimeType
-                      selectionSet
-    | .inlineFragment none _directives selectionSet =>
-        selectionSetCompositeFieldTypesInhabited schema parentType selectionSet
-    | .inlineFragment (some typeCondition) _directives selectionSet =>
-        schema.typeIncludesObjectBool typeCondition parentType = true
-        -> selectionSetCompositeFieldTypesInhabited schema parentType selectionSet
-
-  def selectionSetCompositeFieldTypesInhabited (schema : Schema)
-      (parentType : Name) (selectionSet : List Selection)
-      : Prop :=
-    ∀ selection,
-      selection ∈ selectionSet
-      -> selectionCompositeFieldTypesInhabited schema parentType selection
-end
-
-def operationCompositeFieldTypesInhabited (schema : Schema) (operation : Operation)
-    : Prop :=
-  selectionSetCompositeFieldTypesInhabited schema (operation.rootType schema)
-    operation.selectionSet
-
--- "Coercible" assumption syntactically ensures that execution has no coercion errors.
--- Completeness needs one argument-coercible extension of every complete Boolean branch
--- explored by the reference checker. Prefixing the extension with the branch assignment
--- keeps those condition values authoritative while allowing the witness to supply any
--- additional variables used by field arguments.
-def comparisonBranchesArgumentCoercible (schema : Schema) (left right : Operation)
-    : Prop :=
-  ∀ conditionValues,
-    conditionValues
-      ∈ booleanVariableAssignments
-          (comparisonConditionVariables left.selectionSet right.selectionSet)
-    -> ∃ remainingValues,
-        operationArgumentsCoercible schema (conditionValues ++ remainingValues) left
-        ∧ operationArgumentsCoercible schema (conditionValues ++ remainingValues) right
-
 -- Public completeness direction for valid operations. Shared-definition compatibility
 -- is part of `includes` itself and therefore does not need a separate premise here.
--- Argument-coercible and composite-return inhabitance assumptions rule out vacuous
--- semantic inclusion by supplying an error-free witness for every checked branch.
+-- Path inclusion supplies each Boolean branch directly, without constructing a
+-- resolver execution.
 -- Its theorem witness is `QueryInclusion.includesBool_complete` in the corresponding
 -- proof module.
 def IncludesBoolComplete (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
-  -> operationCompositeFieldTypesInhabited schema left
-  -> operationCompositeFieldTypesInhabited schema right
-  -> comparisonBranchesArgumentCoercible schema left right
   -> includes schema left right
   -> includesBool schema left right = true
-
------------------------------------------------------------------------------------------
--- `includesUnannotated`: Unannotated query inclusion
--- * This is a demonstration of why annotated execution is necessary to specify
---   `includesBool`.
--- * `includes` implies `includesUnannotated`, but not the other way around.
------------------------------------------------------------------------------------------
-
--- Unannotated counterpart of `annotatedResponseValueIncludes` over plain response
--- values. Plain responses carry no resolver-call provenance, so agreement is stated on
--- the values themselves: leaves must be equal, object fields are matched by response
--- name, and list elements are matched at their response positions.
-def responseValueIncludes : ResponseValue -> ResponseValue -> Prop
-  | .object leftFields, .object rightFields =>
-      ∀ rightName rightValue,
-        (hmember : (rightName, rightValue) ∈ rightFields)
-        -> ∃ leftValue,
-            (rightName, leftValue) ∈ leftFields
-            ∧ responseValueIncludes leftValue rightValue
-  | .list leftValues, .list rightValues =>
-      ∀ (index : Nat) rightValue,
-        (hmember : rightValues[index]? = some rightValue)
-        -> ∃ leftValue,
-            leftValues[index]? = some leftValue
-            ∧ responseValueIncludes leftValue rightValue
-  | _, .object _ => False
-  | _, .list _ => False
-  | left, .null => left = .null
-  | left, .scalar value => left = .scalar value
-termination_by _left right => right.structuralSize
-decreasing_by
-  all_goals
-    first
-    | exact ResponseValue.structuralSize_lt_of_object_field_mem hmember
-    | exact ResponseValue.structuralSize_lt_of_list_get? hmember
-
--- Unannotated query inclusion: the statement of `includes` with executions taken from
--- the spec executor `executeQuery` and inclusion checked on plain response values.
--- Resolver provenance is not observable in plain responses, so leaf-value agreement
--- takes its place.
-def includesUnannotated (schema : Schema) (left right : Operation) : Prop :=
-  sharedVariableDefinitionsSyntacticallyCompatible left.variableDefinitions
-    right.variableDefinitions
-  ∧ ∀ (ObjectRef : Type) (resolvers : Resolvers ObjectRef)
-      (variableValues : VariableValues) (source : ResolverValue ObjectRef),
-      let leftResponse := executeQuery schema resolvers variableValues left source
-      let rightResponse := executeQuery schema resolvers variableValues right source
-      leftResponse.errors = 0
-      -> rightResponse.errors = 0
-      -> responseValueIncludes leftResponse.data rightResponse.data
-
--- Public agreement statement: for valid operations, semantic query inclusion implies
--- unannotated query inclusion. Only well-formedness and validity are required: the
--- implication is pointwise, transferring the annotated relation onto the projected plain
--- responses of the same execution pair, so no execution witnesses need to be constructed.
--- Its theorem witness is `QueryInclusion.includesToIncludesUnannotated` in the
--- corresponding proof module.
-def IncludesToIncludesUnannotated (schema : Schema) (left right : Operation) : Prop :=
-  SchemaWellFormedness.schemaWellFormed schema
-  -> Validation.operationDefinitionValid schema left
-  -> Validation.operationDefinitionValid schema right
-  -> includes schema left right
-  -> includesUnannotated schema left right
-
--- Note: `includesUnannotated` cannot imply `includes`: the annotated relation observes
--- the resolver call behind every response field, while plain responses expose calls only
--- through values. A non-null composite field whose subselections collect no fields at
--- any runtime type produces the empty object under every error-free execution, so two
--- such fields with different names are indistinguishable in every plain response even
--- though `includes` fails for the pair and `includesBool` rejects it. The
--- response-unobservable guard in `Tests.GraphQL.Theories.QueryInclusion` witnesses this
--- boundary.
 
 end QueryInclusion
 end GraphQL

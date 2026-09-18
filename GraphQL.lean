@@ -24,8 +24,9 @@ import GraphQL.Theories.ConditionTree.Reduce
 import GraphQL.Theories.TreeSummary
 import GraphQL.Theories.TreeSummary.StaticCost
 import GraphQL.Theories.TreeSummary.MaxResponseSize
-import GraphQL.Theories.QueryInclusion
 import GraphQL.Theories.ResponsePath
+import GraphQL.Theories.QueryInclusion
+import GraphQL.Theories.QueryInclusionSemantics
 
 /-!
 Spec reference: GraphQL September 2025.

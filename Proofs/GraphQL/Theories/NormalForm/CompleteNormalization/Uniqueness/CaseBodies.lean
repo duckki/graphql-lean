@@ -1,5 +1,6 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
 import Proofs.GraphQL.Theories.ExecutionReadiness
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibility
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.GroundBridge
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 

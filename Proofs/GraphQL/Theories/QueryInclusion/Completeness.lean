@@ -1,7 +1,9 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.QueryInclusionSemantics.ArgumentCoercibility
 import Proofs.GraphQL.Theories.QueryInclusion.ErrorFreeExecution
 import Proofs.GraphQL.Theories.QueryInclusion.Soundness
 import Proofs.GraphQL.Theories.QueryInclusion.GuardedFieldGroup
+import Proofs.GraphQL.Theories.ResponsePath.OperationToReferenceChecker
 
 /-! Completeness of the executable query-inclusion checker. -/
 
@@ -9,6 +11,7 @@ namespace GraphQL
 namespace QueryInclusion
 
 open Execution AnnotatedExecution
+open QueryInclusionSemantics
 open Execution.FieldGroups
 open SelectionConditions
 open Algorithms.ExecutionUngroupedUncached
@@ -29,7 +32,7 @@ theorem includes_spine_responses
     (hrightValid : Validation.operationDefinitionValid schema right)
     (hleftInhabited : operationCompositeFieldTypesInhabited schema left)
     (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
-    (hincludes : includes schema left right)
+    (hincludes : QueryInclusionSemantics.includes schema left right)
     (plan : RuntimePlan) (hplan : plan.Valid schema)
     (suppliedValues : VariableValues)
     (hleftCoercion : operationArgumentsCoercible schema suppliedValues left)
@@ -147,11 +150,13 @@ theorem completeSpineValue_composite_decompose
       cases fuel with
       | zero => simp [completeAnnotatedResponseValue] at hresult
       | succ childFuel =>
+          have hpossible' : schema.getPossibleTypes typeName ≠ [] := by
+            simpa [TypeRef.namedType] using hpossible
           have hruntime := spineRuntime_eq_of_valid schema plan hplan
-            typeName hpossible
+            typeName hpossible'
           have hincludes :
               schema.typeIncludesObjectBool typeName (plan 0 typeName) = true :=
-            List.contains_iff_mem.mpr (hplan 0 typeName hpossible)
+            List.contains_iff_mem.mpr (hplan 0 typeName hpossible')
           have hcaught :=
             catchAnnotated_eq_ok_zero_of_error_positive
               ((annotatedExecution_error_positive_all schema
@@ -160,8 +165,8 @@ theorem completeSpineValue_composite_decompose
                 (collectSubfields schema variableValues (plan 0 typeName)
                   (.object (plan 0 typeName) plan.shift) fields))
               (by
-                simpa [completeAnnotatedResponseValue, spineResolverValue, hcomposite,
-                  hruntime, hincludes]
+                simpa [completeAnnotatedResponseValue, spineResolverValue,
+                  probeResolverValue, hcomposite, hpossible', hruntime, hincludes]
                   using hresult)
           rcases hcaught with ⟨childFields, hchild, hvalue⟩
           exact ⟨
@@ -174,13 +179,17 @@ theorem completeSpineValue_composite_decompose
       cases fuel with
       | zero => simp [completeAnnotatedResponseValue] at hresult
       | succ listFuel =>
+          have hpossible' : schema.getPossibleTypes inner.namedType ≠ [] := by
+            simpa [TypeRef.namedType] using hpossible
           have hcaught :=
             catchAnnotated_eq_ok_zero_of_error_positive
               ((annotatedExecution_error_positive_all schema
                   (spineResolvers schema) variableValues).2.2.2
                 listFuel inner fields [spineResolverValue schema plan inner])
               (by
-                simpa [completeAnnotatedResponseValue, spineResolverValue] using hresult)
+                simpa [completeAnnotatedResponseValue, spineResolverValue,
+                  probeResolverValue, hpossible', TypeRef.namedType]
+                  using hresult)
           rcases hcaught with ⟨completedValues, hvalues, hresponse⟩
           simp only [completeAnnotatedResponseValueList] at hvalues
           change Result.combine List.cons
@@ -213,7 +222,8 @@ theorem completeSpineValue_composite_decompose
                 (spineResolvers schema) variableValues (innerFuel + 1)
                 inner fields (spineResolverValue schema plan inner))
               = .ok (responseValue, 0) := by
-            simpa [completeAnnotatedResponseValue, spineResolverValue] using hresult
+            simpa [completeAnnotatedResponseValue, spineResolverValue, probeResolverValue]
+              using hresult
           have hinner := completeNonNull_eq_ok_zero hresult'
           have hinnerComposite : inner.isCompositeBool schema = true := by
             simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hcomposite
@@ -292,7 +302,7 @@ theorem includes_root_spineSelectionIncludes
     (hrightValid : Validation.operationDefinitionValid schema right)
     (hleftInhabited : operationCompositeFieldTypesInhabited schema left)
     (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
-    (hincludes : includes schema left right)
+    (hincludes : QueryInclusionSemantics.includes schema left right)
     (suppliedValues : VariableValues)
     (hleftCoercion : operationArgumentsCoercible schema suppliedValues left)
     (hrightCoercion : operationArgumentsCoercible schema suppliedValues right)
@@ -970,10 +980,18 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
           simpa using hcomposite
         simp [hleaf]
 
-theorem includesBool_complete {schema : Schema} {left right : Operation}
-    : IncludesBoolComplete schema left right := by
-  intro hschema hleftValid hrightValid hleftInhabited hrightInhabited hprobes
-    hincludes
+theorem includesBool_complete_semantic {schema : Schema} {left right : Operation}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hleftValid : Validation.operationDefinitionValid schema left)
+    (hrightValid : Validation.operationDefinitionValid schema right)
+    (hleftFields : NormalForm.operationFieldsValidInPossibleTypes schema left)
+    (hrightFields : NormalForm.operationFieldsValidInPossibleTypes schema right)
+    (hleftInhabited : operationCompositeFieldTypesInhabited schema left)
+    (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
+    (hincludes : QueryInclusionSemantics.includes schema left right)
+    : includesBool schema left right = true := by
+  have hprobes := QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes
+    hschema hleftValid hrightValid hleftFields hrightFields hincludes.1
   have hroot := valid_operations_rootType_eq hleftValid hrightValid
   have hdefinitionsBool : sharedVariableDefinitionsSyntacticallyCompatibleBool
       left.variableDefinitions right.variableDefinitions = true :=
@@ -982,36 +1000,41 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
       && sharedVariableDefinitionsSyntacticallyCompatibleBool
         left.variableDefinitions right.variableDefinitions) = true := by
     simp [hroot, hdefinitionsBool]
-  apply includesBool_complete_of_reference hschema hleftValid
-    hrightValid hleftInhabited hrightInhabited
+  apply includesBool_complete_of_reference hschema hleftValid hrightValid
   unfold includesBoolReference
   rw [if_pos hguard]
   apply List.all_eq_true.mpr
   intro conditionValues hconditionValues
   let variables := comparisonConditionVariables left.selectionSet right.selectionSet
-  rcases hprobes conditionValues (by simpa only [variables] using hconditionValues) with
-    ⟨remainingValues, hleftArgumentReady', hrightArgumentReady'⟩
-  let probeValues := conditionValues ++ remainingValues
-  have hleftArgumentReady : operationArgumentsCoercible schema probeValues left := by
-    simpa only [probeValues] using hleftArgumentReady'
-  have hrightArgumentReady : operationArgumentsCoercible schema probeValues right := by
-    simpa only [probeValues] using hrightArgumentReady'
+  have hcomplete : boolVarsComplete variables conditionValues := by
+    intro variableName hvariable
+    rcases booleanVariableAssignments_lookup variables conditionValues hconditionValues
+        variableName hvariable with ⟨value, hlookup⟩
+    exact ⟨value, by
+      simp [inputValueBoolean?, hlookup, ConstInputValue.toInputValue,
+        InputValue.staticBoolean?]⟩
+  let assignment := ResponsePath.booleanAssignmentOf conditionValues variables
+  have hbranchComplete : boolVarsComplete variables
+      (boolCaseVariableValues assignment) :=
+    ResponsePath.booleanAssignmentOf_boolVarsComplete conditionValues variables hcomplete
+  rcases hprobes assignment (by simpa only [variables, assignment] using hbranchComplete)
+    with ⟨probeValues, hprobeAgreement, hleftArgumentReady, hrightArgumentReady⟩
   have hconditionAgreement (operation : Operation) : ∀ variableName,
       variableName ∈ comparisonConditionVariables left.selectionSet right.selectionSet
       -> inputValueBoolean? conditionValues (.variable variableName)
           = inputValueBoolean? (coerceVariableValues operation probeValues)
               (.variable variableName) := by
     intro variableName hvariable
-    rcases booleanVariableAssignments_lookup variables conditionValues hconditionValues
-        variableName (by simpa [variables] using hvariable) with ⟨value, hlookup⟩
-    have hconditionBoolean : inputValueBoolean? conditionValues
-        (.variable variableName) = some value := by
-      simp [inputValueBoolean?, hlookup, ConstInputValue.toInputValue,
-        InputValue.staticBoolean?]
+    have hvariable' : variableName ∈ variables := by
+      simpa only [variables] using hvariable
+    rcases hcomplete variableName hvariable' with ⟨value, hconditionBoolean⟩
+    have hbranchAgreement :=
+      ResponsePath.booleanAssignmentOf_agrees conditionValues variables hcomplete
+        variableName hvariable'
     have hprobeBoolean : inputValueBoolean? probeValues
         (.variable variableName) = some value := by
-      simp [probeValues, inputValueBoolean?, lookupVariableValue?_append, hlookup,
-        ConstInputValue.toInputValue, InputValue.staticBoolean?]
+      rw [hprobeAgreement variableName hvariable]
+      exact hbranchAgreement.trans hconditionBoolean
     have hcoercedBoolean :=
       NormalForm.CompleteNormalization.inputValueBoolean?_coerceVariableValues_eq_some
         operation probeValues hprobeBoolean
@@ -1083,6 +1106,37 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
         (by simp [comparisonConditionVariables, hvariable])])
   rw [← hroot, hagreement]
   exact hcoercedCheck
+
+-- The syntactic relation supplies each reference-checker assignment without
+-- constructing an execution or coercing field arguments.
+theorem includesBool_complete {schema : Schema} {left right : Operation}
+    : IncludesBoolComplete schema left right := by
+  intro hschema hleftValid hrightValid hincludes
+  have hroot := valid_operations_rootType_eq hleftValid hrightValid
+  have hdefinitionsBool : sharedVariableDefinitionsSyntacticallyCompatibleBool
+      left.variableDefinitions right.variableDefinitions = true :=
+    (sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mpr hincludes.1
+  have hguard : ((left.rootType schema == right.rootType schema)
+      && sharedVariableDefinitionsSyntacticallyCompatibleBool
+        left.variableDefinitions right.variableDefinitions) = true := by
+    simp [hroot, hdefinitionsBool]
+  apply includesBool_complete_of_reference hschema hleftValid hrightValid
+  unfold includesBoolReference
+  rw [if_pos hguard]
+  apply List.all_eq_true.mpr
+  intro conditionValues hcase
+  have hcomplete : boolVarsComplete
+      (comparisonConditionVariables left.selectionSet right.selectionSet)
+      conditionValues := by
+    intro variableName hvariable
+    rcases booleanVariableAssignments_lookup
+        (comparisonConditionVariables left.selectionSet right.selectionSet)
+        conditionValues hcase variableName hvariable with ⟨value, hlookup⟩
+    exact ⟨value, by
+      simp [inputValueBoolean?, hlookup, ConstInputValue.toInputValue,
+        InputValue.staticBoolean?]⟩
+  exact ResponsePath.selectionSetChecks_of_includes hschema hleftValid hrightValid
+    hincludes conditionValues hcomplete
 
 end QueryInclusion
 end GraphQL

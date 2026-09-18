@@ -1,4 +1,3 @@
-import Proofs.GraphQL.Theories.ResponsePath.SemanticToSyntactic
-import Proofs.GraphQL.Theories.ResponsePath.SyntacticToSemantic
+import Proofs.GraphQL.Theories.ResponsePath.OperationToReferenceChecker
 
-/-! Complete proof surface for path-based syntactic query inclusion. -/
+/-! Proof surface for response-path collection and reference-checker agreement. -/

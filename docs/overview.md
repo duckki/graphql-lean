@@ -42,6 +42,8 @@ flowchart TD
   ConditionTreeExecution["GraphQL.Theories.ConditionTree.Execution"]
   ConditionTreeReduce["GraphQL.Theories.ConditionTree.Reduce"]
   QueryInclusion["GraphQL.Theories.QueryInclusion"]
+  ResponsePath["GraphQL.Theories.ResponsePath"]
+  QueryInclusionSemantics["GraphQL.Theories.QueryInclusionSemantics"]
   TreeSummary["GraphQL.Theories.TreeSummary"]
   TreeSummaryCore["GraphQL.Theories.TreeSummary.Core"]
   TreeSummarySoundness["GraphQL.Theories.TreeSummary.Soundness"]
@@ -55,6 +57,7 @@ flowchart TD
   ProofAnnotatedExecution["Proofs.GraphQL.Theories.AnnotatedExecution"]
   ProofConditionTree["Proofs.GraphQL.Theories.ConditionTree/*"]
   ProofQueryInclusion["Proofs.GraphQL.Theories.QueryInclusion/*"]
+  ProofQueryInclusionSemantics["Proofs.GraphQL.Theories.QueryInclusionSemantics/*"]
   Execution["GraphQL.Execution"]
   NamedFragment["GraphQL.NamedFragment/*"]
   Canceling["GraphQL.Algorithms.ExecutionCancelingSiblings"]
@@ -83,6 +86,9 @@ flowchart TD
   Operation --> ResponseMeasure
   ExecutionReadiness --> NormalForm
   ExecutionReadiness --> QueryInclusion
+  ExecutionReadiness --> ResponsePath
+  ResponsePath --> QueryInclusion
+  QueryInclusion --> QueryInclusionSemantics
   SelectionConditions --> ConditionTree
   SelectionConditions --> QueryInclusion
   ResponseMeasure --> QueryInclusion
@@ -130,8 +136,10 @@ flowchart TD
   AnnotatedExecution --> ProofAnnotatedExecution
   ConditionTree --> ProofConditionTree
   QueryInclusion --> ProofQueryInclusion
+  QueryInclusionSemantics --> ProofQueryInclusionSemantics
   ProofConditionTree --> ProofRoot
   ProofQueryInclusion --> ProofRoot
+  ProofQueryInclusionSemantics --> ProofRoot
   ProofAnnotatedExecution --> ProofRoot
   Canceling --> ProofCanceling
   ProofCanceling --> ProofRoot
@@ -155,6 +163,8 @@ flowchart TD
   ResponseMeasure --> GraphQLRoot
   ConditionTree --> GraphQLRoot
   QueryInclusion --> GraphQLRoot
+  ResponsePath --> GraphQLRoot
+  QueryInclusionSemantics --> GraphQLRoot
   ConditionTreeExecution --> GraphQLRoot
   ConditionTreeReduce --> GraphQLRoot
   TreeSummary --> GraphQLRoot
@@ -227,10 +237,14 @@ It should remain definition-only.
 - `GraphQL.Theories.ConditionTree.FieldCollection`: occurrence-preserving runtime field
   collection and response-name grouping shared by condition-tree execution and the
   syntactic tree-summary contracts.
-- `GraphQL.Theories.QueryInclusion`: recursive response-field inclusion with resolver
-  provenance, a simple reference checker, and the optimized guarded field-group checker.
-  Its proof modules establish soundness and completeness for valid operations under the
-  documented error-free, coercibility, and composite-return inhabitance conditions.
+- `GraphQL.Theories.ResponsePath`: concrete selected-response-path footprints derived
+  from field collection.
+- `GraphQL.Theories.QueryInclusion`: path-based syntactic inclusion, a simple reference
+  checker, and the optimized guarded field-group checker. Its proofs establish
+  checker soundness and completeness for valid operations under well-formed schemas.
+- `GraphQL.Theories.QueryInclusionSemantics`: inclusion over error-free annotated
+  executions and bridge statements to syntactic inclusion. The reverse bridge also
+  assumes argument-coercible Boolean branches.
 - `GraphQL.Theories.ConditionTree.Termination`: internal shared response-depth
   support for the tree-of-trees recursion used by execution and reduction.
 - `GraphQL.Theories.ConditionTree.Execution`: selection-set execution that
@@ -332,8 +346,8 @@ The current flow is:
    additionally supports structural least-bound proofs. MaxResponseSize derives a
    bound on ordinary query execution, while StaticCost uses the annotated response to
    retain the concrete resolver-call arguments needed for actual cost.
-9. `GraphQL.Theories.QueryInclusion` decides recursive, provenance-preserving inclusion
-   over the response fields of valid operations.
+9. `GraphQL.Theories.QueryInclusion` checks selected-path inclusion for valid operations;
+   `GraphQL.Theories.QueryInclusionSemantics` connects it to error-free executions.
 10. `GraphQL.Algorithms.ExecutionCancelingSiblings` provides a verified collected-field
     executor that cancels remaining sibling response positions after a bubble.
 11. `GraphQL.Algorithms.ExecutionUngrouped` provides a source-caching alternative

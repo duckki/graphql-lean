@@ -5,6 +5,7 @@ import Tests.GraphQL.Common
 namespace GraphQL.Tests.QueryInclusion
 
 open GraphQL.QueryInclusion
+open GraphQL.QueryInclusionSemantics (sameFieldProvenance annotatedResponseValueIncludes)
 open GraphQL.AnnotatedExecution
 
 def heroCall : ResolvedFieldProvenance :=
@@ -711,7 +712,12 @@ def emptyCompositeSchema : Schema :=
             fields :=
               [
                 { name := "value", outputType := .named "String" },
-                { name := "empty", outputType := .nonNull (.named "Empty") }
+                { name := "empty", outputType := .nonNull (.named "Empty") },
+                { name := "nullableEmpty", outputType := .named "Empty" },
+                {
+                  name := "emptyList",
+                  outputType := .nonNull (.list (.nonNull (.named "Empty")))
+                }
               ]
           },
         .interface
@@ -728,8 +734,37 @@ def feasibleValueSelection : List Selection :=
 def infeasibleEmptySelection : List Selection :=
   [.field "empty" "empty" [] [] [.field "name" "name" [] [] []]]
 
+-- Only the non-null, non-list return is excluded. Null and [] are error-free
+-- witnesses for the nullable and list returns, respectively.
+theorem emptyComposite_nonNullNonListReturnExcluded
+    : ¬ nonNullNonListOutputTypeInhabited emptyCompositeSchema
+          (.nonNull (.named "Empty")) := by
+  intro hreturn
+  have hempty : emptyCompositeSchema.getPossibleTypes "Empty" = [] := by
+    native_decide
+  exact hreturn hempty
+
+theorem emptyComposite_nullableReturnAllowed
+    : nonNullNonListOutputTypeInhabited emptyCompositeSchema (.named "Empty") := by
+  trivial
+
+theorem emptyComposite_nonNullListReturnAllowed
+    : nonNullNonListOutputTypeInhabited emptyCompositeSchema
+        (.nonNull (.list (.nonNull (.named "Empty")))) := by
+  trivial
+
+theorem emptyComposite_nullableProbeIsNull
+    : supportedResolverValue emptyCompositeSchema (.named "Empty") = .null := by
+  rfl
+
+theorem emptyComposite_nonNullListProbeIsEmpty
+    : supportedResolverValue emptyCompositeSchema
+        (.nonNull (.list (.nonNull (.named "Empty"))))
+      = .list [] := by
+  rfl
+
 -- The checker remains structural even when one selected composite type has no possible
--- object type. Completeness excludes this case with an explicit operation assumption.
+-- object type.
 theorem selectionSetIncludes_rejectsMissingInfeasibleRightSmoke
     : selectionSetIncludesBoolWithFuel emptyCompositeSchema 2 "Query" []
         feasibleValueSelection infeasibleEmptySelection
@@ -740,6 +775,43 @@ theorem selectionSetIncludes_rejectsMissingFeasibleRightSmoke
     : selectionSetIncludesBoolWithFuel emptyCompositeSchema 2 "Query" []
         infeasibleEmptySelection feasibleValueSelection
       = false := by
+  native_decide
+
+def uninhabitedChildAliasLeft : Operation :=
+  { selectionSet := [.field "empty" "empty" [] [] [.field "x" "name" [] [] []]] }
+
+def uninhabitedChildAliasRight : Operation :=
+  { selectionSet := [.field "empty" "empty" [] [] [.field "name" "name" [] [] []]] }
+
+theorem uninhabitedChildAliasLeft_notInhabited
+    : ¬ operationCompositeFieldTypesInhabited emptyCompositeSchema
+          uninhabitedChildAliasLeft := by
+  intro hinhabited
+  unfold operationCompositeFieldTypesInhabited selectionSetCompositeFieldTypesInhabited
+    at hinhabited
+  have hfield := hinhabited
+    (.field "empty" "empty" [] [] [.field "x" "name" [] [] []])
+    (by simp [uninhabitedChildAliasLeft])
+  have hlookup : ∃ definition,
+      emptyCompositeSchema.lookupField "Query" "empty" = some definition
+        ∧ definition.outputType = .nonNull (.named "Empty") := by
+    native_decide
+  rcases hlookup with ⟨definition, hlookup, htype⟩
+  have hcomposite : definition.outputType.isCompositeBool emptyCompositeSchema = true := by
+    rw [htype]
+    native_decide
+  unfold selectionCompositeFieldTypesInhabited at hfield
+  have hreturn := (hfield definition
+    (by simpa [uninhabitedChildAliasLeft, Operation.rootType,
+      OperationType.rootType, emptyCompositeSchema] using hlookup) hcomposite).1
+  rw [htype] at hreturn
+  exact emptyComposite_nonNullNonListReturnExcluded hreturn
+
+-- The root field path matches, while no child path can exist under the uninhabited type.
+theorem includesBool_ignoresUninhabitedChildAliasSmoke
+    : includesBool emptyCompositeSchema uninhabitedChildAliasLeft
+        uninhabitedChildAliasRight
+      = true := by
   native_decide
 
 -----------------------------------------------------------------------------------------
@@ -861,9 +933,10 @@ mutual
 end
 
 -- Yet the spec responses cannot tell the operations apart: both produce `{p: {}}` even
--- when the two fields resolve to different concrete objects, so `includesUnannotated` holds for
--- this pair while the checker rejects. This is why `IncludesToIncludesUnannotated` has
--- no converse statement: plain responses cannot observe the differing resolver calls.
+-- when the two fields resolve to different concrete objects, so `includesUnannotated`
+-- holds for this pair while the checker rejects. This is why the semantic
+-- `IncludesToIncludesUnannotated` statement has no converse: plain responses cannot
+-- observe the differing resolver calls.
 theorem responseUnobservable_equalResponsesSmoke
     : unobservableResponseEqBool
           (GraphQL.Execution.executeQuery responseUnobservableSchema

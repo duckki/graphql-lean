@@ -8,6 +8,7 @@ import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.RuntimeFragmen
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.FilterExecution
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Validity.Variables
 import Proofs.GraphQL.SchemaWellFormedness.PossibleTypes
+import GraphQL.Theories.QueryInclusionSemantics
 
 /-! Soundness of the executable query-inclusion check for annotated execution. -/
 
@@ -15,6 +16,7 @@ namespace GraphQL
 namespace QueryInclusion
 
 open Execution AnnotatedExecution
+open QueryInclusionSemantics
 open Algorithms.ExecutionUngroupedUncached.Eager
 open NormalForm.CompleteNormalization
 
@@ -338,7 +340,7 @@ mutual
               (selectionSetConditionVariables_mem_normalForm selectionSet variableName
                 hchildren)
 
-  private theorem selectionSetConditionVariables_mem_normalForm
+  theorem selectionSetConditionVariables_mem_normalForm
       : ∀ selectionSet variableName,
           variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet
           -> variableName ∈ NormalForm.selectionSetBooleanVariables selectionSet

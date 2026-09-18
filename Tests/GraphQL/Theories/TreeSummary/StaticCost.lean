@@ -879,6 +879,8 @@ theorem annotatedResponseArgumentsAreResolved
     Execution.CoercedArgument.toArgument, Execution.coerceArgumentValues,
     Execution.coerceArgumentValue,
     Execution.coerceInputValue, Execution.coerceInputValueFuel,
+    Execution.inputTypeCoercionDepth, Execution.schemaInputCoercionDepth,
+    Execution.inputValueDefinitionsCoercionDepth,
     Execution.schemaInputCoercionFuel, Execution.typeDefinitionsInputCoercionFuel,
     Execution.typeDefinitionInputCoercionFuel, Execution.fieldDefinitionsInputCoercionFuel,
     Execution.inputValueDefinitionsCoercionFuel,

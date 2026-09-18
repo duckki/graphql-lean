@@ -1,11 +1,12 @@
-import GraphQL.Theories.QueryInclusion
+import GraphQL.Theories.QueryInclusionSemantics
 
-/-! Algebraic facts about error-free query inclusion. -/
+/-! Algebraic facts about syntactic and execution-based query inclusion. -/
 
 namespace GraphQL
 namespace QueryInclusion
 
 open Execution AnnotatedExecution
+open QueryInclusionSemantics
 open scoped SyntacticEquivalence
 
 mutual
@@ -405,6 +406,26 @@ theorem includes_refl (schema : Schema) (operation : Operation)
     : includes schema operation operation := by
   refine ⟨sharedVariableDefinitionsSyntacticallyCompatible_refl
     operation.variableDefinitions hdefinitions, ?_⟩
+  intro assignment _hcomplete path hpath
+  exact hpath
+
+theorem includes_refl_of_valid (schema : Schema) (operation : Operation)
+    (hvalid : Validation.operationDefinitionValid schema operation)
+    : includes schema operation operation := by
+  exact includes_refl schema operation hvalid.2.2.1.1
+
+end QueryInclusion
+
+namespace QueryInclusionSemantics
+
+open QueryInclusion
+open Execution AnnotatedExecution
+
+theorem includes_refl (schema : Schema) (operation : Operation)
+    (hdefinitions : (operation.variableDefinitions.map VariableDefinition.name).Nodup)
+    : includes schema operation operation := by
+  refine ⟨sharedVariableDefinitionsSyntacticallyCompatible_refl
+    operation.variableDefinitions hdefinitions, ?_⟩
   intro ObjectRef resolvers variableValues source
   dsimp
   intro _errors _errors
@@ -415,10 +436,9 @@ theorem includes_refl_of_valid (schema : Schema) (operation : Operation)
     : includes schema operation operation := by
   exact includes_refl schema operation hvalid.2.2.1.1
 
--- Shared-definition compatibility is pair-local and is not transitive when the middle
--- operation omits a name shared by the endpoints. The endpoint premise isolates that
--- boundary; error-freeness of the middle operation supplies both composed executions
--- with their remaining run-specific premise.
+-- Shared-definition compatibility is pair-local: the middle operation may omit a
+-- name shared by the endpoints, so the endpoint premise is needed. Error-freeness of
+-- the middle operation supplies both composed executions with their run-specific premise.
 theorem includes_trans_of_middle_error_free (schema : Schema)
     (left middle right : Operation)
     (endpointSharedVariableDefinitions
@@ -444,5 +464,5 @@ theorem includes_trans_of_middle_error_free (schema : Schema)
     (middleRight ObjectRef resolvers variableValues source
       (middleErrorFree ObjectRef resolvers variableValues source) rightErrors)
 
-end QueryInclusion
+end QueryInclusionSemantics
 end GraphQL

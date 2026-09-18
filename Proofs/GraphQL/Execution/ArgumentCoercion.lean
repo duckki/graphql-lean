@@ -1114,7 +1114,7 @@ private theorem coercedInputValuesEquivalent_object
   simp only [ConstInputValue.toInputValue, InputValue.canonical]
   rw [coercedInputObjectFields_canonical_eq hequivalent]
 
-private def coerceInputObjectFieldValueBounded
+def coerceInputObjectFieldValueBounded
     (schema : Schema) (variableValues : VariableValues) (fuel : Nat)
     (definition : InputValueDefinition) (fields : List (Name × InputValue))
     : InputCoercionResult :=
@@ -1133,7 +1133,7 @@ private def coerceInputObjectFieldValueBounded
             value.toInputValue
       | none => if definition.inputType.isNonNull then .error else .undefined
 
-private theorem coerceInputObjectFieldsBounded_cons
+theorem coerceInputObjectFieldsBounded_cons
     (schema : Schema) (variableValues : VariableValues) (fuel : Nat)
     (definition : InputValueDefinition) (definitions : List InputValueDefinition)
     (fields : List (Name × InputValue))
@@ -1735,9 +1735,7 @@ theorem coerceInputValue_equivalent_of_equivalent
   have hvalueFuel := inputValueCoercionFuel_eq_of_equivalent hvalue
   simpa [coerceInputValue, coerceInputValueFuel, hfuel, hvalueFuel]
     using coerceInputValueBounded_equivalent schema
-      (schemaInputCoercionFuel schema
-        + referencedVariableValuesCoercionFuel right rightValue
-        + inputValueCoercionFuel rightValue)
+      (coerceInputValueFuel schema right inputType rightValue)
       inputType leftValue rightValue hvalue (fun name _hname => hvalues.1 name)
 
 theorem coerceInputValue_equivalent_of_variableValuesCoercionEquivalent
@@ -1767,9 +1765,7 @@ theorem coerceInputValue_equivalent_of_lookup_agreement
     hlookups
   simpa [coerceInputValue, coerceInputValueFuel, hfuel]
     using coerceInputValueBounded_equivalent schema
-      (schemaInputCoercionFuel schema
-        + referencedVariableValuesCoercionFuel right value
-        + inputValueCoercionFuel value)
+      (coerceInputValueFuel schema right inputType value)
       inputType value value (inputValue_equivalent_refl_forCoercion value) hlookups
 
 private theorem lookupValue_eq_some_of_mem

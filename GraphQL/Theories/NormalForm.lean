@@ -1158,22 +1158,6 @@ def completeNormalizeOperationValid (schema : Schema) (operation : Operation) : 
 def operationBoolVarsEquivalent (left right : Operation) : Prop :=
   ∀ varName, varName ∈ operationBoolVars left ↔ varName ∈ operationBoolVars right
 
-/--
-Every complete Boolean case has a shared supplied-variable environment that makes
-both operations' field arguments coercible. The surrounding theorem assumptions
-require the operations to have equivalent Boolean-variable support, so enumerating
-the left operation's cases covers both sides. The base values may supply non-Boolean
-variables needed by field arguments.
--/
-def completeBoolCasesJointlyCoercible (schema : Schema) (left right : Operation) : Prop :=
-  ∀ boolCase,
-    completeNormalBoolCase (operationBoolVars left) boolCase
-    -> ∃ baseValues,
-        operationArgumentsCoercible schema
-          (boolCaseVariableValues boolCase baseValues) left
-        ∧ operationArgumentsCoercible schema
-            (boolCaseVariableValues boolCase baseValues) right
-
 def CompleteNormalSelectionEqualUpToReorderingWithCoercion
     (schema : Schema) (leftOperation rightOperation : Operation)
     (parentType : Name) (leftVariables rightVariables : List BoolVar)
@@ -1309,6 +1293,8 @@ def completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent
 -- equivalence on complete Boolean environments: operations that differ only at
 -- unresolvable condition variables still share one normal form. Unrestricted
 -- equivalence implies the premise, so this statement is the stronger one.
+-- Validity and complete normality supply jointly coercible environments for every
+-- complete Boolean case; no additional coercibility assumption is needed.
 def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1320,7 +1306,6 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right
-  -> completeBoolCasesJointlyCoercible schema left right
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema left right
@@ -1330,7 +1315,8 @@ def completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
 -- `CompleteNormalization.completeNormalizeOperation_uniqueUpToReordering` in
 -- `Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness`.
 -- As above, the restricted premise makes normalization canonical for exactly the
--- complete-Boolean-environment fragment of the semantics.
+-- complete-Boolean-environment fragment of the semantics. Possible-type field validity
+-- supplies a jointly coercible variable environment for every complete Boolean case.
 def completeNormalizeOperationUniqueUpToReordering
     (schema : Schema) (left right : Operation)
     : Prop :=
@@ -1344,9 +1330,6 @@ def completeNormalizeOperationUniqueUpToReordering
   -> variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
       right.variableDefinitions
   -> operationBoolVarsEquivalent left right
-  -> completeBoolCasesJointlyCoercible schema
-      (completeNormalizeOperation schema left)
-      (completeNormalizeOperation schema right)
   -> operationsSemanticallyEquivalentForCompleteBoolVars schema
       (operationBoolVars left) left right
   -> completeNormalOperationsEqualUpToReorderingWithCoercion schema

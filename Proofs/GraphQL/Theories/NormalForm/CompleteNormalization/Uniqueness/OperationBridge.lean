@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Execution.ArgumentCoercion
+import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibility
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.CaseBodies
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.Uniqueness.RestrictedSemantics
 import Proofs.GraphQL.Theories.NormalForm.GroundTypeNormalization.Uniqueness
@@ -108,12 +109,13 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
     (hdefinitions
       : variableDefinitionsSyntacticallyEquivalent left.variableDefinitions
           right.variableDefinitions)
-    (hjoint : completeBoolCasesJointlyCoercible schema left right)
     (hsem
       : operationsSemanticallyEquivalentForCompleteBoolVars schema
           (operationBoolVars left) left right)
     : completeNormalOperationsEqualUpToReorderingWithCoercion schema left right := by
   classical
+  have hjoint := completeBoolCasesJointlyCoercible_of_completeNormal hschema
+    hleftValid hrightValid hleftNormal hrightNormal hdefinitions
   have hroot : (left.rootType schema) = (right.rootType schema) :=
     GroundTypeNormalization.operation_rootType_eq_of_operationDefinitionValid
       hleftValid hrightValid
@@ -365,11 +367,11 @@ theorem complete_normal_operations_semanticallyEquivalent_equalUpToReordering
     : completeNormalOperationsSemanticallyEquivalentEqualUpToReordering
         schema left right := by
   intro hschema hleftValid hrightValid hleftNormal hrightNormal hdefinitions
-    hvariables hjoint hsem
+    hvariables hsem
   exact
     complete_normal_operations_equalUpToReordering_of_complete_bool_vars_semantics
       hschema hleftValid hrightValid hleftNormal hrightNormal hvariables
-      hdefinitions hjoint hsem
+      hdefinitions hsem
 
 end CompleteNormalization
 

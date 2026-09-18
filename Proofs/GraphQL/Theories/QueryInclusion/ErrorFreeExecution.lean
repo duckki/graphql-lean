@@ -30,13 +30,16 @@ private theorem named_composite_of_typeIncludesObjectBool
 mutual
   def resolverValueSupported (schema : Schema)
       : TypeRef -> ResolverValue ObjectRef -> Prop
+    | .named _typeName, .null => True
+    | .list _inner, .null => True
     | .named typeName, .scalar _value =>
         (TypeRef.named typeName).isCompositeBool schema = false
     | .named typeName, .object runtimeType _ref =>
         schema.typeIncludesObjectBool typeName runtimeType = true
     | .list inner, .list values =>
         resolverValuesSupported schema inner values
-    | .nonNull inner, value => resolverValueSupported schema inner value
+    | .nonNull inner, value =>
+        value ≠ .null ∧ resolverValueSupported schema inner value
     | _, _ => False
 
   def resolverValuesSupported (schema : Schema) (itemType : TypeRef)
@@ -51,7 +54,7 @@ def ResolversSupported (schema : Schema) (resolvers : Resolvers ObjectRef) : Pro
   ∀ parentType fieldName arguments source definition,
     schema.lookupField parentType fieldName = some definition
     -> (definition.outputType.isCompositeBool schema = true
-        -> schema.getPossibleTypes definition.outputType.namedType ≠ [])
+        -> nonNullNonListOutputTypeInhabited schema definition.outputType)
     -> ∃ value,
         resolvers.resolve parentType fieldName arguments source = some value
         ∧ resolverValueSupported schema definition.outputType value
@@ -64,7 +67,7 @@ def executableFieldReady (schema : Schema) (parentType : Name) (field : Executab
         schema.typeIncludesObjectBool definition.outputType.namedType runtimeType = true
         -> NormalForm.selectionSetSemanticsReady schema runtimeType field.selectionSet)
     ∧ (definition.outputType.isCompositeBool schema = true
-        -> schema.getPossibleTypes definition.outputType.namedType ≠ []
+        -> nonNullNonListOutputTypeInhabited schema definition.outputType
             ∧ ∀ runtimeType,
                 schema.typeIncludesObjectBool definition.outputType.namedType runtimeType
                   = true
@@ -180,7 +183,7 @@ private theorem collectFlatFields_field_compositeType_inhabited
     : ∀ definition,
         schema.lookupField parentType entry.2.fieldName = some definition
         -> definition.outputType.isCompositeBool schema = true
-        -> schema.getPossibleTypes definition.outputType.namedType ≠ []
+        -> nonNullNonListOutputTypeInhabited schema definition.outputType
             ∧ ∀ runtimeType,
                 schema.typeIncludesObjectBool definition.outputType.namedType runtimeType
                   = true
@@ -428,7 +431,7 @@ private theorem executableFieldsReady_composite_inhabited
     (definition : FieldDefinition)
     (hlookup : schema.lookupField parentType field.fieldName = some definition)
     : definition.outputType.isCompositeBool schema = true
-      -> schema.getPossibleTypes definition.outputType.namedType ≠ [] := by
+      -> nonNullNonListOutputTypeInhabited schema definition.outputType := by
   rcases hready.2.1 field hfield with
       ⟨readyDefinition, hreadyLookup, _hchild, hinhabited⟩
   rw [hlookup] at hreadyLookup
@@ -663,7 +666,7 @@ private theorem supportedAnnotatedExecution_all
               completeAnnotatedResponseValue schema resolvers variableValues fuel
                   fieldType fields value
                 = .ok (result, 0)
-              ∧ result ≠ .null)
+              ∧ (value ≠ .null -> result ≠ .null))
       ∧ (∀ fuel itemType fields values parentType depth,
           completionFieldsExecutionReady schema variableValues parentType itemType fields
           -> (∀ field,
@@ -790,12 +793,15 @@ private theorem supportedAnnotatedExecution_all
         completionFieldsExecutionReady schema variableValues fieldParentType inner fields := by
       simpa [completionFieldsExecutionReady, completionFieldsReady, TypeRef.namedType]
         using hready
+    simp only [resolverValueSupported] at hsupported
     have hinnerSupported : resolverValueSupported schema inner value := by
-      simpa [resolverValueSupported] using hsupported
+      exact hsupported.2
     have hinnerFuel : valueCompletionFuelBound schema depth inner ≤ fuel := by
       simpa [valueCompletionFuelBound_inner_nonNull] using hfuel
     rcases completeIH fieldParentType depth hinnerReady hdepth hinnerSupported hinnerFuel with
       ⟨result, hresult, hnonnull⟩
+    have hvalueNonnull : value ≠ .null := hsupported.1
+    have hresultNonnull : result ≠ .null := hnonnull hvalueNonnull
     cases fuel with
     | zero => exact False.elim (hfuelPositive rfl)
     | succ fuel =>
@@ -804,14 +810,16 @@ private theorem supportedAnnotatedExecution_all
           by
             simp [completeAnnotatedResponseValue, hresult,
               completeNonNullAnnotatedResponseValue],
-          hnonnull
+          fun _ => hresultNonnull
         ⟩
   case case11 =>
     intro fuel fieldType fields hnotNonNull fieldParentType depth _hready _hdepth
       hsupported _hfuel
     cases fieldType with
-    | named typeName => simp [resolverValueSupported] at hsupported
-    | list inner => simp [resolverValueSupported] at hsupported
+    | named typeName =>
+        exact ⟨.null, by simp [completeAnnotatedResponseValue], by simp⟩
+    | list inner =>
+        exact ⟨.null, by simp [completeAnnotatedResponseValue], by simp⟩
     | nonNull inner => exact False.elim (hnotNonNull inner rfl)
   case case12 =>
     intro fuel typeName fields value hcomposite fieldParentType depth _hready _hdepth
@@ -1024,42 +1032,130 @@ theorem representativePossibleObject_mem
   simp only [representativePossibleObject, dif_pos hpossible]
   exact Classical.choose_spec (List.exists_mem_of_ne_nil _ hpossible)
 
-noncomputable def supportedResolverValue (schema : Schema)
-    : TypeRef -> ResolverValue PUnit
+-- Choose a non-null object when the named type has possible runtime objects, so
+-- recursive child obligations remain observable. Otherwise choose null for a
+-- nullable non-list return and [] for a list return.
+def probeResolverValue (schema : Schema) (objectValue : Name -> ResolverValue ObjectRef)
+    : TypeRef -> ResolverValue ObjectRef
   | .named typeName =>
       if (TypeRef.named typeName).isCompositeBool schema then
-        .object (representativePossibleObject schema typeName) PUnit.unit
+        if schema.getPossibleTypes typeName == [] then
+          .null
+        else
+          objectValue typeName
       else
         .scalar "query-inclusion-probe"
-  | .list inner => .list [supportedResolverValue schema inner]
-  | .nonNull inner => supportedResolverValue schema inner
+  | .list inner =>
+      if schema.getPossibleTypes inner.namedType == [] then
+        .list []
+      else
+        .list [probeResolverValue schema objectValue inner]
+  | .nonNull inner => probeResolverValue schema objectValue inner
 
-private theorem supportedResolverValue_supported (schema : Schema)
+private theorem nonNullNonListOutputTypeInhabited_of_possible (schema : Schema)
+    : ∀ fieldType,
+        schema.getPossibleTypes fieldType.namedType ≠ []
+        -> nonNullNonListOutputTypeInhabited schema fieldType := by
+  intro fieldType
+  induction fieldType with
+  | named _ =>
+      intro _; trivial
+  | list inner ih =>
+      intro _; trivial
+  | nonNull inner ih =>
+      intro hpossible
+      cases inner with
+      | named typeName =>
+          simpa [nonNullNonListOutputTypeInhabited, TypeRef.namedType] using hpossible
+      | list _ => trivial
+      | nonNull _ =>
+          exact ih (by simpa [TypeRef.namedType] using hpossible)
+
+private theorem probeResolverValue_supported (schema : Schema)
+    (objectValue : Name -> ResolverValue ObjectRef)
+    (hobject
+      : ∀ typeName,
+          schema.getPossibleTypes typeName ≠ []
+          -> resolverValueSupported schema (.named typeName) (objectValue typeName)
+              ∧ objectValue typeName ≠ .null)
     : ∀ fieldType,
         (fieldType.isCompositeBool schema = true
-          -> schema.getPossibleTypes fieldType.namedType ≠ [])
+          -> nonNullNonListOutputTypeInhabited schema fieldType)
         -> resolverValueSupported schema fieldType
-            (supportedResolverValue schema fieldType) := by
-  intro fieldType hinhabited
+            (probeResolverValue schema objectValue fieldType) := by
+  intro fieldType
   induction fieldType with
   | named typeName =>
-      by_cases hcomposite :
-          (TypeRef.named typeName).isCompositeBool schema = true
-      · simp only [supportedResolverValue, hcomposite, if_true,
-          resolverValueSupported]
-        apply List.contains_iff_mem.mpr
-        exact representativePossibleObject_mem schema typeName
-          (hinhabited hcomposite)
-      · have hleaf :
-            (TypeRef.named typeName).isCompositeBool schema = false := by
+      intro _
+      by_cases hcomposite : (TypeRef.named typeName).isCompositeBool schema = true
+      · by_cases hpossible : schema.getPossibleTypes typeName = []
+        · simp [probeResolverValue, hcomposite, hpossible, resolverValueSupported]
+        · simpa [probeResolverValue, hcomposite, hpossible]
+            using (hobject typeName hpossible).1
+      · have hleaf : (TypeRef.named typeName).isCompositeBool schema = false := by
           simpa using hcomposite
-        simp [supportedResolverValue, hleaf, resolverValueSupported]
+        simp [probeResolverValue, hleaf, resolverValueSupported]
   | list inner ih =>
-      simpa [supportedResolverValue, resolverValueSupported, resolverValuesSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      intro _
+      by_cases hpossible : schema.getPossibleTypes inner.namedType = []
+      · simp [probeResolverValue, hpossible, resolverValueSupported,
+          resolverValuesSupported]
+      · simpa [probeResolverValue, hpossible, resolverValueSupported,
+          resolverValuesSupported]
+          using ih
+            (fun _ =>
+              nonNullNonListOutputTypeInhabited_of_possible schema inner hpossible)
   | nonNull inner ih =>
-      simpa [supportedResolverValue, resolverValueSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+      intro hreturn
+      cases inner with
+      | named typeName =>
+          by_cases hcomposite : (TypeRef.named typeName).isCompositeBool schema = true
+          · have hpossible : schema.getPossibleTypes typeName ≠ [] :=
+              hreturn hcomposite
+            have hobjectSupported := hobject typeName hpossible
+            simpa [probeResolverValue, hcomposite, hpossible, resolverValueSupported]
+              using ⟨hobjectSupported.2, hobjectSupported.1⟩
+          · have hleaf : (TypeRef.named typeName).isCompositeBool schema = false := by
+              simpa using hcomposite
+            simp [probeResolverValue, hleaf, resolverValueSupported]
+      | list deeper =>
+          have hinner := ih (by trivial)
+          have hnotNull : probeResolverValue schema objectValue (.list deeper) ≠ .null := by
+            by_cases hpossible : schema.getPossibleTypes deeper.namedType == []
+            · simp [probeResolverValue, hpossible]
+            · simp [probeResolverValue, hpossible]
+          simp only [resolverValueSupported, probeResolverValue]
+          exact ⟨hnotNull, hinner⟩
+      | nonNull deeper =>
+          have hinner := ih (by
+            intro hcomposite
+            exact hreturn (by simpa [TypeRef.isCompositeBool, TypeRef.namedType]
+              using hcomposite))
+          simp only [resolverValueSupported] at hinner ⊢
+          exact ⟨hinner.1, hinner⟩
+
+noncomputable def supportedResolverValue (schema : Schema) (fieldType : TypeRef)
+    : ResolverValue PUnit :=
+  probeResolverValue schema
+    (fun typeName => .object (representativePossibleObject schema typeName) PUnit.unit)
+    fieldType
+
+private theorem supportedResolverValue_supported (schema : Schema)
+    (fieldType : TypeRef)
+    (hinhabited
+      : fieldType.isCompositeBool schema = true
+        -> nonNullNonListOutputTypeInhabited schema fieldType)
+    : resolverValueSupported schema fieldType
+        (supportedResolverValue schema fieldType) := by
+  apply probeResolverValue_supported schema
+    (fun typeName => .object (representativePossibleObject schema typeName) PUnit.unit)
+  · intro typeName hpossible
+    constructor
+    · simpa [resolverValueSupported, Schema.typeIncludesObjectBool]
+        using (List.contains_iff_mem.mpr
+                (representativePossibleObject_mem schema typeName hpossible))
+    · simp
+  · exact hinhabited
 
 noncomputable def supportedResolvers (schema : Schema) : Resolvers PUnit where
   resolve parentType fieldName _arguments _source :=
@@ -1131,42 +1227,27 @@ theorem defaultRuntimePlan_valid (schema : Schema)
   exact representativePossibleObject_mem schema typeName hpossible
 
 def plannedResolverValue (schema : Schema) (plan : RuntimePlan) (depth : Nat)
-    : TypeRef -> ResolverValue Nat
-  | .named typeName =>
-      if (TypeRef.named typeName).isCompositeBool schema then
-        .object (plan depth typeName) (depth + 1)
-      else
-        .scalar "query-inclusion-probe"
-  | .list inner => .list [plannedResolverValue schema plan depth inner]
-  | .nonNull inner => plannedResolverValue schema plan depth inner
+    (fieldType : TypeRef)
+    : ResolverValue Nat :=
+  probeResolverValue schema
+    (fun typeName => .object (plan depth typeName) (depth + 1)) fieldType
 
 private theorem plannedResolverValue_supported
     (schema : Schema) (plan : RuntimePlan) (hplan : plan.Valid schema)
-    (depth : Nat)
-    : ∀ fieldType,
-        (fieldType.isCompositeBool schema = true
-          -> schema.getPossibleTypes fieldType.namedType ≠ [])
-        -> resolverValueSupported schema fieldType
-            (plannedResolverValue schema plan depth fieldType) := by
-  intro fieldType hinhabited
-  induction fieldType with
-  | named typeName =>
-      by_cases hcomposite :
-          (TypeRef.named typeName).isCompositeBool schema = true
-      · simp only [plannedResolverValue, hcomposite, if_true,
-          resolverValueSupported]
-        exact List.contains_iff_mem.mpr
-          (hplan depth typeName (hinhabited hcomposite))
-      · have hleaf :
-            (TypeRef.named typeName).isCompositeBool schema = false := by
-          simpa using hcomposite
-        simp [plannedResolverValue, hleaf, resolverValueSupported]
-  | list inner ih =>
-      simpa [plannedResolverValue, resolverValueSupported, resolverValuesSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
-  | nonNull inner ih =>
-      simpa [plannedResolverValue, resolverValueSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+    (depth : Nat) (fieldType : TypeRef)
+    (hinhabited
+      : fieldType.isCompositeBool schema = true
+        -> nonNullNonListOutputTypeInhabited schema fieldType)
+    : resolverValueSupported schema fieldType
+        (plannedResolverValue schema plan depth fieldType) := by
+  apply probeResolverValue_supported schema
+    (fun typeName => .object (plan depth typeName) (depth + 1))
+  · intro typeName hpossible
+    constructor
+    · simpa [resolverValueSupported, Schema.typeIncludesObjectBool]
+        using (List.contains_iff_mem.mpr (hplan depth typeName hpossible))
+    · simp
+  · exact hinhabited
 
 def plannedResolvers (schema : Schema) (plan : RuntimePlan) : Resolvers Nat where
   resolve parentType fieldName _arguments source :=
@@ -1301,45 +1382,34 @@ theorem spineRuntime_eq_of_valid
   simp [spineRuntime, hplan 0 typeName hpossible]
 
 noncomputable def spineResolverValue (schema : Schema) (plan : RuntimePlan)
-    : TypeRef -> ResolverValue RuntimePlan
-  | .named typeName =>
-      if (TypeRef.named typeName).isCompositeBool schema then
-        .object (spineRuntime schema plan typeName) plan.shift
-      else
-        .scalar "query-inclusion-probe"
-  | .list inner => .list [spineResolverValue schema plan inner]
-  | .nonNull inner => spineResolverValue schema plan inner
+    (fieldType : TypeRef)
+    : ResolverValue RuntimePlan :=
+  probeResolverValue schema
+    (fun typeName => .object (spineRuntime schema plan typeName) plan.shift)
+    fieldType
 
 private theorem spineResolverValue_supported (schema : Schema) (plan : RuntimePlan)
-    : ∀ fieldType,
-        (fieldType.isCompositeBool schema = true
-          -> schema.getPossibleTypes fieldType.namedType ≠ [])
-        -> resolverValueSupported schema fieldType
-            (spineResolverValue schema plan fieldType) := by
-  intro fieldType hinhabited
-  induction fieldType with
-  | named typeName =>
-      by_cases hcomposite :
-          (TypeRef.named typeName).isCompositeBool schema = true
-      · simp only [spineResolverValue, hcomposite, if_true,
-          resolverValueSupported]
-        apply List.contains_iff_mem.mpr
+    (fieldType : TypeRef)
+    (hinhabited
+      : fieldType.isCompositeBool schema = true
+        -> nonNullNonListOutputTypeInhabited schema fieldType)
+    : resolverValueSupported schema fieldType
+        (spineResolverValue schema plan fieldType) := by
+  apply probeResolverValue_supported schema
+    (fun typeName => .object (spineRuntime schema plan typeName) plan.shift)
+  · intro typeName hpossible
+    constructor
+    · have hmember : spineRuntime schema plan typeName
+            ∈ schema.getPossibleTypes typeName := by
         classical
         simp only [spineRuntime]
         split
         · assumption
-        · exact representativePossibleObject_mem schema typeName
-            (hinhabited hcomposite)
-      · have hleaf :
-            (TypeRef.named typeName).isCompositeBool schema = false := by
-          simpa using hcomposite
-        simp [spineResolverValue, hleaf, resolverValueSupported]
-  | list inner ih =>
-      simpa [spineResolverValue, resolverValueSupported, resolverValuesSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
-  | nonNull inner ih =>
-      simpa [spineResolverValue, resolverValueSupported]
-        using ih (by simpa [TypeRef.isCompositeBool, TypeRef.namedType] using hinhabited)
+        · exact representativePossibleObject_mem schema typeName hpossible
+      simpa [resolverValueSupported, Schema.typeIncludesObjectBool]
+        using (List.contains_iff_mem.mpr hmember)
+    · simp
+  · exact hinhabited
 
 noncomputable def spineResolvers (schema : Schema) : Resolvers RuntimePlan where
   resolve parentType fieldName _arguments source :=

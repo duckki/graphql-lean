@@ -273,6 +273,9 @@ it intentionally does not compare variable types.
   variable behaves like `false` during field collection, so execution equivalence
   alone cannot detect a one-sided support variable whose branch bodies coincide.
   Its semantic premise is likewise restricted to complete Boolean environments.
+  Ordinary validity and complete normality imply possible-type field validity,
+  which supplies joint argument-coercion witnesses for every Boolean case. No
+  separate coercibility or possible-type validity premise is needed here.
 - `NormalForm.completeNormalizeOperationsEqualUpToReorderingSemanticallyEquivalent`
   is witnessed by
   `completeNormalizeOperations_equalUpToReordering_semanticallyEquivalent` in
@@ -289,7 +292,9 @@ it intentionally does not compare variable types.
   complete-normalization validity, and compares operations with equivalent Boolean
   variable support. Its semantic premise is restricted to complete Boolean
   environments, matching the soundness conclusion, so the two directions together
-  characterize exactly that fragment of the semantics.
+  characterize exactly that fragment of the semantics. Joint Boolean-case argument
+  coercibility is derived from possible-type field validity and equivalent variable
+  definitions; callers do not need to provide a separate coercibility premise.
 
 The ground and complete proofs are summarized in
 `docs/theories/normal-form-uniqueness.md`.

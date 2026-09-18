@@ -588,10 +588,8 @@ def SelectionSetInclusionCaseReady (schema : Schema) (responseFuel : Nat)
   schema.objectType runtimeType
   ∧ fixedExecutionParentType.getD runtimeType = runtimeType
   ∧ NormalForm.selectionSetSemanticsReady schema runtimeType leftSelectionSet
-  ∧ selectionSetCompositeFieldTypesInhabited schema runtimeType leftSelectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet
   ∧ NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet
-  ∧ selectionSetCompositeFieldTypesInhabited schema runtimeType rightSelectionSet
   ∧ FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet
   ∧ selectionSetIncludesAtRuntimeBoolWithFuel schema responseFuel runtimeType runtimeType
       targetValues leftSelectionSet rightSelectionSet
@@ -722,15 +720,15 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
         hruntimeParent
     have hruntimeLeftReady := executableGroupsSemanticsReady_collectFields schema targetValues
       runtimeType PUnit.unit leftTargetSelectionSet hparentCase.1
-      hparentCase.2.2.1 hparentCase.2.2.2.2.1
+      hparentCase.2.2.1 hparentCase.2.2.2.1
     have hruntimeRightReady := executableGroupsSemanticsReady_collectFields schema targetValues
       runtimeType PUnit.unit rightTargetSelectionSet hparentCase.1
-      hparentCase.2.2.2.2.2.1 hparentCase.2.2.2.2.2.2.2.1
+      hparentCase.2.2.2.2.1 hparentCase.2.2.2.2.2.1
     cases responseFuel with
     | zero =>
         have hruntimeEmpty : runtimeRightGroups.isEmpty = true := by
           simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeRightGroups]
-            using hparentCase.2.2.2.2.2.2.2.2
+            using hparentCase.2.2.2.2.2.2
         have hguardedEmpty :
             (guardedFieldRuntimeGroups targetValues runtimeType rightGroups).isEmpty
               = true := by
@@ -791,7 +789,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                 runtimeLeftGroups runtimeRightGroups = true := by
               simpa [selectionSetIncludesAtRuntimeBoolWithFuel, runtimeLeftGroups,
                 runtimeRightGroups]
-                using hparentCase.2.2.2.2.2.2.2.2
+                using hparentCase.2.2.2.2.2.2
             have hruntimeRightIncluded := List.all_eq_true.mp hruntimeInclude
               (right.responseName, runtimeRightFields) hruntimeRightGroup
             unfold executableGroupIncludedBool at hruntimeRightIncluded
@@ -1023,14 +1021,13 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                       hchildRightEquivalent hchildGuardedRight with
                     ⟨childRuntimeRightFields, hchildRuntimeRightGroup,
                       hchildRightFieldsPerm⟩
-                  have hchildRuntimeLeftReady := executableGroupsReady_collectFields schema
+                  have hchildRuntimeLeftReady := executableGroupsSemanticsReady_collectFields schema
                     childValues runtimeType PUnit.unit childOuterLeftSelectionSet
                     houterCase.1 houterCase.2.2.1 houterCase.2.2.2.1
-                    houterCase.2.2.2.2.1
-                  have hchildRuntimeRightReady := executableGroupsReady_collectFields schema
+                  have hchildRuntimeRightReady := executableGroupsSemanticsReady_collectFields schema
                     childValues runtimeType PUnit.unit childOuterRightSelectionSet
-                    houterCase.1 houterCase.2.2.2.2.2.1
-                    houterCase.2.2.2.2.2.2.1 houterCase.2.2.2.2.2.2.2.1
+                    houterCase.1 houterCase.2.2.2.2.1
+                    houterCase.2.2.2.2.2.1
                   have hchildRuntimeInclude : executableGroupsIncludeBool schema runtimeType
                       (fun outputType leftSelectionSet rightSelectionSet =>
                         (schema.getPossibleTypes outputType.namedType).all
@@ -1041,7 +1038,7 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                       childRuntimeLeftGroups childRuntimeRightGroups = true := by
                     simpa [selectionSetIncludesAtRuntimeBoolWithFuel,
                       childRuntimeLeftGroups, childRuntimeRightGroups]
-                      using houterCase.2.2.2.2.2.2.2.2
+                      using houterCase.2.2.2.2.2.2
                   have hleftWitness := completionFieldsWitness_of_perm
                     hchildLeftFieldsPerm
                     (by simpa using hguardedLeftWitness)
@@ -1053,19 +1050,18 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                     childRuntimeRightGroups leftName right.responseName
                     childRuntimeLeftFields childRuntimeRightFields fieldType childRuntimeType
                     hchildLeftEquivalent.rightKeysNodup
-                    (executableGroupsSemanticsReady_of_ready hchildRuntimeLeftReady)
-                    (executableGroupsSemanticsReady_of_ready hchildRuntimeRightReady)
+                    hchildRuntimeLeftReady hchildRuntimeRightReady
                     hchildRuntimeLeftGroup hchildRuntimeRightGroup
                     hname hleftWitness hrightWitness hchildRuntime
                     hchildRuntimeInclude
                   have hchildObject :=
                     SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects
                       hschema fieldType.namedType childRuntimeType hchildRuntime
-                  have hleftCompletionReady : completionFieldsReady schema runtimeType fieldType
+                  have hleftCompletionReady : completionFieldsSemanticsReady schema runtimeType fieldType
                       childRuntimeLeftFields :=
                     ⟨hchildRuntimeLeftReady leftName childRuntimeLeftFields
                       hchildRuntimeLeftGroup, hleftWitness⟩
-                  have hrightCompletionReady : completionFieldsReady schema runtimeType fieldType
+                  have hrightCompletionReady : completionFieldsSemanticsReady schema runtimeType fieldType
                       childRuntimeRightFields :=
                     ⟨hchildRuntimeRightReady right.responseName childRuntimeRightFields
                       hchildRuntimeRightGroup, hrightWitness⟩
@@ -1073,24 +1069,20 @@ theorem guardedFieldGroupsIncludeWithFuel_semantic_complete
                       childRuntimeType = true := List.contains_iff_mem.mpr hchildRuntime
                   refine ⟨executableFieldsMergedSelectionSet childRuntimeLeftFields,
                     executableFieldsMergedSelectionSet childRuntimeRightFields,
-                    ?_, ?_, hchildObject, rfl, ?_, ?_, ?_, ?_, ?_, ?_, ?_⟩
+                    ?_, ?_, hchildObject, rfl, ?_, ?_, ?_, ?_, ?_⟩
                   · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
                       using Execution.FieldGroups.mergedFieldSelectionSet_perm
                         hchildLeftFieldsPerm
                   · simpa [executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
                       using Execution.FieldGroups.mergedFieldSelectionSet_perm
                         hchildRightFieldsPerm
-                  · simpa using completionFieldsReady_merged_semantics
+                  · simpa using completionFieldsSemanticsReady_merged_semantics
                       hleftCompletionReady hincludes
-                  · simpa using completionFieldsReady_merged_inhabited
-                      hleftCompletionReady hincludes
-                  · simpa using completionFieldsReady_merged_canMerge
+                  · simpa using completionFieldsSemanticsReady_merged_canMerge
                       hleftCompletionReady childRuntimeType
-                  · simpa using completionFieldsReady_merged_semantics
+                  · simpa using completionFieldsSemanticsReady_merged_semantics
                       hrightCompletionReady hincludes
-                  · simpa using completionFieldsReady_merged_inhabited
-                      hrightCompletionReady hincludes
-                  · simpa using completionFieldsReady_merged_canMerge
+                  · simpa using completionFieldsSemanticsReady_merged_canMerge
                       hrightCompletionReady childRuntimeType
                   · exact hchildSemantic
               · exact hruntimeSingletonInclude
@@ -1174,13 +1166,9 @@ theorem selectionSetIncludesBool_complete
     (hparentObject : schema.objectType parentType)
     (hleftReady
       : NormalForm.selectionSetSemanticsReady schema parentType leftSelectionSet)
-    (hleftInhabited
-      : selectionSetCompositeFieldTypesInhabited schema parentType leftSelectionSet)
     (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema parentType rightSelectionSet)
-    (hrightInhabited
-      : selectionSetCompositeFieldTypesInhabited schema parentType rightSelectionSet)
     (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType rightSelectionSet)
     (hcases
       : ∀ variableValues,
@@ -1216,8 +1204,8 @@ theorem selectionSetIncludesBool_complete
       have hparentSelf : parentType ∈ schema.getPossibleTypes parentType := by
         simp [getPossibleTypes_eq_singleton_of_object schema hparentObject]
       exact ⟨leftSelectionSet, rightSelectionSet, List.Perm.refl _,
-        List.Perm.refl _, hparentObject, rfl, hleftReady, hleftInhabited,
-        hleftMerge, hrightReady, hrightInhabited, hrightMerge,
+        List.Perm.refl _, hparentObject, rfl, hleftReady,
+        hleftMerge, hrightReady, hrightMerge,
         hselectionCheck parentType hparentSelf⟩)
   simpa [selectionSetIncludesBool, selectionSetIncludesBoolWithPartialAssignment,
     SelectionConditions.ofSelectionSet, SelectionConditions.ofSelectionSetInScope,
@@ -1290,8 +1278,6 @@ theorem includesBool_complete_of_reference
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleftValid : Validation.operationDefinitionValid schema left)
     (hrightValid : Validation.operationDefinitionValid schema right)
-    (hleftInhabited : operationCompositeFieldTypesInhabited schema left)
-    (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
     (hcheck : includesBoolReference schema left right = true)
     : includesBool schema left right = true := by
   rcases includesBoolReference_to_selectionSetChecks hcheck with
@@ -1315,16 +1301,11 @@ theorem includesBool_complete_of_reference
       (right.rootType schema) left.selectionSet := by
     rw [← hroot]
     exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid
-  have hleftInhabited' : selectionSetCompositeFieldTypesInhabited schema
-      (right.rootType schema) left.selectionSet := by
-    rw [← hroot]
-    exact hleftInhabited
   exact selectionSetIncludesBool_complete schema hschema (right.size + 1)
     (right.rootType schema) left.selectionSet right.selectionSet hrightObject
-    hleftReady hleftInhabited' hleftMerge
+    hleftReady hleftMerge
     (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
       hschema hrightValid)
-    hrightInhabited
     (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
     (fun conditionValues _hcomplete => hcases conditionValues)
 

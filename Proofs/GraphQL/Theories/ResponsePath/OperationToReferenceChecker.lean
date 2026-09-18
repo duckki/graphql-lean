@@ -1,7 +1,6 @@
 import Proofs.GraphQL.Theories.ResponsePath.ReferenceChecker
-import Proofs.GraphQL.Theories.QueryInclusion.Soundness
 
-/-! The syntactic-to-semantic correspondence direction of path-based query inclusion. -/
+/-! Root-level selected-path inclusion supplies the reference-checker cases. -/
 
 namespace GraphQL
 namespace ResponsePath
@@ -100,16 +99,23 @@ theorem rootType_eq (schema : Schema) (left right : Operation)
   cases right.operationType
   rfl
 
--- For valid operations under a well-formed schema, path-based syntactic inclusion
--- implies semantic query inclusion. Witnesses `ResponsePath.IncludesSyntacticToSemantic`.
-theorem includesSyntacticToSemantic {schema : Schema} {left right : Operation}
-    : IncludesSyntacticToSemantic schema left right := by
-  intro hschema hleftValid hrightValid hpath
+-- Syntactic inclusion supplies every reference-checker branch directly.
+theorem selectionSetChecks_of_includes {schema : Schema} {left right : Operation}
+    (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (hleftValid : Validation.operationDefinitionValid schema left)
+    (hrightValid : Validation.operationDefinitionValid schema right)
+    (hpath : QueryInclusion.includes schema left right)
+    : ∀ conditionValues,
+        boolVarsComplete
+          (comparisonConditionVariables left.selectionSet right.selectionSet)
+          conditionValues
+        -> selectionSetIncludesBoolWithFuel schema (right.size + 1)
+              (right.rootType schema) conditionValues
+              left.selectionSet right.selectionSet
+            = true := by
+  intro conditionValues hcomplete
   have hroot : left.rootType schema = right.rootType schema :=
     rootType_eq schema left right
-  refine QueryInclusion.includes_of_selectionSetChecks hschema hleftValid hrightValid
-    hroot hpath.1 ?_
-  intro conditionValues hcomplete
   let conditionVariables :=
     comparisonConditionVariables left.selectionSet right.selectionSet
   let assignment := booleanAssignmentOf conditionValues conditionVariables

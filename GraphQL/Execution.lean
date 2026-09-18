@@ -220,6 +220,34 @@ def typeDefinitionsInputCoercionFuel : List TypeDefinition -> Nat
 def schemaInputCoercionFuel (schema : Schema) : Nat :=
   typeDefinitionsInputCoercionFuel schema.types + schema.types.length + 1
 
+-- Singleton-list coercion and non-null unwrapping consume steps without descending
+-- into the value syntax. Each syntax step therefore needs a full type-depth budget.
+def inputTypeCoercionDepth : TypeRef -> Nat
+  | .named _ => 1
+  | .list inner | .nonNull inner => inputTypeCoercionDepth inner + 1
+
+def inputValueDefinitionsCoercionDepth (definitions : List InputValueDefinition) : Nat :=
+  definitions.foldr
+    (fun definition depth => max (inputTypeCoercionDepth definition.inputType) depth) 1
+
+def schemaInputCoercionDepth (schema : Schema) : Nat :=
+  schema.types.foldr
+    (fun definition depth =>
+      let localDepth :=
+        match definition with
+        | .object objectType =>
+            objectType.fields.foldr
+              (fun field depth =>
+                max (inputValueDefinitionsCoercionDepth field.arguments) depth) 1
+        | .interface interfaceType =>
+            interfaceType.fields.foldr
+              (fun field depth =>
+                max (inputValueDefinitionsCoercionDepth field.arguments) depth) 1
+        | .inputObject inputObject =>
+            inputValueDefinitionsCoercionDepth inputObject.inputFields
+        | _ => 1
+      max localDepth depth) 1
+
 -- Input coercion must distinguish an absent variable from an invalid supplied value.
 -- The surrounding list, input-object, or argument location decides how `undefined` is
 -- interpreted; `error` always aborts coercion at that location.
@@ -373,11 +401,12 @@ mutual
 end
 
 def coerceInputValueFuel (schema : Schema) (variableValues : VariableValues)
-    (value : InputValue)
+    (inputType : TypeRef) (value : InputValue)
     : Nat :=
-  schemaInputCoercionFuel schema
-  + referencedVariableValuesCoercionFuel variableValues value
-  + inputValueCoercionFuel value
+  (schemaInputCoercionFuel schema
+    + referencedVariableValuesCoercionFuel variableValues value
+    + inputValueCoercionFuel value)
+  * max (inputTypeCoercionDepth inputType) (schemaInputCoercionDepth schema)
 
 -- Spec input coercion result used by execution. Undefined variables remain distinct
 -- from invalid values so an enclosing argument or input-object field can apply its own
@@ -386,7 +415,7 @@ def coerceInputValue (schema : Schema) (variableValues : VariableValues)
     (inputType : TypeRef) (value : InputValue)
     : InputCoercionResult :=
   coerceInputValueBounded schema variableValues
-    (coerceInputValueFuel schema variableValues value)
+    (coerceInputValueFuel schema variableValues inputType value)
     inputType value
 
 -- Spec 6.1.2 `CoerceVariableValues`, default-value branch: partial; for every missing

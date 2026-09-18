@@ -134,12 +134,12 @@ def inputObjectTypeWellFormed (schema : Schema) (inputObjectType : InputObjectTy
 -- Spec 3.10 circular-reference rule: only an unbroken chain of singular non-null input
 -- object fields is forbidden. Nullable and list fields deliberately break the chain, so
 -- schemas may still represent finite recursive input values.
-private def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
+def nonNullSingularInputObjectTarget? (inputType : TypeRef) : Option Name :=
   match inputType with
   | .nonNull (.named target) => some target
   | _ => none
 
-private def inputObjectHasNonNullSingularCycleFrom (schema : Schema)
+def inputObjectHasNonNullSingularCycleFrom (schema : Schema)
     : Nat -> List Name -> Name -> Bool
   | 0, _visited, _current => false
   | fuel + 1, visited, current =>
@@ -171,23 +171,23 @@ def inputObjectNonNullSingularCircularReferencesValid (schema : Schema) : Prop :
   inputObjectNonNullSingularCircularReferencesValidBool schema = true
 
 mutual
-  private def constInputValueSize : ConstInputValue -> Nat
+  def constInputValueSize : ConstInputValue -> Nat
     | .null | .int _ | .float _ | .string _ | .boolean _ | .enum _ => 1
     | .list values => 1 + constInputValueListSize values
     | .object fields => 1 + constInputValueFieldSize fields
 
-  private def constInputValueListSize : List ConstInputValue -> Nat
+  def constInputValueListSize : List ConstInputValue -> Nat
     | [] => 0
     | value :: values => constInputValueSize value + constInputValueListSize values
 
-  private def constInputValueFieldSize : List (Name × ConstInputValue) -> Nat
+  def constInputValueFieldSize : List (Name × ConstInputValue) -> Nat
     | [] => 0
     | (_, value) :: fields => constInputValueSize value + constInputValueFieldSize fields
 end
 
 -- The bound covers every schema default's finite syntax tree plus every input-object
 -- field. It bounds traversal of defaults, not the depth of supplied runtime input.
-private def inputObjectDefaultExpansionFuel (schema : Schema) : Nat :=
+def inputObjectDefaultExpansionFuel (schema : Schema) : Nat :=
   schema.types.foldr
     (fun typeDefinition fuel =>
       match typeDefinition with
@@ -206,7 +206,7 @@ private def inputObjectDefaultExpansionFuel (schema : Schema) : Nat :=
 -- Spec 3.10 `InputObjectDefaultValueHasCycle`: supplied object entries take precedence;
 -- absent entries follow their field default. Re-visiting a defaulted input field is the
 -- cycle witness. The fuel makes this executable on arbitrary raw schemas.
-private def inputObjectDefaultValueHasCycleWithFuel (schema : Schema)
+def inputObjectDefaultValueHasCycleWithFuel (schema : Schema)
     : Nat -> InputObjectType -> ConstInputValue -> List (Name × Name) -> Bool
   | 0, _inputObject, _value, _visited => false
   | fuel + 1, inputObject, value, visited =>

@@ -1,43 +1,42 @@
 # Query Inclusion
 
-`GraphQL.QueryInclusion.includesBool` decides the project’s recursive,
-resolver-provenance-preserving query-inclusion relation. Inclusion is directional:
-every response field selected by the right operation must also be present in the left
-response whenever that right field is selected, with composite values compared
-recursively.
+`GraphQL.QueryInclusion.includes` is a syntactic relation over selected response paths.
+Under every complete Boolean assignment, each path selected by the right operation must
+also be selected by the left. Path steps record the concrete parent object, response
+name, field identity, argument syntax, and output type. The executable checker is
+`GraphQL.QueryInclusion.includesBool`.
+
+`GraphQL.QueryInclusionSemantics.includes` separately compares every pair of error-free
+annotated executions, preserving response fields and resolver-call provenance. The
+`IncludesSyntacticToSemantic` and `IncludesSemanticToSyntactic` statements connect the
+two relations.
 
 ## Correctness Domain
 
-The executable Boolean function is total on the project’s permissive raw schema and
-operation syntax. A production caller should establish these checks before treating its
-result as a semantic decision:
+The Boolean checker is total on permissive raw syntax. Its syntactic soundness requires:
 
 1. `SchemaWellFormedness.schemaWellFormed schema`;
 2. `Validation.operationDefinitionValid schema left`;
-3. `Validation.operationDefinitionValid schema right`;
-4. `comparisonBranchesArgumentCoercible schema left right`;
-5. `operationCompositeFieldTypesInhabited schema left`; and
-6. `operationCompositeFieldTypesInhabited schema right`.
+3. `Validation.operationDefinitionValid schema right`.
 
-The first three premises suffice for soundness: `includesBool_sound` proves that
-acceptance implies `includes`. All six premises give the completeness direction through
-`includesBool_complete`, so the Boolean function decides the relation on that checked
-domain. `includesBool` does not run validation, probe-readiness, or inhabitance checks
-internally; a production API should perform them before calling the checker or bundle
-them in a checked wrapper.
+`includesBool_sound` proves acceptance implies syntactic `includes`, and
+`includesBool_complete` proves the converse under the same three premises. Thus a
+rejected result is conclusive for valid operations under a well-formed schema. The
+checker itself does not run validation.
 
-The `includes` relation has additional deliberate fine print:
+The syntactic relation compares field collection without executing resolvers. Its
+Boolean assignments cover the condition variables used by both operations. It also
+requires shared variable definitions to have structurally equal types and syntactically
+equivalent defaults; definition order and one-sided definitions remain unrestricted.
 
-- variable-definition order and definitions occurring on only one side are unrestricted;
-  definitions sharing a name must have structurally equal declared types and
-  syntactically equivalent defaults, which `includesBool` checks before selection
-  analysis;
-- every variable environment is constrained, including environments whose Boolean
-  condition variables do not all resolve: an unresolvable `@skip`/`@include` condition
-  behaves like `false` during field collection, so those executions are ordinary
-  error-free executions;
-- only pairs of annotated executions with zero execution errors contribute response-shape
-  obligations.
+For valid operations under a well-formed schema, syntactic inclusion implies semantic
+inclusion. The reverse bridge requires both
+`NormalForm.operationFieldsValidInPossibleTypes` and
+`operationCompositeFieldTypesInhabited` for each operation. Field validity supplies
+coercible arguments, and output inhabitance supplies error-free response values.
+Together they construct an error-free execution witness for each selected path.
+The semantic relation alone can be vacuous when such executions are unavailable.
+`operationBoolTypeConditionFeasible` is not required by this bridge.
 
 The shared-definition check deliberately avoids omitted/default-aware condition analysis.
 When a shared value is omitted, equivalent defaults give both operations the same value;
@@ -50,21 +49,61 @@ compares those projections syntactically up to reordering. This formulation reli
 operation-validity premises that reject duplicate variable names; behavior on invalid
 duplicate-name lists is outside the checker theorem domain.
 
-`comparisonBranchesArgumentCoercible` is the corresponding completeness-only witness.
-For each finite Boolean assignment, it requires an extension with values for any
-remaining variables under which both operations' field arguments coerce successfully.
-The complete Boolean assignment is the prefix of that environment, so operation defaults
-and extension values cannot override the branch being checked. It does not claim that
-arbitrary runtime variable values succeed. The shared
+`QueryInclusionSemantics.comparisonBranchesArgumentCoercible` is now derived inside
+the semantic-to-syntactic proof rather than required from callers.
+For every `BoolCase` complete on the comparison condition variables, it requires a
+supplied variable environment under which both operations' field arguments coerce.
+That environment must agree with the case on those condition variables; unrelated
+entries in the case do not constrain argument values. It does not claim that arbitrary
+runtime variable values succeed. The shared
 `GraphQL.Theories.ExecutionReadiness.operationArgumentsCoercible` predicate performs the
-recursive, operation-local check; it conservatively checks every syntactic field and each
-possible composite child runtime type, including fields disabled by the particular
-Boolean assignment.
+recursive, operation-local check: it checks enabled fields under the supplied
+Boolean values and every possible composite child runtime type.
 
-The zero-error restriction prevents resolver failures and null bubbling from erasing
-otherwise required response structure. Composite-return inhabitance is needed only for
-completeness: it supplies error-free witness executions and rules out vacuous semantic
-inclusion when a selected composite return has no possible runtime types.
+Output inhabitance does not imply argument coercibility. For example, the current
+schema rules accept:
+
+```graphql
+interface I { f(a: Int! = 1): String }
+type Query implements I { f(a: Int!): String }
+```
+
+Both `{ ... on I { left: f } }` and `{ ... on I { right: f } }` validate against
+`I.f`, whose default permits omitting `a`. Execution uses `Query.f`, which has no
+default, so every execution has a coercion error. Their composite-output
+inhabitance obligations hold, semantic inclusion is vacuous, and syntactic
+inclusion fails because their response names differ.
+`Tests.GraphQL.Theories.QueryInclusionSemantics.ArgumentCoercibility` proves this
+counterexample over all resolvers, variable values, and source values.
+
+`NormalForm.operationFieldsValidInPossibleTypes` checks argument validity at each
+concrete implementation; it is distinct from output-type inhabitance and rejects
+this example. The inclusion bridge now uses this validity condition for both
+operations in place of its explicit coercibility premise.
+
+The proof
+`QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes`
+constructs a common environment for the union of the operations' variable
+definitions. Matching names have the same type by shared-definition compatibility;
+names declared by only one operation remain supported. Every declared variable
+receives a non-null typed value, so operation defaults do not change the supplied
+environment. Each Boolean case overrides only comparison-condition variables,
+including conditions used by just one operation. Unrelated entries in the case
+are ignored. This proves argument coercibility without output-inhabitance or
+Boolean/type-condition feasibility assumptions; output inhabitance is used later
+when constructing complete error-free responses.
+
+The semantic relation restricts both executions to zero errors, preventing resolver
+failures and null bubbling from erasing otherwise required response structure. It
+also covers variable environments where a directive condition does not resolve to a
+Boolean; field collection treats that condition as false.
+`operationCompositeFieldTypesInhabited`
+requires a possible runtime object only for a selected non-list `T!` return whose
+named type `T` is composite. If `T` has no possible objects, nullable `T` can complete
+as `null`, and any list wrapping `T` can complete as `[]`, including `[T!]!`. The
+semantic bridge uses those values as error-free witnesses; a selected non-list `T!`
+with no possible object has none. Syntactic checker completeness has no inhabitance
+premise because it compares selected paths without constructing execution witnesses.
 
 ## Response-Local Search
 
@@ -102,13 +141,14 @@ continue through the complete response-local search.
 ## Proof Structure
 
 `includesBoolReference` is retained only as a simple reference checker; the public
-checker does not fall back to it. Under schema well-formedness, operation validity, and
-composite-return inhabitance, `includesBool_complete_of_reference` proves that the guarded
-field-group search covers every reference-checker case.
+checker does not fall back to it. Under schema well-formedness and operation validity,
+`includesBool_complete_of_reference` proves that the guarded field-group search covers
+every reference-checker case.
 
 `GraphQL.QueryInclusion.includesBool_sound` and
-`GraphQL.QueryInclusion.includesBool_complete` are exported by the proof root
-`Proofs.GraphQL.Theories.QueryInclusion`.
+`GraphQL.QueryInclusion.includesBool_complete` are exported by
+`Proofs.GraphQL.Theories.QueryInclusion`. The two bridge theorems are exported by
+`Proofs.GraphQL.Theories.QueryInclusionSemantics`.
 
 ## Benchmark
 

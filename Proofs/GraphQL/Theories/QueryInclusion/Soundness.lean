@@ -1,5 +1,7 @@
 import Proofs.GraphQL.Theories.QueryInclusion.GuardedFieldGroup
+import Proofs.GraphQL.Theories.ResponsePath.ReferenceChecker
 import Proofs.GraphQL.Theories.AnnotatedExecution
+import GraphQL.Theories.QueryInclusionSemantics
 
 /-! Soundness of the executable query-inclusion checker. -/
 
@@ -7,6 +9,8 @@ namespace GraphQL
 namespace QueryInclusion
 
 open Execution AnnotatedExecution
+open ResponsePath
+open QueryInclusionSemantics
 
 private theorem validDirectivesBooleanVariable_isModeled
     {schema : Schema} {variableDefinitions : List VariableDefinition}
@@ -160,10 +164,8 @@ theorem executeQueryAnnotated_zero_error_decompose
         · simp [hroot, hresult, runtimeObjectType?]
   · simp at herrors
 
--- The semantic continuation shared by the checker-facing and path-facing soundness
--- proofs: root-type agreement, shared-definition compatibility, and reference-checker
--- acceptance under every complete Boolean environment together imply semantic query
--- inclusion.
+-- Reference-checker acceptance under every complete Boolean environment implies
+-- execution inclusion under shared-definition and root-type agreement.
 theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation}
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (_hleftValid : Validation.operationDefinitionValid schema left)
@@ -181,7 +183,7 @@ theorem includes_of_selectionSetChecks {schema : Schema} {left right : Operation
                 (right.rootType schema) conditionValues
                 left.selectionSet right.selectionSet
               = true)
-    : includes schema left right := by
+    : QueryInclusionSemantics.includes schema left right := by
   refine ⟨hdefinitions', ?_⟩
   intro ObjectRef resolvers suppliedValues source
   dsimp only
@@ -421,15 +423,49 @@ theorem includesBool_sound {schema : Schema} {left right : Operation}
   intro hschema hleftValid hrightValid hcheck
   rcases includesBool_to_selectionSetChecks hschema hleftValid hrightValid hcheck with
     ⟨hroot, hdefinitions, hselectionChecks⟩
-  exact includes_of_selectionSetChecks hschema hleftValid hrightValid hroot
-    ((sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mp hdefinitions)
-    hselectionChecks
+  refine ⟨(sharedVariableDefinitionsSyntacticallyCompatibleBool_iff _ _).mp
+    hdefinitions, ?_⟩
+  intro assignment hcomplete path hrightPath
+  cases path with
+  | nil => exact hrightPath.elim
+  | cons step rest =>
+      have hrightObject : schema.objectType (right.rootType schema) :=
+        NormalForm.CompleteNormalization.operation_root_object_of_valid hschema
+          hrightValid
+      obtain ⟨hstepIncludes, hrightSel⟩ := hrightPath
+      have hscope : step.parentObject = right.rootType schema := by
+        have hmem : step.parentObject
+            ∈ schema.getPossibleTypes (right.rootType schema) := hstepIncludes
+        rw [getPossibleTypes_eq_singleton_of_object schema hrightObject] at hmem
+        simpa using hmem
+      rw [hscope] at hrightSel
+      have haccept := hselectionChecks (boolCaseVariableValues assignment) hcomplete
+      have hleftSel := selectsPath_of_selectionSetIncludesBoolWithFuel schema hschema
+        (boolCaseVariableValues assignment) rest step (right.size + 1)
+        (right.rootType schema) left.selectionSet right.selectionSet hrightObject
+        (by
+          rw [← hroot]
+          exact
+            NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
+              hschema hleftValid)
+        (by
+          rw [← hroot]
+          exact Validation.operationDefinitionValid_fieldsInSetCanMerge hleftValid)
+        (NormalForm.CompleteNormalization.operation_selectionSetSemanticsReady_of_valid
+          hschema hrightValid)
+        (Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid)
+        haccept hscope hrightSel
+      refine ⟨?_, ?_⟩
+      · rw [hroot]
+        exact hstepIncludes
+      · rw [hroot, hscope]
+        exact hleftSel
 
 -- Semantic query inclusion transfers pointwise onto the projected plain responses of
 -- the same execution pair, so only operation validity is needed: no execution witnesses
--- are constructed. Witnesses `QueryInclusion.IncludesToIncludesUnannotated`.
+-- are constructed. Witnesses `QueryInclusionSemantics.IncludesToIncludesUnannotated`.
 theorem includesToIncludesUnannotated {schema : Schema} {left right : Operation}
-    : IncludesToIncludesUnannotated schema left right := by
+    : QueryInclusionSemantics.IncludesToIncludesUnannotated schema left right := by
   intro _hschema _hleftValid _hrightValid hincludes
   have hroot : left.rootType schema = right.rootType schema := by
     rw [Validation.operationDefinitionValid_rootType_eq _hleftValid,
