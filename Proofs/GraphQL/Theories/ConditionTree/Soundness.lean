@@ -1007,10 +1007,10 @@ def runtimeFieldsForConditionEntries
             [(
               responseName,
               {
-              fieldName
-              arguments
-              selectionSet
-            }
+                fieldName
+                arguments
+                selectionSet
+              }
             )]
         | .inlineFragment .. => []
       else
@@ -1034,10 +1034,10 @@ theorem runtimeFieldsForConditionEntries_singleton
               [(
                 responseName,
                 {
-                fieldName
-                arguments
-                selectionSet
-              }
+                  fieldName
+                  arguments
+                  selectionSet
+                }
               )]
           | .inlineFragment .. => []
         else

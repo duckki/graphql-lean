@@ -25,10 +25,10 @@ mutual
           [(
             responseName,
             {
-            fieldName
-            arguments
-            selectionSet
-          }
+              fieldName
+              arguments
+              selectionSet
+            }
           )]
         else
           []
