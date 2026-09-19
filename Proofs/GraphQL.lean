@@ -8,6 +8,7 @@ import Proofs.GraphQL.Validation.InputCompatibility
 import Proofs.GraphQL.NamedFragment.Semantics.Inline
 import Proofs.GraphQL.NamedFragment.Semantics.Validation
 import Proofs.GraphQL.Theories.NormalForm
+import Proofs.GraphQL.Theories.ExecutionReadiness.Checker
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibility
 import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentValues
 import Proofs.GraphQL.Theories.AnnotatedExecution

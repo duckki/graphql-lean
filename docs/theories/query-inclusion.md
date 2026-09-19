@@ -31,8 +31,8 @@ equivalent defaults; definition order and one-sided definitions remain unrestric
 
 For valid operations under a well-formed schema, syntactic inclusion implies semantic
 inclusion. The reverse bridge requires both
-`NormalForm.operationFieldsValidInPossibleTypes` and
-`operationCompositeFieldTypesInhabited` for each operation. Field validity supplies
+`operationCoercibleInPossibleTypes` and
+`operationCompositeFieldTypesInhabited` for each operation. Concrete argument defaults supply
 coercible arguments, and output inhabitance supplies error-free response values.
 Together they construct an error-free execution witness for each selected path.
 The semantic relation alone can be vacuous when such executions are unavailable.
@@ -76,10 +76,14 @@ inclusion fails because their response names differ.
 `Tests.GraphQL.Theories.QueryInclusionSemantics.ArgumentCoercibility` proves this
 counterexample over all resolvers, variable values, and source values.
 
-`NormalForm.operationFieldsValidInPossibleTypes` checks argument validity at each
-concrete implementation; it is distinct from output-type inhabitance and rejects
-this example. The inclusion bridge now uses this validity condition for both
-operations in place of its explicit coercibility premise.
+`operationCoercibleInPossibleTypes` checks that omitted non-null field arguments
+have defaults in each concrete implementation on enabled paths. Both readiness
+predicates quantify over variable environments, preserving correlated conditions
+through field boundaries. Inline fragments retain the current concrete runtime
+type. Validation already checks supplied arguments at the declared location; the static predicate does not repeat those
+checks. It rejects this example and replaces the explicit coercibility premise
+for both operations. The stronger `NormalForm.operationFieldsValidInPossibleTypes`
+is defined in `GraphQL/Theories/NormalForm.lean` for normalization validity.
 
 The proof
 `QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes`

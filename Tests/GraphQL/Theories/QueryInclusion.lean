@@ -786,9 +786,9 @@ def uninhabitedChildAliasRight : Operation :=
 theorem uninhabitedChildAliasLeft_notInhabited
     : ¬ operationCompositeFieldTypesInhabited emptyCompositeSchema
           uninhabitedChildAliasLeft := by
-  intro hinhabited
-  unfold operationCompositeFieldTypesInhabited selectionSetCompositeFieldTypesInhabited
-    at hinhabited
+  intro hoperationInhabited
+  have hinhabited := hoperationInhabited []
+  unfold selectionSetCompositeFieldTypesInhabited at hinhabited
   have hfield := hinhabited
     (.field "empty" "empty" [] [] [.field "x" "name" [] [] []])
     (by simp [uninhabitedChildAliasLeft])
@@ -801,7 +801,7 @@ theorem uninhabitedChildAliasLeft_notInhabited
     rw [htype]
     native_decide
   unfold selectionCompositeFieldTypesInhabited at hfield
-  have hreturn := (hfield definition
+  have hreturn := (hfield rfl definition
     (by simpa [uninhabitedChildAliasLeft, Operation.rootType,
       OperationType.rootType, emptyCompositeSchema] using hlookup) hcomposite).1
   rw [htype] at hreturn

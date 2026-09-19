@@ -1,4 +1,5 @@
 import GraphQL.Execution
+import GraphQL.Theories.SelectionConditions
 
 /-!
 Static execution-readiness definitions shared by theories.
@@ -6,9 +7,9 @@ Static execution-readiness definitions shared by theories.
 Boolean-support extraction identifies the variables used by conditional execution;
 completeness says that an environment gives every variable in that support a concrete
 Boolean value. The coercion predicates describe argument readiness for one concrete
-supplied-variable environment. Both readiness conditions are deliberately separate
-from operation validity: an otherwise valid operation may reject a particular runtime
-assignment.
+supplied-variable environment. Concrete argument defaults support constructing
+coercible environments after validation. These conditions supplement operation
+validity: an otherwise valid operation may reject a particular runtime assignment.
 -/
 
 namespace GraphQL
@@ -154,16 +155,6 @@ def operationArgumentsCoercible (schema : Schema)
     (coerceVariableValues operation suppliedValues) (operation.rootType schema)
     operation.selectionSet
 
--- Argument-coercion readiness for every concrete runtime object represented by a
--- possibly abstract parent type.
-def selectionSetArgumentsCoercibleInPossibleTypes (schema : Schema)
-    (variableValues : VariableValues) (parentType : Name)
-    (selectionSet : List Selection)
-    : Prop :=
-  ∀ runtimeType,
-    schema.typeIncludesObjectBool parentType runtimeType = true
-    -> selectionSetArgumentsCoercible schema variableValues runtimeType selectionSet
-
 -----------------------------------------------------------------------------------------
 -- Field output type inhabitance
 -----------------------------------------------------------------------------------------
@@ -183,36 +174,240 @@ def nonNullNonListOutputTypeInhabited (schema : Schema) : TypeRef -> Prop
   | _ => True
 
 mutual
-  def selectionCompositeFieldTypesInhabited (schema : Schema) (parentType : Name)
+  def selectionCompositeFieldTypesInhabited (schema : Schema)
+      (variableValues : VariableValues) (parentType : Name)
       : Selection -> Prop
-    | .field _responseName fieldName _arguments _directives selectionSet =>
-        ∀ definition,
-          schema.lookupField parentType fieldName = some definition
-          -> definition.outputType.isCompositeBool schema = true
-          -> nonNullNonListOutputTypeInhabited schema definition.outputType
-              ∧ ∀ runtimeType,
-                  schema.typeIncludesObjectBool definition.outputType.namedType
-                      runtimeType
-                    = true
-                  -> selectionSetCompositeFieldTypesInhabited schema runtimeType
-                      selectionSet
-    | .inlineFragment none _directives selectionSet =>
-        selectionSetCompositeFieldTypesInhabited schema parentType selectionSet
-    | .inlineFragment (some typeCondition) _directives selectionSet =>
-        schema.typeIncludesObjectBool typeCondition parentType = true
-        -> selectionSetCompositeFieldTypesInhabited schema parentType selectionSet
+    | .field _ fieldName _ directives selectionSet =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> ∀ definition,
+            schema.lookupField parentType fieldName = some definition
+            -> definition.outputType.isCompositeBool schema = true
+            -> nonNullNonListOutputTypeInhabited schema definition.outputType
+                ∧ ∀ runtimeType,
+                    schema.typeIncludesObjectBool definition.outputType.namedType
+                        runtimeType
+                      = true
+                    -> selectionSetCompositeFieldTypesInhabited schema variableValues
+                        runtimeType selectionSet
+    | .inlineFragment none directives selectionSet =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> selectionSetCompositeFieldTypesInhabited schema variableValues parentType
+            selectionSet
+    | .inlineFragment (some typeCondition) directives selectionSet =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> schema.typeIncludesObjectBool typeCondition parentType = true
+        -> selectionSetCompositeFieldTypesInhabited schema variableValues parentType
+            selectionSet
 
   def selectionSetCompositeFieldTypesInhabited (schema : Schema)
-      (parentType : Name) (selectionSet : List Selection)
+      (variableValues : VariableValues) (parentType : Name)
+      (selectionSet : List Selection)
       : Prop :=
     ∀ selection,
       selection ∈ selectionSet
-      -> selectionCompositeFieldTypesInhabited schema parentType selection
+      -> selectionCompositeFieldTypesInhabited schema variableValues parentType selection
 end
 
+-- Every environment must have inhabited outputs on its enabled execution paths.
+-- Keeping one environment throughout the traversal preserves correlated conditions.
 def operationCompositeFieldTypesInhabited (schema : Schema) (operation : Operation)
     : Prop :=
-  selectionSetCompositeFieldTypesInhabited schema (operation.rootType schema)
-    operation.selectionSet
+  ∀ variableValues,
+    selectionSetCompositeFieldTypesInhabited schema variableValues
+      (operation.rootType schema) operation.selectionSet
+
+-----------------------------------------------------------------------------------------
+-- Required argument defaults in possible runtime types
+-----------------------------------------------------------------------------------------
+
+-- Operation validation checks supplied arguments at their declared field location.
+-- A concrete implementation can omit a default from that location. For an omitted
+-- non-null argument, execution then has no value to coerce, regardless of variables.
+def omittedNonNullArgumentsHaveDefaults (definitions : List InputValueDefinition)
+    (arguments : List Argument)
+    : Prop :=
+  ∀ definition,
+    definition ∈ definitions
+    -> definition.inputType.isNonNull = true
+    -> Argument.lookupValue? arguments definition.name = none
+    -> definition.defaultValue.isSome = true
+
+def omittedNonNullArgumentsHaveDefaultsBool (definitions : List InputValueDefinition)
+    (arguments : List Argument)
+    : Bool :=
+  definitions.all
+    fun definition =>
+      !definition.inputType.isNonNull
+      || (Argument.lookupValue? arguments definition.name).isSome
+      || definition.defaultValue.isSome
+
+mutual
+  def selectionCoercibleInPossibleTypes (schema : Schema)
+      (variableValues : VariableValues) (parentType : Name)
+      : Selection -> Prop
+    | .field _ fieldName arguments directives children =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> match schema.lookupField parentType fieldName with
+            | none => True
+            | some definition =>
+                omittedNonNullArgumentsHaveDefaults definition.arguments arguments
+                ∧ ∀ objectType,
+                    objectType ∈ schema.getPossibleTypes definition.outputType.namedType
+                    -> selectionSetCoercibleInPossibleTypes schema variableValues
+                        objectType children
+    | .inlineFragment none directives children =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> selectionSetCoercibleInPossibleTypes schema variableValues parentType children
+    | .inlineFragment (some condition) directives children =>
+        selectionDirectivesAllowBool variableValues directives = true
+        -> schema.typeIncludesObjectBool condition parentType = true
+        -> selectionSetCoercibleInPossibleTypes schema variableValues parentType children
+
+  def selectionSetCoercibleInPossibleTypes (schema : Schema)
+      (variableValues : VariableValues) (parentType : Name)
+      : List Selection -> Prop
+    | [] => True
+    | selection :: rest =>
+        selectionCoercibleInPossibleTypes schema variableValues parentType selection
+        ∧ selectionSetCoercibleInPossibleTypes schema variableValues parentType rest
+end
+
+-- Supplement to validation under a well-formed schema, sufficient for constructing
+-- coercible, fully supplied environments. Only paths enabled in an environment impose
+-- obligations; fragments retain the enclosing runtime object type.
+-- Related spec issue: https://github.com/graphql/graphql-spec/issues/1121
+def operationCoercibleInPossibleTypes (schema : Schema) (operation : Operation) : Prop :=
+  ∀ variableValues,
+    selectionSetCoercibleInPossibleTypes schema variableValues (operation.rootType schema)
+      operation.selectionSet
+
+-----------------------------------------------------------------------------------------
+-- Static execution-error checker
+-----------------------------------------------------------------------------------------
+
+namespace ExecutionReadiness
+
+-- Counts failed local obligations, once per field occurrence and feasible runtime
+-- object scope. They are diagnostic counts, not the error count of a response.
+-- Distinct source branches and object implementations are counted separately.
+structure Result where
+  argumentDefaultErrors : Nat := 0
+  uninhabitedOutputErrors : Nat := 0
+deriving Repr, BEq, DecidableEq
+
+namespace Result
+
+def errorCount (result : Result) : Nat :=
+  result.argumentDefaultErrors + result.uninhabitedOutputErrors
+
+def isSuccess (result : Result) : Bool :=
+  result.errorCount == 0
+
+def add (left right : Result) : Result :=
+  {
+    argumentDefaultErrors := left.argumentDefaultErrors + right.argumentDefaultErrors
+    uninhabitedOutputErrors :=
+      left.uninhabitedOutputErrors + right.uninhabitedOutputErrors
+  }
+
+end Result
+
+def nonNullNonListOutputTypeInhabitedBool (schema : Schema) : TypeRef -> Bool
+  | .nonNull (.named typeName) => !(schema.getPossibleTypes typeName).isEmpty
+  | .nonNull (.nonNull inner) =>
+      nonNullNonListOutputTypeInhabitedBool schema (.nonNull inner)
+  | _ => true
+
+-- A conjunction of signed variables suffices for modeled skip/include directives.
+-- Conditions are inherited across field boundaries; sibling branches remain independent.
+def withDirectives? (condition : List SelectionConditions.BooleanLiteral)
+    (directives : List DirectiveApplication)
+    : Option (List SelectionConditions.BooleanLiteral) := do
+  let literals ← SelectionConditions.literalsForDirectives directives
+  SelectionConditions.canonicalBooleanCondition (condition ++ literals)
+
+mutual
+  def checkSelection (schema : Schema)
+      (runtimeType : Name) (condition : List SelectionConditions.BooleanLiteral)
+      : Selection -> Result
+    | .field _ fieldName arguments directives children =>
+        match withDirectives? condition directives with
+        | none => {}
+        | some nextCondition =>
+            match schema.lookupField runtimeType fieldName with
+            | none => {}
+            | some definition =>
+                let localErrors : Result :=
+                  {
+                    argumentDefaultErrors :=
+                      if omittedNonNullArgumentsHaveDefaultsBool definition.arguments
+                          arguments then
+                        0
+                      else
+                        1
+                    uninhabitedOutputErrors :=
+                      if definition.outputType.isCompositeBool schema
+                          && !nonNullNonListOutputTypeInhabitedBool schema
+                                definition.outputType then
+                        1
+                      else
+                        0
+                  }
+                (schema.getPossibleTypes definition.outputType.namedType).foldl
+                  (fun errors childType =>
+                    errors.add
+                      (checkSelectionSet schema childType nextCondition children))
+                  localErrors
+    | .inlineFragment typeCondition directives children =>
+        if typeCondition.any
+            (fun typeName =>
+              !schema.typeIncludesObjectBool typeName runtimeType) then
+          {}
+        else
+          match withDirectives? condition directives with
+          | none => {}
+          | some nextCondition =>
+              checkSelectionSet schema runtimeType nextCondition children
+
+  def checkSelectionSet (schema : Schema)
+      (runtimeType : Name) (condition : List SelectionConditions.BooleanLiteral)
+      : List Selection -> Result
+    | [] => {}
+    | selection :: rest =>
+        (checkSelection schema runtimeType condition selection).add
+          (checkSelectionSet schema runtimeType condition rest)
+end
+
+end ExecutionReadiness
+
+-- Static checks corresponding to concrete argument defaults and composite-output
+-- inhabitance, with infeasible type and Boolean branches pruned. Intended for validated
+-- operations under well-formed schemas. No supplied values, resolvers, or Boolean-case
+-- enumeration are needed. An omitted non-null argument validated at an interface must
+-- have a default there; this checks that its concrete implementation also has one.
+-- Supplied arguments are already validated and need no default check. Variable defaults
+-- do not fix Boolean feasibility, since callers can override them. Nullable and list
+-- returns do not suppress feasible descendants. Counts describe errors on feasible
+-- branches, not a guarantee that every execution reaches those branches.
+def checkExecutionError (schema : Schema) (operation : Operation)
+    : ExecutionReadiness.Result :=
+  ExecutionReadiness.checkSelectionSet schema
+    (operation.rootType schema) [] operation.selectionSet
+
+-----------------------------------------------------------------------------------------
+-- Checker correctness
+-----------------------------------------------------------------------------------------
+
+-- Zero diagnostic counts certify both readiness predicates on feasible paths.
+def CheckExecutionErrorSound (schema : Schema) (operation : Operation) : Prop :=
+  (checkExecutionError schema operation).errorCount = 0
+  -> operationCompositeFieldTypesInhabited schema operation
+      ∧ operationCoercibleInPossibleTypes schema operation
+
+-- Operations satisfying both predicates have no checker errors.
+def CheckExecutionErrorComplete (schema : Schema) (operation : Operation) : Prop :=
+  operationCompositeFieldTypesInhabited schema operation
+    ∧ operationCoercibleInPossibleTypes schema operation
+  -> (checkExecutionError schema operation).errorCount = 0
 
 end GraphQL

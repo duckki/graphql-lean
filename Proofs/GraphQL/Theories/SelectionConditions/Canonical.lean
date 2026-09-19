@@ -257,5 +257,72 @@ theorem canonicalBooleanCondition_eq_of_perm
     : leftCanonical = rightCanonical :=
   canonicalBooleanCondition_eq_of_mem_iff hleft hright fun _literal => hperm.mem_iff
 
+private theorem insertBooleanLiteral_variableNames_nodup
+    (literal : BooleanLiteral) (source target : List BooleanLiteral)
+    (hnodup : (source.map BooleanLiteral.variableName).Nodup)
+    (hordered : source.Pairwise BooleanLiteral.BeforeOrEqual)
+    (hinsert : insertBooleanLiteral literal source = some target)
+    : (target.map BooleanLiteral.variableName).Nodup := by
+  induction source generalizing target with
+  | nil =>
+      simp [insertBooleanLiteral] at hinsert
+      subst target
+      simp
+  | cons head rest ih =>
+      rw [insertBooleanLiteral] at hinsert
+      split at hinsert <;> rename_i hequal
+      · cases Option.some.inj hinsert
+        exact hnodup
+      · split at hinsert <;> rename_i hcomplement
+        · simp at hinsert
+        · have hnames : literal.variableName ≠ head.variableName := by
+            cases literal <;> cases head <;>
+              simp_all [BooleanLiteral.complement, BooleanLiteral.variableName]
+          have hnodupParts := List.nodup_cons.mp hnodup
+          have horderedParts := List.pairwise_cons.mp hordered
+          split at hinsert <;> rename_i hbefore
+          · cases Option.some.inj hinsert
+            apply List.nodup_cons.mpr
+            refine ⟨?_, hnodup⟩
+            intro hmember
+            obtain ⟨candidate, hcandidate, hname⟩ := List.mem_map.mp hmember
+            rcases List.mem_cons.mp hcandidate with rfl | hrest
+            · exact hnames hname.symm
+            · apply hnames
+              exact String.le_antisymm (BooleanLiteral.BeforeOrEqual.name_le hbefore)
+                (hname ▸ (horderedParts.1 candidate hrest).name_le)
+          · cases hrest : insertBooleanLiteral literal rest with
+            | none => simp [hrest] at hinsert
+            | some inserted =>
+                simp only [hrest, Option.some.injEq] at hinsert
+                subst target
+                apply List.nodup_cons.mpr
+                refine ⟨?_, ih inserted hnodupParts.2 horderedParts.2 hrest⟩
+                intro hmember
+                obtain ⟨candidate, hcandidate, hname⟩ := List.mem_map.mp hmember
+                rcases (insertBooleanLiteral_mem_iff literal rest inserted hrest candidate).mp
+                    hcandidate with rfl | hsource
+                · exact hnames hname
+                · exact hnodupParts.1 (List.mem_map.mpr ⟨candidate, hsource, hname⟩)
+
+-- A surviving conjunction never asks for both values of the same variable.
+theorem canonicalBooleanCondition_variableNames_nodup
+    {source target : List BooleanLiteral}
+    (hcanonical : canonicalBooleanCondition source = some target)
+    : (target.map BooleanLiteral.variableName).Nodup := by
+  induction source generalizing target with
+  | nil =>
+      simp [canonicalBooleanCondition] at hcanonical
+      subst target
+      simp
+  | cons literal rest ih =>
+      cases hrest : canonicalBooleanCondition rest with
+      | none => simp [canonicalBooleanCondition, hrest] at hcanonical
+      | some restCanonical =>
+          simp only [canonicalBooleanCondition, hrest] at hcanonical
+          exact insertBooleanLiteral_variableNames_nodup literal restCanonical target
+            (ih hrest) (canonicalBooleanCondition_properties rest restCanonical hrest).2.1
+            hcanonical
+
 end SelectionConditions
 end GraphQL

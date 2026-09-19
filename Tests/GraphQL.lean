@@ -3,6 +3,7 @@ import Tests.GraphQL.Validation
 import Tests.GraphQL.Operation
 import Tests.GraphQL.NamedFragment
 import Tests.GraphQL.Theories.NormalForm
+import Tests.GraphQL.Theories.ExecutionReadiness
 import Tests.GraphQL.Theories.AnnotatedExecution
 import Tests.GraphQL.Theories.ConditionTree
 import Tests.GraphQL.Theories.TreeSummary

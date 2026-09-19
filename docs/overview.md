@@ -83,6 +83,7 @@ flowchart TD
   Execution --> ExecutionReadiness
   Execution --> AnnotatedExecution
   Execution --> SelectionConditions
+  SelectionConditions --> ExecutionReadiness
   Operation --> ResponseMeasure
   ExecutionReadiness --> NormalForm
   ExecutionReadiness --> QueryInclusion
@@ -205,8 +206,12 @@ It should remain definition-only.
   applicability.
 - `GraphQL.Theories.ExecutionReadiness`: shared Boolean-support extraction and
   environment-completeness definitions, together with concrete-environment
-  field-argument coercion predicates used by executors and analyses such as
-  normalization and query inclusion.
+  field-argument coercion, concrete argument defaults, and composite-output
+  inhabitance predicates. Its executable `checkExecutionError`
+  checks omitted non-null argument defaults and output inhabitance after validation,
+  pruning infeasible Boolean and type branches.
+  [Execution-readiness checking](theories/execution-readiness.md) documents its result
+  and counting rules.
 - `GraphQL.Theories.NormalForm`: ground-typed normal form and non-redundancy
   predicates over operation selection sets, a normalization pass for field
   merging and abstract-type grounding, and the public resolver-parametric semantic

@@ -1,4 +1,4 @@
-import GraphQL.Theories.SelectionConditions
+import Proofs.GraphQL.Theories.SelectionConditions.Canonical
 import Proofs.GraphQL.Execution.FieldGroups
 
 /-! Runtime meaning of the shared Boolean/type conditions and flat extraction. -/
@@ -273,6 +273,54 @@ theorem canonicalBooleanCondition_none_not_allows (variableValues : VariableValu
                 restCondition hrest]
               exact hfalse
           | some condition => simp [hrest, hinsert] at hcanonical
+
+private theorem lookupVariableValue_booleanLiterals
+    {condition : List BooleanLiteral}
+    (hnodup : (condition.map BooleanLiteral.variableName).Nodup)
+    {literal : BooleanLiteral} (hmember : literal ∈ condition)
+    : lookupVariableValue?
+        (condition.map fun item => (item.variableName, .boolean item.requiredValue))
+        literal.variableName
+      = some (.boolean literal.requiredValue) := by
+  induction condition with
+  | nil => cases hmember
+  | cons head rest ih =>
+      have hparts := List.nodup_cons.mp hnodup
+      rcases List.mem_cons.mp hmember with rfl | hmember
+      · simp [lookupVariableValue?]
+      · have hne : head.variableName ≠ literal.variableName := by
+          intro heq
+          exact hparts.1 (heq ▸ List.mem_map.mpr ⟨literal, hmember, rfl⟩)
+        simp [lookupVariableValue?, hne, ih hparts.2 hmember]
+
+-- Canonicalization succeeds exactly on satisfiable Boolean conjunctions.
+-- This witness is constructed from the literals, without enumerating assignments.
+theorem canonicalBooleanCondition_some_satisfiable
+    {source target : List BooleanLiteral}
+    (hcanonical : canonicalBooleanCondition source = some target)
+    : ∃ values, booleanConditionAllows values target = true := by
+  let values : VariableValues :=
+    target.map fun literal => (literal.variableName, .boolean literal.requiredValue)
+  have hnodup := canonicalBooleanCondition_variableNames_nodup hcanonical
+  have hliteral : ∀ literal, literal ∈ target -> literal.allows values = true := by
+    intro literal hmember
+    have hlookup := lookupVariableValue_booleanLiterals hnodup hmember
+    have hvalue : inputValueBoolean? values (.variable literal.variableName)
+        = some literal.requiredValue := by
+      simp [inputValueBoolean?, values, hlookup, ConstInputValue.toInputValue,
+        InputValue.staticBoolean?]
+    cases literal <;>
+      simp_all [BooleanLiteral.allows, BooleanLiteral.toDirective,
+        BooleanLiteral.variableName, BooleanLiteral.requiredValue, directiveAllowsSelectionBool]
+  have hallows (condition : List BooleanLiteral)
+      (h : ∀ literal, literal ∈ condition -> literal.allows values = true)
+      : booleanConditionAllows values condition = true := by
+    induction condition with
+    | nil => rfl
+    | cons head rest ih =>
+        simp only [booleanConditionAllows, Bool.and_eq_true]
+        exact ⟨h head (by simp), ih fun literal hmem => h literal (by simp [hmem])⟩
+  exact ⟨values, hallows target hliteral⟩
 
 theorem contains_intersectPossibleTypes (runtimeType : Name) (left right : List Name)
     : (intersectPossibleTypes left right).contains runtimeType

@@ -2,7 +2,7 @@ import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibi
 import Proofs.GraphQL.Theories.QueryInclusion.Algebra
 import Proofs.GraphQL.Theories.QueryInclusion.Execution
 
-/-! Static argument validity supplies witnesses for every comparison Boolean case.
+/-! Concrete argument defaults supply witnesses for every comparison Boolean case.
 
 One-sided variable definitions are allowed. Shared names have compatible types,
 so both operations can use one fully supplied environment. Only comparison
@@ -96,8 +96,8 @@ theorem comparisonBranchesArgumentCoercible_of_possibleTypes
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleft : Validation.operationDefinitionValid schema left)
     (hright : Validation.operationDefinitionValid schema right)
-    (hleftFields : NormalForm.operationFieldsValidInPossibleTypes schema left)
-    (hrightFields : NormalForm.operationFieldsValidInPossibleTypes schema right)
+    (hleftFields : operationCoercibleInPossibleTypes schema left)
+    (hrightFields : operationCoercibleInPossibleTypes schema right)
     (hshared
       : sharedVariableDefinitionsSyntacticallyCompatible
           left.variableDefinitions right.variableDefinitions)
@@ -141,9 +141,9 @@ theorem comparisonBranchesArgumentCoercible_of_possibleTypes
     obtain ⟨bit, hbit⟩ := hcomplete name hname
     rw [hbit]
     exact inputValueBoolean_filtered_case variables baseValues name bit hname assignment hbit
-  · exact operationArgumentsCoercible_of_possibleTypes hschema
+  · exact ExecutionReadiness.operationArgumentsCoercible_of_defaults hschema hleft
       (fun definition hmem => hvalues definition (List.mem_append_left _ hmem)) hleftFields
-  · exact operationArgumentsCoercible_of_possibleTypes hschema
+  · exact ExecutionReadiness.operationArgumentsCoercible_of_defaults hschema hright
       (fun definition hmem => hvalues definition (List.mem_append_right _ hmem)) hrightFields
 
 end GraphQL.QueryInclusionSemantics

@@ -226,9 +226,9 @@ def executableGroupsSemanticsReady (schema : Schema) (parentType : Name)
     -> executableFieldsSemanticsReady schema parentType fields
 
 theorem executableGroupsSemanticsReady_of_ready
-    {schema : Schema} {parentType : Name}
+    {variableValues : VariableValues} {schema : Schema} {parentType : Name}
     {groups : List (Name × List ExecutableField)}
-    (hready : executableGroupsReady schema parentType groups)
+    (hready : executableGroupsReady schema variableValues parentType groups)
     : executableGroupsSemanticsReady schema parentType groups := by
   intro responseName fields hgroup
   have hfields := hready responseName fields hgroup

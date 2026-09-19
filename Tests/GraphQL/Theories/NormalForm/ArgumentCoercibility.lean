@@ -225,7 +225,11 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
 private theorem comparisonCoercible
     : QueryInclusionSemantics.comparisonBranchesArgumentCoercible schema op op := by
   apply QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes
-    wellFormed valid valid fieldsValid fieldsValid
+    wellFormed valid valid
+    (ExecutionReadiness.operationCoercibleInPossibleTypes_of_fieldsValidInPossibleTypes
+      wellFormed fieldsValid)
+    (ExecutionReadiness.operationCoercibleInPossibleTypes_of_fieldsValidInPossibleTypes
+      wellFormed fieldsValid)
   constructor <;> intro definition hmem <;> cases hmem
 
 private theorem normalized : NormalForm.completeNormalizeOperation schema op = op := by

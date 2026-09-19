@@ -1,9 +1,19 @@
 import GraphQL.Theories.ExecutionReadiness
 import Proofs.GraphQL.Execution.ArgumentCoercion
 
-/-! Structural facts for shared execution-readiness predicates. -/
+/-! Proof helpers and structural facts for shared execution-readiness predicates. -/
 
 namespace GraphQL
+
+-- Argument-coercion readiness for every concrete runtime object represented by a
+-- possibly abstract parent type, used by semantic-separation proofs.
+def selectionSetArgumentsCoercibleInPossibleTypes (schema : Schema)
+    (variableValues : Execution.VariableValues) (parentType : Name)
+    (selectionSet : List Selection)
+    : Prop :=
+  ∀ runtimeType,
+    schema.typeIncludesObjectBool parentType runtimeType = true
+    -> selectionSetArgumentsCoercible schema variableValues runtimeType selectionSet
 
 theorem selectionArgumentsCoercible_of_mem
     {schema : Schema} {variableValues : Execution.VariableValues}

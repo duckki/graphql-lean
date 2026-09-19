@@ -415,16 +415,16 @@ private theorem outputTypesInhabited (responseName : Name)
     : operationCompositeFieldTypesInhabited exampleSchema
         (exampleOperation responseName) := by
   unfold operationCompositeFieldTypesInhabited selectionSetCompositeFieldTypesInhabited
-  intro selection hmem
+  intro values selection hmem
   have heq : selection = .inlineFragment (some "I") []
       [.field responseName "f" [] [] []] := by simpa [exampleOperation] using hmem
   subst selection
   unfold selectionCompositeFieldTypesInhabited selectionSetCompositeFieldTypesInhabited
-  intro _ child hchild
+  intro _ _ child hchild
   have heq : child = .field responseName "f" [] [] [] := by simpa using hchild
   subst child
   unfold selectionCompositeFieldTypesInhabited
-  intro definition hlookup hcomposite
+  intro _ definition hlookup hcomposite
   have hconcrete : exampleSchema.lookupField "Query" "f" = some concreteField := rfl
   change exampleSchema.lookupField "Query" "f" = some definition at hlookup
   rw [hconcrete] at hlookup
@@ -492,20 +492,93 @@ private theorem syntacticNonInclusion
   obtain ⟨fields, hfields, _⟩ := hleft.2
   simp at hfields
 
-private theorem fieldsInvalidInPossibleTypes (responseName : Name)
-    : ¬ NormalForm.operationFieldsValidInPossibleTypes exampleSchema
+private theorem concreteDefaultMissing (responseName : Name)
+    : ¬ operationCoercibleInPossibleTypes exampleSchema
           (exampleOperation responseName) := by
-  intro hfields
-  have hchild := hfields.1 (by cbv) "Query" List.mem_cons_self
-  have hvalid := hchild.1.1
-  unfold Validation.selectionValid at hvalid
-  obtain ⟨definition, hlookup, harguments, _⟩ := hvalid.2
-  have hconcrete : exampleSchema.lookupField "Query" "f" = some concreteField := rfl
-  rw [hconcrete] at hlookup
-  cases Option.some.inj hlookup
-  obtain ⟨argument, hargument, _⟩ :=
-    harguments.2.2 concreteArg List.mem_cons_self (by trivial)
-  cases hargument
+  intro h
+  have hfield := ((h []).1 rfl (by cbv)).1 rfl
+  have hdefault := hfield.1 concreteArg List.mem_cons_self rfl rfl
+  cases hdefault
+
+private def nullableVariable : VariableDefinition :=
+  { name := "a", typeRef := .named "Int" }
+
+private def suppliedArgument : Argument :=
+  { name := "a", value := .variable "a" }
+
+private theorem suppliedArgumentValidAtInterface
+    : Validation.argumentsValid exampleSchema [inheritedArg] [nullableVariable]
+        [suppliedArgument] := by
+  refine ⟨by simp, ?_, ?_⟩
+  · intro argument hmem
+    have heq : argument = suppliedArgument := by simpa using hmem
+    subst argument
+    refine ⟨inheritedArg, rfl, ?_⟩
+    apply Validation.ValueIsCorrectTypeAtLocation.variable "a" (.nonNull (.named "Int"))
+      (some (.int 1)) nullableVariable (by exact intInput) rfl
+    refine ⟨intInput, intInput, Or.inr ?_, rfl⟩
+    exact ⟨.int 1, rfl, trivial⟩
+  · intro definition hmem
+    have heq : definition = inheritedArg := by simpa using hmem
+    subst definition
+    simp [Validation.isRequiredArgument, Validation.isRequiredInputValueDefinition,
+      InputValueDefinition.isRequired, inheritedArg]
+
+private theorem suppliedArgumentInvalidAtObject
+    : ¬ Validation.argumentsValid exampleSchema [concreteArg] [nullableVariable]
+          [suppliedArgument] := by
+  intro hvalid
+  obtain ⟨definition, hlookup, hvalue⟩ := hvalid.2.1 suppliedArgument List.mem_cons_self
+  have heq : definition = concreteArg := by simpa [Schema.lookupArgumentDefinition,
+    suppliedArgument, concreteArg] using hlookup.symm
+  subst definition
+  change Validation.ValueIsCorrectTypeAtLocation exampleSchema [nullableVariable]
+    (.variable "a") (.nonNull (.named "Int")) none at hvalue
+  cases hvalue with
+  | «variable» _ _ _ definition _ hlookup husage =>
+      have heq : definition = nullableVariable := by simpa [Validation.getVariableDefinition?,
+        nullableVariable] using hlookup.symm
+      subst definition
+      simp [Validation.variableUsageAllowed, nullableVariable,
+        Validation.defaultValueNonNull] at husage
+  | nonNull _ _ _ _ _ hnotVariable _ => exact hnotVariable "a" rfl
+
+-- The default-only readiness condition cannot replace concrete validation in the
+-- normalization-validity theorem: grounding changes the variable's input location.
+theorem suppliedArgumentNeedsNoConcreteDefault
+    : SchemaWellFormedness.schemaWellFormed exampleSchema
+      ∧ Validation.argumentsValid exampleSchema [inheritedArg] [nullableVariable]
+          [suppliedArgument]
+      ∧ omittedNonNullArgumentsHaveDefaults [concreteArg] [suppliedArgument]
+      ∧ ¬ Validation.argumentsValid exampleSchema [concreteArg] [nullableVariable]
+            [suppliedArgument]
+      ∧ (Execution.coerceArgumentValues exampleSchema [("a", .int 1)] [concreteArg]
+          [suppliedArgument]).isSuccess
+        = true := by
+  refine ⟨
+    schemaWellFormed,
+    suppliedArgumentValidAtInterface,
+    ?_,
+    suppliedArgumentInvalidAtObject,
+    by cbv
+  ⟩
+  intro definition hmem _ hmissing
+  have heq : definition = concreteArg := by simpa using hmem
+  subst definition
+  cases hmissing
+
+example
+    : NormalForm.normalizeOperation exampleSchema
+        {
+          variableDefinitions := [nullableVariable],
+          selectionSet :=
+            [.inlineFragment (some "I") [] [.field "f" "f" [suppliedArgument] [] []]]
+        }
+      = {
+        variableDefinitions := [nullableVariable],
+        selectionSet := [.field "f" "f" [suppliedArgument] [] []]
+      } := by
+  cbv
 
 -- Output inhabitance cannot replace the argument-coercibility premise. Both
 -- operations are valid, but their concrete field arguments always fail coercion.
@@ -528,10 +601,10 @@ theorem outputInhabitanceDoesNotEnsureCoercibleBranches
         SchemaWellFormedness.schemaWellFormed schema
         ∧ Validation.operationDefinitionValid schema operation
         ∧ operationCompositeFieldTypesInhabited schema operation
-        ∧ ¬ NormalForm.operationFieldsValidInPossibleTypes schema operation
+        ∧ ¬ operationCoercibleInPossibleTypes schema operation
         ∧ ¬ QueryInclusionSemantics.comparisonBranchesArgumentCoercible
               schema operation operation := by
   exact ⟨exampleSchema, exampleOperation "f", schemaWellFormed, operationValid "f",
-    outputTypesInhabited "f", fieldsInvalidInPossibleTypes "f", branchCoercionPremiseFails "f"⟩
+    outputTypesInhabited "f", concreteDefaultMissing "f", branchCoercionPremiseFails "f"⟩
 
 end GraphQL.Tests.QueryInclusionArgumentCoercibility

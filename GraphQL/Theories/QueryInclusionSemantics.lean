@@ -1,6 +1,6 @@
 import GraphQL.Theories.QueryInclusion
-import GraphQL.Theories.NormalForm
 import GraphQL.Theories.AnnotatedExecution
+import GraphQL.Theories.ExecutionReadiness
 
 /-! Execution-based interpretation of syntactic query inclusion. -/
 
@@ -122,15 +122,15 @@ def comparisonBranchesArgumentCoercible (schema : Schema) (left right : Operatio
         ∧ operationArgumentsCoercible schema suppliedValues right
 
 -- In the reverse direction, an error-free witness is needed for each checked path.
--- Possible-type field validity supplies argument coercibility. Non-null, non-list
+-- Concrete argument defaults supply argument coercibility after validation. Non-null, non-list
 -- composite-return inhabitance supplies realizable output values.
 -- Its theorem witness is `QueryInclusionSemantics.includesSemanticToSyntactic`.
 def IncludesSemanticToSyntactic (schema : Schema) (left right : Operation) : Prop :=
   SchemaWellFormedness.schemaWellFormed schema
   -> Validation.operationDefinitionValid schema left
   -> Validation.operationDefinitionValid schema right
-  -> NormalForm.operationFieldsValidInPossibleTypes schema left
-  -> NormalForm.operationFieldsValidInPossibleTypes schema right
+  -> operationCoercibleInPossibleTypes schema left
+  -> operationCoercibleInPossibleTypes schema right
   -> operationCompositeFieldTypesInhabited schema left
   -> operationCompositeFieldTypesInhabited schema right
   -> includes schema left right

@@ -399,7 +399,8 @@ private theorem spineSelectionExecution_success
     (hcoercion
       : selectionSetArgumentsCoercible schema variableValues runtimeType selectionSet)
     (hinhabited
-      : selectionSetCompositeFieldTypesInhabited schema runtimeType selectionSet)
+      : selectionSetCompositeFieldTypesInhabited schema variableValues runtimeType
+          selectionSet)
     (hmerge : FieldMerge.fieldsInSetCanMerge schema runtimeType selectionSet)
     (plan : RuntimePlan)
     : ∃ fields,
@@ -455,14 +456,16 @@ private theorem spineSelectionIncludes_group_match
     (hleftCoercion
       : selectionSetArgumentsCoercible schema leftValues runtimeType leftSelectionSet)
     (hleftInhabited
-      : selectionSetCompositeFieldTypesInhabited schema runtimeType leftSelectionSet)
+      : selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
+          leftSelectionSet)
     (hleftMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet)
     (hrightCoercion
       : selectionSetArgumentsCoercible schema rightValues runtimeType rightSelectionSet)
     (hrightInhabited
-      : selectionSetCompositeFieldTypesInhabited schema runtimeType rightSelectionSet)
+      : selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
+          rightSelectionSet)
     (hrightMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet)
     (hincludes
       : SpineSelectionIncludes schema leftValues rightValues
@@ -551,14 +554,16 @@ private theorem spineSelectionIncludes_child
     (hleftCoercion
       : selectionSetArgumentsCoercible schema leftValues runtimeType leftSelectionSet)
     (hleftInhabited
-      : selectionSetCompositeFieldTypesInhabited schema runtimeType leftSelectionSet)
+      : selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
+          leftSelectionSet)
     (hleftMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet)
     (hrightReady
       : NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet)
     (hrightCoercion
       : selectionSetArgumentsCoercible schema rightValues runtimeType rightSelectionSet)
     (hrightInhabited
-      : selectionSetCompositeFieldTypesInhabited schema runtimeType rightSelectionSet)
+      : selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
+          rightSelectionSet)
     (hrightMerge : FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet)
     (hincludes
       : SpineSelectionIncludes schema leftValues rightValues
@@ -788,11 +793,13 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         -> schema.objectType runtimeType
         -> NormalForm.selectionSetSemanticsReady schema runtimeType leftSelectionSet
         -> selectionSetArgumentsCoercible schema leftValues runtimeType leftSelectionSet
-        -> selectionSetCompositeFieldTypesInhabited schema runtimeType leftSelectionSet
+        -> selectionSetCompositeFieldTypesInhabited schema leftValues runtimeType
+            leftSelectionSet
         -> FieldMerge.fieldsInSetCanMerge schema runtimeType leftSelectionSet
         -> NormalForm.selectionSetSemanticsReady schema runtimeType rightSelectionSet
         -> selectionSetArgumentsCoercible schema rightValues runtimeType rightSelectionSet
-        -> selectionSetCompositeFieldTypesInhabited schema runtimeType rightSelectionSet
+        -> selectionSetCompositeFieldTypesInhabited schema rightValues runtimeType
+            rightSelectionSet
         -> FieldMerge.fieldsInSetCanMerge schema runtimeType rightSelectionSet
         -> SpineSelectionIncludes schema leftValues rightValues
             runtimeType runtimeType leftSelectionSet rightSelectionSet
@@ -888,10 +895,10 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         have hleftLookup : schema.lookupField runtimeType leftField.fieldName
             = some definition := by
           simpa [hfield] using hlookup
-        have hleftCompletionReady : completionFieldsReady schema runtimeType
+        have hleftCompletionReady : completionFieldsReady schema leftValues runtimeType
             definition.outputType (leftField :: leftRest) :=
           ⟨hleftFieldsReady, leftField, definition, by simp, hleftLookup, rfl⟩
-        have hrightCompletionReady : completionFieldsReady schema runtimeType
+        have hrightCompletionReady : completionFieldsReady schema rightValues runtimeType
             definition.outputType (rightField :: rightRest) :=
           ⟨hrightFieldsReady, rightField, definition, by simp, hlookup, rfl⟩
         have hchildIncludesBool :
@@ -984,8 +991,8 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleftValid : Validation.operationDefinitionValid schema left)
     (hrightValid : Validation.operationDefinitionValid schema right)
-    (hleftFields : NormalForm.operationFieldsValidInPossibleTypes schema left)
-    (hrightFields : NormalForm.operationFieldsValidInPossibleTypes schema right)
+    (hleftFields : operationCoercibleInPossibleTypes schema left)
+    (hrightFields : operationCoercibleInPossibleTypes schema right)
     (hleftInhabited : operationCompositeFieldTypesInhabited schema left)
     (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
     (hincludes : QueryInclusionSemantics.includes schema left right)
@@ -1072,9 +1079,9 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
     rw [hroot]
     exact Validation.operationDefinitionValid_fieldsInSetCanMerge hrightValid
   have hrightInhabitedRoot : selectionSetCompositeFieldTypesInhabited schema
-      (left.rootType schema) right.selectionSet := by
+      (coerceVariableValues right probeValues) (left.rootType schema) right.selectionSet := by
     rw [hroot]
-    exact hrightInhabited
+    exact hrightInhabited (coerceVariableValues right probeValues)
   have hspine := includes_root_spineSelectionIncludes hschema hleftValid hrightValid
     hleftInhabited hrightInhabited hincludes probeValues hleftArgumentReady
     hrightArgumentReady
@@ -1088,7 +1095,7 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
     (coerceVariableValues right probeValues) (left.rootType schema)
     left.selectionSet right.selectionSet hbooleanAgreement hleftObject hleftReady
     (by simpa [operationArgumentsCoercible] using hleftArgumentReady)
-    hleftInhabited hleftMerge hrightReady
+    (hleftInhabited (coerceVariableValues left probeValues)) hleftMerge hrightReady
     (by
       rw [hroot]
       simpa [operationArgumentsCoercible] using hrightArgumentReady)

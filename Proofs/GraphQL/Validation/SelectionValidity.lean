@@ -3,10 +3,9 @@ import GraphQL.Theories.NormalForm
 /-!
 Projection and structural facts for selection validity.
 
-The possible-types validity predicates are defined in `GraphQL.NormalForm`,
-because they are normalizer validity assumptions rather than spec validation
-rules. The aliases below keep existing validation-facing proof scripts readable
-without moving those predicates back into `GraphQL.Validation`.
+The possible-types validity predicates are normalization assumptions defined in
+`GraphQL.Theories.NormalForm`. The aliases below keep existing
+validation-facing proof scripts readable.
 -/
 
 namespace GraphQL
@@ -14,10 +13,10 @@ namespace GraphQL
 namespace Validation
 
 abbrev selectionValidInPossibleTypes :=
-  NormalForm.selectionValidInPossibleTypes
+  GraphQL.NormalForm.selectionValidInPossibleTypes
 
 abbrev selectionSetValidInPossibleTypes :=
-  NormalForm.selectionSetValidInPossibleTypes
+  GraphQL.NormalForm.selectionSetValidInPossibleTypes
 
 @[simp]
 theorem selectionValidInPossibleTypes_field
