@@ -108,7 +108,7 @@ private theorem conditionedFieldsForResponseName_eq_nil_of_not_mem
       have hhead : (entry.field.responseName == responseName) = false := by
         simp [hparts.1.symm]
       rw [conditionedFieldsForResponseName, List.filter_cons, hhead]
-      simp only [Bool.false_eq_true, if_false]
+      simp only [Bool.false_eq_true, ite_false]
       simpa only [conditionedFieldsForResponseName] using ih hparts.2
 
 private theorem guardedFieldGroupsForNames_append_eq_self
@@ -142,7 +142,7 @@ private theorem addGuardedFieldEntry_not_mem
           ∧ entry.field.responseName
             ∉ rest.map GuardedFieldGroup.responseName := by
         simpa only [List.map_cons, List.mem_cons, not_or] using hname
-      simp only [addGuardedFieldEntry, beq_iff_eq, hparts.1, if_false,
+      simp only [addGuardedFieldEntry, beq_iff_eq, hparts.1, ite_false,
         List.cons_append, List.cons.injEq, true_and]
       exact ih hparts.2
 
@@ -159,7 +159,7 @@ private theorem addGuardedFieldEntry_existing
       rcases List.mem_cons.mp hname with hhead | hrest
       · subst responseName
         simp only [guardedFieldGroupsForNames, List.map_cons,
-          addGuardedFieldEntry, beq_self_eq_true, if_true]
+          addGuardedFieldEntry, beq_self_eq_true, ite_true]
         rw [conditionedFieldsForResponseName_append_eq_append]
         have htail := guardedFieldGroupsForNames_append_eq_self rest entries entry hparts.1
         congr 1
@@ -169,7 +169,7 @@ private theorem addGuardedFieldEntry_existing
           subst responseName
           exact hparts.1 hrest
         simp only [guardedFieldGroupsForNames, List.map_cons,
-          addGuardedFieldEntry, beq_iff_eq, hne, if_false, List.cons.injEq]
+          addGuardedFieldEntry, beq_iff_eq, hne, ite_false, List.cons.injEq]
         constructor
         · rw [conditionedFieldsForResponseName_append_eq_self _ _ _ hne]
         · exact ih hparts.2 hrest

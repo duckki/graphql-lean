@@ -109,7 +109,7 @@ theorem erasePathCyclesFrom_map_subset
       intro condition hcondition
       simp only [erasePathCyclesFrom] at hcondition
       by_cases hcontains : (kept.map Prod.snd).contains nextCondition = true
-      · simp only [if_pos hcontains] at hcondition
+      · simp only [ite_eq_left hcontains] at hcondition
         have hnext :=
           ih (pathPrefixThrough nextCondition kept) condition hcondition
         simp only [List.map_append, List.map_cons, List.mem_append,
@@ -118,7 +118,7 @@ theorem erasePathCyclesFrom_map_subset
           (fun hprefix =>
             Or.inl (pathPrefixThrough_map_subset nextCondition kept condition hprefix))
           (fun hrest => Or.inr (Or.inr hrest))
-      · simp only [if_neg hcontains] at hcondition
+      · simp only [ite_eq_right hcontains] at hcondition
         have hnext :=
           ih (kept ++ [(branch, nextCondition)]) condition hcondition
         simpa [List.map_append, List.append_assoc] using hnext
@@ -141,10 +141,10 @@ theorem erasePathCyclesFrom_map_nodup
       rcases edge with ⟨branch, condition⟩
       simp only [erasePathCyclesFrom]
       by_cases hcontains : (kept.map Prod.snd).contains condition = true
-      · simp only [if_pos hcontains]
+      · simp only [ite_eq_left hcontains]
         exact ih (pathPrefixThrough condition kept)
           (pathPrefixThrough_map_nodup condition kept hnodup)
-      · simp only [if_neg hcontains]
+      · simp only [ite_eq_right hcontains]
         apply ih (kept ++ [(branch, condition)])
         simp only [List.map_append, List.map_cons]
         apply List.nodup_append.mpr
@@ -184,7 +184,7 @@ mutual
     rw [Tree.modifyAtCondition?]
     by_cases hequal : tree.condition = target
     · simp [hequal, Tree.nodeConditions]
-    · simp only [if_neg hequal]
+    · simp only [ite_eq_right hequal]
       have hbranches :=
         modifyBranchesAtCondition?_isSome_iff_mem_nodeConditions target modify tree.branches
       cases hresult : modifyBranchesAtCondition? target modify tree.branches <;>
@@ -480,11 +480,11 @@ theorem deepestExistingPrefixFrom_remaining_absent
       rcases edge with ⟨branch, condition⟩
       simp only [deepestExistingPrefixFrom]
       by_cases hcondition : tree.containsCondition condition = true
-      · simp only [if_pos hcondition]
+      · simp only [ite_eq_left hcondition]
         apply ih condition (condition, rest)
         intro candidate hcandidate _hcontains
         exact hcandidate
-      · simp only [if_neg hcondition]
+      · simp only [ite_eq_right hcondition]
         apply ih condition best
         intro candidate hcandidate hcontains
         have hremaining := hbest candidate hcandidate hcontains
@@ -637,7 +637,7 @@ theorem mem_responseNames_addFieldWithResponseName
       · have hbeq : (responseName == group.responseName) = false := by
           simp [hequal]
         simp only [addFieldWithResponseName, hbeq, Bool.false_eq_true,
-          if_false, List.map_cons, List.mem_cons] at hname ⊢
+          ite_false, List.map_cons, List.mem_cons] at hname ⊢
         exact hname.elim
           (fun hhead => Or.inl (Or.inl hhead))
           (fun htail =>
@@ -660,7 +660,7 @@ theorem addFieldWithResponseName_namesNodup
       · have hbeq : (responseName == group.responseName) = false := by
           simp [hequal]
         simp only [addFieldWithResponseName, hbeq, Bool.false_eq_true,
-          if_false, List.map_cons, List.nodup_cons]
+          ite_false, List.map_cons, List.nodup_cons]
         refine ⟨?_, ih hnodup.2⟩
         intro hmember
         rcases
@@ -910,7 +910,7 @@ theorem conditionForBranch?_goodUnder
         intersectPossibleTypes start.possibleTypes (schema.getPossibleTypes typeName)
       by_cases hempty : possibleTypes.isEmpty = true
       · simp [possibleTypes, hempty] at hresult
-      · simp only [possibleTypes, hempty, Bool.false_eq_true, if_false] at hresult
+      · simp only [possibleTypes, hempty, Bool.false_eq_true, ite_false] at hresult
         cases hresult
         refine ⟨⟨?_, hstart.1.2⟩, hstart.2⟩
         simpa [List.isEmpty_iff] using hempty

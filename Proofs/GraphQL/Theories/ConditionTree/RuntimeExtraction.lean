@@ -33,7 +33,7 @@ theorem groupedSelections_addFieldWithResponseName_perm
       simp [addFieldWithResponseName, FieldGroup.selections, FieldGroup.fields]
   | cons group rest ih =>
       by_cases hname : (responseName == group.responseName) = true
-      · simp only [addFieldWithResponseName, hname, if_true, List.flatMap_cons]
+      · simp only [addFieldWithResponseName, hname, ite_true, List.flatMap_cons]
         have hequal : responseName = group.responseName := beq_iff_eq.mp hname
         have hselections :
             ({ group with rest := group.rest ++ [field] } : FieldGroup).selections
@@ -639,7 +639,7 @@ theorem extraction_runtimeFields_perm
       runtimeType parentType ref inheritedBooleanCondition
       (rootCondition schema parentType) selectionSet hinherited
   rw [hroot] at hsource
-  simp only [if_true] at hsource
+  simp only [ite_true] at hsource
   rw [Tree.collectRuntimeFields,
     runtimeFieldsForEntries_eq_projected variableValues runtimeType,
     ← Tree.fieldEntries_eq_map_storedFieldEntries]

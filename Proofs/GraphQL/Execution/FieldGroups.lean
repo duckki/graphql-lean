@@ -48,7 +48,7 @@ theorem flattenExecutableFieldGroups_addExecutableGroup_perm
       by_cases hname : (currentName == groupName) = true
       · have heq : currentName = groupName := beq_iff_eq.mp hname
         subst groupName
-        simp only [addExecutableGroup, hname, if_true,
+        simp only [addExecutableGroup, hname, ite_true,
           flattenExecutableFieldGroups, List.map_append]
         simpa [List.append_assoc]
           using (List.Perm.append_left
@@ -60,7 +60,7 @@ theorem flattenExecutableFieldGroups_addExecutableGroup_perm
           cases hvalue : currentName == groupName
           · rfl
           · contradiction
-        simp only [addExecutableGroup, hfalse, Bool.false_eq_true, if_false,
+        simp only [addExecutableGroup, hfalse, Bool.false_eq_true, ite_false,
           flattenExecutableFieldGroups]
         simpa [List.append_assoc]
           using ih.append_left (currentFields.map fun field => (currentName, field))
@@ -134,7 +134,7 @@ theorem addExecutableGroup_keys_nodup
           subst currentName
           simp at hfalse
         rw [addExecutableGroup]
-        simp only [hfalse, Bool.false_eq_true, if_false, List.map_cons]
+        simp only [hfalse, Bool.false_eq_true, ite_false, List.map_cons]
         apply List.nodup_cons.mpr
         constructor
         · intro hmember
@@ -515,7 +515,7 @@ mutual
             · simp [collectFlatSelection, hallows] at hfield
             · exact collectFlatFields_responseDepth_bound schema variableValues
                 parentType source selectionSet field (by
-                  simpa only [collectFlatSelection, hallows, if_true] using hfield)
+                  simpa only [collectFlatSelection, hallows, ite_true] using hfield)
         | some typeName =>
             cases hallows : selectionDirectivesAllowBool variableValues directives
             · simp [collectFlatSelection, hallows] at hfield
@@ -524,7 +524,7 @@ mutual
               · exact collectFlatFields_responseDepth_bound schema variableValues
                   parentType source selectionSet field (by
                     simpa only [collectFlatSelection, hallows, happly,
-                      Bool.true_and, if_true] using hfield)
+                      Bool.true_and, ite_true] using hfield)
 
   theorem collectFlatFields_responseDepth_bound
       {ObjectRef : Type}
@@ -715,7 +715,7 @@ theorem filter_eq_nil_of_all_false {α : Type}
   | nil => rfl
   | cons value rest ih =>
       rw [List.filter_cons, hfalse value (by simp)]
-      simp only [Bool.false_eq_true, if_false]
+      simp only [Bool.false_eq_true, ite_false]
       exact ih
         fun candidate hcandidate =>
           hfalse candidate (by simp [hcandidate])

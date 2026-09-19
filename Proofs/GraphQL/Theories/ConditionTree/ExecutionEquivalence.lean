@@ -895,7 +895,7 @@ mutual
                           have hcaught :=
                             selectionSetResultEquivalent_catchBubbleAsNull hchild
                           rw [completeValue.eq_5, Execution.completeValue]
-                          simp only [hinclude, if_true]
+                          simp only [hinclude, ite_true]
                           rw [executeSelectionSet.eq_1, hleftSelectionSet]
                           simpa [childBoundary, childGroups, leftSelectionSet,
                             ofSelectionSet, rightSelectionSet,

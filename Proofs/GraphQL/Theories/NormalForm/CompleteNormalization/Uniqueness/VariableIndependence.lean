@@ -118,18 +118,18 @@ mutual
         rcases hfree with ⟨hdirectives, hchildren⟩
         subst directives
         simp only [Execution.collectSelection,
-          Execution.selectionDirectivesAllowBool, List.all_nil, if_true]
+          Execution.selectionDirectivesAllowBool, List.all_nil, ite_true]
         exact collectFields_eq_of_directiveFree schema leftValues rightValues
           parentType source selectionSet hchildren
     | .inlineFragment (some typeCondition) directives selectionSet, hfree => by
         rcases hfree with ⟨hdirectives, hchildren⟩
         subst directives
         simp only [Execution.collectSelection,
-          Execution.selectionDirectivesAllowBool, List.all_nil, if_true]
+          Execution.selectionDirectivesAllowBool, List.all_nil, ite_true]
         cases htype : Execution.doesFragmentTypeApplyBool schema parentType
             source typeCondition
         · simp
-        · simp only [if_true]
+        · simp only [ite_true]
           exact collectFields_eq_of_directiveFree schema leftValues rightValues
             parentType source selectionSet hchildren
 
@@ -179,7 +179,7 @@ mutual
         rcases hfree with ⟨hdirectives, hchildren⟩
         subst directives
         simp only [Execution.collectSelection,
-          Execution.selectionDirectivesAllowBool, List.all_nil, if_true]
+          Execution.selectionDirectivesAllowBool, List.all_nil, ite_true]
         cases htype : Execution.doesFragmentTypeApplyBool schema parentType
             source typeCondition
         · simp [executableGroupsDirectiveFree]
@@ -327,7 +327,7 @@ theorem executionVariableValuesIndependentAtFuel_all
                 cases hinclude :
                     schema.typeIncludesObjectBool typeName runtimeType
                 · simp
-                · simp only [if_true]
+                · simp only [ite_true]
                   let source : Execution.ResolverValue ObjectRef :=
                     .object runtimeType ref
                   have hcollect :
@@ -665,7 +665,7 @@ theorem executionVariableValuesEquivalentAtFuel_all
                 cases hinclude :
                     schema.typeIncludesObjectBool typeName runtimeType
                 · simp
-                · simp only [if_true]
+                · simp only [ite_true]
                   let source : Execution.ResolverValue ObjectRef :=
                     .object runtimeType ref
                   have hcollect :=

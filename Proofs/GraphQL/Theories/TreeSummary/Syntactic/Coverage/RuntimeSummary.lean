@@ -89,7 +89,7 @@ theorem typeBranchBody_possibleTypes_eq
     intersectPossibleTypes parent.possibleTypes (schema.getPossibleTypes typeName)
   by_cases hempty : possibleTypes.isEmpty = true
   · simp [possibleTypes, hempty] at htransition
-  · simp only [possibleTypes, hempty, Bool.false_eq_true, if_false] at htransition
+  · simp only [possibleTypes, hempty, Bool.false_eq_true, ite_false] at htransition
     cases htransition
     rfl
 
@@ -246,7 +246,7 @@ theorem runtimeType_mem_typeBranchBody
     intersectPossibleTypes parent.possibleTypes (schema.getPossibleTypes typeName)
   by_cases hempty : possibleTypes.isEmpty = true
   · simp [possibleTypes, hempty] at htransition
-  · simp only [possibleTypes, hempty, Bool.false_eq_true, if_false] at htransition
+  · simp only [possibleTypes, hempty, Bool.false_eq_true, ite_false] at htransition
     cases htransition
     apply List.contains_iff_mem.mp
     rw [SelectionConditions.contains_intersectPossibleTypes,

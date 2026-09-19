@@ -250,7 +250,7 @@ private theorem contextOutcome_iff_fold
   case case1 =>
     intro inherited forest possibleTypes hbranches htypes ih outcome
     rw [CaseForest.summarize.eq_1]
-    simp only [hbranches, dite_true, htypes, if_true]
+    simp only [hbranches, dite_true, htypes, ite_true]
     constructor
     · intro h
       cases h with
@@ -268,7 +268,7 @@ private theorem contextOutcome_iff_fold
       | false => rfl
       | true => exact (htypes hvalue).elim
     rw [CaseForest.summarize.eq_1]
-    simp only [hbranches, dite_true, htypes, Bool.false_eq_true, if_false]
+    simp only [hbranches, dite_true, htypes, Bool.false_eq_true, ite_false]
     constructor
     · intro h
       cases h with

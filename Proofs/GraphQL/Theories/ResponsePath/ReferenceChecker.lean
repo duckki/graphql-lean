@@ -183,7 +183,7 @@ theorem selectionSetIncludesBoolWithFuel_of_pathInclusion
       cases hcomposite : definition.outputType.isCompositeBool schema with
       | false => simp [hcomposite]
       | true =>
-          simp only [hcomposite, if_true, List.all_eq_true]
+          simp only [hcomposite, ite_true, List.all_eq_true]
           intro childRuntimeType hchildRuntime
           have hchildObject : schema.objectType childRuntimeType :=
             SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema

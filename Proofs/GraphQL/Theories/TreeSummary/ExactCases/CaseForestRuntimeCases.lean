@@ -222,7 +222,7 @@ private theorem runtimeNamedFields_map
   | cons entry rest ih =>
       cases hallows : entry.1.allows variableValues runtimeType with
       | false =>
-          simp only [List.filterMap_cons, hallows, Bool.false_eq_true, if_false,
+          simp only [List.filterMap_cons, hallows, Bool.false_eq_true, ite_false,
             runtimeFieldsForEntries, List.flatMap_cons, List.nil_append]
           change (rest.filterMap fun entry =>
               if entry.1.allows variableValues runtimeType = true then
@@ -232,7 +232,7 @@ private theorem runtimeNamedFields_map
             = runtimeFieldsForEntries variableValues runtimeType rest
           exact ih
       | true =>
-          simp only [List.filterMap_cons, hallows, if_true, List.map_cons,
+          simp only [List.filterMap_cons, hallows, ite_true, List.map_cons,
             runtimeFieldsForEntries, List.flatMap_cons, List.singleton_append]
           congr 1
 
@@ -314,7 +314,7 @@ private theorem runtimeNamedFields_eq_nil_of_condition_false
     : runtimeNamedFields variableValues runtimeType tree = [] := by
   have hsource := tree.runtimeReductionBundles_sourceFields schema variableValues
     parentType runtimeType inheritedBooleanCondition hinherited hcoherent
-  rw [Tree.runtimeReductionBundles, if_neg (by simpa using hcondition),
+  rw [Tree.runtimeReductionBundles, ite_eq_right (by simpa using hcondition),
     RuntimeFieldBundle.allSourceEntries] at hsource
   have hexecutable : tree.collectRuntimeFields variableValues runtimeType = [] := by
     simpa [RuntimeFieldBundle.allSourceEntries] using hsource.symm
@@ -475,10 +475,10 @@ private theorem selectedChildren_valid
           rw [hselected] at hitem
           cases hallows : branch.body.condition.allows variableValues runtimeType with
           | false =>
-              simp only [hallows, Bool.false_eq_true, if_false] at hitem
+              simp only [hallows, Bool.false_eq_true, ite_false] at hitem
               exact hrest item hitem
           | true =>
-              simp only [hallows, if_true, List.mem_cons] at hitem
+              simp only [hallows, ite_true, List.mem_cons] at hitem
               rcases hitem with hequal | htail
               · subst item
                 exact ⟨hallows, hcoherent.2.1⟩
@@ -489,10 +489,10 @@ private theorem selectedChildren_valid
           rw [hselected] at hitem
           cases hallows : branch.body.condition.allows variableValues runtimeType with
           | false =>
-              simp only [hallows, Bool.false_eq_true, if_false] at hitem
+              simp only [hallows, Bool.false_eq_true, ite_false] at hitem
               exact hrest item hitem
           | true =>
-              simp only [hallows, if_true, List.mem_cons] at hitem
+              simp only [hallows, ite_true, List.mem_cons] at hitem
               rcases hitem with hequal | htail
               · subst item
                 exact ⟨hallows, hcoherent.2.1⟩
@@ -1655,14 +1655,14 @@ theorem summarize_le
               possibleTypes := by
           exact chooseTypeRegion_eq_scope_of_no_typeBranches tree possibleTypes runtimeType
             hempty
-        simp only [if_true, hregionEq]
+        simp only [ite_true, hregionEq]
         exact summarize_le algebra lawful schema parentType
           (CaseForest.extendBooleanCondition inheritedBooleanCondition
             tree.booleanVariables variableValues)
           (tree.resolveBranches possibleTypes variableValues) possibleTypes runtimeType
           variableValues fixedVariableValues hruntime
     | false =>
-        simp only [Bool.false_eq_true, if_false]
+        simp only [Bool.false_eq_true, ite_false]
         let region :=
           chooseTypeRegion runtimeType possibleTypes (tree.typeRegions possibleTypes)
         have hregion := chooseTypeRegion_mem tree possibleTypes runtimeType hruntime

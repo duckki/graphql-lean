@@ -233,7 +233,7 @@ private theorem singletonObjectBranchPath?_booleanVariablesWithin
   cases htypes : retained.any BranchCondition.isTypeCondition with
   | false => simp [htypes] at hresult
   | true =>
-      simp only [htypes, Bool.not_true, Bool.false_eq_true, if_false] at hresult
+      simp only [htypes, Bool.not_true, Bool.false_eq_true, ite_false] at hresult
       cases hpossible : target.possibleTypes with
       | nil => simp [hpossible] at hresult
       | cons objectTypeName rest =>
@@ -442,7 +442,7 @@ theorem Tree.insertField_booleanBranchesWithin
           | none => exact hsourcePrefix
           | some path =>
               by_cases hend : pathEnd sourcePrefix.1 path = target
-              · simp only [hend, if_true]
+              · simp only [hend, ite_true]
                 intro edge hedge
                 apply hshrunk edge.1
                 have hmap := congrArg (fun items => edge.1 ∈ items)

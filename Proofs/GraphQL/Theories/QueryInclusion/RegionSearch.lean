@@ -108,7 +108,7 @@ theorem selectionConditionsForRegion_runtimeGroups_permutationEquivalent
     variableValues executionParentType runtimeType ref [] condition
     extractedSelectionSet (by simp [SelectionConditions.booleanConditionAllows])
   rw [hroot] at hsource
-  simp only [if_true] at hsource
+  simp only [ite_true] at hsource
   have hfields :
       SelectionConditions.runtimeFields variableValues runtimeType
           (SelectionConditions.ofTypeRegion schema region extractedSelectionSet)
@@ -523,7 +523,7 @@ theorem executableGroupsIncludeBool_transport
                       cases hcomposite : definition.outputType.isCompositeBool schema with
                       | false => simp [hcomposite]
                       | true =>
-                          simp only [hdefinition, hcomposite, if_true] at hguardedChild ⊢
+                          simp only [hdefinition, hcomposite, ite_true] at hguardedChild ⊢
                           have hguardedRightLookup : schema.lookupField
                               parentType guardedRightHead.fieldName
                             = some definition := hdefinition
@@ -688,10 +688,10 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
       rw [List.any_cons]
       cases hname : leftName == rightName with
       | false =>
-          simp only [hname, Bool.false_eq_true, if_false] at hmatch ⊢
+          simp only [hname, Bool.false_eq_true, ite_false] at hmatch ⊢
           exact ih task hmatch htask
       | true =>
-          simp only [hname, if_true] at hmatch ⊢
+          simp only [hname, ite_true] at hmatch ⊢
           cases leftFields with
           | nil =>
               simp only [Bool.and_false, Bool.false_or]
@@ -708,11 +708,11 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                       rightField.arguments
                   cases hcompatible : compatible with
                   | false =>
-                      simp only [compatible, hcompatible, Bool.false_eq_true, if_false]
+                      simp only [compatible, hcompatible, Bool.false_eq_true, ite_false]
                         at hmatch ⊢
                       exact ih task hmatch htask
                   | true =>
-                      simp only [compatible, hcompatible, if_true] at hmatch ⊢
+                      simp only [compatible, hcompatible, ite_true] at hmatch ⊢
                       cases hlookup
                             : schema.lookupField parentType rightField.fieldName with
                       | none => simp [hlookup] at hmatch
@@ -731,7 +731,7 @@ theorem matchInclusionChildTask?_sound (schema : Schema)
                                     (rightField :: rightRest) } := by
                                 simpa [hlookup, hcomposite] using hmatch.symm
                               have hchild := htask _ htaskEq
-                              simp only [hcomposite, if_true, Bool.true_and,
+                              simp only [hcomposite, ite_true, Bool.true_and,
                                 Bool.or_eq_true]
                               exact Or.inl (by simpa [hcomposite] using hchild)
 
@@ -779,10 +779,10 @@ theorem matchInclusionChildTask?_child_true
       have hnodupParts := List.nodup_cons.mp hnodup
       cases hname : leftName == rightName with
       | false =>
-          simp only [hname, Bool.false_eq_true, if_false] at hmatch hinclude
+          simp only [hname, Bool.false_eq_true, ite_false] at hmatch hinclude
           exact ih task hnodupParts.2 hmatch hinclude
       | true =>
-          simp only [hname, if_true, Bool.true_and] at hmatch hinclude
+          simp only [hname, ite_true, Bool.true_and] at hmatch hinclude
           cases leftFields with
           | nil =>
               simp only [Bool.false_or] at hinclude
@@ -799,11 +799,11 @@ theorem matchInclusionChildTask?_child_true
                       rightField.arguments
                   cases hcompatible : compatible with
                   | false =>
-                      simp only [compatible, hcompatible, Bool.false_eq_true, if_false]
+                      simp only [compatible, hcompatible, Bool.false_eq_true, ite_false]
                         at hmatch hinclude
                       exact ih task hnodupParts.2 hmatch hinclude
                   | true =>
-                      simp only [compatible, hcompatible, if_true] at hmatch hinclude
+                      simp only [compatible, hcompatible, ite_true] at hmatch hinclude
                       cases hlookup
                             : schema.lookupField parentType rightField.fieldName with
                       | none => simp [hlookup] at hmatch
@@ -1310,7 +1310,7 @@ theorem executableGroupsIncludeBool_child_at_runtime
             | none => simp [hlookup] at hincludes
             | some typeDefinition =>
                 cases typeDefinition <;> simp [hlookup] at hincludes ⊢
-          simp only [hrightHeadLookup, hcomposite, if_true] at hchildCheck
+          simp only [hrightHeadLookup, hcomposite, ite_true] at hchildCheck
           have hchildSelectionCheck := List.all_eq_true.mp hchildCheck
             childRuntimeType (by
               rw [← hrightType]
@@ -1414,7 +1414,7 @@ theorem inputValueBoolean?_representativeBooleanValues_eq_some
           · exact False.elim (heq hhead.symm)
           · exact hrest
         simpa only [representativeBooleanValues, inputValueBoolean?,
-          lookupVariableValue?, if_neg heq] using ih hrest
+          lookupVariableValue?, ite_eq_right heq] using ih hrest
 
 theorem representativeBooleanValues_agree
     {available : List Name} {knownValues : VariableValues}

@@ -81,7 +81,7 @@ theorem
       simp [hsource, Execution.rootSourceAppliesBool,
         Execution.runtimeObjectType?, hrightInclude]
     simpa only [leftValues, rightValues, Execution.executeQueryWithFuel, hleftRoot,
-      hrightRoot, if_true, Execution.executeSelectionSetAsResponse,
+      hrightRoot, ite_true, Execution.executeSelectionSetAsResponse,
       Execution.executeSelectionSet, hroot]
       using hsem resolvers variableValues fuel source hleftCoercible hrightCoercible
 

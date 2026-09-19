@@ -239,10 +239,10 @@ private theorem lookupInputObjectFieldValue?_insertObjectFieldSorted
       simp [InputValue.insertObjectFieldSorted, lookupInputObjectFieldValue?]
   | candidate :: rest, name => by
       by_cases hle : field.1 <= candidate.1
-      · rw [InputValue.insertObjectFieldSorted, if_pos hle]
+      · rw [InputValue.insertObjectFieldSorted, ite_eq_left hle]
         by_cases hfield : field.1 = name <;>
           simp [lookupInputObjectFieldValue?, hfield]
-      · rw [InputValue.insertObjectFieldSorted, if_neg hle]
+      · rw [InputValue.insertObjectFieldSorted, ite_eq_right hle]
         by_cases hcandidate : candidate.1 = name
         · by_cases hfield : field.1 = name
           · exact False.elim (hle (by
@@ -1199,7 +1199,7 @@ private theorem inputValueVariables_mem_inputObjectFieldsVariables_of_lookup
       · simp [lookupInputObjectFieldValue?, hname] at hlookup
         subst value
         exact List.mem_append_left _ hvariable
-      · simp only [lookupInputObjectFieldValue?, hname, if_false] at hlookup
+      · simp only [lookupInputObjectFieldValue?, hname, ite_false] at hlookup
         exact List.mem_append_right _ (ih hlookup hvariable)
 
 mutual
@@ -1795,7 +1795,7 @@ private theorem lookupValue_none_iff {arguments : List Argument} {name : Name}
   | cons head rest ih =>
       by_cases hname : head.name = name
       · simp [Argument.lookupValue?, hname]
-      · simp only [Argument.lookupValue?, hname, if_false, ih]
+      · simp only [Argument.lookupValue?, hname, ite_false, ih]
         constructor
         · intro hnone argument hmem
           rcases List.mem_cons.mp hmem with rfl | hrest
@@ -1817,7 +1817,7 @@ private theorem lookupValue_eq_some_mem
         simp [Argument.lookupValue?, hname] at hlookup
         exact ⟨head, by simp, hname, hlookup⟩
       · intro hlookup
-        simp only [Argument.lookupValue?, hname, if_false] at hlookup
+        simp only [Argument.lookupValue?, hname, ite_false] at hlookup
         rcases ih hlookup with ⟨argument, hmem, hargumentName, hvalue⟩
         exact ⟨argument, by simp [hmem], hargumentName, hvalue⟩
 

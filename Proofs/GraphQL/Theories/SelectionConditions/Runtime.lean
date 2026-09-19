@@ -357,14 +357,14 @@ theorem booleanConditionAllows_filter_not_contains
           booleanConditionAllows_member variableValues inherited hinherited
             (List.contains_iff_mem.mp hcontains)
         rw [List.filter_cons]
-        simp only [hcontains, Bool.not_true, Bool.false_eq_true, if_false, ih,
+        simp only [hcontains, Bool.not_true, Bool.false_eq_true, ite_false, ih,
           hliteral, booleanConditionAllows, Bool.true_and]
       · have hcontainsFalse : inherited.contains literal = false := by
           cases hvalue : inherited.contains literal with
           | false => rfl
           | true => contradiction
         rw [List.filter_cons]
-        simp only [hcontainsFalse, Bool.not_false, if_true, ih,
+        simp only [hcontainsFalse, Bool.not_false, ite_true, ih,
           booleanConditionAllows]
 
 def conditionOptionAllows (variableValues : VariableValues) (runtimeType : Name)
@@ -387,7 +387,7 @@ theorem conditionForBranch?_runtime
       by_cases hempty :
           (intersectPossibleTypes start.possibleTypes
             (schema.getPossibleTypes typeName)).isEmpty = true
-      · simp only [hempty, if_true, conditionOptionAllows,
+      · simp only [hempty, ite_true, conditionOptionAllows,
           BranchCondition.allows, Condition.allows]
         have hcontains :
             (intersectPossibleTypes start.possibleTypes
@@ -404,7 +404,7 @@ theorem conditionForBranch?_runtime
           cases hright :
               (schema.getPossibleTypes typeName).contains runtimeType <;>
           simp_all
-      · simp only [hempty, Bool.false_eq_true, if_false, conditionOptionAllows,
+      · simp only [hempty, Bool.false_eq_true, ite_false, conditionOptionAllows,
           BranchCondition.allows, Condition.allows]
         rw [contains_intersectPossibleTypes]
         unfold Schema.typeIncludesObjectBool
@@ -774,7 +774,7 @@ theorem extractFields_runtimeFields
                   all_goals
                     simp only [hcurrent, hfragment, Bool.false_eq_true,
                       Bool.true_eq_false, Bool.false_and, Bool.true_and,
-                      if_false, if_true, List.nil_append] at hgateFalse ⊢
+                      ite_false, ite_true, List.nil_append] at hgateFalse ⊢
               | some nextCondition =>
                   have hnextAllows :=
                     conditionForBranches?_runtime schema variableValues runtimeType
@@ -796,7 +796,7 @@ theorem extractFields_runtimeFields
                         && inlineFragmentTypeAllows schema runtimeType typeCondition)
                   all_goals
                     simp only [Bool.false_eq_true, Bool.false_and, Bool.true_and,
-                      if_false, if_true, List.nil_append]
+                      ite_false, ite_true, List.nil_append]
 termination_by SelectionSet.size selectionSet
 decreasing_by
   all_goals

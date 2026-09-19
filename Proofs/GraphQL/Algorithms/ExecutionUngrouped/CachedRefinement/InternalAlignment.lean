@@ -392,7 +392,7 @@ mutual
     | field responseName fieldName arguments directives selectionSet =>
         by_cases hallows :
             selectionDirectivesAllowBool variableValues directives = true
-        · simp only [visitSelection, hallows, if_true,
+        · simp only [visitSelection, hallows, ite_true,
             mergeResponseFieldResult]
           apply
             ObjectFieldCachesInternallyAligned.mergeResponseFieldIntoObject output

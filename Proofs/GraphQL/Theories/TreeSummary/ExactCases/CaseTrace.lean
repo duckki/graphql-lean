@@ -244,7 +244,7 @@ mutual
                   Trace.empty, Trace.append, hrest]
             | true =>
                 simp only [ofBranches, branchObservation, hcondition, hselected,
-                  if_true, Trace.append, List.nil_append]
+                  ite_true, Trace.append, List.nil_append]
                 rw [booleanConditionAllows_append,
                   ofTree_booleanLiterals_allow variableValues runtimeType branch.body,
                   hrest]
@@ -261,7 +261,7 @@ mutual
                   Trace.empty, Trace.append, booleanConditionAllows, hliteral, hrest]
             | true =>
                 simp only [ofBranches, branchObservation, hcondition, hselected,
-                  if_true, Trace.append, List.nil_append]
+                  ite_true, Trace.append, List.nil_append]
                 change booleanConditionAllows variableValues
                     ([selectedLiteral variableValues literal.variableName] ++
                       (ofTree variableValues runtimeType branch.body).booleanLiterals ++

@@ -45,7 +45,7 @@ theorem mem_groupedSelections_addField
       by_cases hname : field.responseName = group.responseName
       · have hbeq : (field.responseName == group.responseName) = true := by
           simp [hname]
-        simp only [hbeq, if_true, List.flatMap_cons, List.mem_append]
+        simp only [hbeq, ite_true, List.flatMap_cons, List.mem_append]
         have hselections :
             ({ group with rest := group.rest ++ [field.field] } : FieldGroup).selections
               = group.selections ++ [field.toSelection] := by
@@ -55,7 +55,7 @@ theorem mem_groupedSelections_addField
         simp [or_assoc, or_left_comm, or_comm]
       · have hbeq : (field.responseName == group.responseName) = false := by
           simp [hname]
-        simp only [hbeq, Bool.false_eq_true, if_false, List.flatMap_cons,
+        simp only [hbeq, Bool.false_eq_true, ite_false, List.flatMap_cons,
           List.mem_append]
         unfold addFieldToGroups at ih
         rw [ih]
@@ -292,7 +292,7 @@ theorem pathEnd_prefixThrough (start target : Condition)
       simp only [pathPrefixThrough]
       by_cases hequal : condition = target
       · simp [hequal, pathEnd]
-      · simp only [if_neg hequal]
+      · simp only [ite_eq_right hequal]
         have hrest : target ∈ rest.map Prod.snd :=
           hcontains.resolve_left (fun h => hequal h.symm)
         simpa [pathEnd] using ih condition hrest
@@ -333,11 +333,11 @@ theorem pathEnd_erasePathCyclesFrom
           simp only [List.append_nil]
           unfold nextKept
           by_cases hcontains : (kept.map Prod.snd).contains condition = true
-          · simp only [if_pos hcontains]
+          · simp only [ite_eq_left hcontains]
             rw [pathEnd_prefixThrough start condition kept
               (List.contains_iff_mem.mp hcontains)]
             exact (pathEnd_append_single start condition kept branch).symm
-          · simp only [if_neg hcontains]
+          · simp only [ite_eq_right hcontains]
       | cons next tail =>
           have hright : (next :: tail) ≠ [] := by simp
           rw [pathEnd_append_right nextKept (next :: tail) start start hright]
@@ -372,11 +372,11 @@ theorem erasePathCyclesFrom_ne_nil
       rcases edge with ⟨branch, condition⟩
       simp only [erasePathCyclesFrom]
       by_cases hcontains : (kept.map Prod.snd).contains condition = true
-      · simp only [if_pos hcontains]
+      · simp only [ite_eq_left hcontains]
         exact ih (pathPrefixThrough condition kept)
           (pathPrefixThrough_ne_nil condition kept
             (List.contains_iff_mem.mp hcontains))
-      · simp only [if_neg hcontains]
+      · simp only [ite_eq_right hcontains]
         exact ih (kept ++ [(branch, condition)]) (by simp)
 
 theorem erasePathCycles_ne_nil
@@ -388,7 +388,7 @@ theorem erasePathCycles_ne_nil
       rcases edge with ⟨branch, condition⟩
       unfold erasePathCycles
       simp only [erasePathCyclesFrom, List.map_nil, List.contains_nil,
-        Bool.false_eq_true, if_false, List.nil_append]
+        Bool.false_eq_true, ite_false, List.nil_append]
       exact erasePathCyclesFrom_ne_nil [(branch, condition)] rest (by simp)
 
 theorem deepestExistingPrefixFrom_end
@@ -1233,7 +1233,7 @@ theorem collectConditionEntries_runtimeFields
                   all_goals
                     simp only [hcurrent, hfragment, Bool.false_eq_true,
                       Bool.true_eq_false, Bool.false_and, Bool.true_and,
-                      if_false, if_true, List.nil_append] at hgateFalse ⊢
+                      ite_false, ite_true, List.nil_append] at hgateFalse ⊢
               | some nextCondition =>
                   have hnextAllows :=
                     conditionForBranches?_runtime schema variableValues runtimeType
@@ -1260,7 +1260,7 @@ theorem collectConditionEntries_runtimeFields
                           typeCondition)
                   all_goals
                     simp only [Bool.false_eq_true,
-                      Bool.false_and, Bool.true_and, if_false, if_true,
+                      Bool.false_and, Bool.true_and, ite_false, ite_true,
                       List.nil_append]
 termination_by SelectionSet.size selectionSet
 decreasing_by
@@ -1319,7 +1319,7 @@ theorem extraction_sound
       runtimeType parentType ref inheritedBooleanCondition
       (rootCondition schema parentType) selectionSet hinherited
   rw [hroot] at hsource
-  simp only [if_true] at hsource
+  simp only [ite_true] at hsource
   let tree :=
     ofSelectionSetInScope schema parentType inheritedBooleanCondition selectionSet
   change field ∈ runtimeFieldsForEntries variableValues runtimeType

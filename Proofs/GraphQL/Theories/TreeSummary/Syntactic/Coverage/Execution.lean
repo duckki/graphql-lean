@@ -423,7 +423,7 @@ mutual
               by
                 have hinclude : Traversal.all.includeBranch branch.condition = true :=
                   rfl
-                simp only [traversedBranchCollectedGroups, hinclude, if_true,
+                simp only [traversedBranchCollectedGroups, hinclude, ite_true,
                   List.mem_append]
                 exact Or.inl hgroup,
               hcondition,
@@ -550,7 +550,7 @@ theorem runtimeField_mem_allCollectedGroups
   cases hcondition : entry.1.allows variableValues runtimeType with
   | false => simp [hcondition] at hfield
   | true =>
-      simp only [hcondition, if_true] at hfield
+      simp only [hcondition, ite_true] at hfield
       have hrawEntry : projectStoredFieldEntry entry ∈ tree.fieldEntries := by
         rw [tree.fieldEntries_eq_map_storedFieldEntries]
         exact List.mem_map.mpr ⟨entry, hentry, rfl⟩
@@ -768,7 +768,7 @@ mutual
               hboth.1,
               group,
               by
-                simp only [traversedBranchCollectedGroups, hinclude, if_true,
+                simp only [traversedBranchCollectedGroups, hinclude, ite_true,
                   List.mem_append]
                 exact Or.inl hgroup,
               hcondition,
@@ -826,7 +826,7 @@ theorem runtimeField_mem_traversedCollectedGroups
   cases hcondition : entry.1.allows variableValues runtimeType with
   | false => simp [hcondition] at hfield
   | true =>
-      simp only [hcondition, if_true] at hfield
+      simp only [hcondition, ite_true] at hfield
       have hrawEntry : projectStoredFieldEntry entry ∈ tree.fieldEntries := by
         rw [tree.fieldEntries_eq_map_storedFieldEntries]
         exact List.mem_map.mpr ⟨entry, hentry, rfl⟩

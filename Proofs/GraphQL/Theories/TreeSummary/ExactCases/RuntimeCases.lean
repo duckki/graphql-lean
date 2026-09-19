@@ -620,7 +620,7 @@ private theorem runtimeNamedFields_map
   | cons entry rest ih =>
       cases hallows : entry.1.allows variableValues runtimeType with
       | false =>
-          simp only [List.filterMap_cons, hallows, Bool.false_eq_true, if_false,
+          simp only [List.filterMap_cons, hallows, Bool.false_eq_true, ite_false,
             runtimeFieldsForEntries, List.flatMap_cons, List.nil_append]
           change (rest.filterMap fun entry =>
               if entry.1.allows variableValues runtimeType = true then
@@ -630,7 +630,7 @@ private theorem runtimeNamedFields_map
             = runtimeFieldsForEntries variableValues runtimeType rest
           exact ih
       | true =>
-          simp only [List.filterMap_cons, hallows, if_true, List.map_cons,
+          simp only [List.filterMap_cons, hallows, ite_true, List.map_cons,
             runtimeFieldsForEntries, List.flatMap_cons, List.singleton_append]
           congr 1
 
@@ -708,7 +708,7 @@ private theorem runtimeNamedFields_eq_nil_of_condition_false
     : runtimeNamedFields variableValues runtimeType tree = [] := by
   have hsource := tree.runtimeReductionBundles_sourceFields schema variableValues
     parentType runtimeType inheritedBooleanCondition hinherited hcoherent
-  rw [Tree.runtimeReductionBundles, if_neg (by simpa using hcondition),
+  rw [Tree.runtimeReductionBundles, ite_eq_right (by simpa using hcondition),
     RuntimeFieldBundle.allSourceEntries] at hsource
   have hexecutable : tree.collectRuntimeFields variableValues runtimeType = [] := by
     simpa [RuntimeFieldBundle.allSourceEntries] using hsource.symm
@@ -902,7 +902,7 @@ private theorem resolve_trace
             exact Bool.noConfusion
               (hcontains.symm.trans (List.contains_iff_mem.mpr hmem))
           rw [hselected, hcontains, hregionEq]
-          simp only [Bool.false_eq_true, if_false]
+          simp only [Bool.false_eq_true, ite_false]
           have ih := resolve_trace inheritedBooleanCondition caseCondition
             (cursor.skipBranch rest) region runtimeType variableValues hregion.2
           simpa [CaseTrace.ofCursor, CaseTrace.ofBranches, CaseTrace.Trace.append,
@@ -914,7 +914,7 @@ private theorem resolve_trace
         · have hmem : runtimeType ∈ branch.body.condition.possibleTypes :=
             List.contains_iff_mem.mp hcontains
           rw [hselected, hcontains, hregionEq]
-          simp only [if_true]
+          simp only [ite_true]
           have ih := resolve_trace inheritedBooleanCondition caseCondition
             (cursor.selectBranch branch.body rest) region runtimeType variableValues
             hregion.2
@@ -1177,7 +1177,7 @@ private theorem resolve_namedFields
                   (possibleTypeRegions possibleTypes
                     [branch.body.condition.possibleTypes]))
                 branch.body.condition.possibleTypes = true at hselect
-            simp only [hselect, if_true]
+            simp only [hselect, ite_true]
             apply ih.trans
             rw [CaseCursor.selectBranch, pendingRuntimeNamedFields_append]
             have hbody := runtimeNamedFields_eq_local_append_pending variableValues
@@ -1234,7 +1234,7 @@ private theorem resolve_namedFields
                   using hnextValid)
           simp only
           apply ih.trans
-          simp only [CaseCursor.resolveBooleanBranch, hselect, if_true,
+          simp only [CaseCursor.resolveBooleanBranch, hselect, ite_true,
             CaseCursor.selectBranch, pendingRuntimeNamedFields_append]
           have hbody := runtimeNamedFields_eq_local_append_pending variableValues
             runtimeType branch.body hbodyAllows

@@ -96,7 +96,7 @@ theorem pathEnd_prefixThrough_of_mem
       simp only [pathPrefixThrough]
       by_cases heq : next = target
       · simp [heq, pathEnd]
-      · simp only [heq, if_false, pathEnd]
+      · simp only [heq, ite_false, pathEnd]
         exact ih next (hmem.resolve_left (Ne.symm heq))
 
 theorem erasePathCyclesFrom_coherent
@@ -114,13 +114,13 @@ theorem erasePathCyclesFrom_coherent
       rcases edge with ⟨branch, next⟩
       simp only [erasePathCyclesFrom]
       by_cases hcontains : (kept.map Prod.snd).contains next = true
-      · simp only [if_pos hcontains]
+      · simp only [ite_eq_left hcontains]
         have hmem : next ∈ kept.map Prod.snd := List.contains_iff_mem.mp hcontains
         apply ih (pathPrefixThrough next kept)
         · exact hkept.prefixThrough next
         · rw [pathEnd_prefixThrough_of_mem start next kept hmem]
           exact hremaining.2
-      · simp only [if_neg hcontains]
+      · simp only [ite_eq_right hcontains]
         apply ih (kept ++ [(branch, next)])
         · apply hkept.append
           simpa [pathEnd, PathCoherent] using hremaining.1

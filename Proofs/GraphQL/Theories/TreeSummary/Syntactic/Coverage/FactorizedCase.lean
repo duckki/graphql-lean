@@ -174,7 +174,7 @@ mutual
                           } :: tailSummaries.typeBranches)).getD algebra.empty
                           = tailTypeSummary := by
                       rw [summarizeTypeBranchCase?_getD_cons algebra lawful runtimeType,
-                        if_neg hnotScope]
+                        ite_eq_right hnotScope]
                     simpa [hcondition, branchScope, hempty,
                       Traversal.includeBranchAtRuntimeType, hinclude, htypeHead,
                       tailSummaries, tailTypeSummary, tailBooleanSummary,
@@ -202,7 +202,7 @@ mutual
                                 summaryVariableValues branchScope)
                               tailTypeSummary := by
                       rw [summarizeTypeBranchCase?_getD_cons algebra lawful runtimeType,
-                        if_pos hbranchScope]
+                        ite_eq_left hbranchScope]
                     have hrecursive := summarizeTreeAtRuntimeType_le algebra lawful
                       schema typeName inheritedBooleanCondition branch.body branchScope
                       runtimeType hbodyCoherent hbranchScope hbodyMem source
@@ -468,7 +468,7 @@ mutual
               : traversal.includeBranchAtRuntimeType schema runtimeType
                   branch.condition with
         | true =>
-            simp only [Traversal.atRuntimeType, hinclude, if_true]
+            simp only [Traversal.atRuntimeType, hinclude, ite_true]
             congr 1
             · exact summarize_traversedCollectedGroupsAtRuntimeType algebra lawful schema
                 (branch.condition.parentType parentType) inheritedBooleanCondition
@@ -476,7 +476,7 @@ mutual
             · exact summarize_traversedBranchCollectedGroupsAtRuntimeType algebra lawful
                 schema parentType inheritedBooleanCondition runtimeType rest traversal
         | false =>
-            simp only [Traversal.atRuntimeType, hinclude, Bool.false_eq_true, if_false,
+            simp only [Traversal.atRuntimeType, hinclude, Bool.false_eq_true, ite_false,
               summarizeCollectedGroups]
             congr 1
             exact summarize_traversedBranchCollectedGroupsAtRuntimeType algebra lawful

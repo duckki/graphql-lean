@@ -278,7 +278,7 @@ theorem selectionSetVariables_partition_for_response
               hargumentsVariable)
         · exact Or.inr (Or.inl (by
             rw [fieldSelectionsWithResponseNameInScope]
-            simp only [hresponse, if_true]
+            simp only [hresponse, ite_true]
             change variableName ∈
               Validation.selectionSetVariables
                 (subselections
@@ -308,7 +308,7 @@ theorem selectionSetVariables_partition_for_response
           · exact Or.inl hhead
           · exact Or.inr (Or.inl (by
               rw [fieldSelectionsWithResponseNameInScope]
-              simp only [hresponse, if_true]
+              simp only [hresponse, ite_true]
               change variableName ∈
                 Validation.selectionSetVariables
                   (subselections
@@ -523,7 +523,7 @@ theorem selectionSetVariables_partition_for_response
                 · exact Or.inl hhead
                 · exact Or.inr (Or.inl (by
                     simp only [fieldSelectionsWithResponseNameInScope,
-                      hoverlap, if_true]
+                      hoverlap, ite_true]
                     rw [
                       mergeSelectionSets_append_for_variables,
                       selectionSetVariables_append]
@@ -557,7 +557,7 @@ theorem selectionSetVariables_partition_for_response
                 · exact Or.inl hhead
                 · exact Or.inr (Or.inl (by
                     simp only [fieldSelectionsWithResponseNameInScope,
-                      hoverlap, if_true]
+                      hoverlap, ite_true]
                     rw [
                       mergeSelectionSets_append_for_variables,
                       selectionSetVariables_append]

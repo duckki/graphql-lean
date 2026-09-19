@@ -99,7 +99,7 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
       by_cases hpossible : runtimeType ∈ entry.condition.possibleTypes
       · have hcontains : entry.condition.possibleTypes.contains runtimeType = true :=
           List.contains_iff_mem.mpr hpossible
-        simp only [hcontains, if_true]
+        simp only [hcontains, ite_true]
         change (if entry.condition.allows variableValues runtimeType then
                     [{
                       fieldName := entry.field.fieldName
@@ -126,7 +126,7 @@ theorem guardedFieldExecutableFields_runtime_entries (variableValues : VariableV
           | true => exact False.elim (hpossible (List.contains_iff_mem.mp hvalue))
         have hinactive : entry.condition.allows variableValues runtimeType = false := by
           simp [Condition.allows, hpossible]
-        simp only [hcontains, Bool.false_eq_true, if_false]
+        simp only [hcontains, Bool.false_eq_true, ite_false]
         rw [guardedFieldExecutableFields, List.flatMap_cons]
         simp only [hinactive]
         exact ih
@@ -519,7 +519,7 @@ theorem executableGroupIncludedBool_mono_child
               cases hcomposite : definition.outputType.isCompositeBool schema with
               | false => simp [hcomposite]
               | true =>
-                  simp only [hdefinition, hcomposite, if_true] at hmatch ⊢
+                  simp only [hdefinition, hcomposite, ite_true] at hmatch ⊢
                   exact hmono definition.outputType
                     (executableFieldsMergedSelectionSet (leftField :: leftRest))
                     (executableFieldsMergedSelectionSet (rightField :: rightRest))

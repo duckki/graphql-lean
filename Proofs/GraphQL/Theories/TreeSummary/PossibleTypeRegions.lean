@@ -89,12 +89,12 @@ private theorem mem_of_mem_splitPossibleTypeRegion
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false,
             List.mem_append, List.mem_singleton] at hcandidate
           rcases hcandidate with rfl | rfl <;>
             exact (List.mem_filter.mp hmem).1
       | true =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false, if_true,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false, ite_true,
             List.append_nil, List.mem_singleton] at hcandidate
           subst candidate
           exact (List.mem_filter.mp hmem).1
@@ -102,12 +102,12 @@ private theorem mem_of_mem_splitPossibleTypeRegion
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, if_true, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, ite_true, Bool.false_eq_true, ite_false,
             List.nil_append, List.mem_singleton] at hcandidate
           subst candidate
           exact (List.mem_filter.mp hmem).1
       | true =>
-          simp only [hincluded, hexcluded, if_true, List.append_nil] at hcandidate
+          simp only [hincluded, hexcluded, ite_true, List.append_nil] at hcandidate
           contradiction
 
 private theorem eq_splitRegionFor_of_mem_splitPossibleTypeRegion
@@ -121,7 +121,7 @@ private theorem eq_splitRegionFor_of_mem_splitPossibleTypeRegion
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false,
             List.mem_append, List.mem_singleton] at hcandidate
           rcases hcandidate with rfl | rfl
           · have hcontains := (List.mem_filter.mp hmem).2
@@ -135,7 +135,7 @@ private theorem eq_splitRegionFor_of_mem_splitPossibleTypeRegion
             rw [hcontains]
             simp
       | true =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false, if_true,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false, ite_true,
             List.append_nil, List.mem_singleton] at hcandidate
           subst candidate
           have hcontains := (List.mem_filter.mp hmem).2
@@ -146,7 +146,7 @@ private theorem eq_splitRegionFor_of_mem_splitPossibleTypeRegion
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, if_true, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, ite_true, Bool.false_eq_true, ite_false,
             List.nil_append, List.mem_singleton] at hcandidate
           subst candidate
           have hnot := (List.mem_filter.mp hmem).2
@@ -156,7 +156,7 @@ private theorem eq_splitRegionFor_of_mem_splitPossibleTypeRegion
           rw [hcontains]
           simp
       | true =>
-          simp only [hincluded, hexcluded, if_true, List.append_nil] at hcandidate
+          simp only [hincluded, hexcluded, ite_true, List.append_nil] at hcandidate
           contradiction
 
 private theorem splitPossibleTypeRegion_nonempty
@@ -169,13 +169,13 @@ private theorem splitPossibleTypeRegion_nonempty
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false,
             List.mem_append, List.mem_singleton] at hcandidate
           rcases hcandidate with rfl | rfl
           · exact List.isEmpty_eq_false_iff.mp hincluded
           · exact List.isEmpty_eq_false_iff.mp hexcluded
       | true =>
-          simp only [hincluded, hexcluded, Bool.false_eq_true, if_false, if_true,
+          simp only [hincluded, hexcluded, Bool.false_eq_true, ite_false, ite_true,
             List.append_nil, List.mem_singleton] at hcandidate
           subst candidate
           exact List.isEmpty_eq_false_iff.mp hincluded
@@ -183,12 +183,12 @@ private theorem splitPossibleTypeRegion_nonempty
       cases hexcluded
             : (region.filter fun candidate => !allowed.contains candidate).isEmpty with
       | false =>
-          simp only [hincluded, hexcluded, if_true, Bool.false_eq_true, if_false,
+          simp only [hincluded, hexcluded, ite_true, Bool.false_eq_true, ite_false,
             List.nil_append, List.mem_singleton] at hcandidate
           subst candidate
           exact List.isEmpty_eq_false_iff.mp hexcluded
       | true =>
-          simp only [hincluded, hexcluded, if_true, List.append_nil] at hcandidate
+          simp only [hincluded, hexcluded, ite_true, List.append_nil] at hcandidate
           contradiction
 
 private theorem splitPossibleTypeRegion_condition_constant
@@ -424,7 +424,7 @@ theorem possibleTypeRegions_membershipClass (scope : PossibleTypes)
   cases hempty : scope.isEmpty with
   | true => simp [hempty] at hinitial
   | false =>
-      simp only [hempty, Bool.false_eq_true, if_false, List.mem_singleton] at hinitial
+      simp only [hempty, Bool.false_eq_true, ite_false, List.mem_singleton] at hinitial
       subst initial
       unfold possibleTypeMembershipClass
       symm

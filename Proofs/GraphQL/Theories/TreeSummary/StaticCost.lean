@@ -269,7 +269,7 @@ private theorem insertInputObjectFieldSorted_perm (field : Name × InputValue)
       by_cases hle : field.1 ≤ candidate.1
       · simp [InputValue.insertObjectFieldSorted, hle]
       · rw [InputValue.insertObjectFieldSorted]
-        simp only [hle, if_false]
+        simp only [hle, ite_false]
         exact
           ((insertInputObjectFieldSorted_perm field rest).cons candidate).trans
             (List.Perm.swap field candidate rest)

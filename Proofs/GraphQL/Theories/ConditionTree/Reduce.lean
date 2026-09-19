@@ -127,7 +127,7 @@ theorem reduceOperation_sound (schema : Schema) (operation : Operation)
         resolvers coercedVariableValues fuel (operation.rootType schema) ref hinclude
       simp only [executeQueryWithFuel]
       rw [hroot, hrootReduced, hroot]
-      simp only [if_true]
+      simp only [ite_true]
       rw [hcoerce, hrootType]
       simpa [reduced, reduceOperation, Execution.executeSelectionSet,
         Execution.executeRootSelectionSet, coercedVariableValues] using hselection

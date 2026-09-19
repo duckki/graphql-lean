@@ -225,7 +225,7 @@ theorem executeQueryAnnotatedWithFuel_toResponse
   | false =>
       simp [AnnotatedResponse.toResponse, AnnotatedResponseValue.toResponseValue]
   | true =>
-      simp only [if_true]
+      simp only [ite_true]
       cases hannotated
             : executeQueryAnnotatedCollectedFields schema resolvers
                 coercedVariableValues fuel (operation.rootType schema) source groups with

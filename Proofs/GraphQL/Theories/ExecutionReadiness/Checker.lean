@@ -302,7 +302,7 @@ mutual
         · cases hnext : withDirectives? condition directives with
           | none => simp [checkSelection, htype, hnext, Result.errorCount]
           | some nextCondition =>
-              simp only [checkSelection, htype, Bool.false_eq_true, if_false, hnext]
+              simp only [checkSelection, htype, Bool.false_eq_true, ite_false, hnext]
               apply checkSelectionSet_complete schema runtimeType nextCondition children
               intro values hvalues
               rw [withDirectives?_some_allows values hnext, Bool.and_eq_true] at hvalues

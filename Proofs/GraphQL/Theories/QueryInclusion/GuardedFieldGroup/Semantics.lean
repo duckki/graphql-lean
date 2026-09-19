@@ -1287,7 +1287,7 @@ theorem includesBool_complete_of_reference
         left.variableDefinitions right.variableDefinitions) = true := by
     simp [hroot, hdefinitions]
   unfold includesBool
-  rw [if_pos hguard]
+  rw [ite_eq_left hguard]
   have hrightObject : schema.objectType (right.rootType schema) :=
     NormalForm.CompleteNormalization.operation_root_object_of_valid hschema
       hrightValid

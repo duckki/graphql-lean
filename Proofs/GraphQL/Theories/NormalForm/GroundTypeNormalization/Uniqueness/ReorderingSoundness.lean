@@ -92,7 +92,7 @@ private theorem insertObjectFieldSorted_perm (field : Name × ResponseValue)
       by_cases hle : field.1 ≤ candidate.1
       · simp [ResponseValue.insertObjectFieldSorted, hle]
       · rw [ResponseValue.insertObjectFieldSorted]
-        simp only [hle, if_false]
+        simp only [hle, ite_false]
         exact
           ((insertObjectFieldSorted_perm field rest).cons candidate).trans
             (List.Perm.swap field candidate rest)
@@ -127,7 +127,7 @@ private theorem insertObjectFieldSorted_pairwise (field : Name × ResponseValue)
         (List.pairwise_cons.mp hsorted).2
       by_cases hle : field.1 ≤ candidate.1
       · rw [ResponseValue.insertObjectFieldSorted]
-        simp only [hle, if_true]
+        simp only [hle, ite_true]
         apply List.pairwise_cons.mpr
         constructor
         · intro restField hmem
@@ -138,7 +138,7 @@ private theorem insertObjectFieldSorted_pairwise (field : Name × ResponseValue)
               (hcandidateRest restField htail)
         · exact hsorted
       · rw [ResponseValue.insertObjectFieldSorted]
-        simp only [hle, if_false]
+        simp only [hle, ite_false]
         apply List.pairwise_cons.mpr
         constructor
         · intro restField hmem
@@ -1476,7 +1476,7 @@ theorem completeValueSoundAtFuel_succ {fuel : Nat}
                 runtimeType runtimeType ref leftChild rightChild
                 hleftChildrenNodup hrightChildrenNodup hleftFree
                 hrightFree hleftNormal hrightNormal hequal hscope
-            simp only [completeValue, hincludes, if_true]
+            simp only [completeValue, hincludes, ite_true]
             apply selectionSetResultEquivalent_catchBubbleAsNull
             simpa [executeSelectionSet, executeRootSelectionSet,
               collectSubfields, mergeExecutableGroups] using hchildEquivalent

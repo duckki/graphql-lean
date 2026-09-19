@@ -194,7 +194,7 @@ mutual
             runtimeType inheritedBooleanCondition := by
     rw [reduceTree, collectFlatFields_append,
       collectFlatFields_reduceTreeFieldGroups]
-    rw [Tree.reducedRuntimeFields, if_pos hcondition]
+    rw [Tree.reducedRuntimeFields, ite_eq_left hcondition]
     congr 1
     exact collectFlatFields_reduceTreeBranches schema variableValues parentType
       executionParentType runtimeType ref inheritedBooleanCondition tree.condition
@@ -238,9 +238,9 @@ mutual
             have hbodyFalse :
                 branch.body.condition.allows variableValues runtimeType = false := by
               simpa [hparent, hbranch] using hnext
-            simp only [Bool.false_eq_true, if_false]
+            simp only [Bool.false_eq_true, ite_false]
             simp only [Tree.reducedRuntimeFields]
-            rw [if_neg (by simp [hbodyFalse])]
+            rw [ite_eq_right (by simp [hbodyFalse])]
             simpa using collectFlatFields_reduceTreeBranches schema variableValues
               parentType executionParentType runtimeType ref
               inheritedBooleanCondition parentCondition rest hinherited hparent
@@ -249,7 +249,7 @@ mutual
             have hbodyTrue :
                 branch.body.condition.allows variableValues runtimeType = true := by
               simpa [hparent, hbranch] using hnext
-            simp only [if_true]
+            simp only [ite_true]
             rw [collectFlatFields_reduceTree schema variableValues
               (branch.condition.parentType parentType) executionParentType runtimeType
               ref inheritedBooleanCondition branch.body hinherited hbodyTrue
@@ -679,7 +679,7 @@ mutual
       rw [Tree.collectRuntimeFields, Tree.storedFieldEntries,
         runtimeFieldsForEntries_append,
         runtimeFieldsForEntries_groups]
-      rw [if_pos hallows]
+      rw [ite_eq_left hallows]
       have hbranches := runtimeReductionBranchBundles_sourceFields schema
         variableValues parentType runtimeType
         inheritedBooleanCondition tree.condition tree.branches hinherited
@@ -694,7 +694,7 @@ mutual
         cases hvalue : tree.condition.allows variableValues runtimeType
         · rfl
         · exact False.elim (hnot hvalue)
-      rw [if_neg (by simpa using hfalse)]
+      rw [ite_eq_right (by simpa using hfalse)]
       have hbranches := runtimeFieldsForEntries_branches_false schema
         variableValues parentType runtimeType
         inheritedBooleanCondition tree.condition tree.branches hinherited hfalse
@@ -775,7 +775,7 @@ mutual
         have hbody := branch.body.runtimeReductionBundles_sourceFields schema
           variableValues (branch.condition.parentType parentType)
           runtimeType inheritedBooleanCondition hinherited hcoherent.2.1
-        rw [Tree.runtimeReductionBundles, if_neg (by simpa using hbodyFalse),
+        rw [Tree.runtimeReductionBundles, ite_eq_right (by simpa using hbodyFalse),
           RuntimeFieldBundle.allSourceEntries] at hbody
         have hrest := runtimeFieldsForEntries_branches_false schema variableValues
           parentType runtimeType inheritedBooleanCondition

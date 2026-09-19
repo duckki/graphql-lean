@@ -115,7 +115,7 @@ theorem summarizeSelectedBooleanAlternatives_add
       rcases entry with ⟨variableName, alternatives⟩
       by_cases hname : branch.literal.variableName = variableName
       · subst variableName
-        simp only [addBooleanBranchSummary, beq_self_eq_true, if_true]
+        simp only [addBooleanBranchSummary, beq_self_eq_true, ite_true]
         cases hrequired : branch.literal.requiredValue <;>
           cases hvalue : assignment branch.literal.variableName <;>
           simp [summarizeSelectedBooleanAlternatives, combineMap,

@@ -716,7 +716,7 @@ theorem collectedExecutableEntries_mem_addExecutableGroup
       by_cases hname : (currentName == groupName) = true
       · have heq : currentName = groupName := beq_iff_eq.mp hname
         subst groupName
-        simp only [GraphQL.Execution.addExecutableGroup, hname, if_true,
+        simp only [GraphQL.Execution.addExecutableGroup, hname, ite_true,
           collectedExecutableEntries, List.map_append, List.mem_append,
           List.mem_map]
         constructor
@@ -733,7 +733,7 @@ theorem collectedExecutableEntries_mem_addExecutableGroup
           · rfl
           · contradiction
         simp only [GraphQL.Execution.addExecutableGroup, hfalse,
-          Bool.false_eq_true, if_false, collectedExecutableEntries,
+          Bool.false_eq_true, ite_false, collectedExecutableEntries,
           List.mem_append]
         rw [ih]
         constructor

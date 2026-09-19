@@ -311,7 +311,7 @@ mutual
                 exact
                   lookupField?_some_cacheReady objectSource responseName fields
                     previous houtput (by simpa [objectField?] using hlookup)
-              simp only [visitSelection, hallows, if_true]
+              simp only [visitSelection, hallows, ite_true]
               apply (mergeResponseFieldResult_cacheReady_and_shape objectSource
                       responseName _ fields houtput ?_).1
               cases fuel with
@@ -866,7 +866,7 @@ mutual
                 using FieldCacheAbsorptionShape.refl_of_ready
                   (.list sourceValues? values) houtput
           | object objectSource fields =>
-              simp only [visitSelection, hallows, if_true]
+              simp only [visitSelection, hallows, ite_true]
               apply (mergeResponseFieldResult_cacheReady_and_shape objectSource
                       responseName _ fields houtput ?_).2
               exact

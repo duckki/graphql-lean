@@ -292,7 +292,7 @@ theorem complete_normal_operations_equalUpToReordering_of_complete_bool_vars_sem
                   (leftVar :: leftVariables)
                   (rightVar :: rightVariables) (left.rootType schema) leftSelection
                   (matchingRight leftSelection) := by
-            simpa only [matchingRight, dif_pos hleftMem]
+            simpa only [matchingRight, dite_eq_left hleftMem]
               using (Classical.choose_spec (hleftTotal leftSelection hleftMem))
           have hleftSetNodup : left.selectionSet.Nodup := hleftComplete.2.1
           have hrightSetNodup : right.selectionSet.Nodup :=

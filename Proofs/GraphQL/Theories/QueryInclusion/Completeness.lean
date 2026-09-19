@@ -865,7 +865,7 @@ theorem spineSelectionIncludes_selectionSetIncludesBoolWithFuel
         (argumentsSyntacticallyEquivalentBool_iff _ _).mpr harguments⟩, ?_⟩
       rw [hlookup]
       by_cases hcomposite : definition.outputType.isCompositeBool schema = true
-      · simp only [hcomposite, if_true, List.all_eq_true]
+      · simp only [hcomposite, ite_true, List.all_eq_true]
         intro childRuntimeType hchildRuntime
         have hchildObject : schema.objectType childRuntimeType :=
           SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema
@@ -1007,7 +1007,7 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
     simp [hroot, hdefinitionsBool]
   apply includesBool_complete_of_reference hschema hleftValid hrightValid
   unfold includesBoolReference
-  rw [if_pos hguard]
+  rw [ite_eq_left hguard]
   apply List.all_eq_true.mpr
   intro conditionValues hconditionValues
   let variables := comparisonConditionVariables left.selectionSet right.selectionSet
@@ -1129,7 +1129,7 @@ theorem includesBool_complete {schema : Schema} {left right : Operation}
     simp [hroot, hdefinitionsBool]
   apply includesBool_complete_of_reference hschema hleftValid hrightValid
   unfold includesBoolReference
-  rw [if_pos hguard]
+  rw [ite_eq_left hguard]
   apply List.all_eq_true.mpr
   intro conditionValues hcase
   have hcomplete : boolVarsComplete

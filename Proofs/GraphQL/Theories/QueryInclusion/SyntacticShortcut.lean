@@ -130,7 +130,7 @@ mutual
             | false =>
                 simp [collectFlatSelection, hallows] at hrightEntry
             | true =>
-                simp only [collectFlatSelection, hallows, if_true, List.mem_singleton]
+                simp only [collectFlatSelection, hallows, ite_true, List.mem_singleton]
                   at hrightEntry ⊢
                 subst rightEntry
                 refine ⟨_, rfl, rfl, ?_⟩
@@ -463,7 +463,7 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
               cases hcomposite : definition.outputType.isCompositeBool schema with
               | false => simp [hcomposite]
               | true =>
-                  simp only [hcomposite, if_true, List.all_eq_true]
+                  simp only [hcomposite, ite_true, List.all_eq_true]
                   intro childRuntimeType hchildRuntime
                   have hchildObject : schema.objectType childRuntimeType :=
                     SchemaWellFormedness.schemaWellFormed_possibleTypesAreObjects hschema

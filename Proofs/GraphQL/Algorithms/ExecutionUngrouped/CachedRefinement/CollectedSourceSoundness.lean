@@ -166,7 +166,7 @@ mutual
                     | none => .null := by
                 cases objectField? responseName output <;>
                   simp [outOfFuel, resultValueOrNull]
-              simp only [visitSelection, hallows, if_true,
+              simp only [visitSelection, hallows, ite_true,
                 mergeResponseFieldResult]
               exact Eq.mpr
                 (congrArg
@@ -182,7 +182,7 @@ mutual
           | succ completionFuel =>
               rcases hlookup responseName field hfield with
                 ⟨fieldDefinition, hfieldLookup⟩
-              simp only [visitSelection, hallows, if_true,
+              simp only [visitSelection, hallows, ite_true,
                 mergeResponseFieldResult]
               exact
                 OutputCacheSoundForFields.merge_executeField schema resolvers

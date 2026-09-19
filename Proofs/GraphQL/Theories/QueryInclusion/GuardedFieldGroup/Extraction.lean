@@ -67,7 +67,7 @@ theorem findGuardedFieldGroup?_eq_some_of_mem_of_nodup
           apply hparts.1
           exact List.mem_map.mpr ⟨group, hrest, heq⟩
         rw [findGuardedFieldGroup?]
-        simp only [beq_iff_eq, hne, if_false]
+        simp only [beq_iff_eq, hne, ite_false]
         exact ih hparts.2 hrest
 
 theorem insertBooleanLiteral_member_source (literal : SelectionConditions.BooleanLiteral)

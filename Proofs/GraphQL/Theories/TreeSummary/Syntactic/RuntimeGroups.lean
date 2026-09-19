@@ -254,7 +254,7 @@ theorem summarizeCollectedGroups_filter_le
   | cons group rest ih =>
       cases hkeep : keep group with
       | false =>
-          simp only [List.filter_cons, hkeep, Bool.false_eq_true, if_false,
+          simp only [List.filter_cons, hkeep, Bool.false_eq_true, ite_false,
             summarizeCollectedGroups]
           apply lawful.le_trans _ _ _ ih
           have hadded := lawful.combine_mono
@@ -265,7 +265,7 @@ theorem summarizeCollectedGroups_filter_le
             (lawful.empty_le _) (lawful.le_refl _)
           simpa only [lawful.empty_combine] using hadded
       | true =>
-          simp only [List.filter_cons, hkeep, if_true, summarizeCollectedGroups]
+          simp only [List.filter_cons, hkeep, ite_true, summarizeCollectedGroups]
           exact
             _root_.GraphQL.TreeSummary.Algebra.Lawful.combine_right_mono
               lawful _ ih
@@ -287,13 +287,13 @@ theorem summarizeCollectedGroups_partition_responseName
   | cons group rest ih =>
       by_cases hname : group.responseName = responseName
       · simp only [List.filter_cons, hname, beq_self_eq_true, Bool.not_true,
-          Bool.false_eq_true, if_false, if_true, summarizeCollectedGroups]
+          Bool.false_eq_true, ite_false, ite_true, summarizeCollectedGroups]
         rw [ih]
         exact (lawful.combine_assoc _ _ _).symm
       · have hbeq : (group.responseName == responseName) = false := by
           simp [hname]
-        simp only [List.filter_cons, hbeq, Bool.false_eq_true, if_false, Bool.not_false,
-          if_true, summarizeCollectedGroups]
+        simp only [List.filter_cons, hbeq, Bool.false_eq_true, ite_false, Bool.not_false,
+          ite_true, summarizeCollectedGroups]
         rw [ih]
         calc
           algebra.combine
@@ -357,13 +357,13 @@ theorem activeGroupsWithResponseName_le
       cases hname : group.responseName == responseName with
       | false =>
           simp only [List.filter_cons, hname, Bool.false_and,
-            Bool.false_eq_true, if_false]
+            Bool.false_eq_true, ite_false]
           exact ih
       | true =>
           cases hcondition : group.condition.allows variableValues runtimeType with
           | false =>
               simp only [List.filter_cons, hname, Bool.true_and, hcondition,
-                Bool.false_eq_true, if_false, if_true, summarizeCollectedGroups]
+                Bool.false_eq_true, ite_false, ite_true, summarizeCollectedGroups]
               apply lawful.le_trans _ _ _ ih
               have hadded := lawful.combine_mono
                 algebra.empty
@@ -378,7 +378,7 @@ theorem activeGroupsWithResponseName_le
               simpa only [lawful.empty_combine] using hadded
           | true =>
               simp only [List.filter_cons, hname, Bool.true_and, hcondition,
-                if_true, summarizeCollectedGroups]
+                ite_true, summarizeCollectedGroups]
               exact
                 _root_.GraphQL.TreeSummary.Algebra.Lawful.combine_right_mono
                   lawful _ ih

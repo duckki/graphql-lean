@@ -1043,7 +1043,7 @@ theorem representativePossibleObject_mem
     : representativePossibleObject schema typeName
       ∈ schema.getPossibleTypes typeName := by
   classical
-  simp only [representativePossibleObject, dif_pos hpossible]
+  simp only [representativePossibleObject, dite_eq_left hpossible]
   exact Classical.choose_spec (List.exists_mem_of_ne_nil _ hpossible)
 
 -- Choose a non-null object when the named type has possible runtime objects, so

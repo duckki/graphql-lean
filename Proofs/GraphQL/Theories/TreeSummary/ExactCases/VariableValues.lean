@@ -53,7 +53,7 @@ theorem select_restrict (variableValues : VariableValues)
       · subst test
         simp only [hselected]
         cases selected <;> simp [ihFalse, ihTrue]
-      · simp only [if_neg heq]
+      · simp only [ite_eq_right heq]
         simp [select, ihFalse, ihTrue]
   | join left right ihLeft ihRight =>
       simp [restrict, select, ihLeft, ihRight]
@@ -126,30 +126,30 @@ theorem mem_leaves_select_zipWith (variableValues : VariableValues)
   | case6 leftTest leftFalse leftTrue rightTest rightFalse rightTrue
       hne horder ihFalse ihTrue =>
       by_cases hselected : selectedValue variableValues leftTest
-      · simp only [zipWith, if_neg hne, if_pos horder]
-        simp only [select, hselected, if_true]
+      · simp only [zipWith, ite_eq_right hne, ite_eq_left horder]
+        simp only [select, hselected, ite_true]
         rw [ihTrue]
         rw [select_restrict variableValues leftTest true (by simp [hselected])]
         simp [select]
       · have hselectedFalse : selectedValue variableValues leftTest = false := by
           cases hvalue : selectedValue variableValues leftTest <;> simp_all
-        simp only [zipWith, if_neg hne, if_pos horder]
-        simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
+        simp only [zipWith, ite_eq_right hne, ite_eq_left horder]
+        simp only [select, hselectedFalse, Bool.false_eq_true, ite_false]
         rw [ihFalse]
         rw [select_restrict variableValues leftTest false (by simp [hselected])]
         simp [select]
   | case7 leftTest leftFalse leftTrue rightTest rightFalse rightTrue
       hne horder ihFalse ihTrue =>
       by_cases hselected : selectedValue variableValues rightTest
-      · simp only [zipWith, if_neg hne, if_neg horder]
-        simp only [select, hselected, if_true]
+      · simp only [zipWith, ite_eq_right hne, ite_eq_right horder]
+        simp only [select, hselected, ite_true]
         rw [ihTrue]
         rw [select_restrict variableValues rightTest true (by simp [hselected])]
         simp [select]
       · have hselectedFalse : selectedValue variableValues rightTest = false := by
           cases hvalue : selectedValue variableValues rightTest <;> simp_all
-        simp only [zipWith, if_neg hne, if_neg horder]
-        simp only [select, hselectedFalse, Bool.false_eq_true, if_false]
+        simp only [zipWith, ite_eq_right hne, ite_eq_right horder]
+        simp only [select, hselectedFalse, Bool.false_eq_true, ite_false]
         rw [ihFalse]
         rw [select_restrict variableValues rightTest false (by simp [hselected])]
         simp [select]

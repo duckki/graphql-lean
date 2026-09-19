@@ -54,7 +54,7 @@ theorem representativeBooleanValues_complete
         rcases ih variableName hrest with ⟨value, hvalue⟩
         refine ⟨value, ?_⟩
         simpa only [representativeBooleanValues, inputValueBoolean?,
-          lookupVariableValue?, if_neg hname] using hvalue
+          lookupVariableValue?, ite_eq_right hname] using hvalue
 
 -- The representative agrees with the source environment on the effective truth of every
 -- listed condition variable: an unresolvable variable behaves like `false` on both
@@ -96,7 +96,7 @@ theorem inputValueBoolean?_representativeBooleanValues_effectiveEq
               = inputValueBoolean? (representativeBooleanValues rest variableValues)
                   (.variable variableName) := by
           simp [representativeBooleanValues, inputValueBoolean?, lookupVariableValue?,
-            if_neg hname]
+            ite_eq_right hname]
         rw [hskip]
         exact ih hrest
 
