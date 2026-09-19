@@ -1,6 +1,7 @@
 # Development
 
-This document records local development commands for the Lean workspace.
+This document records development commands and code organization conventions for
+the Lean workspace.
 
 ## Build
 
@@ -64,11 +65,49 @@ The command refuses staged, unstaged, or untracked Lean files by default. Includ
 explicitly with `--allow-dirty`; add `--check` to check rather than rewrite, or use
 `--base REF` to choose another comparison ref.
 
-## Lean Roots
+## Lean module organization
 
-The main top-level Lean roots are:
+Separate public definitions, proofs, tests, and tooling by role. Keep root modules
+thin: they aggregate the corresponding modules rather than introduce definitions
+or proofs of their own.
 
-- [GraphQL](../GraphQL)
-- [Proofs](../Proofs)
-- [Tests](../Tests)
-- [Lint](../Lint)
+### Definitions and proofs
+
+Public definition modules contain syntax, structures, predicates, executable
+functions, and correctness propositions. Keep these surfaces readable independently
+of their proofs. Ordinary theorems and proof-facing helper definitions belong in
+separate proof modules organized around the definitions they support.
+
+Termination material attached to a recursive definition may stay with that
+definition. Standalone termination helper theorems are the only exception to the
+definition-only rule; keep them in a clearly marked final section containing no
+other theorems.
+
+### Topics and dependencies
+
+Name modules for their domain concepts or proof roles, not generic collections of
+lemmas, facts, utilities, or miscellaneous helpers. Split large proof developments
+at logical boundaries rather than by line count. Keep local facts together, then
+build higher-level results from explicit prerequisite layers.
+
+Definition modules must not import proof modules. Proof modules may import the
+definitions they support and prerequisite proofs; imports of other definition
+areas should reflect an explicit connection established by the theorem. Prefer
+explicit imports at layer boundaries over reliance on long transitive chains.
+
+When moving a theorem, preserve its declaration name unless there is a separate
+reason to rename it. Relocation alone should not require downstream proof scripts
+to change the names they use.
+
+### Tests
+
+Organize ordinary tests by the definition or proof topic they exercise, mirroring
+those areas where practical. Keep generated and fixture-driven conformance tests
+separate, grouped by source and feature. Test roots should remain aggregators;
+introduce a new root only for a durable major test family.
+
+## Conformance Fixtures
+
+Fixture generation and graphql-js oracle commands are documented in the
+[conformance fixture guide](../conformance/graphql-js/README.md). The
+[conformance summary](spec-conformance.md) records coverage.
