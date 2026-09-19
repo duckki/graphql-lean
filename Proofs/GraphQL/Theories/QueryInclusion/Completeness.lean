@@ -997,8 +997,6 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
     (hrightInhabited : operationCompositeFieldTypesInhabited schema right)
     (hincludes : QueryInclusionSemantics.includes schema left right)
     : includesBool schema left right = true := by
-  have hprobes := QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes
-    hschema hleftValid hrightValid hleftFields hrightFields hincludes.1
   have hroot := valid_operations_rootType_eq hleftValid hrightValid
   have hdefinitionsBool : sharedVariableDefinitionsSyntacticallyCompatibleBool
       left.variableDefinitions right.variableDefinitions = true :=
@@ -1024,7 +1022,9 @@ theorem includesBool_complete_semantic {schema : Schema} {left right : Operation
   have hbranchComplete : boolVarsComplete variables
       (boolCaseVariableValues assignment) :=
     ResponsePath.booleanAssignmentOf_boolVarsComplete conditionValues variables hcomplete
-  rcases hprobes assignment (by simpa only [variables, assignment] using hbranchComplete)
+  rcases QueryInclusionSemantics.exists_coercibleValues_for_comparisonCase
+      hschema hleftValid hrightValid hleftFields hrightFields hincludes.1
+      assignment hbranchComplete
     with ⟨probeValues, hprobeAgreement, hleftArgumentReady, hrightArgumentReady⟩
   have hconditionAgreement (operation : Operation) : ∀ variableName,
       variableName ∈ comparisonConditionVariables left.selectionSet right.selectionSet

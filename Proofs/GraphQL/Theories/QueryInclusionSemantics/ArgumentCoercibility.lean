@@ -91,7 +91,8 @@ private theorem inputValueBoolean_filtered_case
             using ih htail
         · simpa [List.filter, hhead] using ih htail
 
-theorem comparisonBranchesArgumentCoercible_of_possibleTypes
+-- Construct the common supplied environment for one complete comparison case.
+theorem exists_coercibleValues_for_comparisonCase
     {schema : Schema} {left right : Operation}
     (hschema : SchemaWellFormedness.schemaWellFormed schema)
     (hleft : Validation.operationDefinitionValid schema left)
@@ -101,7 +102,19 @@ theorem comparisonBranchesArgumentCoercible_of_possibleTypes
     (hshared
       : sharedVariableDefinitionsSyntacticallyCompatible
           left.variableDefinitions right.variableDefinitions)
-    : comparisonBranchesArgumentCoercible schema left right := by
+    (assignment : BoolCase)
+    (hcomplete
+      : boolVarsComplete
+          (comparisonConditionVariables left.selectionSet right.selectionSet)
+          (boolCaseVariableValues assignment))
+    : ∃ suppliedValues,
+        (∀ variableName,
+          variableName ∈ comparisonConditionVariables left.selectionSet right.selectionSet
+          -> inputValueBoolean? suppliedValues (.variable variableName)
+              = inputValueBoolean? (boolCaseVariableValues assignment)
+                  (.variable variableName))
+        ∧ operationArgumentsCoercible schema suppliedValues left
+        ∧ operationArgumentsCoercible schema suppliedValues right := by
   have hconsistent := combinedVariableTypes_consistent hleft hright hshared
   obtain ⟨baseValues, hbase⟩ := exists_variablesHaveNonNullValues_of_consistentTypes hschema
     (definitions := left.variableDefinitions ++ right.variableDefinitions)
@@ -111,8 +124,6 @@ theorem comparisonBranchesArgumentCoercible_of_possibleTypes
             definition hmem).1
         · exact ((Validation.operationDefinitionValid_variableDefinitionsValid hright).2
             definition hmem).1) hconsistent
-  dsimp only [comparisonBranchesArgumentCoercible]
-  intro assignment hcomplete
   let variables := comparisonConditionVariables left.selectionSet right.selectionSet
   let selectedCase := assignment.filter fun entry => variables.contains entry.1
   have hvalues : variablesHaveNonNullValues schema

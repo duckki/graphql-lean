@@ -13,7 +13,7 @@ type Query implements I { f(a: Int!): String }
 The operations `{ ... on I { left: f } }` and `{ ... on I { right: f } }` are
 valid and satisfy composite-output inhabitance. Every execution has an argument
 coercion error. Semantic inclusion is vacuous while their selected paths differ.
-Thus output inhabitance alone cannot discharge the argument-coercibility premise.
+Thus output inhabitance alone cannot ensure concrete argument defaults.
 -/
 
 namespace GraphQL.Tests.QueryInclusionArgumentCoercibility
@@ -393,24 +393,6 @@ private theorem operationArgumentsFail (responseName : Name)
   rw [concreteCoercionFails] at hf
   simp at hf
 
-private theorem branchCoercionPremiseFails (responseName : Name)
-    : ¬ QueryInclusionSemantics.comparisonBranchesArgumentCoercible exampleSchema
-          (exampleOperation responseName) (exampleOperation responseName) := by
-  intro h
-  have hvars :
-      QueryInclusion.comparisonConditionVariables (exampleOperation responseName).selectionSet
-        (exampleOperation responseName).selectionSet = [] := by
-    rfl
-  have hc : boolVarsComplete
-      (QueryInclusion.comparisonConditionVariables (exampleOperation responseName).selectionSet
-        (exampleOperation responseName).selectionSet)
-      (boolCaseVariableValues []) := by
-    rw [hvars]
-    intro variableName hmem
-    simp at hmem
-  obtain ⟨supplied, _, hargs, _⟩ := h [] hc
-  exact operationArgumentsFail responseName supplied hargs
-
 private theorem outputTypesInhabited (responseName : Name)
     : operationCompositeFieldTypesInhabited exampleSchema
         (exampleOperation responseName) := by
@@ -580,7 +562,7 @@ example
       } := by
   cbv
 
--- Output inhabitance cannot replace the argument-coercibility premise. Both
+-- Output inhabitance cannot replace concrete argument-default readiness. Both
 -- operations are valid, but their concrete field arguments always fail coercion.
 theorem inhabitedValidOperationsNeedArgumentCoercibility
     : ∃ (schema : Schema) (left right : Operation),
@@ -602,9 +584,8 @@ theorem outputInhabitanceDoesNotEnsureCoercibleBranches
         ∧ Validation.operationDefinitionValid schema operation
         ∧ operationCompositeFieldTypesInhabited schema operation
         ∧ ¬ operationCoercibleInPossibleTypes schema operation
-        ∧ ¬ QueryInclusionSemantics.comparisonBranchesArgumentCoercible
-              schema operation operation := by
+        ∧ ∀ values, ¬ operationArgumentsCoercible schema values operation := by
   exact ⟨exampleSchema, exampleOperation "f", schemaWellFormed, operationValid "f",
-    outputTypesInhabited "f", concreteDefaultMissing "f", branchCoercionPremiseFails "f"⟩
+    outputTypesInhabited "f", concreteDefaultMissing "f", operationArgumentsFail "f"⟩
 
 end GraphQL.Tests.QueryInclusionArgumentCoercibility

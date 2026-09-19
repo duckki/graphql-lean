@@ -6,8 +6,8 @@ import Proofs.GraphQL.Theories.NormalForm.CompleteNormalization.ArgumentCoercibi
 
 For `type Query { f(a: [[[Int]]]): String }`, the operation `{ f(a: 1) }` is valid
 in every possible type. The old syntax-only budget was 3, although the three list
-wrappers and scalar need 4 steps. The revised budget admits this operation in both
-joint-coercibility predicates, including after complete normalization.
+wrappers and scalar need 4 steps. The revised budget supplies coercible environments
+for this operation, including after complete normalization.
 -/
 
 namespace GraphQL.Tests.ArgumentCoercibility
@@ -223,14 +223,17 @@ private theorem valid : Validation.operationDefinitionValid schema op := by
   · simp [Validation.operationVariablesUsed, op]
 
 private theorem comparisonCoercible
-    : QueryInclusionSemantics.comparisonBranchesArgumentCoercible schema op op := by
-  apply QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes
+    : ∃ values, operationArgumentsCoercible schema values op := by
+  obtain ⟨values, _, hcoercible, _⟩ :=
+    QueryInclusionSemantics.exists_coercibleValues_for_comparisonCase
     wellFormed valid valid
     (ExecutionReadiness.operationCoercibleInPossibleTypes_of_fieldsValidInPossibleTypes
       wellFormed fieldsValid)
     (ExecutionReadiness.operationCoercibleInPossibleTypes_of_fieldsValidInPossibleTypes
       wellFormed fieldsValid)
-  constructor <;> intro definition hmem <;> cases hmem
+    (by constructor <;> intro definition hmem <;> cases hmem)
+    [] (by intro name hmem; cases hmem)
+  exact ⟨values, hcoercible⟩
 
 private theorem normalized : NormalForm.completeNormalizeOperation schema op = op := by
   cbv
@@ -264,8 +267,7 @@ theorem nestedListArgumentsAdmitJointCoercibility
         ∧ NormalForm.completeBoolCasesJointlyCoercible schema
             (NormalForm.completeNormalizeOperation schema operation)
             (NormalForm.completeNormalizeOperation schema operation)
-        ∧ QueryInclusionSemantics.comparisonBranchesArgumentCoercible
-            schema operation operation := by
+        ∧ ∃ values, operationArgumentsCoercible schema values operation := by
   refine ⟨schema, op, wellFormed, valid, fieldsValid, feasible, ?_, comparisonCoercible⟩
   simpa only [normalized] using jointlyCoercible
 

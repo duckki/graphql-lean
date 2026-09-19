@@ -49,10 +49,9 @@ compares those projections syntactically up to reordering. This formulation reli
 operation-validity premises that reject duplicate variable names; behavior on invalid
 duplicate-name lists is outside the checker theorem domain.
 
-`QueryInclusionSemantics.comparisonBranchesArgumentCoercible` is now derived inside
-the semantic-to-syntactic proof rather than required from callers.
-For every `BoolCase` complete on the comparison condition variables, it requires a
-supplied variable environment under which both operations' field arguments coerce.
+The semantic-to-syntactic proof constructs a supplied variable environment for
+each `BoolCase` complete on the comparison condition variables. Both operations'
+field arguments coerce in that environment.
 That environment must agree with the case on those condition variables; unrelated
 entries in the case do not constrain argument values. It does not claim that arbitrary
 runtime variable values succeed. The shared
@@ -86,7 +85,7 @@ for both operations. The stronger `NormalForm.operationFieldsValidInPossibleType
 is defined in `GraphQL/Theories/NormalForm.lean` for normalization validity.
 
 The proof
-`QueryInclusionSemantics.comparisonBranchesArgumentCoercible_of_possibleTypes`
+`QueryInclusionSemantics.exists_coercibleValues_for_comparisonCase`
 constructs a common environment for the union of the operations' variable
 definitions. Matching names have the same type by shared-definition compatibility;
 names declared by only one operation remain supported. Every declared variable
