@@ -7,7 +7,9 @@ publication matching and failure cuts explain a history; neither selects its fut
 
 Read EventAllowed for the event rules. Its helpers answer three questions: what work
 exists, what has been observed, and what failures justify cancellation. They describe
-work and its observations, not runtime workers or an internal scheduler state.
+work and its observations, not runtime workers or an internal scheduler state. Observed
+owners are effective publication owners after any implementation-specific normalization;
+the contract is not imposed directly on provisional owners in a concrete raw queue.
 -/
 
 namespace GraphQL.IncrementalDelivery
@@ -367,7 +369,10 @@ def AvailableOwner (work : Work) (initial : Keys) (events : List WorkEvent)
   ∧ Open initial events node.key
   ∧ ¬NodeFailed work failed node.key
 
-/-- An available contributing owner with a longest response path; ties are allowed. -/
+/-- The effective publication owner is an available contributor with a longest response
+path; ties are allowed. A raw queue's triggering group need only be an AvailableOwner:
+publisher-side normalization may select a different Owner before the spec-facing mapper.
+-/
 def Owner (work : Work) (initial : Keys) (events : List WorkEvent)
     (failed : List Occurrence) (owners : Keys) (node : DeliveryNode)
     : Prop :=

@@ -163,6 +163,7 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 - `Execution.WorkScheduler`: explicit factory supplying the result of CreateWorkQueue. No effect-program syntax or interpreter is needed for this pure functional model.
 - `WorkQueueResult`: the initial groups/streams and event-stream result expected by the spec's undefined CreateWorkQueue.
 - `WorkEvent`, `GroupValue`, `StreamValue`: typed versions of the seven named event forms and their successful payloads.
+- `SharedGroupValue`, `selectGroupOwner`, `normalizeGroupValues`: a non-spec projection from provisional raw publication owners to effective spec-facing owners. Contributor metadata survives until this selection; the spec mapper itself is unchanged.
 - `IDState`: the mapper's idMap and nextID, separate from scheduling.
 - `mapWorkEventBatch`: factors the spec's per-batch loop from its surrounding stream map.
 - `ResponseEventStream`, `ResponseEventStream.Accepts`, `ResponseEventStream.next`: the mapper's responseEventStream, represented by a source input type, partial source history, mapper IDs, and an event-mapping function. Observation supplies one admitted input and updates state functionally. Batching transforms the input type to a nonempty group of upstream inputs and installs the spec's aggregation function.
@@ -200,6 +201,11 @@ for induction. Neither helper is called or imported by public definitions.
 The pinned draft does not define CreateWorkQueue. The work-accounting contract
 therefore completes an underspecified interface; it is not a literal spec algorithm
 or an already-proved characterization of every conforming implementation.
+
+Its boundary is **normalized publication events**, not necessarily the events of an
+implementation's internal queue. In particular, a concrete queue and its publisher's
+owner-selection step may together implement the abstract source. The final spec-shaped
+mapper then allocates IDs and constructs response entries.
 
 `WorkScheduler.lean` separates accounting from a **Proposed WorkQueue invariants**
 section. The factory type is `Execution.WorkScheduler`; the accounting definitions
@@ -251,7 +257,8 @@ against its preceding output prefix. Notices and closures are derived from the
 outputs themselves. The explicit rules completing the queue interface are:
 
 - Publication is fresh and follows the producer's value and the preceding stream item.
-- A shared object result chooses one available longest-path owner; ties remain possible.
+- A shared object result has one effective available longest-path owner; ties remain
+  possible. A raw queue's provisional triggering owner need not be longest.
 - Group release observes defer ancestry; stream release observes successful owners.
 - A failure witness names real failing occurrences reachable through successful producers.
 - Each recorded failure has an announced, still-open contributing owner at its cut.
@@ -595,6 +602,106 @@ lake build Proofs.GraphQL.IncrementalDelivery.Correctness \
 
 The broader proof/test aggregates and whole-project lint also pass. See
 [development](development.md) for general repository commands.
+
+## Implementation boundary: shared publication owners
+
+The supplied source audit compares GraphQL.js `v17.0.1` at `9617473` with the pinned
+draft `045e193`; it is not an end-to-end refinement proof. Its shared-owner example
+exposes an abstraction-boundary issue, not incorrect wire ownership: GraphQL.js's
+raw queue can publish through an outer group, while its
+[`_getBestIdAndSubPath` publisher helper](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/incremental/IncrementalPublisher.ts#L265-L292)
+chooses an open contributing group with a longer path before emitting the response.
+
+`WorkScheduler.Owner` constrains that **effective** owner. Imposing it directly on
+the raw triggering group was too strong. The explicit projection now consists of:
+
+- `SharedGroupValue`: the original payload and its contributing group descriptors.
+- `selectGroupOwner`: start with an open contributing provisional owner and choose
+  only strictly deeper open contributors. Ties retain the current choice.
+- `normalizeGroupValues`: project each raw value to one spec-facing `GROUP_VALUES`
+  event, in order and within the original work batch. Different values in a raw event
+  may choose different owners. Other raw events are passed through by the adapter's
+  caller. No notice or completion is synthesized or suppressed by owner selection.
+
+The caller supplies open keys at the publication point, including effects of earlier
+events in the same batch. This is not the model's ever-allocated ID table. GraphQL.js
+deletes completed groups from its publisher map; relating its live map to these open
+keys remains an implementation-refinement obligation.
+
+[OwnerNormalization proofs](../Proofs/GraphQL/IncrementalDelivery/WorkScheduler/OwnerNormalization.lean)
+show selection provenance, maximal path length, unchanged already-maximal owners,
+payload/error/order preservation, and absence of new lifecycle events.
+`selectGroupOwner_owner` derives the existing owner rule from an available provisional
+owner and sound/complete contributor metadata. `normalized_groupValues_allowed` retains
+the original task and readiness evidence while deriving the effective owner's legality.
+These are conditional adapter theorems, not a proof of GraphQL.js queue accounting.
+
+[Regressions](../Tests/GraphQL/IncrementalDelivery/OwnerNormalization.lean) reproduce the
+outer `P`/inner `C` example: `P` is available but not longest; normalization publishes
+through `C`, and both IDs still complete independently. They check the actual generated
+shared task, the mapped wire response, excluded unavailable candidates, equal-length
+ties, and per-value selection within a raw event. Existing query correctness statements,
+admission, and spec mapper definitions remain unchanged. Unannounced failure completions
+remain invalid; normalization does not hide them.
+
+## Research: exhausted finite streams
+
+The second audit finding is a query trace-coverage gap, separate from owner selection.
+The model already represents `Work.stream node []`, and
+[`childFreeStream_completeRun_exists`](../Proofs/GraphQL/IncrementalDelivery/Correctness/StreamExistence.lean)
+includes that case. An empty stream can announce and complete without an item patch.
+The missing behavior is in `completeListValueWithStream`: an empty remaining list
+prevents creation of the stream node, before the scheduler is consulted.
+
+GraphQL.js's
+[`completeIterableValue`](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/Executor.ts#L1038-L1076)
+hands off at `index == initialCount` before asking whether the iterator is exhausted.
+Its incremental
+[`handleStream`](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/incremental/IncrementalExecutor.ts#L795-L825)
+creates the stream at that point. For an active outer-list directive and a successfully
+completed initial prefix, let `n` be `initialCount` and `L` the finite list length:
+
+| Boundary | Current eager finite model | GraphQL.js iterator handoff |
+| --- | --- | --- |
+| `n < L` | Nonempty tail stream. | Nonempty tail stream. |
+| `n = L`, including `0 = 0` | No stream node. | Empty stream lifecycle. |
+| `n > L` | No stream node. | Iterator exhaustion occurs before handoff; no stream node. |
+
+Other deferred or streamed work can still make the query incremental in every row.
+Failure while completing the initial prefix must retain the existing null/error
+behavior rather than introducing a stream under a nulled position.
+
+### Design choices and recommendation
+
+1. **Change the single execution policy.** Create a stream when `n <= L`, not only
+   when the tail is nonempty. This is the smallest change for the audited finite
+   GraphQL.js behavior, and needs no new Work constructor. However, it replaces the
+   existing equality-case behavior rather than admitting both implementations.
+2. **Expose a small execution policy.** Keep eager finite exhaustion as the default
+   and add iterator-boundary handoff. Both return ordinary finite Work; only the
+   equality case differs. Correctness should quantify over the policy, and the
+   observation relation should admit either when comparing implementations.
+3. **Make stream-boundary existence a scheduler choice.** This would require optional
+   work or a different root interface: currently empty Work takes the ordinary branch
+   before creating a source. It changes execution/scheduler separation unnecessarily
+   for this gap and is not recommended.
+
+Recommend option 2 for a model intended to cover both behaviors. This is an explicit
+choice about when execution observes list exhaustion, not a timing, concurrency, or
+fairness model. A uniform policy suffices for the audited GraphQL.js implementation;
+covering implementations that vary the choice by list occurrence would require a
+path-indexed policy or a relational preparation step, not merely a global Boolean.
+
+The proof work should focus on execution-generated metadata, key freshness, source
+positions, and reconstruction: an added empty stream consumes a key and introduces
+a lifecycle, but no data positions or errors. Existing raw-work scheduler and progress
+theorems already allow empty streams. Do not assume every execution proof reuses
+unchanged, and do not add a silent-end task or host iterator model just for this case.
+Regressions should cover zero/exact/excess counts, nested lists, aliases, disabled
+directives, initial-prefix failures, and empty streams alongside other incremental work.
+
+This is a researched recommendation, not an implemented policy change. The query
+trace-coverage gap remains open; no full GraphQL.js refinement is claimed.
 
 ## Pinned draft gaps and editorial choices
 

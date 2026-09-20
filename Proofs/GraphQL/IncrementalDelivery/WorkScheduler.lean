@@ -11,6 +11,7 @@ import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FiniteHistories
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.TaskReadiness
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Minimality
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Independence
+import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.OwnerNormalization
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.GroupAccounting
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeFrontiers
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeCoverage

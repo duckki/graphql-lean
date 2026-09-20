@@ -73,6 +73,8 @@ The main model's exclusions also apply. In addition:
 - Directive placement/types, non-repeatability, literal unique labels, and
   non-overlapping streamed field selections are assumed valid.
 - Stream execution includes a model extension for steps absent from the pinned draft.
+- Empty stream lifecycles are supported in raw work, but query execution does not yet
+  generate them when a finite list is exhausted at the initial-item boundary.
 - Effectful resolvers, infinite sources, real-time availability, fairness, host
   future termination, and external transport cancellation are not modeled.
 - Optional coalescing of later updates into the initial response is not modeled.

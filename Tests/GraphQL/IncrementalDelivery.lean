@@ -21,6 +21,7 @@ import Tests.GraphQL.IncrementalDelivery.NoticeCoverage
 import Tests.GraphQL.IncrementalDelivery.Nonblocking
 import Tests.GraphQL.IncrementalDelivery.Minimality
 import Tests.GraphQL.IncrementalDelivery.Independence
+import Tests.GraphQL.IncrementalDelivery.OwnerNormalization
 import Tests.GraphQL.IncrementalDelivery.SupportedContinuation
 import Tests.GraphQL.IncrementalDelivery.DependencyKeys
 import Tests.GraphQL.IncrementalDelivery.NestedStreamExistence

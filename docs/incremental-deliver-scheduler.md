@@ -42,6 +42,9 @@ Important distinctions:
 - A failed task can affect cancellation before its failure notification is observed.
 - A work-event batch and a response-event batch are different aggregation layers.
 - Work keys are not wire IDs. Only response mapping allocates the latter.
+- A raw queue's triggering group is not necessarily the effective publication owner.
+  The contract applies after owner normalization; see the checked
+  [shared-owner adapter](incremental-delivery.md#implementation-boundary-shared-publication-owners).
 
 ## Research comparison
 

@@ -791,7 +791,10 @@ structure StreamValue where
   errors : Nat := 0
 deriving Repr
 
-/-- Spec work-queue events. Node keys are internal identities, not wire IDs. -/
+/-- Spec-facing work events after any implementation-specific owner normalization.
+A GROUP_VALUES owner is the effective publication owner, not necessarily the group whose
+completion triggered a raw queue event. Node keys are internal identities, not wire IDs.
+-/
 inductive WorkEvent where
   | groupValues (group : DeliveryNode) (values : List GroupValue)
   | groupSuccess (group : DeliveryNode) (newGroups newStreams : List DeliveryNode)
@@ -803,7 +806,51 @@ inductive WorkEvent where
   | workQueueTermination
 deriving Repr
 
-/-- Spec CreateWorkQueue's result. Its implementation is deliberately absent. -/
+-----------------------------------------------------------------------------------------
+-- Normalizing implementation-specific publication owners
+-----------------------------------------------------------------------------------------
+
+/-- A raw shared-task value retains its contributing groups until publication ownership
+is selected. This adapter input is not an additional pinned-spec record.
+-/
+structure SharedGroupValue where
+  value : GroupValue
+  contributors : List DeliveryNode
+deriving Repr
+
+/-- Select a longest-path open contributor, starting with an open contributing provisional
+owner. Strict improvement preserves that owner on ties, then the first longer candidate.
+This non-spec adapter models publisher-side selection without allocating wire IDs.
+-/
+def selectGroupOwner (openKeys : List Nat) (provisional : DeliveryNode)
+    : List DeliveryNode → DeliveryNode
+  | [] => provisional
+  | candidate :: rest =>
+      let selected :=
+        if candidate.key ∈ openKeys ∧ provisional.path.length < candidate.path.length then
+          candidate
+        else
+          provisional
+      selectGroupOwner openKeys selected rest
+
+/-- Project a raw GROUP_VALUES event to spec-facing publications. Different shared values
+may select different owners, so each becomes one event in the same work batch. Payloads,
+errors, and value order are unchanged; this step emits no notices or completions. Other
+queue events pass through unchanged. Open keys must reflect the preceding events, including
+earlier events in the same batch. Admission still checks provenance and accounting.
+-/
+def normalizeGroupValues (openKeys : List Nat) (provisional : DeliveryNode)
+    (values : List SharedGroupValue)
+    : List WorkEvent :=
+  values.map
+    fun shared =>
+      .groupValues (selectGroupOwner openKeys provisional shared.contributors)
+        [shared.value]
+
+/-- Spec CreateWorkQueue's result at the normalized, spec-facing event boundary. A concrete
+implementation may compose a raw queue with publisher-side owner selection to supply it.
+Its implementation is deliberately absent; raw queue events need not conform directly.
+-/
 structure WorkQueueResult where
   initialGroups : List DeliveryNode
   initialStreams : List DeliveryNode
