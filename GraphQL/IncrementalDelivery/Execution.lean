@@ -543,7 +543,8 @@ mutual
 
   /-- Model extension: the pinned CompleteListValue has no @stream hook. Keep this
   extension distinct from that algorithm. Only the outermost list is eligible; nested list
-  wrappers complete synchronously.
+  wrappers complete synchronously. Reaching initialCount creates a stream boundary even
+  when its finite tail is empty; exhaustion before that boundary creates no stream.
   -/
   def completeListValueWithStream (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (inner : TypeRef)
@@ -570,7 +571,7 @@ mutual
         | .error _ => return initial.catchNull ResponseValue.list
         | .ok _ =>
             let remaining := values.drop usage.initialCount
-            if remaining.isEmpty then
+            if values.length < usage.initialCount then
               return initial.catchNull ResponseValue.list
             let key ← freshExecutionKey
             -- Stream items own their delivery boundary. Enclosing field occurrences

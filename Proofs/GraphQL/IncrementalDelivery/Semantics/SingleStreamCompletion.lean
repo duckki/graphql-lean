@@ -408,7 +408,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
         match initial.result with
         | .error _ => (initial.catchNull ResponseValue.list, state)
         | .ok _ =>
-            if (values.drop stream.initialCount).isEmpty then
+            if values.length < stream.initialCount then
               (initial.catchNull ResponseValue.list, state)
             else
               let items :=
@@ -446,7 +446,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
   dsimp only at hfinal
   subst final
   cases hr : initial.result <;>
-    by_cases hempty : values.length ≤ stream.initialCount <;>
+    by_cases hempty : values.length < stream.initialCount <;>
       simp [completeListValueWithStream, hstream, he, hr, freshExecutionKey, heitems,
         Completion.catchNull, hempty]
 

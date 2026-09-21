@@ -65,6 +65,10 @@ branch is inline; `executionFromWork` and `executeResponseField` are proof-only 
 helpers, not public execution wrappers. The direct-result root equation now lives in
 `Proofs/GraphQL/IncrementalDelivery/Correctness/RootExecution.lean`; the response-field
 decomposition is also checked.
+The stream hook retains an empty boundary at `initialCount = list.length`, but not when
+the count exceeds the list. An empty stream is nonempty work: root execution returns an
+incremental response before queue initialization, matching the pinned draft and GraphQL.js.
+There is no queue-level ordinary-response fallback or alternate exhausted-source contract.
 See the per-definition
 cross-reference in `docs/incremental-delivery.md` for retained model projections.
 
@@ -304,6 +308,8 @@ produced defer failures, stream-item failures, exhausted fuel with nonempty work
 roots, silent co-owner accounting, empty streams, nonzero cursors, cancellation,
 decoder composition, and complete wire realization. `MixedNoticeCoverage` retains both
 the full-coverage counterexample and its complete-run witness.
+`EmptyStreams` proves zero-item incremental outcomes for empty/exact-count queries and
+rules out ordinary outcomes under every scheduler for those retained boundaries.
 
 Retired program/graph/enumeration proofs and duplicate helpers are recoverable from
 `718d6ab`; the graph scheduler from `4af5c80`, and deterministic scheduler from `e0b027b`.

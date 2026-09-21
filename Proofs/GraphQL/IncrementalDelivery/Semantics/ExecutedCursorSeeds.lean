@@ -269,13 +269,9 @@ mutual
           · exact runEnsures_pure _ _ (seeded_catchNull (fun _ => rfl) (cursorExtends_list_items path) hi
               (fun _ ⟨_, _, _, hb⟩ => below_child hb) (fun _ ⟨_, _, _, hb⟩ => below_child_ne hb))
           · rename_i htail
-            have hcount : usage.initialCount < values.length := by
-              by_cases hn : usage.initialCount < values.length
-              · exact hn
-              · have hd := List.drop_eq_nil_iff.mpr (Nat.le_of_not_gt hn)
-                simp [hd] at htail
+            have hcount : usage.initialCount ≤ values.length := by omega
             have hlen : data.1.length = usage.initialCount := by
-              simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt hcount)]
+              simpa only [List.length_take, Nat.min_eq_left hcount]
                 using hlength data.1 data.2 he
             refine runEnsures_bind (fun _ : Nat => True) _ _ _ (fun _ => trivial) ?_
             intro key _

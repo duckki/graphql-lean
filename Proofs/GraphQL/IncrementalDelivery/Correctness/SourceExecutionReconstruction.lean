@@ -372,9 +372,8 @@ mutual
         · rename_i data he
           split
           · rename_i hempty
-            have htake : values.take usage.initialCount = values := by
-              simpa only [List.isEmpty_iff.mp hempty, List.append_nil]
-                using List.take_append_drop usage.initialCount values
+            have htake : values.take usage.initialCount = values :=
+              List.take_of_length_le (by omega)
             apply runEnsures_pure
             simpa only [htake]
               using seeded_catchNull path .list (fun _ => rfl) (list_cursors_extend path)
@@ -392,14 +391,10 @@ mutual
               have hall := seeded_stream path usage.initialCount hi ht data.1 data.2 he
                 (by
                   have hl := hilength data.1 data.2 he
-                  have hb : usage.initialCount ≤ values.length := by
-                    by_cases h : usage.initialCount ≤ values.length
-                    · exact h
-                    · have he : values.drop usage.initialCount = [] := List.drop_eq_nil_iff.mpr (by omega)
-                      simp [he] at hnonempty
+                  have hb : usage.initialCount ≤ values.length := by omega
                   simpa only [List.length_take, Nat.min_eq_left hb] using hl)
                 (basicPrefix_length schema resolvers variables fuel inner (selected.map eraseField) values
-                  usage.initialCount (by simpa using hnonempty))
+                  usage.initialCount (by omega))
                 {key := key, path := path, label := usage.label} rfl
               have hb := basicCompleteValueList_append schema resolvers variables fuel inner (selected.map eraseField)
                 (values.take usage.initialCount) (values.drop usage.initialCount)

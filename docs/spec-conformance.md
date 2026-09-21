@@ -54,8 +54,8 @@ abstractions. It covers:
 
 - Inline-fragment `@defer`, field `@stream`, directive conditions and labels,
   aliases, runtime type conditions, and overlapping deferred selections.
-- Deferred field grouping and shared work, initial list prefixes, and subsequent
-  streamed items.
+- Deferred field grouping and shared work, initial list prefixes, subsequent
+  streamed items, and zero-item stream lifecycles at exhausted initial boundaries.
 - Initial and subsequent responses, pending IDs, patches, completion notices,
   batching, counted errors, and modeled failure/cancellation.
 - Alternative finite work schedules, interrupted observations, and completed runs,
@@ -73,11 +73,10 @@ The main model's exclusions also apply. In addition:
 - Directive placement/types, non-repeatability, literal unique labels, and
   non-overlapping streamed field selections are assumed valid.
 - Stream execution includes a model extension for steps absent from the pinned draft.
-- Empty stream lifecycles are supported in raw work, but query execution does not yet
-  generate them when a finite list is exhausted at the initial-item boundary.
 - Effectful resolvers, infinite sources, real-time availability, fairness, host
   future termination, and external transport cancellation are not modeled.
 - Optional coalescing of later updates into the initial response is not modeled.
+- Optional ignoring of active incremental directives is not modeled.
 
 ## Conformance checks: coverage boundary
 

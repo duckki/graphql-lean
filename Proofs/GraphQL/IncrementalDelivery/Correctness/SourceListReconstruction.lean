@@ -41,25 +41,21 @@ theorem basicList_length (schema : Schema) (resolvers : Resolvers ObjectRef)
       obtain ⟨rfl, _⟩ := h
       simpa using ih _ _ ht
 
-/-- A nonempty streamed suffix forces the completed prefix length to equal
-initialCount. -/
+/-- A retained stream starts at initialCount, including an exactly exhausted list.
+Witness: successful list completion preserves the length of the taken prefix.
+-/
 theorem basicPrefix_length (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
     (selected : List GraphQL.Execution.ExecutableField)
     (values : List (ResolverValue ObjectRef)) (count : Nat)
-    (ht : (values.drop count).isEmpty = false) (data : List ResponseValue)
+    (ht : count ≤ values.length) (data : List ResponseValue)
     (h
       : GraphQL.Execution.completeValueList schema resolvers variables fuel itemType
           selected (values.take count)
         = .ok (data, 0))
     : data.length = count := by
   have hl := basicList_length schema resolvers variables fuel itemType selected _ data 0 h
-  have hn : count < values.length := by
-    by_cases hshort : values.length ≤ count
-    · have he : values.drop count = [] := List.drop_eq_nil_iff.mpr hshort
-      simp [he] at ht
-    · omega
-  simpa only [List.length_take, Nat.min_eq_left (Nat.le_of_lt hn)] using hl
+  simpa only [List.length_take, Nat.min_eq_left ht] using hl
 
 end GraphQL.IncrementalDelivery.Correctness.SourceReconstruction
 namespace GraphQL.IncrementalDelivery.Correctness.SourceReconstruction

@@ -1,4 +1,5 @@
 import Tests.GraphQL.IncrementalDelivery.Execution
+import Tests.GraphQL.IncrementalDelivery.EmptyStreams
 import Tests.GraphQL.IncrementalDelivery.Identity
 import Tests.GraphQL.IncrementalDelivery.IDUsage
 import Tests.GraphQL.IncrementalDelivery.Liveness

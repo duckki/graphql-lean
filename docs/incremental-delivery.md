@@ -644,14 +644,16 @@ ties, and per-value selection within a raw event. Existing query correctness sta
 admission, and spec mapper definitions remain unchanged. Unannounced failure completions
 remain invalid; normalization does not hide them.
 
-## Research: exhausted finite streams
+## Exhausted finite stream boundaries
 
-The second audit finding is a query trace-coverage gap, separate from owner selection.
-The model already represents `Work.stream node []`, and
+The second audit finding exposed a query trace-coverage gap, separate from owner
+selection. The queue already represents `Work.stream node []`, and
 [`childFreeStream_completeRun_exists`](../Proofs/GraphQL/IncrementalDelivery/Correctness/StreamExistence.lean)
 includes that case. An empty stream can announce and complete without an item patch.
-The missing behavior is in `completeListValueWithStream`: an empty remaining list
-prevents creation of the stream node, before the scheduler is consulted.
+The missing behavior was in `completeListValueWithStream`: it discarded an empty
+remaining list before the scheduler could see the stream boundary. The helper now
+retains the boundary when the initial count is reached, independently of whether
+there is a subsequent item.
 
 GraphQL.js's
 [`completeIterableValue`](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/Executor.ts#L1038-L1076)
@@ -661,57 +663,75 @@ Its incremental
 creates the stream at that point. For an active outer-list directive and a successfully
 completed initial prefix, let `n` be `initialCount` and `L` the finite list length:
 
-| Boundary | Current eager finite model | GraphQL.js iterator handoff |
-| --- | --- | --- |
-| `n < L` | Nonempty tail stream. | Nonempty tail stream. |
-| `n = L`, including `0 = 0` | No stream node. | Empty stream lifecycle. |
-| `n > L` | No stream node. | Iterator exhaustion occurs before handoff; no stream node. |
+| Boundary | Generated work in the model and audited GraphQL.js handoff |
+| --- | --- |
+| `n < L` | A stream containing the remaining items. |
+| `n = L`, including `0 = 0` | An empty stream boundary, with no item tasks. |
+| `n > L` | No stream: exhaustion occurs before reaching the boundary. |
 
 Other deferred or streamed work can still make the query incremental in every row.
 Failure while completing the initial prefix must retain the existing null/error
 behavior rather than introducing a stream under a nulled position.
 
-### Design choices and recommendation
+### Abstraction boundary and checked behavior
 
-1. **Change the single execution policy.** Create a stream when `n <= L`, not only
-   when the tail is nonempty. This is the smallest change for the audited finite
-   GraphQL.js behavior, and needs no new Work constructor. However, it replaces the
-   existing equality-case behavior rather than admitting both implementations.
-2. **Expose a small execution policy.** Keep eager finite exhaustion as the default
-   and add iterator-boundary handoff. Both return ordinary finite Work; only the
-   equality case differs. Correctness should quantify over the policy, and the
-   observation relation should admit either when comparing implementations.
-3. **Make stream-boundary existence a scheduler choice.** This would require optional
-   work or a different root interface: currently empty Work takes the ordinary branch
-   before creating a source. It changes execution/scheduler separation unnecessarily
-   for this gap and is not recommended.
+No execution-policy parameter is added, and spec-facing function signatures are
+unchanged. Boundary generation belongs to the explicitly non-spec stream helper,
+because the pinned draft does not wire `@stream` into `CompleteListValue`.
 
-Recommend option 2 for a model intended to cover both behaviors. This is an explicit
-choice about when execution observes list exhaustion, not a timing, concurrency, or
-fairness model. A uniform policy suffices for the audited GraphQL.js implementation;
-covering implementations that vary the choice by list occurrence would require a
-path-indexed policy or a relational preparation step, not merely a global Boolean.
+The pinned
+[root algorithm](https://github.com/graphql/graphql-spec/blob/045e19363c2b55f127960bd3b5e8072a15b29aec/spec/Section%206%20--%20Execution.md#L385-L403)
+returns an ordinary response only when both tasks and streams are empty, before
+CreateWorkQueue is called. The audited
+[GraphQL.js executor](https://github.com/graphql/graphql-js/blob/961747301cf70e59aead2d7a5121779a79a52877/src/execution/incremental/IncrementalExecutor.ts#L450-L469)
+uses the same branch condition. A stream containing no items is still a stream;
+neither algorithm lets the queue switch such work back to an ordinary response.
+The model retains this branch and the original queue contract unchanged.
 
-The proof work should focus on execution-generated metadata, key freshness, source
-positions, and reconstruction: an added empty stream consumes a key and introduces
-a lifecycle, but no data positions or errors. Existing raw-work scheduler and progress
-theorems already allow empty streams. Do not assume every execution proof reuses
-unchanged, and do not add a silent-end task or host iterator model just for this case.
-Regressions should cover zero/exact/excess counts, nested lists, aliases, disabled
-directives, initial-prefix failures, and empty streams alongside other incremental work.
+The pinned draft's
+[client-handling rules](https://github.com/graphql/graphql-spec/blob/045e19363c2b55f127960bd3b5e8072a15b29aec/spec/Section%203%20--%20Type%20System.md#L2438-L2452)
+permit a service not to defer or stream. That broader permission is not modeled as a
+queue-level response-form override after work creation. Optional directive ignoring
+and initial-payload coalescing remain outside this model's execution policy.
 
-This is a researched recommendation, not an implemented policy change. The query
-trace-coverage gap remains open; no full GraphQL.js refinement is claimed.
+A stream boundary and its item tasks are different things. An exhausted boundary
+consumes a fresh key and may be announced and completed, but contributes no data
+positions or errors. The existing queue admission rules already express that
+lifecycle. They do not require a value publication before stream completion, and
+no synthetic end task or host iterator model is needed.
+
+Merely relaxing queue admission could not fix the earlier gap: execution erased the
+boundary, and zero work selected the ordinary-response branch before queue creation.
+The equality case now retains a boundary and therefore takes the incremental branch,
+even when it is the only work. A complete run can announce and complete that boundary
+without publishing an item. An empty notice frontier cannot change the root's response
+form. No event-admission rule is relaxed, and no unprovenanced stream node is introduced.
+
+All twelve public correctness statements and their interfaces are unchanged.
+The cursor and reconstruction proofs now allow `initialCount = list.length` at
+an active boundary. Ordinary work observations still require zero work size. Key
+freshness, lifecycle, disjointness, reconstruction, and finite-progress proofs continue
+to cover the generated work without extra public premises.
+
+[`EmptyStreams` regressions](../Tests/GraphQL/IncrementalDelivery/EmptyStreams.lean)
+prove exact incremental query outcomes for empty and exactly consumed lists: initial
+data and a pending notice followed by completion with no item patch. They also prove
+that no scheduler can yield an ordinary query outcome for these retained boundaries,
+including a direct packaging check with an empty-frontier, unavailable source. They
+check excess counts, aliases/labels, disabled/skipped directives, synchronous inner
+lists, initial-prefix failure, nested/deferred/streamed producers, shared defer
+owners, and empty streams alongside nonempty work. This closes the audited finite
+exhaustion gap; it does not establish full GraphQL.js refinement.
 
 ## Pinned draft gaps and editorial choices
 
-- CompleteListValue does not wire in stream execution; the separately named
-  stream hook implements the modeled directive/response behavior.
-- CreateWorkQueue lacks an algorithm or complete invariant specification;
-  the proposed contract makes the additional assumptions explicit.
-- ExecuteField's path wording uses field names where the response chapter requires
-  aliases; the model uses response names.
-- Initial and later notices share the ID map despite ambiguous allocation scope
-  in the draft.
-- The response chapter's final hasNext sentence repeats true; termination mapping
-  uses false.
+- [Spec incompleteness] CompleteListValue does not wire in stream execution; the
+  separately named stream hook implements the modeled directive/response behavior.
+- [Spec incompleteness] CreateWorkQueue lacks an algorithm or complete invariant
+  specification; the proposed contract makes the additional assumptions explicit.
+- [Spec typo; Reported] ExecuteField's path wording uses field names where the response
+  chapter requires aliases; the model uses response names.
+- [Spec typo; Reported] The response chapter's final hasNext sentence repeats true;
+  termination mapping uses false.
+- [Spec bug; Reported] Initial and later notices share the ID map despite ambiguous
+  allocation scope in the draft.
