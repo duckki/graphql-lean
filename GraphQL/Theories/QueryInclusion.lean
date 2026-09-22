@@ -538,8 +538,7 @@ def guardedFieldGroupLocallyIncludesBool (schema : Schema) (responseFuel : Nat)
   || guardedCompositeFieldIncludesBool schema responseFuel fixedExecutionParentType
       left right regions
 
-def guardedFieldChildContributions
-    (entries : List SelectionConditions.ConditionedField)
+def guardedFieldChildContributions (entries : List SelectionConditions.ConditionedField)
     : List (List SelectionConditions.BooleanLiteral × List Selection) :=
   entries.map
     fun entry =>
@@ -550,10 +549,11 @@ def guardedFieldChildContributions
 def guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool (schema : Schema)
     (fixedExecutionParentType : Option Name) (runtimeType : Name)
     (region : List Name) (left right : GuardedFieldGroup)
-    (childIncludes : List Name
-      -> List (List SelectionConditions.BooleanLiteral × List Selection)
-      -> List (List SelectionConditions.BooleanLiteral × List Selection)
-      -> Bool)
+    (childIncludes
+      : List Name
+        -> List (List SelectionConditions.BooleanLiteral × List Selection)
+        -> List (List SelectionConditions.BooleanLiteral × List Selection)
+        -> Bool)
     : Bool :=
   let leftEntries := guardedFieldEntriesAtRuntimeType runtimeType left.entries
   let rightEntries := guardedFieldEntriesAtRuntimeType runtimeType right.entries
@@ -565,29 +565,29 @@ def guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool (schema : Schema)
             fun leftEntry =>
               conditionedFieldResolverCallEqBool leftEntry rightHead)
           && (rightEntries.all
-            fun rightEntry =>
-              conditionedFieldResolverCallEqBool rightEntry rightHead)
+                fun rightEntry =>
+                  conditionedFieldResolverCallEqBool rightEntry rightHead)
           && (rightEntries.all
-            fun rightEntry =>
-              SelectionConditions.booleanConditionCoveredByBool
-                rightEntry.condition.booleanCondition
-                (leftEntries.map
-                  fun leftEntry => leftEntry.condition.booleanCondition))
-          && let parentTypes :=
-              match fixedExecutionParentType with
-              | some parentType => [parentType]
-              | none => region
-             parentTypes.all
-              fun executionParentType =>
-                match schema.lookupField executionParentType
-                    rightHead.field.fieldName with
-                | none => false
-                | some definition =>
-                    definition.outputType.isCompositeBool schema
-                    && childIncludes
-                      (schema.getPossibleTypes definition.outputType.namedType)
-                      (guardedFieldChildContributions leftEntries)
-                      (guardedFieldChildContributions rightEntries)
+                fun rightEntry =>
+                  SelectionConditions.booleanConditionCoveredByBool
+                    rightEntry.condition.booleanCondition
+                    (leftEntries.map
+                      fun leftEntry => leftEntry.condition.booleanCondition))
+          &&  let parentTypes :=
+                match fixedExecutionParentType with
+                | some parentType => [parentType]
+                | none => region
+              parentTypes.all
+                fun executionParentType =>
+                  match schema.lookupField executionParentType
+                          rightHead.field.fieldName with
+                  | none => false
+                  | some definition =>
+                      definition.outputType.isCompositeBool schema
+                      && childIncludes
+                          (schema.getPossibleTypes definition.outputType.namedType)
+                          (guardedFieldChildContributions leftEntries)
+                          (guardedFieldChildContributions rightEntries)
 
 mutual
   -- Symbolically carries each occurrence's guard into its child boundary.  This
@@ -730,8 +730,8 @@ mutual
         (guardedFieldGroupLocallyIncludesBool schema responseFuel fixedExecutionParentType
             left right regions
           || (guardedFieldGroupHasBooleanVariableBool left right
-            && guardedFieldGroupSymbolicallyIncludesWithFuel schema responseFuel
-              fixedExecutionParentType variableValues left right regions)
+              && guardedFieldGroupSymbolicallyIncludesWithFuel schema responseFuel
+                  fixedExecutionParentType variableValues left right regions)
           || guardedFieldGroupIncludesWithFuel schema responseFuel
               fixedExecutionParentType variableValues
               (guardedFieldGroupBooleanVariables left right) left right

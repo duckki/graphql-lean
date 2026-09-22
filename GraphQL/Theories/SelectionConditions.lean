@@ -378,8 +378,7 @@ def ofTypeRegionUnder (schema : Schema) (region : List Name)
     : List ConditionedField :=
   contributions.flatMap
     fun (booleanCondition, selectionSet) =>
-      extractFields schema [] { possibleTypes := region, booleanCondition }
-        selectionSet
+      extractFields schema [] { possibleTypes := region, booleanCondition } selectionSet
 
 -- Runtime interpretation of a flat conditioned-field boundary. The cumulative
 -- condition is the complete gate; extracted fields no longer carry modeled directives.

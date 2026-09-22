@@ -359,10 +359,12 @@ def symbolicIndependentParentSelectionSet : List Selection :=
 -- response name but belong to different child response names. The symbolic rule
 -- carries each guard into its child boundary instead of enumerating their product.
 theorem guardedFieldGroup_symbolicIndependentChildrenSmoke
-    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        symbolicIndependentParentSelectionSet
-      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        symbolicIndependentParentSelectionSet
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          symbolicIndependentParentSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          symbolicIndependentParentSelectionSet
       guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
         left right (guardedFieldGroupTypeRegions ["Query"] left right)
       = true := by
@@ -387,10 +389,12 @@ def unconditionalParentRightQuery : Operation :=
 -- A conditional occurrence cannot cover the unconditional right occurrence. The
 -- symbolic witness declines, and the complete fallback reaches the same rejection.
 theorem guardedFieldGroup_symbolicRejectsGuardedCoverageGapSmoke
-    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        guardedParentLeftSelectionSet
-      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        unconditionalParentRightSelectionSet
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          guardedParentLeftSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          unconditionalParentRightSelectionSet
       guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
           left right (guardedFieldGroupTypeRegions ["Query"] left right)
         = false
@@ -424,15 +428,16 @@ def contradictoryChildRightQuery : Operation :=
 -- The child's `@skip` contradicts the parent occurrence's `@include`. Seeding the
 -- child extraction with the parent condition removes that infeasible contribution.
 theorem guardedFieldGroup_symbolicDropsContradictoryChildSmoke
-    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        contradictoryChildLeftSelectionSet
-      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
-        contradictoryChildRightSelectionSet
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          contradictoryChildLeftSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          contradictoryChildRightSelectionSet
       guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
           left right (guardedFieldGroupTypeRegions ["Query"] left right)
         = true
-      ∧ includesBool sampleSchema contradictoryChildLeftQuery
-          contradictoryChildRightQuery
+      ∧ includesBool sampleSchema contradictoryChildLeftQuery contradictoryChildRightQuery
         = true := by
   native_decide
 

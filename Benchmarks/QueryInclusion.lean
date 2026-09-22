@@ -150,8 +150,7 @@ def symbolicParentLeftOperation (booleanCount : Nat) : Operation :=
         fun index =>
           { name := indexedName "enabled" index, typeRef := .named "Boolean" }
     selectionSet :=
-      .field "entity" "entity" [] [] [.field "id" "id" [] [] []]
-        :: guardedOccurrences
+      .field "entity" "entity" [] [] [.field "id" "id" [] [] []] :: guardedOccurrences
   }
 
 def symbolicParentRightOperation (booleanCount : Nat) : Operation :=
@@ -166,8 +165,7 @@ def symbolicParentRightOperation (booleanCount : Nat) : Operation :=
         fun index =>
           { name := indexedName "enabled" index, typeRef := .named "Boolean" }
     selectionSet :=
-      [.field "entity" "entity" [] []
-        (.field "id" "id" [] [] [] :: guardedChildren)]
+      [.field "entity" "entity" [] [] (.field "id" "id" [] [] [] :: guardedChildren)]
   }
 
 def runChecker (iterations : Nat) (expected : Bool) (checker : Unit -> Bool)

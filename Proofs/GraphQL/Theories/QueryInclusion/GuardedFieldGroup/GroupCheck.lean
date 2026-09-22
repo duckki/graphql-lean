@@ -506,19 +506,18 @@ theorem guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
           -> completionFieldsWitness schema
               (fixedExecutionParentType.getD runtimeType) fieldType
               (guardedFieldExecutableFields variableValues runtimeType right.entries)
-          ->
-          childCheck (schema.getPossibleTypes fieldType.namedType)
-              (guardedFieldChildContributions
-                (guardedFieldEntriesAtRuntimeType runtimeType left.entries))
-              (guardedFieldChildContributions
-                (guardedFieldEntriesAtRuntimeType runtimeType right.entries))
-            = true
+          -> childCheck (schema.getPossibleTypes fieldType.namedType)
+                (guardedFieldChildContributions
+                  (guardedFieldEntriesAtRuntimeType runtimeType left.entries))
+                (guardedFieldChildContributions
+                  (guardedFieldEntriesAtRuntimeType runtimeType right.entries))
+              = true
           -> childIncludes (schema.getPossibleTypes fieldType.namedType)
-              (executableFieldsMergedSelectionSet
-                (guardedFieldExecutableFields variableValues runtimeType left.entries))
-              (executableFieldsMergedSelectionSet
-                (guardedFieldExecutableFields variableValues runtimeType right.entries))
-            = true)
+                (executableFieldsMergedSelectionSet
+                  (guardedFieldExecutableFields variableValues runtimeType left.entries))
+                (executableFieldsMergedSelectionSet
+                  (guardedFieldExecutableFields variableValues runtimeType right.entries))
+              = true)
     : guardedFieldGroupCaseIncludesBool schema (childFuel + 1)
         fixedExecutionParentType variableValues runtimeType left right childIncludes
       = true := by
@@ -637,8 +636,7 @@ theorem guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
                 simp [hleftAllows, leftField]
               cases hleftFields : leftFields with
               | nil =>
-                  have : leftField ∈ leftFields := by
-                    simpa [leftFields] using hleftField
+                  have : leftField ∈ leftFields := by simpa [leftFields] using hleftField
                   simp [hleftFields] at this
               | cons leftFieldHead leftFieldsRest =>
                   have hleftFieldHead : leftFieldHead ∈
@@ -694,12 +692,17 @@ theorem guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
                     apply hchildSound definition.outputType
                     · simp [leftFields, hleftFields]
                     · simp [rightFields, hrightFields]
-                    · refine ⟨{
+                    · refine ⟨
+                        {
                           fieldName := leftHeadEntry.field.fieldName
                           arguments := leftHeadEntry.field.arguments
                           selectionSet := leftHeadEntry.field.selectionSet
-                        }, definition, (by simpa [hleftFieldHeadEq] using
-                          hleftFieldHead), ?_, rfl⟩
+                        },
+                        definition,
+                        (by simpa [hleftFieldHeadEq] using hleftFieldHead),
+                        ?_,
+                        rfl
+                      ⟩
                       simpa [executionParentType, hfieldName, hrightFieldName]
                         using hdefinition
                     · refine ⟨{
@@ -717,8 +720,8 @@ theorem guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
                       (rightEntry.field.selectionSet
                         ++ executableFieldsMergedSelectionSet rightFieldsRest) = true := by
                     simpa [leftFields, rightFields, hleftFields, hrightFields,
-                      hleftFieldHeadEq, hrightFieldEq,
-                      executableFieldsMergedSelectionSet] using hchildCheck
+                      hleftFieldHeadEq, hrightFieldEq, executableFieldsMergedSelectionSet]
+                      using hchildCheck
                   subst rightField
                   subst leftFieldHead
                   simp [guardedFieldGroupCaseIncludesBool, executionParentType,
@@ -1760,17 +1763,18 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_case
     (region : List Name)
     (hregion
       : region
-          ∈ guardedFieldGroupTypeRegions
-              (guardedFieldParentRegion schema fixedExecutionParentType
-                (guardedFieldGroupFor leftGroups right) right)
+        ∈ guardedFieldGroupTypeRegions
+            (guardedFieldParentRegion schema fixedExecutionParentType
               (guardedFieldGroupFor leftGroups right) right)
+            (guardedFieldGroupFor leftGroups right) right)
     (runtimeType : Name) (hruntime : runtimeType ∈ region)
     (hsymbolicChildSound
       : ∀ childFuel,
           responseFuel = childFuel + 1
           -> ∀ (fieldType : TypeRef),
               guardedFieldExecutableFields targetValues runtimeType
-                    (guardedFieldGroupFor leftGroups right).entries ≠ []
+                  (guardedFieldGroupFor leftGroups right).entries
+                ≠ []
               -> guardedFieldExecutableFields targetValues runtimeType right.entries ≠ []
               -> completionFieldsWitness schema
                   (fixedExecutionParentType.getD runtimeType) fieldType
@@ -1797,7 +1801,8 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_case
                       (guardedFieldExecutableFields targetValues runtimeType
                         (guardedFieldGroupFor leftGroups right).entries))
                     (executableFieldsMergedSelectionSet
-                      (guardedFieldExecutableFields targetValues runtimeType right.entries))
+                      (guardedFieldExecutableFields targetValues runtimeType
+                        right.entries))
                   = true)
     : guardedFieldGroupCaseIncludesBool schema responseFuel
         fixedExecutionParentType targetValues runtimeType
@@ -1814,34 +1819,34 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_case
         rcases hcheck.1 with hfast | hgeneral
         · rcases hfast with hshortcut | hsymbolic
           · cases responseFuel with
-          | zero =>
-              simp [guardedFieldGroupLocallyIncludesBool,
-                guardedScalarFieldIncludesBool,
-                guardedCompositeFieldIncludesBool] at hshortcut
-          | succ childFuel =>
-              simp only [guardedFieldGroupLocallyIncludesBool, Bool.or_eq_true]
-                at hshortcut
-              rcases hshortcut with hscalar | hcomposite
-              · simp only [guardedScalarFieldIncludesBool] at hscalar
-                have hregionCheck := List.all_eq_true.mp hscalar region hregion
-                have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType
-                  hruntime
-                exact guardedScalarFieldIncludesAtRuntimeTypeBool_sound schema
-                  childFuel fixedExecutionParentType targetValues runtimeType
-                  (guardedFieldGroupFor leftGroups head) head childIncludes
-                  hruntimeCheck (hcomplete head (by simp))
-              · simp only [guardedCompositeFieldIncludesBool] at hcomposite
-                have hregionCheck := List.all_eq_true.mp hcomposite region hregion
-                have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType
-                  hruntime
-                apply guardedCompositeFieldIncludesAtRuntimeTypeBool_sound schema
-                  childFuel fixedExecutionParentType targetValues runtimeType
-                  (guardedFieldGroupFor leftGroups head) head childIncludes
-                  hruntimeCheck (hcomplete head (by simp))
-                intro possibleTypes leftSelectionSet rightSelectionSet hchildCheck
-                exact hchildSound childFuel rfl targetValues
-                  (booleanAssignmentsAgree_refl targetValues) possibleTypes
-                  leftSelectionSet rightSelectionSet hchildCheck
+            | zero =>
+                simp [guardedFieldGroupLocallyIncludesBool,
+                  guardedScalarFieldIncludesBool,
+                  guardedCompositeFieldIncludesBool] at hshortcut
+            | succ childFuel =>
+                simp only [guardedFieldGroupLocallyIncludesBool, Bool.or_eq_true]
+                  at hshortcut
+                rcases hshortcut with hscalar | hcomposite
+                · simp only [guardedScalarFieldIncludesBool] at hscalar
+                  have hregionCheck := List.all_eq_true.mp hscalar region hregion
+                  have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType
+                    hruntime
+                  exact guardedScalarFieldIncludesAtRuntimeTypeBool_sound schema
+                    childFuel fixedExecutionParentType targetValues runtimeType
+                    (guardedFieldGroupFor leftGroups head) head childIncludes
+                    hruntimeCheck (hcomplete head (by simp))
+                · simp only [guardedCompositeFieldIncludesBool] at hcomposite
+                  have hregionCheck := List.all_eq_true.mp hcomposite region hregion
+                  have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType
+                    hruntime
+                  apply guardedCompositeFieldIncludesAtRuntimeTypeBool_sound schema
+                    childFuel fixedExecutionParentType targetValues runtimeType
+                    (guardedFieldGroupFor leftGroups head) head childIncludes
+                    hruntimeCheck (hcomplete head (by simp))
+                  intro possibleTypes leftSelectionSet rightSelectionSet hchildCheck
+                  exact hchildSound childFuel rfl targetValues
+                    (booleanAssignmentsAgree_refl targetValues) possibleTypes
+                    leftSelectionSet rightSelectionSet hchildCheck
           · cases responseFuel with
             | zero =>
                 simp [guardedFieldGroupSymbolicallyIncludesWithFuel] at hsymbolic
@@ -1903,7 +1908,8 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_at_runtime
     (childIncludes : List Name -> List Selection -> List Selection -> Bool)
     (hcheck
       : guardedFieldGroupsIncludeWithFuel schema responseFuel
-          fixedExecutionParentType checkValues leftGroups rightGroups = true)
+          fixedExecutionParentType checkValues leftGroups rightGroups
+        = true)
     (hagrees : BooleanAssignmentsAgree checkValues targetValues)
     (hcomplete
       : ∀ right,
@@ -1918,8 +1924,10 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_at_runtime
               BooleanAssignmentsAgree knownValues targetValues
               -> ∀ possibleTypes leftSelectionSet rightSelectionSet,
                   guardedFieldChildIncludesBool schema childFuel knownValues
-                      possibleTypes leftSelectionSet rightSelectionSet = true
-                  -> childIncludes possibleTypes leftSelectionSet rightSelectionSet = true)
+                      possibleTypes leftSelectionSet rightSelectionSet
+                    = true
+                  -> childIncludes possibleTypes leftSelectionSet rightSelectionSet
+                      = true)
     (right : GuardedFieldGroup) (hright : right ∈ rightGroups)
     (runtimeType : Name)
     (hfixedRuntime
@@ -1931,7 +1939,8 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_at_runtime
           responseFuel = childFuel + 1
           -> ∀ (fieldType : TypeRef),
               guardedFieldExecutableFields targetValues runtimeType
-                    (guardedFieldGroupFor leftGroups right).entries ≠ []
+                  (guardedFieldGroupFor leftGroups right).entries
+                ≠ []
               -> guardedFieldExecutableFields targetValues runtimeType right.entries ≠ []
               -> completionFieldsWitness schema
                   (fixedExecutionParentType.getD runtimeType) fieldType
@@ -1958,11 +1967,13 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_at_runtime
                       (guardedFieldExecutableFields targetValues runtimeType
                         (guardedFieldGroupFor leftGroups right).entries))
                     (executableFieldsMergedSelectionSet
-                      (guardedFieldExecutableFields targetValues runtimeType right.entries))
+                      (guardedFieldExecutableFields targetValues runtimeType
+                        right.entries))
                   = true)
     : guardedFieldGroupCaseIncludesBool schema responseFuel fixedExecutionParentType
         targetValues runtimeType (guardedFieldGroupFor leftGroups right) right
-        childIncludes = true := by
+        childIncludes
+      = true := by
   cases hrightFields
         : guardedFieldExecutableFields targetValues runtimeType right.entries with
   | nil =>
@@ -1976,8 +1987,7 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_at_runtime
           fixedExecutionParentType (guardedFieldGroupFor leftGroups right) right := by
         cases hfixed : fixedExecutionParentType with
         | some parentType =>
-            simpa [guardedFieldParentRegion, hfixed] using
-              hfixedRuntime parentType hfixed
+            simpa [guardedFieldParentRegion, hfixed] using hfixedRuntime parentType hfixed
         | none =>
             have hfield : field ∈ guardedFieldExecutableFields targetValues
                 runtimeType right.entries := by simp [hrightFields]

@@ -508,8 +508,7 @@ theorem extractFields_childBooleanVariablesWithin
     (hvariable
       : variableName
         ∈ SelectionConditions.selectionSetBooleanVariables entry.field.selectionSet)
-    : variableName
-        ∈ SelectionConditions.selectionSetBooleanVariables selectionSet := by
+    : variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet := by
   cases selectionSet with
   | nil => simp [SelectionConditions.extractFields] at hentry
   | cons selection rest =>
