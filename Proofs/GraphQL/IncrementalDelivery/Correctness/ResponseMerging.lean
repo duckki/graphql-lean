@@ -40,10 +40,10 @@ theorem putFields_nil_of_nodup (fields : List (Name × ResponseValue))
 /-- Successful reconstruction requires lifecycle validity; witness: the merger's initial
 guard.
 -/
-theorem deliveryComplete_of_mergeQueryResult (result : QueryResult) (response : Response)
-    (h : mergeQueryResult result = some response)
+theorem deliveryComplete_of_mergeExecutionObservation (result : ExecutionObservation)
+    (response : Response) (h : mergeExecutionObservation result = some response)
     : result.deliveryComplete = true := by
-  unfold mergeQueryResult at h
+  unfold mergeExecutionObservation at h
   split at h
   · cases h
   · simpa using ‹¬(!result.deliveryComplete) = true›
@@ -51,16 +51,16 @@ theorem deliveryComplete_of_mergeQueryResult (result : QueryResult) (response : 
 /-- A reconstructed response uses the trace's total errors, by its final envelope
 constructor.
 -/
-theorem mergeQueryResult_errors (result : QueryResult) (response : Response)
-    (h : mergeQueryResult result = some response)
+theorem mergeExecutionObservation_errors (result : ExecutionObservation)
+    (response : Response) (h : mergeExecutionObservation result = some response)
     : response.errors = result.totalErrors := by
   cases result with
   | single initial =>
-      simp [mergeQueryResult, QueryResult.deliveryComplete] at h
+      simp [mergeExecutionObservation, ExecutionObservation.deliveryComplete] at h
       cases h
       rfl
   | incremental initial updates =>
-      unfold mergeQueryResult at h
+      unfold mergeExecutionObservation at h
       split at h
       · cases h
       · simp only [Option.bind_eq_bind, Option.bind_eq_some_iff, Option.pure_def,
@@ -72,19 +72,20 @@ theorem mergeQueryResult_errors (result : QueryResult) (response : Response)
 /-- Error-free completed delivery reconstructs with zero errors, by total-error
 preservation.
 -/
-theorem mergeQueryResult_errors_zero (result : QueryResult) (response : Response)
-    (hcomplete : result.executionComplete)
-    (hmerge : mergeQueryResult result = some response)
+theorem mergeExecutionObservation_errors_zero (result : ExecutionObservation)
+    (response : Response) (hcomplete : result.executionComplete)
+    (hmerge : mergeExecutionObservation result = some response)
     : response.errors = 0 :=
-  (mergeQueryResult_errors result response hmerge).trans hcomplete.2
+  (mergeExecutionObservation_errors result response hmerge).trans hcomplete.2
 
 /-- Every successfully reconstructed trace completes its IDs exactly once, via lifecycle
 validity.
 -/
-theorem idsCompleteExactlyOnce_of_mergeQueryResult (result : QueryResult)
-    (response : Response) (h : mergeQueryResult result = some response)
+theorem idsCompleteExactlyOnce_of_mergeExecutionObservation
+    (result : ExecutionObservation) (response : Response)
+    (h : mergeExecutionObservation result = some response)
     : result.idsCompleteExactlyOnce :=
   idsCompleteExactlyOnce_of_deliveryComplete result
-    (deliveryComplete_of_mergeQueryResult result response h)
+    (deliveryComplete_of_mergeExecutionObservation result response h)
 
 end GraphQL.IncrementalDelivery.Correctness

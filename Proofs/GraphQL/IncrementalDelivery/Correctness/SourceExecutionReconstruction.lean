@@ -65,7 +65,7 @@ mutual
             simpa [executionPlanGroups, eraseGroups] using hb
           obtain ⟨data, hd, hpd⟩ := basicFields_perm schema resolvers variables fuel parentType source path
             _ _ hpall _ hcombined
-          refine ⟨data, si ++ st, hd, .append his hts, ?_, ?_⟩
+          refine ⟨data, si ++ st, hd, .combine his hts, ?_, ?_⟩
           · apply List.Perm.trans _ hpd
             simpa only [List.flatten_append, TypedResponse.fields_append, List.append_assoc] using hip.append htp
           · intro hn
@@ -73,7 +73,7 @@ mutual
               simpa only [List.flatten_append, List.append_assoc] using hn
             have hparts := List.nodup_append.mp (by simpa only [List.map_append] using hn')
             simpa only [entryPaths, List.map_append]
-              using WorkCursorSeed.append
+              using WorkCursorSeed.combine
                 (hiseed (by simpa only [List.map_append] using hparts.1))
                 (htseed _ hparts.2.1)
   termination_by (fuel, 6, 0, 0)
@@ -128,7 +128,7 @@ mutual
             intro hs
             obtain ⟨head, sh, hh, hsh, hhp, hseedh⟩ := hc.reconstruct hs.1
             obtain ⟨tail, st, htail, hst, htailp, hseedt⟩ := ht hs.2
-            refine ⟨head ++ tail, _, ?_, .append (.deferred hsh) hst, ?_, ?_⟩
+            refine ⟨head ++ tail, _, ?_, .combine (.executionGroup hsh) hst, ?_, ?_⟩
             · simpa [eraseGroups] using basicFields_append schema resolvers variables fuel parentType source
                 _ _ head tail hh htail
             · simpa only [List.flatten_append, List.flatten_cons, TypedResponse.fields_append] using hhp.append htailp
@@ -137,8 +137,8 @@ mutual
                 simpa only [List.flatten_append, List.flatten_cons] using hn
               have hparts := List.nodup_append.mp (by simpa only [List.map_append] using hn')
               simpa only [entryPaths, List.map_append, List.map_cons, result_fields_paths]
-                using WorkCursorSeed.append
-                  (WorkCursorSeed.deferred
+                using WorkCursorSeed.combine
+                  (WorkCursorSeed.executionGroup
                     (hseedh (by simpa only [List.map_append] using hparts.1)))
                   (hseedt cursors hparts.2.1)
   termination_by (fuel, 5, 0, sizeOf partitions)

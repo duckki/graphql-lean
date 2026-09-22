@@ -150,7 +150,7 @@ refines this language, or proving a stronger simulation property, is separate wo
 
 ### 2. Structural identities replace allocated task IDs
 
-`Occurrence.deferred address` identifies a deferred object-result occurrence.
+`Occurrence.executionGroup address` identifies an execution-group task occurrence.
 `Occurrence.item address index` identifies one stream item. Addresses describe
 navigation through `Work`, not response paths or allocated queue keys.
 
@@ -177,8 +177,10 @@ result contains the subwork, producer, and enclosing defer owners. This is a
 static lookup view, not allocated tasks or scheduler state; invalid edges return
 `none`. Sequential traversal uses `do` notation. `Located` is lookup equality.
 `TaskAt` and `NodeAt` are ordinary predicates over those locations, supplying payloads,
-contributing owners, producer occurrences, and ancestry. There is no compiled `Graph`,
-`Task` record, task allocator, or graph mutation. No synthetic stream-end task is necessary.
+contributing owners, producer occurrences, and dependencies. A node's dependencies are
+defer ancestors for a group and enclosing defer owners for a stream; they are never
+additional structural producers. There is no compiled `Graph`, `Task` record, task
+allocator, or graph mutation. No synthetic stream-end task is necessary.
 
 The structural section also contains the task/node projections and the single
 `Reachable` inductive, which requires a successful producer chain. Reachability does
@@ -230,7 +232,7 @@ with an explicit uniqueness conjunct.
 
 `NodeFailed` and `TaskCancelled` expose named-parameter predicates over a small
 mutually inductive kernel in `Causality`. Structural premises are factored into
-`TaskHasOwners`, `TaskHasProducer`, `TaskSucceeds`, `NodeHasParents`, and
+`TaskHasOwners`, `TaskHasProducer`, `TaskSucceeds`, `NodeHasDependencies`, and
 `NodeHasProducer`. These merely project existing task/node descriptors; they do not
 introduce additional invariants. The failure and cancellation rules remain mutually
 inductive to enforce least causal closure, rather than permit circular explanations.
@@ -309,7 +311,7 @@ even for legitimate work. A regression records this boundary and also proves tha
 same fixture has a complete run.
 
 `SupportedNoticesCovered` is a weaker, proof-only construction witness. Groups use
-ordinary eligibility; a stream may wait until one defer parent and its full ancestry
+ordinary eligibility; a stream may wait until one defer dependency and its full ancestry
 are satisfied. The public scheduler still permits earlier announcement. This witness
 chooses a useful family of histories for existence; it does not restrict admission.
 

@@ -14,8 +14,8 @@ open WorkScheduler
 -/
 def Tree : Work → Prop
   | .empty => True
-  | .append left right => Tree left ∧ Tree right
-  | .deferred _ _ _ children => Tree children
+  | .combine left right => Tree left ∧ Tree right
+  | .executionGroup _ _ _ children => Tree children
   | .stream .. => False
 
 /-- Every located subtree retains the recursive certificate, by navigation induction. -/
@@ -28,7 +28,7 @@ theorem Tree.located {work address current producer owners}
   | root => exact shape
   | left _ ih => exact ih.1
   | right _ ih => exact ih.2
-  | deferred _ ih => exact ih
+  | executionGroup _ ih => exact ih
   | item _ _ ih => exact False.elim ih
 
 /-- The recursive test certificate implies the relational defer-only work shape.
@@ -45,8 +45,8 @@ def node (key : Nat) : DeliveryNode := { key, path := [] }
 
 /-- A shared producer reveals a shared child whose owners have different ancestors. -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .deferred [{ node := node 0 }, { node := node 1 }] [] first
-    (.deferred
+  .executionGroup [{ node := node 0 }, { node := node 1 }] [] first
+    (.executionGroup
       [
         { node := node 2, ancestors := [node 0] },
         { node := node 3, ancestors := [node 1] }
@@ -61,16 +61,16 @@ def ancestors (key : Nat) : Keys :=
 Witness: the general defer-only cancellation theorem, instantiated for either key.
 -/
 example (first second : Result (List (Name × ResponseValue))) (failed : List Occurrence)
-    (cancelled : TaskCancelled (work first second) failed (.deferred [0]))
+    (cancelled : TaskCancelled (work first second) failed (.executionGroup [0]))
     (key : Nat) (member : key ∈ [2, 3])
     : NodeFailed (work first second) failed key := by
   apply DeferOnly.cancelled_owner_failed (parents := ancestors) (bound := 4)
-    (producer := some (.deferred [])) (payload := .object [] second)
+    (producer := some (.executionGroup [])) (payload := .object [] second)
     (Tree.defer_only (by simp [Tree, work]))
   · simp [work, MixedKeys.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapKeys, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · exact TaskAt.deferred (.deferred .root)
+  · exact TaskAt.executionGroup (.executionGroup .root)
   · exact member
   · exact cancelled
 
@@ -107,8 +107,8 @@ theorem shared_run_exists (first second : Result (List (Name × ResponseValue)))
 account for one; the child still requires the full transitive ancestry to be satisfied.
 -/
 def silent (first second : Result (List (Name × ResponseValue))) : Work :=
-  .deferred [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] [] first
-    (.deferred [{ node := node 2, ancestors := [node 1, node 0] }] [] second .empty)
+  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }] [] first
+    (.executionGroup [{ node := node 2, ancestors := [node 1, node 0] }] [] second .empty)
 
 /-- Full transitive ancestry includes the silently accounted owner's ancestor. -/
 def silentAncestors (key : Nat) : Keys :=
@@ -142,7 +142,7 @@ Witness: construct its admitted history, then apply conforming-source realizatio
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (work first second)
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=

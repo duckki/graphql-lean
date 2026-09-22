@@ -42,20 +42,20 @@ the task descriptor is unique, so its producer is the one required by CanPublish
 -/
 theorem Explains.producer_before {work groups streams events matching failures}
     (explained : Explains work groups streams events matching failures)
-    {index event owners parent payload}
+    {index event owners producerOccurrence payload}
     (selected : events[index]? = some event) (value : IsValue event)
-    (task : TaskAt work (matching index) owners (some parent) payload)
+    (task : TaskAt work (matching index) owners (some producerOccurrence) payload)
     : ∃ earlier previous,
         earlier < index
         ∧ events[earlier]? = some previous
         ∧ IsValue previous
-        ∧ matching earlier = parent := by
+        ∧ matching earlier = producerOccurrence := by
   have bound := (List.getElem?_eq_some_iff.mp selected).choose
   have ready := (explained.2.2 index event selected).publicationReady value
   simp only [List.length_take, Nat.min_eq_left (Nat.le_of_lt bound)] at ready
   obtain ⟨otherOwners, producer, otherPayload, known, ready⟩ := ready
   have same := TaskAt.unique known task
-  exact (ready.2.2.1 parent same.2.1).before
+  exact (ready.2.2.1 producerOccurrence same.2.1).before
 
 /-- Publishing a noninitial stream item requires its predecessor earlier in the history.
 Witness: the stream-specific readiness premise, independent of notices or owner ties.

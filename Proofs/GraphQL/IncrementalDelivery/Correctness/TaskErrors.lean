@@ -31,7 +31,7 @@ theorem WorkPositive.located {work address current producer owners}
   | root => exact positive
   | left _ ih => exact ih.1
   | right _ ih => exact ih.2
-  | deferred _ ih => exact ih.2
+  | executionGroup _ ih => exact ih.2
   | item _ entry ih => exact (ih.member (List.mem_of_getElem? entry)).2
 
 /-- Every scheduler-visible failing task has a positive count; witness: its located
@@ -43,7 +43,7 @@ theorem WorkPositive.task {work occurrence owners producer payload}
     (fails : payload.failure.isSome = true)
     : 0 < payload.failure.getD 0 := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | @deferred address groups path result children producer enclosing located =>
+  | @executionGroup address groups path result children producer enclosing located =>
       have resultPositive := (positive.located located.toCurrent).1
       cases result <;> simp_all [Payload.failure, BasicErrors.PositiveFailure]
   | @item address node items producer enclosing index result children located entry =>

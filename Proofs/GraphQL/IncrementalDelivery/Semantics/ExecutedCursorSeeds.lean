@@ -53,7 +53,7 @@ mutual
         · exact collectExecutionGroups_seeded schema resolvers variables fuel parentType source _
             (List.nodup_append.mp hnames).2.1  path _
         · intro work hw
-          exact runEnsures_pure _ _ ((seeded_appendWork_fields hnames hc hw).mono hwiden)
+          exact runEnsures_pure _ _ ((seeded_combineWork_fields hnames hc hw).mono hwiden)
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -90,7 +90,7 @@ mutual
           · intro work hw
             apply runEnsures_pure
             simpa only [List.flatMap_cons, List.map_append]
-              using seeded_work_append_fields hnames (hc.deferred _) hw
+              using seeded_work_combine_fields hnames (hc.executionGroup _) hw
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf

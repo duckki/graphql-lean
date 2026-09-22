@@ -104,7 +104,7 @@ theorem ResponseEventStream.Observes.split
 proof.
 -/
 theorem ExecutionResult.Observes.forgetComplete
-    {execution : ExecutionResult} {result : QueryResult} {complete : Bool}
+    {execution : ExecutionResult} {result : ExecutionObservation} {complete : Bool}
     (observed : execution.Observes result complete)
     : execution.Observes result := by
   cases execution <;> cases result <;> simp_all [Observes]
@@ -119,14 +119,15 @@ open GraphQL.IncrementalDelivery.Execution
 
 /-- Data/errors from a finite response observation, excluding notices and later payloads.
 -/
-def observedInitialResponse : QueryResult → Response
+def observedInitialResponse : ExecutionObservation → Response
   | .single response => response
   | .incremental initial _ => initial.toResponse
 
 /-- Observations keep the execution's initial envelope; witness: the equality in Observes.
 -/
-theorem observes_initialResponse {execution : ExecutionResult} {result : QueryResult}
-    {complete : Bool} (observed : execution.Observes result complete)
+theorem observes_initialResponse {execution : ExecutionResult}
+    {result : ExecutionObservation} {complete : Bool}
+    (observed : execution.Observes result complete)
     : initialResponse execution = observedInitialResponse result := by
   cases execution <;> cases result <;>
     simp_all [ExecutionResult.Observes, initialResponse, observedInitialResponse]
@@ -136,7 +137,7 @@ factory.
 -/
 theorem queryOutcome_observation {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (h : queryOutcome schema resolvers variables operation fuel source result)
     : queryObservation schema resolvers variables operation fuel source result := by
   obtain ⟨scheduler, conforms, observed⟩ := h
@@ -149,7 +150,7 @@ agree.
 theorem queryObservation_initialResponse_independent
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {first second : QueryResult} {firstComplete secondComplete : Bool}
+    {first second : ExecutionObservation} {firstComplete secondComplete : Bool}
     (left
       : queryObservation schema resolvers variables operation fuel source first
           firstComplete)

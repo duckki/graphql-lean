@@ -73,10 +73,10 @@ theorem extend_deferred_phase
       payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
-    (known : TaskAt work (.deferred address) owners producer payload)
+    (known : TaskAt work (.executionGroup address) owners producer payload)
     (ready
       : CanPublish work matching events (failedBefore failures events.length)
-          (.deferred address) producer)
+          (.executionGroup address) producer)
     (announced
       : ∃ key ∈ owners,
           key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
@@ -90,12 +90,12 @@ theorem extend_deferred_phase
     intro closed
     rcases explained.completed_accounted closed with failed | accounted
     · exact healthy failed
-    · rcases accounted (.deferred address) owners ⟨producer, payload, known⟩ member
+    · rcases accounted (.executionGroup address) owners ⟨producer, payload, known⟩ member
         with cancelled | published
       · exact ready.2.1 cancelled
       · exact ready.1 published
   cases StructuralEquivalence.taskAt_of_current known with
-  | @deferred address fragments path result children producer enclosing located =>
+  | @executionGroup address fragments path result children producer enclosing located =>
       cases result with
       | error errors =>
           obtain ⟨node, count, event, _, control, _, extended⟩ :=
@@ -107,10 +107,11 @@ theorem extend_deferred_phase
           rcases control with rfl | rfl <;> trivial
       | ok value =>
           obtain ⟨data, errors⟩ := value
-          obtain ⟨node, kind, parents, birth, nodeKnown, same⟩ := known.owner_known member
+          obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
+            known.owner_known member
           obtain ⟨owner, selected⟩ := owner_exists_of_available coherent known
-            ⟨node, ⟨kind, parents, birth, nodeKnown⟩, same ▸ member, same ▸ opened,
-              same ▸ healthy⟩
+            ⟨node, ⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
+              same ▸ opened, same ▸ healthy⟩
           exact ⟨_, _, _, explained.publish_object known ready selected, trivial⟩
 
 -----------------------------------------------------------------------------------------
@@ -128,10 +129,10 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
     (initialized : Initializes work groups streams)
     (roots
       : ∀ address owners producer payload,
-          TaskAt work (.deferred address) owners producer payload → producer = none)
+          TaskAt work (.executionGroup address) owners producer payload → producer = none)
     (covered
       : ∀ address owners producer payload,
-          TaskAt work (.deferred address) owners producer payload
+          TaskAt work (.executionGroup address) owners producer payload
           → owners ≠ [] ∧ ∀ key ∈ owners, key ∈ (groups ++ streams).map DeliveryNode.key)
     : ∃ events matching failures,
         Explains work groups streams events matching failures
@@ -141,7 +142,7 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
             ¬NodeFailed work (failures.map Prod.snd) key
             → Open ((groups ++ streams).map DeliveryNode.key) events key := by
   classical
-  have initial : Explains work groups streams [] (fun _ => .deferred []) [] :=
+  have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   obtain ⟨events, matching, failures, explained, phase, maximal⟩ :=
     initial.maximal_extension_preserving
@@ -156,7 +157,7 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
     have root := roots address owners producer payload known
     subst producer
     have ready : CanPublish work matching events (failedBefore failures events.length)
-        (.deferred address) none :=
+        (.executionGroup address) none :=
       ⟨fun published => outstanding (Or.inr published),
         fun cancelled => outstanding (Or.inl cancelled), by simp, trivial⟩
     obtain ⟨nonempty, notices⟩ := covered address owners none payload known

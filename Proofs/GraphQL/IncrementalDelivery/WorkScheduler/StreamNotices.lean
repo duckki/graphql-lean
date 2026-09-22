@@ -1,8 +1,9 @@
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeFrontiers
 import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureExtension
 
-/-! Proof-only coverage of parentless stream notices. A complete frontier on each chosen
-item publication supplies this witness; it is not a new condition on admitted histories.
+/-! Proof-only coverage of dependency-free stream notices. A complete frontier on each
+chosen item publication supplies this witness; it is not a new condition on admitted
+histories.
 -/
 
 namespace GraphQL.IncrementalDelivery.WorkScheduler
@@ -12,29 +13,31 @@ open GraphQL.IncrementalDelivery.Execution
 -- Notice coverage retained by the existential construction
 -----------------------------------------------------------------------------------------
 
-/-- Every healthy parentless stream with a published producer has already been announced.
-The matching and failure list describe the supplied output prefix, not future work.
+/-- Every healthy dependency-free stream with a published producer has already been
+announced. The matching and failure list describe the supplied output prefix, not future
+work.
 -/
-def ParentlessStreamsNotified (work : Work) (initial : Keys)
+def DependencyFreeStreamsNotified (work : Work) (initial : Keys)
     (matching : PublicationMatching) (events : List WorkEvent) (failed : List Occurrence)
     : Prop :=
   ∀ node producer,
     NodeAt work node .stream [] producer
-    → (∀ parent, producer = some parent → Published matching events parent)
+    → (∀ source, producer = some source → Published matching events source)
     → ¬NodeFailed work failed node.key
     → node.key ∈ announcedKeys initial events
 
-/-- A covering initial frontier includes every ready parentless stream. Witness:
+/-- A covering initial frontier includes every ready dependency-free stream. Witness:
 its producer publication and unconditional stream eligibility license the notice.
 -/
-theorem ParentlessStreamsNotified.initial {work} {groups streams : List DeliveryNode}
+theorem DependencyFreeStreamsNotified.initial {work} {groups streams : List DeliveryNode}
     (covers
-      : ∀ node kind parents birth,
-          NodeAt work node kind parents birth
-          → CanAnnounce work [] (fun _ => .deferred []) [] [] node kind parents birth
+      : ∀ node kind dependencies birth,
+          NodeAt work node kind dependencies birth
+          → CanAnnounce work [] (fun _ => .executionGroup []) [] [] node kind dependencies
+              birth
           → node.key ∈ (groups ++ streams).map DeliveryNode.key)
-    : ParentlessStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-        (fun _ => .deferred []) [] [] := by
+    : DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+        (fun _ => .executionGroup []) [] [] := by
   intro node producer known ready healthy
   simpa only [announcedKeys, pendingKeys, List.flatMap_nil, List.append_nil]
     using covers node .stream [] producer known
@@ -43,15 +46,15 @@ theorem ParentlessStreamsNotified.initial {work} {groups streams : List Delivery
 /-- A control event cannot create a new producer publication or healthy stream.
 Witness: invert its publication lookup and transport health to the smaller failure list.
 -/
-theorem ParentlessStreamsNotified.append_control
+theorem DependencyFreeStreamsNotified.append_control
     {work initial matching events failed more event}
-    (notified : ParentlessStreamsNotified work initial matching events failed)
+    (notified : DependencyFreeStreamsNotified work initial matching events failed)
     (control : ¬IsValue event) (included : failed ⊆ more)
-    : ParentlessStreamsNotified work initial matching (events ++ [event]) more := by
+    : DependencyFreeStreamsNotified work initial matching (events ++ [event]) more := by
   intro node producer known ready healthy
-  have earlier : ∀ parent, producer = some parent → Published matching events parent := by
-    intro parent same
-    rcases published_append_singleton_iff.mp (ready parent same) with old | new
+  have earlier : ∀ source, producer = some source → Published matching events source := by
+    intro source same
+    rcases published_append_singleton_iff.mp (ready source same) with old | new
     · exact old
     · exact False.elim (control new.1)
   have member := notified node producer known earlier
@@ -61,12 +64,13 @@ theorem ParentlessStreamsNotified.append_control
     using List.mem_append_left (eventPending event) member
 
 -----------------------------------------------------------------------------------------
--- Successful item publications install all currently ready parentless notices
+-- Successful item publications install all currently ready dependency-free notices
 -----------------------------------------------------------------------------------------
 
-/-- A stream item can publish while covering all healthy parentless streams then ready.
-Witness: the complete eligible frontier, with publication lookup unchanged by attaching
-its notices. This can introduce arbitrarily many nested stream keys on the same event.
+/-- A stream item can publish while covering all healthy dependency-free streams then
+ready. Witness: the complete eligible frontier, with publication lookup unchanged by
+attaching its notices. This can introduce arbitrarily many nested stream keys on the same
+event.
 -/
 theorem Explains.publish_item_notified
     {work groups streams events matching failures occurrence owners producer node item
@@ -83,7 +87,7 @@ theorem Explains.publish_item_notified
         Explains work groups streams
           (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
           (matchNext matching events.length occurrence) failures
-        ∧ ParentlessStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
+        ∧ DependencyFreeStreamsNotified work ((groups ++ streams).map DeliveryNode.key)
             (matchNext matching events.length occurrence)
             (events ++ [.streamValues node [{ item, errors }] newGroups newStreams])
             (failures.map Prod.snd) := by
@@ -105,8 +109,8 @@ theorem Explains.publish_item_notified
       refine ⟨?_, ?_, Or.inl rfl, ?_, Or.inl rfl⟩
       · simpa [announcedKeys, pendingKeys, eventPending] using old
       · simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)] using healthy
-      · intro parent same
-        simpa only [published_append_singleton_iff, IsValue] using produced parent same
+      · intro source same
+        simpa only [published_append_singleton_iff, IsValue] using produced source same
     have added := covers child .stream [] birth descriptor eligible
     simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
       List.flatMap_nil, List.append_nil, List.append_assoc, eventPending]

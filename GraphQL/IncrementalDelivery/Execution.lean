@@ -319,14 +319,21 @@ def getStreamUsage (variables : VariableValues)
             .ok (some { label := directiveLabel? label, initialCount := initialCount })
   | _ :: rest => getStreamUsage variables rest
 
-/-- A task may contribute to multiple fragments, but its data is delivered only once. A
-stream contains one finite completion per remaining outer-list item.
+/-- Finite resolver work retained after the initial response.
+
+A task may contribute to multiple fragments, but its data is delivered only once.
+The structural order and association of `combine` nodes remain observable through work
+addresses; `combine` therefore states neither commutativity nor associativity.
 -/
 inductive Work where
+  /-- No deferred or streamed work remains. -/
   | empty
-  | append (left right : Work)
-  | deferred (groups : List DeferredFragment) (path : ResponsePath)
+  /-- Join sibling work components without choosing their scheduling order. -/
+  | combine (left right : Work)
+  /-- One execution-group task, its contributing fragments, and nested work. -/
+  | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
     (result : Result (List (Name × ResponseValue))) (children : Work)
+  /-- One stream descriptor and the finite remaining outer-list items. -/
   | stream (node : DeliveryNode) (items : List (Result ResponseValue × Work))
 deriving Repr
 
@@ -346,7 +353,7 @@ def combine (f : α -> β -> γ) (left : Completion α) (right : Completion β)
   let result := Result.combine f left.result right.result
   match result with
   | .error errors => error errors
-  | .ok _ => { result := result, work := .append left.work right.work }
+  | .ok _ => { result := result, work := .combine left.work right.work }
 
 def map (f : α -> β) (completed : Completion α) : Completion β :=
   match completed.result with
@@ -448,7 +455,7 @@ it into response `null`.
 
 mutual
   /-- Spec `ExecuteCollectedFields`: schema lookup, ExecuteField, response-map insertion,
-  then work accumulation. Work.append represents the tasks/streams and group union.
+  then work accumulation. Work.combine represents the tasks/streams and group union.
   -/
   def executeCollectedFields (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
@@ -541,6 +548,25 @@ mutual
           path deferUsageSet deferMap allowStream
     | _ + 1, _, _ => return .error 1
 
+  /-- Spec `CompleteListValue`: complete each indexed item and accumulate values/work.
+  index makes the spec's loop counter explicit; normal list completion starts at 0.
+  -/
+  def completeListValue (schema : Schema) (resolvers : Resolvers ObjectRef)
+      (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
+      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (path : ResponsePath) (index : Nat) (deferUsageSet : List Nat) (deferMap : DeferMap)
+      : StateM Nat (Completion (List ResponseValue)) := do
+    match values with
+    | [] => return .pure []
+    | value :: rest =>
+        let head ←
+          completeValue schema resolvers variables fuel itemType fields value
+            (path ++ [.index index]) deferUsageSet deferMap false
+        let tail ←
+          completeListValue schema resolvers variables fuel itemType fields rest
+            path (index + 1) deferUsageSet deferMap
+        return Completion.combine List.cons head tail
+
   /-- Model extension: the pinned CompleteListValue has no @stream hook. Keep this
   extension distinct from that algorithm. Only the outermost list is eligible; nested list
   wrappers complete synchronously. Reaching initialCount creates a stream boundary even
@@ -585,28 +611,9 @@ mutual
             return {
               completed with
                 work :=
-                  .append completed.work
+                  .combine completed.work
                     (.stream { key := key, path := path, label := usage.label } items)
             }
-
-  /-- Spec `CompleteListValue`: complete each indexed item and accumulate values/work.
-  index makes the spec's loop counter explicit; normal list completion starts at 0.
-  -/
-  def completeListValue (schema : Schema) (resolvers : Resolvers ObjectRef)
-      (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
-      (path : ResponsePath) (index : Nat) (deferUsageSet : List Nat) (deferMap : DeferMap)
-      : StateM Nat (Completion (List ResponseValue)) := do
-    match values with
-    | [] => return .pure []
-    | value :: rest =>
-        let head ←
-          completeValue schema resolvers variables fuel itemType fields value
-            (path ++ [.index index]) deferUsageSet deferMap false
-        let tail ←
-          completeListValue schema resolvers variables fuel itemType fields rest
-            path (index + 1) deferUsageSet deferMap
-        return Completion.combine List.cons head tail
 
   /-- Model helper: finite outcomes for the remaining streamed items, each with its own
   completion boundary. The pinned draft gives no algorithm for this step.
@@ -652,7 +659,7 @@ mutual
         let tasks ←
           collectExecutionGroups schema resolvers variables fuel parentType source
             executionPlan.newCollectedFieldsMaps path newMap
-        return { initial with work := .append initial.work tasks }
+        return { initial with work := .combine initial.work tasks }
 
   /-- Spec `CollectExecutionGroups`: look up owners, construct each execution task, and
   retain it. Finite pure outcomes replace the spec's future computation.
@@ -673,7 +680,7 @@ mutual
         let tail ←
           collectExecutionGroups schema resolvers variables fuel parentType source rest
             path deferMap
-        return .append (.deferred groups path completed.result completed.work) tail
+        return .combine (.executionGroup groups path completed.result completed.work) tail
 
   /-- Spec `ExecuteExecutionGroup`. Deferred errors remain in the task result until its
   delivery boundary is processed.
@@ -689,59 +696,20 @@ mutual
 end
 
 -----------------------------------------------------------------------------------------
--- Opaque event source helpers
+-- Work events
 -----------------------------------------------------------------------------------------
 
-/-- An opaque source language and its observed prefix, not a preselected future trace.
-This state is intentionally partial: many next values may be admissible. Hidden task state
-is existential in the semantic contract, never supplied to the response mapper.
-Observations are finite and single-threaded; host waiting is not an emitted value.
+/-! Executable work count, independent of any scheduling policy.
+
+`combine` contributes no work record of its own; only execution-group tasks, stream
+descriptors, and remaining stream items contribute to the count.
 -/
-structure EventSource (α : Type) where
-  admissible : List α → Prop
-  finished : List α → Prop
-  history : List α := []
-
-/-- Every intermediate prefix must be allowed, including when several source values are
-aggregated into one response. No result being available does not imply finished.
--/
-def EventSource.Allows (source : EventSource α) (values : List α) : Prop :=
-  ∀ initial, initial.IsPrefix values → source.admissible (source.history ++ initial)
-
-def EventSource.advance (source : EventSource α) (values : List α) : EventSource α :=
-  { source with history := source.history ++ values }
-
-def EventSource.IsFinished (source : EventSource α) : Prop :=
-  source.finished source.history
-
-/-- A fixed finite source is useful for fixtures/replay, but is not the query default. -/
-def EventSource.ofList (values : List α) : EventSource α :=
-  { admissible := (·.IsPrefix values), finished := (· = values) }
-
-/-- Available source events grouped for one-at-a-time aggregated observation. Groups are
-nonempty and ordered; every intermediate source prefix must remain admissible. This starts
-at the source's current history, not at the beginning of a consumed source.
--/
-def EventSource.batch (source : EventSource α) : EventSource (List α) :=
-  let admitted :=
-    fun groups : List (List α) =>
-      (∀ group ∈ groups, group ≠ []) ∧ source.Allows groups.flatten
-  {
-    admissible := admitted,
-    finished := fun groups => admitted groups ∧ (source.advance groups.flatten).IsFinished
-  }
-
------------------------------------------------------------------------------------------
--- Abstract work streams and responses
------------------------------------------------------------------------------------------
-
-/-! Structural size of finite resolver work, independent of any scheduling policy. -/
 
 mutual
   def Work.size : Work → Nat
     | .empty => 0
-    | .append left right => left.size + right.size
-    | .deferred _ _ _ children => 1 + children.size
+    | .combine left right => left.size + right.size
+    | .executionGroup _ _ _ children => 1 + children.size
     | .stream _ items => 1 + Work.itemsSize items
 
   def Work.itemsSize : List (Result ResponseValue × Work) → Nat
@@ -808,61 +776,51 @@ inductive WorkEvent where
 deriving Repr
 
 -----------------------------------------------------------------------------------------
--- Normalizing implementation-specific publication owners
+-- Opaque event source helpers
 -----------------------------------------------------------------------------------------
 
-/-- A raw shared-task value retains its contributing groups until publication ownership
-is selected. This adapter input is not an additional pinned-spec record.
+/-- An opaque source language and its observed prefix, not a preselected future trace.
+This state is intentionally partial: many next values may be admissible. Hidden task state
+is existential in the semantic contract, never supplied to the response mapper.
+Observations are finite and single-threaded; host waiting is not an emitted value.
 -/
-structure SharedGroupValue where
-  value : GroupValue
-  contributors : List DeliveryNode
-deriving Repr
+structure EventSource (α : Type) where
+  admissible : List α → Prop
+  finished : List α → Prop
+  history : List α := []
 
-/-- Select a longest-path open contributor, starting with an open contributing provisional
-owner. Strict improvement preserves that owner on ties, then the first longer candidate.
-This non-spec adapter models publisher-side selection without allocating wire IDs.
+/-- Every intermediate prefix must be allowed, including when several source values are
+aggregated into one response. No result being available does not imply finished.
 -/
-def selectGroupOwner (openKeys : List Nat) (provisional : DeliveryNode)
-    : List DeliveryNode → DeliveryNode
-  | [] => provisional
-  | candidate :: rest =>
-      let selected :=
-        if candidate.key ∈ openKeys ∧ provisional.path.length < candidate.path.length then
-          candidate
-        else
-          provisional
-      selectGroupOwner openKeys selected rest
+def EventSource.Allows (source : EventSource α) (values : List α) : Prop :=
+  ∀ initial, initial.IsPrefix values → source.admissible (source.history ++ initial)
 
-/-- Project a raw GROUP_VALUES event to spec-facing publications. Different shared values
-may select different owners, so each becomes one event in the same work batch. Payloads,
-errors, and value order are unchanged; this step emits no notices or completions. Other
-queue events pass through unchanged. Open keys must reflect the preceding events, including
-earlier events in the same batch. Admission still checks provenance and accounting.
--/
-def normalizeGroupValues (openKeys : List Nat) (provisional : DeliveryNode)
-    (values : List SharedGroupValue)
-    : List WorkEvent :=
-  values.map
-    fun shared =>
-      .groupValues (selectGroupOwner openKeys provisional shared.contributors)
-        [shared.value]
+def EventSource.advance (source : EventSource α) (values : List α) : EventSource α :=
+  { source with history := source.history ++ values }
 
-/-- Spec CreateWorkQueue's result at the normalized, spec-facing event boundary. A concrete
-implementation may compose a raw queue with publisher-side owner selection to supply it.
-Its implementation is deliberately absent; raw queue events need not conform directly.
--/
-structure WorkQueueResult where
-  initialGroups : List DeliveryNode
-  initialStreams : List DeliveryNode
-  workEventStream : EventSource (List WorkEvent)
+def EventSource.IsFinished (source : EventSource α) : Prop :=
+  source.finished source.history
 
-/-- The implementation of CreateWorkQueue is an explicit parameter, not a program
-instruction. Initialization supplies notices and a source, without selecting its future
-batches. The conformance contract lives in WorkScheduler.lean.
+/-- A fixed finite source is useful for fixtures/replay, but is not the query default. -/
+def EventSource.ofList (values : List α) : EventSource α :=
+  { admissible := (·.IsPrefix values), finished := (· = values) }
+
+/-- Available source events grouped for one-at-a-time aggregated observation. Groups are
+nonempty and ordered; every intermediate source prefix must remain admissible. This starts
+at the source's current history, not at the beginning of a consumed source.
 -/
-structure WorkScheduler where
-  createWorkQueue : Work → WorkQueueResult
+def EventSource.batch (source : EventSource α) : EventSource (List α) :=
+  let admitted :=
+    fun groups : List (List α) =>
+      (∀ group ∈ groups, group ≠ []) ∧ source.Allows groups.flatten
+  {
+    admissible := admitted,
+    finished := fun groups => admitted groups ∧ (source.advance groups.flatten).IsFinished
+  }
+
+-----------------------------------------------------------------------------------------
+-- Processing work queue outputs and yielding batched results
+-----------------------------------------------------------------------------------------
 
 /-- Only the response mapper owns wire identity. Scheduler implementations cannot allocate
 IDs, inspect the ID supply, or manufacture response entries.
@@ -994,30 +952,21 @@ def batchIncrementalResults (updates : ResponseEventStream) : ResponseEventStrea
         return combineIncrementalResults results
   }
 
-/-- An observation supplies one input to this stage. For a batched stream, that input is
-itself a nonempty available group. Admission belongs to the upstream source.
+/-- Spec CreateWorkQueue's result at the normalized, spec-facing event boundary. A concrete
+implementation may compose a raw queue with publisher-side owner selection to supply it.
+Its implementation is deliberately absent; raw queue events need not conform directly.
 -/
-def ResponseEventStream.Accepts (stream : ResponseEventStream) (input : stream.Input)
-    : Prop :=
-  stream.source.Allows [input]
+structure WorkQueueResult where
+  initialGroups : List DeliveryNode
+  initialStreams : List DeliveryNode
+  workEventStream : EventSource (List WorkEvent)
 
-/-- Deterministic state update after an admissible observation. This does not choose what
-becomes available next; several inputs may satisfy Accepts at the same state.
+/-- The implementation of CreateWorkQueue is an explicit parameter, not a program
+instruction. Initialization supplies notices and a source, without selecting its future
+batches. The conformance contract lives in WorkScheduler.lean.
 -/
-def ResponseEventStream.next (stream : ResponseEventStream) (input : stream.Input)
-    (_allowed : stream.Accepts input)
-    : IncrementalStreamUpdateResult × ResponseEventStream :=
-  let result := (stream.mapEvent input).run stream.ids
-  (result.1, { stream with source := stream.source.advance [input], ids := result.2 })
-
-/-- Generalized return type of query execution: ordinary Response or incremental stream.
-This model name is broader than Section 7's ordinary "execution result" map. Subscription
-streams and request-error results remain out of scope.
--/
-inductive ExecutionResult where
-  | single (response : Response)
-  | incremental (initial : InitialIncrementalStreamResult)
-    (subsequent : ResponseEventStream)
+structure WorkScheduler where
+  createWorkQueue : Work → WorkQueueResult
 
 /-- Spec YieldIncrementalResults projected to its first result and resumable remainder.
 Initialization abstracts waiting for that first result; no future batch is consumed.
@@ -1053,6 +1002,15 @@ def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectR
   let executionPlan := buildExecutionPlan collected.fields
   executeExecutionPlan schema resolvers variableValues fuel parentType source
     collected.newDeferUsages executionPlan
+
+/-- Generalized return type of query execution: ordinary Response or incremental stream.
+This model name is broader than Section 7's ordinary "execution result" map. Subscription
+streams and request-error results remain out of scope.
+-/
+inductive ExecutionResult where
+  | single (response : Response)
+  | incremental (initial : InitialIncrementalStreamResult)
+    (subsequent : ResponseEventStream)
 
 /-- Spec 6.3.1 `ExecuteRootSelectionSet` in the model's query-only execution mode. Return
 either the ordinary response or the first incremental payload and suspended stream. The

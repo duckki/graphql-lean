@@ -50,16 +50,16 @@ theorem sourceTasks_known {root address work producer owners}
         TaskAt root task.occurrence taskOwners task.producer task.payload := by
   cases work with
   | empty => simp [sourceTasks] at member
-  | append left right =>
+  | combine left right =>
       rw [sourceTasks] at member
       rcases List.mem_append.mp member with member | member
       · exact sourceTasks_known (.left located) cursors member
       · exact sourceTasks_known (.right located) cursors member
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       rw [sourceTasks] at member
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨_, .deferred located⟩
-      · exact sourceTasks_known (.deferred located) _ member
+      · exact ⟨_, .executionGroup located⟩
+      · exact sourceTasks_known (.executionGroup located) _ member
   | stream node items =>
       obtain ⟨offset, result, children, entry, selected⟩ := sourceItemTasks_member member
       simp only [Nat.zero_add] at selected

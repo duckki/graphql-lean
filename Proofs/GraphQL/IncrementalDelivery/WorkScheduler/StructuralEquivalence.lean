@@ -30,15 +30,16 @@ producer is its generating task (none at the root), and owners are enclosing def
 inductive Located (root : Work) : Address → Work → Option Occurrence → Keys → Prop where
   | root : Located root [] root none []
   | left {address left right producer owners}
-    (located : Located root address (.append left right) producer owners)
+    (located : Located root address (.combine left right) producer owners)
     : Located root (address ++ [0]) left producer owners
   | right {address left right producer owners}
-    (located : Located root address (.append left right) producer owners)
+    (located : Located root address (.combine left right) producer owners)
     : Located root (address ++ [1]) right producer owners
-  | deferred {address groups path result children producer owners}
+  | executionGroup {address groups path result children producer owners}
     (located
-      : Located root address (.deferred groups path result children) producer owners)
-    : Located root (address ++ [0]) children (some (.deferred address))
+      : Located root address (.executionGroup groups path result children) producer
+          owners)
+    : Located root (address ++ [0]) children (some (.executionGroup address))
         (groups.map (fun group => group.node.key))
   | item {address node items producer owners index result children}
     (located : Located root address (.stream node items) producer owners)
@@ -51,25 +52,27 @@ payload.
 -/
 inductive TaskAt (work : Work)
     : Occurrence → Keys → Option Occurrence → Payload → Prop where
-  | deferred {address groups path result children producer owners}
+  | executionGroup {address groups path result children producer owners}
     (located
-      : Located work address (.deferred groups path result children) producer owners)
-    : TaskAt work (.deferred address) (groups.map (fun group => group.node.key))
+      : Located work address (.executionGroup groups path result children) producer
+          owners)
+    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.key))
         producer (.object path result)
   | item {address node items producer owners index result children}
     (located : Located work address (.stream node items) producer owners)
     (entry : items[index]? = some (result, children))
     : TaskAt work (.item address index) [node.key] producer (.item node result)
 
-/-- (NodeAt work node kind parents birth) identifies node's metadata in work: kind is
-defer/stream, parents are ancestor or enclosing-owner keys, and birth is its optional
+/-- (NodeAt work node kind dependencies birth) identifies node's metadata in work: kind is
+defer/stream, dependencies are ancestor or enclosing-owner keys, and birth is its optional
 producer occurrence.
 -/
 inductive NodeAt (work : Work)
     : DeliveryNode → NodeKind → Keys → Option Occurrence → Prop where
   | group {address groups path result children producer owners group}
     (located
-      : Located work address (.deferred groups path result children) producer owners)
+      : Located work address (.executionGroup groups path result children) producer
+          owners)
     (member : group ∈ groups)
     : NodeAt work group.node .group (group.ancestors.map DeliveryNode.key) producer
   | stream {address node items producer owners}
@@ -83,7 +86,7 @@ theorem Located.child {root address current producer owners index next}
     : Located root (address ++ [index]) next.current next.producer next.owners := by
   cases current with
   | empty => simp [WorkLocation.child?] at step
-  | append left right =>
+  | combine left right =>
       cases index with
       | zero =>
           simp [WorkLocation.child?] at step
@@ -96,12 +99,12 @@ theorem Located.child {root address current producer owners index next}
               subst next
               exact .right h
           | succ index => simp [WorkLocation.child?] at step
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       cases index with
       | zero =>
           simp [WorkLocation.child?] at step
           subst next
-          exact .deferred h
+          exact .executionGroup h
       | succ index => simp [WorkLocation.child?] at step
   | stream node items =>
       simp only [WorkLocation.child?, Option.map_eq_some_iff] at step
@@ -115,7 +118,7 @@ theorem Located.toCurrent {root address current producer owners}
     : WorkScheduler.Located root address current producer owners := by
   induction h with
   | root => rfl
-  | left _ ih | right _ ih | deferred _ ih =>
+  | left _ ih | right _ ih | executionGroup _ ih =>
       unfold WorkScheduler.Located at ih ⊢
       simp [locateWork_snoc, ih, WorkLocation.child?]
   | item _ entry ih =>
@@ -156,7 +159,7 @@ theorem TaskAt.toCurrent {work occurrence owners producer payload}
     (h : TaskAt work occurrence owners producer payload)
     : WorkScheduler.TaskAt work occurrence owners producer payload := by
   cases h with
-  | deferred located => exact ⟨_, _, _, _, _, located.toCurrent, rfl, rfl⟩
+  | executionGroup located => exact ⟨_, _, _, _, _, located.toCurrent, rfl, rfl⟩
   | item located entry => exact ⟨_, _, _, _, _, located.toCurrent, entry, rfl, rfl⟩
 
 /-- The functional task predicate recovers a former witness by occurrence case analysis.
@@ -165,9 +168,9 @@ theorem taskAt_of_current {work occurrence owners producer payload}
     (h : WorkScheduler.TaskAt work occurrence owners producer payload)
     : TaskAt work occurrence owners producer payload := by
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := h
-      exact .deferred (located_of_current located)
+      exact .executionGroup (located_of_current located)
   | item address index =>
       obtain ⟨node, items, enclosing, result, children, located, entry, rfl, rfl⟩ := h
       exact .item (located_of_current located) entry
@@ -179,18 +182,18 @@ theorem taskAt_iff {work occurrence owners producer payload}
   ⟨TaskAt.toCurrent, taskAt_of_current⟩
 
 /-- Former node descriptors remain witnesses of the existential location predicate. -/
-theorem NodeAt.toCurrent {work node kind parents birth}
-    (h : NodeAt work node kind parents birth)
-    : WorkScheduler.NodeAt work node kind parents birth := by
+theorem NodeAt.toCurrent {work node kind dependencies birth}
+    (h : NodeAt work node kind dependencies birth)
+    : WorkScheduler.NodeAt work node kind dependencies birth := by
   cases h with
   | group located member =>
       exact ⟨_, _, _, _, _, _, _, located.toCurrent, member, rfl, rfl⟩
   | stream located => exact ⟨_, _, located.toCurrent⟩
 
 /-- Each lookup-based descriptor recovers a former witness, without deduplicating keys. -/
-theorem nodeAt_of_current {work node kind parents birth}
-    (h : WorkScheduler.NodeAt work node kind parents birth)
-    : NodeAt work node kind parents birth := by
+theorem nodeAt_of_current {work node kind dependencies birth}
+    (h : WorkScheduler.NodeAt work node kind dependencies birth)
+    : NodeAt work node kind dependencies birth := by
   cases kind with
   | group =>
       obtain ⟨address, groups, path, result, children, enclosing, group,
@@ -201,9 +204,9 @@ theorem nodeAt_of_current {work node kind parents birth}
       exact .stream (located_of_current located)
 
 /-- Every node occurrence and its metadata is preserved, even when keys repeat. -/
-theorem nodeAt_iff {work node kind parents birth}
-    : NodeAt work node kind parents birth
-      ↔ WorkScheduler.NodeAt work node kind parents birth :=
+theorem nodeAt_iff {work node kind dependencies birth}
+    : NodeAt work node kind dependencies birth
+      ↔ WorkScheduler.NodeAt work node kind dependencies birth :=
   ⟨NodeAt.toCurrent, nodeAt_of_current⟩
 
 end StructuralEquivalence
@@ -211,26 +214,29 @@ end StructuralEquivalence
 /-- Root lookup retains the initial context; witness: computation. -/
 theorem Located.root {root} : Located root [] root none [] := rfl
 
-/-- Append-left lookup preserves context; witness: final-edge computation. -/
+/-- Combine-left lookup preserves context; witness: final-edge computation. -/
 theorem Located.left {root address left right producer owners}
-    (h : Located root address (.append left right) producer owners)
+    (h : Located root address (.combine left right) producer owners)
     : Located root (address ++ [0]) left producer owners :=
   (StructuralEquivalence.Located.left
     (StructuralEquivalence.located_of_current h)).toCurrent
 
-/-- Append-right lookup preserves context; witness: final-edge computation. -/
+/-- Combine-right lookup preserves context; witness: final-edge computation. -/
 theorem Located.right {root address left right producer owners}
-    (h : Located root address (.append left right) producer owners)
+    (h : Located root address (.combine left right) producer owners)
     : Located root (address ++ [1]) right producer owners :=
   (StructuralEquivalence.Located.right
     (StructuralEquivalence.located_of_current h)).toCurrent
 
-/-- Defer-child lookup records its actual producer and owners; witness: navigation. -/
-theorem Located.deferred {root address groups path result children producer owners}
-    (h : Located root address (.deferred groups path result children) producer owners)
-    : Located root (address ++ [0]) children (some (.deferred address))
+/-- Execution-group child lookup records its actual producer and owners; witness:
+navigation. -/
+theorem Located.executionGroup {root address groups path result children producer owners}
+    (h
+      : Located root address (.executionGroup groups path result children) producer
+          owners)
+    : Located root (address ++ [0]) children (some (.executionGroup address))
         (groups.map (fun group => group.node.key)) :=
-  (StructuralEquivalence.Located.deferred
+  (StructuralEquivalence.Located.executionGroup
     (StructuralEquivalence.located_of_current h)).toCurrent
 
 /-- Item-child lookup records the indexed producer; witness: the selected list entry. -/
@@ -241,11 +247,13 @@ theorem Located.item {root address node items producer owners index result child
   (StructuralEquivalence.Located.item
     (StructuralEquivalence.located_of_current h) entry).toCurrent
 
-/-- A located defer gives its task descriptor; witness: existential introduction. -/
-theorem TaskAt.deferred {work address groups path result children producer owners}
+/-- A located execution group gives its task descriptor; witness: existential
+introduction. -/
+theorem TaskAt.executionGroup {work address groups path result children producer owners}
     (located
-      : Located work address (.deferred groups path result children) producer owners)
-    : TaskAt work (.deferred address) (groups.map (fun group => group.node.key))
+      : Located work address (.executionGroup groups path result children) producer
+          owners)
+    : TaskAt work (.executionGroup address) (groups.map (fun group => group.node.key))
         producer (.object path result) :=
   ⟨_, _, _, _, _, located, rfl, rfl⟩
 
@@ -260,7 +268,8 @@ theorem TaskAt.item {work address node items producer owners index result childr
 -/
 theorem NodeAt.group {work address groups path result children producer owners group}
     (located
-      : Located work address (.deferred groups path result children) producer owners)
+      : Located work address (.executionGroup groups path result children) producer
+          owners)
     (member : group ∈ groups)
     : NodeAt work group.node .group (group.ancestors.map DeliveryNode.key) producer :=
   ⟨_, _, _, _, _, _, _, located, member, rfl, rfl⟩

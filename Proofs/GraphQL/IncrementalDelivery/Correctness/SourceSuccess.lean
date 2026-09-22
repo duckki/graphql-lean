@@ -59,13 +59,13 @@ theorem located_workSuccess {root address work producer owners}
     : SourceReconstruction.WorkSuccess work := by
   cases work with
   | empty => trivial
-  | append left right =>
+  | combine left right =>
       exact ⟨located_workSuccess (.left located) all,
         located_workSuccess (.right located) all⟩
-  | deferred groups path result children =>
-      have success := all _ _ _ _ (.deferred located)
+  | executionGroup groups path result children =>
+      have success := all _ _ _ _ (.executionGroup located)
       exact ⟨object_payload_success success.1 success.2,
-        located_workSuccess (.deferred located) all⟩
+        located_workSuccess (.executionGroup located) all⟩
   | stream node items =>
       apply itemsSuccess_of_forall
       intro entry member

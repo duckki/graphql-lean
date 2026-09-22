@@ -14,8 +14,8 @@ open WorkScheduler
 -/
 def Tree : Work → Prop
   | .empty => True
-  | .append left right => Tree left ∧ Tree right
-  | .deferred groups _ _ children => (∃ group, groups = [group]) ∧ Tree children
+  | .combine left right => Tree left ∧ Tree right
+  | .executionGroup groups _ _ children => (∃ group, groups = [group]) ∧ Tree children
   | .stream .. => False
 
 /-- Structural lookup preserves the test certificate, by navigation induction. -/
@@ -27,7 +27,7 @@ theorem Tree.located {work address current producer owners}
   induction navigation with
   | root => exact shape
   | left _ ih => exact ih.1
-  | right _ ih | deferred _ ih => exact ih.2
+  | right _ ih | executionGroup _ ih => exact ih.2
   | item _ _ ih => exact False.elim ih
 
 /-- The recursive test certificate implies the relational singleton-defer shape.
@@ -41,7 +41,7 @@ theorem Tree.singleton_defer {work} (shape : Tree work) : SingletonDefer work :=
     | stream located => exact False.elim (shape.located located.toCurrent)
   · intro occurrence owners producer payload known
     cases StructuralEquivalence.taskAt_of_current known with
-    | deferred located =>
+    | executionGroup located =>
         obtain ⟨⟨group, same⟩, _⟩ := shape.located located.toCurrent
         exact ⟨group.node.key, by simp [same]⟩
     | item located _ => exact False.elim (shape.located located.toCurrent)
@@ -53,8 +53,8 @@ def node (key : Nat) : DeliveryNode := { key, path := [] }
 Both fixed outcomes are arbitrary, including raw zero-count failures.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .deferred [{ node := node 0 }] [] first
-    (.deferred [{ node := node 1, ancestors := [node 0] }] [] second .empty)
+  .executionGroup [{ node := node 0 }] [] first
+    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty)
 
 /-- The nested task's owner inherits key zero as its strict ancestor. -/
 def ancestors (key : Nat) : Keys := if key = 1 then [0] else []
@@ -63,15 +63,15 @@ def ancestors (key : Nat) : Keys := if key = 1 then [0] else []
 Witness: the general nested cancellation lemma with explicit fixture metadata.
 -/
 example (first second : Result (List (Name × ResponseValue))) (failed : List Occurrence)
-    (cancelled : TaskCancelled (work first second) failed (.deferred [0]))
+    (cancelled : TaskCancelled (work first second) failed (.executionGroup [0]))
     : NodeFailed (work first second) failed 1 := by
   apply SingletonDefer.cancelled_owner_failed (parents := ancestors) (bound := 2)
-    (producer := some (.deferred [])) (payload := .object [] second)
+    (producer := some (.executionGroup [])) (payload := .object [] second)
     (Tree.singleton_defer (by simp [Tree, work]))
   · simp [work, MixedKeys.WorkAt, FragmentAt, node, ancestors]
   · simp [work, DeferContinuous, DeferUnder, Descends, mapKeys, node, ancestors]
   · simp [work, StreamOwnersOrdered, OwnersBefore]
-  · exact TaskAt.deferred (.deferred .root)
+  · exact TaskAt.executionGroup (.executionGroup .root)
   · exact cancelled
 
 -----------------------------------------------------------------------------------------
@@ -101,8 +101,8 @@ theorem nested_run_exists (first second : Result (List (Name × ResponseValue)))
 
 /-- A produced child can reuse its producer's owner, repeating that node descriptor. -/
 def reused (first second : Result (List (Name × ResponseValue))) : Work :=
-  .deferred [{ node := node 0 }] [] first
-    (.deferred [{ node := node 0 }] [] second .empty)
+  .executionGroup [{ node := node 0 }] [] first
+    (.executionGroup [{ node := node 0 }] [] second .empty)
 
 /-- Repeated owner descriptors do not block nested progress. Witness: the same theorem
 with empty ancestry; both tasks must be accounted for before their shared ID closes.
@@ -125,7 +125,7 @@ realization; the mapper and response batching remain the actual implementation.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (work first second)
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=

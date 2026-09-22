@@ -19,7 +19,7 @@ def eventNodes : WorkEvent → List DeliveryNode
 
 /-- A descriptor is backed by some structural work occurrence, without deduplication. -/
 def KnownNode (work : Work) (node : DeliveryNode) : Prop :=
-  ∃ kind parents birth, NodeAt work node kind parents birth
+  ∃ kind dependencies producer, NodeAt work node kind dependencies producer
 
 /-- Licensed announcements contain only work descriptors, by their structural premises.
 -/
@@ -28,10 +28,10 @@ theorem announcement_nodes {work initial matching events failed groups streams}
     : ∀ node ∈ groups ++ streams, KnownNode work node := by
   intro node member
   rcases List.mem_append.mp member with group | stream
-  · obtain ⟨parents, birth, known, _⟩ := announced.2.1 node group
-    exact ⟨.group, parents, birth, known⟩
-  · obtain ⟨parents, birth, known, _⟩ := announced.2.2 node stream
-    exact ⟨.stream, parents, birth, known⟩
+  · obtain ⟨dependencies, producer, known, _⟩ := announced.2.1 node group
+    exact ⟨.group, dependencies, producer, known⟩
+  · obtain ⟨dependencies, producer, known, _⟩ := announced.2.2 node stream
+    exact ⟨.stream, dependencies, producer, known⟩
 
 /-- Atomic events contain only known descriptors, by owner and announcement rules. -/
 theorem event_allowed_nodes {work initial matching before failed event}
@@ -42,14 +42,15 @@ theorem event_allowed_nodes {work initial matching before failed event}
       obtain ⟨_, _, _, _, _, _, _, _, owner⟩ := allowed
       simpa [eventNodes, KnownNode] using owner.1.1
   | groupSuccess node groups streams =>
-      obtain ⟨⟨parents, birth, known⟩, _, _, _, announced⟩ := allowed
+      obtain ⟨⟨dependencies, producer, known⟩, _, _, _, announced⟩ := allowed
       intro other member
       rcases List.mem_cons.mp member with rfl | member
-      · exact ⟨.group, parents, birth, known⟩
+      · exact ⟨.group, dependencies, producer, known⟩
       · exact announcement_nodes announced other member
   | groupFailure node errors =>
-      obtain ⟨⟨parents, birth, known⟩, _⟩ := allowed
-      simpa [eventNodes] using (show KnownNode work node from ⟨.group, parents, birth, known⟩)
+      obtain ⟨⟨dependencies, producer, known⟩, _⟩ := allowed
+      simpa [eventNodes]
+        using (show KnownNode work node from ⟨.group, dependencies, producer, known⟩)
   | streamValues node values groups streams =>
       obtain ⟨_, _, _, _, _, _, _, owner, announced⟩ := allowed
       intro other member
@@ -57,8 +58,9 @@ theorem event_allowed_nodes {work initial matching before failed event}
       · exact owner.1.1
       · exact announcement_nodes announced other member
   | streamSuccess node | streamFailure node errors =>
-      obtain ⟨⟨parents, birth, known⟩, _⟩ := allowed
-      simpa [eventNodes] using (show KnownNode work node from ⟨.stream, parents, birth, known⟩)
+      obtain ⟨⟨dependencies, producer, known⟩, _⟩ := allowed
+      simpa [eventNodes]
+        using (show KnownNode work node from ⟨.stream, dependencies, producer, known⟩)
   | workQueueTermination => cases allowed
 
 /-- Compatible value combination cannot invent a descriptor; witness: its two cases.
@@ -122,7 +124,7 @@ theorem history_node_paths {paths bound work history}
       ∧ ∀ node ∈ history.batches.flatten.flatMap eventNodes,
           paths node.key = node.path := by
   have fromKnown {node} (known : KnownNode work node) : paths node.key = node.path := by
-    obtain ⟨kind, parents, birth, known⟩ := known
+    obtain ⟨kind, dependencies, producer, known⟩ := known
     exact (workAt_node coherent known).2
   rcases admitted with ⟨events, matching, failures, explained, grouped⟩
     | ⟨events, matching, failures, explained, _, grouped⟩

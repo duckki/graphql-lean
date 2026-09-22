@@ -34,7 +34,8 @@ deriving Repr, BEq, DecidableEq
 
 /-- Addresses are structural positions in Work, not allocated scheduler task IDs. -/
 inductive Occurrence where
-  | deferred (address : Address)
+  /-- One execution-group task from the spec's `Work.tasks` collection. -/
+  | executionGroup (address : Address)
   | item (address : Address) (index : Nat)
 deriving Repr, BEq, DecidableEq
 
@@ -57,10 +58,15 @@ structure WorkLocation where
 def WorkLocation.child? (location : WorkLocation) (address : Address) (index : Nat)
     : Option WorkLocation :=
   match location.current, index with
-  | .append left _, 0 => some { location with current := left }
-  | .append _ right, 1 => some { location with current := right }
-  | .deferred groups _ _ children, 0 =>
-      some ⟨children, some (.deferred address), groups.map (fun group => group.node.key)⟩
+  | .combine left _, 0 => some { location with current := left }
+  | .combine _ right, 1 => some { location with current := right }
+  | .executionGroup groups _ _ children, 0 =>
+      some
+        ⟨
+          children,
+          some (.executionGroup address),
+          groups.map (fun group => group.node.key)
+        ⟩
   | .stream _ items, index =>
       items[index]?.map (fun entry => ⟨entry.2, some (.item address index), []⟩)
   | _, _ => none
@@ -89,9 +95,10 @@ def TaskAt (work : Work) (occurrence : Occurrence) (owners : Keys)
     (producer : Option Occurrence) (payload : Payload)
     : Prop :=
   match occurrence with
-  | .deferred address =>
+  | .executionGroup address =>
       ∃ groups path result children enclosing,
-        Located work address (.deferred groups path result children) producer enclosing
+        Located work address (.executionGroup groups path result children) producer
+          enclosing
         ∧ owners = groups.map (fun group => group.node.key)
         ∧ payload = .object path result
   | .item address index =>
@@ -101,19 +108,23 @@ def TaskAt (work : Work) (occurrence : Occurrence) (owners : Keys)
         ∧ owners = [node.key]
         ∧ payload = .item node result
 
-/-- Some location contains this node descriptor. Repeated keys retain every descriptor.
+/-- Some location contains this node descriptor. Dependencies are defer ancestors for a
+group and enclosing defer owners for a stream; they are never structural producers.
+Repeated keys retain every descriptor.
 -/
-def NodeAt (work : Work) (node : DeliveryNode) (kind : NodeKind) (parents : Keys)
-    (birth : Option Occurrence)
+def NodeAt (work : Work) (node : DeliveryNode) (kind : NodeKind) (dependencies : Keys)
+    (producer : Option Occurrence)
     : Prop :=
   match kind with
   | .group =>
       ∃ address groups path result children enclosing group,
-        Located work address (.deferred groups path result children) birth enclosing
+        Located work address (.executionGroup groups path result children) producer
+          enclosing
         ∧ group ∈ groups
         ∧ node = group.node
-        ∧ parents = group.ancestors.map DeliveryNode.key
-  | .stream => ∃ address items, Located work address (.stream node items) birth parents
+        ∧ dependencies = group.ancestors.map DeliveryNode.key
+  | .stream =>
+      ∃ address items, Located work address (.stream node items) producer dependencies
 
 /-- The task has exactly this list of contributing owner keys. -/
 def TaskHasOwners (work : Work) (occurrence : Occurrence) (owners : Keys) : Prop :=
@@ -129,20 +140,22 @@ def TaskSucceeds (work : Work) (occurrence : Occurrence) : Prop :=
   ∃ owners producer payload,
     TaskAt work occurrence owners producer payload ∧ payload.failure = none
 
-/-- Some descriptor with this key and kind has these dependency keys. -/
-def NodeHasParents (work : Work) (key : Nat) (kind : NodeKind) (parents : Keys) : Prop :=
-  ∃ node birth, NodeAt work node kind parents birth ∧ node.key = key
+/-- Some descriptor with this key and kind has these release dependencies. -/
+def NodeHasDependencies (work : Work) (key : Nat) (kind : NodeKind) (dependencies : Keys)
+    : Prop :=
+  ∃ node producer, NodeAt work node kind dependencies producer ∧ node.key = key
 
 /-- Some descriptor with this key has this producer; repeated descriptors are retained. -/
 def NodeHasProducer (work : Work) (key : Nat) (producer : Option Occurrence) : Prop :=
-  ∃ node kind parents, NodeAt work node kind parents producer ∧ node.key = key
+  ∃ node kind dependencies, NodeAt work node kind dependencies producer ∧ node.key = key
 
 /-- (Reachable work occurrence) derives a successful producer chain for the occurrence. -/
 inductive Reachable (work : Work) : Occurrence → Prop where
   | root {occurrence} (known : TaskHasProducer work occurrence none)
     : Reachable work occurrence
-  | child {occurrence parent} (known : TaskHasProducer work occurrence (some parent))
-    (success : TaskSucceeds work parent) (reachable : Reachable work parent)
+  | child {occurrence producer}
+    (known : TaskHasProducer work occurrence (some producer))
+    (success : TaskSucceeds work producer) (reachable : Reachable work producer)
     : Reachable work occurrence
 
 -----------------------------------------------------------------------------------------
@@ -168,22 +181,24 @@ mutual
     | task {occurrence owners key} (known : TaskHasOwners work occurrence owners)
       (owner : key ∈ owners) (finished : occurrence ∈ failed)
       : NodeFailed work failed key
-    | groupParent {key parents parent} (known : NodeHasParents work key .group parents)
-      (member : parent ∈ parents) (failure : NodeFailed work failed parent)
+    | groupDependency {key dependencies dependency}
+      (known : NodeHasDependencies work key .group dependencies)
+      (member : dependency ∈ dependencies) (failure : NodeFailed work failed dependency)
       : NodeFailed work failed key
-    | streamParents {key parents} (known : NodeHasParents work key .stream parents)
-      (nonempty : parents ≠ [])
-      (failures : ∀ parent ∈ parents, NodeFailed work failed parent)
+    | streamDependencies {key dependencies}
+      (known : NodeHasDependencies work key .stream dependencies)
+      (nonempty : dependencies ≠ [])
+      (failures : ∀ dependency ∈ dependencies, NodeFailed work failed dependency)
       : NodeFailed work failed key
     /-- Every descriptor's producer is unavailable; any root descriptor blocks this rule.
     -/
-    | producers {key} (known : ∃ birth, NodeHasProducer work key birth)
+    | producers {key} (known : ∃ producer, NodeHasProducer work key producer)
       (noRoot : ¬NodeHasProducer work key none)
       (cancelled
-        : ∀ parent,
-            NodeHasProducer work key (some parent)
-            → parent ∉ failed
-            → TaskCancelled work failed parent)
+        : ∀ producer,
+            NodeHasProducer work key (some producer)
+            → producer ∉ failed
+            → TaskCancelled work failed producer)
       : NodeFailed work failed key
 
   /-- (TaskCancelled work failed occurrence) derives cancellation, never a circular cause.
@@ -193,12 +208,13 @@ mutual
     | owners {occurrence owners} (known : TaskHasOwners work occurrence owners)
       (nonempty : owners ≠ []) (failures : ∀ key ∈ owners, NodeFailed work failed key)
       : TaskCancelled work failed occurrence
-    | producerFailed {occurrence parent}
-      (known : TaskHasProducer work occurrence (some parent)) (failure : parent ∈ failed)
+    | producerFailed {occurrence producer}
+      (known : TaskHasProducer work occurrence (some producer))
+      (failure : producer ∈ failed)
       : TaskCancelled work failed occurrence
-    | producerCancelled {occurrence parent}
-      (known : TaskHasProducer work occurrence (some parent))
-      (cancelled : TaskCancelled work failed parent)
+    | producerCancelled {occurrence producer}
+      (known : TaskHasProducer work occurrence (some producer))
+      (cancelled : TaskCancelled work failed producer)
       : TaskCancelled work failed occurrence
 end
 
@@ -314,28 +330,29 @@ def DependencySatisfied (work : Work) (initial : Keys) (matching : PublicationMa
     (events : List WorkEvent) (failed : List Occurrence) (key : Nat)
     : Prop :=
   ¬NodeFailed work failed key
-  ∧ ((¬∃ birth, NodeHasProducer work key birth)
+  ∧ ((¬∃ producer, NodeHasProducer work key producer)
       ∨ key ∈ completedKeys events
       ∨ key ∉ announcedKeys initial events
         ∧ NodeAccounted work matching events failed key)
 
 /-- The node may be announced after its producer publishes and its dependencies are
-satisfied. Groups require all parent keys; streams require one, unless there are none.
+satisfied. Groups require every dependency; streams require one, unless there are none.
 -/
 def CanAnnounce (work : Work) (initial : Keys) (matching : PublicationMatching)
     (events : List WorkEvent) (failed : List Occurrence) (node : DeliveryNode)
-    (kind : NodeKind) (parents : Keys) (birth : Option Occurrence)
+    (kind : NodeKind) (dependencies : Keys) (producer : Option Occurrence)
     : Prop :=
   node.key ∉ announcedKeys initial events
   ∧ ¬NodeFailed work failed node.key
   ∧ (kind = .stream ∨ ¬NodeAccounted work matching events failed node.key)
-  ∧ (∀ producer, birth = some producer → Published matching events producer)
+  ∧ (∀ source, producer = some source → Published matching events source)
   ∧ match kind with
     | .group =>
-        ∀ key ∈ parents, DependencySatisfied work initial matching events failed key
+        ∀ key ∈ dependencies, DependencySatisfied work initial matching events failed key
     | .stream =>
-        parents = []
-        ∨ ∃ key ∈ parents, DependencySatisfied work initial matching events failed key
+        dependencies = []
+        ∨ ∃ key ∈ dependencies,
+            DependencySatisfied work initial matching events failed key
 
 /-- Fresh, distinct group and stream notices whose nodes are eligible after the observed
 prefix.
@@ -346,17 +363,19 @@ def Announcements (work : Work) (initial : Keys) (matching : PublicationMatching
     : Prop :=
   ((groups ++ streams).map DeliveryNode.key).Nodup
   ∧ (∀ group ∈ groups,
-      ∃ parents birth,
-        NodeAt work group .group parents birth
-        ∧ CanAnnounce work initial matching events failed group .group parents birth)
+      ∃ dependencies producer,
+        NodeAt work group .group dependencies producer
+        ∧ CanAnnounce work initial matching events failed group .group dependencies
+            producer)
   ∧ (∀ stream ∈ streams,
-      ∃ parents birth,
-        NodeAt work stream .stream parents birth
-        ∧ CanAnnounce work initial matching events failed stream .stream parents birth)
+      ∃ dependencies producer,
+        NodeAt work stream .stream dependencies producer
+        ∧ CanAnnounce work initial matching events failed stream .stream dependencies
+            producer)
 
 /-- A nonempty initial frontier of eligible group and stream notices. -/
 def Initializes (work : Work) (groups streams : List DeliveryNode) : Prop :=
-  Announcements work [] (fun _ => .deferred []) [] [] groups streams
+  Announcements work [] (fun _ => .executionGroup []) [] [] groups streams
   ∧ groups ++ streams ≠ []
 
 /-- The candidate is a known contributing owner that is announced, open, and not failed.
@@ -364,7 +383,7 @@ def Initializes (work : Work) (groups streams : List DeliveryNode) : Prop :=
 def AvailableOwner (work : Work) (initial : Keys) (events : List WorkEvent)
     (failed : List Occurrence) (owners : Keys) (node : DeliveryNode)
     : Prop :=
-  (∃ kind parents birth, NodeAt work node kind parents birth)
+  (∃ kind dependencies producer, NodeAt work node kind dependencies producer)
   ∧ node.key ∈ owners
   ∧ Open initial events node.key
   ∧ ¬NodeFailed work failed node.key
@@ -389,7 +408,7 @@ def CanPublish (work : Work) (matching : PublicationMatching) (events : List Wor
     : Prop :=
   ¬Published matching events occurrence
   ∧ ¬TaskCancelled work failed occurrence
-  ∧ (∀ parent, producer = some parent → Published matching events parent)
+  ∧ (∀ source, producer = some source → Published matching events source)
   ∧ match occurrence with
     | .item address (index + 1) => Published matching events (.item address index)
     | _ => True
@@ -427,24 +446,24 @@ def EventAllowed (work : Work) (initial : Keys) (matching : PublicationMatching)
         ∧ Announcements work initial matching
             (before ++ [.streamValues node values [] []]) failed groups streams
   | .groupSuccess node groups streams =>
-      (∃ parents birth, NodeAt work node .group parents birth)
+      (∃ dependencies producer, NodeAt work node .group dependencies producer)
       ∧ Open initial before node.key
       ∧ ¬NodeFailed work failed node.key
       ∧ NodeAccounted work matching before failed node.key
       ∧ Announcements work initial matching
           (before ++ [.groupSuccess node [] []]) failed groups streams
   | .streamSuccess node =>
-      (∃ parents birth, NodeAt work node .stream parents birth)
+      (∃ dependencies producer, NodeAt work node .stream dependencies producer)
       ∧ Open initial before node.key
       ∧ ¬NodeFailed work failed node.key
       ∧ NodeAccounted work matching before failed node.key
   | .groupFailure node errors =>
-      (∃ parents birth, NodeAt work node .group parents birth)
+      (∃ dependencies producer, NodeAt work node .group dependencies producer)
       ∧ Open initial before node.key
       ∧ NodeFailed work failed node.key
       ∧ NodeErrors work failed node.key errors
   | .streamFailure node errors =>
-      (∃ parents birth, NodeAt work node .stream parents birth)
+      (∃ dependencies producer, NodeAt work node .stream dependencies producer)
       ∧ Open initial before node.key
       ∧ NodeFailed work failed node.key
       ∧ NodeErrors work failed node.key errors
@@ -476,8 +495,8 @@ def Terminal (work : Work) (initial : Keys) (matching : PublicationMatching)
   (∀ occurrence owners producer payload,
     TaskAt work occurrence owners producer payload
     → Accounted work matching events failed occurrence)
-  ∧ ∀ node kind parents birth,
-      NodeAt work node kind parents birth
+  ∧ ∀ node kind dependencies producer,
+      NodeAt work node kind dependencies producer
       → node.key ∈ completedKeys events
         ∨ node.key ∉ announcedKeys initial events
           ∧ (NodeFailed work failed node.key

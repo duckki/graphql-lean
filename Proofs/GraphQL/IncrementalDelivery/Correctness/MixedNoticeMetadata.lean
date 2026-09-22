@@ -20,9 +20,10 @@ open WorkScheduler
 /-- A descriptor whose key has defer role must be a group, even in mixed work.
 Witness: execution assigns a disjoint Boolean role to every actual stream key.
 -/
-theorem node_kind_of_defer_role {roles work node kind parents producer}
+theorem node_kind_of_defer_role {roles work node kind dependencies producer}
     (coherent : KeyRoles.WorkRoles roles work)
-    (known : NodeAt work node kind parents producer) (role : roles node.key = false)
+    (known : NodeAt work node kind dependencies producer)
+    (role : roles node.key = false)
     : kind = .group := by
   have same := node_key_role coherent known
   cases kind with
@@ -35,9 +36,10 @@ theorem node_kind_of_defer_role {roles work node kind parents producer}
 /-- Every ancestor listed by a group descriptor has defer role.
 Witness: the fragment's metadata includes ancestor placeholders, not only actual nodes.
 -/
-theorem group_parent_role {roles work node parents producer key}
+theorem group_dependency_role {roles work node dependencies producer key}
     (coherent : KeyRoles.WorkRoles roles work)
-    (known : NodeAt work node .group parents producer) (member : key ∈ parents)
+    (known : NodeAt work node .group dependencies producer)
+    (member : key ∈ dependencies)
     : roles key = false := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located included =>
@@ -49,31 +51,34 @@ theorem group_parent_role {roles work node parents producer key}
 /-- A nonempty stream dependency list is exactly its deferred producer's owner list.
 Witness: structural lookup preserves the nearest defer context and resets it at items.
 -/
-theorem stream_parent_task {work node parents producer key}
-    (known : NodeAt work node .stream parents producer) (member : key ∈ parents)
+theorem stream_dependency_task {work node dependencies producer key}
+    (known : NodeAt work node .stream dependencies producer)
+    (member : key ∈ dependencies)
     : ∃ address birth path result,
-        producer = some (.deferred address)
-        ∧ TaskAt work (.deferred address) parents birth (.object path result) := by
+        producer = some (.executionGroup address)
+        ∧ TaskAt work (.executionGroup address) dependencies birth
+            (.object path result) := by
   obtain ⟨address, items, located⟩ := known
   have context := located_producer_context located
   cases producer with
   | none => simp_all
   | some occurrence =>
       cases occurrence with
-      | deferred parent =>
+      | executionGroup producerAddress =>
           obtain ⟨birth, path, result, task⟩ := context
-          exact ⟨parent, birth, path, result, rfl, task⟩
+          exact ⟨producerAddress, birth, path, result, rfl, task⟩
       | item => simp_all
 
 /-- Each explicit stream dependency is a represented group key, not a stream key.
 Witness: the corresponding owner of its actual deferred producer.
 -/
-theorem stream_parent_group {work node parents producer key}
-    (known : NodeAt work node .stream parents producer) (member : key ∈ parents)
+theorem stream_dependency_group {work node dependencies producer key}
+    (known : NodeAt work node .stream dependencies producer)
+    (member : key ∈ dependencies)
     : ∃ group ancestors birth,
         NodeAt work group .group ancestors birth ∧ group.key = key := by
-  obtain ⟨address, birth, path, result, _, task⟩ := stream_parent_task known member
-  obtain ⟨group, ancestors, descriptor, same⟩ := task.deferred_owner member
+  obtain ⟨address, birth, path, result, _, task⟩ := stream_dependency_task known member
+  obtain ⟨group, ancestors, descriptor, same⟩ := task.executionGroup_owner member
   exact ⟨group, ancestors, birth, descriptor, same⟩
 
 -----------------------------------------------------------------------------------------
@@ -87,15 +92,15 @@ same producer. No restriction is imposed on streams elsewhere in the work tree.
 theorem deferred_producer_context
     {parents work address current enclosing producer}
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
-    (located : Located work address current (some (.deferred producer)) enclosing)
+    (located : Located work address current (some (.executionGroup producer)) enclosing)
     : ∃ owners ancestor payload,
-        TaskAt work (.deferred producer) owners ancestor payload
+        TaskAt work (.executionGroup producer) owners ancestor payload
         ∧ DeferUnder parents owners current := by
   have context {address current birth enclosing}
       (navigation : StructuralEquivalence.Located work address current birth enclosing)
-      {producer} (generated : birth = some (.deferred producer)) :
+      {producer} (generated : birth = some (.executionGroup producer)) :
       ∃ owners ancestor payload,
-        TaskAt work (.deferred producer) owners ancestor payload
+        TaskAt work (.executionGroup producer) owners ancestor payload
         ∧ DeferUnder parents owners current := by
     induction navigation with
     | root => contradiction
@@ -105,24 +110,24 @@ theorem deferred_producer_context
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih generated
         exact ⟨owners, ancestor, payload, task, under.2⟩
-    | deferred navigation =>
+    | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous] at properties
-        exact ⟨_, _, _, .deferred navigation.toCurrent, properties.1.1⟩
+        exact ⟨_, _, _, .executionGroup navigation.toCurrent, properties.1.1⟩
     | item => cases generated
   exact context (StructuralEquivalence.located_of_current located) rfl
 
 /-- A group produced by deferred work reuses or depends on a producer owner.
 Witness: continuity at its own producer, regardless of other mixed stream regions.
 -/
-theorem deferred_producer_parent
+theorem deferred_producer_dependency
     {parents bound work node dependencies producer}
     (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
-    (known : NodeAt work node .group dependencies (some (.deferred producer)))
+    (known : NodeAt work node .group dependencies (some (.executionGroup producer)))
     : ∃ owners ancestor payload key,
-        TaskAt work (.deferred producer) owners ancestor payload
+        TaskAt work (.executionGroup producer) owners ancestor payload
         ∧ key ∈ owners
         ∧ (key = node.key ∨ key ∈ dependencies) := by
   cases StructuralEquivalence.nodeAt_of_current known with

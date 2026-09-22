@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open MapperIdentity
 
 /-- The proof-only completion uniqueness fact used with causal liveness. -/
-def UniqueCompletions : QueryResult → Prop
+def UniqueCompletions : ExecutionObservation → Prop
   | .single _ => True
   | .incremental _ updates => (DeliveryTrace.completedIDs updates).Nodup
 
@@ -42,7 +42,7 @@ theorem WorkObservation.uniqueIDs {response work complete result}
           rw [replay]
           exact ⟨
             by
-              simpa only [QueryResult.idsUnique, batched_pendingIDs, flatten]
+              simpa only [ExecutionObservation.idsUnique, batched_pendingIDs, flatten]
                 using uniquePending,
             by
               simpa only [UniqueCompletions, batched_completedIDs, flatten]
@@ -66,7 +66,7 @@ theorem WorkObservation.idsEventuallyComplete {response work result}
           rw [allocated] at grouped
           obtain ⟨updates, flatten, replay⟩ := grouped
           have initialKeys := (getPendingEntry_of_eq allocated).2
-          have live : (QueryResult.incremental
+          have live : (ExecutionObservation.incremental
               { toResponse := response, pending, hasNext := true }
               (mappedTrace batches.flatten ids)).idsEventuallyComplete := by
             constructor
@@ -81,7 +81,7 @@ theorem WorkObservation.idsEventuallyComplete {response work result}
 theorem deliveryIDsUnique_holds (schema : Schema) (operation : Operation)
     : deliveryIDsUnique schema operation := by
   intro ObjectRef resolvers variables fuel source result observed
-  exact queryObservation_property QueryResult.idsUnique
+  exact queryObservation_property ExecutionObservation.idsUnique
     (fun _ _ _ h => h.uniqueIDs.1) observed
 
 /-- Every complete query outcome closes each announced ID, by finite work liveness.
@@ -90,14 +90,15 @@ This asserts no scheduler fairness or eventual host termination.
 theorem deliveryIDsEventuallyComplete_holds (schema : Schema) (operation : Operation)
     : deliveryIDsEventuallyComplete schema operation := by
   intro ObjectRef resolvers variables fuel source result observed
-  exact queryObservation_property QueryResult.idsEventuallyComplete
+  exact queryObservation_property ExecutionObservation.idsEventuallyComplete
     (fun _ _ _ h => h.idsEventuallyComplete) observed
 
 /-- Unique completions plus causal liveness give exactly one completion per announced
 ID, by membership and Nodup counts.
 -/
-theorem idsCompleteExactlyOnce_of_uniqueCompletions_of_liveness (result : QueryResult)
-    (unique : UniqueCompletions result) (live : result.idsEventuallyComplete)
+theorem idsCompleteExactlyOnce_of_uniqueCompletions_of_liveness
+    (result : ExecutionObservation) (unique : UniqueCompletions result)
+    (live : result.idsEventuallyComplete)
     : result.idsCompleteExactlyOnce := by
   cases result with
   | single response => trivial

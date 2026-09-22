@@ -138,7 +138,7 @@ no hidden failures, and empty work batching.
 theorem Initializes.emptyHistory {work groups streams}
     (h : Initializes work groups streams)
     : AdmissiblePrefix work ⟨groups, streams, []⟩ := by
-  refine ⟨[], (fun _ => .deferred []), [], ⟨h, ?_, ?_⟩, .nil⟩
+  refine ⟨[], (fun _ => .executionGroup []), [], ⟨h, ?_, ?_⟩, .nil⟩
   · simp [FailureWitness]
   · intro index event selected
     simp at selected

@@ -21,14 +21,14 @@ a proof projection of existing work, not an implementation queue or selected sch
 -/
 def initialCandidates : Work → List (DeliveryNode × NodeKind × Keys)
   | .empty => []
-  | .append left right => initialCandidates left ++ initialCandidates right
-  | .deferred groups .. =>
+  | .combine left right => initialCandidates left ++ initialCandidates right
+  | .executionGroup groups .. =>
       groups.map
         (fun group =>
           (group.node, .group, group.ancestors.map DeliveryNode.key))
   | .stream node _ => [(node, .stream, [])]
 
-/-- Nonempty well-formed work has a first descriptor; witness: append descent and the
+/-- Nonempty well-formed work has a first descriptor; witness: combine descent and the
 existing nonempty-owner certificate at deferred boundaries.
 -/
 theorem initialCandidates_nonempty {parents lower bound work}
@@ -36,7 +36,7 @@ theorem initialCandidates_nonempty {parents lower bound work}
     : initialCandidates work ≠ [] := by
   cases work with
   | empty => exact False.elim (nonempty rfl)
-  | append left right =>
+  | combine left right =>
       rw [MixedKeys.WorkAt] at coherent
       intro empty
       obtain ⟨hl, hr⟩ := List.append_eq_nil_iff.mp empty
@@ -45,7 +45,7 @@ theorem initialCandidates_nonempty {parents lower bound work}
           simpa only [Work.size, leftEmpty, Nat.zero_add] using nonempty
         exact initialCandidates_nonempty coherent.2 rightNonempty hr
       · exact initialCandidates_nonempty coherent.1 leftEmpty hl
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       rw [MixedKeys.WorkAt] at coherent
       intro empty
       exact coherent.1 (List.map_eq_nil_iff.mp empty)
@@ -55,16 +55,16 @@ termination_by sizeOf work
 /-- First-boundary stream descriptors have no enclosing owners; witness: append descent
 to the root-context stream constructor.
 -/
-theorem initialCandidates_stream_parents {work node parents}
+theorem initialCandidates_stream_dependencies {work node parents}
     (member : (node, .stream, parents) ∈ initialCandidates work)
     : parents = [] := by
   cases work with
   | empty => simp [initialCandidates] at member
-  | append left right =>
+  | combine left right =>
       rcases List.mem_append.mp member with member | member
-      · exact initialCandidates_stream_parents member
-      · exact initialCandidates_stream_parents member
-  | deferred groups path result children =>
+      · exact initialCandidates_stream_dependencies member
+      · exact initialCandidates_stream_dependencies member
+  | executionGroup groups path result children =>
       obtain ⟨group, _, impossible⟩ := List.mem_map.mp member
       cases impossible
   | stream other items =>
@@ -74,7 +74,7 @@ theorem initialCandidates_stream_parents {work node parents}
 termination_by sizeOf work
 
 /-- A first-boundary descriptor has no producer or enclosing owner. Witness: navigation
-through append nodes only, stopping at the first deferred or streamed work.
+through combine nodes only, stopping at the first deferred or streamed work.
 -/
 theorem initialCandidates_known {root address work node kind parents}
     (located : Located root address work none [])
@@ -82,11 +82,11 @@ theorem initialCandidates_known {root address work node kind parents}
     : NodeAt root node kind parents none := by
   cases work with
   | empty => simp [initialCandidates] at member
-  | append left right =>
+  | combine left right =>
       rcases List.mem_append.mp member with member | member
       · exact initialCandidates_known (.left located) member
       · exact initialCandidates_known (.right located) member
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       obtain ⟨group, inGroups, equal⟩ := List.mem_map.mp member
       cases equal
       exact .group located inGroups
@@ -123,12 +123,12 @@ theorem scoped_lower {parents bound owners work lower}
     : MixedKeys.WorkAt parents lower bound work := by
   cases work <;> simp only [MixedKeys.WorkAt, DeferContinuous, StreamOwnersOrdered,
     DeferUnder, OwnersBefore] at coherent continuous ordered under streams ⊢
-  case append left right =>
+  case combine left right =>
     exact ⟨scoped_lower valid coherent.1 continuous.1 ordered.1 under.1 streams.1
         nonempty bounded,
       scoped_lower valid coherent.2 continuous.2 ordered.2 under.2 streams.2
         nonempty bounded⟩
-  case deferred groups path result children =>
+  case executionGroup groups path result children =>
     have groupBounds : ∀ group ∈ groups, lower ≤ group.node.key := by
       intro group member
       exact descends_lower valid (coherent.2.1 group member).2.1
@@ -157,12 +157,12 @@ theorem initialCandidates_lower {parents bound work lower}
     : MixedKeys.WorkAt parents lower bound work := by
   cases work <;> simp only [MixedKeys.WorkAt, DeferContinuous, StreamOwnersOrdered]
     at coherent continuous ordered ⊢
-  case append left right =>
+  case combine left right =>
     exact ⟨initialCandidates_lower valid coherent.1 continuous.1 ordered.1
         (fun entry member => bounded entry (List.mem_append_left _ member)),
       initialCandidates_lower valid coherent.2 continuous.2 ordered.2
         (fun entry member => bounded entry (List.mem_append_right _ member))⟩
-  case deferred groups path result children =>
+  case executionGroup groups path result children =>
     have groupBounds : ∀ group ∈ groups, lower ≤ group.node.key := by
       intro group member
       exact bounded _ (List.mem_map.mpr ⟨group, member, rfl⟩)
@@ -193,7 +193,7 @@ theorem coherent_located {parents lower bound work address current producer owne
       rw [MixedKeys.WorkAt] at ih; exact ih.1
   | right _ ih =>
       rw [MixedKeys.WorkAt] at ih; exact ih.2
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       rw [MixedKeys.WorkAt] at ih; exact ih.2.2
   | item _ entry ih =>
       rw [MixedKeys.WorkAt] at ih
@@ -219,7 +219,7 @@ theorem coherent_node_bounds {parents lower bound work node kind dependencies bi
 /-- Group dependencies are strictly smaller than the group's key. Witness: coherent
 ancestry recovered from its structural descriptor.
 -/
-theorem coherent_group_parents {parents lower bound work node dependencies birth}
+theorem coherent_group_dependencies {parents lower bound work node dependencies birth}
     (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents lower bound work)
     (known : NodeAt work node .group dependencies birth)
     : ∀ key ∈ dependencies, key < node.key := by
@@ -228,20 +228,20 @@ theorem coherent_group_parents {parents lower bound work node dependencies birth
   have localWork := coherent_located coherent located
   rw [MixedKeys.WorkAt] at localWork
   obtain ⟨_, keyBound, ancestors⟩ := localWork.2.1 group member
-  intro key inParents
-  exact (valid group.node.key keyBound key (ancestors ▸ inParents)).1
+  intro key inDependencies
+  exact (valid group.node.key keyBound key (ancestors ▸ inDependencies)).1
 
 /-- Every group descriptor has a contributing task. Before any failure or publication
 it cannot already be accounted for. Witness: that descriptor's own deferred task.
 -/
 theorem group_not_initially_accounted {work node parents birth}
     (known : NodeAt work node .group parents birth)
-    : ¬NodeAccounted work (fun _ => .deferred []) [] [] node.key := by
+    : ¬NodeAccounted work (fun _ => .executionGroup []) [] [] node.key := by
   obtain ⟨address, groups, path, result, children, enclosing, group,
     located, member, rfl, rfl⟩ := known
   intro accounted
-  have task := accounted (.deferred address) (groups.map (·.node.key))
-    ⟨birth, .object path result, .deferred located⟩ (List.mem_map.mpr ⟨group, member, rfl⟩)
+  have task := accounted (.executionGroup address) (groups.map (·.node.key))
+    ⟨birth, .object path result, .executionGroup located⟩ (List.mem_map.mpr ⟨group, member, rfl⟩)
   rcases task with cancelled | published
   · exact cancelled.nonempty rfl
   · simp [Published] at published
@@ -271,15 +271,15 @@ theorem initialization_exists {parents bound work}
   have fresh : node.key ∉ announcedKeys [] [] := by simp [announcedKeys, pendingKeys]
   cases kind with
   | group =>
-      have eligible : CanAnnounce work [] (fun _ => .deferred []) [] []
+      have eligible : CanAnnounce work [] (fun _ => .executionGroup []) [] []
           node .group dependencies none := by
         refine ⟨fresh, healthy, Or.inr (group_not_initially_accounted known),
           by simp, ?_⟩
         intro key member
         refine ⟨fun failure => failure.nonempty rfl, Or.inl ?_⟩
-        rintro ⟨birth, other, kind, otherParents, otherKnown, same⟩
+        rintro ⟨birth, other, kind, otherDependencies, otherKnown, same⟩
         have lower := (coherent_node_bounds bounded otherKnown).1
-        have smaller := coherent_group_parents valid coherent known key member
+        have smaller := coherent_group_dependencies valid coherent known key member
         dsimp only at lower
         omega
       refine ⟨[node], [], ⟨?_, by simp⟩⟩
@@ -292,9 +292,9 @@ theorem initialization_exists {parents bound work}
         by simp
       ⟩
   | stream =>
-      have empty : dependencies = [] := initialCandidates_stream_parents inCandidates
+      have empty : dependencies = [] := initialCandidates_stream_dependencies inCandidates
       subst dependencies
-      have eligible : CanAnnounce work [] (fun _ => .deferred []) [] []
+      have eligible : CanAnnounce work [] (fun _ => .executionGroup []) [] []
           node .stream [] none :=
         ⟨fresh, healthy, Or.inl rfl, by simp, Or.inl rfl⟩
       refine ⟨[], [node], ⟨?_, by simp⟩⟩

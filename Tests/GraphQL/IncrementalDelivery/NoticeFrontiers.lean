@@ -67,7 +67,7 @@ example
 /-- Empty work has an empty covering frontier; nonemptiness is an initialization issue,
 not a requirement invented for every later notice-bearing event.
 -/
-example : Announcements .empty [] (fun _ => .deferred []) [] [] [] [] := by
+example : Announcements .empty [] (fun _ => .executionGroup []) [] [] [] [] := by
   simp [Announcements]
 
 end GraphQL.IncrementalDelivery.Tests.NoticeFrontiers

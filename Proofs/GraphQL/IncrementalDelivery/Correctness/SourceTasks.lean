@@ -47,11 +47,12 @@ mutual
       (cursors : ResponsePositions.Cursors)
       : Work → List SourceTask
     | .empty => []
-    | .append left right =>
+    | .combine left right =>
         sourceTasks (address ++ [0]) producer cursors left
         ++ sourceTasks (address ++ [1]) producer cursors right
-    | .deferred _ path result children =>
-        let task : SourceTask := ⟨.deferred address, producer, .object path result, 0⟩
+    | .executionGroup _ path result children =>
+        let task : SourceTask :=
+          ⟨.executionGroup address, producer, .object path result, 0⟩
         task :: sourceTasks (address ++ [0]) (some task.occurrence) task.cursors children
     | .stream node items =>
         sourceItemTasks address producer node
@@ -83,10 +84,10 @@ mutual
         = slices := by
     cases seeded with
     | empty => rfl
-    | append left right =>
+    | combine left right =>
         simp only [sourceTasks, List.map_append, sourceTasks_positions left,
           sourceTasks_positions right]
-    | deferred children =>
+    | executionGroup children =>
         simp only [sourceTasks, List.map_cons, SourceTask.cursors, SourceTask.positions,
           sourceTasks_positions children, ← funext (source_fields_eq_positions true _)]
     | stream cursor items =>

@@ -149,7 +149,7 @@ theorem batched_pending (groups : List (List IncrementalStreamUpdateResult))
         one, ih]
 
 /-- All pending notices actually present in a finite observed result. -/
-def queryNotices : QueryResult → List IncrementalPendingNotice
+def queryNotices : ExecutionObservation → List IncrementalPendingNotice
   | .single _ => []
   | .incremental initial updates =>
       initial.pending ++ updates.flatMap IncrementalStreamUpdateResult.pending

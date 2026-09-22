@@ -18,7 +18,7 @@ The raw fixture permits every combination of producer and item outcomes.
 def mixed (result : Result (List (Name × ResponseValue)))
     (outer middle inner : Result ResponseValue)
     : Work :=
-  .deferred [{ node := parent }] [] result
+  .executionGroup [{ node := parent }] [] result
     (NestedStreamExistence.nested outer middle inner)
 
 /-- Every combination of mixed fixture outcomes has a complete run, including zero-count
@@ -45,7 +45,7 @@ The producer still has just one task occurrence, independently of owner count.
 def shared (result : Result (List (Name × ResponseValue)))
     (outer middle inner : Result ResponseValue)
     : Work :=
-  .deferred ([parent, coOwner, parent].map (fun node => { node })) [] result
+  .executionGroup ([parent, coOwner, parent].map (fun node => { node })) [] result
     (NestedStreamExistence.nested outer middle inner)
 
 /-- Every shared-producer outcome admits a run completing both original IDs exactly once.
@@ -82,7 +82,7 @@ Witness: construct its raw terminal history, then apply the general realization 
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))
         ∧ (executionFromWork scheduler response
             (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
@@ -97,8 +97,8 @@ carrier, rather than the object publication, must introduce the stream notice.
 -/
 example (data : List (Name × ResponseValue)) (outer middle inner : Result ResponseValue)
     : ¬CanAnnounce (mixed (.ok (data, 0)) outer middle inner) [4]
-        (fun _ => .deferred []) [.groupValues parent [{ path := [], data }]] []
-        (NestedStreamExistence.node 0) .stream [4] (some (.deferred [])) := by
+        (fun _ => .executionGroup []) [.groupValues parent [{ path := [], data }]] []
+        (NestedStreamExistence.node 0) .stream [4] (some (.executionGroup [])) := by
   intro eligible
   have dependencies := eligible.2.2.2.2
   simp [DependencySatisfied, announcedKeys, pendingKeys, completedKeys, eventPending,
@@ -111,7 +111,7 @@ or scheduler evidence. Witness: general realization of the independently constru
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))
         ∧ (executionFromWork scheduler response
             (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
@@ -125,7 +125,7 @@ example {paths bound work groups streams events matching failures batches}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
-    (closed : StreamParentsCompleted work events)
+    (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
           matching events (failures.map Prod.snd))

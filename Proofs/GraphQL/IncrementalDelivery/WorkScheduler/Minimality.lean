@@ -66,8 +66,8 @@ The other arguments are the same work, initial keys, and history explanation as 
 def NodesTerminal (work : Work) (initial : Keys) (matching : PublicationMatching)
     (events : List WorkEvent) (failed : List Occurrence)
     : Prop :=
-  ∀ node kind parents birth,
-    NodeAt work node kind parents birth
+  ∀ node kind dependencies birth,
+    NodeAt work node kind dependencies birth
     → node.key ∈ completedKeys events
       ∨ node.key ∉ announcedKeys initial events
         ∧ (NodeFailed work failed node.key
@@ -91,8 +91,8 @@ theorem terminal_iff_nodes {work groups streams events matching failures}
   intro outstanding
   obtain ⟨key, member, healthy, openKey⟩ :=
     explained.outstanding_owner known (owned _ _ _ _ known) outstanding
-  obtain ⟨node, kind, parents, birth, descriptor, same⟩ := known.owner_known member
-  rcases nodes node kind parents birth descriptor with closed | ⟨_, failed | accounted⟩
+  obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ := known.owner_known member
+  rcases nodes node kind dependencies birth descriptor with closed | ⟨_, failed | accounted⟩
   · exact openKey (same ▸ closed)
   · exact healthy (same ▸ failed)
   · exact outstanding (accounted occurrence owners ⟨producer, payload, known⟩ (same.symm ▸ member))

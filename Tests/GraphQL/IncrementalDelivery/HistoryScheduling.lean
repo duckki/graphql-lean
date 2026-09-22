@@ -11,9 +11,9 @@ def left : DeliveryNode := { key := 0, path := [] }
 def right : DeliveryNode := { key := 1, path := [] }
 
 def shared : Work :=
-  .deferred [{ node := left }, { node := right }] [] (.ok ([], 0)) .empty
+  .executionGroup [{ node := left }, { node := right }] [] (.ok ([], 0)) .empty
 
-def matching (_ : Nat) : Occurrence := .deferred []
+def matching (_ : Nat) : Occurrence := .executionGroup []
 
 def initial : History :=
   { initialGroups := [left, right], initialStreams := [], batches := [] }
@@ -27,7 +27,7 @@ theorem located_shared {address current producer owners}
     : (address = [] ∧ current = shared ∧ producer = none ∧ owners = [])
       ∨ (address = [0]
           ∧ current = .empty
-          ∧ producer = some (.deferred [])
+          ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
   | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
@@ -75,8 +75,8 @@ theorem initialized : Initializes shared [left, right] [] := by
   intro accounted
   have owner : node.key ∈ [0, 1] := by
     rcases (node_shared known).1 with rfl | rfl <;> simp [left, right]
-  have impossible := accounted (.deferred []) [0, 1]
-    ⟨none, .object [] (.ok ([], 0)), .deferred .root⟩ owner
+  have impossible := accounted (.executionGroup []) [0, 1]
+    ⟨none, .object [] (.ok ([], 0)), .executionGroup .root⟩ owner
   rcases impossible with cancelled | published
   · exact WorkScheduler.noCancellation _ _ cancelled
   · simp [Published] at published
@@ -100,7 +100,7 @@ theorem owner (node : DeliveryNode) (member : node ∈ [left, right])
 /-- Either owner can carry the single output occurrence. -/
 theorem publishes (node : DeliveryNode) (member : node ∈ [left, right])
     : EventAllowed shared [0, 1] matching [] [] (value node) := by
-  refine ⟨[0, 1], none, [], [], 0, rfl, .deferred .root, ?_, owner node member⟩
+  refine ⟨[0, 1], none, [], [], 0, rfl, .executionGroup .root, ?_, owner node member⟩
   exact ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
 
 /-- Empty output is an admitted prefix, with neither a selected owner nor a selected
@@ -143,16 +143,16 @@ example
   ⟨nextOwner left (by simp), nextOwner right (by simp)⟩
 
 /-- Switching owner cannot publish that same structural occurrence a second time. -/
-example : ¬CanPublish shared matching [value left] [] (.deferred []) none := by
+example : ¬CanPublish shared matching [value left] [] (.executionGroup []) none := by
   intro admitted
   exact admitted.1 ⟨0, value left, rfl, trivial, rfl⟩
 
 /-- Structural inversion confirms there is only one task despite its two owners. -/
 theorem task_shared {occurrence owners producer payload}
     (h : TaskAt shared occurrence owners producer payload)
-    : occurrence = .deferred [] := by
+    : occurrence = .executionGroup [] := by
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := h
       rcases located_shared located with h | h <;> simp_all [shared]
   | item address index =>
@@ -254,37 +254,40 @@ example (work : Work) (history : History) : ¬AdmissibleNext work history [] :=
   fun next => next.2.2.1 rfl
 
 def nested : Work :=
-  .deferred [{ node := left }] [] (.error 2)
-    (.deferred [{ node := right }] [] (.ok ([], 0)) .empty)
+  .executionGroup [{ node := left }] [] (.error 2)
+    (.executionGroup [{ node := right }] [] (.ok ([], 0)) .empty)
 
 /-- A nested occurrence retains its producer directly through structural navigation. -/
 example
-    : TaskAt nested (.deferred [0]) [1] (some (.deferred []))
+    : TaskAt nested (.executionGroup [0]) [1] (some (.executionGroup []))
         (.object [] (.ok ([], 0))) :=
-  .deferred (.deferred .root)
+  .executionGroup (.executionGroup .root)
 
 /-- The failed producer cancels its child without a graph edge or a stored cancelled bit.
 -/
-example : TaskCancelled nested [.deferred []] (.deferred [0]) :=
-  .producerFailed (.deferred (.deferred .root)) (by simp)
+example : TaskCancelled nested [.executionGroup []] (.executionGroup [0]) :=
+  .producerFailed (.executionGroup (.executionGroup .root)) (by simp)
 
 /-- Publication cannot bypass an unobserved producer even when its outcome is already
 known.
 -/
-example : ¬CanPublish nested matching [] [] (.deferred [0]) (some (.deferred [])) := by
+example
+    : ¬CanPublish nested matching [] [] (.executionGroup [0])
+        (some (.executionGroup [])) := by
   intro available
-  have parent := available.2.2.1 (.deferred []) rfl
+  have parent := available.2.2.1 (.executionGroup []) rfl
   simp [Published] at parent
 
 def cancelledDescendant : Work :=
-  .deferred [{ node := left }] [] (.error 2)
-    (.deferred [{ node := right }] [] (.ok ([], 0))
-      (.deferred [{ node := stream }] [] (.ok ([], 0)) .empty))
+  .executionGroup [{ node := left }] [] (.error 2)
+    (.executionGroup [{ node := right }] [] (.ok ([], 0))
+      (.executionGroup [{ node := stream }] [] (.ok ([], 0)) .empty))
 
 /-- Cancellation propagates through a cancelled producer, not only a failing producer. -/
-example : TaskCancelled cancelledDescendant [.deferred []] (.deferred [0, 0]) :=
-  .producerCancelled (.deferred (.deferred (.deferred .root)))
-    (.producerFailed (.deferred (.deferred .root)) (by simp))
+example
+    : TaskCancelled cancelledDescendant [.executionGroup []] (.executionGroup [0, 0]) :=
+  .producerCancelled (.executionGroup (.executionGroup (.executionGroup .root)))
+    (.producerFailed (.executionGroup (.executionGroup .root)) (by simp))
 
 /-- A dependency can be satisfied without a success notification for an unannounced node.
 -/
@@ -314,8 +317,8 @@ def nestedNode : DeliveryNode := { key := 7, path := [.field "nested"] }
 
 /-- Repeated keys have different metadata and producers in permissive raw work. -/
 def repeated : Work :=
-  .append (.deferred [{ node := rootNode }] [] (.ok ([], 0)) .empty)
-    (.deferred [{ node := right }] [] (.ok ([], 0))
+  .combine (.executionGroup [{ node := rootNode }] [] (.ok ([], 0)) .empty)
+    (.executionGroup [{ node := right }] [] (.ok ([], 0))
       (.stream nestedNode [(.ok (.null, 0), .empty)]))
 
 /-- Invalid append edges, defer edges, and stream indices have no location. -/
@@ -329,31 +332,31 @@ example
 -/
 example : locateWork repeated [1, 0, 0] = some ⟨.empty, some (.item [1, 0] 0), []⟩ := rfl
 
-/-- Looking through append and defer retains the actual stream-item payload and producer.
+/-- Looking through combine and defer retains the actual stream-item payload and producer.
 -/
 example
-    : TaskAt repeated (.item [1, 0] 0) [7] (some (.deferred [1]))
+    : TaskAt repeated (.item [1, 0] 0) [7] (some (.executionGroup [1]))
         (.item nestedNode (.ok (.null, 0))) :=
-  .item (.deferred (.right .root)) rfl
+  .item (.executionGroup (.right .root)) rfl
 
 /-- Both descriptors survive: lookup does not select one representative of a shared key.
 -/
 example
     : NodeAt repeated rootNode .group [] none
-      ∧ NodeAt repeated nestedNode .stream [1] (some (.deferred [1])) := by
+      ∧ NodeAt repeated nestedNode .stream [1] (some (.executionGroup [1])) := by
   constructor
   · exact .group (group := { node := rootNode }) (.left .root) (by simp)
-  · exact .stream (.deferred (.right .root))
+  · exact .stream (.executionGroup (.right .root))
 
 /-- The causal projections retain both the root and nested producer for the same key.
 -/
 theorem producers
     : NodeHasProducer repeated 7 none
-      ∧ NodeHasProducer repeated 7 (some (.deferred [1])) := by
+      ∧ NodeHasProducer repeated 7 (some (.executionGroup [1])) := by
   constructor
   · exact ⟨rootNode, .group, [],
       .group (group := { node := rootNode }) (.left .root) (by simp), rfl⟩
-  · exact ⟨nestedNode, .stream, [1], .stream (.deferred (.right .root)), rfl⟩
+  · exact ⟨nestedNode, .stream, [1], .stream (.executionGroup (.right .root)), rfl⟩
 
 /-- A surviving root descriptor blocks the all-producers-unavailable rule's premise. -/
 example (noRoot : ¬NodeHasProducer repeated 7 none) : False := noRoot producers.1

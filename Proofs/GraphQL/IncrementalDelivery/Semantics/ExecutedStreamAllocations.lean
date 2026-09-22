@@ -29,7 +29,7 @@ mutual
     split
     · exact hl
     · simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact streams_append hl (collectExecutionGroups_streamAllocations schema resolvers variables fuel
+      exact streams_combine hl (collectExecutionGroups_streamAllocations schema resolvers variables fuel
         parentType source _ path _ _)
   termination_by (fuel, 6, 0, 0)
   decreasing_by
@@ -57,7 +57,7 @@ mutual
           parentType source rest path deferMap
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).2
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
-        apply streams_append
+        apply streams_combine
         · simpa only [StreamsCompleted, StreamAllocated, streamAllocationKeys] using hl
         · exact hr
   termination_by (fuel, 5, 0, sizeOf partitions)
@@ -88,7 +88,7 @@ mutual
           ((executeResponseField schema resolvers variables fuel parentType source name
             fields path usages deferMap).run state).2
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
-        exact streams_combine List.append _ _ hl hr
+        exact streams_completionCombine List.append _ _ hl hr
   termination_by (fuel, 4, 0, sizeOf groups)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -233,7 +233,7 @@ mutual
             (fields.map (fun field => {field with deferUsage := none}))
             (values.drop usage.initialCount) path usage.initialCount (middle + 1)
           simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
-          apply streams_append (streams_catchNull _ _ hl)
+          apply streams_combine (streams_catchNull _ _ hl)
           simpa only [StreamAllocated, streamAllocationKeys, itemAllocationKeys] using hr.fresh
   termination_by (fuel, 3, 0, 0)
   decreasing_by
@@ -262,7 +262,7 @@ mutual
           ((completeValue schema resolvers variables fuel itemType fields value
             (path ++ [.index index]) usages deferMap false).run state).2
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
-        exact streams_combine List.cons _ _ hl hr
+        exact streams_completionCombine List.cons _ _ hl hr
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

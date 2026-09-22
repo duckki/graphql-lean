@@ -29,13 +29,13 @@ example (failed : List Occurrence)
     (healthy : ¬NodeFailed CursorOrigins.nested failed 1)
     (active : ¬TaskCancelled CursorOrigins.nested failed (.item [0] 0))
     : ∃ owners ancestor result key,
-        TaskAt CursorOrigins.nested (.deferred []) owners ancestor result
+        TaskAt CursorOrigins.nested (.executionGroup []) owners ancestor result
         ∧ key ∈ owners
         ∧ ¬NodeFailed CursorOrigins.nested failed key
         ∧ key ≤ 1 := by
-  apply producer_owner_key_le nested_metadata.1 nested_metadata.2.1
-    nested_metadata.2.2.1 nested_metadata.2.2.2
-    (TaskAt.item (.deferred .root) rfl) (by simp [CursorOrigins.child]) healthy active
+  apply producer_owner_key_le nested_metadata.1 nested_metadata.2.1 nested_metadata.2.2.1
+    nested_metadata.2.2.2 (TaskAt.item (.executionGroup .root) rfl)
+    (by simp [CursorOrigins.child]) healthy active
 
 /-- An initially blocked stream item finds ready work without increasing its owner key.
 Witness: descend to its unpublished deferred producer; no history is selected or supplied.
@@ -43,14 +43,14 @@ Witness: descend to its unpublished deferred producer; no history is selected or
 example
     : ∃ occurrence owners producer payload key,
         TaskAt CursorOrigins.nested occurrence owners producer payload
-        ∧ CanPublish CursorOrigins.nested (fun _ => .deferred []) [] [] occurrence
+        ∧ CanPublish CursorOrigins.nested (fun _ => .executionGroup []) [] [] occurrence
             producer
         ∧ key ∈ owners
         ∧ ¬NodeFailed CursorOrigins.nested [] key
         ∧ key ≤ 1 := by
   apply readyTask_owner_key_le nested_metadata.1 nested_metadata.2.1
     nested_metadata.2.2.1 nested_metadata.2.2.2
-    (TaskAt.item (index := 0) (.deferred .root) rfl) (by simp [CursorOrigins.child])
+    (TaskAt.item (index := 0) (.executionGroup .root) rfl) (by simp [CursorOrigins.child])
     (fun failure => failure.nonempty rfl)
   rintro (cancelled | published)
   · exact cancelled.nonempty rfl
@@ -61,9 +61,9 @@ Witness: the strengthened structural owner projection retains producer identity.
 -/
 example
     : ∃ node kind parents,
-        NodeAt CursorOrigins.nested node kind parents (some (.deferred []))
+        NodeAt CursorOrigins.nested node kind parents (some (.executionGroup []))
         ∧ node.key = 1 :=
-  (TaskAt.item (index := 0) (.deferred .root) rfl).owner_at_producer
+  (TaskAt.item (index := 0) (.executionGroup .root) rfl).owner_at_producer
     (by simp [CursorOrigins.child])
 
 end GraphQL.IncrementalDelivery.Tests.DependencyKeys

@@ -46,16 +46,16 @@ def Descends (parents : Assignment) (owners : List Nat) (key : Nat) : Prop :=
 
 def WorkUnder (parents : Assignment) (owners : List Nat) : Work → Prop
   | .empty => True
-  | .append left right => WorkUnder parents owners left ∧ WorkUnder parents owners right
-  | .deferred groups _ _ children =>
+  | .combine left right => WorkUnder parents owners left ∧ WorkUnder parents owners right
+  | .executionGroup groups _ _ children =>
       (∀ group ∈ groups, Descends parents owners group.node.key)
       ∧ WorkUnder parents owners children
   | .stream .. => False
 
 def WorkAt (parents : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
-  | .append left right => WorkAt parents bound left ∧ WorkAt parents bound right
-  | .deferred groups _ _ children =>
+  | .combine left right => WorkAt parents bound left ∧ WorkAt parents bound right
+  | .executionGroup groups _ _ children =>
       groups ≠ []
       ∧ (∀ group ∈ groups, FragmentAt parents bound group)
       ∧ WorkUnder parents (mapKeys groups) children

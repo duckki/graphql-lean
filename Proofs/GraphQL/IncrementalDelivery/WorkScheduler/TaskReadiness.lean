@@ -22,7 +22,7 @@ def addressRank (address : Address) : Nat := (address.map (· + 1)).sum
 Unrelated tasks may have equal ranks; this imposes no scheduler ordering on them.
 -/
 def Occurrence.dependencyRank : Occurrence → Nat
-  | .deferred address => addressRank address
+  | .executionGroup address => addressRank address
   | .item address index => addressRank address + index
 
 /-- Descending one edge strictly increases the base address rank. Witness: the positive
@@ -37,8 +37,8 @@ Witness: structural navigation; task-generating edges strictly increase address 
 -/
 theorem Located.producer_rank {work address current producer owners}
     (located : Located work address current producer owners)
-    {parent} (generated : producer = some parent)
-    : parent.dependencyRank < addressRank address := by
+    {producerOccurrence} (generated : producer = some producerOccurrence)
+    : producerOccurrence.dependencyRank < addressRank address := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
@@ -47,7 +47,7 @@ theorem Located.producer_rank {work address current producer owners}
       have earlier := ih generated
       rw [addressRank_snoc]
       omega
-  | deferred =>
+  | executionGroup =>
       cases generated
       simp [Occurrence.dependencyRank, addressRank_snoc]
   | item =>
@@ -55,21 +55,21 @@ theorem Located.producer_rank {work address current producer owners}
       simp [Occurrence.dependencyRank, addressRank_snoc]
 
 /-- A located producer is an actual task, not merely an address annotation. Witness:
-the generating deferred/item edge, preserved through subsequent append navigation.
+the generating deferred/item edge, preserved through subsequent combine navigation.
 -/
 theorem Located.producer_known {work address current producer owners}
     (located : Located work address current producer owners)
-    {parent} (generated : producer = some parent)
-    : ∃ parentOwners ancestor payload,
-        TaskAt work parent parentOwners ancestor payload := by
+    {producerOccurrence} (generated : producer = some producerOccurrence)
+    : ∃ producerOwners ancestor payload,
+        TaskAt work producerOccurrence producerOwners ancestor payload := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
   | root => contradiction
   | left _ ih | right _ ih => exact ih generated
-  | deferred located =>
+  | executionGroup located =>
       cases generated
-      exact ⟨_, _, _, .deferred located.toCurrent⟩
+      exact ⟨_, _, _, .executionGroup located.toCurrent⟩
   | item located selected =>
       cases generated
       exact ⟨_, _, _, .item located.toCurrent selected⟩
@@ -77,13 +77,13 @@ theorem Located.producer_known {work address current producer owners}
 /-- A task's producer exists and has strictly smaller dependency rank. Witness:
 the producer facts for the task's unique located work boundary.
 -/
-theorem TaskAt.producer_dependency {work occurrence owners parent payload}
-    (known : TaskAt work occurrence owners (some parent) payload)
-    : parent.dependencyRank < occurrence.dependencyRank
-      ∧ ∃ parentOwners ancestor result,
-          TaskAt work parent parentOwners ancestor result := by
+theorem TaskAt.producer_dependency {work occurrence owners producerOccurrence payload}
+    (known : TaskAt work occurrence owners (some producerOccurrence) payload)
+    : producerOccurrence.dependencyRank < occurrence.dependencyRank
+      ∧ ∃ producerOwners ancestor result,
+          TaskAt work producerOccurrence producerOwners ancestor result := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located => exact ⟨located.toCurrent.producer_rank rfl,
+  | executionGroup located => exact ⟨located.toCurrent.producer_rank rfl,
       located.toCurrent.producer_known rfl⟩
   | item located selected =>
       have lower := located.toCurrent.producer_rank rfl
@@ -112,11 +112,11 @@ theorem TaskCancelled.same_prerequisites
       have equal := (TaskAt.unique descriptor known).1
       exact .owners next (equal ▸ nonempty) (equal ▸ failures)
   | producerFailed projected failure =>
-      obtain ⟨parentOwners, value, descriptor⟩ := projected
+      obtain ⟨producerOwners, value, descriptor⟩ := projected
       have equal := (TaskAt.unique descriptor known).2.1
       exact .producerFailed (equal ▸ next) failure
   | producerCancelled projected failure =>
-      obtain ⟨parentOwners, value, descriptor⟩ := projected
+      obtain ⟨producerOwners, value, descriptor⟩ := projected
       have equal := (TaskAt.unique descriptor known).2.1
       exact .producerCancelled (equal ▸ next) failure
 
@@ -154,11 +154,12 @@ theorem readyTask_exists {work matching events failed occurrence owners producer
         outstanding (Or.inl cancelled)
       have fresh : ¬Published matching events occurrence := fun published =>
         outstanding (Or.inr published)
-      by_cases generated : ∀ parent, producer = some parent →
-          Published matching events parent
+      by_cases generated : ∀ producerOccurrence,
+          producer = some producerOccurrence
+          → Published matching events producerOccurrence
       · have readyExceptItems := And.intro fresh (And.intro active generated)
         cases occurrence with
-        | deferred address => exact ⟨_, _, _, _, known,
+        | executionGroup address => exact ⟨_, _, _, _, known,
             ⟨readyExceptItems.1, readyExceptItems.2.1, readyExceptItems.2.2, trivial⟩⟩
         | item address index =>
             cases index with
@@ -174,15 +175,18 @@ theorem readyTask_exists {work matching events failed occurrence owners producer
                 · apply ih (Occurrence.item address index).dependencyRank
                     (by simp only [Occurrence.dependencyRank] at rank ⊢; omega)
                     prior accounted rfl
-      · obtain ⟨parent, produces, unpublished⟩ := Classical.not_forall.mp generated
+      · obtain ⟨producerOccurrence, produces, unpublished⟩ :=
+          Classical.not_forall.mp generated
           |>.imp fun _ h => not_imp.mp h
         subst producer
-        obtain ⟨lower, parentOwners, ancestor, result, parentKnown⟩ := known.producer_dependency
-        have unaccounted : ¬Accounted work matching events failed parent := by
+        obtain ⟨lower, producerOwners, ancestor, result, producerKnown⟩ :=
+          known.producer_dependency
+        have unaccounted
+            : ¬Accounted work matching events failed producerOccurrence := by
           rintro (cancelled | published)
           · exact active (.producerCancelled known cancelled)
           · exact unpublished published
-        exact ih parent.dependencyRank (by omega) parentKnown unaccounted rfl
+        exact ih producerOccurrence.dependencyRank (by omega) producerKnown unaccounted rfl
 
 /-- Every published task has a successful structural producer chain. Witness: recurse
 through the strictly earlier producer publication supplied by the event admission rule.
@@ -197,13 +201,13 @@ theorem Explains.publication_reachable {work groups streams events matching fail
         explained.published_task ⟨index, event, selected, value, rfl⟩
       cases producer with
       | none => exact .root ⟨owners, payload, known⟩
-      | some parent =>
+      | some producerOccurrence =>
           obtain ⟨earlier, previous, less, prior, publishes, same⟩ :=
             explained.producer_before selected value known
-          obtain ⟨parentOwners, ancestor, result, parentKnown, success⟩ :=
+          obtain ⟨producerOwners, ancestor, result, producerKnown, success⟩ :=
             explained.published_task ⟨earlier, previous, prior, publishes, same⟩
           exact .child ⟨owners, payload, known⟩
-            ⟨parentOwners, ancestor, result, parentKnown, success⟩
+            ⟨producerOwners, ancestor, result, producerKnown, success⟩
             (same ▸ ih earlier less prior publishes)
 
 /-- A structurally ready task after an explained history is reachable even if its own
@@ -219,13 +223,13 @@ theorem CanPublish.reachable
     : Reachable work occurrence := by
   cases producer with
   | none => exact .root ⟨owners, payload, known⟩
-  | some parent =>
-      have published := ready.2.2.1 parent rfl
-      obtain ⟨parentOwners, ancestor, result, parentKnown, success⟩ :=
+  | some producerOccurrence =>
+      have published := ready.2.2.1 producerOccurrence rfl
+      obtain ⟨producerOwners, ancestor, result, producerKnown, success⟩ :=
         explained.published_task published
       obtain ⟨index, event, selected, value, same⟩ := published
       exact .child ⟨owners, payload, known⟩
-        ⟨parentOwners, ancestor, result, parentKnown, success⟩
+        ⟨producerOwners, ancestor, result, producerKnown, success⟩
         (same ▸ explained.publication_reachable selected value)
 
 /-- Cancelling every producer-free task cancels every task in finite raw work.
@@ -246,11 +250,11 @@ theorem all_tasks_cancelled_of_roots {work failed}
   | ind rank ih =>
       cases producer with
       | none => exact roots occurrence owners payload known
-      | some parent =>
-          obtain ⟨smaller, parentOwners, ancestor, result, parentKnown⟩ :=
+      | some producerOccurrence =>
+          obtain ⟨smaller, producerOwners, ancestor, result, producerKnown⟩ :=
             known.producer_dependency
           apply TaskCancelled.producerCancelled known
-          exact ih parent.dependencyRank (by omega) parentKnown rfl
+          exact ih producerOccurrence.dependencyRank (by omega) producerKnown rfl
 
 -----------------------------------------------------------------------------------------
 -- An outstanding task has a healthy, uncompleted owner
@@ -261,9 +265,10 @@ the stream item's exact stream descriptor, not an ancestor placeholder.
 -/
 theorem TaskAt.owner_at_producer {work occurrence owners producer payload key}
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    : ∃ node kind parents, NodeAt work node kind parents producer ∧ node.key = key := by
+    : ∃ node kind dependencies,
+        NodeAt work node kind dependencies producer ∧ node.key = key := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       obtain ⟨group, inGroups, equal⟩ := List.mem_map.mp member
       exact ⟨group.node, .group, _, .group located.toCurrent inGroups, equal⟩
   | item located selected =>
@@ -275,10 +280,10 @@ Witness: the owner descriptor at the task's own producer boundary.
 -/
 theorem TaskAt.owner_known {work occurrence owners producer payload key}
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    : ∃ node kind parents birth,
-        NodeAt work node kind parents birth ∧ node.key = key := by
-  obtain ⟨node, kind, parents, descriptor, same⟩ := known.owner_at_producer member
-  exact ⟨node, kind, parents, producer, descriptor, same⟩
+    : ∃ node kind dependencies birth,
+        NodeAt work node kind dependencies birth ∧ node.key = key := by
+  obtain ⟨node, kind, dependencies, descriptor, same⟩ := known.owner_at_producer member
+  exact ⟨node, kind, dependencies, producer, descriptor, same⟩
 
 /-- Failure evidence at an earlier boundary is included at every later boundary.
 Witness: the same recorded cut still satisfies the larger prefix-length bound.

@@ -74,9 +74,9 @@ theorem incremental_idUsageValid_of_references (initial : InitialIncrementalStre
     (updates : List IncrementalStreamUpdateResult)
     (references
       : WireReferences.Valid (initial.pending.map IncrementalPendingNotice.id) [] updates)
-    (unique : (QueryResult.incremental initial updates).idsUnique)
+    (unique : (ExecutionObservation.incremental initial updates).idsUnique)
     (completions : (DeliveryTrace.completedIDs updates).Nodup)
-    : (QueryResult.incremental initial updates).idUsageValid := by
+    : (ExecutionObservation.incremental initial updates).idUsageValid := by
   exact ⟨
     (List.nodup_append.mp unique).1,
     wireReferences_idUsageValid references unique completions

@@ -115,7 +115,7 @@ of every remaining open node. Closing IDs is a conclusion, not a premise on this
 theorem completeObservation_exists_iff_accounted_history (response : Response)
     (work : Work)
     : (∃ scheduler : Execution.WorkScheduler,
-        ∃ result : QueryResult,
+        ∃ result : ExecutionObservation,
           scheduler.Conforms work
           ∧ (executionFromWork scheduler response work).Observes result true)
       ↔ work.size = 0

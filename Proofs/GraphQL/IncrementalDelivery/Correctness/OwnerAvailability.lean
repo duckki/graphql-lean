@@ -34,7 +34,7 @@ theorem owner_exists_of_available
     (fun length => decide (eligible length))
   have bounded {node} (active : AvailableOwner work initial events failed owners node)
       : node.path.length ≤ (payloadPath payload).length := by
-    obtain ⟨kind, parents, birth, located⟩ := active.1
+    obtain ⟨kind, dependencies, producerOccurrence, located⟩ := active.1
     obtain ⟨suffix, equal⟩ := workAt_owner_prefix coherent known located active.2.1
     change payloadPath payload = node.path ++ suffix at equal
     simp only [equal, List.length_append]
@@ -69,7 +69,7 @@ theorem stream_owner_of_open
       have streamKnown := NodeAt.stream located.toCurrent
       refine ⟨⟨⟨.stream, _, _, streamKnown⟩, by simp, opened, healthy⟩, ?_⟩
       intro other available
-      obtain ⟨kind, parents, birth, otherKnown⟩ := available.1
+      obtain ⟨kind, dependencies, producerOccurrence, otherKnown⟩ := available.1
       have equal := workAt_same_path coherent otherKnown streamKnown
         (List.mem_singleton.mp available.2.1)
       simp only [equal, Nat.le_refl]
@@ -88,8 +88,9 @@ theorem ready_owner_dependency_unsatisfied
     : ¬DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
         (failedBefore failures events.length) key := by
   rintro ⟨healthy, absent | completed | ⟨_, accounted⟩⟩
-  · obtain ⟨node, kind, parents, descriptor, same⟩ := known.owner_at_producer member
-    exact absent ⟨producer, node, kind, parents, descriptor, same⟩
+  · obtain ⟨node, kind, dependencies, descriptor, same⟩ :=
+      known.owner_at_producer member
+    exact absent ⟨producer, node, kind, dependencies, descriptor, same⟩
   · rcases explained.completed_accounted completed with failed | accounted
     · exact healthy failed
     · rcases accounted occurrence owners ⟨producer, payload, known⟩ member
@@ -148,10 +149,12 @@ theorem extend_ready_announced
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨data, errors⟩ := value
-          obtain ⟨node, kind, parents, birth, nodeKnown, same⟩ := known.owner_known member
+          obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
+            known.owner_known member
           have available : AvailableOwner work ((groups ++ streams).map DeliveryNode.key)
               events (failedBefore failures events.length) owners node :=
-            ⟨⟨kind, parents, birth, nodeKnown⟩, same ▸ member, same ▸ opened,
+            ⟨⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
+              same ▸ opened,
               same ▸ healthy⟩
           obtain ⟨owner, selected⟩ := owner_exists_of_available coherent known ⟨node, available⟩
           exact ⟨_, _, _, explained.publish_object known ready selected⟩
@@ -219,7 +222,7 @@ theorem completeRun_exists_of_initial_owner_coverage
           → owners ≠ [] ∧ ∀ key ∈ owners, key ∈ (groups ++ streams).map DeliveryNode.key)
     : ∃ history, AdmissibleRun work history := by
   classical
-  have initial : Explains work groups streams [] (fun _ => .deferred []) [] :=
+  have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   obtain ⟨events, matching, failures, explained, maximal⟩ := initial.maximal_extension
   simp only [List.nil_append] at explained maximal

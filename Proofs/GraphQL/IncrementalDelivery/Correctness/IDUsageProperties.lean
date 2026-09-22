@@ -132,14 +132,16 @@ theorem idUsageValid_patchesAnnounced (seen active : List String)
 /-- Query-level uniqueness follows from the initial uniqueness and the update induction
 witness.
 -/
-theorem idsUnique_of_idUsageValid (result : QueryResult) (h : result.idUsageValid)
+theorem idsUnique_of_idUsageValid (result : ExecutionObservation)
+    (h : result.idUsageValid)
     : result.idsUnique := by
   cases result with
   | single response => trivial
   | incremental initial subsequent => exact idUsageValid_idsUnique _ _ _ h.2 h.1
 
 /-- Query-level causal references follow from initially announced IDs and safe updates. -/
-theorem patchesAnnounced_of_idUsageValid (result : QueryResult) (h : result.idUsageValid)
+theorem patchesAnnounced_of_idUsageValid (result : ExecutionObservation)
+    (h : result.idUsageValid)
     : result.patchesAnnounced := by
   cases result with
   | single response => trivial
@@ -164,7 +166,7 @@ theorem announcementsEventuallyComplete_pendingIDs
 /-- Safety plus liveness gives exactly-once completion: a present element of a Nodup list
 counts once.
 -/
-theorem idsCompleteExactlyOnce_of_idUsageValid_of_liveness (result : QueryResult)
+theorem idsCompleteExactlyOnce_of_idUsageValid_of_liveness (result : ExecutionObservation)
     (hs : result.idUsageValid) (hl : result.idsEventuallyComplete)
     : result.idsCompleteExactlyOnce := by
   cases result with

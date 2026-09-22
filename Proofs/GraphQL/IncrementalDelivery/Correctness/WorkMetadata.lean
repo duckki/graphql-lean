@@ -10,22 +10,23 @@ open WorkScheduler
 
 /-- A located region's enclosing keys come from its nearest deferred producer; a root or
 stream-item producer has no enclosing defer keys. Witness: structural navigation, which
-preserves the context through append and resets it at task-producing edges.
+preserves the context through combine and resets it at task-producing edges.
 -/
 theorem located_producer_context {work address current producer owners}
     (located : Located work address current producer owners)
     : match (generalizing := false) producer with
       | none => owners = []
-      | some (.deferred parent) =>
+      | some (.executionGroup producerAddress) =>
           ∃ ancestor path result,
-            TaskAt work (.deferred parent) owners ancestor (.object path result)
+            TaskAt work (.executionGroup producerAddress) owners ancestor
+              (.object path result)
       | some (.item _ _) => owners = [] := by
   have navigation := StructuralEquivalence.located_of_current located
   clear located
   induction navigation with
   | root => rfl
   | left _ ih | right _ ih => exact ih
-  | deferred located _ => exact ⟨_, _, _, .deferred located.toCurrent⟩
+  | executionGroup located _ => exact ⟨_, _, _, .executionGroup located.toCurrent⟩
   | item => rfl
 
 /-- Structural lookup retains a generated work's coherent key-to-path assignment;
@@ -43,7 +44,7 @@ theorem workAt_located {paths bound work address current producer owners}
       rw [MixedOwnerPaths.WorkAt] at ih; exact ih.1
   | right _ ih =>
       rw [MixedOwnerPaths.WorkAt] at ih; exact ih.2
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       rw [MixedOwnerPaths.WorkAt] at ih; exact ih.2
   | item _ entry ih =>
       rw [MixedOwnerPaths.WorkAt] at ih
@@ -52,9 +53,9 @@ theorem workAt_located {paths bound work address current producer owners}
 /-- Every node descriptor agrees with its generated key's absolute path assignment;
 witness: the located defer map or stream node.
 -/
-theorem workAt_node {paths bound work node kind parents birth}
+theorem workAt_node {paths bound work node kind dependencies producer}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
-    (known : NodeAt work node kind parents birth)
+    (known : NodeAt work node kind dependencies producer)
     : OwnerPaths.Assigned paths bound node := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
@@ -94,12 +95,13 @@ the task's defer map, or the identical stream-node key, and coherent metadata.
 theorem workAt_owner_prefix {paths bound work occurrence owners producer payload}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (task : TaskAt work occurrence owners producer payload)
-    {owner kind parents birth} (known : NodeAt work owner kind parents birth)
+    {owner kind dependencies birth}
+    (known : NodeAt work owner kind dependencies birth)
     (contributes : owner.key ∈ owners)
     : Below owner.path (payloadPath payload) := by
   have ownerAssigned := workAt_node coherent known
   cases StructuralEquivalence.taskAt_of_current task with
-  | deferred located =>
+  | executionGroup located =>
       obtain ⟨group, member, same⟩ := List.mem_map.mp contributes
       have localWork := workAt_located coherent located.toCurrent
       rw [MixedOwnerPaths.WorkAt] at localWork
@@ -128,7 +130,7 @@ theorem object_subPath_exact {paths bound work occurrence owners producer path r
     {owner initial events failed}
     (selected : Owner work initial events failed owners owner)
     : owner.path ++ path.drop owner.path.length = path := by
-  obtain ⟨kind, parents, birth, known⟩ := selected.1.1
+  obtain ⟨kind, dependencies, producer, known⟩ := selected.1.1
   obtain ⟨suffix, equal⟩ :=
     workAt_owner_prefix coherent task known selected.1.2.1
   change path = owner.path ++ suffix at equal

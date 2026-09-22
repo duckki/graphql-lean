@@ -30,8 +30,8 @@ def MapAt (paths : Assignment) (bound : Nat) (path : ResponsePath) (deferMap : D
 
 def WorkAt (paths : Assignment) (bound : Nat) : Work → Prop
   | .empty => True
-  | .append left right => WorkAt paths bound left ∧ WorkAt paths bound right
-  | .deferred groups path _ children =>
+  | .combine left right => WorkAt paths bound left ∧ WorkAt paths bound right
+  | .executionGroup groups path _ children =>
       MapAt paths bound path groups ∧ WorkAt paths bound children
   | .stream .. => False
 
@@ -79,8 +79,9 @@ theorem WorkAt.extend {paths next : Assignment} {start finish : Nat} {work : Wor
     : WorkAt next finish work := by
   cases work with
   | empty => trivial
-  | append left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
-  | deferred groups path result children => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
+  | combine left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
+  | executionGroup groups path result children =>
+      exact ⟨h.1.extend he hle, h.2.extend he hle⟩
   | stream node items => exact False.elim h
 termination_by sizeOf work
 
@@ -140,7 +141,7 @@ theorem output_empty (paths : Assignment) (state : Nat)
     : Output paths state .empty state :=
   ⟨Nat.le_refl _, paths, Extends.refl _ _, trivial⟩
 
-theorem workAt_combine (paths : Assignment) (bound : Nat) (f : α → β → γ)
+theorem workAt_completionCombine (paths : Assignment) (bound : Nat) (f : α → β → γ)
     (left : Completion α) (right : Completion β)
     (hl : WorkAt paths bound left.work) (hr : WorkAt paths bound right.work)
     : WorkAt paths bound (Completion.combine f left right).work := by

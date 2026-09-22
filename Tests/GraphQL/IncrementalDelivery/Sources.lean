@@ -160,9 +160,10 @@ example
 /-! Reconstruct the actual observed mapper output, without a candidate enumerator. -/
 
 #guard
-  let result := QueryResult.incremental initial [(responseStream.next [events] allowed).1]
+  let result :=
+    ExecutionObservation.incremental initial [(responseStream.next [events] allowed).1]
   result.deliveryComplete
-  && (mergeQueryResult result).any
+  && (mergeExecutionObservation result).any
       (fun response => same response { data := .object [("a", .scalar "a")] })
 
 end GraphQL.IncrementalDelivery.Tests.Sources

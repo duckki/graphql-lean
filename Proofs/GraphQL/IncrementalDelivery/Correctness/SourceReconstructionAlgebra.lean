@@ -289,7 +289,8 @@ theorem seeded_combine {pa : α → List Entry} {pb : β → List Entry} {pc : �
               ?_,
               ?_
             ⟩
-            · simpa only [Completion.combine, he, hre, GraphQL.Execution.Result.combine] using WorkEntries.append hsa hsb
+            · simpa only [Completion.combine, he, hre, GraphQL.Execution.Result.combine]
+                using WorkEntries.combine hsa hsb
             · have hp := hpa.append hpb
               simp only [he, hre, result] at hp
               simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine, result, hf, List.flatten_append]
@@ -313,6 +314,6 @@ theorem seeded_combine {pa : α → List Entry} {pb : β → List Entry} {pc : �
                   _ (hca a entry hem) _ ((hcb b).lookup hc) rfl
               simpa only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
                 resultCursors, hfc, entryPaths, List.map_append]
-                using WorkCursorSeed.append (hsa'.append_cursors (cb b)) hsb''
+                using WorkCursorSeed.combine (hsa'.append_cursors (cb b)) hsb''
 
 end GraphQL.IncrementalDelivery.Correctness.SourceReconstruction

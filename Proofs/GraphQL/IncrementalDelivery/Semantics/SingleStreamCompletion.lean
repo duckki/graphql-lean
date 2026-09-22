@@ -420,7 +420,7 @@ theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
                 {
                   (initial.catchNull ResponseValue.list) with
                     work :=
-                      .append initial.work
+                      .combine initial.work
                         (.stream { key := state, path := path, label := stream.label }
                           items)
                 },

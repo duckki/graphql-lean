@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkScheduler
 /-- The review counterexample fails for every conforming source and response grouping,
 not only the originally proposed trace; witness: its actual failing task.
 -/
-example {result : QueryResult}
+example {result : ExecutionObservation}
     (observed
       : queryOutcome Tests.schema Tests.resolvers [] FailureReporting.op 10
           (.object "Query" 0) result)

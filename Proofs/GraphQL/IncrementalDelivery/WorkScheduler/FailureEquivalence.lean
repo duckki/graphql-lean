@@ -17,10 +17,11 @@ producer chain. Successful internal completions need not be individually schedul
 inductive Reachable (work : Work) : Occurrence → Prop where
   | root {occurrence owners payload} (known : TaskAt work occurrence owners none payload)
     : Reachable work occurrence
-  | child {occurrence owners parent payload parentOwners ancestor result}
-    (known : TaskAt work occurrence owners (some parent) payload)
-    (producer : TaskAt work parent parentOwners ancestor result)
-    (success : result.failure = none) (reachable : Reachable work parent)
+  | child {occurrence owners producerOccurrence payload producerOwners ancestor result}
+    (known : TaskAt work occurrence owners (some producerOccurrence) payload)
+    (producer : TaskAt work producerOccurrence producerOwners ancestor result)
+    (success : result.failure = none)
+    (reachable : Reachable work producerOccurrence)
     : Reachable work occurrence
 
 mutual
@@ -32,24 +33,24 @@ mutual
       (known : TaskAt work occurrence owners producer payload)
       (owner : key ∈ owners) (finished : occurrence ∈ failed)
       : NodeFailed work failed key
-    | groupParent {node parents birth key}
-      (known : NodeAt work node .group parents birth)
-      (parent : key ∈ parents) (failure : NodeFailed work failed key)
+    | groupDependency {node dependencies birth key}
+      (known : NodeAt work node .group dependencies birth)
+      (dependency : key ∈ dependencies) (failure : NodeFailed work failed key)
       : NodeFailed work failed node.key
-    | streamParents {node parents birth}
-      (known : NodeAt work node .stream parents birth) (nonempty : parents ≠ [])
-      (failures : ∀ key ∈ parents, NodeFailed work failed key)
+    | streamDependencies {node dependencies birth}
+      (known : NodeAt work node .stream dependencies birth) (nonempty : dependencies ≠ [])
+      (failures : ∀ key ∈ dependencies, NodeFailed work failed key)
       : NodeFailed work failed node.key
-    | producers {node kind parents birth}
-      (known : NodeAt work node kind parents birth)
+    | producers {node kind dependencies birth}
+      (known : NodeAt work node kind dependencies birth)
       (noRoot
-        : ∀ other otherKind otherParents,
-            NodeAt work other otherKind otherParents none → other.key ≠ node.key)
+        : ∀ other otherKind otherDependencies,
+            NodeAt work other otherKind otherDependencies none → other.key ≠ node.key)
       (unavailable
-        : ∀ other otherKind otherParents parent,
-            NodeAt work other otherKind otherParents (some parent)
+        : ∀ other otherKind otherDependencies producerOccurrence,
+            NodeAt work other otherKind otherDependencies (some producerOccurrence)
             → other.key = node.key
-            → ProducerUnavailable work failed parent)
+            → ProducerUnavailable work failed producerOccurrence)
       : NodeFailed work failed node.key
 
   /-- (TaskCancelled work failed occurrence) derives cancellation of the task occurrence
@@ -61,9 +62,9 @@ mutual
       (known : TaskAt work occurrence owners producer payload) (nonempty : owners ≠ [])
       (failures : ∀ key ∈ owners, NodeFailed work failed key)
       : TaskCancelled work failed occurrence
-    | producer {occurrence owners parent payload}
-      (known : TaskAt work occurrence owners (some parent) payload)
-      (unavailable : ProducerUnavailable work failed parent)
+    | producer {occurrence owners producerOccurrence payload}
+      (known : TaskAt work occurrence owners (some producerOccurrence) payload)
+      (unavailable : ProducerUnavailable work failed producerOccurrence)
       : TaskCancelled work failed occurrence
 
   /-- (ProducerUnavailable work failed occurrence) says this producer occurrence in work
@@ -88,12 +89,14 @@ theorem NodeFailed.toCurrent {work failed key} (h : NodeFailed work failed key)
         fun occurrence _ =>
           occurrence ∈ failed ∨ WorkScheduler.TaskCancelled work failed occurrence) with
   | task known owner member => exact .task known owner member
-  | groupParent known parent _ ih => exact .groupParent known parent ih
-  | streamParents known nonempty _ ih => exact .streamParents known nonempty ih
+  | groupDependency known dependency _ ih =>
+      exact .groupDependency known dependency ih
+  | streamDependencies known nonempty _ ih => exact .streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
       exact .producers known noRoot
-        (fun other kind parents parent located same notFailed =>
-          (ih other kind parents parent located same).resolve_left notFailed)
+        (fun other kind dependencies producerOccurrence located same notFailed =>
+          (ih other kind dependencies producerOccurrence located same).resolve_left
+            notFailed)
   | owners known nonempty _ ih => exact .owners known nonempty ih
   | producer known _ ih =>
       exact ih.elim (.producerFailed known) (.producerCancelled known)
@@ -112,12 +115,14 @@ theorem TaskCancelled.toCurrent {work failed occurrence}
         fun occurrence _ =>
           occurrence ∈ failed ∨ WorkScheduler.TaskCancelled work failed occurrence) with
   | task known owner member => exact .task known owner member
-  | groupParent known parent _ ih => exact .groupParent known parent ih
-  | streamParents known nonempty _ ih => exact .streamParents known nonempty ih
+  | groupDependency known dependency _ ih =>
+      exact .groupDependency known dependency ih
+  | streamDependencies known nonempty _ ih => exact .streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
       exact .producers known noRoot
-        (fun other kind parents parent located same notFailed =>
-          (ih other kind parents parent located same).resolve_left notFailed)
+        (fun other kind dependencies producerOccurrence located same notFailed =>
+          (ih other kind dependencies producerOccurrence located same).resolve_left
+            notFailed)
   | owners known nonempty _ ih => exact .owners known nonempty ih
   | producer known _ ih =>
       exact ih.elim (.producerFailed known) (.producerCancelled known)
@@ -135,22 +140,23 @@ theorem nodeFailed_of_current {work failed key}
   | task known owner member =>
       obtain ⟨producer, payload, known⟩ := known
       exact .task known owner member
-  | groupParent known parent _ ih =>
+  | groupDependency known dependency _ ih =>
       obtain ⟨node, birth, known, rfl⟩ := known
-      exact .groupParent known parent ih
-  | streamParents known nonempty _ ih =>
+      exact .groupDependency known dependency ih
+  | streamDependencies known nonempty _ ih =>
       obtain ⟨node, birth, known, rfl⟩ := known
-      exact .streamParents known nonempty ih
+      exact .streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
-      obtain ⟨birth, node, kind, parents, known, rfl⟩ := known
+      obtain ⟨birth, node, kind, dependencies, known, rfl⟩ := known
       refine NodeFailed.producers known ?_ ?_
-      · intro other otherKind otherParents located same
-        exact noRoot ⟨other, otherKind, otherParents, located, same⟩
-      · intro other otherKind otherParents parent located same
-        by_cases member : parent ∈ failed
+      · intro other otherKind otherDependencies located same
+        exact noRoot ⟨other, otherKind, otherDependencies, located, same⟩
+      · intro other otherKind otherDependencies producerOccurrence located same
+        by_cases member : producerOccurrence ∈ failed
         · exact .failure member
         · exact .cancelled
-            (ih parent ⟨other, otherKind, otherParents, located, same⟩ member)
+            (ih producerOccurrence
+              ⟨other, otherKind, otherDependencies, located, same⟩ member)
   | owners known nonempty _ ih =>
       obtain ⟨producer, payload, known⟩ := known
       exact .owners known nonempty ih
@@ -171,22 +177,23 @@ theorem taskCancelled_of_current {work failed occurrence}
   | task known owner member =>
       obtain ⟨producer, payload, known⟩ := known
       exact .task known owner member
-  | groupParent known parent _ ih =>
+  | groupDependency known dependency _ ih =>
       obtain ⟨node, birth, known, rfl⟩ := known
-      exact .groupParent known parent ih
-  | streamParents known nonempty _ ih =>
+      exact .groupDependency known dependency ih
+  | streamDependencies known nonempty _ ih =>
       obtain ⟨node, birth, known, rfl⟩ := known
-      exact .streamParents known nonempty ih
+      exact .streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
-      obtain ⟨birth, node, kind, parents, known, rfl⟩ := known
+      obtain ⟨birth, node, kind, dependencies, known, rfl⟩ := known
       refine NodeFailed.producers known ?_ ?_
-      · intro other otherKind otherParents located same
-        exact noRoot ⟨other, otherKind, otherParents, located, same⟩
-      · intro other otherKind otherParents parent located same
-        by_cases member : parent ∈ failed
+      · intro other otherKind otherDependencies located same
+        exact noRoot ⟨other, otherKind, otherDependencies, located, same⟩
+      · intro other otherKind otherDependencies producerOccurrence located same
+        by_cases member : producerOccurrence ∈ failed
         · exact .failure member
         · exact .cancelled
-            (ih parent ⟨other, otherKind, otherParents, located, same⟩ member)
+            (ih producerOccurrence
+              ⟨other, otherKind, otherDependencies, located, same⟩ member)
   | owners known nonempty _ ih =>
       obtain ⟨producer, payload, known⟩ := known
       exact .owners known nonempty ih
@@ -215,7 +222,7 @@ theorem reachable_of_current {work occurrence}
       exact .root known
   | child known success _ ih =>
       obtain ⟨owners, payload, known⟩ := known
-      obtain ⟨parentOwners, ancestor, result, producer, success⟩ := success
+      obtain ⟨producerOwners, ancestor, result, producer, success⟩ := success
       exact .child known producer success ih
 
 /-- Reachability is unchanged for all raw work, by the two producer-chain translations. -/

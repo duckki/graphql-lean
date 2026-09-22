@@ -31,7 +31,7 @@ theorem WorkObservation.merge_entries {paths bound response work result slices}
               SourceTask.entries)))
     (zero : result.totalErrors = 0)
     : ∃ merged,
-        mergeQueryResult result = some merged
+        mergeExecutionObservation result = some merged
         ∧ (TypedResponse.value [] merged.data).Perm
             (TypedResponse.value [] response.data
               ++ (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
@@ -89,7 +89,7 @@ position certificate. Witness: zero-error initial success and unique seeded path
 theorem root_source_attached (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selections : List Selection) (state : Nat)
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed
       : let completed :=
           ((executeRootSelectionSetCore schema resolvers variables
@@ -141,7 +141,7 @@ theorem mergedExecutionEquivalentToBasic_holds (schema : Schema) (operation : Op
   | false =>
       simp only [applies, Bool.false_eq_true, ↓reduceIte] at witnessed
       subst result
-      simp [QueryResult.totalErrors] at zero
+      simp [ExecutionObservation.totalErrors] at zero
   | true =>
       simp only [applies, ↓reduceIte] at witnessed
       obtain ⟨paths, coherent⟩ := Semantics.MixedOwnerPaths.executeRoot_owners schema resolvers
@@ -184,7 +184,7 @@ theorem mergedExecutionEquivalentToBasic_holds (schema : Schema) (operation : Op
         TypedResponse.value_equivalent [] _ _
           ((exactEntries.map Prod.fst).nodup_iff.mpr basicUnique) basicUnique
           exactEntries,
-        (mergeQueryResult_errors result merged actual).trans zero
+        (mergeExecutionObservation_errors result merged actual).trans zero
       ⟩
 
 end GraphQL.IncrementalDelivery.Correctness

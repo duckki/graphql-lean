@@ -32,7 +32,8 @@ mutual
     · obtain ⟨hlt, final, het, hwt⟩ := collectExecutionGroups_roles schema resolvers variables fuel parentType source
         _ path _ middle _ (hm.extend he hle)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, workAt_append (hw.extend het hlt) hwt⟩
+      exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
+        workAt_combine (hw.extend het hlt) hwt⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -62,7 +63,8 @@ mutual
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ ((hm.extend he hle).extend het hlt) (hw.extend het hlt)
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
-        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, workAt_append hd hwt⟩
+        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
+          workAt_combine hd hwt⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -92,7 +94,7 @@ mutual
           rest path usages deferMap middle _ (hm.extend he hle)
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
-          workAt_combine final _ List.append _ _ (hw.extend het hlt) hwt⟩
+          workAt_completionCombine final _ List.append _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 4, 0, sizeOf groups)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -240,7 +242,7 @@ mutual
           have hrole : final frontier = true := (het frontier (Nat.lt_succ_self _)).trans (by simp [markStream])
           simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [frontier] at *; omega, final, he.trans heall hle, ?_⟩
-          apply workAt_append (workAt_catchNull final _ _ _
+          apply workAt_combine (workAt_catchNull final _ _ _
             (hw.extend heall (by dsimp only [frontier] at *; omega)))
           exact workAt_stream final _ _ _ ⟨by dsimp only [frontier] at *; omega, hrole⟩ hitems
   termination_by (fuel, 3, 0, 0)
@@ -269,7 +271,8 @@ mutual
           variables fuel itemType fields rest
           path (index + 1) usages deferMap middle _ (hm.extend he hle)
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
-        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, workAt_combine final _ List.cons _ _ (hw.extend het hlt) hwt⟩
+        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
+          workAt_completionCombine final _ List.cons _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

@@ -8,6 +8,13 @@ namespace GraphQL.IncrementalDelivery.Tests
 
 open GraphQL.IncrementalDelivery.Execution
 
+#guard_msgs (drop info) in
+#check_failure SharedGroupValue
+#guard_msgs (drop info) in
+#check_failure selectGroupOwner
+#guard_msgs (drop info) in
+#check_failure normalizeGroupValues
+
 def schema : Schema :=
   {
     queryType := "Query"

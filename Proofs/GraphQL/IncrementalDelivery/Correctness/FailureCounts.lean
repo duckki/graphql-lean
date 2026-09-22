@@ -96,7 +96,7 @@ theorem batched_completionErrors (groups : List (List IncrementalStreamUpdateRes
 theorem completionErrors_le_total (initial : InitialIncrementalStreamResult)
     (updates : List IncrementalStreamUpdateResult)
     : (updates.map completionErrors).sum
-      ≤ QueryResult.totalErrors (.incremental initial updates) := by
+      ≤ ExecutionObservation.totalErrors (.incremental initial updates) := by
   have bound : (updates.map completionErrors).sum ≤
       (updates.map (fun update =>
         (update.incremental.map IncrementalResult.errors).sum

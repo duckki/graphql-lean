@@ -7,16 +7,17 @@ open GraphQL.IncrementalDelivery.Execution
 
 /-- The delivery-node key occurs in the original work. -/
 def Supported (work : Work) (key : Nat) : Prop :=
-  ∃ node kind parents birth, NodeAt work node kind parents birth ∧ node.key = key
+  ∃ node kind dependencies birth,
+    NodeAt work node kind dependencies birth ∧ node.key = key
 
 /-- Projecting a producer retains exactly the supported keys, by repacking witnesses. -/
 theorem supported_iff_hasProducer {work key}
     : Supported work key ↔ ∃ birth, NodeHasProducer work key birth := by
   constructor
-  · rintro ⟨node, kind, parents, birth, known, same⟩
-    exact ⟨birth, node, kind, parents, known, same⟩
-  · rintro ⟨birth, node, kind, parents, known, same⟩
-    exact ⟨node, kind, parents, birth, known, same⟩
+  · rintro ⟨node, kind, dependencies, birth, known, same⟩
+    exact ⟨birth, node, kind, dependencies, known, same⟩
+  · rintro ⟨birth, node, kind, dependencies, known, same⟩
+    exact ⟨node, kind, dependencies, birth, known, same⟩
 
 /-- Owner-based accounting is the former full-task condition, by existential elimination.
 -/
@@ -56,17 +57,17 @@ theorem announcements_facts {work initial matching events failed groups streams}
   · intro key member
     obtain ⟨node, belongs, rfl⟩ := List.mem_map.mp member
     rcases List.mem_append.mp belongs with member | member
-    · obtain ⟨parents, birth, _, eligible⟩ := h.2.1 node member
+    · obtain ⟨dependencies, birth, _, eligible⟩ := h.2.1 node member
       exact eligible.1
-    · obtain ⟨parents, birth, _, eligible⟩ := h.2.2 node member
+    · obtain ⟨dependencies, birth, _, eligible⟩ := h.2.2 node member
       exact eligible.1
   · intro key member
     obtain ⟨node, belongs, rfl⟩ := List.mem_map.mp member
     rcases List.mem_append.mp belongs with member | member
-    · obtain ⟨parents, birth, known, _⟩ := h.2.1 node member
-      exact ⟨node, .group, parents, birth, known, rfl⟩
-    · obtain ⟨parents, birth, known, _⟩ := h.2.2 node member
-      exact ⟨node, .stream, parents, birth, known, rfl⟩
+    · obtain ⟨dependencies, birth, known, _⟩ := h.2.1 node member
+      exact ⟨node, .group, dependencies, birth, known, rfl⟩
+    · obtain ⟨dependencies, birth, known, _⟩ := h.2.2 node member
+      exact ⟨node, .stream, dependencies, birth, known, rfl⟩
 
 /-- Derived fresh-notice and open-key-closure facts for the next event after the observed
 prefix.

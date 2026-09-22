@@ -72,11 +72,11 @@ theorem attached_combine {available : List Entry} {ea : α → List Entry}
               (hor.2 _ (List.mem_append_left _ ((hcb b).lookup hh)))
           refine ⟨sl ++ sr, ?_, ?_⟩
           · simpa only [Completion.combine, hel, her, GraphQL.Execution.Result.combine,
-              resultCursors, hc] using WorkCursorSeed.append
+              resultCursors, hc] using WorkCursorSeed.combine
                 (hsl.append_cursors (cb b)) (hsr.extend hext)
           · simp only [Completion.combine, hel, her, GraphQL.Execution.Result.combine,
               TypedResponse.result, he]
-            refine .append (hal.mono ?_) (har.mono ?_)
+            refine .combine (hal.mono ?_) (har.mono ?_)
             · intro entry hh
               rcases List.mem_append.mp hh with hh | hh
               · exact List.mem_append_left _ hh
@@ -158,42 +158,44 @@ theorem attached_nonNull {available : List Entry} {path : ResponsePath}
 
 /-- Wrapping a completion as deferred work attaches it to the given ambient object;
 its payload supplies the entries needed by its child work. -/
-theorem OwnedAttachedCompletion.deferred {available : List Entry} {path : ResponsePath}
-    {scope : ResponsePath → Prop} {completed : Completion (List (Name × ResponseValue))}
+theorem OwnedAttachedCompletion.executionGroup {available : List Entry}
+    {path : ResponsePath} {scope : ResponsePath → Prop}
+    {completed : Completion (List (Name × ResponseValue))}
     (h
       : OwnedAttachedCompletion available (TypedResponse.fields path)
           (fields true path) (fieldCursors path) scope completed)
     (groups : List DeferredFragment) (ha : (path, Atom.object) ∈ available)
     : OwnedAttachedWork available scope
-        (.deferred groups path completed.result completed.work) := by
-  refine ⟨h.1.deferred groups, ?_⟩
+        (.executionGroup groups path completed.result completed.work) := by
+  refine ⟨h.1.executionGroup groups, ?_⟩
   obtain ⟨s, hs, hc⟩ := h.2
-  exact ⟨_, fun _ => .deferred hs, .deferred ha hc⟩
+  exact ⟨_, fun _ => .executionGroup hs, .executionGroup ha hc⟩
 
 /-- Disjoint attached work combines by concatenating its shared slice witnesses. -/
-theorem attached_work_append {available : List Entry} {sa sb sc : ResponsePath → Prop}
+theorem attached_work_combine {available : List Entry} {sa sb sc : ResponsePath → Prop}
     {left right : Work} (hl : OwnedAttachedWork available sa left)
     (hr : OwnedAttachedWork available sb right)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
-    : OwnedAttachedWork available sc (.append left right) := by
-  refine ⟨seeded_work_append hl.1 hr.1 hd hls hrs, ?_⟩
+    : OwnedAttachedWork available sc (.combine left right) := by
+  refine ⟨seeded_work_combine hl.1 hr.1 hd hls hrs, ?_⟩
   obtain ⟨sl, hsl, hal⟩ := hl.2
   obtain ⟨sr, hsr, har⟩ := hr.2
-  exact ⟨sl ++ sr, fun c => .append (hsl c) (hsr c), .append hal har⟩
+  exact ⟨sl ++ sr, fun c => .combine (hsl c) (hsr c), .combine hal har⟩
 
-/-- Appending disjoint work preserves completion attachments, by ambient monotonicity. -/
-theorem attached_appendWork {available : List Entry} {ea : α → List Entry}
+/-- Combining disjoint work preserves completion attachments, by ambient monotonicity. -/
+theorem attached_combineWork {available : List Entry} {ea : α → List Entry}
     {pa : α → List ResponsePath} {ca : α → Cursors}
     {sa sb sc : ResponsePath → Prop} {completed : Completion α} {work : Work}
     (hl : OwnedAttachedCompletion available ea pa ca sa completed)
     (hr : OwnedAttachedWork available sb work)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
     : OwnedAttachedCompletion available ea pa ca sc
-        {completed with work := .append completed.work work} := by
-  refine ⟨seeded_appendWork hl.1 hr.1 hd hls hrs, ?_⟩
+        {completed with work := .combine completed.work work} := by
+  refine ⟨seeded_combineWork hl.1 hr.1 hd hls hrs, ?_⟩
   obtain ⟨sl, hsl, hal⟩ := hl.2
   obtain ⟨sr, hsr, har⟩ := hr.2
-  exact ⟨sl ++ sr, .append hsl (hsr _), .append hal (har.mono (fun _ => List.mem_append_left _))⟩
+  exact ⟨sl ++ sr, .combine hsl (hsr _),
+    .combine hal (har.mono (fun _ => List.mem_append_left _))⟩
 
 /-- Prepending a completed item preserves attachments, using its payload as the
 child context and the next index for the remaining items. -/
@@ -246,23 +248,23 @@ theorem attached_combine_fields {available : List Entry} {path : ResponsePath}
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
 /-- Distinct field groups combine attached work, by disjoint field scopes. -/
-theorem attached_work_append_fields {available : List Entry} {path : ResponsePath}
+theorem attached_work_combine_fields {available : List Entry} {path : ResponsePath}
     {leftNames rightNames : List Name} {left right : Work}
     (hn : (leftNames ++ rightNames).Nodup)
     (hl : OwnedAttachedWork available (UnderFields path leftNames) left)
     (hr : OwnedAttachedWork available (UnderFields path rightNames) right)
     : OwnedAttachedWork available (UnderFields path (leftNames ++ rightNames))
-        (.append left right) := by
-  apply attached_work_append hl hr
+        (.combine left right) := by
+  apply attached_work_combine hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
-/-- Appending work from distinct field groups preserves attachments, by scope
+/-- Combining work from distinct field groups preserves attachments, by scope
 separation.
 -/
-theorem attached_appendWork_fields {available : List Entry} {path : ResponsePath}
+theorem attached_combineWork_fields {available : List Entry} {path : ResponsePath}
     {leftNames rightNames : List Name}
     {completed : Completion (List (Name × ResponseValue))} {work : Work}
     (hn : (leftNames ++ rightNames).Nodup)
@@ -273,8 +275,8 @@ theorem attached_appendWork_fields {available : List Entry} {path : ResponsePath
     : OwnedAttachedCompletion available (TypedResponse.fields path)
         (fields true path) (fieldCursors path)
         (UnderFields path (leftNames ++ rightNames))
-        {completed with work := .append completed.work work} := by
-  apply attached_appendWork hl hr
+        {completed with work := .combine completed.work work} := by
+  apply attached_combineWork hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
@@ -320,7 +322,7 @@ theorem attached_streamPrefix {available : List Entry} {path : ResponsePath}
         {
           initial.catchNull ResponseValue.list with
             work :=
-              .append (initial.catchNull ResponseValue.list).work (.stream node items)
+              .combine (initial.catchNull ResponseValue.list).work (.stream node items)
         } := by
   refine ⟨seeded_streamPrefix hi.1 he hb hlen hp ht.1, ?_⟩
   obtain ⟨sl, hsl, hol⟩ := hi.1
@@ -333,14 +335,14 @@ theorem attached_streamPrefix {available : List Entry} {path : ResponsePath}
     obtain ⟨index, _, _, hbelow⟩ := hol.2 p (List.mem_append_left _ hh)
     exact below_child_ne hbelow
   refine ⟨sl ++ sr, ?_, ?_⟩
-  · apply WorkCursorSeed.append
+  · apply WorkCursorSeed.combine
     · simpa only [Completion.catchNull, he, resultCursors]
         using hsl.extend (cursorExtends_list_items path data hn)
     · apply WorkCursorSeed.stream (index := start)
       · simp [Completion.catchNull, he, resultCursors, listCursors, cursorAt, hp, hlen]
       · simpa only [hp] using hsr
   · simp only [Completion.catchNull, he, TypedResponse.result, TypedResponse.value]
-    refine .append ?_ (.stream (index := start) ?_ ?_)
+    refine .combine ?_ (.stream (index := start) ?_ ?_)
     · simpa only [he, TypedResponse.result, List.append_assoc, List.singleton_append] using hal
     · simp [hp]
     · have hh :=

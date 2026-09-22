@@ -20,8 +20,8 @@ def fragmentKeys (fragment : DeferredFragment) : List Nat :=
 
 def deferMetadataKeys : Work → List Nat
   | .empty => []
-  | .append left right => deferMetadataKeys left ++ deferMetadataKeys right
-  | .deferred groups _ _ children =>
+  | .combine left right => deferMetadataKeys left ++ deferMetadataKeys right
+  | .executionGroup groups _ _ children =>
       groups.flatMap fragmentKeys ++ deferMetadataKeys children
   | .stream _ items => items.flatMap (fun item => deferMetadataKeys item.2)
 termination_by work => sizeOf work
@@ -36,8 +36,8 @@ decreasing_by
 
 def WorkRoles (roles : Assignment) : Work → Prop
   | .empty => True
-  | .append left right => WorkRoles roles left ∧ WorkRoles roles right
-  | .deferred groups _ _ children =>
+  | .combine left right => WorkRoles roles left ∧ WorkRoles roles right
+  | .executionGroup groups _ _ children =>
       (∀ group ∈ groups,
         roles group.node.key = false
         ∧ ∀ ancestor ∈ group.ancestors, roles ancestor.key = false)
@@ -167,19 +167,19 @@ theorem output_empty (roles : Assignment) (state : Nat)
     : Output roles state .empty state :=
   ⟨Nat.le_refl _, roles, Extends.refl _ _, workAt_empty _ _⟩
 
-theorem workAt_append {roles : Assignment} {bound : Nat} {left right : Work}
+theorem workAt_combine {roles : Assignment} {bound : Nat} {left right : Work}
     (hl : WorkAt roles bound left) (hr : WorkAt roles bound right)
-    : WorkAt roles bound (.append left right) := by
+    : WorkAt roles bound (.combine left right) := by
   simpa only [WorkAt, streamAllocationKeys, deferMetadataKeys]
     using And.intro (hl.1.append hr.1) (hl.2.append hr.2)
 
-theorem workAt_combine (roles : Assignment) (bound : Nat) (f : α → β → γ)
+theorem workAt_completionCombine (roles : Assignment) (bound : Nat) (f : α → β → γ)
     (left : Completion α) (right : Completion β) (hl : WorkAt roles bound left.work)
     (hr : WorkAt roles bound right.work)
     : WorkAt roles bound (Completion.combine f left right).work := by
   cases hleft : left.result <;> cases hright : right.result <;>
     simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine]
-  all_goals first | exact workAt_append hl hr | exact workAt_empty _ _
+  all_goals first | exact workAt_combine hl hr | exact workAt_empty _ _
 
 theorem workAt_map (roles : Assignment) (bound : Nat) (f : α → β)
     (completed : Completion α) (h : WorkAt roles bound completed.work)
@@ -208,7 +208,7 @@ theorem workAt_deferred (roles : Assignment) (bound : Nat) (deferMap : DeferMap)
     (result : Result (List (Name × ResponseValue))) (children : Work)
     (hm : MapAt roles bound deferMap) (hc : WorkAt roles bound children)
     : WorkAt roles bound
-        (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
           children) := by
   refine ⟨by simpa only [streamAllocationKeys] using hc.1, ?_⟩
   rw [deferMetadataKeys]
@@ -240,7 +240,7 @@ theorem WorkAt.roles {roles : Assignment} {bound : Nat} {work : Work}
     : WorkRoles roles work := by
   cases work with
   | empty => simp [WorkRoles]
-  | append left right =>
+  | combine left right =>
       rw [WorkRoles]
       have hl : WorkAt roles bound left := ⟨
         fun key hk => h.1 key (by rw [streamAllocationKeys]; exact List.mem_append_left _ hk),
@@ -249,7 +249,7 @@ theorem WorkAt.roles {roles : Assignment} {bound : Nat} {work : Work}
         fun key hk => h.1 key (by rw [streamAllocationKeys]; exact List.mem_append_right _ hk),
         fun key hk => h.2 key (by rw [deferMetadataKeys]; exact List.mem_append_right _ hk)⟩
       exact ⟨hl.roles, hr.roles⟩
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       rw [WorkRoles]
       have hg (group : DeferredFragment) (hm : group ∈ groups) : KeysAt roles bound false (fragmentKeys group) := by
         intro key hk

@@ -91,14 +91,30 @@ namespace Execution
 -- Finite response observations
 -----------------------------------------------------------------------------------------
 
-/-- A finite observation, not the query's return type. Incremental execution returns
-an initial result and a source; ordinary execution returns a single response.
+/-- A finite observation of query execution. Unlike `ExecutionResult`, which retains a
+resumable response-event stream, this type materializes only the updates observed so far.
 -/
-inductive QueryResult where
+inductive ExecutionObservation where
   | single (response : Response)
   | incremental (initial : InitialIncrementalStreamResult)
     (subsequent : List IncrementalStreamUpdateResult)
 deriving Repr
+
+/-- An observation supplies one input to this stage. For a batched stream, that input is
+itself a nonempty available group. Admission belongs to the upstream source.
+-/
+def ResponseEventStream.Accepts (stream : ResponseEventStream) (input : stream.Input)
+    : Prop :=
+  stream.source.Allows [input]
+
+/-- Deterministic state update after an admissible observation. This does not choose what
+becomes available next; several inputs may satisfy Accepts at the same state.
+-/
+def ResponseEventStream.next (stream : ResponseEventStream) (input : stream.Input)
+    (_allowed : stream.Accepts input)
+    : IncrementalStreamUpdateResult × ResponseEventStream :=
+  let result := (stream.mapEvent input).run stream.ids
+  (result.1, { stream with source := stream.source.advance [input], ids := result.2 })
 
 /-- Single-threaded observation: accept an available batch, update the partial source
 history and mapper IDs, then repeat. Stopping observation does not assert termination.
@@ -115,7 +131,7 @@ inductive ResponseEventStream.Observes
 /-- complete=false includes stalled/interrupted observations; complete=true additionally
 requires source termination, independently of response lifecycle or merge predicates.
 -/
-def ExecutionResult.Observes (execution : ExecutionResult) (result : QueryResult)
+def ExecutionResult.Observes (execution : ExecutionResult) (result : ExecutionObservation)
     (complete : Bool := false)
     : Prop :=
   match execution, result with
@@ -262,8 +278,8 @@ end DeliveryTrace
 /-- Decode initial data and observed payloads into delivery slices. This deterministic
 replay neither selects future events nor validates lifecycle or successful merging.
 -/
-def QueryResult.decodeSlices (containers : Bool)
-    : QueryResult → Option (List (List ResponsePath))
+def ExecutionObservation.decodeSlices (containers : Bool)
+    : ExecutionObservation → Option (List (List ResponsePath))
   | .single response => some [ResponsePositions.value containers [] response.data]
   | .incremental initial subsequent => do
       let (tail, _) ←
@@ -274,8 +290,8 @@ def QueryResult.decodeSlices (containers : Bool)
 /-- Delivery slices are exactly the successful output of the causal wire decoder.
 No work history, future notice, lifecycle predicate, or merge premise is inspected.
 -/
-def QueryResult.DeliversSlices (result : QueryResult) (containers : Bool)
-    (slices : List (List ResponsePath))
+def ExecutionObservation.DeliversSlices (result : ExecutionObservation)
+    (containers : Bool) (slices : List (List ResponsePath))
     : Prop :=
   result.decodeSlices containers = some slices
 
@@ -335,24 +351,24 @@ def hasNextValid : List IncrementalStreamUpdateResult → Bool
 
 end DeliveryTrace
 
-namespace QueryResult
+namespace ExecutionObservation
 
 /-- Uniqueness is across the entire announcement history, including completed IDs. -/
-def idsUnique : QueryResult → Prop
+def idsUnique : ExecutionObservation → Prop
   | .single _ => True
   | .incremental initial subsequent =>
       (initial.pending.map IncrementalPendingNotice.id
         ++ DeliveryTrace.pendingIDs subsequent).Nodup
 
 /-- Every payload references an earlier or same-update announcement. -/
-def patchesAnnounced : QueryResult → Prop
+def patchesAnnounced : ExecutionObservation → Prop
   | .single _ => True
   | .incremental initial subsequent =>
       DeliveryTrace.patchesAnnounced
         (initial.pending.map IncrementalPendingNotice.id) subsequent
 
 /-- Announcements are fresh, and payloads/completions refer only to open IDs. -/
-def idUsageValid : QueryResult → Prop
+def idUsageValid : ExecutionObservation → Prop
   | .single _ => True
   | .incremental initial subsequent =>
       let ids := initial.pending.map IncrementalPendingNotice.id
@@ -360,7 +376,7 @@ def idUsageValid : QueryResult → Prop
 
 /-- Count completion notices, not payloads: shared data may notify several distinct IDs.
 -/
-def idsCompleteExactlyOnce : QueryResult → Prop
+def idsCompleteExactlyOnce : ExecutionObservation → Prop
   | .single _ => True
   | .incremental initial subsequent =>
       ∀ id ∈
@@ -371,7 +387,7 @@ def idsCompleteExactlyOnce : QueryResult → Prop
 /-- Eventual completion is weaker than full lifecycle validity: it does not assert unique
 IDs/completions, open-ID patch legality, or correct hasNext bookkeeping.
 -/
-def idsEventuallyComplete : QueryResult → Prop
+def idsEventuallyComplete : ExecutionObservation → Prop
   | .single _ => True
   | .incremental initial subsequent =>
       (∀ id ∈ initial.pending.map IncrementalPendingNotice.id,
@@ -385,7 +401,7 @@ def idsEventuallyComplete : QueryResult → Prop
 /-- Complete delivery combines ID safety, closure of every announcement, and the
 response-continuation flags. A termination-only final response is permitted.
 -/
-def deliveryComplete : QueryResult → Bool
+def deliveryComplete : ExecutionObservation → Bool
   | .single _ => true
   | .incremental initial subsequent =>
       let ids := initial.pending.map IncrementalPendingNotice.id
@@ -401,7 +417,7 @@ def deliveryComplete : QueryResult → Bool
 can report errors under multiple IDs; no error-identity deduplication exists in this
 count-only model.
 -/
-def totalErrors : QueryResult → Nat
+def totalErrors : ExecutionObservation → Nat
   | .single response => response.errors
   | .incremental initial subsequent =>
       initial.errors
@@ -415,12 +431,12 @@ Closing IDs alone permits discarded fields/items or cancelled work. Zero errors 
 excludes reported fuel exhaustion. Merge success, response equivalence, and parent-before-
 child attachment are conclusions of the correctness proofs, not premises here.
 -/
-def executionComplete (result : QueryResult) : Prop :=
+def executionComplete (result : ExecutionObservation) : Prop :=
   result.deliveryComplete = true ∧ result.totalErrors = 0
 
-end QueryResult
+end ExecutionObservation
 
-instance (result : QueryResult) : Decidable result.executionComplete :=
+instance (result : ExecutionObservation) : Decidable result.executionComplete :=
   inferInstanceAs (Decidable (result.deliveryComplete = true ∧ result.totalErrors = 0))
 
 -----------------------------------------------------------------------------------------
@@ -500,7 +516,7 @@ membership. Reject unfinished/malformed lifecycles and patches at invalid paths.
 deliveries may still merge to partial data with errors; merging does not undo already
 delivered data or simulate basic execution's different null bubbling.
 -/
-def mergeQueryResult (result : QueryResult) : Option Response :=
+def mergeExecutionObservation (result : ExecutionObservation) : Option Response :=
   if !result.deliveryComplete then
     none
   else
@@ -516,7 +532,7 @@ end Execution
 namespace Correctness
 
 open GraphQL.IncrementalDelivery.Execution (
-  Resolvers ResolverValue VariableValues QueryResult)
+  Resolvers ResolverValue VariableValues ExecutionObservation)
 
 -----------------------------------------------------------------------------------------
 -- Query observations under the scheduler contract
@@ -527,7 +543,7 @@ ordinary responses do not use a work queue; unrelated raw Work is irrelevant.
 -/
 def queryObservation (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : QueryResult)
+    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
     (complete : Bool := false)
     : Prop :=
   ∃ scheduler : Execution.WorkScheduler,
@@ -547,7 +563,7 @@ Prefix observations permit an interrupted or stalled computation.
 -/
 def queryOutcome (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : QueryResult)
+    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
     : Prop :=
   queryObservation schema resolvers variables operation fuel source result true
 
@@ -673,7 +689,7 @@ def mergedExecutionEquivalentToBasic (schema : Schema) (operation : Operation) :
     queryOutcome schema resolvers variables operation fuel source result
     → result.totalErrors = 0
     → ∃ response,
-        Execution.mergeQueryResult result = some response
+        Execution.mergeExecutionObservation result = some response
         ∧ GraphQL.Execution.Response.semanticEquivalent response
             (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
               operation.eraseIncrementalDirectives fuel source)

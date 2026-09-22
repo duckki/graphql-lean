@@ -32,7 +32,7 @@ theorem dependencyProperties_located {parents work address current producer owne
   | right _ ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
       exact ⟨ih.1.2, ih.2.2⟩
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       simp only [DeferContinuous, StreamOwnersOrdered] at ih
       exact ⟨ih.1.2, ih.2.2⟩
   | item _ selected ih =>
@@ -75,11 +75,11 @@ theorem producer_key_context {parents bound work address current enclosing produ
         · exact Or.inl ⟨under.2, before.2⟩
         · rw [MixedKeys.WorkAt] at bounded
           exact Or.inr ⟨key, same, bounded.2⟩
-    | deferred navigation =>
+    | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous, StreamOwnersOrdered] at properties
-        exact ⟨_, _, _, .deferred navigation.toCurrent,
+        exact ⟨_, _, _, .executionGroup navigation.toCurrent,
           Or.inl ⟨properties.1.1, properties.2.1⟩⟩
     | item navigation selected =>
         cases generated
@@ -98,7 +98,7 @@ theorem coherent_task_owners_nonempty
     (known : TaskAt work occurrence owners producer payload)
     : owners ≠ [] := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       have localWork := coherent_located coherent located.toCurrent
       rw [MixedKeys.WorkAt] at localWork
       exact fun empty => localWork.1 (List.map_eq_nil_iff.mp empty)
@@ -146,7 +146,7 @@ theorem producer_owner_key_le
         ∧ ¬NodeFailed work failed parentKey
         ∧ parentKey ≤ key := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       obtain ⟨group, inGroups, rfl⟩ := List.mem_map.mp member
       obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
         producer_key_context coherent continuous ordered located.toCurrent
@@ -160,7 +160,7 @@ theorem producer_owner_key_le
           have parentHealthy : ¬NodeFailed work failed parentKey := by
             intro failed
             apply healthy
-            exact .groupParent (.group located.toCurrent inGroups)
+            exact .groupDependency (.group located.toCurrent inGroups)
               (by simpa only [ancestors] using dependency) failed
           exact ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
             parentHealthy, Nat.le_of_lt (valid group.node.key keyBound parentKey dependency).1⟩
@@ -217,7 +217,7 @@ theorem readyTask_owner_key_le
       by_cases generated :
         ∀ parent, producer = some parent → Published matching events parent
       · cases occurrence with
-        | deferred address =>
+        | executionGroup address =>
             exact ⟨_, _, _, _, key, known, ⟨fresh, active, generated, trivial⟩,
               member, healthy, Nat.le_refl _⟩
         | item address index =>
@@ -257,12 +257,12 @@ theorem readyTask_owner_key_le
 -----------------------------------------------------------------------------------------
 
 /-- Empty enclosing-owner lists impose no stream-order constraint. Witness: append
-descent until a deferred boundary or a vacuous stream-owner check.
+descent until an execution-group boundary or a vacuous stream-owner check.
 -/
 private theorem ownersBefore_nil (work : Work) : OwnersBefore [] work := by
   cases work with
-  | empty | deferred => trivial
-  | append left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
+  | empty | executionGroup => trivial
+  | combine left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
   | stream => simp [OwnersBefore]
 termination_by sizeOf work
 
@@ -282,7 +282,7 @@ theorem ownersBefore_located {work address current producer owners}
     | root => exact ordered
     | left _ ih =>
         rw [StreamOwnersOrdered] at ih; exact ih.1
-    | right _ ih | deferred _ ih =>
+    | right _ ih | executionGroup _ ih =>
         rw [StreamOwnersOrdered] at ih; exact ih.2
     | item _ selected ih =>
         rw [StreamOwnersOrdered] at ih
@@ -291,7 +291,7 @@ theorem ownersBefore_located {work address current producer owners}
   | root => exact ownersBefore_nil _
   | left _ ih => exact ih.1
   | right _ ih => exact ih.2
-  | deferred navigation =>
+  | executionGroup navigation =>
       have properties := localOrder navigation
       rw [StreamOwnersOrdered] at properties
       exact properties.1
@@ -300,7 +300,7 @@ theorem ownersBefore_located {work address current producer owners}
 /-- Every stream's explicit enclosing-owner dependency has a smaller key. Witness:
 the located owner's ordering certificate at its exact stream boundary.
 -/
-theorem coherent_stream_parents {work node dependencies birth}
+theorem coherent_stream_dependencies {work node dependencies birth}
     (ordered : StreamOwnersOrdered work)
     (known : NodeAt work node .stream dependencies birth)
     : ∀ key ∈ dependencies, key < node.key := by

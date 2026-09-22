@@ -15,15 +15,15 @@ def node (key : Nat) : DeliveryNode := { key, path := [] }
 an empty stream whose notice still needs a success carrier after its producer publishes.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .append
-    (.deferred [{ node := node 0 }] [] first (.stream (node 2) []))
-    (.deferred [{ node := node 0 }, { node := node 1 }] [] second .empty)
+  .combine
+    (.executionGroup [{ node := node 0 }] [] first (.stream (node 2) []))
+    (.executionGroup [{ node := node 0 }, { node := node 1 }] [] second .empty)
 
 /-- Every deferred task in this fixture is producer-free with initially covered owners.
 Witness: the two valid deferred addresses; entering either child cannot find another task.
 -/
 theorem deferred_task {first second address owners producer payload}
-    (known : TaskAt (work first second) (.deferred address) owners producer payload)
+    (known : TaskAt (work first second) (.executionGroup address) owners producer payload)
     : producer = none ∧ owners ≠ [] ∧ ∀ key ∈ owners, key ∈ [0, 1] := by
   obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := known
   cases address with
@@ -59,8 +59,8 @@ empty initially, so an eventual error does not preemptively cancel it.
 -/
 theorem initialized (first second : Result (List (Name × ResponseValue)))
     : Initializes (work first second) [node 0, node 1] [] := by
-  have task : TaskAt (work first second) (.deferred [1]) [0, 1] none
-      (.object [] second) := .deferred (.right .root)
+  have task : TaskAt (work first second) (.executionGroup [1]) [0, 1] none
+      (.object [] second) := .executionGroup (.right .root)
   refine ⟨⟨by decide, ?_, by simp⟩, by simp⟩
   intro owner member
   have known : NodeAt (work first second) owner .group [] none := by
@@ -82,7 +82,7 @@ theorem initialized (first second : Result (List (Name × ResponseValue)))
     by simp
   ⟩
   intro accounted
-  rcases accounted (.deferred [1]) [0, 1] ⟨none, .object [] second, task⟩ contributes
+  rcases accounted (.executionGroup [1]) [0, 1] ⟨none, .object [] second, task⟩ contributes
     with cancelled | published
   · exact cancelled.nonempty rfl
   · simp [Published] at published

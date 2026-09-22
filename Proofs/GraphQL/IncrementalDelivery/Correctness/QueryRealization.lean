@@ -57,7 +57,7 @@ work, or the inherited invalid-root response. Witness: the packaging equivalence
 -/
 theorem queryObservation_iff_workHistory {schema : Schema}
     {resolvers : Resolvers ObjectRef} {variables : VariableValues} {operation : Operation}
-    {fuel : Nat} {source : ResolverValue ObjectRef} {result : QueryResult}
+    {fuel : Nat} {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     {complete : Bool}
     : queryObservation schema resolvers variables operation fuel source result complete
       ↔ if rootSourceAppliesBool schema operation source then
@@ -91,7 +91,7 @@ run. MixedExistence supplies the terminal history for coherent generated work.
 -/
 theorem completeObservation_exists_iff (response : Response) (work : Work)
     : (∃ scheduler : Execution.WorkScheduler,
-        ∃ result : QueryResult,
+        ∃ result : ExecutionObservation,
           scheduler.Conforms work
           ∧ (executionFromWork scheduler response work).Observes result true)
       ↔ work.size = 0 ∨ ∃ history, WorkScheduler.AdmissibleRun work history := by

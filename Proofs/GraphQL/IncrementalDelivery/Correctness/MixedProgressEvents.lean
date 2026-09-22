@@ -19,7 +19,7 @@ Witness: completion changes no publication and its stream role excludes every de
 dependency key. Existing accounted tasks remain accounted for in the extended history.
 -/
 theorem supported_complete_stream
-    {ancestry bound roles work groups streams events matching failures node parents
+    {ancestry bound roles work groups streams events matching failures node dependencies
       producer}
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (roleCoherent : KeyRoles.WorkRoles roles work)
@@ -27,7 +27,7 @@ theorem supported_complete_stream
     (covered
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
           matching events (failures.map Prod.snd))
-    (known : NodeAt work node .stream parents producer)
+    (known : NodeAt work node .stream dependencies producer)
     (opened : Open ((groups ++ streams).map DeliveryNode.key) events node.key)
     (healthy : ¬NodeFailed work (failedBefore failures events.length) node.key)
     (accounted
@@ -35,7 +35,8 @@ theorem supported_complete_stream
     : Explains work groups streams (events ++ [.streamSuccess node]) matching failures
       ∧ SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
           matching (events ++ [.streamSuccess node]) (failures.map Prod.snd) := by
-  refine ⟨explained.append_event ⟨⟨parents, producer, known⟩, opened, healthy, accounted⟩, ?_⟩
+  refine ⟨explained.append_event
+    ⟨⟨dependencies, producer, known⟩, opened, healthy, accounted⟩, ?_⟩
   apply supported_coverage_control valid coherent roleCoherent explained covered
     (List.Subset.refl _)
   · intro key member
@@ -166,13 +167,15 @@ theorem extend_ready_supported
       | error errors => exact failing rfl
       | ok value =>
           obtain ⟨data, errors⟩ := value
-          have deferred : ∃ address, occurrence = .deferred address := by
+          have deferred : ∃ address, occurrence = .executionGroup address := by
             cases StructuralEquivalence.taskAt_of_current known with
-            | deferred => exact ⟨_, rfl⟩
+            | executionGroup => exact ⟨_, rfl⟩
           obtain ⟨address, rfl⟩ := deferred
-          obtain ⟨node, kind, parents, birth, descriptor, same⟩ := known.owner_known member
+          obtain ⟨node, kind, dependencies, nodeProducer, descriptor, same⟩ :=
+            known.owner_known member
           obtain ⟨owner, selected⟩ := owner_exists_of_available coherent known
-            ⟨node, ⟨kind, parents, birth, descriptor⟩, same ▸ member, same ▸ opened,
+            ⟨node, ⟨kind, dependencies, nodeProducer, descriptor⟩, same ▸ member,
+              same ▸ opened,
               same ▸ healthy⟩
           have extended := explained.publish_object known ready selected
           let event := WorkEvent.groupValues owner [{ path, data, errors }]
@@ -190,11 +193,11 @@ theorem extend_ready_supported
           · intro task published
             rcases published_append_singleton_iff.mp published with earlier | ⟨_, same⟩
             · exact Or.inl ((published_matching_eq
-                (fun _ before => matchNext_before matching (.deferred address) before)) ▸ earlier)
+                (fun _ before => matchNext_before matching (.executionGroup address) before)) ▸ earlier)
             · exact Or.inr (by simpa only [matchNext, ↓reduceIte] using same.symm)
           · intro key accounted occurrence owners projected member
             exact (accounted occurrence owners projected member).matchNext_append
-              (.deferred address) event
+              (.executionGroup address) event
   | item node result =>
       cases result with
       | error errors => exact failing rfl

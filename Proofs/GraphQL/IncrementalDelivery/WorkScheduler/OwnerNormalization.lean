@@ -7,6 +7,41 @@ open GraphQL.IncrementalDelivery.Execution
 -- Selecting an effective publication owner
 -----------------------------------------------------------------------------------------
 
+/-- A proof-facing raw shared-task value retains its contributing groups until
+publication ownership is selected. It is not part of the public execution model.
+-/
+structure SharedGroupValue where
+  value : GroupValue
+  contributors : List DeliveryNode
+deriving Repr
+
+/-- Select a longest-path open contributor, starting with an open contributing provisional
+owner. Strict improvement preserves that owner on ties, then the first longer candidate.
+This proof-facing adapter models publisher-side selection without allocating wire IDs.
+-/
+def selectGroupOwner (openKeys : List Nat) (provisional : DeliveryNode)
+    : List DeliveryNode → DeliveryNode
+  | [] => provisional
+  | candidate :: rest =>
+      let selected :=
+        if candidate.key ∈ openKeys ∧ provisional.path.length < candidate.path.length then
+          candidate
+        else
+          provisional
+      selectGroupOwner openKeys selected rest
+
+/-- Project a raw GROUP_VALUES event to spec-facing publications. Different shared values
+may select different owners, so each becomes one event in the same work batch. Payloads,
+errors, and value order are unchanged; this step emits no notices or completions.
+-/
+def normalizeGroupValues (openKeys : List Nat) (provisional : DeliveryNode)
+    (values : List SharedGroupValue)
+    : List WorkEvent :=
+  values.map
+    fun shared =>
+      .groupValues (selectGroupOwner openKeys provisional shared.contributors)
+        [shared.value]
+
 /-- Selection returns the provisional owner or an open listed contributor. Witness:
 induction over the candidates, retaining provenance whenever a longer path replaces it.
 -/

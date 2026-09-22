@@ -64,7 +64,7 @@ the invalid-root branch contradicts the zero-error premise.
 theorem queryOutcome_source_coverage
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     (zero : result.totalErrors = 0) (containers : Bool)
     : let completed :=
@@ -93,6 +93,6 @@ theorem queryOutcome_source_coverage
         (coerceVariableValues operation variables) fuel (operation.rootType schema) source
         operation.selectionSet 0).2 seeded sourcePositions zero containers
   · subst result
-    simp [QueryResult.totalErrors] at zero
+    simp [ExecutionObservation.totalErrors] at zero
 
 end GraphQL.IncrementalDelivery.Correctness

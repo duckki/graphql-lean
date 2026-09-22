@@ -64,7 +64,7 @@ theorem replayResponse_successful_history {response : Response} {work : Work}
   omega
 
 /-- Zero-size work has no deferred or streamed tasks; witness: navigation cannot reach
-a positive-size node from a zero-size root.
+a positive-count node from a zero-count root.
 -/
 theorem no_tasks_of_size_zero {work : Work} (empty : work.size = 0)
     {occurrence owners producer payload}
@@ -78,10 +78,10 @@ theorem no_tasks_of_size_zero {work : Work} (empty : work.size = 0)
     | root => exact empty
     | left _ ih | right _ ih =>
         simp only [Work.size] at ih; omega
-    | deferred _ ih | item _ _ ih =>
+    | executionGroup _ ih | item _ _ ih =>
         simp only [Work.size] at ih; omega
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       have := locatedZero located.toCurrent; simp [Work.size] at this
   | item located _ =>
       have := locatedZero located.toCurrent; simp [Work.size] at this
@@ -90,7 +90,7 @@ theorem no_tasks_of_size_zero {work : Work} (empty : work.size = 0)
 Witness: empty work has no tasks; incremental work admits a failure-free explanation.
 -/
 theorem WorkObservation.tasks_succeed {response : Response} {work : Work}
-    {result : QueryResult} (observed : WorkObservation response work true result)
+    {result : ExecutionObservation} (observed : WorkObservation response work true result)
     (positive : ExecutionErrors.WorkPositive work) (zero : result.totalErrors = 0)
     {occurrence owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
@@ -107,7 +107,7 @@ Witness: query-to-work soundness, positive finite execution, and preserved failu
 -/
 theorem queryOutcome_tasks_succeed {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     (zero : result.totalErrors = 0)
     (applies : rootSourceAppliesBool schema operation source = true)

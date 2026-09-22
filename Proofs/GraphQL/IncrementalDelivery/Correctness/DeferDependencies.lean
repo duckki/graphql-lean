@@ -19,14 +19,14 @@ open WorkScheduler
 def DeferOnly (work : Work) : Prop :=
   ∀ node kind parents producer, NodeAt work node kind parents producer → kind = .group
 
-/-- Every defer-only task is a deferred occurrence. Witness: an item task would supply
-a stream descriptor, contradicting the work-shape hypothesis.
+/-- Every defer-only task is an execution-group occurrence. Witness: an item task would
+supply a stream descriptor, contradicting the work-shape hypothesis.
 -/
 theorem DeferOnly.task_shape {work occurrence owners producer payload}
     (shape : DeferOnly work) (known : TaskAt work occurrence owners producer payload)
-    : ∃ address, occurrence = .deferred address := by
+    : ∃ address, occurrence = .executionGroup address := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred => exact ⟨_, rfl⟩
+  | executionGroup => exact ⟨_, rfl⟩
   | item located _ =>
       have impossible := shape _ _ _ _ (NodeAt.stream located.toCurrent)
       cases impossible
@@ -55,11 +55,11 @@ theorem DeferOnly.producer_context
     | right _ ih =>
         obtain ⟨owners, ancestor, payload, task, under⟩ := ih generated
         exact ⟨owners, ancestor, payload, task, under.2⟩
-    | deferred navigation =>
+    | executionGroup navigation =>
         cases generated
         have properties := dependencyProperties_located continuous ordered navigation.toCurrent
         simp only [DeferContinuous] at properties
-        exact ⟨_, _, _, .deferred navigation.toCurrent, properties.1.1⟩
+        exact ⟨_, _, _, .executionGroup navigation.toCurrent, properties.1.1⟩
     | item navigation _ =>
         have impossible := shape _ _ _ _ (NodeAt.stream navigation.toCurrent)
         cases impossible
@@ -94,7 +94,7 @@ theorem DeferOnly.producer_parent
 /-- Coherent group descriptors use exactly the full ancestry assigned to their key.
 Witness: locate the deferred fragment and project its execution metadata.
 -/
-theorem DeferOnly.node_parents {parents lower bound work node dependencies producer}
+theorem DeferOnly.node_dependencies {parents lower bound work node dependencies producer}
     (coherent : MixedKeys.WorkAt parents lower bound work)
     (known : NodeAt work node .group dependencies producer)
     : dependencies = parents node.key := by
@@ -129,7 +129,7 @@ theorem DeferOnly.producer_failure
   · exact (reused.trans same) ▸ failure
   · have group := shape _ _ _ _ descriptor
     subst kind
-    exact same ▸ NodeFailed.groupParent descriptor dependency failure
+    exact same ▸ NodeFailed.groupDependency descriptor dependency failure
 
 /-- Cancelling a defer-only task fails every contributing owner, including shared owners.
 Witness: dependency-rank induction, propagating all producer failures through ancestry.

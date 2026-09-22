@@ -15,7 +15,7 @@ example (schema : Schema) (operation : Operation)
 /-- Any conforming complete query observation inherits causal ID completion. -/
 example {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     : result.idsEventuallyComplete :=
   deliveryIDsEventuallyComplete_holds schema operation resolvers variables fuel source
@@ -23,7 +23,7 @@ example {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : Variabl
 
 /-- The actual fixture source's complete response observation inherits work liveness. -/
 example (response : Response)
-    : QueryResult.idsEventuallyComplete
+    : ExecutionObservation.idsEventuallyComplete
         (replayResponse response SourceObservation.queue.initialGroups
           SourceObservation.queue.initialStreams [[SourceObservation.events]]) :=
   WorkObservation.idsEventuallyComplete

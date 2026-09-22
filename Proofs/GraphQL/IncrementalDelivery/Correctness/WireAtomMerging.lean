@@ -113,7 +113,7 @@ theorem replayResponse_merge_atoms {paths bound response work groups streams bat
         ∨ WorkScheduler.AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
     (safe : (replayResponse response groups streams batches).idUsageValid)
     (complete : (replayResponse response groups streams batches).deliveryComplete = true)
-    : mergeQueryResult (replayResponse response groups streams batches)
+    : mergeExecutionObservation (replayResponse response groups streams batches)
       = (applyAtoms (batches.flatten.flatten.flatMap eventPositionAtoms)
           response.data).map
           (fun data =>
@@ -151,7 +151,7 @@ theorem replayResponse_merge_atoms {paths bound response work groups streams bat
         rw [batched_incremental, flat]
         exact entries
       have merged := updates_applyAtoms encoded finalWell metadata announced response.data
-      simp only [mergeQueryResult, complete, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
+      simp only [mergeExecutionObservation, complete, Bool.not_true, Bool.false_eq_true, ↓reduceIte,
         merged, Option.bind_eq_bind, Option.pure_def]
       cases applyAtoms (batches.flatten.flatten.flatMap eventPositionAtoms) response.data <;> rfl
 

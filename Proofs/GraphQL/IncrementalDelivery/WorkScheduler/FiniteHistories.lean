@@ -23,10 +23,10 @@ may repeat completion keys; a history can consume each token at most once.
 -/
 def observationTokens (address : Address) : Work → List ObservationToken
   | .empty => []
-  | .append left right =>
+  | .combine left right =>
       observationTokens (address ++ [0]) left ++ observationTokens (address ++ [1]) right
-  | .deferred groups _ _ children =>
-      .inl (.deferred address)
+  | .executionGroup groups _ _ children =>
+      .inl (.executionGroup address)
       :: (groups.map (fun group => .inr group.node.key)
           ++ observationTokens (address ++ [0]) children)
   | .stream node items =>
@@ -46,7 +46,7 @@ decreasing_by
   omega
 
 /-- Every located subtree's token inventory is contained in the root inventory.
-Witness: structural navigation, selecting the corresponding append side or stream item.
+Witness: structural navigation, selecting the corresponding combine side or stream item.
 -/
 theorem Located.observationTokens {work address current producer owners}
     (located : Located work address current producer owners)
@@ -65,7 +65,7 @@ theorem Located.observationTokens {work address current producer owners}
       apply ih
       rw [WorkScheduler.observationTokens]
       exact List.mem_append_right _ member
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       intro token member
       apply ih
       rw [WorkScheduler.observationTokens]
@@ -83,13 +83,13 @@ theorem Located.observationTokens {work address current producer owners}
       simpa only [selected] using List.mem_cons_of_mem (.inl (.item address index)) member
 
 /-- Every structural task contributes its publication token. Witness: its located
-deferred boundary or selected stream item in the finite inventory.
+execution-group boundary or selected stream item in the finite inventory.
 -/
 theorem TaskAt.observationToken {work occurrence owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
     : .inl occurrence ∈ observationTokens [] work := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       exact located.toCurrent.observationTokens (by simp [observationTokens])
   | @item address node items producer enclosing index result children located entry =>
       apply located.toCurrent.observationTokens
@@ -102,8 +102,8 @@ theorem TaskAt.observationToken {work occurrence owners producer payload}
 /-- Every node descriptor contributes its completion key. Witness: the group membership
 or stream boundary, transported from its located subtree to the root.
 -/
-theorem NodeAt.observationToken {work node kind parents birth}
-    (known : NodeAt work node kind parents birth)
+theorem NodeAt.observationToken {work node kind dependencies birth}
+    (known : NodeAt work node kind dependencies birth)
     : .inr node.key ∈ observationTokens [] work := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>

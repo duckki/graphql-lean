@@ -96,7 +96,7 @@ example (response : Response)
 theorem.
 -/
 example
-    : WorkObservation { data := .object [] } (.append .empty .empty) true
+    : WorkObservation { data := .object [] } (.combine .empty .empty) true
         (.single { data := .object [] }) := by
   have run : queryOutcome schema resolvers [] { selectionSet := [] } 5
       (.object "Query" 0) (.single { data := .object [] }) := by
@@ -121,7 +121,7 @@ example
 /-- Invalid roots retain the inherited counted error and require no contract on the unused
 factory.
 -/
-example {result : QueryResult}
+example {result : ExecutionObservation}
     (run
       : queryOutcome schema resolvers [] { selectionSet := [field "a"] } 5
           (.scalar "invalid") result)
@@ -131,13 +131,13 @@ example {result : QueryResult}
 /-- A property derived for all independent work witnesses transfers to complete query
 outcomes.
 -/
-example (property : QueryResult → Prop)
+example (property : ExecutionObservation → Prop)
     (proved
       : ∀ response work result,
           WorkObservation response work true result → property result)
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (run : queryOutcome schema resolvers variables operation fuel source result)
     : property result :=
   queryObservation_property property proved run
@@ -145,7 +145,8 @@ example (property : QueryResult → Prop)
 /-- The default-fuel entry point feeds the same bridge; no alternative fuel or scheduler
 is selected.
 -/
-example (factory : Execution.WorkScheduler) (operation : Operation) {result : QueryResult}
+example (factory : Execution.WorkScheduler) (operation : Operation)
+    {result : ExecutionObservation}
     (conforming
       : rootSourceAppliesBool schema operation (.object "Query" 0) = true
         → factory.Conforms

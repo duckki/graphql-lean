@@ -15,7 +15,7 @@ def node (key : Nat) : DeliveryNode := { key, path := [.field (toString key)] }
 
 /-- Only the second stream has a publication that could carry a later notice. -/
 def work : Work :=
-  .append (.stream (node 0) []) (.stream (node 1) [(.ok (.null, 0), .empty)])
+  .combine (.stream (node 0) []) (.stream (node 1) [(.ok (.null, 0), .empty)])
 
 /-- The only successful task belongs to the omitted stream. Witness: structural lookup.
 -/
@@ -35,24 +35,24 @@ theorem task_shape {occurrence owners producer payload}
     replace located := StructuralEquivalence.located_of_current located
     induction located with
     | root => exact Or.inl ⟨rfl, rfl, rfl⟩
-    | left _ ih | right _ ih | deferred _ ih | item _ _ ih =>
+    | left _ ih | right _ ih | executionGroup _ ih | item _ _ ih =>
         rcases ih with h | h | h | h <;> simp_all [work, node]
         all_goals
           rename_i index result children located entry
           cases index <;> simp_all
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       rcases locations located.toCurrent with h | h | h | h <;> simp_all [work]
   | @item address stream items birth enclosing index result children located selected =>
       rcases locations located.toCurrent with h | h | h | h <;> simp_all [work]
       cases index <;> simp_all [node]
 
 /-- No group-completion carrier exists in this work. Witness: lookup preserves stream
-and append constructors, so no deferred location can supply a group descriptor.
+and combine constructors, so no deferred location can supply a group descriptor.
 -/
 theorem no_group {other parents birth} : ¬NodeAt work other .group parents birth := by
   rintro ⟨address, groups, path, result, children, enclosing, group, located, _, _, _⟩
-  have task : TaskAt work (.deferred address) (groups.map (fun g => g.node.key)) birth
+  have task : TaskAt work (.executionGroup address) (groups.map (fun g => g.node.key)) birth
       (.object path result) := ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩
   have impossible := (task_shape task).1
   cases impossible

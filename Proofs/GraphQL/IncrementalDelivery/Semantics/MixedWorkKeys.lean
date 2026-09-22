@@ -16,9 +16,9 @@ def MapLower (lower : Nat) (deferMap : DeferMap) : Prop :=
 
 def WorkAt (parents : Assignment) (lower bound : Nat) : Work → Prop
   | .empty => True
-  | .append left right =>
+  | .combine left right =>
       WorkAt parents lower bound left ∧ WorkAt parents lower bound right
-  | .deferred groups _ _ children =>
+  | .executionGroup groups _ _ children =>
       groups ≠ []
       ∧ (∀ group ∈ groups, lower ≤ group.node.key ∧ FragmentAt parents bound group)
       ∧ WorkAt parents lower bound children
@@ -41,8 +41,8 @@ theorem WorkAt.extend {parents next : Assignment} {lower start finish : Nat} {wo
     (hle : start ≤ finish)
     : WorkAt next lower finish work := by
   cases work <;> simp only [WorkAt] at h ⊢
-  case append left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
-  case deferred groups path result children =>
+  case combine left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
+  case executionGroup groups path result children =>
     exact ⟨h.1, fun g hg => ⟨(h.2.1 g hg).1, (h.2.1 g hg).2.extend he hle⟩,
       h.2.2.extend he hle⟩
   case stream node items =>
@@ -62,8 +62,8 @@ theorem WorkAt.lower {parents : Assignment} {lower next bound : Nat} {work : Wor
     (h : WorkAt parents lower bound work) (hle : next ≤ lower)
     : WorkAt parents next bound work := by
   cases work <;> simp only [WorkAt] at h ⊢
-  case append left right => exact ⟨h.1.lower hle, h.2.lower hle⟩
-  case deferred groups path result children =>
+  case combine left right => exact ⟨h.1.lower hle, h.2.lower hle⟩
+  case executionGroup groups path result children =>
     exact ⟨h.1, fun g hg => ⟨Nat.le_trans hle (h.2.1 g hg).1, (h.2.1 g hg).2⟩,
       h.2.2.lower hle⟩
   case stream node items => exact ⟨Nat.le_trans hle h.1, h.2⟩
@@ -78,9 +78,9 @@ def Completed (parents : Assignment) (lower start : Nat) (output : Completion α
     : Prop :=
   Output parents lower start output.1.work output.2
 
-theorem workAt_append {parents : Assignment} {lower bound : Nat} {left right : Work}
+theorem workAt_combine {parents : Assignment} {lower bound : Nat} {left right : Work}
     (hl : WorkAt parents lower bound left) (hr : WorkAt parents lower bound right)
-    : WorkAt parents lower bound (.append left right) := by
+    : WorkAt parents lower bound (.combine left right) := by
   rw [WorkAt]
   exact ⟨hl, hr⟩
 
@@ -88,7 +88,8 @@ theorem output_empty (parents : Assignment) (lower state : Nat) (hv : Valid pare
     : Output parents lower state .empty state :=
   ⟨Nat.le_refl _, parents, Extends.refl _ _, hv, by simp only [WorkAt]⟩
 
-theorem workAt_combine (parents : Assignment) (lower bound : Nat) (f : α → β → γ)
+theorem workAt_completionCombine (parents : Assignment) (lower bound : Nat)
+    (f : α → β → γ)
     (left : Completion α) (right : Completion β)
     (hl : WorkAt parents lower bound left.work)
     (hr : WorkAt parents lower bound right.work)
@@ -126,7 +127,7 @@ theorem deferred_workAt (parents : Assignment) (lower bound : Nat) (deferMap : D
     (hm : MapAt parents bound deferMap) (hl : MapLower lower deferMap) (hne : keys ≠ [])
     (hk : keys.Subset (mapKeys deferMap)) (hc : WorkAt parents lower bound children)
     : WorkAt parents lower bound
-        (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
           children) := by
   rw [WorkAt]
   refine ⟨?_, ?_, hc⟩
@@ -162,17 +163,18 @@ theorem mapLower_new (lower state : Nat) (deferMap : DeferMap) (usages : List De
 Ancestor placeholders are metadata, not additional task-key occurrences.
 -/
 inductive TaskKey (key : Nat) : Work → Prop where
-  | append_left {left right : Work} : TaskKey key left → TaskKey key (.append left right)
-  | append_right {left right : Work}
-    : TaskKey key right → TaskKey key (.append left right)
+  | combine_left {left right : Work}
+    : TaskKey key left → TaskKey key (.combine left right)
+  | combine_right {left right : Work}
+    : TaskKey key right → TaskKey key (.combine left right)
   | deferred_here {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
     {group : DeferredFragment}
     : group ∈ groups → group.node.key = key
-      → TaskKey key (.deferred groups path result children)
+      → TaskKey key (.executionGroup groups path result children)
   | deferred_child {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
-    : TaskKey key children → TaskKey key (.deferred groups path result children)
+    : TaskKey key children → TaskKey key (.executionGroup groups path result children)
   | stream_here {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
     : node.key = key → TaskKey key (.stream node items)
   | stream_child {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
@@ -183,9 +185,9 @@ theorem WorkAt.key_bounds {parents : Assignment} {lower bound key : Nat} {work :
     (h : WorkAt parents lower bound work) (hk : TaskKey key work)
     : lower ≤ key ∧ key < bound := by
   induction hk generalizing lower with
-  | append_left _ ih =>
+  | combine_left _ ih =>
       rw [WorkAt] at h; exact ih h.1
-  | append_right _ ih =>
+  | combine_right _ ih =>
       rw [WorkAt] at h; exact ih h.2
   | deferred_here hg he =>
       rw [WorkAt] at h
@@ -212,7 +214,7 @@ theorem WorkAt.stream_child_fresh {parents : Assignment} {lower bound : Nat}
 theorem WorkAt.fragment_ancestors_ordered {parents : Assignment} {lower bound : Nat}
     {groups : List DeferredFragment} {path : ResponsePath}
     {result : Result (List (Name × ResponseValue))} {children : Work}
-    (h : WorkAt parents lower bound (.deferred groups path result children))
+    (h : WorkAt parents lower bound (.executionGroup groups path result children))
     (hv : Valid parents bound) {group : DeferredFragment} (hg : group ∈ groups)
     {ancestor : DeliveryNode} (ha : ancestor ∈ group.ancestors)
     : ancestor.key < group.node.key := by

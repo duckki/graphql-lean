@@ -40,7 +40,7 @@ theorem SingletonDefer.node_task {work node kind parents producer}
   refine ⟨rfl, ?_⟩
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
-      have task := TaskAt.deferred located.toCurrent
+      have task := TaskAt.executionGroup located.toCurrent
       obtain ⟨key, same⟩ := shape.2 _ _ _ _ task
       have owns := List.mem_map_of_mem
         (f := fun group : DeferredFragment => group.node.key) member
@@ -48,15 +48,15 @@ theorem SingletonDefer.node_task {work node kind parents producer}
       have equal := List.mem_singleton.mp owns
       exact ⟨_, _, by simpa only [same, equal] using task⟩
 
-/-- Singleton defer tasks are deferred occurrences, never stream items.
+/-- Singleton defer tasks are execution-group occurrences, never stream items.
 Witness: a stream task would exhibit a forbidden stream node.
 -/
 theorem SingletonDefer.task_shape {work occurrence owners producer payload}
     (shape : SingletonDefer work)
     (known : TaskAt work occurrence owners producer payload)
-    : ∃ address key, occurrence = .deferred address ∧ owners = [key] := by
+    : ∃ address key, occurrence = .executionGroup address ∧ owners = [key] := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred =>
+  | executionGroup =>
       obtain ⟨key, same⟩ := shape.2 _ _ _ _ known
       exact ⟨_, key, rfl, same⟩
   | item located _ =>

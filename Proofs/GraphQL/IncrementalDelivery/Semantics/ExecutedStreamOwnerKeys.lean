@@ -34,7 +34,8 @@ mutual
     · obtain ⟨hlt, hwt, hot⟩ := collectExecutionGroups_streamOwnerKeys schema resolvers variables fuel parentType source
         _ path _ _ (hm.mono hle) (fun p hmem g hg f hf => usageBefore_mono _ (hp.2 p hmem g hg f hf) hle)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
-      exact ⟨Nat.le_trans hle hlt, streamKeys_append ⟨hw, ho⟩ ⟨hwt.mono hle, hot⟩⟩
+      exact ⟨Nat.le_trans hle hlt,
+        streamKeys_combine ⟨hw, ho⟩ ⟨hwt.mono hle, hot⟩⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -69,7 +70,8 @@ mutual
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ hm ⟨hw, ho⟩
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
-        exact ⟨Nat.le_trans hle hlt, streamKeys_append hd ⟨hwt.mono hle, hot⟩⟩
+        exact ⟨Nat.le_trans hle hlt,
+          streamKeys_combine hd ⟨hwt.mono hle, hot⟩⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -102,7 +104,8 @@ mutual
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨
           Nat.le_trans hle hlt,
-          streamKeys_combine state List.append _ _ ⟨hw, ho⟩ ⟨hwt.mono hle, hot⟩
+          streamKeys_completionCombine state List.append _ _ ⟨hw, ho⟩
+            ⟨hwt.mono hle, hot⟩
         ⟩
   termination_by (fuel, 4, 0, sizeOf groups)
   decreasing_by
@@ -254,7 +257,7 @@ mutual
             (by intro f hf; obtain ⟨old, _, rfl⟩ := List.mem_map.mp hf; simp [UsageBefore])
           simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middle] at *; omega, ?_⟩
-          apply streamKeys_append (streamKeys_catchNull state _ _ ⟨hw, ho⟩)
+          apply streamKeys_combine (streamKeys_catchNull state _ _ ⟨hw, ho⟩)
           simp only [StreamKeysFrom, StreamOwnersOrdered]
           exact ⟨⟨hle, fun item hi => (hitems item hi).1.mono (by dsimp only [middle]; omega)⟩,
             fun item hi => (hitems item hi).2⟩
@@ -286,7 +289,9 @@ mutual
           variables fuel itemType fields rest
           path (index + 1) usages deferMap _ (hm.mono hle) (fun f hf => usageBefore_mono _ (hk f hf) hle)
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
-        exact ⟨Nat.le_trans hle hlt, streamKeys_combine state List.cons _ _ ⟨hw, ho⟩ ⟨hwt.mono hle, hot⟩⟩
+        exact ⟨Nat.le_trans hle hlt,
+          streamKeys_completionCombine state List.cons _ _ ⟨hw, ho⟩
+            ⟨hwt.mono hle, hot⟩⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

@@ -53,6 +53,9 @@ the draft's unspecified CreateWorkQueue:
 `GraphQL.Execution.Response`. `ExecutionResult` is the generalized
 ordinary-or-incremental query return type, broader than Section 7's ordinary
 execution-result map. Request-error results and subscription streams are excluded.
+`ExecutionObservation` is deliberately separate: it materializes a finite list of
+updates observed from an `ExecutionResult`, and may represent either an interrupted
+prefix or a complete outcome.
 
 `executeRootSelectionSetCore` computes initial data/errors and finite `Work`.
 Resolver results and child work are precomputed pure outcomes, not host futures.
@@ -79,6 +82,17 @@ does not imply source termination.
 task accounting. The mapper owns `IDState`, `ensureID`, `getPendingEntry`,
 `getIncrementalEntry`, `getCompletedEntry`, and
 `getIncrementalStreamUpdateResult`. Initial and later notices share one ID supply.
+The draft gives these helper algorithms implicit access to `idMap` and `nextID`.
+Lean makes that context explicit: `IDState` stores both values, and the entry
+constructors receive `idFor` so the stateful mapper remains the only ID authority.
+
+The executable draft mapper also separates `GROUP_VALUES` from
+`GROUP_SUCCESS`/`GROUP_FAILURE`. The model consequently permits a payload and its
+completion notice in different batches, so a notice may follow an earlier data patch.
+It reads Section 7's requirement that the corresponding data "must have been
+completed" in the notice's result as a statement about completion by that point, not
+as a requirement that the data patch and notice be co-located. If co-location is
+intended, the draft's work-event contract or mapper needs an additional coupling rule.
 
 ### Batching and sequential observation
 
@@ -115,7 +129,7 @@ be read as claiming the omitted spec features are implemented.
 | `getFilteredDeferUsageSet` / GetFilteredDeferUsageSet | An immediate occurrence clears the set; otherwise deduplicate usages and remove those dominated by an ancestor. Stored ancestor lists replace the parent-pointer loop. |
 | `buildExecutionPlan` / BuildExecutionPlan | Partition field groups by equivalent filtered defer-usage sets relative to the parent set. Returns an ExecutionPlan only; performs no execution. |
 | `getNewDeferMap` / GetNewDeferMap | Extend the inherited map with path/label-aware deferred fragments and their ancestry. Parent pointers are flattened into ancestor lists. |
-| `executeExecutionPlan` / ExecuteExecutionPlan | Takes newDeferUsages and an already-built ExecutionPlan. Extend the defer map, execute immediate fields, collect execution groups, append work. It never calls BuildExecutionPlan. Pure evaluation is sequential; bubbling failure discards/cancels unexposed sibling work. |
+| `executeExecutionPlan` / ExecuteExecutionPlan | Takes newDeferUsages and an already-built ExecutionPlan. Extend the defer map, execute immediate fields, collect execution groups, and combine work. The executionMode parameter is omitted because this model exposes only query operations and normal composite execution. Pure sequential evaluation is observationally sufficient for pure resolvers; bubbling failure discards/cancels unexposed sibling work. |
 | `collectExecutionGroups` / CollectExecutionGroups | Look up each partition's fragment owners, construct its ExecuteExecutionGroup task, accumulate tasks. Finite pure task outcomes replace future computations; no completion order is selected. |
 | `executeExecutionGroup` / ExecuteExecutionGroup | ExecuteCollectedFields returns data, counted errors, and child work. Deferred errors remain task-local until their delivery boundary. |
 | `executeCollectedFields` / ExecuteCollectedFields | Take the first grouped field, look up its schema definition, call ExecuteField, insert its value under responseName, accumulate work. Invalid groups/schema misses still produce counted errors, rather than implementing the spec's skip-undefined branch; validation is excluded. |
@@ -133,10 +147,29 @@ be read as claiming the omitted spec features are implemented.
 | `getIncrementalStreamUpdateResult` / GetIncrementalStreamUpdateResult | Package hasNext and the three entry lists. Empty lists encode omitted optional entries; this is a typed result, not a JSON serializer. |
 | `batchIncrementalResults` / BatchIncrementalResults | Return a new stream over nonempty available groups of upstream inputs. Map the upstream events in order, concatenate response lists, and take the final hasNext. No batching flag or selected future suffix; host readiness/clocks are not modeled. |
 
+These response structures precede JSON serialization. An error count of zero encodes an
+omitted `errors` entry, an empty object-result `subPath` encodes an omitted `subPath`,
+and empty update lists encode omitted `pending`, `incremental`, or `completed` entries.
+For labels, `Option DirectiveLabel` preserves the wire distinction: `none` means the
+label entry was omitted, while `some .null` means an explicit null argument.
+
 The two planning call sites are the root core and CompleteValue's composite branch:
 both perform collection → BuildExecutionPlan → ExecuteExecutionPlan explicitly.
-Work is a finite tree, not the spec's literal groups/tasks/streams record: append retains
-the work components and the semantic work compiler identifies shared fragment owners.
+Work is a finite tree, not the spec's literal groups/tasks/streams record: `Work.combine`
+retains independent sibling components without selecting a completion order, and the
+structural scheduler relations identify shared fragment owners. Its left/right
+association is nevertheless structural: work addresses traverse those sides, so the
+constructor does not assert commutativity or associativity.
+
+| Draft `Work` field/operation | Lean representation |
+| --- | --- |
+| `groups` | The contributing `DeferredFragment` owners on each `Work.executionGroup` occurrence. |
+| `tasks` | A `Work.executionGroup` occurrence records one finite execution-group outcome; the item outcomes inside `Work.stream` represent later stream work. |
+| `streams` | Each `Work.stream` occurrence records one stream delivery boundary and its finite remaining items. |
+| Combining work records | `Work.combine` retains sibling work without choosing a schedule; unlike the draft's unordered-map merge, its association is used by the WorkQueue semantics as "address". |
+
+Each nested work occurrence has one structural producer. Scheduler dependencies are
+instead group ancestry or enclosing stream owners; they are not additional producers.
 That representation difference, pure precomputation instead of futures, and the explicit
 draft gaps below remain substantive abstractions rather than line-by-line equivalences.
 
@@ -163,7 +196,6 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 - `Execution.WorkScheduler`: explicit factory supplying the result of CreateWorkQueue. No effect-program syntax or interpreter is needed for this pure functional model.
 - `WorkQueueResult`: the initial groups/streams and event-stream result expected by the spec's undefined CreateWorkQueue.
 - `WorkEvent`, `GroupValue`, `StreamValue`: typed versions of the seven named event forms and their successful payloads.
-- `SharedGroupValue`, `selectGroupOwner`, `normalizeGroupValues`: a non-spec projection from provisional raw publication owners to effective spec-facing owners. Contributor metadata survives until this selection; the spec mapper itself is unchanged.
 - `IDState`: the mapper's idMap and nextID, separate from scheduling.
 - `mapWorkEventBatch`: factors the spec's per-batch loop from its surrounding stream map.
 - `ResponseEventStream`, `ResponseEventStream.Accepts`, `ResponseEventStream.next`: the mapper's responseEventStream, represented by a source input type, partial source history, mapper IDs, and an event-mapping function. Observation supplies one admitted input and updates state functionally. Batching transforms the input type to a nonempty group of upstream inputs and installs the spec's aggregation function.
@@ -176,7 +208,9 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
 - `deferUsageSetsEquivalent`, `addExecutionPartition`: finite set equality and partition-map insertion used by BuildExecutionPlan.
 - `freshExecutionKey`, `lookupDeferredFragment?`: explicit occurrence identity supply and defer-map lookup, not scheduler choices.
 - `Completion.pure`, `error`, `combine`, `map`, `catchNull`, `nonNull`: typed data/work/error propagation replacing pseudocode return values and raised errors.
-- `Work.size`, `Work.itemsSize`: finite structural accounting, also used to recognize an empty work tree.
+- `Work.size`, `Work.itemsSize`: finite executable-record accounting, also used to
+  recognize when no execution-group task, stream descriptor, or remaining stream item
+  exists.
 - `EventSource.Allows`, `advance`, `IsFinished`, `ofList`, `batch`: observation-state plumbing, fixed finite fixture sources, and nonempty order-preserving grouping. Every intermediate prefix must be admitted; no available output does not imply termination. Grouping starts at the current source position without replaying prior events.
 
 The remaining structures and aliases name typed spec concepts or representation machinery:
@@ -186,7 +220,8 @@ Completion, StreamUsage, DirectiveLabel, and response-entry/result types. `Respo
 retains the ordinary data/errors map shared with `GraphQL.Execution.Response`.
 `ExecutionResult` names the generalized ordinary-or-incremental query return type, not
 Section 7's narrower ordinary execution-result map. Request-error results and subscription
-streams are excluded.
+streams are excluded. `ExecutionObservation` is the finite materialized observation used
+by correctness statements; it is not the resumable execution return type.
 Shared resolver/value/coercion/error primitives are re-exported from GraphQL.Execution;
 their existing scope is unchanged. Representation helpers do not claim normative names.
 
@@ -241,7 +276,7 @@ machine. `ValidHistory` admits an interrupted prefix or complete run.
 `AdmissibleNext work history batch` checks a nonempty extension of a valid,
 nonterminal history. Multiple next batches may be legal; none is selected by execution.
 
-Structural `Occurrence` addresses distinguish deferred results and stream-item
+Structural `Occurrence` addresses distinguish execution-group results and stream-item
 positions. `Located`, `TaskAt`, and `NodeAt` relate those positions directly to
 the original Work, retaining contributing owners, producers, and ancestry.
 They are ordinary definitions over one `locateWork` address traversal; its
@@ -317,7 +352,7 @@ checks, reconstruction, and public correctness propositions. The query propositi
 live in `GraphQL.IncrementalDelivery.Correctness`.
 
 `ResponseEventStream.Observes` repeatedly accepts batches and updates stream state.
-`ExecutionResult.Observes` relates execution results to finite `QueryResult`
+`ExecutionResult.Observes` relates execution results to finite `ExecutionObservation`
 observations; its complete flag additionally requires source termination.
 `queryObservation` quantifies over factories conforming for the query's actual work.
 `queryOutcome` is its complete-observation case. There is no canonical query trace
@@ -325,7 +360,7 @@ or executable schedule enumerator.
 
 ### Wire positions, lifecycle, and reconstruction
 
-`QueryResult.DeliversSlices` states that the deterministic `QueryResult.decodeSlices`
+`ExecutionObservation.DeliversSlices` states that the deterministic `ExecutionObservation.decodeSlices`
 returns the given mixed defer/stream slices. `DeliveryTrace.decodePatch`,
 `decodePatches`, and `decodeUpdates` replay supplied payloads and updates, returning
 `none` for a missing owner notice or list cursor. Positions use response aliases and
@@ -345,10 +380,10 @@ The last ID may close before a separate termination-only response. Missing
 termination, premature hasNext false, duplicate IDs/completions, and closed-ID
 patches remain invalid.
 
-`mergeQueryResult` reconstructs data from ID-resolved paths. It rejects incomplete
+`mergeExecutionObservation` reconstructs data from ID-resolved paths. It rejects incomplete
 or malformed lifecycles and patches at missing or incompatible attachment points.
 Data patches do not count errors: the reconstructed envelope uses
-`QueryResult.totalErrors`, counting initial, patch, and completion errors once.
+`ExecutionObservation.totalErrors`, counting initial, patch, and completion errors once.
 Failed shared groups can report errors under multiple IDs; the count-only model
 does not deduplicate error identities.
 
@@ -517,7 +552,7 @@ The general proof has the following dependency layers:
    defer group has a published contributor, without assuming each cancelled task's
    owners fail.
 5. `MixedNoticeMetadata`, `MixedNoticeCoverage`, and `MixedNoticeExtension` establish
-   proof-only supported coverage. A stream may wait until one defer parent and its full
+   proof-only supported coverage. A stream may wait until one defer dependency and its full
    ancestry are satisfied. Full ordinary notice coverage is too strong: legitimate
    silent co-owner accounting can make a stream eligible during an object publication
    which cannot carry notices. Public admission still permits that earlier notice.
@@ -613,7 +648,8 @@ raw queue can publish through an outer group, while its
 chooses an open contributing group with a longer path before emitting the response.
 
 `WorkScheduler.Owner` constrains that **effective** owner. Imposing it directly on
-the raw triggering group was too strong. The explicit projection now consists of:
+the raw triggering group was too strong. A proof-side projection used to analyze that
+implementation boundary consists of:
 
 - `SharedGroupValue`: the original payload and its contributing group descriptors.
 - `selectGroupOwner`: start with an open contributing provisional owner and choose
@@ -623,10 +659,11 @@ the raw triggering group was too strong. The explicit projection now consists of
   may choose different owners. Other raw events are passed through by the adapter's
   caller. No notice or completion is synthesized or suppressed by owner selection.
 
-The caller supplies open keys at the publication point, including effects of earlier
-events in the same batch. This is not the model's ever-allocated ID table. GraphQL.js
-deletes completed groups from its publisher map; relating its live map to these open
-keys remains an implementation-refinement obligation.
+These definitions live in the owner-normalization proof module, not in the public
+execution or scheduler definitions. The caller supplies open keys at the publication
+point, including effects of earlier events in the same batch. This is not the model's
+ever-allocated ID table. GraphQL.js deletes completed groups from its publisher map;
+relating its live map to these open keys remains an implementation-refinement obligation.
 
 [OwnerNormalization proofs](../Proofs/GraphQL/IncrementalDelivery/WorkScheduler/OwnerNormalization.lean)
 show selection provenance, maximal path length, unchanged already-maximal owners,

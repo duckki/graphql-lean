@@ -122,7 +122,7 @@ theorem replayResponse_task_coverage {response : Response} {work : Work}
 ordinary branch or the exact replay sum. Prefix observations need not terminate.
 -/
 theorem WorkObservation.initial_errors_le {response : Response} {work : Work}
-    {complete : Bool} {result : QueryResult}
+    {complete : Bool} {result : ExecutionObservation}
     (observed : WorkObservation response work complete result)
     : response.errors ≤ result.totalErrors := by
   cases observed with
@@ -135,7 +135,7 @@ theorem WorkObservation.initial_errors_le {response : Response} {work : Work}
 successful null-catching results; witness: the complete publication-coverage certificate.
 -/
 theorem WorkObservation.payload_errors_zero {response : Response} {work : Work}
-    {result : QueryResult} (observed : WorkObservation response work true result)
+    {result : ExecutionObservation} (observed : WorkObservation response work true result)
     (positive : ExecutionErrors.WorkPositive work) (zero : result.totalErrors = 0)
     {occurrence owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
@@ -152,7 +152,7 @@ actual-work reduction, execution positivity, and exact publication coverage.
 -/
 theorem queryOutcome_payload_errors_zero {schema : Schema}
     {resolvers : Resolvers ObjectRef} {variables : VariableValues} {operation : Operation}
-    {fuel : Nat} {source : ResolverValue ObjectRef} {result : QueryResult}
+    {fuel : Nat} {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     (zero : result.totalErrors = 0)
     (applies : rootSourceAppliesBool schema operation source = true)

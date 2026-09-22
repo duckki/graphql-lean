@@ -80,7 +80,7 @@ condition. Witness: lifecycle validity is already a consequence of the observati
 theorem queryOutcome_executionComplete_iff
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     : result.executionComplete ↔ result.totalErrors = 0 := by
   constructor

@@ -14,7 +14,7 @@ example (schema : Schema) (operation : Operation)
 /-- A streamed parent and its deferred child may arrive in one response; the parent's
 item publication precedes the child's object patch inside that response.
 -/
-def nested : QueryResult :=
+def nested : ExecutionObservation :=
   .incremental
     {
       data := .object [("items", .list [])],
@@ -30,7 +30,7 @@ def nested : QueryResult :=
 
 /-- Actual ID lookup and merging reconstruct the nested item, by reduction. -/
 example
-    : mergeQueryResult nested
+    : mergeExecutionObservation nested
       = some { data := .object [("items", .list [.object [("x", .scalar "one")]])] } := by
   rfl
 

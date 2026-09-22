@@ -31,8 +31,8 @@ example
   have published := initial.append_event
     (by simpa [WorkScheduler.node, failedBefore] using WorkScheduler.publishes)
   have reduction := published.singleton_dependency_iff_completed
-    (show TaskAt WorkScheduler.work (.deferred []) [0] none (.object [] (.ok ([], 0)))
-      from .deferred .root)
+    (show TaskAt WorkScheduler.work (.executionGroup []) [0] none (.object [] (.ok ([], 0)))
+      from .executionGroup .root)
     (fun failure => failure.nonempty rfl)
   simpa [WorkScheduler.node, WorkScheduler.value, completedKeys, eventCompleted,
     failedBefore]
@@ -48,8 +48,8 @@ example
         ∧ DependencySatisfied HistoryScheduling.shared [0] matching events [] 1
         ∧ 1 ∉ announcedKeys [0] events
         ∧ 1 ∉ completedKeys events := by
-  have task : TaskAt HistoryScheduling.shared (.deferred []) [0, 1] none
-      (.object [] (.ok ([], 0))) := .deferred .root
+  have task : TaskAt HistoryScheduling.shared (.executionGroup []) [0, 1] none
+      (.object [] (.ok ([], 0))) := .executionGroup .root
   have initial : Explains HistoryScheduling.shared [HistoryScheduling.left] [] []
       HistoryScheduling.matching [] := by
     refine ⟨⟨⟨by simp, ?_, by simp⟩, by simp⟩, by simp [FailureWitness], by simp⟩
@@ -58,7 +58,7 @@ example
     subst node
     exact HistoryScheduling.initialized.1.2.1 HistoryScheduling.left (by simp)
   have ready : CanPublish HistoryScheduling.shared HistoryScheduling.matching [] []
-      (.deferred []) none :=
+      (.executionGroup []) none :=
     ⟨by simp [Published], fun cancelled => cancelled.nonempty rfl, by simp, trivial⟩
   have owner : Owner HistoryScheduling.shared [0] [] [] [0, 1] HistoryScheduling.left := by
     refine ⟨⟨⟨.group, [], none, .group (group := { node := HistoryScheduling.left })
@@ -72,7 +72,7 @@ example
   have published := initial.publish_object task ready
     (by simpa [HistoryScheduling.left, failedBefore] using owner)
   let event := WorkEvent.groupValues HistoryScheduling.left [{ path := [], data := [] }]
-  let next := matchNext HistoryScheduling.matching 0 (.deferred [])
+  let next := matchNext HistoryScheduling.matching 0 (.executionGroup [])
   refine ⟨[event], next, published, ⟨fun failure => failure.nonempty rfl,
     Or.inr (Or.inr ⟨?_, ?_⟩)⟩, ?_, ?_⟩
   · simp [announcedKeys, pendingKeys, event, eventPending]
@@ -80,7 +80,7 @@ example
     have same := HistoryScheduling.task_shared known
     subst occurrence
     exact Or.inr (published_matchNext (event := event) trivial
-      HistoryScheduling.matching [] (.deferred []))
+      HistoryScheduling.matching [] (.executionGroup []))
   · simp [announcedKeys, pendingKeys, event, eventPending]
   · simp [completedKeys, event, eventCompleted]
 

@@ -40,7 +40,7 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have unique := deliveryIDsUnique_holds schema operation resolvers variables fuel source
     _ observed
-  simp [Tests.Correctness.duplicateAnnouncement, QueryResult.idsUnique,
+  simp [Tests.Correctness.duplicateAnnouncement, ExecutionObservation.idsUnique,
     DeliveryTrace.pendingIDs, List.nodup_cons] at unique
 
 /-- No complete query outcome may contain duplicate completion notices. -/
@@ -52,7 +52,7 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have once := deliveryIDsCompleteExactlyOnce_holds schema operation resolvers variables
     fuel source Tests.Correctness.duplicateCompletion observed
-  simp [Tests.Correctness.duplicateCompletion, QueryResult.idsCompleteExactlyOnce,
+  simp [Tests.Correctness.duplicateCompletion, ExecutionObservation.idsCompleteExactlyOnce,
     DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs] at once
 
 /-- Coalescing may reorder notices inside a batch, but preserves multiplicity. -/

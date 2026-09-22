@@ -13,8 +13,8 @@ mutual
   errors. -/
   def WorkSuccess : Work → Prop
     | .empty => True
-    | .append left right => WorkSuccess left ∧ WorkSuccess right
-    | .deferred _ _ result children =>
+    | .combine left right => WorkSuccess left ∧ WorkSuccess right
+    | .executionGroup _ _ result children =>
         (∃ data, result = .ok (data, 0)) ∧ WorkSuccess children
     | .stream _ items => ItemsSuccess items
 
@@ -33,13 +33,13 @@ mutual
   /-- Typed source slices for work, with existential absolute stream offsets. -/
   inductive WorkEntries : Work → List (List Entry) → Prop where
     | empty : WorkEntries .empty []
-    | append {left right : Work} {ls rs : List (List Entry)}
+    | combine {left right : Work} {ls rs : List (List Entry)}
       (hl : WorkEntries left ls) (hr : WorkEntries right rs)
-      : WorkEntries (.append left right) (ls ++ rs)
-    | deferred {groups : List DeferredFragment} {path : ResponsePath}
+      : WorkEntries (.combine left right) (ls ++ rs)
+    | executionGroup {groups : List DeferredFragment} {path : ResponsePath}
       {completed : Result (List (Name × ResponseValue))} {children : Work}
       {slices : List (List Entry)} (hc : WorkEntries children slices)
-      : WorkEntries (.deferred groups path completed children)
+      : WorkEntries (.executionGroup groups path completed children)
           (result (fields path) completed :: slices)
     | stream {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
       {index : Nat} {slices : List (List Entry)}

@@ -8,7 +8,7 @@ open WorkScheduler
 open Semantics.MixedPaths
 
 /-- A source label carrying an item payload has an item occurrence. Witness: invert its
-real scheduler task; deferred occurrences can only carry object payloads.
+real scheduler task; execution-group occurrences can only carry object payloads.
 -/
 theorem sourceTask_item_occurrence {initial work task node result}
     (member : task ∈ sourceTasks [] none initial work)
@@ -17,7 +17,7 @@ theorem sourceTask_item_occurrence {initial work task node result}
   obtain ⟨_, known⟩ := sourceTasks_known .root initial member
   rw [payload] at known
   cases occurrence : task.occurrence with
-  | deferred address =>
+  | executionGroup address =>
       rw [occurrence] at known
       obtain ⟨_, _, _, _, _, _, _, impossible⟩ := known
       cases impossible

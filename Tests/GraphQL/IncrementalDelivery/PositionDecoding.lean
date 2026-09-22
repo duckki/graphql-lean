@@ -52,7 +52,7 @@ example
   rfl
 
 /-- Object payloads can seed list cursors before the stream ID is announced. -/
-def deferredList : QueryResult :=
+def deferredList : ExecutionObservation :=
   .incremental { data := .object [], pending := [root], hasNext := true }
     [
       {
@@ -103,7 +103,7 @@ example (containers : Bool) (notices : List IncrementalPendingNotice)
   rfl
 
 /-- Raw wire paths can decode even when their announced parent cannot be merged. -/
-def unattached : QueryResult :=
+def unattached : ExecutionObservation :=
   .incremental
     {
       data := .null
@@ -121,12 +121,13 @@ example : unattached.DeliversSlices false [[[]], [[.field "missing", .field "x"]
   rfl
 
 /-- The same raw trace has a valid lifecycle but fails the independent data merger. -/
-example : unattached.deliveryComplete = true ∧ mergeQueryResult unattached = none :=
+example
+    : unattached.deliveryComplete = true ∧ mergeExecutionObservation unattached = none :=
   ⟨rfl, rfl⟩
 
 /-- An interrupted observation can still have decoded slices despite incomplete delivery. -/
 example
-    : (QueryResult.incremental
+    : (ExecutionObservation.incremental
         { data := .null, pending := [], hasNext := true } []).decodeSlices
         false
       = some [[[]]] :=

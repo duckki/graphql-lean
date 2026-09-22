@@ -23,12 +23,12 @@ private theorem DeferOnly.roles_at {work address current producer owners}
     : KeyRoles.WorkRoles (fun _ => false) current := by
   cases current with
   | empty => simp [KeyRoles.WorkRoles]
-  | append left right =>
+  | combine left right =>
       rw [KeyRoles.WorkRoles]
       exact ⟨shape.roles_at (.left located), shape.roles_at (.right located)⟩
-  | deferred groups path result children =>
+  | executionGroup groups path result children =>
       rw [KeyRoles.WorkRoles]
-      exact ⟨by simp, shape.roles_at (.deferred located)⟩
+      exact ⟨by simp, shape.roles_at (.executionGroup located)⟩
   | stream node items =>
       have impossible := shape _ _ _ _ (NodeAt.stream located)
       cases impossible
@@ -42,7 +42,7 @@ theorem DeferOnly.roles {work} (shape : DeferOnly work)
   shape.roles_at Located.root
 
 /-- Supported coverage equals ordinary notice coverage when every descriptor is a group.
-Witness: the stronger stream-parent support clause is vacuous for defer-only work.
+Witness: the stronger stream-dependency support clause is vacuous for defer-only work.
 -/
 theorem DeferOnly.supportedNoticesCovered_iff
     {ancestry work initial matching events failed} (shape : DeferOnly work)

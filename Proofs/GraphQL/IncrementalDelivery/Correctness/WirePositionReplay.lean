@@ -58,7 +58,8 @@ theorem replayResponse_positions
         positionUpdates_of_atoms encoded finalWell metadata announced decoded
       exact ⟨
         ResponsePositions.value containers [] response.data :: tail,
-        QueryResult.deliversSlices_incremental_iff.mpr ⟨tail, wireFinal, positions, rfl⟩,
+        ExecutionObservation.deliversSlices_incremental_iff.mpr
+          ⟨tail, wireFinal, positions, rfl⟩,
         by simp only [List.flatten_cons, flattened]
       ⟩
 

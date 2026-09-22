@@ -20,13 +20,14 @@ theorem NodeFailed.mono {work failed more key} (failure : NodeFailed work failed
       (motive_2 := fun occurrence _ => TaskCancelled work more occurrence) with
   | task known owner member =>
       exact Causality.NodeFailed.task known owner (included member)
-  | groupParent known member _ ih =>
-      exact Causality.NodeFailed.groupParent known member ih
-  | streamParents known nonempty _ ih =>
-      exact Causality.NodeFailed.streamParents known nonempty ih
+  | groupDependency known member _ ih =>
+      exact Causality.NodeFailed.groupDependency known member ih
+  | streamDependencies known nonempty _ ih =>
+      exact Causality.NodeFailed.streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
-      exact Causality.NodeFailed.producers known noRoot (fun parent known absent =>
-        ih parent known (fun member => absent (included member)))
+      exact Causality.NodeFailed.producers known noRoot
+        (fun producerOccurrence known absent =>
+          ih producerOccurrence known (fun member => absent (included member)))
   | owners known nonempty _ ih => exact Causality.TaskCancelled.owners known nonempty ih
   | producerFailed known member =>
       exact Causality.TaskCancelled.producerFailed known (included member)
@@ -44,13 +45,14 @@ theorem TaskCancelled.mono {work failed more occurrence}
       (motive_1 := fun key _ => NodeFailed work more key) with
   | task known owner member =>
       exact Causality.NodeFailed.task known owner (included member)
-  | groupParent known member _ ih =>
-      exact Causality.NodeFailed.groupParent known member ih
-  | streamParents known nonempty _ ih =>
-      exact Causality.NodeFailed.streamParents known nonempty ih
+  | groupDependency known member _ ih =>
+      exact Causality.NodeFailed.groupDependency known member ih
+  | streamDependencies known nonempty _ ih =>
+      exact Causality.NodeFailed.streamDependencies known nonempty ih
   | producers known noRoot _ ih =>
-      exact Causality.NodeFailed.producers known noRoot (fun parent known absent =>
-        ih parent known (fun member => absent (included member)))
+      exact Causality.NodeFailed.producers known noRoot
+        (fun producerOccurrence known absent =>
+          ih producerOccurrence known (fun member => absent (included member)))
   | owners known nonempty _ ih => exact Causality.TaskCancelled.owners known nonempty ih
   | producerFailed known member =>
       exact Causality.TaskCancelled.producerFailed known (included member)
@@ -188,7 +190,7 @@ theorem Explains.failure_step
             (failures ++ [(events.length, occurrence)]) := by
   have recorded := explained.record_failure known fails reachable opened active
   obtain ⟨key, owner, openKey⟩ := opened
-  obtain ⟨node, kind, parents, birth, nodeKnown, same⟩ :=
+  obtain ⟨node, kind, dependencies, birth, nodeKnown, same⟩ :=
     explained.noticeFacts.supported key openKey.1
   have member : occurrence ∈ (failures ++ [(events.length, occurrence)]).map Prod.snd := by
     simp
@@ -209,8 +211,8 @@ theorem Explains.failure_step
       (by simpa only [recorded.2.1.failedBefore_eq (Nat.le_refl _)] using allowed)
   cases kind with
   | group => exact ⟨node, errors, .groupFailure node errors, same ▸ owner, Or.inl rfl,
-      includes, finish ⟨⟨parents, birth, nodeKnown⟩, nodeOpen, failed, counts⟩⟩
+      includes, finish ⟨⟨dependencies, birth, nodeKnown⟩, nodeOpen, failed, counts⟩⟩
   | stream => exact ⟨node, errors, .streamFailure node errors, same ▸ owner, Or.inr rfl,
-      includes, finish ⟨⟨parents, birth, nodeKnown⟩, nodeOpen, failed, counts⟩⟩
+      includes, finish ⟨⟨dependencies, birth, nodeKnown⟩, nodeOpen, failed, counts⟩⟩
 
 end GraphQL.IncrementalDelivery.WorkScheduler

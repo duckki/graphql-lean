@@ -21,7 +21,7 @@ theorem childFreeStream_located {node items address current producer owners}
   clear located
   induction navigation with
   | root => exact Or.inl ⟨rfl, rfl, rfl, rfl⟩
-  | left _ ih | right _ ih | deferred _ ih =>
+  | left _ ih | right _ ih | executionGroup _ ih =>
       rcases ih with ⟨_, impossible, _, _⟩ | impossible <;> cases impossible
   | item located selected ih =>
       rcases ih with ⟨rfl, same, rfl, rfl⟩ | impossible
@@ -37,7 +37,7 @@ theorem childFreeStream_task {node items occurrence owners producer payload}
     (known : TaskAt (.stream node items) occurrence owners producer payload)
     : owners = [node.key] ∧ producer = none := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       rcases childFreeStream_located childrenEmpty located.toCurrent with
         ⟨_, impossible, _, _⟩ | impossible <;> cases impossible
   | item located selected =>

@@ -11,7 +11,7 @@ open GraphQL.IncrementalDelivery.WorkScheduler
 /-! The work proof surface does not bring in wire correctness definitions. -/
 
 #guard_msgs (drop info) in
-#check_failure QueryResult
+#check_failure ExecutionObservation
 
 /-- Every admitted prefix has unique node notices and completions, even for arbitrary raw
 work.

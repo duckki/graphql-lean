@@ -11,26 +11,26 @@ open GraphQL.IncrementalDelivery.Execution
 /-- Complete delivery contains the very same ID-safety check; witness: Boolean conjunction
 projection.
 -/
-theorem idUsageValid_of_deliveryComplete (result : QueryResult)
+theorem idUsageValid_of_deliveryComplete (result : ExecutionObservation)
     (h : result.deliveryComplete = true)
     : result.idUsageValid := by
   cases result with
   | single response => trivial
   | incremental initial subsequent =>
-      simp only [QueryResult.deliveryComplete, Bool.and_eq_true, and_assoc] at h
+      simp only [ExecutionObservation.deliveryComplete, Bool.and_eq_true, and_assoc] at h
       exact ⟨of_decide_eq_true h.2.1, h.2.2.1⟩
 
 /-- Complete delivery has unique announcements, by its safety witness and ID-usage
 uniqueness.
 -/
-theorem idsUnique_of_deliveryComplete (result : QueryResult)
+theorem idsUnique_of_deliveryComplete (result : ExecutionObservation)
     (h : result.deliveryComplete = true)
     : result.idsUnique :=
   idsUnique_of_idUsageValid result (idUsageValid_of_deliveryComplete result h)
 
 /-- Complete delivery's patches are causally announced, by the ID-usage reference witness.
 -/
-theorem patchesAnnounced_of_deliveryComplete (result : QueryResult)
+theorem patchesAnnounced_of_deliveryComplete (result : ExecutionObservation)
     (h : result.deliveryComplete = true)
     : result.patchesAnnounced :=
   patchesAnnounced_of_idUsageValid result (idUsageValid_of_deliveryComplete result h)
@@ -80,8 +80,8 @@ the induction above supplies causality; the reverse direction forgets update ord
 -/
 theorem idsEventuallyComplete_iff_allCompleted (initial : InitialIncrementalStreamResult)
     (updates : List IncrementalStreamUpdateResult)
-    (safe : (QueryResult.incremental initial updates).idUsageValid)
-    : (QueryResult.incremental initial updates).idsEventuallyComplete
+    (safe : (ExecutionObservation.incremental initial updates).idUsageValid)
+    : (ExecutionObservation.incremental initial updates).idsEventuallyComplete
       ↔ ∀ id ∈
           initial.pending.map IncrementalPendingNotice.id
           ++ DeliveryTrace.pendingIDs updates,
@@ -101,7 +101,7 @@ theorem idsEventuallyComplete_iff_allCompleted (initial : InitialIncrementalStre
 /-- Complete delivery closes IDs causally, not merely somewhere in the trace, by safety
 plus closure.
 -/
-theorem idsEventuallyComplete_of_deliveryComplete (result : QueryResult)
+theorem idsEventuallyComplete_of_deliveryComplete (result : ExecutionObservation)
     (h : result.deliveryComplete = true)
     : result.idsEventuallyComplete := by
   have safe := idUsageValid_of_deliveryComplete result h
@@ -109,13 +109,13 @@ theorem idsEventuallyComplete_of_deliveryComplete (result : QueryResult)
   | single response => trivial
   | incremental initial subsequent =>
       apply (idsEventuallyComplete_iff_allCompleted initial subsequent safe).mpr
-      simp only [QueryResult.deliveryComplete, Bool.and_eq_true, and_assoc] at h
+      simp only [ExecutionObservation.deliveryComplete, Bool.and_eq_true, and_assoc] at h
       simpa only [List.all_eq_true, List.contains_iff_mem] using h.2.2.2.1
 
 /-- Complete delivery completes each announcement exactly once; combine safety with causal
 liveness.
 -/
-theorem idsCompleteExactlyOnce_of_deliveryComplete (result : QueryResult)
+theorem idsCompleteExactlyOnce_of_deliveryComplete (result : ExecutionObservation)
     (h : result.deliveryComplete = true)
     : result.idsCompleteExactlyOnce :=
   idsCompleteExactlyOnce_of_idUsageValid_of_liveness result

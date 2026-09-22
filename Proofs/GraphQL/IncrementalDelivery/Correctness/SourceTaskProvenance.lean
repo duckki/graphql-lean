@@ -64,7 +64,7 @@ theorem sourceTasks_located {work address current producer owners}
       obtain ⟨localCursors, included⟩ := ih
       rw [sourceTasks] at included
       exact ⟨localCursors, (List.sublist_append_right _ _).trans included⟩
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       obtain ⟨_, included⟩ := ih
       rw [sourceTasks] at included
       exact ⟨_, (List.sublist_cons_self _ _).trans included⟩
@@ -87,10 +87,10 @@ theorem sourceTasks_task {work occurrence owners producer payload}
         ∧ task.producer = producer
         ∧ task.payload = payload := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | @deferred address groups path result children producer owners located =>
+  | @executionGroup address groups path result children producer owners located =>
       obtain ⟨_, included⟩ := sourceTasks_located located.toCurrent cursors
       rw [sourceTasks] at included
-      exact ⟨⟨.deferred address, producer, .object path result, 0⟩,
+      exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
         included.subset (List.mem_cons_self), rfl, rfl, rfl⟩
   | @item address node items producer owners index result children located entry =>
       obtain ⟨localCursors, included⟩ := sourceTasks_located located.toCurrent cursors

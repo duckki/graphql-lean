@@ -22,10 +22,10 @@ theorem deferredStreams_located
     {fragments path result children address current producer owners}
     (onlyStreams : StreamOnly children)
     (located
-      : Located (.deferred fragments path result children) address current producer
+      : Located (.executionGroup fragments path result children) address current producer
           owners)
     : (address = []
-        ∧ current = .deferred fragments path result children
+        ∧ current = .executionGroup fragments path result children
         ∧ producer = none
         ∧ owners = [])
       ∨ (StreamOnly current
@@ -45,7 +45,7 @@ theorem deferredStreams_located
       · cases impossible
       · rw [StreamOnly] at only
         exact Or.inr ⟨only.2, birth, owners⟩
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       rcases ih with ⟨rfl, same, rfl, rfl⟩ | ⟨impossible, _, _⟩
       · cases same
         exact Or.inr ⟨onlyStreams, by simp, Or.inr rfl⟩
@@ -57,13 +57,13 @@ theorem deferredStreams_located
         exact Or.inr ⟨only _ (List.mem_of_getElem? entry), by simp, Or.inl rfl⟩
 
 /-- The wrapper's sole deferred task is its root task. Witness: every deeper location
-is stream-only, so cannot contain another deferred boundary.
+is stream-only, so cannot contain another execution-group boundary.
 -/
 theorem deferredStreams_deferred_task
     {fragments path result children address owners producer payload}
     (onlyStreams : StreamOnly children)
     (known
-      : TaskAt (.deferred fragments path result children) (.deferred address)
+      : TaskAt (.executionGroup fragments path result children) (.executionGroup address)
           owners producer payload)
     : address = []
       ∧ owners = fragments.map (fun group => group.node.key)
@@ -83,26 +83,29 @@ theorem deferredStreams_root_task
     {fragments path result children occurrence owners payload}
     (onlyStreams : StreamOnly children)
     (known
-      : TaskAt (.deferred fragments path result children) occurrence owners none payload)
-    : occurrence = .deferred [] := by
+      : TaskAt (.executionGroup fragments path result children) occurrence owners none
+          payload)
+    : occurrence = .executionGroup [] := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
-      exact congrArg Occurrence.deferred (deferredStreams_deferred_task onlyStreams known).1
+  | executionGroup located =>
+      exact congrArg Occurrence.executionGroup (deferredStreams_deferred_task onlyStreams known).1
   | item located entry =>
       rcases deferredStreams_located onlyStreams located.toCurrent with
         ⟨_, impossible, _, _⟩ | ⟨_, impossible, _⟩
       · cases impossible
       · exact False.elim (impossible rfl)
 
-/-- Every stream below the wrapper has either no defer parents or the producer's owners.
+/-- Every stream below the wrapper has either no defer dependencies or the producer's
+owners.
 Witness: its location's enclosing-owner context.
 -/
-theorem deferredStreams_stream_parents
-    {fragments path result children stream parents producer}
+theorem deferredStreams_stream_dependencies
+    {fragments path result children stream dependencies producer}
     (onlyStreams : StreamOnly children)
     (known
-      : NodeAt (.deferred fragments path result children) stream .stream parents producer)
-    : parents = [] ∨ parents = fragments.map (fun group => group.node.key) := by
+      : NodeAt (.executionGroup fragments path result children) stream .stream
+          dependencies producer)
+    : dependencies = [] ∨ dependencies = fragments.map (fun group => group.node.key) := by
   obtain ⟨address, items, located⟩ := known
   rcases deferredStreams_located onlyStreams located with
     ⟨_, impossible, _, _⟩ | ⟨_, _, owners⟩
@@ -113,7 +116,7 @@ theorem deferredStreams_stream_parents
 -- Construct the deferred publication/closure or the justified failure
 -----------------------------------------------------------------------------------------
 
-/-- A shared deferred producer with parentless owners and stream-only children admits a
+/-- A shared deferred producer with dependency-free owners and stream-only children admits a
 complete run for every producer/item outcome. Witness: announce the owner keys, publish
 once, close all but one owner, then use that reserved success closure to announce streams.
 A producer failure instead cancels all descendants. Every owner key is initially announced;
@@ -125,33 +128,34 @@ theorem sharedDeferredStreams_completeRun_with_owners
     (onlyStreams : StreamOnly children)
     (coherent
       : MixedOwnerPaths.WorkAt paths bound
-          (.deferred (nodes.map (fun node => { node })) path result children))
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
     (roleCoherent
       : KeyRoles.WorkRoles roles
-          (.deferred (nodes.map (fun node => { node })) path result children))
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
-        AdmissibleRun (.deferred (nodes.map (fun node => { node })) path result children)
+        AdmissibleRun
+          (.executionGroup (nodes.map (fun node => { node })) path result children)
           history
         ∧ ∀ node ∈ nodes,
             node.key
             ∈ (history.initialGroups ++ history.initialStreams).map DeliveryNode.key := by
   classical
-  let work := Work.deferred (nodes.map (fun node => { node })) path result children
-  have task : TaskAt work (.deferred []) (nodes.map DeliveryNode.key) none
+  let work := Work.executionGroup (nodes.map (fun node => { node })) path result children
+  have task : TaskAt work (.executionGroup []) (nodes.map DeliveryNode.key) none
       (.object path result) := by
     simpa only [List.map_map, Function.comp_def]
-      using TaskAt.deferred
+      using TaskAt.executionGroup
         (show Located work []
-                (.deferred (nodes.map (fun node => { node })) path result children) none
-                [] from .root)
+                (.executionGroup (nodes.map (fun node => { node })) path result children)
+                none [] from .root)
   have root (node : DeliveryNode) (member : node ∈ nodes) : NodeAt work node .group [] none :=
     .group (group := { node }) .root (List.mem_map.mpr ⟨node, member, rfl⟩)
   have eligible (node : DeliveryNode) (member : node ∈ nodes)
-      : CanAnnounce work [] (fun _ => .deferred []) [] [] node .group [] none := by
+      : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
     refine ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
       Or.inr ?_, by simp, by simp⟩
     intro accounted
-    rcases accounted (.deferred []) (nodes.map DeliveryNode.key)
+    rcases accounted (.executionGroup []) (nodes.map DeliveryNode.key)
       ⟨none, .object path result, task⟩ (List.mem_map.mpr ⟨node, member, rfl⟩)
       with cancelled | published
     · exact cancelled.nonempty rfl
@@ -167,7 +171,7 @@ theorem sharedDeferredStreams_completeRun_with_owners
   have rootNotified (node : DeliveryNode) (member : node ∈ nodes)
       : node.key ∈ (groups ++ streams).map DeliveryNode.key :=
     covers node .group [] none (root node member) (eligible node member)
-  have initial : Explains work groups streams [] (fun _ => .deferred []) [] :=
+  have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   have opened : Open ((groups ++ streams).map DeliveryNode.key) [] anchor.key := by
     exact ⟨by simpa [announcedKeys, pendingKeys] using rootNotified anchor member,
@@ -180,8 +184,8 @@ theorem sharedDeferredStreams_completeRun_with_owners
         ⟨anchor.key, anchorOwner, opened⟩ (fun cancelled => cancelled.nonempty rfl)
       have accounted : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload →
-          Accounted work (fun _ => .deferred []) []
-            (failedBefore [(0, .deferred [])] 0) occurrence := by
+          Accounted work (fun _ => .executionGroup []) []
+            (failedBefore [(0, .executionGroup [])] 0) occurrence := by
         intro occurrence owners producer payload known
         apply Or.inl
         apply all_tasks_cancelled_of_roots (known := known)
@@ -195,13 +199,13 @@ theorem sharedDeferredStreams_completeRun_with_owners
       exact ⟨_, run, rootNotified⟩
   | ok value =>
       obtain ⟨data, errors⟩ := value
-      have ready : CanPublish work (fun _ => .deferred []) [] [] (.deferred []) none :=
+      have ready : CanPublish work (fun _ => .executionGroup []) [] [] (.executionGroup []) none :=
         ⟨by simp [Published], fun cancelled => cancelled.nonempty rfl, by simp, trivial⟩
       obtain ⟨owner, selectedOwner⟩ := owner_exists_of_available coherent task
         ⟨anchor, ⟨.group, [], none, root anchor member⟩, anchorOwner, opened,
           fun failure => failure.nonempty rfl⟩
       let event := WorkEvent.groupValues owner [{ path, data, errors }]
-      let matching := matchNext (fun _ => .deferred []) 0 (.deferred [])
+      let matching := matchNext (fun _ => .executionGroup []) 0 (.executionGroup [])
       have published : Explains work groups streams [event] matching [] :=
         initial.publish_object task ready selectedOwner
       have deferred : DeferredTasksAccounted work matching [event] [] := by
@@ -209,13 +213,13 @@ theorem sharedDeferredStreams_completeRun_with_owners
         have same := (deferredStreams_deferred_task onlyStreams known).1
         subst address
         exact Or.inr (published_matchNext (event := event) trivial
-          (fun _ => .deferred []) [] (.deferred []))
+          (fun _ => .executionGroup []) [] (.executionGroup []))
       have accounted (key : Nat) (inKeys : key ∈ nodes.map DeliveryNode.key)
           : NodeAccounted work matching [event] [] key := by
         obtain ⟨node, inNodes, rfl⟩ := List.mem_map.mp inKeys
         rintro occurrence owners ⟨producer, payload, known⟩ contributes
         cases StructuralEquivalence.taskAt_of_current known with
-        | deferred located => exact deferred _ _ _ _ known
+        | executionGroup located => exact deferred _ _ _ _ known
         | item located entry =>
             exact False.elim (stream_group_keys_distinct roleCoherent
               (NodeAt.stream located.toCurrent) (root node inNodes)
@@ -234,14 +238,14 @@ theorem sharedDeferredStreams_completeRun_with_owners
           eventCompleted]
           using opened
       have reserved := anchorOpen.append_unselected selected (by simp [others])
-      have parentsClosed {newGroups newStreams : List DeliveryNode}
-          : StreamParentsCompleted work
+      have dependenciesClosed {newGroups newStreams : List DeliveryNode}
+          : StreamDependenciesCompleted work
               ([event] ++ closures ++ [.groupSuccess anchor newGroups newStreams]) := by
-        intro stream parents producer known key inParents
-        rcases deferredStreams_stream_parents onlyStreams known with rfl | rfl
-        · cases inParents
+        intro stream dependencies producer known key inDependencies
+        rcases deferredStreams_stream_dependencies onlyStreams known with rfl | rfl
+        · cases inDependencies
         · have inKeys : key ∈ nodes.map DeliveryNode.key := by
-            simpa only [List.map_map, Function.comp_def] using inParents
+            simpa only [List.map_map, Function.comp_def] using inDependencies
           by_cases same : key = anchor.key
           · simp [completedKeys, eventCompleted, same]
           · have other : key ∈ others := List.mem_filter.mpr
@@ -254,11 +258,11 @@ theorem sharedDeferredStreams_completeRun_with_owners
         closedOthers.complete_group_streams_notified (root anchor member) reserved
           (fun failure => failure.nonempty rfl)
           (by simpa [failedBefore] using (accounted anchor.key anchorOwner).append closures)
-          parentsClosed
+          dependenciesClosed
       have preserved := (deferred.extend (List.Subset.refl []) closures).extend
         (List.Subset.refl []) [.groupSuccess anchor newGroups newStreams]
       obtain ⟨tail, run⟩ := released_streams_run_extension coherent released preserved
-        parentsClosed notified (WorkBatching.singletons _)
+        dependenciesClosed notified (WorkBatching.singletons _)
       exact ⟨_, run, rootNotified⟩
 
 /-- A shared deferred producer has a complete run with arbitrary stream-only descendants.
@@ -270,12 +274,13 @@ theorem sharedDeferredStreams_completeRun_exists
     (onlyStreams : StreamOnly children)
     (coherent
       : MixedOwnerPaths.WorkAt paths bound
-          (.deferred (nodes.map (fun node => { node })) path result children))
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
     (roleCoherent
       : KeyRoles.WorkRoles roles
-          (.deferred (nodes.map (fun node => { node })) path result children))
+          (.executionGroup (nodes.map (fun node => { node })) path result children))
     : ∃ history,
-        AdmissibleRun (.deferred (nodes.map (fun node => { node })) path result children)
+        AdmissibleRun
+          (.executionGroup (nodes.map (fun node => { node })) path result children)
           history := by
   obtain ⟨history, run, _⟩ := sharedDeferredStreams_completeRun_with_owners nonempty
     onlyStreams coherent roleCoherent
@@ -289,9 +294,12 @@ theorem deferredStreams_completeRun_exists
     {paths bound roles node path result children}
     (onlyStreams : StreamOnly children)
     (coherent
-      : MixedOwnerPaths.WorkAt paths bound (.deferred [{ node }] path result children))
-    (roleCoherent : KeyRoles.WorkRoles roles (.deferred [{ node }] path result children))
-    : ∃ history, AdmissibleRun (.deferred [{ node }] path result children) history := by
+      : MixedOwnerPaths.WorkAt paths bound
+          (.executionGroup [{ node }] path result children))
+    (roleCoherent
+      : KeyRoles.WorkRoles roles (.executionGroup [{ node }] path result children))
+    : ∃ history,
+        AdmissibleRun (.executionGroup [{ node }] path result children) history := by
   exact sharedDeferredStreams_completeRun_exists (nodes := [node]) (by simp)
     onlyStreams coherent roleCoherent
 

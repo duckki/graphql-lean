@@ -28,8 +28,8 @@ This Boolean is a test guard, not a scheduler or correctness premise.
 -/
 def hasProducedWork : Work → Bool
   | .empty => false
-  | .append left right => hasProducedWork left || hasProducedWork right
-  | .deferred _ _ _ children => children.size > 0
+  | .combine left right => hasProducedWork left || hasProducedWork right
+  | .executionGroup _ _ _ children => children.size > 0
   | .stream .. => false
 
 #guard

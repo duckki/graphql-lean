@@ -13,7 +13,7 @@ def parent : DeliveryNode := { key := 0, path := [] }
 def child : DeliveryNode := { key := 1, path := [.field "items"] }
 
 def nested : Work :=
-  .deferred [{ node := parent }] []
+  .executionGroup [{ node := parent }] []
     (.ok ([("items", .list [.null, .null])], 0))
     (.stream child [(.ok (.null, 0), .empty)])
 
@@ -24,7 +24,7 @@ example : ResponsePositions.cursorAt ([] : ResponsePositions.Cursors) child.path
 
 example
     : (sourceTasks [] none [] nested).map (fun task => (task.occurrence, task.index))
-      = [(.deferred [], 0), (.item [0] 0, 2)] :=
+      = [(.executionGroup [], 0), (.item [0] 0, 2)] :=
   rfl
 
 /-- The actual cursor-seed certificate agrees with the labelled deferred/item slices. -/
@@ -34,16 +34,16 @@ theorem nested_seed
           [child.path, child.path ++ [.index 0], child.path ++ [.index 1]],
           [child.path ++ [.index 2]]
         ] :=
-  .deferred (.stream rfl (.cons .empty .nil))
+  .executionGroup (.stream rfl (.cons .empty .nil))
 
 /-- Task lookup supplies a producer-origin witness without assuming publication order. -/
 example
     : ∃ task ∈ sourceTasks [] none [] nested,
         task.occurrence = .item [0] 0
-        ∧ task.producer = some (.deferred [])
+        ∧ task.producer = some (.executionGroup [])
         ∧ task.payload = .item child (.ok (.null, 0))
         ∧ task.Seeded [] (sourceTasks [] none [] nested) :=
-  sourceTasks_task_seeded nested_seed (TaskAt.item (.deferred .root) rfl)
+  sourceTasks_task_seeded nested_seed (TaskAt.item (.executionGroup .root) rfl)
 
 /-- Nested source labels preserve unique structural occurrences independently of cursors.
 -/
@@ -57,7 +57,7 @@ remains permissive; it is the generated execution's position certificate that ex
 -/
 example
     : ¬((sourceTasks [] none [(child.path, 2)]
-          (.append (.stream child [(.ok (.null, 0), .empty)])
+          (.combine (.stream child [(.ok (.null, 0), .empty)])
             (.stream child [(.ok (.null, 0), .empty)]))).flatMap
           (SourceTask.positions true)).Nodup := by
   decide
@@ -67,7 +67,7 @@ example
 example
     : ResponsePositions.cursorAt
         (sourceHistoryCursors (sourceTasks [] none [] nested)
-          (fun index => if index = 0 then .deferred [] else .item [0] 0)
+          (fun index => if index = 0 then .executionGroup [] else .item [0] 0)
           [
             .groupValues parent
               [{ path := [], data := [("items", .list [.null, .null])] }],
@@ -80,7 +80,7 @@ example
 example
     : ResponsePositions.cursorAt
         (sourceHistoryCursors (sourceTasks [] none [] nested)
-          (fun index => if index = 0 then .deferred [] else .item [0] 0)
+          (fun index => if index = 0 then .executionGroup [] else .item [0] 0)
           [
             .groupValues parent
               [{ path := [], data := [("items", .list [.null, .null])] }],

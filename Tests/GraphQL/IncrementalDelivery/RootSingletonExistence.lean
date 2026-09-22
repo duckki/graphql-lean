@@ -18,8 +18,8 @@ def node (key : Nat) : DeliveryNode := { key, path := [] }
 Neither task is a structural producer of the other; the dependency is defer ancestry.
 -/
 def work (first second : Result (List (Name × ResponseValue))) : Work :=
-  .append (.deferred [{ node := node 0 }] [] first .empty)
-    (.deferred [{ node := node 1, ancestors := [node 0] }] [] second .empty)
+  .combine (.executionGroup [{ node := node 0 }] [] first .empty)
+    (.executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty)
 
 /-- Structural locations stop at one of the two root tasks or its empty child.
 Witness: navigation induction; no task-producing edge can reveal further work.
@@ -27,8 +27,9 @@ Witness: navigation induction; no task-producing edge can reveal further work.
 theorem located_work {first second address current producer owners}
     (located : Located (work first second) address current producer owners)
     : (current = work first second ∧ producer = none)
-      ∨ (current = .deferred [{ node := node 0 }] [] first .empty ∧ producer = none)
-      ∨ (current = .deferred [{ node := node 1, ancestors := [node 0] }] [] second .empty
+      ∨ (current = .executionGroup [{ node := node 0 }] [] first .empty ∧ producer = none)
+      ∨ (current
+            = .executionGroup [{ node := node 1, ancestors := [node 0] }] [] second .empty
           ∧ producer = none)
       ∨ current = .empty := by
   have navigation := StructuralEquivalence.located_of_current located
@@ -45,7 +46,7 @@ theorem located_work {first second address current producer owners}
       · cases same
         exact Or.inr (Or.inr (Or.inl ⟨rfl, birth⟩))
       all_goals cases same
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       rcases ih with ⟨same, _⟩ | ⟨same, _⟩ | ⟨same, _⟩ | same
       all_goals cases same
       all_goals exact Or.inr (Or.inr (Or.inr rfl))
@@ -74,7 +75,7 @@ theorem root_singleton (first second : Result (List (Name × ResponseValue)))
         all_goals cases same
   · intro occurrence owners producer payload known
     cases StructuralEquivalence.taskAt_of_current known with
-    | deferred located =>
+    | executionGroup located =>
         rcases located_work located.toCurrent with
           ⟨same, _⟩ | ⟨same, _⟩ | ⟨same, _⟩ | same
         all_goals cases same
@@ -112,7 +113,7 @@ theorem dependent_run_exists (first second : Result (List (Name × ResponseValue
 and is neither completed nor accounted for before its sole task publishes.
 -/
 example (first second : Result (List (Name × ResponseValue)))
-    : ¬CanAnnounce (work first second) [] (fun _ => .deferred [0]) [] []
+    : ¬CanAnnounce (work first second) [] (fun _ => .executionGroup [0]) [] []
         (node 1) .group [0] none := by
   intro eligible
   have dependency := eligible.2.2.2.2 0 (by simp)
@@ -120,8 +121,8 @@ example (first second : Result (List (Name × ResponseValue)))
   · exact absent ⟨none, node 0, .group, [],
       NodeAt.group (group := { node := node 0 }) (.left .root) (by simp), rfl⟩
   · simp [completedKeys] at completed
-  · rcases accounted (.deferred [0]) [0]
-      ⟨none, .object [] first, TaskAt.deferred (.left .root)⟩ (by simp)
+  · rcases accounted (.executionGroup [0]) [0]
+      ⟨none, .object [] first, TaskAt.executionGroup (.left .root)⟩ (by simp)
       with cancelled | published
     · exact cancelled.nonempty rfl
     · simp [Published] at published
@@ -131,7 +132,7 @@ outcome pair. Witness: construct the history first, then use the general source 
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (work first second)
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=

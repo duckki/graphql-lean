@@ -14,15 +14,15 @@ def Disjoint (left right : List Nat) : Prop := ∀ key ∈ left, key ∉ right
 
 def rootKeys : Work → List Nat
   | .empty => []
-  | .append left right => rootKeys left ++ rootKeys right
-  | .deferred groups _ _ children =>
+  | .combine left right => rootKeys left ++ rootKeys right
+  | .executionGroup groups _ _ children =>
       groups.flatMap KeyRoles.fragmentKeys ++ rootKeys children
   | .stream node _ => [node.key]
 
 def hiddenRegions : Work → List (List Nat)
   | .empty => []
-  | .append left right => hiddenRegions left ++ hiddenRegions right
-  | .deferred _ _ _ children => hiddenRegions children
+  | .combine left right => hiddenRegions left ++ hiddenRegions right
+  | .executionGroup _ _ _ children => hiddenRegions children
   | .stream _ items => items.flatMap (fun item => rootKeys item.2 :: hiddenRegions item.2)
 termination_by work => sizeOf work
 decreasing_by
@@ -113,8 +113,8 @@ theorem region_subset_allKeys (work : Work) {region : List Nat}
   · exact rootKeys_subset_allKeys work
   · exact hiddenRegion_subset_allKeys work hr
 
-theorem mem_allKeys_append (left right : Work) (key : Nat)
-    : key ∈ allKeys (.append left right) ↔ key ∈ allKeys left ∨ key ∈ allKeys right := by
+theorem mem_allKeys_combine (left right : Work) (key : Nat)
+    : key ∈ allKeys (.combine left right) ↔ key ∈ allKeys left ∨ key ∈ allKeys right := by
   simp only [allKeys, rootKeys, hiddenRegions, List.flatten_append, List.mem_append]
   simp only [or_assoc, or_left_comm]
 
@@ -163,7 +163,7 @@ theorem Output.rebase {inherited nextInherited : List Nat} {start nextStart fini
 theorem Output.append {inherited : List Nat} {start middle finish : Nat}
     {left right : Work} (hl : Output inherited start middle left)
     (hr : Output inherited middle finish right) (hi : ∀ key ∈ inherited, key < start)
-    : Output inherited start finish (.append left right) := by
+    : Output inherited start finish (.combine left right) := by
   refine ⟨Nat.le_trans hl.monotone hr.monotone, ?_, ?_, ?_, ?_⟩
   · simp only [WorkSeparated, regions, rootKeys, hiddenRegions]
     apply separated_merge _ _ _ _ hl.separated hr.separated
@@ -183,7 +183,7 @@ theorem Output.append {inherited : List Nat} {start middle finish : Nat}
       have := hr.hidden rightRegion hrr key hright
       omega
   · intro key hk
-    rcases (mem_allKeys_append left right key).mp hk with hk | hk
+    rcases (mem_allKeys_combine left right key).mp hk with hk | hk
     · exact Nat.lt_of_lt_of_le (hl.bounded key hk) hr.monotone
     · exact hr.bounded key hk
   · intro key hk
@@ -196,12 +196,13 @@ theorem Output.append {inherited : List Nat} {start middle finish : Nat}
     · exact hl.hidden region hm key hk
     · exact Nat.le_trans hl.monotone (hr.hidden region hm key hk)
 
-theorem Output.deferred {inherited : List Nat} {start finish : Nat} {children : Work}
-    (h : Output inherited start finish children) (groups : List DeferredFragment)
-    (path : ResponsePath) (result : Result (List (Name × ResponseValue)))
+theorem Output.executionGroup {inherited : List Nat} {start finish : Nat}
+    {children : Work} (h : Output inherited start finish children)
+    (groups : List DeferredFragment) (path : ResponsePath)
+    (result : Result (List (Name × ResponseValue)))
     (hg : (groups.flatMap KeyRoles.fragmentKeys).Subset inherited)
     (hi : ∀ key ∈ inherited, key < start)
-    : Output inherited start finish (.deferred groups path result children) := by
+    : Output inherited start finish (.executionGroup groups path result children) := by
   refine ⟨h.monotone, ?_, ?_, ?_, ?_⟩
   · have hs := (separated_iff children).mp h.separated
     apply (separated_iff _).mpr

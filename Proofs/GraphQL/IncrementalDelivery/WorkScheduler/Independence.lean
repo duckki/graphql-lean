@@ -23,13 +23,15 @@ theorem CanPublish.after_other_value
   have persists {task} (published : Published matching events task)
       : Published (matchNext matching events.length other) (events ++ [event]) task :=
     (same ▸ published).append [event]
-  refine ⟨?_, ready.2.1, fun parent equal => persists (ready.2.2.1 parent equal), ?_⟩
+  refine ⟨?_, ready.2.1,
+    fun producerOccurrence equal =>
+      persists (ready.2.2.1 producerOccurrence equal), ?_⟩
   · intro published
     rcases published_append_singleton_iff.mp published with old | current
     · exact ready.1 (same.symm ▸ old)
     · exact distinct (by simpa [matchNext] using current.2)
   · cases occurrence with
-    | deferred => trivial
+    | executionGroup => trivial
     | item address index =>
         cases index with
         | zero => trivial

@@ -99,8 +99,8 @@ theorem batching_idsEventuallyComplete (initial : InitialIncrementalStreamResult
     (updates : List IncrementalStreamUpdateResult)
     (batches : List (List IncrementalStreamUpdateResult))
     (flatten : batches.flatten = updates)
-    (live : (QueryResult.incremental initial updates).idsEventuallyComplete)
-    : (QueryResult.incremental initial
+    (live : (ExecutionObservation.incremental initial updates).idsEventuallyComplete)
+    : (ExecutionObservation.incremental initial
         (batches.map combineIncrementalResults)).idsEventuallyComplete := by
   constructor
   · intro id hi

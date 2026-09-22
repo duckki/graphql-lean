@@ -12,17 +12,17 @@ open WorkScheduler
 -- A test-only structural certificate for computed work
 -----------------------------------------------------------------------------------------
 
-/-- Flat singleton boundaries may contain zero-size append trees but no hidden task.
+/-- Flat singleton boundaries may contain zero-count combine trees but no hidden task.
 This test-only certificate lets reduction check the shape of actual prepared work.
 -/
 def Flat : Work → Prop
   | .empty => True
-  | .append left right => Flat left ∧ Flat right
-  | .deferred groups _ _ children => (∃ group, groups = [group]) ∧ children.size = 0
+  | .combine left right => Flat left ∧ Flat right
+  | .executionGroup groups _ _ children => (∃ group, groups = [group]) ∧ children.size = 0
   | .stream .. => False
 
 /-- Navigation either stays among flat root boundaries or enters a task-free child.
-Witness: append preserves the certificate; a deferred edge enters zero-size work.
+Witness: combine preserves the certificate; a deferred edge enters zero-count work.
 -/
 theorem Flat.located {work address current producer owners}
     (flat : Flat work) (located : Located work address current producer owners)
@@ -39,7 +39,7 @@ theorem Flat.located {work address current producer owners}
       rcases ih with ⟨flat, root⟩ | empty
       · exact Or.inl ⟨flat.2, root⟩
       · exact Or.inr (Nat.add_eq_zero_iff.mp empty).2
-  | deferred _ ih =>
+  | executionGroup _ ih =>
       rcases ih with ⟨flat, _⟩ | impossible
       · exact Or.inr flat.2
       · simp [Work.size] at impossible
@@ -65,7 +65,7 @@ theorem Flat.root_singleton {work} (flat : Flat work) : RootSingletonGroups work
         · simp [Work.size] at impossible
   · intro occurrence owners producer payload known
     cases StructuralEquivalence.taskAt_of_current known with
-    | deferred located =>
+    | executionGroup located =>
         rcases flat.located located.toCurrent with ⟨⟨⟨group, rfl⟩, _⟩, _⟩ | impossible
         · exact ⟨group.node.key, rfl⟩
         · simp [Work.size] at impossible

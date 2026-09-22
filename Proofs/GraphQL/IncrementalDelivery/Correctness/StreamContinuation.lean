@@ -14,15 +14,16 @@ open WorkScheduler
 -- Retain already accounted deferred tasks while processing streams
 -----------------------------------------------------------------------------------------
 
-/-- Every deferred occurrence in this work has published or been causally cancelled.
+/-- Every execution-group occurrence in this work has published or been causally
+cancelled.
 Stream items can remain unprocessed, including items with dynamically introduced children.
 -/
 def DeferredTasksAccounted (work : Work) (matching : PublicationMatching)
     (events : List WorkEvent) (failed : List Occurrence)
     : Prop :=
   ∀ address owners producer payload,
-    TaskAt work (.deferred address) owners producer payload
-    → Accounted work matching events failed (.deferred address)
+    TaskAt work (.executionGroup address) owners producer payload
+    → Accounted work matching events failed (.executionGroup address)
 
 /-- A new matched publication preserves deferred accounting. Witness: cancellation is
 unchanged and every earlier publication retains its matching index.
@@ -59,7 +60,7 @@ theorem finish_released_streams
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
-    (closed : StreamParentsCompleted work events)
+    (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
           matching events (failures.map Prod.snd))
@@ -89,7 +90,7 @@ theorem finish_released_streams
       · exact ready.2.1 cancelled
       · exact ready.1 published
     cases StructuralEquivalence.taskAt_of_current task with
-    | deferred located =>
+    | executionGroup located =>
         apply unaccounted
         rw [admitted.2.1.failedBefore_eq (Nat.le_refl _)]
         exact retained.1 _ _ _ _ task
@@ -151,7 +152,7 @@ theorem released_streams_run_extension
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
-    (closed : StreamParentsCompleted work events)
+    (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
           matching events (failures.map Prod.snd))

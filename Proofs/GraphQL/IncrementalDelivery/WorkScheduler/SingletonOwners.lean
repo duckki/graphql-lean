@@ -101,9 +101,9 @@ theorem Explains.singleton_dependency_iff_completed
       ↔ key ∈ completedKeys events := by
   constructor
   · rintro ⟨_, absent | completed | ⟨unannounced, accounted⟩⟩
-    · obtain ⟨node, kind, parents, birth, descriptor, same⟩ :=
+    · obtain ⟨node, kind, dependencies, birth, descriptor, same⟩ :=
         known.owner_known (by simp : key ∈ [key])
-      exact False.elim (absent ⟨birth, node, kind, parents, descriptor, same⟩)
+      exact False.elim (absent ⟨birth, node, kind, dependencies, descriptor, same⟩)
     · exact completed
     · exact False.elim (unannounced (explained.singleton_accounted_announced known healthy
         (accounted occurrence [key] ⟨none, payload, known⟩ (by simp))))

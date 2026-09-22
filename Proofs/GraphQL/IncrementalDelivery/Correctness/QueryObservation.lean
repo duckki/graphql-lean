@@ -16,7 +16,7 @@ history.
 def replayResponse (response : Response)
     (initialGroups initialStreams : List DeliveryNode)
     (groups : List (List (List WorkEvent)))
-    : QueryResult :=
+    : ExecutionObservation :=
   let (pending, ids) :=
     (getPendingEntry (m := StateM IDState) initialGroups initialStreams ensureID).run {}
   let updates : StateM IDState (List IncrementalStreamUpdateResult) :=
@@ -32,7 +32,7 @@ independently. QueryObservation proves soundness; QueryRealization proves the co
 using the maximal source. Neither direction assumes wire correctness.
 -/
 inductive WorkObservation (response : Response) (work : Work) (complete : Bool)
-    : QueryResult → Prop where
+    : ExecutionObservation → Prop where
   | single (empty : work.size = 0)
     : WorkObservation response work complete (.single response)
   | incremental (initialGroups initialStreams : List DeliveryNode)
@@ -54,7 +54,7 @@ inductive WorkObservation (response : Response) (work : Work) (complete : Bool)
 termination.
 -/
 theorem WorkObservation.forgetComplete {response : Response} {work : Work}
-    {complete : Bool} {result : QueryResult}
+    {complete : Bool} {result : ExecutionObservation}
     (observed : WorkObservation response work complete result)
     : WorkObservation response work false result := by
   cases observed with
@@ -68,7 +68,7 @@ conformance.
 -/
 theorem executionFromWork_observes_workHistory (scheduler : Execution.WorkScheduler)
     (response : Response) (work : Work) (conforms : scheduler.Conforms work)
-    {result : QueryResult} {complete : Bool}
+    {result : ExecutionObservation} {complete : Bool}
     (observed : (executionFromWork scheduler response work).Observes result complete)
     : WorkObservation response work complete result := by
   by_cases empty : work.size = 0
@@ -108,7 +108,7 @@ equation.
 theorem executeRootSelectionSet_observes_workHistory (scheduler : Execution.WorkScheduler)
     (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
     (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
-    (selections : List Selection) {result : QueryResult} {complete : Bool}
+    (selections : List Selection) {result : ExecutionObservation} {complete : Bool}
     (conforms
       : scheduler.Conforms
           ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
@@ -133,7 +133,7 @@ root-history theorem.
 -/
 theorem queryObservation_workHistory {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult} {complete : Bool}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation} {complete : Bool}
     (observed
       : queryObservation schema resolvers variables operation fuel source result complete)
     : if rootSourceAppliesBool schema operation source then
@@ -155,7 +155,7 @@ theorem queryObservation_workHistory {schema : Schema} {resolvers : Resolvers Ob
   · rename_i invalid
     simp only [executeQueryWithFuel, invalid] at observed
     cases result with
-    | single response => exact congrArg QueryResult.single observed.symm
+    | single response => exact congrArg ExecutionObservation.single observed.symm
     | incremental initial updates => cases observed
 
 /-- Work-history correctness transfers to every query observation, including the
@@ -164,8 +164,8 @@ for the counted root error.
 -/
 theorem queryObservation_property {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult} {complete : Bool}
-    (property : QueryResult → Prop)
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation} {complete : Bool}
+    (property : ExecutionObservation → Prop)
     (workProperty
       : ∀ response work result,
           WorkObservation response work complete result → property result)

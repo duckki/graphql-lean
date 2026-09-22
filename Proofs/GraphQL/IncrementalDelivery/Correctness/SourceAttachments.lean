@@ -19,11 +19,11 @@ mutual
   the slices retain the same absolute stream offsets as the cursor seed. -/
   inductive WorkAttached : List Entry → Work → List (List ResponsePath) → Prop where
     | empty {available : List Entry} : WorkAttached available .empty []
-    | append {available : List Entry} {left right : Work}
+    | combine {available : List Entry} {left right : Work}
       {ls rs : List (List ResponsePath)} (hl : WorkAttached available left ls)
       (hr : WorkAttached available right rs)
-      : WorkAttached available (.append left right) (ls ++ rs)
-    | deferred {available : List Entry} {groups : List DeferredFragment}
+      : WorkAttached available (.combine left right) (ls ++ rs)
+    | executionGroup {available : List Entry} {groups : List DeferredFragment}
       {path : ResponsePath} {completed : Result (List (Name × ResponseValue))}
       {children : Work} {slices : List (List ResponsePath)}
       (ha : (path, Atom.object) ∈ available)
@@ -31,7 +31,7 @@ mutual
         : WorkAttached
             (available ++ TypedResponse.result (TypedResponse.fields path) completed)
             children slices)
-      : WorkAttached available (.deferred groups path completed children)
+      : WorkAttached available (.executionGroup groups path completed children)
           (result (fields true path) completed :: slices)
     | stream {available : List Entry} {node : DeliveryNode}
       {items : List (Result ResponseValue × Work)} {index : Nat}
@@ -71,9 +71,9 @@ mutual
       : WorkAttached right work slices := by
     cases h with
     | empty => exact .empty
-    | append hl hr => exact .append (hl.mono hm) (hr.mono hm)
-    | deferred ha hc =>
-        refine .deferred (hm _ ha) (hc.mono ?_)
+    | combine hl hr => exact .combine (hl.mono hm) (hr.mono hm)
+    | executionGroup ha hc =>
+        refine .executionGroup (hm _ ha) (hc.mono ?_)
         intro entry he
         rcases List.mem_append.mp he with he | he
         · exact List.mem_append_left _ (hm _ he)

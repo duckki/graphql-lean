@@ -52,7 +52,7 @@ or the ordinary singleton null position for an inapplicable root.
 theorem queryObservation_disjoint_positions
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult} {complete : Bool}
+    {result : ExecutionObservation} {complete : Bool}
     (observed
       : queryObservation schema resolvers variables operation fuel source result complete)
     : ∃ slices, result.DeliversSlices true slices ∧ slices.flatten.Nodup := by

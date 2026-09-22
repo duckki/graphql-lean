@@ -89,7 +89,7 @@ witness.
 -/
 example {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (completed : queryOutcome schema resolvers variables operation fuel source result)
     : queryObservation schema resolvers variables operation fuel source result :=
   queryOutcome_observation completed

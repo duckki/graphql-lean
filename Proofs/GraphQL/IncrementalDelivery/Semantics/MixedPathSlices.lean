@@ -14,15 +14,15 @@ open DeliveryPaths
 mutual
   inductive WorkSlices (containers : Bool) : Work → List (List ResponsePath) → Prop where
     | empty : WorkSlices containers .empty []
-    | append {left right : Work} {leftSlices rightSlices : List (List ResponsePath)}
+    | combine {left right : Work} {leftSlices rightSlices : List (List ResponsePath)}
       (hleft : WorkSlices containers left leftSlices)
       (hright : WorkSlices containers right rightSlices)
-      : WorkSlices containers (.append left right) (leftSlices ++ rightSlices)
-    | deferred {groups : List DeferredFragment} {path : ResponsePath}
+      : WorkSlices containers (.combine left right) (leftSlices ++ rightSlices)
+    | executionGroup {groups : List DeferredFragment} {path : ResponsePath}
       {completed : Result (List (Name × ResponseValue))} {children : Work}
       {slices : List (List ResponsePath)}
       (hchildren : WorkSlices containers children slices)
-      : WorkSlices containers (.deferred groups path completed children)
+      : WorkSlices containers (.executionGroup groups path completed children)
           (result (fields containers path) completed :: slices)
     | stream {node : DeliveryNode} {items : List (Result ResponseValue × Work)}
       {index : Nat} {slices : List (List ResponsePath)}

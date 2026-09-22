@@ -11,10 +11,13 @@ open GraphQL.IncrementalDelivery.Correctness
 
 /-! The public surface has no enumerator or obsolete defer-only slice model. -/
 
+example : ExecutionObservation → ExecutionObservation := id
+#guard_msgs (drop info) in
+#check_failure QueryResult
 #guard_msgs (drop info) in
 #check_failure enumerateQueryOutcomes
 #guard_msgs (drop info) in
-#check_failure QueryResult.DeliversObjectSlices
+#check_failure ExecutionObservation.DeliversObjectSlices
 #guard_msgs (drop info) in
 #check_failure Operation.streamFree
 
@@ -37,14 +40,15 @@ example (schema : Schema) (operation : Operation)
       ∧ basicLeavesDeliveredExactlyOnce schema operation :=
   ⟨hl, hd, hp, ho⟩
 
-example (response : Response) : (QueryResult.single response).idsEventuallyComplete :=
+example (response : Response)
+    : (ExecutionObservation.single response).idsEventuallyComplete :=
   trivial
 
 example (schema : Schema) (operation : Operation)
     (hu : deliveryIDsUnique schema operation)
     (hp : deliveryPatchesAnnounced schema operation) {ObjectRef : Type}
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : QueryResult)
+    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
     (observed : queryObservation schema resolvers variables operation fuel source result)
     : result.idsUnique ∧ result.patchesAnnounced :=
   ⟨
@@ -55,40 +59,40 @@ example (schema : Schema) (operation : Operation)
 example (schema : Schema) (operation : Operation)
     (h : deliveryLifecycleValid schema operation) {ObjectRef : Type}
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : QueryResult)
+    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     : result.deliveryComplete = true :=
   h resolvers variables fuel source result observed
 
 example (response : Response) (containers : Bool)
-    : (QueryResult.single response).DeliversSlices containers
+    : (ExecutionObservation.single response).DeliversSlices containers
         [ResponsePositions.value containers [] response.data] :=
   rfl
 
-def duplicateCompletion : QueryResult :=
+def duplicateCompletion : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "0", path := [] }], hasNext := true }
     [{ hasNext := false, completed := [{ id := "0" }, { id := "0" }] }]
 
 /-- Eventual completion alone does not establish full lifecycle validity. -/
 example : duplicateCompletion.idsEventuallyComplete := by
-  simp [duplicateCompletion, QueryResult.idsEventuallyComplete,
+  simp [duplicateCompletion, ExecutionObservation.idsEventuallyComplete,
     DeliveryTrace.completedIDs, DeliveryTrace.announcementsEventuallyComplete]
 
 #guard !duplicateCompletion.deliveryComplete
 
 example : ¬duplicateCompletion.idUsageValid := by
-  simp [duplicateCompletion, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [duplicateCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     List.nodup_cons]
 
 /-- Announcement uniqueness and causal patch references do not establish unique
 completions.
 -/
 example : duplicateCompletion.idsUnique ∧ duplicateCompletion.patchesAnnounced := by
-  simp [duplicateCompletion, QueryResult.idsUnique, DeliveryTrace.pendingIDs,
-    QueryResult.patchesAnnounced, DeliveryTrace.patchesAnnounced, List.nodup_cons]
+  simp [duplicateCompletion, ExecutionObservation.idsUnique, DeliveryTrace.pendingIDs,
+    ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced, List.nodup_cons]
 
-def duplicateAnnouncement : QueryResult :=
+def duplicateAnnouncement : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "0", path := [] }], hasNext := true }
     [{
@@ -98,11 +102,11 @@ def duplicateAnnouncement : QueryResult :=
     }]
 
 example : ¬duplicateAnnouncement.idsUnique := by
-  simp [duplicateAnnouncement, QueryResult.idsUnique, DeliveryTrace.pendingIDs,
+  simp [duplicateAnnouncement, ExecutionObservation.idsUnique, DeliveryTrace.pendingIDs,
     List.nodup_cons]
 
 /-- Same-update announcements are available to both object and list patches. -/
-def sameUpdateNotice : QueryResult :=
+def sameUpdateNotice : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
     [{
@@ -113,23 +117,23 @@ def sameUpdateNotice : QueryResult :=
     }]
 
 example : sameUpdateNotice.idsUnique ∧ sameUpdateNotice.patchesAnnounced := by
-  simp [sameUpdateNotice, QueryResult.idsUnique, DeliveryTrace.pendingIDs,
-    QueryResult.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
+  simp [sameUpdateNotice, ExecutionObservation.idsUnique, DeliveryTrace.pendingIDs,
+    ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
     List.nodup_cons]
 
 #guard sameUpdateNotice.deliveryComplete
 
 /-- A defer payload can introduce a list before its same-update stream append. -/
 example
-    : mergeQueryResult sameUpdateNotice
+    : mergeExecutionObservation sameUpdateNotice
       = some { data := .object [("values", .list [.null])] } := by
   rfl
 
 example : sameUpdateNotice.idUsageValid := by
-  simp [sameUpdateNotice, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [sameUpdateNotice, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     IncrementalResult.id, List.nodup_cons]
 
-def lateAnnouncement : QueryResult :=
+def lateAnnouncement : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
     [
@@ -142,11 +146,11 @@ def lateAnnouncement : QueryResult :=
     ]
 
 example : ¬lateAnnouncement.patchesAnnounced := by
-  simp [lateAnnouncement, QueryResult.patchesAnnounced, DeliveryTrace.patchesAnnounced,
+  simp [lateAnnouncement, ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced,
     IncrementalResult.id]
 
 /-- History-based resolution is deliberately weaker than requiring an open ID. -/
-def closedReference : QueryResult :=
+def closedReference : ExecutionObservation :=
   .incremental
     { data := .list [], pending := [{ id := "s", path := [] }], hasNext := true }
     [
@@ -155,40 +159,40 @@ def closedReference : QueryResult :=
     ]
 
 example : closedReference.idsUnique ∧ closedReference.patchesAnnounced := by
-  simp [closedReference, QueryResult.idsUnique, DeliveryTrace.pendingIDs,
-    QueryResult.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
+  simp [closedReference, ExecutionObservation.idsUnique, DeliveryTrace.pendingIDs,
+    ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
     List.nodup_cons]
 
 #guard !closedReference.deliveryComplete
 
 example : ¬closedReference.idUsageValid := by
-  simp [closedReference, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [closedReference, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     IncrementalResult.id, List.nodup_cons]
 
 /-- A completion cannot use an unannounced ID, even if no payload references it. -/
 example
-    : ¬QueryResult.idUsageValid
+    : ¬ExecutionObservation.idUsageValid
         (.incremental
           { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
           [{ hasNext := false, completed := [{ id := "unknown" }] }]) := by
-  simp [QueryResult.idUsageValid, DeliveryTrace.idUsageValid, List.nodup_cons]
+  simp [ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid, List.nodup_cons]
 
 /-- ID usage is safety for a finite observation, not proof that delivery has finished. -/
-def incompleteObservation : QueryResult :=
+def incompleteObservation : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true } []
 
 example : incompleteObservation.idUsageValid := by
-  simp [incompleteObservation, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [incompleteObservation, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     List.nodup_cons]
 
 example : ¬incompleteObservation.idsCompleteExactlyOnce := by
-  simp [incompleteObservation, QueryResult.idsCompleteExactlyOnce,
+  simp [incompleteObservation, ExecutionObservation.idsCompleteExactlyOnce,
     DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs]
 
 #guard !incompleteObservation.deliveryComplete
 
-def separatedTermination : QueryResult :=
+def separatedTermination : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
     [{ hasNext := true, completed := [{ id := "d" }] }, { hasNext := false }]
@@ -196,7 +200,7 @@ def separatedTermination : QueryResult :=
 #guard separatedTermination.deliveryComplete
 
 /-- Reconstruction counts initial, object/list-patch, and completion errors once. -/
-def errorEnvelopes : QueryResult :=
+def errorEnvelopes : ExecutionObservation :=
   .incremental
     {
       data := .object [],
@@ -215,12 +219,12 @@ def errorEnvelopes : QueryResult :=
 #guard errorEnvelopes.totalErrors == 31
 
 example
-    : mergeQueryResult errorEnvelopes
+    : mergeExecutionObservation errorEnvelopes
       = some { data := .object [("values", .list [.null])], errors := 31 } := by
   rfl
 
 /-- Safe and completed IDs do not imply that a patch has an attachment point. -/
-def missingParent : QueryResult :=
+def missingParent : ExecutionObservation :=
   .incremental
     {
       data := .object [],
@@ -232,12 +236,12 @@ def missingParent : QueryResult :=
     }]
 
 #guard missingParent.deliveryComplete
-#guard (mergeQueryResult missingParent).isNone
+#guard (mergeExecutionObservation missingParent).isNone
 
 /-! Finishing one announced ID cannot hide a second uncompleted ID. -/
 
 #guard
-  !QueryResult.deliveryComplete
+  !ExecutionObservation.deliveryComplete
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{
@@ -249,7 +253,7 @@ def missingParent : QueryResult :=
 /-! Completing the same ID in separate updates is also invalid. -/
 
 #guard
-  !QueryResult.deliveryComplete
+  !ExecutionObservation.deliveryComplete
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [
@@ -260,7 +264,7 @@ def missingParent : QueryResult :=
 /-! All continuation flags must agree with the observed suffix, not just the final one. -/
 
 #guard
-  !QueryResult.deliveryComplete
+  !ExecutionObservation.deliveryComplete
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{ hasNext := false, completed := [{ id := "d" }] }, { hasNext := false }])
@@ -268,7 +272,7 @@ def missingParent : QueryResult :=
 /-! Closing all IDs does not excuse claiming another update that never appears. -/
 
 #guard
-  !QueryResult.deliveryComplete
+  !ExecutionObservation.deliveryComplete
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{ hasNext := true, completed := [{ id := "d" }] }])
@@ -280,13 +284,13 @@ example (id : String) (data : List (Name × ResponseValue))
   rfl
 
 example (id : String)
-    : ¬QueryResult.idsEventuallyComplete
+    : ¬ExecutionObservation.idsEventuallyComplete
         (.incremental { data := .object [], pending := [], hasNext := true }
           [
             { hasNext := true, completed := [{ id }] },
             { hasNext := false, pending := [{ id, path := [] }] }
           ]) := by
-  simp [QueryResult.idsEventuallyComplete, DeliveryTrace.announcementsEventuallyComplete,
+  simp [ExecutionObservation.idsEventuallyComplete, DeliveryTrace.announcementsEventuallyComplete,
     DeliveryTrace.completedIDs]
 
 end GraphQL.IncrementalDelivery.Tests.Correctness

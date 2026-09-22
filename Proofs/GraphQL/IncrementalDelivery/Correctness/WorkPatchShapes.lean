@@ -27,7 +27,7 @@ theorem eventAllowed_patchShape {paths bound work initial matching before failed
   cases event <;> try trivial
   case groupValues node values =>
     obtain ⟨owners, producer, path, data, errors, rfl, known, _, owner⟩ := allowed
-    obtain ⟨kind, parents, birth, nodeAt⟩ := owner.1.1
+    obtain ⟨kind, dependencies, producerOccurrence, nodeAt⟩ := owner.1.1
     refine ⟨(workAt_node coherent nodeAt).2, ?_⟩
     intro value member
     have same := List.mem_singleton.mp member
@@ -35,7 +35,7 @@ theorem eventAllowed_patchShape {paths bound work initial matching before failed
     exact object_subPath_exact coherent known owner
   case streamValues node values groups streams =>
     obtain ⟨_, _, _, _, rfl, _, _, owner, _⟩ := allowed
-    obtain ⟨kind, parents, birth, nodeAt⟩ := owner.1.1
+    obtain ⟨kind, dependencies, producerOccurrence, nodeAt⟩ := owner.1.1
     exact ⟨(workAt_node coherent nodeAt).2, by simp⟩
 
 /-- Compatible value combination retains the exact attachment and nonempty-item facts.

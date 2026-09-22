@@ -44,8 +44,8 @@ This guard is test-only and does not prescribe how scheduling observes those tas
 -/
 def hasSharedProducer : Work → Bool
   | .empty => false
-  | .append left right => hasSharedProducer left || hasSharedProducer right
-  | .deferred groups _ _ children =>
+  | .combine left right => hasSharedProducer left || hasSharedProducer right
+  | .executionGroup groups _ _ children =>
       (groups.length > 1 && children.size > 0) || hasSharedProducer children
   | .stream .. => false
 

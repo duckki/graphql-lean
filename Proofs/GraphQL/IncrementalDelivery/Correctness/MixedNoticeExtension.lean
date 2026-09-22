@@ -22,9 +22,9 @@ theorem supported_ready_owner_announced
       key}
     (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (covered : SupportedNoticesCovered ancestry work initial matching events failed)
-    (known : TaskAt work (.deferred address) owners producer payload)
+    (known : TaskAt work (.executionGroup address) owners producer payload)
     (member : key ∈ owners)
-    (ready : CanPublish work matching events failed (.deferred address) producer)
+    (ready : CanPublish work matching events failed (.executionGroup address) producer)
     (healthy : ¬NodeFailed work failed key)
     (dependencies
       : ∀ ancestor ∈ ancestry key,
@@ -33,24 +33,25 @@ theorem supported_ready_owner_announced
   classical
   apply Classical.byContradiction
   intro fresh
-  obtain ⟨node, parents, descriptor, same⟩ := known.deferred_owner member
-  apply covered node .group parents producer descriptor
+  obtain ⟨node, nodeDependencies, descriptor, same⟩ := known.executionGroup_owner member
+  apply covered node .group nodeDependencies producer descriptor
   refine ⟨
     ⟨same ▸ fresh, same ▸ healthy, Or.inr ?_, ready.2.2.1, ?_⟩,
     by intro impossible; cases impossible
   ⟩
   · intro accounted
-    rcases accounted (.deferred address) owners ⟨producer, payload, known⟩ (same ▸ member)
+    rcases accounted (.executionGroup address) owners ⟨producer, payload, known⟩ (same ▸ member)
       with cancelled | published
     · exact ready.2.1 cancelled
     · exact ready.1 published
   · intro ancestor contributes
     apply dependencies ancestor
-    simpa only [DeferOnly.node_parents coherent descriptor, same] using contributes
+    simpa only [DeferOnly.node_dependencies coherent descriptor, same] using contributes
 
 /-- A ready object publication preserves supported coverage in arbitrary mixed work.
 Witness: transport full dependencies backwards. A newly produced group reuses a covered
-owner or waits on an outstanding one; a stream's full supporting parent is outstanding.
+owner or waits on an outstanding one; a stream's full supporting dependency is
+outstanding.
 -/
 theorem supported_coverage_publication
     {ancestry bound roles work initial before events oldMatching matching failed address
@@ -59,21 +60,23 @@ theorem supported_coverage_publication
     (roleCoherent : KeyRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before failed)
-    (known : TaskAt work (.deferred address) owners producer payload)
-    (ready : CanPublish work oldMatching before failed (.deferred address) producer)
+    (known : TaskAt work (.executionGroup address) owners producer payload)
+    (ready : CanPublish work oldMatching before failed (.executionGroup address) producer)
     (unavailable
       : ∀ key ∈ owners, ¬DependencySatisfied work initial oldMatching before failed key)
     (oldProducers
       : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload
           → Published oldMatching before occurrence
-          → ∀ parent, producer = some parent → Published oldMatching before parent)
+          → ∀ producerOccurrence,
+              producer = some producerOccurrence
+              → Published oldMatching before producerOccurrence)
     (notices : (announcedKeys initial before).Subset (announcedKeys initial events))
     (completions : (completedKeys events).Subset (completedKeys before))
     (publications
       : ∀ task,
           Published matching events task
-          → Published oldMatching before task ∨ task = .deferred address)
+          → Published oldMatching before task ∨ task = .executionGroup address)
     (accounting
       : ∀ key,
           NodeAccounted work oldMatching before failed key
@@ -81,38 +84,42 @@ theorem supported_coverage_publication
     : SupportedNoticesCovered ancestry work initial matching events failed := by
   have producers : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload → Published matching events occurrence →
-      ∀ parent, producer = some parent → Published oldMatching before parent := by
-    intro occurrence otherOwners birth result task published parent generated
+      ∀ producerOccurrence, producer = some producerOccurrence
+        → Published oldMatching before producerOccurrence := by
+    intro occurrence otherOwners birth result task published producerOccurrence generated
     rcases publications occurrence published with earlier | rfl
-    · exact oldProducers _ _ _ _ task earlier parent generated
-    · exact ready.2.2.1 parent ((TaskAt.unique known task).2.1.trans generated)
+    · exact oldProducers _ _ _ _ task earlier producerOccurrence generated
+    · exact ready.2.2.1 producerOccurrence
+        ((TaskAt.unique known task).2.1.trans generated)
   apply supported_coverage_noncarrier valid coherent roleCoherent covered
     (List.Subset.refl _) notices (fun _ _ _ member => completions member) producers
     accounting
-  intro node kind parents birth descriptor supported parent generated
-  rcases publications parent (supported.1.2.2.2.1 parent generated) with earlier | rfl
+  intro node kind dependencies nodeProducer descriptor supported producerOccurrence generated
+  rcases publications producerOccurrence
+      (supported.1.2.2.2.1 producerOccurrence generated) with earlier | rfl
   · exact earlier
-  subst birth
-  have dependencies := supported.dependencies_before descriptor valid coherent roleCoherent
-    covered (List.Subset.refl _) notices (fun _ _ _ member => completions member) producers
+  subst nodeProducer
+  have dependenciesBefore := supported.dependencies_before descriptor valid coherent
+    roleCoherent covered (List.Subset.refl _) notices
+      (fun _ _ _ member => completions member) producers
   cases kind with
   | group =>
-      obtain ⟨parentOwners, ancestor, value, key, task, member, support⟩ :=
-        deferred_producer_parent coherent continuous ordered descriptor
+      obtain ⟨producerOwners, ancestor, value, key, task, member, support⟩ :=
+        deferred_producer_dependency coherent continuous ordered descriptor
       have contributes := (TaskAt.unique task known).1 ▸ member
       rcases support with reused | dependency
       · have notified := supported_ready_owner_announced coherent covered known contributes
           ready (reused ▸ supported.1.2.1) (by
             intro ancestor member
-            apply dependencies ancestor
-            simpa only [DeferOnly.node_parents coherent descriptor, ← reused] using member)
+            apply dependenciesBefore ancestor
+            simpa only [DeferOnly.node_dependencies coherent descriptor, ← reused] using member)
         exact False.elim (supported.1.1 (reused ▸ notices notified))
-      · exact False.elim (unavailable key contributes (dependencies key dependency))
+      · exact False.elim (unavailable key contributes (dependenciesBefore key dependency))
   | stream =>
       obtain ⟨streamAddress, items, located⟩ := descriptor
       obtain ⟨ancestor, path, result, task⟩ := located_producer_context located
       have same := (TaskAt.unique task known).1
-      rcases dependencies with empty | ⟨key, member, dependency, _⟩
+      rcases dependenciesBefore with empty | ⟨key, member, dependency, _⟩
       · exact False.elim (coherent_task_owners_nonempty coherent known (same ▸ empty))
       · exact False.elim (unavailable key (same ▸ member) dependency)
 
@@ -156,7 +163,8 @@ theorem supported_coverage_control
     completions ?_ accounting ?_
   · intro occurrence owners producer payload known published
     exact explained.published_producer known (publications occurrence published)
-  · intro node kind parents producer _ supported parent generated
-    exact publications parent (supported.1.2.2.2.1 parent generated)
+  · intro node kind dependencies producer _ supported producerOccurrence generated
+    exact publications producerOccurrence
+      (supported.1.2.2.2.1 producerOccurrence generated)
 
 end GraphQL.IncrementalDelivery.Correctness

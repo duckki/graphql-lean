@@ -27,8 +27,8 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
     : ∃ history, AdmissibleRun (WorkScheduler.single result) history := by
   apply (admissibleRun_exists_iff_accounted_history _).mpr
   have initial := single_initial result WorkScheduler.matching
-  have task : TaskAt (WorkScheduler.single result) (.deferred []) [0] none
-      (.object [] result) := .deferred .root
+  have task : TaskAt (WorkScheduler.single result) (.executionGroup []) [0] none
+      (.object [] result) := .executionGroup .root
   have openKey : Open [0] [] 0 := by
     simp [Open, announcedKeys, pendingKeys, completedKeys]
   cases result with
@@ -36,14 +36,14 @@ theorem single_run_exists (result : Result (List (Name × ResponseValue)))
       have recorded := initial.record_failure task rfl (.root ⟨_, _, task⟩)
         (by exact ⟨0, by simp, openKey⟩) (WorkScheduler.noCancellation _ _)
       refine ⟨[WorkScheduler.node], [], [], WorkScheduler.matching,
-        [(0, .deferred [])], recorded, ?_⟩
+        [(0, .executionGroup [])], recorded, ?_⟩
       intro occurrence owners producer payload known
       obtain ⟨rfl, rfl, _, _⟩ := WorkScheduler.task_single known
       exact Or.inl (.of_recorded known (by simp) (by simp [failedBefore]))
   | ok value =>
       obtain ⟨data, errors⟩ := value
       have ready : CanPublish (WorkScheduler.single (.ok (data, errors)))
-          WorkScheduler.matching [] [] (.deferred []) none :=
+          WorkScheduler.matching [] [] (.executionGroup []) none :=
         ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
       have owner : Owner (WorkScheduler.single (.ok (data, errors))) [0] [] [] [0]
           WorkScheduler.node := by
@@ -64,7 +64,7 @@ Witness: complete-run realization, covering both successful and failing outcomes
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (WorkScheduler.single result)
         ∧ (executionFromWork scheduler response (WorkScheduler.single result)).Observes
             observed true :=
@@ -167,10 +167,10 @@ example
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
         ∧ 2 ≤ errors
         ∧ Explains WorkScheduler.failingWork [WorkScheduler.node] [] [event]
-            WorkScheduler.matching [(0, .deferred [])] := by
+            WorkScheduler.matching [(0, .executionGroup [])] := by
   have initial := single_initial (.error 2) WorkScheduler.matching
-  have task : TaskAt WorkScheduler.failingWork (.deferred []) [0] none
-      (.object [] (.error 2)) := .deferred .root
+  have task : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+      (.object [] (.error 2)) := .executionGroup .root
   exact initial.failure_step task rfl (.root ⟨_, _, task⟩)
     ⟨
       0,
@@ -182,12 +182,15 @@ example
 /-- A failure recorded after two outputs cannot retroactively affect the first output.
 Witness: direct boundary evaluation; equal-boundary cuts are visible only at that cut.
 -/
-example : failedBefore [(0, .deferred [0]), (2, .deferred [1])] 1 = [.deferred [0]] := rfl
+example
+    : failedBefore [(0, .executionGroup [0]), (2, .executionGroup [1])] 1
+      = [.executionGroup [0]] :=
+  rfl
 
 /-- The same cut is visible at the boundary where a subsequent failure notice uses it. -/
 example
-    : failedBefore [(0, .deferred [0]), (2, .deferred [1])] 2
-      = [.deferred [0], .deferred [1]] :=
+    : failedBefore [(0, .executionGroup [0]), (2, .executionGroup [1])] 2
+      = [.executionGroup [0], .executionGroup [1]] :=
   rfl
 
 /-- An already-closed raw history needs no additional completion events. Witness: the empty
@@ -262,7 +265,7 @@ weight includes the parent item index; plain address length would not order all 
 -/
 example
     : (Occurrence.item [3, 0] 7).dependencyRank
-      < (Occurrence.deferred [3, 0, 7]).dependencyRank := by decide
+      < (Occurrence.executionGroup [3, 0, 7]).dependencyRank := by decide
 
 /-- Equal-valued stream items share cancellation prerequisites but not publication IDs.
 Witness: their equal owner/producer projections and the generic causal transport lemma.
@@ -302,7 +305,7 @@ factory, including zero-count raw failures. Witness: the general complete-run br
 -/
 example (response : Response) (node : DeliveryNode)
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])
         ∧ (executionFromWork scheduler response
             (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])).Observes

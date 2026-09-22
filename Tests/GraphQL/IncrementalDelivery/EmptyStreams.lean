@@ -33,9 +33,9 @@ def node (name : Name) : DeliveryNode := { key := 0, path := [.field name] }
 /-- Fixture-only shape: empty work and one repeated stream descriptor, without tasks. -/
 inductive BoundaryTree (node : DeliveryNode) : Work → Prop where
   | empty : BoundaryTree node .empty
-  | append {left right}
+  | combine {left right}
     : BoundaryTree node left → BoundaryTree node right
-      → BoundaryTree node (.append left right)
+      → BoundaryTree node (.combine left right)
   | stream : BoundaryTree node (.stream node [])
 
 /-- Navigation preserves the task-free shape and root context, by address induction. -/
@@ -48,11 +48,11 @@ theorem BoundaryTree.located {node work address current producer owners}
   | root => exact ⟨shape, rfl, rfl⟩
   | left _ ih =>
       cases ih.1 with
-      | append left _ => exact ⟨left, ih.2⟩
+      | combine left _ => exact ⟨left, ih.2⟩
   | right _ ih =>
       cases ih.1 with
-      | append _ right => exact ⟨right, ih.2⟩
-  | deferred _ ih => cases ih.1
+      | combine _ right => exact ⟨right, ih.2⟩
+  | executionGroup _ ih => cases ih.1
   | item _ entry ih => cases ih.1; simp at entry
 
 /-- No task exists at a zero-item boundary, by task provenance and the fixture shape. -/
@@ -61,7 +61,7 @@ theorem BoundaryTree.noTask {node work occurrence owners producer payload}
     : ¬TaskAt work occurrence owners producer payload := by
   intro known
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located => cases (shape.located located.toCurrent).1
+  | executionGroup located => cases (shape.located located.toCurrent).1
   | item located entry => cases (shape.located located.toCurrent).1; simp at entry
 
 /-- Every descriptor is the fixture's stream, by structural provenance. -/
@@ -79,7 +79,7 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
     (known : NodeAt work node .stream [] none)
     : AdmissibleRun work
         ⟨[], [node], [[.streamSuccess node, .workQueueTermination]]⟩ := by
-  let matching : PublicationMatching := fun _ => .deferred []
+  let matching : PublicationMatching := fun _ => .executionGroup []
   have initialized : Initializes work [] [node] := by
     refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro stream member
@@ -104,7 +104,7 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- The precise wire trace has a pending ID and its completion, but no item patch. -/
-def wire (name : Name) (data : List ResponseValue) : QueryResult :=
+def wire (name : Name) (data : List ResponseValue) : ExecutionObservation :=
   .incremental
     {
       data := .object [(name, .list data)],
@@ -127,10 +127,10 @@ theorem empty_outcome
       { data := .object [("empty", .list [])] } := by cbv
   rw [response]
   have workEq : (prepared (streamed "empty" 0)).work =
-      .append (.append (.append .empty (.stream (node "empty") [])) .empty) .empty := by cbv
+      .combine (.combine (.combine .empty (.stream (node "empty") [])) .empty) .empty := by cbv
   have shape : BoundaryTree (node "empty") (prepared (streamed "empty" 0)).work := by
     rw [workEq]
-    exact .append (.append (.append .empty .stream) .empty) .empty
+    exact .combine (.combine (.combine .empty .stream) .empty) .empty
   have known : NodeAt (prepared (streamed "empty" 0)).work (node "empty") .stream [] none := by
     rw [workEq]
     exact .stream (.right (.left (.left .root)))
@@ -156,13 +156,13 @@ theorem exact_outcome
       { data := .object [("values", .list [.scalar "x", .null, .scalar "z"])] } := by cbv
   rw [response]
   have workEq : (prepared (streamed "values" 3)).work =
-      .append (.append (.append
-        (.append .empty (.append .empty (.append .empty .empty)))
+      .combine (.combine (.combine
+        (.combine .empty (.combine .empty (.combine .empty .empty)))
         (.stream (node "values") [])) .empty) .empty := by cbv
   have shape : BoundaryTree (node "values") (prepared (streamed "values" 3)).work := by
     rw [workEq]
-    exact .append (.append (.append
-      (.append .empty (.append .empty (.append .empty .empty))) .stream) .empty) .empty
+    exact .combine (.combine (.combine
+      (.combine .empty (.combine .empty (.combine .empty .empty))) .stream) .empty) .empty
   have known : NodeAt (prepared (streamed "values" 3)).work (node "values") .stream [] none := by
     rw [workEq]
     exact .stream (.right (.left (.left .root)))
@@ -228,8 +228,8 @@ def boundaries : Nat → Work → List (DeliveryNode × Nat)
   | fuel + 1, work =>
       match work with
       | .empty => []
-      | .append left right => boundaries fuel left ++ boundaries fuel right
-      | .deferred _ _ _ children => boundaries fuel children
+      | .combine left right => boundaries fuel left ++ boundaries fuel right
+      | .executionGroup _ _ _ children => boundaries fuel children
       | .stream stream items =>
           (stream, items.length) :: items.flatMap (fun item => boundaries fuel item.2)
 
@@ -371,7 +371,7 @@ example : (wire "values" [.scalar "x", .null, .scalar "z"]).deliveryComplete = t
 Witness: reconstruction of the exact concrete wire trace.
 -/
 example
-    : mergeQueryResult (wire "values" [.scalar "x", .null, .scalar "z"])
+    : mergeExecutionObservation (wire "values" [.scalar "x", .null, .scalar "z"])
       = some
           { data := .object [("values", .list [.scalar "x", .null, .scalar "z"])] } := by
   cbv

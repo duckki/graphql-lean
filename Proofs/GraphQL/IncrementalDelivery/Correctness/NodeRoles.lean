@@ -9,7 +9,7 @@ open GraphQL.IncrementalDelivery.Semantics
 open WorkScheduler
 
 /-- A located subtree retains the original assignment of stream and defer key roles.
-Witness: structural navigation through append, deferred, and stream-item boundaries.
+Witness: structural navigation through combine, deferred, and stream-item boundaries.
 -/
 theorem workRoles_located {roles work address current producer owners}
     (coherent : KeyRoles.WorkRoles roles work)
@@ -21,7 +21,7 @@ theorem workRoles_located {roles work address current producer owners}
   | root => exact coherent
   | left _ ih =>
       rw [KeyRoles.WorkRoles] at ih; exact ih.1
-  | right _ ih | deferred _ ih =>
+  | right _ ih | executionGroup _ ih =>
       rw [KeyRoles.WorkRoles] at ih; exact ih.2
   | item _ entry ih =>
       rw [KeyRoles.WorkRoles] at ih
@@ -30,9 +30,9 @@ theorem workRoles_located {roles work address current producer owners}
 /-- A known group's key has defer role and a known stream's key has stream role.
 Witness: the metadata at its located boundary, retaining repeated descriptors.
 -/
-theorem node_key_role {roles work node kind parents producer}
+theorem node_key_role {roles work node kind dependencies producer}
     (coherent : KeyRoles.WorkRoles roles work)
-    (known : NodeAt work node kind parents producer)
+    (known : NodeAt work node kind dependencies producer)
     : roles node.key = (kind == .stream) := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
@@ -48,10 +48,10 @@ theorem node_key_role {roles work node kind parents producer}
 would assign both Boolean roles to that key. No path or output-history premise is used.
 -/
 theorem stream_group_keys_distinct
-    {roles work stream group streamParents groupParents streamBirth groupBirth}
+    {roles work stream group streamDependencies groupDependencies streamBirth groupBirth}
     (coherent : KeyRoles.WorkRoles roles work)
-    (streamKnown : NodeAt work stream .stream streamParents streamBirth)
-    (groupKnown : NodeAt work group .group groupParents groupBirth)
+    (streamKnown : NodeAt work stream .stream streamDependencies streamBirth)
+    (groupKnown : NodeAt work group .group groupDependencies groupBirth)
     : stream.key ≠ group.key := by
   intro same
   have left := node_key_role coherent streamKnown

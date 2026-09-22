@@ -18,8 +18,8 @@ mutual
   /-- Every failing result in this work and its descendants has a positive error count. -/
   def WorkPositive : Work → Prop
     | .empty => True
-    | .append left right => WorkPositive left ∧ WorkPositive right
-    | .deferred _ _ result children =>
+    | .combine left right => WorkPositive left ∧ WorkPositive right
+    | .executionGroup _ _ result children =>
         BasicErrors.PositiveFailure result ∧ WorkPositive children
     | .stream _ items => ItemsPositive items
 

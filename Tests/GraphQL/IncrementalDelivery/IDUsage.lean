@@ -25,11 +25,11 @@ example {response work complete result}
 
 /-- Initial-only prefixes are legal safety observations, not completed delivery. -/
 example : Tests.Correctness.incompleteObservation.idUsageValid := by
-  simp [Tests.Correctness.incompleteObservation, QueryResult.idUsageValid,
+  simp [Tests.Correctness.incompleteObservation, ExecutionObservation.idUsageValid,
     DeliveryTrace.idUsageValid, List.nodup_cons]
 
 example : Tests.Correctness.sameUpdateNotice.idUsageValid := by
-  simp [Tests.Correctness.sameUpdateNotice, QueryResult.idUsageValid,
+  simp [Tests.Correctness.sameUpdateNotice, ExecutionObservation.idUsageValid,
     DeliveryTrace.idUsageValid, IncrementalResult.id, List.nodup_cons]
 
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -40,7 +40,7 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
     Tests.Correctness.closedReference observed
-  simp [Tests.Correctness.closedReference, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [Tests.Correctness.closedReference, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     IncrementalResult.id, List.nodup_cons] at safe
 
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
@@ -51,10 +51,10 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have safe := deliveryPatchesAnnounced_holds schema operation resolvers variables fuel source
     Tests.Correctness.lateAnnouncement observed
-  simp [Tests.Correctness.lateAnnouncement, QueryResult.patchesAnnounced,
+  simp [Tests.Correctness.lateAnnouncement, ExecutionObservation.patchesAnnounced,
     DeliveryTrace.patchesAnnounced, IncrementalResult.id] at safe
 
-def unannouncedCompletion : QueryResult :=
+def unannouncedCompletion : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
     [{ hasNext := false, completed := [{ id := "unknown" }] }]
@@ -67,7 +67,7 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
     unannouncedCompletion observed
-  simp [unannouncedCompletion, QueryResult.idUsageValid, DeliveryTrace.idUsageValid,
+  simp [unannouncedCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     List.nodup_cons] at safe
 
 end GraphQL.IncrementalDelivery.Tests.IDUsage

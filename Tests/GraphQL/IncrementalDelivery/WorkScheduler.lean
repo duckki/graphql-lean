@@ -22,15 +22,32 @@ open GraphQL.IncrementalDelivery.WorkScheduler
 #guard_msgs (drop info) in
 #check_failure Causality.Reachable
 #guard_msgs (drop info) in
-#check_failure Execution.QueryResult
+#check_failure Execution.ExecutionObservation
+#guard_msgs (drop info) in
+#check_failure NodeHasParents
+#guard_msgs (drop info) in
+#check_failure NodeFailed.groupParent
+#guard_msgs (drop info) in
+#check_failure NodeFailed.streamParents
+#guard_msgs (drop info) in
+#check_failure Work.append
+
+#guard_msgs (drop info) in
+#check (Work.combine : Work → Work → Work)
+#guard_msgs (drop info) in
+#check (NodeHasDependencies : Work → Nat → NodeKind → Keys → Prop)
+#guard_msgs (drop info) in
+#check Causality.NodeFailed.groupDependency
+#guard_msgs (drop info) in
+#check Causality.NodeFailed.streamDependencies
 
 def node : DeliveryNode := { key := 0, path := [] }
 
 def single (result : Result (List (Name × ResponseValue))) : Work :=
-  .deferred [{ node }] [] result .empty
+  .executionGroup [{ node }] [] result .empty
 
 def work : Work := single (.ok ([], 0))
-def matching (_ : Nat) : Occurrence := .deferred []
+def matching (_ : Nat) : Occurrence := .executionGroup []
 def value : WorkEvent := .groupValues node [{ path := [], data := [] }]
 def success : WorkEvent := .groupSuccess node [] []
 def events : List WorkEvent := [value, success]
@@ -41,7 +58,7 @@ theorem located_single {result address current producer owners}
     : (address = [] ∧ current = single result ∧ producer = none ∧ owners = [])
       ∨ (address = [0]
           ∧ current = .empty
-          ∧ producer = some (.deferred [])
+          ∧ producer = some (.executionGroup [])
           ∧ owners = [0]) := by
   cases address with
   | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
@@ -59,12 +76,12 @@ identity.
 -/
 theorem task_single {result occurrence owners producer payload}
     (h : TaskAt (single result) occurrence owners producer payload)
-    : occurrence = .deferred []
+    : occurrence = .executionGroup []
       ∧ owners = [0]
       ∧ producer = none
       ∧ payload = .object [] result := by
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, value, children, enclosing, located, rfl, rfl⟩ := h
       rcases located_single located with h | h <;> simp_all [single, node]
   | item address index =>
@@ -107,15 +124,15 @@ theorem initialized (result) : Initializes (single result) [node] [] := by
     by simp
   ⟩
   intro accounted
-  have impossible := accounted (.deferred []) [0]
-    ⟨none, .object [] result, .deferred .root⟩ (by simp [node])
+  have impossible := accounted (.executionGroup []) [0]
+    ⟨none, .object [] result, .executionGroup .root⟩ (by simp [node])
   rcases impossible with cancelled | published
   · exact noCancellation _ _ cancelled
   · simp [Published] at published
 
 /-- The singleton publication uses the only actual task and a fresh open owner. -/
 theorem publishes : EventAllowed work [0] matching [] [] value := by
-  refine ⟨[0], none, [], [], 0, rfl, .deferred .root, ?_, ?_⟩
+  refine ⟨[0], none, [], [], 0, rfl, .executionGroup .root, ?_, ?_⟩
   · exact ⟨by simp [Published], noCancellation _ _, by simp, trivial⟩
   · refine ⟨⟨⟨.group, [], none, (NodeAt.group (group := { node }) .root (by simp))⟩,
       by simp [node], by simp [Open, announcedKeys, pendingKeys, completedKeys, node],
@@ -228,23 +245,23 @@ def failure : WorkEvent := .groupFailure node 2
 
 /-- A real failing occurrence supplies the causal root, independently of its notification.
 -/
-theorem failed : NodeFailed failingWork [.deferred []] 0 :=
-  .task (.deferred .root) (by simp [node]) (by simp)
+theorem failed : NodeFailed failingWork [.executionGroup []] 0 :=
+  .task (.executionGroup .root) (by simp [node]) (by simp)
 
 /-- That failure cancels the associated work, so it need not publish an invalid payload.
 -/
-theorem cancelled : TaskCancelled failingWork [.deferred []] (.deferred []) :=
-  .owners (.deferred .root) (by simp [node]) (by simpa [node] using failed)
+theorem cancelled : TaskCancelled failingWork [.executionGroup []] (.executionGroup []) :=
+  .owners (.executionGroup .root) (by simp [node]) (by simpa [node] using failed)
 
 /-- The failure explanation contains one reachable failing occurrence, not an invented
 error.
 -/
 theorem failureWitness (events : List WorkEvent)
-    : FailureWitness failingWork [0] events [(0, .deferred [])] := by
+    : FailureWitness failingWork [0] events [(0, .executionGroup [])] := by
   intro before cut occurrence after equal
   cases before with
   | nil =>
-      have same : cut = 0 ∧ occurrence = .deferred [] ∧ after = [] := by
+      have same : cut = 0 ∧ occurrence = .executionGroup [] ∧ after = [] := by
         simpa [Prod.mk.injEq, and_assoc] using equal.symm
       rcases same with ⟨rfl, rfl, rfl⟩
       exact ⟨
@@ -254,9 +271,9 @@ theorem failureWitness (events : List WorkEvent)
           [0],
           none,
           .object [] (.error 2),
-          .deferred .root,
+          .executionGroup .root,
           rfl,
-          .root ⟨[0], .object [] (.error 2), .deferred .root⟩,
+          .root ⟨[0], .object [] (.error 2), .executionGroup .root⟩,
           0,
           by simp,
           by simp [Open, announcedKeys, pendingKeys, completedKeys]
@@ -269,7 +286,7 @@ theorem failureWitness (events : List WorkEvent)
 
 /-- Failure notification uses the justified error count and the currently open node. -/
 theorem reportsFailure
-    : EventAllowed failingWork [0] matching [] [.deferred []] failure := by
+    : EventAllowed failingWork [0] matching [] [.executionGroup []] failure := by
   refine ⟨
     ⟨[], none, NodeAt.group (group := { node }) .root (by simp)⟩,
     by simp [Open, announcedKeys, pendingKeys, completedKeys, node],
@@ -278,9 +295,9 @@ theorem reportsFailure
   ⟩
   refine ⟨fun _ => 2, ?_, rfl⟩
   intro occurrence member
-  have same : occurrence = .deferred [] := by simpa using member
+  have same : occurrence = .executionGroup [] := by simpa using member
   subst occurrence
-  exact ⟨[0], none, .object [] (.error 2), .deferred .root, rfl⟩
+  exact ⟨[0], none, .object [] (.error 2), .executionGroup .root, rfl⟩
 
 /-- The complete failed history is admitted by structural cancellation and counted failure
 evidence.
@@ -292,7 +309,7 @@ theorem failedRun
           initialStreams := [],
           batches := [[failure, .workQueueTermination]]
         } := by
-  refine ⟨[failure], matching, [(0, .deferred [])], ?_, ?_, ?_⟩
+  refine ⟨[failure], matching, [(0, .executionGroup [])], ?_, ?_, ?_⟩
   · refine ⟨initialized _, failureWitness _, ?_⟩
     intro index event selected
     cases index with
@@ -311,15 +328,15 @@ theorem failedRun
   · exact .cons (tail := []) (by simp) (.separate _ (.separate _ .nil)) .nil
 
 /-- A future failure cut cannot justify a failure in an earlier output prefix. -/
-example : failedBefore [(1, .deferred [])] 0 = [] := rfl
+example : failedBefore [(1, .executionGroup [])] 0 = [] := rfl
 
 /-- A successful task cannot be used as failure evidence, even if its address is genuine.
 -/
 example (initial : Keys) (events : List WorkEvent)
-    : ¬FailureWitness work initial events [(0, .deferred [])] := by
+    : ¬FailureWitness work initial events [(0, .executionGroup [])] := by
   intro witness
   obtain ⟨owners, producer, payload, known, fails, _⟩ :=
-    (witness [] 0 (.deferred []) [] rfl).2.2.1
+    (witness [] 0 (.executionGroup []) [] rfl).2.2.1
   have result := (task_single known).2.2.2
   simp [result, Payload.failure] at fails
 
@@ -332,7 +349,7 @@ example
         ∧ NodeFailed failingWork (failedBefore failures 0) 0 := by
   exact ⟨
     matching,
-    [(0, .deferred [])],
+    [(0, .executionGroup [])],
     ⟨initialized _, failureWitness [], by simp⟩,
     failed
   ⟩

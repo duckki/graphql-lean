@@ -14,13 +14,13 @@ open WorkScheduler
 -- Stream-only work has no deferred dependencies
 -----------------------------------------------------------------------------------------
 
-/-- The finite work contains streams, appends, and empty subwork, but no deferred task.
+/-- The finite work contains streams, combinations, and empty subwork, but no deferred task.
 Item outcomes, errors, nesting depth, and branching are unrestricted.
 -/
 def StreamOnly : Work → Prop
   | .empty => True
-  | .append left right => StreamOnly left ∧ StreamOnly right
-  | .deferred .. => False
+  | .combine left right => StreamOnly left ∧ StreamOnly right
+  | .executionGroup .. => False
   | .stream _ items => ∀ entry ∈ items, StreamOnly entry.2
 termination_by work => sizeOf work
 decreasing_by
@@ -48,7 +48,7 @@ theorem StreamOnly.located {work address current producer owners}
   | right _ ih =>
       rw [StreamOnly] at ih
       exact ⟨ih.1.2, ih.2⟩
-  | deferred _ ih => exact False.elim (by simpa only [StreamOnly] using ih.1)
+  | executionGroup _ ih => exact False.elim (by simpa only [StreamOnly] using ih.1)
   | item _ entry ih =>
       rw [StreamOnly] at ih
       exact ⟨ih.1 _ (List.mem_of_getElem? entry), rfl⟩
@@ -64,20 +64,20 @@ theorem StreamOnly.task {work occurrence owners producer payload}
         ∧ payload = .item node result
         ∧ NodeAt work node .stream [] producer := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       exact False.elim
         (by simpa only [StreamOnly] using (onlyStreams.located located.toCurrent).1)
   | item located selected =>
       have empty := (onlyStreams.located located.toCurrent).2
       exact ⟨_, _, rfl, rfl, empty ▸ NodeAt.stream located.toCurrent⟩
 
-/-- A descriptor in stream-only work is a stream with no deferred parent keys.
+/-- A descriptor in stream-only work is a stream with no deferred dependency keys.
 Witness: its located boundary cannot be deferred and has an empty owner context.
 -/
-theorem StreamOnly.node {work node kind parents producer}
+theorem StreamOnly.node {work node kind dependencies producer}
     (onlyStreams : StreamOnly work)
-    (known : NodeAt work node kind parents producer)
-    : kind = .stream ∧ parents = [] := by
+    (known : NodeAt work node kind dependencies producer)
+    : kind = .stream ∧ dependencies = [] := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
       exact False.elim
@@ -85,7 +85,7 @@ theorem StreamOnly.node {work node kind parents producer}
   | stream located => exact ⟨rfl, (onlyStreams.located located.toCurrent).2⟩
 
 /-- Nonempty stream-only subwork has a first stream with the location's producer.
-Witness: descend through append nodes only, stopping before the first stream's items.
+Witness: descend through combine nodes only, stopping before the first stream's items.
 -/
 theorem StreamOnly.first_stream {work address current producer owners}
     (onlyStreams : StreamOnly current)
@@ -94,9 +94,9 @@ theorem StreamOnly.first_stream {work address current producer owners}
     : ∃ node, NodeAt work node .stream owners producer := by
   cases current with
   | empty => exact False.elim (nonempty rfl)
-  | deferred => simp only [StreamOnly] at onlyStreams
+  | executionGroup => simp only [StreamOnly] at onlyStreams
   | stream node items => exact ⟨node, .stream located⟩
-  | append left right =>
+  | combine left right =>
       rw [StreamOnly] at onlyStreams
       by_cases empty : left.size = 0
       · apply onlyStreams.2.first_stream (located := .right located)
@@ -110,7 +110,8 @@ termination_by sizeOf current
 
 /-- Every nonempty stream-only work tree with coherent owner paths admits a complete run.
 Witness: covering initialization satisfies the released-stream continuation boundary,
-since there are no deferred tasks or parents. The continuation constructs the terminal run.
+since there are no deferred tasks or dependencies. The continuation constructs the
+terminal run.
 -/
 theorem StreamOnly.completeRun_exists {paths bound work}
     (onlyStreams : StreamOnly work)
@@ -128,22 +129,22 @@ theorem StreamOnly.completeRun_exists {paths bound work}
     exact ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
       Or.inl rfl, by simp, Or.inl rfl⟩
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
-  have initial : Explains work groups streams [] (fun _ => .deferred []) [] :=
+  have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
-  have deferred : DeferredTasksAccounted work (fun _ => .deferred []) [] [] := by
+  have deferred : DeferredTasksAccounted work (fun _ => .executionGroup []) [] [] := by
     intro address owners producer payload known
     obtain ⟨node, result, _, impossible, _⟩ := onlyStreams.task known
     obtain ⟨_, _, _, _, _, _, _, shape⟩ := known
     cases shape.symm.trans impossible
-  have closed : StreamParentsCompleted work [] := by
-    intro node parents producer known key member
+  have closed : StreamDependenciesCompleted work [] := by
+    intro node dependencies producer known key member
     rw [(onlyStreams.node known).2] at member
     cases member
   have notified : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-      (fun _ => .deferred []) [] [] := by
-    intro node parents producer known ready healthy
+      (fun _ => .executionGroup []) [] [] := by
+    intro node dependencies producer known ready healthy
     have empty := (onlyStreams.node known).2
-    exact ParentlessStreamsNotified.initial covers node producer (empty ▸ known) ready healthy
+    exact DependencyFreeStreamsNotified.initial covers node producer (empty ▸ known) ready healthy
   obtain ⟨tail, run⟩ := released_streams_run_extension coherent initial deferred closed
     notified WorkBatching.nil
   exact ⟨_, run⟩

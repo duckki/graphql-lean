@@ -79,8 +79,8 @@ theorem Explains.allCompleted {work groups streams events matching failures}
     : ∀ key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events,
         key ∈ completedKeys events := by
   intro key member
-  obtain ⟨node, kind, parents, birth, known, rfl⟩ := h.noticeFacts.supported key member
-  exact (done.2 node kind parents birth known).resolve_right (fun hidden => hidden.1 member)
+  obtain ⟨node, kind, dependencies, birth, known, rfl⟩ := h.noticeFacts.supported key member
+  exact (done.2 node kind dependencies birth known).resolve_right (fun hidden => hidden.1 member)
 
 /-- (liveEvents events) requires every newly announced key in the supplied atomic output
 list to complete in that event or a later event.

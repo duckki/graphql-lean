@@ -19,13 +19,13 @@ mutual
     cases h with
     | empty =>
         cases ha; rfl
-    | append hl hr =>
+    | combine hl hr =>
         cases ha with
-        | append hal har =>
+        | combine hal har =>
             simp only [List.length_append, hl.attached_length hal, hr.attached_length har]
-    | deferred hc =>
+    | executionGroup hc =>
         cases ha with
-        | deferred _ hac => simp only [List.length_cons, hc.attached_length hac]
+        | executionGroup _ hac => simp only [List.length_cons, hc.attached_length hac]
     | stream hi =>
         cases ha with
         | stream _ hai => exact hi.attached_length hai

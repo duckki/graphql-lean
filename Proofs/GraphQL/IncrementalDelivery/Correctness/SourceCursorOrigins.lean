@@ -67,24 +67,24 @@ theorem sourceTasks_located_seeded {work address current producer owners cursors
   | left _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
-      | append left right =>
+      | combine left right =>
           rw [sourceTasks] at included
           exact ⟨localCursors, _, left,
             (List.sublist_append_left _ _).trans included, origin⟩
   | right _ ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
-      | append left right =>
+      | combine left right =>
           rw [sourceTasks] at included
           exact ⟨localCursors, _, right,
             (List.sublist_append_right _ _).trans included, origin⟩
-  | @deferred address groups path result children producer owners located ih =>
+  | @executionGroup address groups path result children producer owners located ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
       cases seed with
-      | deferred child =>
+      | executionGroup child =>
           rw [sourceTasks] at included
           refine ⟨_, _, child, (List.sublist_cons_self _ _).trans included, ?_⟩
-          exact ⟨⟨.deferred address, producer, .object path result, 0⟩,
+          exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
             included.subset List.mem_cons_self, rfl, rfl⟩
   | @item address node items producer owners index result children located entry ih =>
       obtain ⟨localCursors, _, seed, included, origin⟩ := ih
@@ -109,7 +109,7 @@ def SourceTask.Seeded (initial : ResponsePositions.Cursors) (tasks : List Source
         CursorOrigin initial tasks task.producer cursors
         ∧ ResponsePositions.cursorAt cursors node.path = some start
         ∧ task.index = start + ordinal
-  | .deferred _, .object .. => True
+  | .executionGroup _, .object .. => True
   | _, _ => False
 
 /-- Every actual task has a label with the correct payload, producer, and source cursor
@@ -124,11 +124,11 @@ theorem sourceTasks_task_seeded {work occurrence owners producer payload cursors
         ∧ task.payload = payload
         ∧ task.Seeded cursors (sourceTasks [] none cursors work) := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | @deferred address groups path result children producer owners located =>
+  | @executionGroup address groups path result children producer owners located =>
       obtain ⟨_, _, _, included, _⟩ :=
         sourceTasks_located_seeded seeded located.toCurrent
       rw [sourceTasks] at included
-      exact ⟨⟨.deferred address, producer, .object path result, 0⟩,
+      exact ⟨⟨.executionGroup address, producer, .object path result, 0⟩,
         included.subset List.mem_cons_self, rfl, rfl, rfl, trivial⟩
   | @item address node items producer owners index result children located entry =>
       obtain ⟨localCursors, _, seed, included, origin⟩ :=

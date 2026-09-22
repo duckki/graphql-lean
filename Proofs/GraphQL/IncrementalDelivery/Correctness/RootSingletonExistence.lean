@@ -18,8 +18,8 @@ open WorkScheduler
 Several tasks may share a key; its coherent ancestor dependencies may be nonempty.
 -/
 def RootSingletonGroups (work : Work) : Prop :=
-  (∀ node kind parents producer,
-    NodeAt work node kind parents producer → kind = .group ∧ producer = none)
+  (∀ node kind dependencies producer,
+    NodeAt work node kind dependencies producer → kind = .group ∧ producer = none)
   ∧ ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload → ∃ key, owners = [key]
 

@@ -66,8 +66,8 @@ example (paths : Semantics.OwnerPaths.Assignment) (bound : Nat)
       HistoryScheduling.Lookup.rootNode .group [] none :=
     .group (group := { node := HistoryScheduling.Lookup.rootNode }) (.left .root) (by simp)
   have nested : NodeAt HistoryScheduling.Lookup.repeated
-      HistoryScheduling.Lookup.nestedNode .stream [1] (some (.deferred [1])) :=
-    .stream (.deferred (.right .root))
+      HistoryScheduling.Lookup.nestedNode .stream [1] (some (.executionGroup [1])) :=
+    .stream (.executionGroup (.right .root))
   have impossible := workAt_same_path coherent root nested rfl
   cases impossible
 

@@ -58,12 +58,12 @@ example
   have empty : Explains work [DeferredPhase.node 0, DeferredPhase.node 1] [] []
       WorkScheduler.matching [] :=
     ⟨DeferredPhase.initialized _ _, by simp [FailureWitness], by simp⟩
-  have left : TaskAt work (.deferred [0]) [0] none (.object [] (.ok (leftData, 0))) :=
-    .deferred (.left .root)
-  have right : TaskAt work (.deferred [1]) [0, 1] none (.object [] (.ok (rightData, 0))) :=
-    .deferred (.right .root)
+  have left : TaskAt work (.executionGroup [0]) [0] none (.object [] (.ok (leftData, 0))) :=
+    .executionGroup (.left .root)
+  have right : TaskAt work (.executionGroup [1]) [0, 1] none (.object [] (.ok (rightData, 0))) :=
+    .executionGroup (.right .root)
   have ready (address : Address) : CanPublish work WorkScheduler.matching [] []
-      (.deferred address) none :=
+      (.executionGroup address) none :=
     ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
   simpa [value, failedBefore, DeferredPhase.node]
     using empty.objects_commute left right (ready [0]) (ready [1])

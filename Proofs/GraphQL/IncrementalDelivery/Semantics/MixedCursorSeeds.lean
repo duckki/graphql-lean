@@ -22,15 +22,15 @@ def CursorExtends (before after : Cursors) : Prop :=
 mutual
   inductive WorkCursorSeed : Cursors → Work → List (List ResponsePath) → Prop where
     | empty {cursors : Cursors} : WorkCursorSeed cursors .empty []
-    | append {cursors : Cursors} {left right : Work}
+    | combine {cursors : Cursors} {left right : Work}
       {ls rs : List (List ResponsePath)}
       (hl : WorkCursorSeed cursors left ls) (hr : WorkCursorSeed cursors right rs)
-      : WorkCursorSeed cursors (.append left right) (ls ++ rs)
-    | deferred {cursors : Cursors} {groups : List DeferredFragment} {path : ResponsePath}
-      {completed : Result (List (Name × ResponseValue))} {children : Work}
-      {slices : List (List ResponsePath)}
+      : WorkCursorSeed cursors (.combine left right) (ls ++ rs)
+    | executionGroup {cursors : Cursors} {groups : List DeferredFragment}
+      {path : ResponsePath} {completed : Result (List (Name × ResponseValue))}
+      {children : Work} {slices : List (List ResponsePath)}
       (hc : WorkCursorSeed (resultCursors (fieldCursors path) completed) children slices)
-      : WorkCursorSeed cursors (.deferred groups path completed children)
+      : WorkCursorSeed cursors (.executionGroup groups path completed children)
           (result (fields true path) completed :: slices)
     | stream {cursors : Cursors} {node : DeliveryNode}
       {items : List (Result ResponseValue × Work)} {index : Nat}
@@ -60,8 +60,8 @@ mutual
       : WorkSlices true work slices := by
     cases h with
     | empty => exact .empty
-    | append hl hr => exact .append hl.slices hr.slices
-    | deferred hc => exact .deferred hc.slices
+    | combine hl hr => exact .combine hl.slices hr.slices
+    | executionGroup hc => exact .executionGroup hc.slices
     | stream _ hi => exact .stream hi.slices
 
   theorem ItemCursorSeed.slices {path : ResponsePath} {index : Nat}
@@ -79,12 +79,12 @@ theorem WorkCursorSeed.extend {before after : Cursors} {work : Work}
     : WorkCursorSeed after work slices := by
   cases work with
   | empty => cases h; exact .empty
-  | append left right =>
+  | combine left right =>
       cases h with
-      | append hl hr => exact .append (hl.extend he) (hr.extend he)
-  | deferred groups path completed children =>
+      | combine hl hr => exact .combine (hl.extend he) (hr.extend he)
+  | executionGroup groups path completed children =>
       cases h with
-      | deferred hc => exact .deferred hc
+      | executionGroup hc => exact .executionGroup hc
   | stream node items =>
       cases h with
       | stream hc hi => exact .stream (he _ _ hc) hi
@@ -223,16 +223,16 @@ mutual
       : left = right := by
     cases work with
     | empty => cases hl; cases hr; rfl
-    | append left right =>
+    | combine left right =>
         cases hl with
-        | append hll hlr =>
+        | combine hll hlr =>
             cases hr with
-            | append hrl hrr => rw [hll.unique hrl, hlr.unique hrr]
-    | deferred groups path completed children =>
+            | combine hrl hrr => rw [hll.unique hrl, hlr.unique hrr]
+    | executionGroup groups path completed children =>
         cases hl with
-        | deferred hl =>
+        | executionGroup hl =>
             cases hr with
-            | deferred hr => rw [hl.unique hr]
+            | executionGroup hr => rw [hl.unique hr]
     | stream node items =>
         cases hl with
         | stream hcl hil =>

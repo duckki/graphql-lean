@@ -18,25 +18,25 @@ unannounced. This property restricts a proof's construction, not public queue ad
 def NoticesCovered (work : Work) (initial : Keys) (matching : PublicationMatching)
     (events : List WorkEvent) (failed : List Occurrence)
     : Prop :=
-  ∀ node kind parents producer,
-    NodeAt work node kind parents producer
-    → ¬CanAnnounce work initial matching events failed node kind parents producer
+  ∀ node kind dependencies producer,
+    NodeAt work node kind dependencies producer
+    → ¬CanAnnounce work initial matching events failed node kind dependencies producer
 
 /-- Removing notices cannot invalidate a remaining eligible notice when publications
 agree and its completion evidence is retained. Witness: transfer freshness backwards,
 task accounting in both directions, and every alternative of dependency satisfaction.
 -/
 theorem CanAnnounce.fewer_notices
-    {work oldInitial initial oldMatching matching before events failed node kind parents
-      producer}
+    {work oldInitial initial oldMatching matching before events failed node kind
+      dependencies producer}
     (eligible
-      : CanAnnounce work initial matching events failed node kind parents producer)
+      : CanAnnounce work initial matching events failed node kind dependencies producer)
     (notices : (announcedKeys oldInitial before).Subset (announcedKeys initial events))
     (publications
       : ∀ occurrence,
           Published oldMatching before occurrence ↔ Published matching events occurrence)
     (completions : (completedKeys events).Subset (completedKeys before))
-    : CanAnnounce work oldInitial oldMatching before failed node kind parents
+    : CanAnnounce work oldInitial oldMatching before failed node kind dependencies
         producer := by
   have accounting (key : Nat) : NodeAccounted work oldMatching before failed key
       ↔ NodeAccounted work matching events failed key := by
@@ -53,7 +53,9 @@ theorem CanAnnounce.fewer_notices
   refine ⟨fun member => eligible.1 (notices member), eligible.2.1,
     eligible.2.2.1.imp_right (fun unaccounted accounted =>
       unaccounted ((accounting node.key).mp accounted)), ?_, ?_⟩
-  · exact fun parent same => (publications parent).mpr (eligible.2.2.2.1 parent same)
+  · exact fun producerOccurrence same =>
+      (publications producerOccurrence).mpr
+        (eligible.2.2.2.1 producerOccurrence same)
   · cases kind with
     | group => exact fun key member => dependency (eligible.2.2.2.2 key member)
     | stream =>
@@ -71,19 +73,21 @@ contradicting the frontier's coverage. No later publication matching is selected
 -/
 theorem NoticesCovered.initial {work} {groups streams : List DeliveryNode}
     (covers
-      : ∀ node kind parents birth,
-          NodeAt work node kind parents birth
-          → CanAnnounce work [] (fun _ => .deferred []) [] [] node kind parents birth
+      : ∀ node kind dependencies birth,
+          NodeAt work node kind dependencies birth
+          → CanAnnounce work [] (fun _ => .executionGroup []) [] [] node kind dependencies
+              birth
           → node.key ∈ (groups ++ streams).map DeliveryNode.key)
     (matching : PublicationMatching)
     : NoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching [] [] := by
-  intro node kind parents birth known eligible
+  intro node kind dependencies birth known eligible
   have before := eligible.fewer_notices
-    (oldInitial := []) (oldMatching := fun _ => .deferred []) (before := [])
+    (oldInitial := []) (oldMatching := fun _ => .executionGroup []) (before := [])
     (by intro key member; simp [announcedKeys, pendingKeys] at member)
     (by simp [Published]) (List.Subset.refl _)
   apply eligible.1
-  simpa [announcedKeys, pendingKeys] using covers node kind parents birth known before
+  simpa [announcedKeys, pendingKeys]
+    using covers node kind dependencies birth known before
 
 /-- A covering carrier leaves no eligible node unannounced after its actual notices.
 Witness: remove just the carrier's notices while preserving publications and completions;
@@ -95,13 +99,13 @@ theorem NoticesCovered.carrier {work initial matching events failed plain actual
     (sameValue : IsValue plain ↔ IsValue actual)
     (sameCompleted : eventCompleted plain = eventCompleted actual)
     (covers
-      : ∀ node kind parents birth,
-          NodeAt work node kind parents birth
+      : ∀ node kind dependencies birth,
+          NodeAt work node kind dependencies birth
           → CanAnnounce work initial matching (events ++ [plain]) failed
-              node kind parents birth
+              node kind dependencies birth
           → node.key ∈ (groups ++ streams).map DeliveryNode.key)
     : NoticesCovered work initial matching (events ++ [actual]) failed := by
-  intro node kind parents birth known eligible
+  intro node kind dependencies birth known eligible
   have before :=
     eligible.fewer_notices
       (oldInitial := initial)
@@ -119,7 +123,7 @@ theorem NoticesCovered.carrier {work initial matching events failed plain actual
           List.flatMap_nil, List.append_nil, sameCompleted]
         exact List.Subset.refl _)
   apply eligible.1
-  have member := covers node kind parents birth known before
+  have member := covers node kind dependencies birth known before
   simpa only [announcedKeys, pendingKeys, List.flatMap_append, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.append_assoc, notices]
     using List.mem_append_right (announcedKeys initial events) member
@@ -157,9 +161,9 @@ theorem Explains.publish_item_noticesCovered
 notices. Witness: the covering group-success event and the same carrier coverage lemma.
 -/
 theorem Explains.complete_group_noticesCovered
-    {work groups streams events matching failures node parents birth}
+    {work groups streams events matching failures node dependencies birth}
     (explained : Explains work groups streams events matching failures)
-    (known : NodeAt work node .group parents birth)
+    (known : NodeAt work node .group dependencies birth)
     (opened : Open ((groups ++ streams).map DeliveryNode.key) events node.key)
     (healthy : ¬NodeFailed work (failedBefore failures events.length) node.key)
     (accounted

@@ -105,7 +105,7 @@ mutual
           source groups path usages deferMap state hm
         have hr := collectExecutionGroups_regions schema resolvers variables fuel parentType
           source rest path deferMap _ (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
-        have hd := hl.deferred (usages.filterMap (lookupDeferredFragment? deferMap)) path
+        have hd := hl.executionGroup (usages.filterMap (lookupDeferredFragment? deferMap)) path
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path
             usages deferMap).run state).1.result (mapKeys_filterMap_subset deferMap usages) hm
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]

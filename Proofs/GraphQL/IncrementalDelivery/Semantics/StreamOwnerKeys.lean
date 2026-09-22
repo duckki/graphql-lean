@@ -3,7 +3,7 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.AncestryMetadata
 import Proofs.GraphQL.IncrementalDelivery.Semantics.Planning
 
 /-! Stream owner keys precede the stream nodes registered under them.
-Only streams reached through append nodes inherit the current owner list; deferred
+Only streams reached through combine nodes inherit the current owner list; deferred
 tasks establish their own owner list when their children are registered.
 -/
 
@@ -13,14 +13,14 @@ open GraphQL.IncrementalDelivery.Execution
 
 def OwnersBefore (owners : List Nat) : Work → Prop
   | .empty => True
-  | .append left right => OwnersBefore owners left ∧ OwnersBefore owners right
-  | .deferred .. => True
+  | .combine left right => OwnersBefore owners left ∧ OwnersBefore owners right
+  | .executionGroup .. => True
   | .stream node _ => ∀ owner ∈ owners, owner < node.key
 
 def StreamOwnersOrdered : Work → Prop
   | .empty => True
-  | .append left right => StreamOwnersOrdered left ∧ StreamOwnersOrdered right
-  | .deferred groups _ _ children =>
+  | .combine left right => StreamOwnersOrdered left ∧ StreamOwnersOrdered right
+  | .executionGroup groups _ _ children =>
       OwnersBefore (groups.map (·.node.key)) children ∧ StreamOwnersOrdered children
   | .stream _ items => ∀ item ∈ items, StreamOwnersOrdered item.2
 termination_by work => sizeOf work
@@ -35,8 +35,8 @@ decreasing_by
 
 def StreamKeysFrom (start : Nat) : Work → Prop
   | .empty => True
-  | .append left right => StreamKeysFrom start left ∧ StreamKeysFrom start right
-  | .deferred _ _ _ children => StreamKeysFrom start children
+  | .combine left right => StreamKeysFrom start left ∧ StreamKeysFrom start right
+  | .executionGroup _ _ _ children => StreamKeysFrom start children
   | .stream node items => start ≤ node.key ∧ ∀ item ∈ items, StreamKeysFrom start item.2
 termination_by work => sizeOf work
 decreasing_by
@@ -52,8 +52,8 @@ theorem StreamKeysFrom.mono {start next : Nat} {work : Work}
     (h : StreamKeysFrom start work) (hle : next ≤ start)
     : StreamKeysFrom next work := by
   cases work <;> simp only [StreamKeysFrom] at h ⊢
-  case append left right => exact ⟨h.1.mono hle, h.2.mono hle⟩
-  case deferred groups path result children => exact h.mono hle
+  case combine left right => exact ⟨h.1.mono hle, h.2.mono hle⟩
+  case executionGroup groups path result children => exact h.mono hle
   case stream node items => exact ⟨Nat.le_trans hle h.1, fun item hi => (h.2 item hi).mono hle⟩
 termination_by sizeOf work
 decreasing_by
@@ -71,10 +71,10 @@ theorem StreamKeysFrom.ownersBefore {start : Nat} {work : Work}
     : OwnersBefore owners work := by
   cases work with
   | empty => trivial
-  | append left right =>
+  | combine left right =>
       rw [StreamKeysFrom] at h
       exact ⟨h.1.ownersBefore ho, h.2.ownersBefore ho⟩
-  | deferred groups path result children => trivial
+  | executionGroup groups path result children => trivial
   | stream node items =>
       rw [StreamKeysFrom] at h
       exact fun owner hm => Nat.lt_of_lt_of_le (ho owner hm) h.1
@@ -83,8 +83,8 @@ termination_by sizeOf work
 theorem ownersBefore_nil (work : Work) : OwnersBefore [] work := by
   cases work with
   | empty => trivial
-  | append left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
-  | deferred groups path result children => trivial
+  | combine left right => exact ⟨ownersBefore_nil left, ownersBefore_nil right⟩
+  | executionGroup groups path result children => trivial
   | stream node items => simp [OwnersBefore]
 termination_by sizeOf work
 
@@ -97,15 +97,15 @@ def StreamKeyCompleted (start : Nat) (output : Completion α × Nat) : Prop :=
 theorem streamKeyOutput_empty (state : Nat) : StreamKeyOutput state .empty state :=
   ⟨Nat.le_refl _, by simp [StreamKeysFrom], by simp [StreamOwnersOrdered]⟩
 
-theorem streamKeys_append {start : Nat} {left right : Work}
+theorem streamKeys_combine {start : Nat} {left right : Work}
     (hl : StreamKeysFrom start left ∧ StreamOwnersOrdered left)
     (hr : StreamKeysFrom start right ∧ StreamOwnersOrdered right)
-    : StreamKeysFrom start (.append left right)
-      ∧ StreamOwnersOrdered (.append left right) := by
+    : StreamKeysFrom start (.combine left right)
+      ∧ StreamOwnersOrdered (.combine left right) := by
   simp only [StreamKeysFrom, StreamOwnersOrdered]
   exact ⟨⟨hl.1, hr.1⟩, hl.2, hr.2⟩
 
-theorem streamKeys_combine (start : Nat) (f : α → β → γ)
+theorem streamKeys_completionCombine (start : Nat) (f : α → β → γ)
     (left : Completion α) (right : Completion β)
     (hl : StreamKeysFrom start left.work ∧ StreamOwnersOrdered left.work)
     (hr : StreamKeysFrom start right.work ∧ StreamOwnersOrdered right.work)
@@ -114,7 +114,7 @@ theorem streamKeys_combine (start : Nat) (f : α → β → γ)
   cases hleft : left.result <;> cases hright : right.result <;>
     simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine]
   all_goals first
-  | exact streamKeys_append hl hr
+  | exact streamKeys_combine hl hr
   | simp [Completion.error, StreamKeysFrom, StreamOwnersOrdered]
 
 theorem streamKeys_map (start : Nat) (f : α → β) (completed : Completion α)
@@ -170,10 +170,10 @@ theorem streamKeys_deferred (state : Nat) (deferMap : DeferMap) (keys : List Nat
     (children : Work) (hm : DeferMapBefore state deferMap)
     (hc : StreamKeysFrom state children ∧ StreamOwnersOrdered children)
     : StreamKeysFrom state
-        (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
           children)
       ∧ StreamOwnersOrdered
-          (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+          (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
             children) := by
   simp only [StreamKeysFrom, StreamOwnersOrdered]
   refine ⟨hc.1, hc.1.ownersBefore ?_, hc.2⟩

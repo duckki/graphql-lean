@@ -15,7 +15,7 @@ def value : GroupValue := { path := [.field "obj"], data := [("x", .scalar "X")]
 def shared : SharedGroupValue := { value, contributors }
 
 def work : Work :=
-  .deferred [{ node := parent }, { node := child }] value.path
+  .executionGroup [{ node := parent }, { node := child }] value.path
     (.ok (value.data, value.errors)) .empty
 
 /-- Structural lookup exposes precisely the shared root task and its empty child. -/
@@ -24,7 +24,7 @@ theorem located_work {address current producer owners}
     : (address = [] ∧ current = work ∧ producer = none ∧ owners = [])
       ∨ (address = [0]
           ∧ current = .empty
-          ∧ producer = some (.deferred [])
+          ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
   | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
@@ -83,10 +83,10 @@ example
 Witness: the general adapter theorem derives the longest-path condition.
 -/
 example
-    : EventAllowed work [0, 1] (fun _ => .deferred []) [] []
+    : EventAllowed work [0, 1] (fun _ => .executionGroup []) [] []
         (.groupValues (selectGroupOwner [0, 1] parent contributors) [value]) := by
   apply normalized_groupValues_allowed (owners := [0, 1]) (producer := none)
-  · exact .deferred .root
+  · exact .executionGroup .root
   · exact ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
   · exact available parent (by simp [contributors])
   · intro node member _
@@ -161,21 +161,21 @@ def generated : Work :=
       operation.selectionSet).run
     0).1.work
 
-/-- Evaluate the execution-generated location while retaining its original append shape.
+/-- Evaluate the execution-generated location while retaining its original combine shape.
 -/
 theorem generated_location
     : Located generated [0, 0, 1, 0]
-        (.deferred [{ node := parent }, { node := child }] value.path
-          (.ok (value.data, value.errors)) (.append .empty .empty)) none [] := by
+        (.executionGroup [{ node := parent }, { node := child }] value.path
+          (.ok (value.data, value.errors)) (.combine .empty .empty)) none [] := by
   cbv
 
 /-- The audited owner/path/value combination is genuinely execution-generated, not only
-a permissive raw-work fixture. Witness: the exact structural occurrence under append nodes.
+a permissive raw-work fixture. Witness: the exact structural occurrence under combine nodes.
 -/
 example
-    : TaskAt generated (.deferred [0, 0, 1, 0]) [0, 1] none
+    : TaskAt generated (.executionGroup [0, 0, 1, 0]) [0, 1] none
         (.object value.path (.ok (value.data, value.errors))) :=
-  .deferred generated_location
+  .executionGroup generated_location
 
 example : NodeAt generated parent .group [] none :=
   .group (group := { node := parent }) generated_location (by simp)

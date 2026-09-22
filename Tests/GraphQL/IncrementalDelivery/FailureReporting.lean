@@ -12,12 +12,13 @@ def a : DeliveryNode := { key := 0, path := [] }
 def b : DeliveryNode := { key := 1, path := [] }
 
 def good : Work :=
-  .deferred [{ node := a }] [] (.ok ([("a", .scalar "a")], 0)) (.append .empty .empty)
+  .executionGroup [{ node := a }] [] (.ok ([("a", .scalar "a")], 0))
+    (.combine .empty .empty)
 
-def bad : Work := .deferred [{ node := b }] [] (.error 1) .empty
-def wk : Work := .append .empty (.append good (.append bad .empty))
-def goodID : Occurrence := .deferred [1, 0]
-def badID : Occurrence := .deferred [1, 1, 0]
+def bad : Work := .executionGroup [{ node := b }] [] (.error 1) .empty
+def wk : Work := .combine .empty (.combine good (.combine bad .empty))
+def goodID : Occurrence := .executionGroup [1, 0]
+def badID : Occurrence := .executionGroup [1, 1, 0]
 
 def op : GraphQL.IncrementalDelivery.Operation :=
   {
@@ -39,20 +40,20 @@ private theorem locations {address current producer owners}
     : current = .empty
       ∨ (address = [] ∧ current = wk ∧ producer = none ∧ owners = [])
       ∨ (address = [1]
-          ∧ current = .append good (.append bad .empty)
+          ∧ current = .combine good (.combine bad .empty)
           ∧ producer = none
           ∧ owners = [])
       ∨ (address = [1, 0] ∧ current = good ∧ producer = none ∧ owners = [])
       ∨ (address = [1, 0, 0]
-          ∧ current = .append .empty .empty
+          ∧ current = .combine .empty .empty
           ∧ producer = some goodID
           ∧ owners = [0])
-      ∨ (address = [1, 1] ∧ current = .append bad .empty ∧ producer = none ∧ owners = [])
+      ∨ (address = [1, 1] ∧ current = .combine bad .empty ∧ producer = none ∧ owners = [])
       ∨ (address = [1, 1, 0] ∧ current = bad ∧ producer = none ∧ owners = []) := by
   replace h := StructuralEquivalence.located_of_current h
   induction h with
   | root => simp
-  | left _ ih | right _ ih | deferred _ ih | item _ _ ih =>
+  | left _ ih | right _ ih | executionGroup _ ih | item _ _ ih =>
       rcases ih with ih | ih | ih | ih | ih | ih | ih <;>
         simp_all [wk, good, bad, a, b, goodID]
 
@@ -68,7 +69,7 @@ private theorem tasks {occurrence owners producer payload}
           ∧ producer = none
           ∧ payload = .object [] (.error 1)) := by
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := h
       rcases locations located with h | h | h | h | h | h | h <;>
         simp_all [wk, good, bad, a, b, goodID, badID]
@@ -79,7 +80,7 @@ private theorem tasks {occurrence owners producer payload}
 
 /-- The second query group is the actual failing occurrence in the prepared work. -/
 theorem badTask : TaskAt wk badID [1] none (.object [] (.error 1)) :=
-  .deferred (.left (.right (.right .root)))
+  .executionGroup (.left (.right (.right .root)))
 
 /-- Reject the original cut: only group zero is announced, but group one fails. -/
 example (events : List WorkEvent) : ¬FailureWitness wk [0] events [(0, badID)] := by
@@ -124,10 +125,10 @@ announced. This prevents reporting the error only after its completion has passe
 -/
 example
     : ¬FailureWitness WorkScheduler.failingWork [0]
-        [WorkScheduler.failure] [(1, .deferred [])] := by
+        [WorkScheduler.failure] [(1, .executionGroup [])] := by
   intro witness
-  have known : TaskAt WorkScheduler.failingWork (.deferred []) [0] none
-      (.object [] (.error 2)) := .deferred .root
+  have known : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+      (.object [] (.error 2)) := .executionGroup .root
   obtain ⟨key, member, opened⟩ := witness.open_owner (cut := 1) (by simp) known
   have same : key = 0 := by simpa using member
   subst key
@@ -136,20 +137,20 @@ example
       WorkScheduler.failure, WorkScheduler.node])
 
 def sharedFailure : Work :=
-  .deferred [{ node := a }, { node := b }] [] (.error 1) .empty
+  .executionGroup [{ node := a }, { node := b }] [] (.error 1) .empty
 
 /-- One open contributing owner suffices; shared work need not announce every owner,
 and its error notification may still be delayed.
 -/
-example : FailureWitness sharedFailure [1] [] [(0, .deferred [])] := by
+example : FailureWitness sharedFailure [1] [] [(0, .executionGroup [])] := by
   intro before cut occurrence after equal
   cases before with
   | nil =>
-      have same : cut = 0 ∧ occurrence = .deferred [] ∧ after = [] := by
+      have same : cut = 0 ∧ occurrence = .executionGroup [] ∧ after = [] := by
         simpa [Prod.mk.injEq, and_assoc] using equal.symm
       rcases same with ⟨rfl, rfl, rfl⟩
-      have known : TaskAt sharedFailure (.deferred []) [0, 1] none
-          (.object [] (.error 1)) := .deferred .root
+      have known : TaskAt sharedFailure (.executionGroup []) [0, 1] none
+          (.object [] (.error 1)) := .executionGroup .root
       exact ⟨
         by simp,
         by simp,

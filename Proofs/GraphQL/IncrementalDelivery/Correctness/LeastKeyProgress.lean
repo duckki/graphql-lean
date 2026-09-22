@@ -120,7 +120,7 @@ theorem maximal_dependency_satisfied {work groups streams events matching failur
 -----------------------------------------------------------------------------------------
 
 /-- A fresh healthy owner of a ready task is announceable once smaller healthy keys
-satisfy dependencies. Witness: strict ancestry/stream-parent ordering and causal failure
+satisfy dependencies. Witness: strict ancestry/stream-dependency ordering and causal failure
 rules; the task itself witnesses that a group is not already fully accounted for.
 -/
 theorem least_owner_announceable
@@ -154,8 +154,8 @@ theorem least_owner_announceable
   · cases kind with
     | group =>
         intro key member
-        exact smaller key (coherent_group_parents valid coherent descriptor key member)
-          (fun failure => healthy (.groupParent descriptor member failure))
+        exact smaller key (coherent_group_dependencies valid coherent descriptor key member)
+          (fun failure => healthy (.groupDependency descriptor member failure))
     | stream =>
         by_cases empty : dependencies = []
         · exact Or.inl empty
@@ -163,14 +163,14 @@ theorem least_owner_announceable
             apply Classical.byContradiction
             intro absent
             apply healthy
-            apply NodeFailed.streamParents descriptor empty
+            apply NodeFailed.streamDependencies descriptor empty
             intro key member
             apply Classical.byContradiction
             intro healthyKey
             exact absent ⟨key, member, healthyKey⟩
           obtain ⟨key, member, healthyKey⟩ := healthyParent
           exact Or.inr ⟨key, member,
-            smaller key (coherent_stream_parents ordered descriptor key member) healthyKey⟩
+            smaller key (coherent_stream_dependencies ordered descriptor key member) healthyKey⟩
 
 /-- A maximal incomplete generated-work history still has a currently eligible notice.
 Witness: choose a least healthy outstanding owner, descend to a ready task without

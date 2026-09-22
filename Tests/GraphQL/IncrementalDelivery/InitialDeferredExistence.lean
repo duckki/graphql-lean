@@ -33,7 +33,7 @@ Witness: complete-history realization, with no supplied history or factory as a 
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
     : ∃ scheduler : Execution.WorkScheduler,
-      ∃ observed : QueryResult,
+      ∃ observed : ExecutionObservation,
         scheduler.Conforms (work first second)
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
@@ -43,7 +43,7 @@ example (response : Response) (first second : Result (List (Name × ResponseValu
 nested descendants are omitted. Covering initialization must add the missing root notice.
 -/
 def independentStreams (outer middle inner : Result ResponseValue) : Work :=
-  .append (.stream (node 9) []) (NestedStreamExistence.nested outer middle inner)
+  .combine (.stream (node 9) []) (NestedStreamExistence.nested outer middle inner)
 
 /-- The root-deferred theorem also covers an empty deferred phase with independent nested
 streams and errors. Witness: enlarge a singleton frontier that initially omits the active
@@ -54,7 +54,7 @@ example (outer middle inner : Result ResponseValue)
   have only : StreamOnly (independentStreams outer middle inner) := by
     simp [StreamOnly, independentStreams, NestedStreamExistence.nested]
   have noDeferred {address owners producer payload}
-      (known : TaskAt (independentStreams outer middle inner) (.deferred address)
+      (known : TaskAt (independentStreams outer middle inner) (.executionGroup address)
         owners producer payload) : False := by
     obtain ⟨stream, result, _, itemShape, _⟩ := only.task known
     obtain ⟨_, _, _, _, _, _, _, objectShape⟩ := known

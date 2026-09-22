@@ -39,7 +39,7 @@ theorem WorkObservation.idUsageValid {response work complete result}
 theorem deliveryIDUsageValid_holds (schema : Schema) (operation : Operation)
     : deliveryIDUsageValid schema operation := by
   intro ObjectRef resolvers variables fuel source result observed
-  exact queryObservation_property QueryResult.idUsageValid
+  exact queryObservation_property ExecutionObservation.idUsageValid
     (fun _ _ _ h => h.idUsageValid) observed
 
 /-- Every query patch has an earlier or same-response announcement, by ID safety. -/

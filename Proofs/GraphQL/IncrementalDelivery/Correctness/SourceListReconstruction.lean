@@ -138,7 +138,7 @@ theorem seeded_stream (path : ResponsePath) (count : Nat)
         {
           initial.catchNull ResponseValue.list with
             work :=
-              .append (initial.catchNull ResponseValue.list).work (.stream node tail)
+              .combine (initial.catchNull ResponseValue.list).work (.stream node tail)
         } := by
   refine ⟨by simp [Completion.catchNull, he, BasicErrors.PositiveFailure], ?_⟩
   intro hs
@@ -150,7 +150,7 @@ theorem seeded_stream (path : ResponsePath) (count : Nat)
   refine ⟨.list (first ++ rest), sp ++ st, ?_, ?_, ?_, ?_⟩
   · simp [hp, hr, GraphQL.Execution.Result.combine, GraphQL.Execution.catchBubbleAsNull]
   · simp only [Completion.catchNull, he]
-    exact .append hwp (.stream (hn ▸ hwr))
+    exact .combine hwp (.stream (hn ▸ hwr))
   · have hall := (hpp.append hpr).cons (path, Atom.list)
     simpa only [Completion.catchNull, he, result, value, List.flatten_append, items_append,
       Nat.zero_add, hlen first hp, List.cons_append, List.append_assoc] using hall
@@ -167,6 +167,6 @@ theorem seeded_stream (path : ResponsePath) (count : Nat)
       · simp [cursorAt, listCursors, hn, hactual]
       · exact hn ▸ hseedt hparts.2.1
     simpa only [Completion.catchNull, he, resultCursors, entryPaths, List.map_append]
-      using WorkCursorSeed.append (hfirst.extend (list_cursors_extend path data)) hlast
+      using WorkCursorSeed.combine (hfirst.extend (list_cursors_extend path data)) hlast
 
 end GraphQL.IncrementalDelivery.Correctness.SourceReconstruction

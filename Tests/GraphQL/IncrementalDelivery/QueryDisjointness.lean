@@ -33,7 +33,7 @@ example (slices : List (List ResponsePath))
 /-- The public statement now supplies global uniqueness directly, in either path mode. -/
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (observed : queryObservation schema resolvers variables operation fuel source result)
     (containers : Bool)
     : ∃ slices, result.DeliversSlices containers slices ∧ slices.flatten.Nodup :=
@@ -45,7 +45,7 @@ the observation may be interrupted, and its total error count need not be zero.
 -/
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (observed : queryObservation schema resolvers variables operation fuel source result)
     : ∃ slices, result.DeliversSlices true slices ∧ slices.flatten.Nodup :=
   queryObservation_disjoint_positions observed
@@ -55,7 +55,7 @@ premise, independently of the complete basic-response coverage theorem.
 -/
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
-    {source : ResolverValue ObjectRef} {result : QueryResult}
+    {source : ResolverValue ObjectRef} {result : ExecutionObservation}
     (observed : queryObservation schema resolvers variables operation fuel source result)
     : ∃ slices, result.DeliversSlices false slices ∧ slices.flatten.Nodup := by
   obtain ⟨slices, decoded, unique⟩ := queryObservation_disjoint_positions observed

@@ -64,11 +64,11 @@ mutual
           ProducerReady published task.producer → task.attachment ∈ available := by
     cases work with
     | empty => simp [sourceTasks]
-    | append left right =>
+    | combine left right =>
         generalize equal : entryPaths ((sourceTasks address producer cursors
-          (.append left right)).map SourceTask.entries) = slices at attached
+          (.combine left right)).map SourceTask.entries) = slices at attached
         cases attached with
-        | append al ar =>
+        | combine al ar =>
             simp only [sourceTasks, List.map_append, entryPaths] at equal
             obtain ⟨leftEq, rightEq⟩ := List.append_inj equal (by
               simpa only [List.length_map] using
@@ -81,11 +81,11 @@ mutual
             · exact sourceTasks_readyAttached closed delivered _ _ _ right
                 (fun _ member => members (List.mem_append_right _ member)) success.2
                 (by simpa only [entryPaths, rightEq] using ar) context task second ready
-    | deferred groups path result children =>
+    | executionGroup groups path result children =>
         simp only [sourceTasks, List.map_cons, entryPaths,
           SourceTask.entries, result_fields_paths] at attached
         cases attached with
-        | deferred parent childrenAttached =>
+        | executionGroup parent childrenAttached =>
             intro task member ready
             rcases List.mem_cons.mp member with rfl | child
             · exact context ready parent

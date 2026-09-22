@@ -44,12 +44,12 @@ mutual
           ((sourceTasks address producer cursors work).map SourceTask.entries) := by
     cases work with
     | empty => exact .empty
-    | append left right =>
-        simpa [sourceTasks] using WorkEntries.append
+    | combine left right =>
+        simpa [sourceTasks] using WorkEntries.combine
           (sourceTasks_entries (address ++ [0]) producer cursors left)
           (sourceTasks_entries (address ++ [1]) producer cursors right)
-    | deferred groups path result children =>
-        exact .deferred (sourceTasks_entries _ _ _ children)
+    | executionGroup groups path result children =>
+        exact .executionGroup (sourceTasks_entries _ _ _ children)
     | stream node items => exact .stream (sourceItemTasks_entries _ _ _ _ _ _)
   termination_by sizeOf work
 
@@ -82,13 +82,13 @@ mutual
     cases hl with
     | empty =>
         cases hr; rfl
-    | append hla hlb =>
+    | combine hla hlb =>
         cases hr with
-        | append hra hrb =>
+        | combine hra hrb =>
             simp only [List.length_append, hla.length_eq hra, hlb.length_eq hrb]
-    | deferred hlc =>
+    | executionGroup hlc =>
         cases hr with
-        | deferred hrc => simp only [List.length_cons, hlc.length_eq hrc]
+        | executionGroup hrc => simp only [List.length_cons, hlc.length_eq hrc]
     | stream hli =>
         cases hr with
         | stream hri => exact hli.length_eq hri
@@ -126,7 +126,7 @@ theorem result_value_of_paths {left right : ResponsePath} (outcome : Result Resp
 
 mutual
   /-- Typed slices of fixed work are determined by their path slices. Witness: structural
-  descent, splitting append witnesses using their work-determined slice counts.
+  descent, splitting combine witnesses using their work-determined slice counts.
   -/
   theorem WorkEntries.of_paths {work left right}
       (hl : WorkEntries work left) (hr : WorkEntries work right)
@@ -135,16 +135,16 @@ mutual
     cases hl with
     | empty =>
         cases hr; rfl
-    | append hla hlb =>
+    | combine hla hlb =>
         cases hr with
-        | append hra hrb =>
+        | combine hra hrb =>
             simp only [entryPaths, List.map_append] at same
             obtain ⟨first, rest⟩ := List.append_inj same (by
               simpa only [List.length_map] using hla.length_eq hra)
             rw [hla.of_paths hra first, hlb.of_paths hrb rest]
-    | deferred hlc =>
+    | executionGroup hlc =>
         cases hr with
-        | deferred hrc =>
+        | executionGroup hrc =>
             have rest := (List.cons.inj same).2
             rw [hlc.of_paths hrc rest]
     | stream hli =>

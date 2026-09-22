@@ -36,16 +36,16 @@ theorem OwnsItems.mono {containers : Bool} {path : ResponsePath} {index : Nat}
   obtain ⟨slices, hw, ho⟩ := h
   exact ⟨slices, hw, ho.mono hs⟩
 
-theorem ownsWork_append {containers : Bool} {sa sb sc : ResponsePath → Prop}
+theorem ownsWork_combine {containers : Bool} {sa sb sc : ResponsePath → Prop}
     {left right : Work} (hl : OwnsWork containers sa left)
     (hr : OwnsWork containers sb right) (hd : ∀ path, sa path → sb path → False)
     (hls : ∀ path, sa path → sc path) (hrs : ∀ path, sb path → sc path)
-    : OwnsWork containers sc (.append left right) := by
+    : OwnsWork containers sc (.combine left right) := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     sl ++ sr,
-    .append hsl hsr,
+    .combine hsl hsr,
     by simpa only [List.flatten_append] using owns_append hol hor hd hls hrs
   ⟩
 
@@ -87,7 +87,7 @@ theorem ownsCompletion_combine {containers : Bool} {pa : α → List ResponsePat
           simp only [he, hre, result] at ho
           refine ⟨sl ++ sr, ?_, ?_⟩
           · simpa only [Completion.combine, he, hre, GraphQL.Execution.Result.combine]
-              using WorkSlices.append hsl hsr
+              using WorkSlices.combine hsl hsr
           · simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
               result, hf, List.flatten_append]
             apply ho.perm
@@ -161,27 +161,27 @@ theorem ownsCompletion_nonNull {containers : Bool} {path : ResponsePath}
         obtain ⟨slices, hw, ho⟩ := h
         exact ⟨slices, hw, by simpa only [he] using ho⟩
 
-theorem OwnsCompletion.deferred {containers : Bool} {path : ResponsePath}
+theorem OwnsCompletion.executionGroup {containers : Bool} {path : ResponsePath}
     {scope : ResponsePath → Prop} {completed : Completion (List (Name × ResponseValue))}
     (h : OwnsCompletion containers (fields containers path) scope completed)
     (groups : List DeferredFragment)
     : OwnsWork containers scope
-        (.deferred groups path completed.result completed.work) := by
+        (.executionGroup groups path completed.result completed.work) := by
   obtain ⟨slices, hw, ho⟩ := h
-  exact ⟨_, .deferred hw, by simpa only [List.flatten_cons] using ho⟩
+  exact ⟨_, .executionGroup hw, by simpa only [List.flatten_cons] using ho⟩
 
-theorem ownsCompletion_appendWork {containers : Bool} {paths : α → List ResponsePath}
+theorem ownsCompletion_combineWork {containers : Bool} {paths : α → List ResponsePath}
     {sa sb sc : ResponsePath → Prop} {completed : Completion α} {work : Work}
     (hl : OwnsCompletion containers paths sa completed) (hr : OwnsWork containers sb work)
     (hd : ∀ path, sa path → sb path → False)
     (hls : ∀ path, sa path → sc path) (hrs : ∀ path, sb path → sc path)
     : OwnsCompletion containers paths sc
-        {completed with work := .append completed.work work} := by
+        {completed with work := .combine completed.work work} := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     sl ++ sr,
-    .append hsl hsr,
+    .combine hsl hsr,
     by
       simpa only [List.flatten_append, List.append_assoc]
         using owns_append hol hor hd hls hrs
@@ -206,20 +206,20 @@ theorem ownsCompletion_combine_fields {containers : Bool} {path : ResponsePath}
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
-theorem ownsWork_append_fields {containers : Bool} {path : ResponsePath}
+theorem ownsWork_combine_fields {containers : Bool} {path : ResponsePath}
     {leftNames rightNames : List Name} {left right : Work}
     (hn : (leftNames ++ rightNames).Nodup)
     (hl : OwnsWork containers (UnderFields path leftNames) left)
     (hr : OwnsWork containers (UnderFields path rightNames) right)
     : OwnsWork containers (UnderFields path (leftNames ++ rightNames))
-        (.append left right) := by
-  apply ownsWork_append hl hr
+        (.combine left right) := by
+  apply ownsWork_combine hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
-theorem ownsCompletion_appendWork_fields {containers : Bool} {path : ResponsePath}
+theorem ownsCompletion_combineWork_fields {containers : Bool} {path : ResponsePath}
     {leftNames rightNames : List Name}
     {completed : Completion (List (Name × ResponseValue))} {work : Work}
     (hn : (leftNames ++ rightNames).Nodup)
@@ -229,8 +229,8 @@ theorem ownsCompletion_appendWork_fields {containers : Bool} {path : ResponsePat
     (hr : OwnsWork containers (UnderFields path rightNames) work)
     : OwnsCompletion containers (fields containers path)
         (UnderFields path (leftNames ++ rightNames))
-        {completed with work := .append completed.work work} := by
-  apply ownsCompletion_appendWork hl hr
+        {completed with work := .combine completed.work work} := by
+  apply ownsCompletion_combineWork hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)

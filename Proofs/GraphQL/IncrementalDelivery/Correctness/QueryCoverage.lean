@@ -16,7 +16,7 @@ and exact identification of typed slices with the occurrence-labelled inventory.
 theorem root_source_entries (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selections : List Selection) (state : Nat)
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed
       : let completed :=
           ((executeRootSelectionSetCore schema resolvers variables
@@ -64,7 +64,7 @@ are excluded by the zero-error premise, not by a new validity assumption.
 theorem queryOutcome_source_equivalent
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
-    {result : QueryResult}
+    {result : ExecutionObservation}
     (observed : queryOutcome schema resolvers variables operation fuel source result)
     (zero : result.totalErrors = 0) (containers : Bool)
     : let completed :=
@@ -85,7 +85,7 @@ theorem queryOutcome_source_equivalent
   | false =>
       simp only [applies, Bool.false_eq_true, ↓reduceIte] at witnessed
       subst result
-      simp [QueryResult.totalErrors] at zero
+      simp [ExecutionObservation.totalErrors] at zero
   | true =>
       simp only [applies, ↓reduceIte] at witnessed
       obtain ⟨data, basic, entries⟩ := root_source_entries schema resolvers

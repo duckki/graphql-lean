@@ -20,9 +20,10 @@ theorem TaskCancelled.healthy_producer_unavailable
     (cancelled : TaskCancelled work failed occurrence)
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
     (healthy : ¬NodeFailed work failed key)
-    : ∃ parent,
-        producer = some parent
-        ∧ (parent ∈ failed ∨ TaskCancelled work failed parent) := by
+    : ∃ producerOccurrence,
+        producer = some producerOccurrence
+        ∧ (producerOccurrence ∈ failed
+            ∨ TaskCancelled work failed producerOccurrence) := by
   cases cancelled with
   | owners projected _ failures =>
       obtain ⟨birth, result, task⟩ := projected
@@ -35,26 +36,27 @@ theorem TaskCancelled.healthy_producer_unavailable
       exact ⟨_, (TaskAt.unique known task).2.1, Or.inr cancellation⟩
 
 /-- Each group descriptor comes from a contributing deferred task with the same producer.
-Witness: its structural deferred boundary; repeated descriptors remain visible.
+Witness: its structural execution-group boundary; repeated descriptors remain visible.
 -/
-theorem NodeAt.group_task {work node parents producer}
-    (known : NodeAt work node .group parents producer)
+theorem NodeAt.group_task {work node dependencies producer}
+    (known : NodeAt work node .group dependencies producer)
     : ∃ occurrence owners payload,
         TaskAt work occurrence owners producer payload ∧ node.key ∈ owners := by
   cases StructuralEquivalence.nodeAt_of_current known with
   | group located member =>
-      exact ⟨_, _, _, .deferred located.toCurrent,
+      exact ⟨_, _, _, .executionGroup located.toCurrent,
         List.mem_map_of_mem (f := fun group : DeferredFragment => group.node.key) member⟩
 
 /-- Every contributing owner of a deferred task has a group descriptor at its producer.
 Witness: select the corresponding fragment from that task's owner map.
 -/
-theorem TaskAt.deferred_owner {work address owners producer payload key}
-    (known : TaskAt work (.deferred address) owners producer payload)
+theorem TaskAt.executionGroup_owner {work address owners producer payload key}
+    (known : TaskAt work (.executionGroup address) owners producer payload)
     (member : key ∈ owners)
-    : ∃ node parents, NodeAt work node .group parents producer ∧ node.key = key := by
+    : ∃ node dependencies,
+        NodeAt work node .group dependencies producer ∧ node.key = key := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       obtain ⟨group, included, same⟩ := List.mem_map.mp member
       exact ⟨group.node, _, .group located.toCurrent included, same⟩
 
@@ -68,9 +70,9 @@ unavailable, triggering group failure. Kind separation prevents an empty stream 
 with the same raw key from invalidating that argument; no uniqueness of producers is used.
 -/
 theorem NodeAccounted.group_published
-    {work matching events failed node parents producer}
+    {work matching events failed node dependencies producer}
     (accounted : NodeAccounted work matching events failed node.key)
-    (known : NodeAt work node .group parents producer)
+    (known : NodeAt work node .group dependencies producer)
     (groupsOnly
       : ∀ other kind dependencies birth,
           NodeAt work other kind dependencies birth
@@ -86,8 +88,9 @@ theorem NodeAccounted.group_published
   intro absent
   have unavailable {other dependencies birth}
       (descriptor : NodeAt work other .group dependencies birth) (same : other.key = node.key)
-      : ∃ parent, birth = some parent
-          ∧ (parent ∈ failed ∨ TaskCancelled work failed parent) := by
+      : ∃ producerOccurrence, birth = some producerOccurrence
+          ∧ (producerOccurrence ∈ failed
+            ∨ TaskCancelled work failed producerOccurrence) := by
     obtain ⟨occurrence, owners, payload, task, member⟩ := descriptor.group_task
     have contributes : node.key ∈ owners := same ▸ member
     rcases accounted occurrence owners ⟨birth, payload, task⟩ contributes with cancelled | published
@@ -98,10 +101,11 @@ theorem NodeAccounted.group_published
   · intro other kind dependencies descriptor same
     have group := groupsOnly other kind dependencies none descriptor same
     subst kind
-    obtain ⟨parent, impossible, _⟩ := unavailable descriptor same
+    obtain ⟨producerOccurrence, impossible, _⟩ := unavailable descriptor same
     cases impossible
-  · intro other kind dependencies parent descriptor same notFailed
-    have group := groupsOnly other kind dependencies (some parent) descriptor same
+  · intro other kind dependencies producerOccurrence descriptor same notFailed
+    have group := groupsOnly other kind dependencies (some producerOccurrence)
+      descriptor same
     subst kind
     obtain ⟨otherParent, equal, failed | cancelled⟩ := unavailable descriptor same
     · exact False.elim (notFailed (Option.some.inj equal ▸ failed))
@@ -115,8 +119,10 @@ theorem Explains.published_producer
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
     (published : Published matching events occurrence)
-    : ∀ parent, producer = some parent → Published matching events parent := by
-  intro parent generated
+    : ∀ producerOccurrence,
+        producer = some producerOccurrence
+        → Published matching events producerOccurrence := by
+  intro producerOccurrence generated
   subst producer
   obtain ⟨index, event, selected, value, same⟩ := published
   obtain ⟨earlier, previous, _, atEarlier, publishes, matched⟩ :=

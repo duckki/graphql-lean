@@ -40,8 +40,8 @@ def result (paths : α → List ResponsePath) : Result α → List ResponsePath
 
 def work (containers : Bool) : Work → List ResponsePath
   | .empty | .stream .. => []
-  | .append left right => work containers left ++ work containers right
-  | .deferred _ path completed children =>
+  | .combine left right => work containers left ++ work containers right
+  | .executionGroup _ path completed children =>
       result (fields containers path) completed ++ work containers children
 
 def completion (containers : Bool) (paths : α → List ResponsePath)
@@ -52,8 +52,8 @@ def completion (containers : Bool) (paths : α → List ResponsePath)
 /-- One entry per task, not per owning defer ID. Empty/error slices are harmless. -/
 def workSlices (containers : Bool) : Work → List (List ResponsePath)
   | .empty | .stream .. => []
-  | .append left right => workSlices containers left ++ workSlices containers right
-  | .deferred _ path completed children =>
+  | .combine left right => workSlices containers left ++ workSlices containers right
+  | .executionGroup _ path completed children =>
       result (fields containers path) completed :: workSlices containers children
 
 def completionSlices (containers : Bool) (paths : α → List ResponsePath)
@@ -96,7 +96,8 @@ def updateSlices (containers : Bool) (notices : List IncrementalPendingNotice)
 /-- Initial data and subsequently introduced paths, decoded in observable update order.
 This rejects missing IDs and streamed-item patches, but does not validate lifecycles.
 -/
-def querySlices (containers : Bool) : QueryResult → Option (List (List ResponsePath))
+def querySlices (containers : Bool)
+    : ExecutionObservation → Option (List (List ResponsePath))
   | .single response => some [value containers [] response.data]
   | .incremental initial subsequent => do
       let tail ← updateSlices containers initial.pending subsequent

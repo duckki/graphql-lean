@@ -110,7 +110,7 @@ theorem positionUpdates_leaves {notices cursors updates slices final}
 /-- Leaf-only query slices are a sublist of container-inclusive positions, by initial
 value projection and the update-decoder projection theorem.
 -/
-theorem deliversSlices_leaves {result : QueryResult}
+theorem deliversSlices_leaves {result : ExecutionObservation}
     {slices : List (List ResponsePath)} (h : result.DeliversSlices true slices)
     : ∃ leaves,
         result.DeliversSlices false leaves ∧ leaves.flatten.Sublist slices.flatten := by
@@ -124,16 +124,16 @@ theorem deliversSlices_leaves {result : QueryResult}
         by simpa using leaf_value_sublist [] response.data
       ⟩
   | incremental initial subsequent =>
-      obtain ⟨tail, final, ht, rfl⟩ := QueryResult.deliversSlices_incremental_iff.mp h
+      obtain ⟨tail, final, ht, rfl⟩ := ExecutionObservation.deliversSlices_incremental_iff.mp h
       obtain ⟨leaves, hl, hs⟩ := positionUpdates_leaves ht
       refine ⟨value false [] initial.data :: leaves,
-        QueryResult.deliversSlices_incremental_iff.mpr ⟨leaves, final, hl, rfl⟩, ?_⟩
+        ExecutionObservation.deliversSlices_incremental_iff.mpr ⟨leaves, final, hl, rfl⟩, ?_⟩
       exact (leaf_value_sublist [] initial.data).append hs
 
 /-- Leaf-only slices inherit global uniqueness from container-inclusive slices, by
 the decoded-position sublist theorem.
 -/
-theorem deliversSlices_leaves_nodup {result : QueryResult}
+theorem deliversSlices_leaves_nodup {result : ExecutionObservation}
     {slices : List (List ResponsePath)} (h : result.DeliversSlices true slices)
     (hn : slices.flatten.Nodup)
     : ∃ leaves, result.DeliversSlices false leaves ∧ leaves.flatten.Nodup := by

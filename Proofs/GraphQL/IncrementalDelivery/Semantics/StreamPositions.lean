@@ -75,8 +75,10 @@ theorem DeliveryTrace.decodeUpdates_cons_iff
 /-- Incremental slices consist of initial positions and successfully decoded updates,
 by the query decoder's single Option bind.
 -/
-theorem QueryResult.deliversSlices_incremental_iff {containers initial subsequent slices}
-    : (QueryResult.incremental initial subsequent).DeliversSlices containers slices
+theorem ExecutionObservation.deliversSlices_incremental_iff
+    {containers initial subsequent slices}
+    : (ExecutionObservation.incremental initial subsequent).DeliversSlices containers
+        slices
       ↔ ∃ tail final,
           DeliveryTrace.decodeUpdates containers initial.pending
               (listCursors [] initial.data) subsequent
@@ -98,7 +100,7 @@ namespace GraphQL.IncrementalDelivery.Semantics.StreamPositions
 open GraphQL.IncrementalDelivery.Execution
 
 /-- A fixed observed response has at most one slice list, by Option output equality. -/
-theorem deliversSlices_unique {containers : Bool} {result : QueryResult}
+theorem deliversSlices_unique {containers : Bool} {result : ExecutionObservation}
     {left right : List (List ResponsePath)}
     (hl : result.DeliversSlices containers left)
     (hr : result.DeliversSlices containers right)

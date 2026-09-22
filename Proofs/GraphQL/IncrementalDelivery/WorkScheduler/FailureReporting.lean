@@ -9,17 +9,17 @@ open GraphQL.IncrementalDelivery.Execution
 /-- One structural occurrence has one owner list, producer, and payload; witness:
 uniqueness of the location lookup and, for stream items, the item lookup.
 -/
-theorem TaskAt.unique {work occurrence owners producer payload more parent other}
+theorem TaskAt.unique {work occurrence owners producer payload more otherProducer other}
     (left : TaskAt work occurrence owners producer payload)
-    (right : TaskAt work occurrence more parent other)
-    : owners = more ∧ producer = parent ∧ payload = other := by
+    (right : TaskAt work occurrence more otherProducer other)
+    : owners = more ∧ producer = otherProducer ∧ payload = other := by
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, rfl, rfl⟩ := left
       obtain ⟨groups', path', result', children', enclosing', located', rfl, rfl⟩ :=
         right
       have same := Option.some.inj (located.symm.trans located')
-      simp only [WorkLocation.mk.injEq, Work.deferred.injEq] at same
+      simp only [WorkLocation.mk.injEq, Work.executionGroup.injEq] at same
       rcases same with ⟨⟨rfl, rfl, rfl, rfl⟩, rfl, rfl⟩
       exact ⟨rfl, rfl, rfl⟩
   | item address index =>
@@ -43,7 +43,7 @@ theorem FailureWitness.open_owner {work initial events failures cut occurrence}
     {owners producer payload} (known : TaskAt work occurrence owners producer payload)
     : ∃ key ∈ owners, Open initial (events.take cut) key := by
   obtain ⟨before, after, equal⟩ := List.mem_iff_append.mp member
-  obtain ⟨more, parent, other, task, _, _, key, owner, opened⟩ :=
+  obtain ⟨more, otherProducer, other, task, _, _, key, owner, opened⟩ :=
     (h before cut occurrence after equal).2.2.1
   obtain ⟨rfl, _, _⟩ := known.unique task
   exact ⟨key, owner, opened⟩
@@ -74,7 +74,7 @@ theorem NodeErrors.contribution_le
     (known : TaskAt work occurrence owners producer payload) (owner : key ∈ owners)
     : payload.failure.getD 0 ≤ errors := by
   obtain ⟨contribution, counts, rfl⟩ := h
-  obtain ⟨more, parent, other, task, counted⟩ := counts occurrence member
+  obtain ⟨more, otherProducer, other, task, counted⟩ := counts occurrence member
   obtain ⟨rfl, rfl, rfl⟩ := known.unique task
   have same : contribution occurrence = payload.failure.getD 0 := by
     simpa [owner] using counted
@@ -283,10 +283,10 @@ theorem AdmissibleRun.tasks_succeed_of_no_failure_errors {work history}
     | nil => rfl
     | cons entry rest =>
         rcases entry with ⟨cut, task⟩
-        obtain ⟨more, parent, other, located, fails, _⟩ :=
+        obtain ⟨more, otherProducer, other, located, fails, _⟩ :=
           (explained.2.1 [] cut task rest rfl).2.2.1
-        have nonzero := positive task more parent other located fails
-        have bound := counts cut task more parent other (by simp) located
+        have nonzero := positive task more otherProducer other located fails
+        have bound := counts cut task more otherProducer other (by simp) located
         omega
   subst failures
   rcases done.1 occurrence owners producer payload known with cancelled | published

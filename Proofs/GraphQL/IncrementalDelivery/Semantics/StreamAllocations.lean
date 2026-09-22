@@ -11,8 +11,8 @@ open GraphQL.IncrementalDelivery.Execution
 
 def streamAllocationKeys : Work → List Nat
   | .empty => []
-  | .append left right => streamAllocationKeys left ++ streamAllocationKeys right
-  | .deferred _ _ _ children => streamAllocationKeys children
+  | .combine left right => streamAllocationKeys left ++ streamAllocationKeys right
+  | .executionGroup _ _ _ children => streamAllocationKeys children
   | .stream node items =>
       node.key :: items.flatMap (fun item => streamAllocationKeys item.2)
 termination_by work => sizeOf work
@@ -91,13 +91,13 @@ theorem streams_empty_of_le {start finish : Nat} (h : start ≤ finish)
 theorem streams_empty (state : Nat) : StreamAllocated state .empty state :=
   streams_empty_of_le (Nat.le_refl _)
 
-theorem streams_append {start middle finish : Nat} {left right : Work}
+theorem streams_combine {start middle finish : Nat} {left right : Work}
     (hl : StreamAllocated start left middle) (hr : StreamAllocated middle right finish)
-    : StreamAllocated start (.append left right) finish := by
+    : StreamAllocated start (.combine left right) finish := by
   rw [StreamAllocated, streamAllocationKeys]
   exact hl.append hr
 
-theorem streams_combine {start middle finish : Nat} (f : α → β → γ)
+theorem streams_completionCombine {start middle finish : Nat} (f : α → β → γ)
     (left : Completion α) (right : Completion β)
     (hl : StreamAllocated start left.work middle)
     (hr : StreamAllocated middle right.work finish)
@@ -107,7 +107,7 @@ theorem streams_combine {start middle finish : Nat} (f : α → β → γ)
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)
   · exact streams_empty_of_le (Nat.le_trans hl.monotone hr.monotone)
-  · exact streams_append hl hr
+  · exact streams_combine hl hr
 
 theorem streams_map {start finish : Nat} (f : α → β) (completed : Completion α)
     (h : StreamAllocated start completed.work finish)

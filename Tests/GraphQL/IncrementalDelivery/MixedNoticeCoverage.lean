@@ -13,7 +13,7 @@ def node (key : Nat) : DeliveryNode := { key, path := [] }
 
 /-- One shared task accounts for both owners and reveals an empty stream. -/
 def work : Work :=
-  .deferred [{ node := node 0 }, { node := node 1, ancestors := [node 0] }]
+  .executionGroup [{ node := node 0 }, { node := node 1, ancestors := [node 0] }]
     [] (.ok ([], 0)) (.stream (node 2) [])
 
 /-- Key one retains its ancestor; the stream's dependencies come from structural owners.
@@ -21,7 +21,7 @@ def work : Work :=
 def ancestry (key : Nat) : Keys := if key = 1 then [0] else []
 
 /-- This fixture has one publication occurrence, independent of its chosen owner. -/
-def matching (_ : Nat) : Occurrence := .deferred []
+def matching (_ : Nat) : Occurrence := .executionGroup []
 
 /-- The publication reports the shared selection using the announced root owner. -/
 def value : WorkEvent := .groupValues (node 0) [{ path := [], data := [] }]
@@ -34,7 +34,7 @@ theorem located_work {address current producer owners}
     : (address = [] ∧ current = work ∧ producer = none ∧ owners = [])
       ∨ (address = [0]
           ∧ current = .stream (node 2) []
-          ∧ producer = some (.deferred [])
+          ∧ producer = some (.executionGroup [])
           ∧ owners = [0, 1]) := by
   cases address with
   | nil => simp_all [Located, locateWork, locateWork.go, WorkLocation.mk.injEq]
@@ -57,7 +57,7 @@ theorem node_work {other kind parents birth}
       ∨ (other = node 2
           ∧ kind = .stream
           ∧ parents = [0, 1]
-          ∧ birth = some (.deferred [])) := by
+          ∧ birth = some (.executionGroup [])) := by
   cases kind with
   | group =>
       obtain ⟨address, groups, path, result, children, enclosing, group,
@@ -73,9 +73,9 @@ Witness: structural task lookup at the only two possible work locations.
 -/
 theorem task_work {occurrence owners producer payload}
     (known : TaskAt work occurrence owners producer payload)
-    : occurrence = .deferred [] := by
+    : occurrence = .executionGroup [] := by
   cases StructuralEquivalence.taskAt_of_current known with
-  | deferred located =>
+  | executionGroup located =>
       rcases located_work located.toCurrent with h | h <;> simp_all [work]
   | item located selected =>
       rcases located_work located.toCurrent with h | h <;> simp_all [work]
@@ -106,7 +106,7 @@ Witness: valid initialization and absence of prior publications or causal failur
 -/
 theorem initial_ready
     : Explains work [node 0] [] [] matching []
-      ∧ CanPublish work matching [] [] (.deferred []) none :=
+      ∧ CanPublish work matching [] [] (.executionGroup []) none :=
   ⟨
     ⟨initialized, by simp [FailureWitness], by simp⟩,
     by refine ⟨by simp [Published], fun failed => failed.nonempty rfl, by simp, trivial⟩
@@ -121,10 +121,10 @@ theorem initial_covered : NoticesCovered work [0] matching [] [] := by
     | ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
   · exact eligible.1 (by simp [node, announcedKeys, pendingKeys])
   · exact ready_owner_dependency_unsatisfied initial_ready.1
-      (show TaskAt work (.deferred []) [0, 1] none (.object [] (.ok ([], 0)))
-        from .deferred .root) (by simp : 0 ∈ [0, 1]) initial_ready.2
+      (show TaskAt work (.executionGroup []) [0, 1] none (.object [] (.ok ([], 0)))
+        from .executionGroup .root) (by simp : 0 ∈ [0, 1]) initial_ready.2
       (by simpa [node, failedBefore] using eligible.2.2.2.2 0 (by simp))
-  · have impossible := eligible.2.2.2.1 (.deferred []) rfl
+  · have impossible := eligible.2.2.2.1 (.executionGroup []) rfl
     simp [Published] at impossible
 
 /-- The actual shared object publication is admitted using the single open owner.
@@ -132,7 +132,7 @@ Witness: the event rule and equal response-path lengths for all potential owners
 -/
 theorem published : Explains work [node 0] [] [value] matching [] := by
   apply initial_ready.1.append_event
-  refine ⟨[0, 1], none, [], [], 0, rfl, .deferred .root, initial_ready.2, ?_⟩
+  refine ⟨[0, 1], none, [], [], 0, rfl, .executionGroup .root, initial_ready.2, ?_⟩
   refine ⟨
     ⟨
       ⟨.group, [], none, .group (group := { node := node 0 }) .root (by simp)⟩,
@@ -153,8 +153,8 @@ Witness: its producer has published and its unannounced co-owner is accounted fo
 -/
 theorem stream_eligible
     : CanAnnounce work [0] matching [value] [] (node 2) .stream
-        [0, 1] (some (.deferred [])) := by
-  have output : Published matching [value] (.deferred []) := ⟨0, value, rfl, trivial, rfl⟩
+        [0, 1] (some (.executionGroup [])) := by
+  have output : Published matching [value] (.executionGroup []) := ⟨0, value, rfl, trivial, rfl⟩
   refine ⟨
     by simp [node, announcedKeys, pendingKeys, value, eventPending],
     fun failed => failed.nonempty rfl,
@@ -176,8 +176,8 @@ Witness: the produced stream is eligible, but object publications carry no notic
 -/
 example : ¬NoticesCovered work [0] matching [value] [] := by
   intro covered
-  exact covered (node 2) .stream [0, 1] (some (.deferred []))
-    (NodeAt.stream (.deferred .root)) stream_eligible
+  exact covered (node 2) .stream [0, 1] (some (.executionGroup []))
+    (NodeAt.stream (.executionGroup .root)) stream_eligible
 
 /-- Key zero remains an open, unsatisfied dependency after publication.
 Witness: it is represented and announced but has no completion entry yet.
@@ -195,7 +195,7 @@ Witness: either selected co-owner requires key zero itself or its unsatisfied an
 -/
 theorem stream_not_supported
     : ¬SupportedNotice ancestry work [0] matching [value] []
-        (node 2) .stream [0, 1] (some (.deferred [])) := by
+        (node 2) .stream [0, 1] (some (.executionGroup [])) := by
   intro supported
   rcases supported.2 rfl with impossible | ⟨key, member, dependency, ancestors⟩
   · cases impossible
@@ -214,7 +214,7 @@ theorem published_supported
     intro occurrence owners projected _
     obtain ⟨producer, payload, known⟩ := projected
     exact Or.inr (task_work known ▸
-      (show Published matching [value] (.deferred []) from ⟨0, value, rfl, trivial, rfl⟩))
+      (show Published matching [value] (.executionGroup []) from ⟨0, value, rfl, trivial, rfl⟩))
   intro other kind parents birth known supported
   rcases node_work known with ⟨rfl, rfl, rfl, rfl⟩
     | ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩

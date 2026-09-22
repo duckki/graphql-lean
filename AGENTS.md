@@ -48,6 +48,8 @@ execution returns the initial incremental result and a resumable `ResponseEventS
 `Response` remains the ordinary data/errors map shared with `GraphQL.Execution.Response`.
 `ExecutionResult` is the generalized query return type: ordinary response or incremental
 stream. This model name is broader than Section 7's ordinary execution-result map.
+`ExecutionObservation` is the separate finite materialization used by correctness:
+it stores the updates observed so far and may be an interrupted prefix or complete outcome.
 `EventSource` stores opaque admissible/finished predicates and the observed history, not
 a selected future trace. This partial state can admit multiple next observations.
 `ResponseEventStream.next` accepts available batches with an admissibility premise and updates
@@ -103,6 +105,9 @@ The pinned spec leaves CreateWorkQueue undefined. The accounting/release rules
 complete that gap and must not be described as normative spec pseudocode. In particular,
 any inadequacy of this contract should become a counterexample or missing assumption,
 not be hidden by filtering on lifecycle, disjointness, or merge success.
+`SharedGroupValue`, `selectGroupOwner`, and `normalizeGroupValues` are proof-side
+GraphQL.js adapter definitions in `OwnerNormalization`; they are not public execution or
+scheduler definitions.
 
 Work admission is now defined directly over output histories. `ValidHistory` combines
 prefix/run admission; `AdmissibleNext` permits a nonempty extension of a valid nonterminal
@@ -123,11 +128,13 @@ cases; the redundant `ProducerUnavailable` judgment is removed from the public m
 The public failure/cancellation predicates wrap the small `Causality` inductive kernel.
 `Reachable` is a single structural inductive outside that namespace, beside the task
 and node projections; it has no separate public wrapper.
-`TaskHasOwners`, `TaskHasProducer`, `TaskSucceeds`, `NodeHasParents`, and `NodeHasProducer`
+`TaskHasOwners`, `TaskHasProducer`, `TaskSucceeds`, `NodeHasDependencies`, and `NodeHasProducer`
 factor its structural premises without adding invariants or scheduler state.
 `NodeAccounted` and `DependencySatisfied` reuse these projections; `EventAccounting`
 checks their equivalence to the full-descriptor conditions. Owner selection and notices
 still inspect full node metadata. Address traversal uses `do` notation.
+`NodeAt` dependency keys are defer ancestors for groups and enclosing defer owners for
+streams; structural generation remains the separate singular `producer` relation.
 `DependencySatisfied` and `CanAnnounce` name dependency satisfaction and notice readiness.
 Question-based section banners separate structural, causal, and observation facts.
 Successful silent completions and synthetic stream-end tasks are abstracted away.
@@ -142,14 +149,14 @@ additionally accounts for work and emits termination. `queryObservation` covers 
 `specificationScheduler` requires an explicit initialization choice. There is no canonical
 query `.toTrace` or default deterministic scheduler.
 
-`Correctness.lean` defines `QueryResult.DeliversSlices` by successful deterministic
-`QueryResult.decodeSlices` output. Public `DeliveryTrace.decodePatch`, `decodePatches`,
+`Correctness.lean` defines `ExecutionObservation.DeliversSlices` by successful deterministic
+`ExecutionObservation.decodeSlices` output. Public `DeliveryTrace.decodePatch`, `decodePatches`,
 and `decodeUpdates` replace the former inductive position relations; they replay supplied
 wire observations using causal notices and list cursors. Work admission stays relational.
 The redundant defer-only position relation and unused stream-free domain are removed.
 One Boolean `DeliveryTrace.idUsageValid` checker underlies both prefix ID safety and
 complete lifecycle validity. Lifecycle additionally checks closure and hasNext flags.
-Reconstruction modifies data only and obtains its error count from `QueryResult.totalErrors`.
+Reconstruction modifies data only and obtains its error count from `ExecutionObservation.totalErrors`.
 No correctness property is added to scheduler admission by this simplification.
 
 ### Current proof and build status

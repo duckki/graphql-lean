@@ -93,7 +93,7 @@ mutual
           parentType source rest path usages deferMap middle _ (hm.extend he hle)
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
-          workAt_combine final _ List.append _ _ (hw.extend het hlt) hwt⟩
+          workAt_completionCombine final _ List.append _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 4, 0, sizeOf groups)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -257,7 +257,7 @@ mutual
           itemType fields rest path (index + 1) usages deferMap middle _ (hm.extend he hle)
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle,
-          workAt_combine final _ List.cons _ _ (hw.extend het hlt) hwt⟩
+          workAt_completionCombine final _ List.cons _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

@@ -49,7 +49,7 @@ mutual
         (fun p hp => ⟨(hpp p hp).1, (hpp p hp).2.1, (hpp p hp).2.2.1⟩)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
       exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
-        workAt_append (hw.extend het hlt) hwt⟩
+        workAt_combine (hw.extend het hlt) hwt⟩
   termination_by (fuel, 6, 0, 0)
   decreasing_by
     all_goals simp_wf
@@ -96,7 +96,8 @@ mutual
           ((executeCollectedFields schema resolvers variables fuel parentType source groups path usages deferMap).run state).1.result
           _ ((hm.extend he hle).extend het hlt) hl hpart.1 hpart.2.1 (hw.extend het hlt)
         simp only [collectExecutionGroups, executeExecutionGroup, run_bind, StateT.run_pure, id_pure_eq]
-        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv, workAt_append hf hwt⟩
+        exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
+          workAt_combine hf hwt⟩
   termination_by (fuel, 5, 0, sizeOf partitions)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -135,7 +136,7 @@ mutual
           (fun g hg => hu g (List.mem_cons_of_mem _ hg))
         simp only [executeCollectedFields_cons, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
-          workAt_combine final lower _ List.append _ _ (hw.extend het hlt) hwt⟩
+          workAt_completionCombine final lower _ List.append _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 4, 0, sizeOf groups)
   decreasing_by
     all_goals subst_vars; simp_wf
@@ -302,7 +303,7 @@ mutual
           have heall := hea.trans het (Nat.le_succ middleState)
           simp only [freshExecutionKey, run_bind, StateT.run_get, StateT.run_set, StateT.run_pure, id_pure_eq]
           refine ⟨by dsimp only [middleState] at *; omega, final, he.trans heall hle, hfv, ?_⟩
-          apply workAt_append (workAt_catchNull final lower _ _ _
+          apply workAt_combine (workAt_catchNull final lower _ _ _
             (hw.extend heall (by dsimp only [middleState] at *; omega)))
           rw [WorkAt]
           exact ⟨Nat.le_trans hls hle, by dsimp only [middleState] at *; omega, hitems⟩
@@ -338,7 +339,7 @@ mutual
           (fieldsKnown_extend hk he hle) hu
         simp only [completeListValue, run_bind, StateT.run_pure, id_pure_eq]
         exact ⟨Nat.le_trans hle hlt, final, he.trans het hle, hfv,
-          workAt_combine final lower _ List.cons _ _ (hw.extend het hlt) hwt⟩
+          workAt_completionCombine final lower _ List.cons _ _ (hw.extend het hlt) hwt⟩
   termination_by (fuel, 2, sizeOf itemType, sizeOf values)
   decreasing_by
     all_goals subst_vars; simp_wf

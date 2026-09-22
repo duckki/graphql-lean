@@ -14,8 +14,10 @@ open GraphQL.IncrementalDelivery.Execution
 /-- An open node whose tasks are accounted for has a permitted completion. Witness:
 success when healthy, or its finite contribution sum when failed; neither adds notices.
 -/
-theorem completion_exists {work initial matching events failed node kind parents birth}
-    (known : NodeAt work node kind parents birth) (opened : Open initial events node.key)
+theorem completion_exists
+    {work initial matching events failed node kind dependencies birth}
+    (known : NodeAt work node kind dependencies birth)
+    (opened : Open initial events node.key)
     (accounted : NodeAccounted work matching events failed node.key)
     (failuresKnown
       : ∀ occurrence ∈ failed,
@@ -30,20 +32,26 @@ theorem completion_exists {work initial matching events failed node kind parents
   · obtain ⟨errors, counted⟩ := NodeErrors.exists failuresKnown node.key
     cases kind with
     | group => exact ⟨.groupFailure node errors,
-        ⟨⟨parents, birth, known⟩, opened, failure, counted⟩, rfl, rfl, id⟩
+        ⟨⟨dependencies, birth, known⟩, opened, failure, counted⟩, rfl, rfl, id⟩
     | stream => exact ⟨.streamFailure node errors,
-        ⟨⟨parents, birth, known⟩, opened, failure, counted⟩, rfl, rfl, id⟩
+        ⟨⟨dependencies, birth, known⟩, opened, failure, counted⟩, rfl, rfl, id⟩
   · cases kind with
     | group =>
         exact ⟨
           .groupSuccess node [] [],
-          ⟨⟨parents, birth, known⟩, opened, failure, accounted, by simp [Announcements]⟩,
+          ⟨
+            ⟨dependencies, birth, known⟩,
+            opened,
+            failure,
+            accounted,
+            by simp [Announcements]
+          ⟩,
           rfl,
           rfl,
           id
         ⟩
     | stream => exact ⟨.streamSuccess node,
-        ⟨⟨parents, birth, known⟩, opened, failure, accounted⟩, rfl, rfl, id⟩
+        ⟨⟨dependencies, birth, known⟩, opened, failure, accounted⟩, rfl, rfl, id⟩
 
 /-- A notice-free completion removes exactly its key from the open frontier. Witness:
 append equations for announcement and completion projections.
@@ -121,7 +129,7 @@ theorem Explains.close_accounted_keys {work groups streams events matching failu
           exact List.mem_cons_of_mem _ (selected member)
       · have opened : Open ((groups ++ streams).map DeliveryNode.key) events key :=
           ⟨announced key (by simp), closed⟩
-        obtain ⟨node, kind, parents, birth, known, same⟩ :=
+        obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
           explained.noticeFacts.supported key opened.1
         obtain ⟨event, allowed, pending, completed, control⟩ := completion_exists known
           (same ▸ opened) (same ▸ accounted key (by simp)) explained.2.1.known
@@ -182,7 +190,7 @@ theorem Explains.close_open_keys {work groups streams events matching failures}
         exact False.elim (List.not_mem_nil (covers key opened))
   | cons key rest ih =>
       by_cases opened : Open ((groups ++ streams).map DeliveryNode.key) events key
-      · obtain ⟨node, kind, parents, birth, known, same⟩ :=
+      · obtain ⟨node, kind, dependencies, birth, known, same⟩ :=
           explained.noticeFacts.supported key opened.1
         have nodeAccounted : NodeAccounted work matching events (failures.map Prod.snd)
             node.key := by
@@ -255,7 +263,7 @@ theorem Explains.finish_accounted {work groups streams events matching failures}
     fun occurrence owners producer payload task =>
       (accounted occurrence owners producer payload task).append tail
   refine ⟨finalAccounting, ?_⟩
-  intro node kind parents birth _
+  intro node kind dependencies birth _
   by_cases announced : node.key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key)
       (events ++ tail)
   · exact Or.inl (closed node.key announced)

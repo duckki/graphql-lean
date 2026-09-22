@@ -13,17 +13,17 @@ theorem NodeFailed.nonempty {work failed key} (h : NodeFailed work failed key)
   induction h using Causality.NodeFailed.rec (motive_2 := fun _ _ => failed ≠ []) with
   | task _ _ member =>
       intro empty; simp [empty] at member
-  | groupParent _ _ _ ih => exact ih
-  | streamParents _ nonempty _ ih =>
+  | groupDependency _ _ _ ih => exact ih
+  | streamDependencies _ nonempty _ ih =>
       obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
       exact ih key member
   | producers known noRoot _ ih =>
       obtain ⟨birth, known⟩ := known
       cases birth with
       | none => exact False.elim (noRoot known)
-      | some parent =>
+      | some producerOccurrence =>
           intro empty
-          exact ih parent known (by simp [empty]) empty
+          exact ih producerOccurrence known (by simp [empty]) empty
   | owners _ nonempty _ ih =>
       obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
       exact ih key member
@@ -40,17 +40,17 @@ theorem TaskCancelled.nonempty {work failed occurrence}
   induction h using Causality.TaskCancelled.rec (motive_1 := fun _ _ => failed ≠ []) with
   | task _ _ member =>
       intro empty; simp [empty] at member
-  | groupParent _ _ _ ih => exact ih
-  | streamParents _ nonempty _ ih =>
+  | groupDependency _ _ _ ih => exact ih
+  | streamDependencies _ nonempty _ ih =>
       obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
       exact ih key member
   | producers known noRoot _ ih =>
       obtain ⟨birth, known⟩ := known
       cases birth with
       | none => exact False.elim (noRoot known)
-      | some parent =>
+      | some producerOccurrence =>
           intro empty
-          exact ih parent known (by simp [empty]) empty
+          exact ih producerOccurrence known (by simp [empty]) empty
   | owners _ nonempty _ ih =>
       obtain ⟨key, member⟩ := List.exists_mem_of_ne_nil _ nonempty
       exact ih key member

@@ -11,12 +11,13 @@ open Semantics.Ancestry Semantics.GeneralScheduling
 open WorkScheduler
 
 -----------------------------------------------------------------------------------------
--- Least outstanding owners have full support, including stream-parent ancestry
+-- Least outstanding owners have full support, including stream-dependency ancestry
 -----------------------------------------------------------------------------------------
 
 /-- A least outstanding healthy owner is supported once smaller healthy keys satisfy
 dependencies. Witness: ordinary eligibility plus, for streams, the selected defer
-parent's strict, healthy ancestry. This excludes merely early silent-accounting notices.
+dependency's strict, healthy ancestry. This excludes merely early silent-accounting
+notices.
 -/
 theorem least_owner_supported
     {ancestry bound work initial matching events failed occurrence owners producer payload
@@ -43,17 +44,17 @@ theorem least_owner_supported
   rcases eligible.2.2.2.2 with empty | ⟨key, contributes, dependency⟩
   · exact Or.inl empty
   · obtain ⟨group, parents, birth, groupKnown, same⟩ :=
-      stream_parent_group descriptor contributes
+      stream_dependency_group descriptor contributes
     refine Or.inr ⟨key, contributes, dependency, ?_⟩
     intro ancestor included
-    have full := DeferOnly.node_parents coherent groupKnown
-    have parentMember : ancestor ∈ parents := by simpa only [full, same] using included
+    have full := DeferOnly.node_dependencies coherent groupKnown
+    have dependencyMember : ancestor ∈ parents := by simpa only [full, same] using included
     apply smaller ancestor
-    · have before := coherent_group_parents valid coherent groupKnown ancestor parentMember
-      have below := coherent_stream_parents ordered descriptor key contributes
+    · have before := coherent_group_dependencies valid coherent groupKnown ancestor dependencyMember
+      have below := coherent_stream_dependencies ordered descriptor key contributes
       simpa only [same] using Nat.lt_trans before (same ▸ below)
     · intro failed
-      exact dependency.1 (same ▸ NodeFailed.groupParent groupKnown parentMember failed)
+      exact dependency.1 (same ▸ NodeFailed.groupDependency groupKnown dependencyMember failed)
 
 -----------------------------------------------------------------------------------------
 -- A maximal supported history accounts for every task
@@ -182,7 +183,7 @@ theorem mixed_completeRun_exists
   obtain ⟨groups, streams, initialized⟩ :=
     initialization_exists valid coherent continuous ordered nonempty
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
-  have initial : Explains work groups streams [] (fun _ => .deferred []) [] :=
+  have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   obtain ⟨batches, run⟩ := mixed_supported_continuation valid coherent roleCoherent
     continuous ordered pathCoherent initial

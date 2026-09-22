@@ -69,7 +69,7 @@ section SuccessfulOutcomes
 
 variable {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
   {variables : VariableValues} {operation : Operation} {fuel : Nat}
-  {source : ResolverValue ObjectRef} {result : QueryResult}
+  {source : ResolverValue ObjectRef} {result : ExecutionObservation}
   (observed : queryOutcome schema resolvers variables operation fuel source result)
   (zero : result.totalErrors = 0)
 
@@ -80,7 +80,7 @@ example : result.executionComplete :=
 /-- Reconstruction requires no separately supplied lifecycle/completeness certificate. -/
 example
     : ∃ response,
-        mergeQueryResult result = some response
+        mergeExecutionObservation result = some response
         ∧ GraphQL.Execution.Response.semanticEquivalent response
             (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
               operation.eraseIncrementalDirectives fuel source) :=

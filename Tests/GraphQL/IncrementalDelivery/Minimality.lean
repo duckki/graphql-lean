@@ -26,7 +26,7 @@ Witness: derived occurrence uniqueness, even when both cuts name a genuinely fai
 -/
 example (events : List WorkEvent)
     : ¬FailureWitness WorkScheduler.failingWork [0] events
-        [(0, .deferred []), (0, .deferred [])] := by
+        [(0, .executionGroup []), (0, .executionGroup [])] := by
   intro witness
   have unique := witness.nodup
   simp at unique
@@ -40,16 +40,16 @@ Witness: provenance, cancellation, producer, item, and owner clauses all still h
 -/
 example
     : let events := [HistoryScheduling.value HistoryScheduling.left]
-      TaskAt HistoryScheduling.shared (.deferred []) [0, 1] none
+      TaskAt HistoryScheduling.shared (.executionGroup []) [0, 1] none
         (.object [] (.ok ([], 0)))
-      ∧ ¬TaskCancelled HistoryScheduling.shared [] (.deferred [])
+      ∧ ¬TaskCancelled HistoryScheduling.shared [] (.executionGroup [])
       ∧ (∀ parent,
           (none : Option Occurrence) = some parent
           → Published HistoryScheduling.matching events parent)
       ∧ Owner HistoryScheduling.shared [0, 1] events [] [0, 1] HistoryScheduling.right
       ∧ ¬CanPublish HistoryScheduling.shared HistoryScheduling.matching events []
-          (.deferred []) none := by
-  refine ⟨.deferred .root, WorkScheduler.noCancellation _ _, by simp, ?_, ?_⟩
+          (.executionGroup []) none := by
+  refine ⟨.executionGroup .root, WorkScheduler.noCancellation _ _, by simp, ?_, ?_⟩
   · exact owner_after_object.mpr (HistoryScheduling.owner _ (by simp))
   · intro ready
     exact ready.1 ⟨0, _, rfl, trivial, rfl⟩
@@ -88,11 +88,11 @@ example
 Witness: the two-error task contributes at least two, so zero cannot satisfy NodeErrors.
 -/
 example
-    : NodeFailed WorkScheduler.failingWork [.deferred []] 0
+    : NodeFailed WorkScheduler.failingWork [.executionGroup []] 0
       ∧ Open [0] [] 0
-      ∧ ¬NodeErrors WorkScheduler.failingWork [.deferred []] 0 0 := by
-  have known : TaskAt WorkScheduler.failingWork (.deferred []) [0] none
-      (.object [] (.error 2)) := .deferred .root
+      ∧ ¬NodeErrors WorkScheduler.failingWork [.executionGroup []] 0 0 := by
+  have known : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+      (.object [] (.error 2)) := .executionGroup .root
   refine ⟨NodeFailed.task known (by simp) (by simp), ?_, ?_⟩
   · simp [Open, announcedKeys, pendingKeys, completedKeys]
   · intro counted
@@ -105,7 +105,7 @@ example
 
 /-- One empty stream supplies legal notices alongside a task with no owning node. -/
 def orphanWork : Work :=
-  .append (.stream WorkScheduler.node []) (.deferred [] [] (.ok ([], 0)) .empty)
+  .combine (.stream WorkScheduler.node []) (.executionGroup [] [] (.ok ([], 0)) .empty)
 
 /-- Only the root append, its two children, and the empty deferred child are located.
 Witness: structural navigation; subtree shape suffices for this boundary example.
@@ -114,12 +114,12 @@ private theorem orphan_locations {address current producer owners}
     (known : Located orphanWork address current producer owners)
     : current = orphanWork
       ∨ current = .stream WorkScheduler.node []
-      ∨ current = .deferred [] [] (.ok ([], 0)) .empty
+      ∨ current = .executionGroup [] [] (.ok ([], 0)) .empty
       ∨ current = .empty := by
   replace known := StructuralEquivalence.located_of_current known
   induction known with
   | root => exact Or.inl rfl
-  | left _ ih | right _ ih | deferred _ ih | item _ _ ih =>
+  | left _ ih | right _ ih | executionGroup _ ih | item _ _ ih =>
       rcases ih with h | h | h | h <;> simp_all [orphanWork]
 
 /-- The ownerless task introduces no node descriptor. Witness: invert node lookup.
@@ -142,7 +142,7 @@ private theorem orphan_accounted
     : NodeAccounted orphanWork WorkScheduler.matching [] [] 0 := by
   rintro occurrence owners ⟨producer, payload, known⟩ member
   cases occurrence with
-  | deferred address =>
+  | executionGroup address =>
       obtain ⟨groups, path, result, children, enclosing, located, _, _⟩ := known
       rcases orphan_locations located with h | h | h | h <;> simp_all [orphanWork]
   | item address index =>
@@ -178,8 +178,8 @@ example
     obtain ⟨rfl, _⟩ := orphan_node known
     exact Or.inl (by simp [completedKeys, eventCompleted])
   · intro terminal
-    have known : TaskAt orphanWork (.deferred [1]) [] none (.object [] (.ok ([], 0))) :=
-      .deferred (.right .root)
+    have known : TaskAt orphanWork (.executionGroup [1]) [] none (.object [] (.ok ([], 0))) :=
+      .executionGroup (.right .root)
     rcases terminal.1 _ _ _ _ known with cancelled | published
     · exact WorkScheduler.noCancellation _ _ cancelled
     · rcases published with ⟨index, event, selected, value, _⟩

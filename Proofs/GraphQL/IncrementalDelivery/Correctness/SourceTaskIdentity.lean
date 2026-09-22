@@ -8,7 +8,7 @@ open WorkScheduler
 
 /-- The work-tree route of an occurrence, omitting a streamed item's local ordinal. -/
 def occurrenceAddress : Occurrence → Address
-  | .deferred address | .item address _ => address
+  | .executionGroup address | .item address _ => address
 
 /-- The occurrence lies at or below the supplied work-tree address. -/
 def SourceTask.Under (address : Address) (task : SourceTask) : Prop :=
@@ -34,12 +34,12 @@ mutual
       : task.Under address := by
     cases work with
     | empty => simp [sourceTasks] at member
-    | append left right =>
+    | combine left right =>
         rw [sourceTasks] at member
         rcases List.mem_append.mp member with member | member
         · exact (sourceTasks_under _ _ _ _ member).parent
         · exact (sourceTasks_under _ _ _ _ member).parent
-    | deferred groups path result children =>
+    | executionGroup groups path result children =>
         rw [sourceTasks] at member
         rcases List.mem_cons.mp member with rfl | member
         · exact ⟨[], by simp [occurrenceAddress]⟩
@@ -137,13 +137,13 @@ mutual
           (fun left right => left.occurrence ≠ right.occurrence) := by
     cases work with
     | empty => exact .nil
-    | append left right =>
+    | combine left right =>
         rw [sourceTasks, List.pairwise_append]
         refine ⟨sourceTasks_unique _ _ _ _, sourceTasks_unique _ _ _ _, ?_⟩
         intro first hf second hs
         exact (sourceTasks_under _ _ _ _ hf).separate
           (sourceTasks_under _ _ _ _ hs) (by decide)
-    | deferred groups path result children =>
+    | executionGroup groups path result children =>
         rw [sourceTasks, List.pairwise_cons]
         refine ⟨?_, sourceTasks_unique _ _ _ _⟩
         intro task member equal

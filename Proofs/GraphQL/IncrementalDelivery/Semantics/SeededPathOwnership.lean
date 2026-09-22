@@ -85,7 +85,7 @@ theorem seeded_combine {pa : α → List ResponsePath} {pb : β → List Respons
           have ho := owns_append hol hor hd hls hrs
           refine ⟨sl ++ sr, ?_, ?_⟩
           · simpa only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
-              resultCursors, hc] using WorkCursorSeed.append
+              resultCursors, hc] using WorkCursorSeed.combine
                 (hsl.append_cursors (cb b)) (hsr.extend hext)
           · simp only [Completion.combine, he, hre, GraphQL.Execution.Result.combine,
               result, hf, List.flatten_append]
@@ -157,37 +157,38 @@ theorem seeded_nonNull {path : ResponsePath} {completed : Completion ResponseVal
         obtain ⟨s, hw, ho⟩ := h
         exact ⟨s, by simpa only [he] using hw, by simpa only [he] using ho⟩
 
-theorem SeedOwnsCompletion.deferred {path : ResponsePath} {scope : ResponsePath → Prop}
-    {completed : Completion (List (Name × ResponseValue))}
+theorem SeedOwnsCompletion.executionGroup {path : ResponsePath}
+    {scope : ResponsePath → Prop} {completed : Completion (List (Name × ResponseValue))}
     (h : SeedOwnsCompletion (fields true path) (fieldCursors path) scope completed)
     (groups : List DeferredFragment)
-    : SeedOwnsWork scope (.deferred groups path completed.result completed.work) := by
+    : SeedOwnsWork scope
+        (.executionGroup groups path completed.result completed.work) := by
   obtain ⟨s, hw, ho⟩ := h
-  exact ⟨_, fun _ => .deferred hw, by simpa only [List.flatten_cons] using ho⟩
+  exact ⟨_, fun _ => .executionGroup hw, by simpa only [List.flatten_cons] using ho⟩
 
-theorem seeded_work_append {sa sb sc : ResponsePath → Prop} {left right : Work}
+theorem seeded_work_combine {sa sb sc : ResponsePath → Prop} {left right : Work}
     (hl : SeedOwnsWork sa left) (hr : SeedOwnsWork sb right)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
-    : SeedOwnsWork sc (.append left right) := by
+    : SeedOwnsWork sc (.combine left right) := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     sl ++ sr,
-    fun c => .append (hsl c) (hsr c),
+    fun c => .combine (hsl c) (hsr c),
     by simpa only [List.flatten_append] using owns_append hol hor hd hls hrs
   ⟩
 
-theorem seeded_appendWork {pa : α → List ResponsePath} {ca : α → Cursors}
+theorem seeded_combineWork {pa : α → List ResponsePath} {ca : α → Cursors}
     {sa sb sc : ResponsePath → Prop} {completed : Completion α} {work : Work}
     (hl : SeedOwnsCompletion pa ca sa completed) (hr : SeedOwnsWork sb work)
     (hd : ∀p, sa p → sb p → False) (hls : ∀p, sa p → sc p) (hrs : ∀p, sb p → sc p)
     : SeedOwnsCompletion pa ca sc
-        {completed with work := .append completed.work work} := by
+        {completed with work := .combine completed.work work} := by
   obtain ⟨sl, hsl, hol⟩ := hl
   obtain ⟨sr, hsr, hor⟩ := hr
   exact ⟨
     sl ++ sr,
-    .append hsl (hsr _),
+    .combine hsl (hsr _),
     by
       simpa only [List.flatten_append, List.append_assoc]
         using owns_append hol hor hd hls hrs
@@ -220,18 +221,20 @@ theorem seeded_combine_fields {path : ResponsePath} {leftNames rightNames : List
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
-theorem seeded_work_append_fields {path : ResponsePath} {leftNames rightNames : List Name}
-    {left right : Work} (hn : (leftNames ++ rightNames).Nodup)
+theorem seeded_work_combine_fields {path : ResponsePath}
+    {leftNames rightNames : List Name} {left right : Work}
+    (hn : (leftNames ++ rightNames).Nodup)
     (hl : SeedOwnsWork (UnderFields path leftNames) left)
     (hr : SeedOwnsWork (UnderFields path rightNames) right)
-    : SeedOwnsWork (UnderFields path (leftNames ++ rightNames)) (.append left right) := by
-  apply seeded_work_append hl hr
+    : SeedOwnsWork (UnderFields path (leftNames ++ rightNames))
+        (.combine left right) := by
+  apply seeded_work_combine hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
   · exact fun _ => underFields_mono (fun _ => List.mem_append_right _)
 
-theorem seeded_appendWork_fields {path : ResponsePath} {leftNames rightNames : List Name}
+theorem seeded_combineWork_fields {path : ResponsePath} {leftNames rightNames : List Name}
     {completed : Completion (List (Name × ResponseValue))} {work : Work}
     (hn : (leftNames ++ rightNames).Nodup)
     (hl
@@ -240,8 +243,8 @@ theorem seeded_appendWork_fields {path : ResponsePath} {leftNames rightNames : L
     (hr : SeedOwnsWork (UnderFields path rightNames) work)
     : SeedOwnsCompletion (fields true path) (fieldCursors path)
         (UnderFields path (leftNames ++ rightNames))
-        {completed with work := .append completed.work work} := by
-  apply seeded_appendWork hl hr
+        {completed with work := .combine completed.work work} := by
+  apply seeded_combineWork hl hr
   · exact fun p hpl hpr => underFields_disjoint
       (fun n hnl hnr => (List.nodup_append.mp hn).2.2 n hnl n hnr rfl) hpl hpr
   · exact fun _ => underFields_mono (fun _ => List.mem_append_left _)
@@ -312,7 +315,7 @@ theorem seeded_streamPrefix {path : ResponsePath} {finish start : Nat}
         {
           initial.catchNull ResponseValue.list with
             work :=
-              .append (initial.catchNull ResponseValue.list).work (.stream node items)
+              .combine (initial.catchNull ResponseValue.list).work (.stream node items)
         } := by
   obtain ⟨sl, hsl, hol⟩ := hi
   obtain ⟨sr, hsr, hor⟩ := ht
@@ -331,7 +334,7 @@ theorem seeded_streamPrefix {path : ResponsePath} {finish start : Nat}
     · exact fun _ hp => Or.inl hp.symm
     · exact fun _ => Or.inr
   refine ⟨sl ++ sr, ?_, ?_⟩
-  · apply WorkCursorSeed.append
+  · apply WorkCursorSeed.combine
     · simpa only [Completion.catchNull, he, resultCursors]
         using hsl.extend (cursorExtends_list_items path data hn)
     · apply WorkCursorSeed.stream (index := start)

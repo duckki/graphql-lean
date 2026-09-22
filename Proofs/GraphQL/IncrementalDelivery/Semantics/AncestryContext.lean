@@ -156,8 +156,8 @@ theorem WorkUnder.extend {parents next : Assignment} {start finish : Nat}
     : WorkUnder next owners work := by
   cases work with
   | empty => trivial
-  | append left right => exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
-  | deferred groups path result children =>
+  | combine left right => exact ⟨h.1.extend hw.1 he hle, h.2.extend hw.2 he hle⟩
+  | executionGroup groups path result children =>
       refine ⟨?_, h.2.extend hw.2.2.2 he hle⟩
       intro group hg
       obtain ⟨owner, ho, hh⟩ := h.1 group hg
@@ -171,8 +171,8 @@ theorem WorkAt.extend {parents next : Assignment} {start finish : Nat} {work : W
     : WorkAt next finish work := by
   cases work with
   | empty => trivial
-  | append left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
-  | deferred groups path result children =>
+  | combine left right => exact ⟨h.1.extend he hle, h.2.extend he hle⟩
+  | executionGroup groups path result children =>
       exact ⟨h.1, fun g hg => (h.2.1 g hg).extend he hle,
         h.2.2.1.extend h.2.2.2 he hle, h.2.2.2.extend he hle⟩
   | stream node items => exact False.elim h
@@ -197,8 +197,8 @@ theorem WorkUnder.mono {parents : Assignment} {bound : Nat} {inner outer : List 
     : WorkUnder parents outer work := by
   cases work with
   | empty => trivial
-  | append left right => exact ⟨h.1.mono hw.1 hv hs, h.2.mono hw.2 hv hs⟩
-  | deferred groups path result children =>
+  | combine left right => exact ⟨h.1.mono hw.1 hv hs, h.2.mono hw.2 hv hs⟩
+  | executionGroup groups path result children =>
       exact ⟨fun group hg => descends_trans hv (hw.2.1 group hg).1 (h.1 group hg) hs,
         h.2.mono hw.2.2.2 hv hs⟩
   | stream node items => exact False.elim h
@@ -230,16 +230,16 @@ theorem output_empty (parents : Assignment) (state : Nat) (owners : List Nat)
     : Output parents state owners .empty state :=
   ⟨Nat.le_refl _, parents, Extends.refl _ _, hv, trivial, Or.inr trivial⟩
 
-theorem scoped_append {parents : Assignment} {owners : List Nat} {left right : Work}
+theorem scoped_combine {parents : Assignment} {owners : List Nat} {left right : Work}
     (hl : Scoped parents owners left) (hr : Scoped parents owners right)
-    : Scoped parents owners (.append left right) := by
+    : Scoped parents owners (.combine left right) := by
   rcases hl with h | hl
   · exact Or.inl h
   rcases hr with h | hr
   · exact Or.inl h
   exact Or.inr ⟨hl, hr⟩
 
-theorem workAt_combine (parents : Assignment) (bound : Nat) (owners : List Nat)
+theorem workAt_completionCombine (parents : Assignment) (bound : Nat) (owners : List Nat)
     (f : α → β → γ) (left : Completion α) (right : Completion β)
     (hl : WorkAt parents bound left.work ∧ Scoped parents owners left.work)
     (hr : WorkAt parents bound right.work ∧ Scoped parents owners right.work)
@@ -248,7 +248,7 @@ theorem workAt_combine (parents : Assignment) (bound : Nat) (owners : List Nat)
   cases hleft : left.result <;> cases hright : right.result <;>
     simp only [Completion.combine, hleft, hright, GraphQL.Execution.Result.combine]
   all_goals first
-  | exact ⟨⟨hl.1, hr.1⟩, scoped_append hl.2 hr.2⟩
+  | exact ⟨⟨hl.1, hr.1⟩, scoped_combine hl.2 hr.2⟩
   | exact ⟨trivial, Or.inr trivial⟩
 
 theorem workAt_map (parents : Assignment) (bound : Nat) (owners : List Nat)
@@ -287,10 +287,10 @@ theorem deferred_workAt (parents : Assignment) (bound : Nat) (deferMap : DeferMa
     (hs : owners = [] ∨ ∀ key ∈ keys, Descends parents owners key)
     (hc : WorkAt parents bound children ∧ Scoped parents keys children)
     : WorkAt parents bound
-        (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+        (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
           children)
       ∧ Scoped parents owners
-          (.deferred (keys.filterMap (lookupDeferredFragment? deferMap)) path result
+          (.executionGroup (keys.filterMap (lookupDeferredFragment? deferMap)) path result
             children) := by
   have hkeys := filterMap_fragment_keys deferMap keys hk
   have hchildren := hc.2.resolve_left hne
