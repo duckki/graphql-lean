@@ -264,46 +264,47 @@ mutual
         apply List.all_eq_true.mpr
         intro region hregion
         have hregionCheck := List.all_eq_true.mp hcheck region hregion
-        apply List.all_eq_true.mpr
-        intro runtimeType hruntime
-        have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType hruntime
-        let rightEntries := guardedFieldEntriesAtRuntimeType runtimeType right.entries
-        cases hrightEntries : rightEntries with
-        | nil =>
-            simpa [guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool,
-              rightEntries, hrightEntries] using hruntimeCheck
-        | cons rightHead rightRest =>
-            simp only [guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool,
-              rightEntries, hrightEntries, Bool.and_eq_true] at hruntimeCheck ⊢
-            constructor
-            · exact hruntimeCheck.1
-            · constructor
-              · exact hruntimeCheck.2.1
-              · apply List.all_eq_true.mpr
-                intro executionParentType hparent
-                have hparentCheck := List.all_eq_true.mp hruntimeCheck.2.2
-                  executionParentType hparent
-                cases hdefinition
-                      : schema.lookupField executionParentType
-                          rightHead.field.fieldName with
-                | none => simp [hdefinition] at hparentCheck
-                | some definition =>
-                    simp only [hdefinition, Bool.and_eq_true] at hparentCheck ⊢
-                    refine ⟨hparentCheck.1, ?_⟩
-                    exact guardedFieldGroupsIncludeWithFuel_specialize schema
-                      childFuel none sourceValues targetValues
-                      (guardedFieldGroups
-                        (SelectionConditions.ofTypeRegionUnder schema
-                          (schema.getPossibleTypes definition.outputType.namedType)
-                          (guardedFieldChildContributions
-                            (guardedFieldEntriesAtRuntimeType runtimeType
-                              left.entries))))
-                      (guardedFieldGroups
-                        (SelectionConditions.ofTypeRegionUnder schema
-                          (schema.getPossibleTypes definition.outputType.namedType)
-                          (guardedFieldChildContributions
-                            (rightHead :: rightRest))))
-                      hparentCheck.2 hagrees
+        cases region with
+        | nil => simp
+        | cons runtimeType rest =>
+            let rightEntries :=
+              guardedFieldEntriesAtRuntimeType runtimeType right.entries
+            cases hrightEntries : rightEntries with
+            | nil =>
+                simpa [guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool,
+                  rightEntries, hrightEntries] using hregionCheck
+            | cons rightHead rightRest =>
+                simp only [guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool,
+                  rightEntries, hrightEntries, Bool.and_eq_true] at hregionCheck ⊢
+                constructor
+                · exact hregionCheck.1
+                · constructor
+                  · exact hregionCheck.2.1
+                  · apply List.all_eq_true.mpr
+                    intro executionParentType hparent
+                    have hparentCheck := List.all_eq_true.mp hregionCheck.2.2
+                      executionParentType hparent
+                    cases hdefinition
+                          : schema.lookupField executionParentType
+                              rightHead.field.fieldName with
+                    | none => simp [hdefinition] at hparentCheck
+                    | some definition =>
+                        simp only [hdefinition, Bool.and_eq_true] at hparentCheck ⊢
+                        refine ⟨hparentCheck.1, ?_⟩
+                        exact guardedFieldGroupsIncludeWithFuel_specialize schema
+                          childFuel none sourceValues targetValues
+                          (guardedFieldGroups
+                            (SelectionConditions.ofTypeRegionUnder schema
+                              (schema.getPossibleTypes definition.outputType.namedType)
+                              (guardedFieldChildContributions
+                                (guardedFieldEntriesAtRuntimeType runtimeType
+                                  left.entries))))
+                          (guardedFieldGroups
+                            (SelectionConditions.ofTypeRegionUnder schema
+                              (schema.getPossibleTypes definition.outputType.namedType)
+                              (guardedFieldChildContributions
+                                (rightHead :: rightRest))))
+                          hparentCheck.2 hagrees
   termination_by (responseFuel, 1, 0)
   decreasing_by
     all_goals simp_wf

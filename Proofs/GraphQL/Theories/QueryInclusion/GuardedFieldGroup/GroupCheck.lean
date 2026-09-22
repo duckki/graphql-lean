@@ -1855,25 +1855,53 @@ theorem guardedFieldGroupsIncludeWithFuel_sound_case
                 have hsymbolicCheck := hsymbolic.2
                 rw [guardedFieldGroupSymbolicallyIncludesWithFuel] at hsymbolicCheck
                 have hregionCheck := List.all_eq_true.mp hsymbolicCheck region hregion
-                have hruntimeCheck := List.all_eq_true.mp hregionCheck runtimeType
-                  hruntime
-                apply guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
-                  schema childFuel fixedExecutionParentType targetValues runtimeType
-                  region (guardedFieldGroupFor leftGroups head) head
-                  (fun possibleTypes leftContributions rightContributions =>
-                    guardedFieldGroupsIncludeWithFuel schema childFuel none checkValues
-                      (guardedFieldGroups
-                        (SelectionConditions.ofTypeRegionUnder schema possibleTypes
-                          leftContributions))
-                      (guardedFieldGroups
-                        (SelectionConditions.ofTypeRegionUnder schema possibleTypes
-                          rightContributions)))
-                  childIncludes hruntimeCheck hruntime
-                  (hcomplete head (by simp))
-                intro fieldType hleftNonempty hrightNonempty hleftWitness
-                  hrightWitness hchildCheck
-                exact hsymbolicChildSound childFuel rfl fieldType hleftNonempty
-                  hrightNonempty hleftWitness hrightWitness hchildCheck
+                cases hregionShape : region with
+                | nil => simp [hregionShape] at hruntime
+                | cons representative rest =>
+                    let symbolicChildCheck :=
+                      fun possibleTypes leftContributions rightContributions =>
+                        guardedFieldGroupsIncludeWithFuel schema childFuel none
+                          checkValues
+                          (guardedFieldGroups
+                            (SelectionConditions.ofTypeRegionUnder schema possibleTypes
+                              leftContributions))
+                          (guardedFieldGroups
+                            (SelectionConditions.ofTypeRegionUnder schema possibleTypes
+                              rightContributions))
+                    have hrepresentative : representative ∈ region := by
+                      simp [hregionShape]
+                    have hrepresentativeCheck
+                        : guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool schema
+                            fixedExecutionParentType representative region
+                            (guardedFieldGroupFor leftGroups head) head
+                            symbolicChildCheck
+                          = true := by
+                      simpa [hregionShape, symbolicChildCheck, guardedFieldGroupFor]
+                        using hregionCheck
+                    have hruntimeCheck
+                        : guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool schema
+                            fixedExecutionParentType runtimeType region
+                            (guardedFieldGroupFor leftGroups head) head
+                            symbolicChildCheck
+                          = true := by
+                      rw [←
+                        guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_eq_of_region
+                          schema
+                          (guardedFieldParentRegion schema fixedExecutionParentType
+                            (guardedFieldGroupFor leftGroups head) head)
+                          fixedExecutionParentType
+                          (guardedFieldGroupFor leftGroups head) head
+                          symbolicChildCheck hregion hrepresentative hruntime]
+                      exact hrepresentativeCheck
+                    apply guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_sound
+                      schema childFuel fixedExecutionParentType targetValues runtimeType
+                      region (guardedFieldGroupFor leftGroups head) head
+                      symbolicChildCheck childIncludes hruntimeCheck hruntime
+                      (hcomplete head (by simp))
+                    intro fieldType hleftNonempty hrightNonempty hleftWitness
+                      hrightWitness hchildCheck
+                    exact hsymbolicChildSound childFuel rfl fieldType hleftNonempty
+                      hrightNonempty hleftWitness hrightWitness hchildCheck
         · apply guardedFieldGroupIncludesWithFuel_sound schema responseFuel
             fixedExecutionParentType checkValues targetValues
             (guardedFieldGroupBooleanVariables

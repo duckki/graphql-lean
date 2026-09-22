@@ -60,6 +60,49 @@ theorem guardedFieldGroupTypeRegions_uniform_right
   exact List.mem_append.mpr
     (Or.inr (List.mem_map.mpr ⟨entry, hentry, rfl⟩))
 
+theorem guardedFieldEntriesAtRuntimeType_eq_of_region
+    (parentRegion : List Name) (left right group : GuardedFieldGroup)
+    (hgroup : group = left ∨ group = right)
+    {region : List Name}
+    (hregion : region ∈ guardedFieldGroupTypeRegions parentRegion left right)
+    {firstRuntimeType secondRuntimeType : Name}
+    (hfirst : firstRuntimeType ∈ region) (hsecond : secondRuntimeType ∈ region)
+    : guardedFieldEntriesAtRuntimeType firstRuntimeType group.entries
+      = guardedFieldEntriesAtRuntimeType secondRuntimeType group.entries := by
+  unfold guardedFieldEntriesAtRuntimeType
+  apply List.filter_congr
+  intro entry hentry
+  rcases hgroup with hleft | hright
+  · exact guardedFieldGroupTypeRegions_uniform_left parentRegion left right
+      (by simpa [hleft] using hentry)
+      region hregion firstRuntimeType hfirst secondRuntimeType hsecond
+  · exact guardedFieldGroupTypeRegions_uniform_right parentRegion left right
+      (by simpa [hright] using hentry)
+      region hregion firstRuntimeType hfirst secondRuntimeType hsecond
+
+theorem guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool_eq_of_region
+    (schema : Schema) (parentRegion : List Name)
+    (fixedExecutionParentType : Option Name) (left right : GuardedFieldGroup)
+    (childIncludes
+      : List Name
+        -> List (List SelectionConditions.BooleanLiteral × List Selection)
+        -> List (List SelectionConditions.BooleanLiteral × List Selection)
+        -> Bool)
+    {region : List Name}
+    (hregion : region ∈ guardedFieldGroupTypeRegions parentRegion left right)
+    {firstRuntimeType secondRuntimeType : Name}
+    (hfirst : firstRuntimeType ∈ region) (hsecond : secondRuntimeType ∈ region)
+    : guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool schema
+        fixedExecutionParentType firstRuntimeType region left right childIncludes
+      = guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool schema
+          fixedExecutionParentType secondRuntimeType region left right childIncludes := by
+  have hleft := guardedFieldEntriesAtRuntimeType_eq_of_region parentRegion left right
+    left (Or.inl rfl) hregion hfirst hsecond
+  have hright := guardedFieldEntriesAtRuntimeType_eq_of_region parentRegion left right
+    right (Or.inr rfl) hregion hfirst hsecond
+  simp only [guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool]
+  rw [hleft, hright]
+
 theorem guardedFieldGroupBooleanVariables_mem_left
     (left right : GuardedFieldGroup)
     {entry : SelectionConditions.ConditionedField}

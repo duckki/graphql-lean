@@ -603,8 +603,9 @@ mutual
     | childFuel + 1 =>
         regions.all
           fun region =>
-            region.all
-              fun runtimeType =>
+            match region with
+            | [] => true
+            | runtimeType :: _rest =>
                 guardedFieldGroupSymbolicallyIncludesAtRuntimeTypeBool schema
                   fixedExecutionParentType runtimeType region left right
                   fun possibleTypes leftContributions rightContributions =>
