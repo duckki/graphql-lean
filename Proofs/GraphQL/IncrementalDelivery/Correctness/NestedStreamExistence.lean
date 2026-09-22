@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamContinuation
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StreamNotices
 
 /-! Constructive complete-run existence for arbitrarily nested finite stream work.
 Stream-item carriers supply notices for new child streams; no complete run is assumed.
@@ -8,7 +8,7 @@ Stream-item carriers supply notices for new child streams; no complete run is as
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Stream-only work has no deferred dependencies
@@ -126,8 +126,8 @@ theorem StreamOnly.completeRun_exists {paths bound work}
     have same := List.mem_singleton.mp member
     subst stream
     refine ⟨[], none, descriptor, ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
-      Or.inl rfl, by simp, Or.inl rfl⟩
+    exact ⟨by simp [announcedKeys, pendingKeys],
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   obtain ⟨groups, streams, initialized, covers⟩ := initialized.covering_exists
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩

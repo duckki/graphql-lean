@@ -7,7 +7,7 @@ This restricted existential phase is proof machinery, not a scheduler admission 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Reserve successful closures while publishing deferred values
@@ -16,7 +16,7 @@ open WorkScheduler
 /-- This construction permits deferred publications and failure notifications only.
 It emits neither successful completions nor stream values, reserving notice carriers.
 -/
-def DeferredPhaseEvent : WorkEvent → Prop
+def DeferredPhaseEvent : WorkQueueEvent → Prop
   | .groupValues _ _ | .groupFailure _ _ | .streamFailure _ _ => True
   | _ => False
 
@@ -33,10 +33,9 @@ theorem deferredPhase_completed_failed {work groups streams events matching fail
     (explained : Explains work groups streams events matching failures)
     (phase : ∀ event ∈ events, DeferredPhaseEvent event)
     (closed : key ∈ completedKeys events)
-    : NodeFailed work (failedBefore failures events.length) key := by
+    : NodeFailed work matching events failures key := by
   obtain ⟨event, member, completes⟩ := List.mem_flatMap.mp closed
   obtain ⟨index, selected⟩ := List.mem_iff_getElem?.mp member
-  have bound := Nat.le_of_lt (List.getElem?_eq_some_iff.mp selected).1
   have allowed := explained.2.2 index event selected
   have permitted := phase event member
   cases event <;>
@@ -44,7 +43,11 @@ theorem deferredPhase_completed_failed {work groups streams events matching fail
       List.not_mem_nil] at permitted completes
   all_goals try contradiction
   all_goals subst key
-  all_goals exact allowed.2.2.1.mono (failedBefore_subset failures bound)
+  all_goals
+    have failure := (allowed.2.2.1.mono
+      (show _ ⊆ failures from fun _ member => (List.mem_filter.mp member).1)).append
+      (events.drop index)
+    simpa only [List.take_append_drop] using failure
 
 /-- Every initially announced healthy key remains open after the phase. Witness: phase
 closures require failure, while initial notice membership persists throughout a history.
@@ -53,7 +56,7 @@ theorem deferredPhase_healthy_open {work groups streams events matching failures
     (explained : Explains work groups streams events matching failures)
     (phase : ∀ event ∈ events, DeferredPhaseEvent event)
     (initial : key ∈ (groups ++ streams).map DeliveryNode.key)
-    (healthy : ¬NodeFailed work (failedBefore failures events.length) key)
+    (healthy : ¬NodeFailed work matching events failures key)
     : Open ((groups ++ streams).map DeliveryNode.key) events key :=
   ⟨
     List.mem_append_left _ initial,
@@ -74,13 +77,11 @@ theorem extend_deferred_phase
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work (.executionGroup address) owners producer payload)
-    (ready
-      : CanPublish work matching events (failedBefore failures events.length)
-          (.executionGroup address) producer)
+    (ready : CanPublish work matching events failures (.executionGroup address) producer)
     (announced
       : ∃ key ∈ owners,
           key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work (failedBefore failures events.length) key)
+          ∧ ¬NodeFailed work matching events failures key)
     : ∃ event next cuts,
         Explains work groups streams (events ++ [event]) next cuts
         ∧ DeferredPhaseEvent event := by
@@ -101,8 +102,7 @@ theorem extend_deferred_phase
           obtain ⟨node, count, event, _, control, _, extended⟩ :=
             explained.failure_step known rfl (ready.reachable explained known)
               ⟨key, member, opened⟩
-              (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)]
-                using ready.2.1)
+              ready.2.1
           refine ⟨event, matching, _, extended, ?_⟩
           rcases control with rfl | rfl <;> trivial
       | ok value =>
@@ -110,8 +110,8 @@ theorem extend_deferred_phase
           obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
             known.owner_known member
           obtain ⟨owner, selected⟩ := owner_exists_of_available coherent known
-            ⟨node, ⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
-              same ▸ opened, same ▸ healthy⟩
+            ⟨node, ⟨⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
+              same ▸ opened⟩, same ▸ healthy⟩
           exact ⟨_, _, _, explained.publish_object known ready selected, trivial⟩
 
 -----------------------------------------------------------------------------------------
@@ -137,9 +137,9 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
     : ∃ events matching failures,
         Explains work groups streams events matching failures
         ∧ (∀ event ∈ events, DeferredPhaseEvent event)
-        ∧ DeferredTasksAccounted work matching events (failures.map Prod.snd)
+        ∧ DeferredTasksAccounted work matching events failures
         ∧ ∀ key ∈ (groups ++ streams).map DeliveryNode.key,
-            ¬NodeFailed work (failures.map Prod.snd) key
+            ¬NodeFailed work matching events failures key
             → Open ((groups ++ streams).map DeliveryNode.key) events key := by
   classical
   have initial : Explains work groups streams [] (fun _ => .executionGroup []) [] :=
@@ -148,15 +148,13 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
     initial.maximal_extension_preserving
       (fun events _ _ => ∀ event ∈ events, DeferredPhaseEvent event) (by simp)
   simp only [List.nil_append] at explained phase maximal
-  have stable := explained.2.1.failedBefore_eq (Nat.le_refl _)
   refine ⟨events, matching, failures, explained, phase, ?_, ?_⟩
   · intro address owners producer payload known
-    rw [← stable]
     apply Classical.byContradiction
     intro outstanding
     have root := roots address owners producer payload known
     subst producer
-    have ready : CanPublish work matching events (failedBefore failures events.length)
+    have ready : CanPublish work matching events failures
         (.executionGroup address) none :=
       ⟨fun published => outstanding (Or.inr published),
         fun cancelled => outstanding (Or.inl cancelled), by simp, trivial⟩
@@ -171,6 +169,6 @@ theorem finish_root_deferred_tasks {paths bound work groups streams}
       · exact List.mem_singleton.mp last ▸ permitted)
     cases impossible
   · intro key member healthy
-    exact deferredPhase_healthy_open explained phase member (stable ▸ healthy)
+    exact deferredPhase_healthy_open explained phase member healthy
 
 end GraphQL.IncrementalDelivery.Correctness

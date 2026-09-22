@@ -6,7 +6,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.HistoryStreamCursors
 namespace GraphQL.IncrementalDelivery.Tests.CursorOrigins
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Semantics.MixedPaths
 
 def parent : DeliveryNode := { key := 0, path := [] }

@@ -35,22 +35,30 @@ example : Tests.Correctness.sameUpdateNotice.idUsageValid := by
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ¬queryObservation schema resolvers variables operation fuel source
+    (createWorkQueue : Work → WorkQueue)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    : ¬queryObservation createWorkQueue schema resolvers variables operation fuel source
         Tests.Correctness.closedReference := by
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
-    Tests.Correctness.closedReference observed
+    createWorkQueue Tests.Correctness.closedReference conforms observed
   simp [Tests.Correctness.closedReference, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     IncrementalResult.id, List.nodup_cons] at safe
 
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ¬queryObservation schema resolvers variables operation fuel source
+    (createWorkQueue : Work → WorkQueue)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    : ¬queryObservation createWorkQueue schema resolvers variables operation fuel source
         Tests.Correctness.lateAnnouncement := by
   intro observed
   have safe := deliveryPatchesAnnounced_holds schema operation resolvers variables fuel source
-    Tests.Correctness.lateAnnouncement observed
+    createWorkQueue Tests.Correctness.lateAnnouncement conforms observed
   simp [Tests.Correctness.lateAnnouncement, ExecutionObservation.patchesAnnounced,
     DeliveryTrace.patchesAnnounced, IncrementalResult.id] at safe
 
@@ -62,11 +70,15 @@ def unannouncedCompletion : ExecutionObservation :=
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ¬queryObservation schema resolvers variables operation fuel source
+    (createWorkQueue : Work → WorkQueue)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    : ¬queryObservation createWorkQueue schema resolvers variables operation fuel source
         unannouncedCompletion := by
   intro observed
   have safe := deliveryIDUsageValid_holds schema operation resolvers variables fuel source
-    unannouncedCompletion observed
+    createWorkQueue unannouncedCompletion conforms observed
   simp [unannouncedCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
     List.nodup_cons] at safe
 

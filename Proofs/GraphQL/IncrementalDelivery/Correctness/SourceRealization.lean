@@ -1,9 +1,38 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceObservation
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SpecificationSource
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SpecificationSource
 
 /-! Every independently admitted history is observable through the maximal source. -/
 
-namespace GraphQL.IncrementalDelivery.WorkScheduler
+namespace GraphQL.IncrementalDelivery.Execution
+
+/-- Replay admitted batches through this queue's own source and mapper, retaining the
+queue constructor rather than selecting a different realization. Witness: prefix closure permits
+each input step, and batching preserves the source's finished predicate.
+-/
+theorem WorkQueue.observes_inputs (queue : WorkQueue) (work : Work) (ids : IDState)
+    (groups : List (List (List WorkQueueEvent))) (conforms : queue.Conforms work)
+    (nonempty : ∀ group ∈ groups, group ≠ [])
+    (admitted : queue.workEventStream.admissible groups.flatten)
+    : let stream :=
+        batchIncrementalResults
+          (mapIncrementalWorkEventsToResponseEvent queue.workEventStream ids)
+      stream.Observes (stream.mapInputs groups).1 (stream.afterInputs groups)
+      ∧ ((stream.afterInputs groups).source.IsFinished
+          ↔ queue.workEventStream.finished groups.flatten) := by
+  let mapped := mapIncrementalWorkEventsToResponseEvent queue.workEventStream ids
+  let stream := batchIncrementalResults mapped
+  have allowed := (queue.allows_iff_admissible conforms.1 conforms.2.1 _).mpr admitted
+  have grouped : stream.source.Allows groups :=
+    (EventSource.batch_allows_iff mapped.source groups).mpr ⟨nonempty, allowed⟩
+  refine ⟨stream.observes_inputs groups grouped, ?_⟩
+  change ((∀ group ∈ groups, group ≠ []) ∧ queue.workEventStream.Allows groups.flatten)
+    ∧ queue.workEventStream.finished (queue.workEventStream.history ++ groups.flatten) ↔ _
+  rw [conforms.1.1, List.nil_append]
+  exact ⟨fun h => h.2, fun finished => ⟨⟨nonempty, allowed⟩, finished⟩⟩
+
+end GraphQL.IncrementalDelivery.Execution
+
+namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
 
 /-- An admitted history supplies its own valid initial notices, by either admission
@@ -18,7 +47,7 @@ theorem ValidHistory.initializes {work history} (admitted : ValidHistory work hi
 nonempty response grouping. Witness: maximal-source conformance and finite input replay.
 -/
 theorem specificationSource_observes {work initialGroups initialStreams}
-    (ids : IDState) (groups : List (List (List WorkEvent)))
+    (ids : IDState) (groups : List (List (List WorkQueueEvent)))
     (nonempty : ∀ group ∈ groups, group ≠ [])
     (admitted : ValidHistory work ⟨initialGroups, initialStreams, groups.flatten⟩)
     : let source := specificationSource work initialGroups initialStreams
@@ -42,4 +71,4 @@ theorem specificationSource_observes {work initialGroups initialStreams}
     (source.allows_iff_admissible conforms.1 conforms.2.1 groups.flatten).mpr admitted⟩,
     run⟩⟩
 
-end GraphQL.IncrementalDelivery.WorkScheduler
+end GraphQL.IncrementalDelivery.WorkQueueSemantics

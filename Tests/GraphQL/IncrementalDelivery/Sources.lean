@@ -63,7 +63,7 @@ example : ¬skipsPrefix.Allows [1, 2] := by
 
 def node : DeliveryNode := { key := 7, path := [] }
 
-def events : List WorkEvent :=
+def events : List WorkQueueEvent :=
   [
     .groupValues node [{ path := [], data := [("a", .scalar "a")] }],
     .groupSuccess node [] [],
@@ -81,7 +81,7 @@ theorem allowed : responseStream.Accepts [events] :=
 example : ¬responseStream.Accepts [] := by
   intro h
   have admitted := h [[]] ⟨[], rfl⟩
-  change (∀ group ∈ ([[]] : List (List (List WorkEvent))), group ≠ []) ∧ _ at admitted
+  change (∀ group ∈ ([[]] : List (List (List WorkQueueEvent))), group ≠ []) ∧ _ at admitted
   have nonempty := admitted.1 [] (by simp)
   exact nonempty rfl
 
@@ -136,11 +136,16 @@ example
 
 /-- Ordinary queries have outcomes even when their unused source admits nothing. -/
 example
-    : Correctness.queryOutcome schema resolvers [] { selectionSet := [] } 5
-        (.object "Query" 0) (.single { data := .object [] }) := by
-  refine ⟨unavailable, ?_, ?_⟩
+    : queryWorkQueueConforms unavailable schema resolvers []
+        { selectionSet := [] } 5 (.object "Query" 0)
+      ∧ queryOutcome unavailable schema resolvers [] { selectionSet := [] } 5
+          (.object "Query" 0) (.single { data := .object [] }) := by
+  refine ⟨?_, ?_⟩
   all_goals
-    simp [Execution.WorkScheduler.Conforms, executeQueryWithFuel, executeRootSelectionSet,
+    simp [queryWorkQueueConforms,
+      queryOutcome,
+      queryObservation, queryCompletion, executeQueryWithFuel,
+      executeRootSelectionSet,
       executeRootSelectionSetCore, executeExecutionPlan, executeCollectedFields,
       collectExecutionGroups, collectFields, buildExecutionPlan, getNewDeferMap,
       Completion.pure, StateT.run, ExecutionResult.Observes,
@@ -150,9 +155,12 @@ example
   · rfl
 
 example
-    : Correctness.queryOutcome schema resolvers [] { selectionSet := [field "a"] } 5
-        (.scalar "invalid") (.single { data := .null, errors := 1 }) := by
-  refine ⟨unavailable, ?_, rfl⟩
+    : queryWorkQueueConforms unavailable schema resolvers []
+        { selectionSet := [field "a"] } 5 (.scalar "invalid")
+      ∧ queryOutcome unavailable schema resolvers []
+          { selectionSet := [field "a"] } 5 (.scalar "invalid")
+          (.single { data := .null, errors := 1 }) := by
+  refine ⟨?_, rfl⟩
   intro applies
   change false = true at applies
   cases applies
@@ -162,7 +170,7 @@ example
 #guard
   let result :=
     ExecutionObservation.incremental initial [(responseStream.next [events] allowed).1]
-  result.deliveryComplete
+  result.lifecycleValid
   && (mergeExecutionObservation result).any
       (fun response => same response { data := .object [("a", .scalar "a")] })
 

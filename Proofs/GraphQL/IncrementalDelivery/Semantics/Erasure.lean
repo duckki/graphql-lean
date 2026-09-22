@@ -29,7 +29,7 @@ mutual
       (selection : Selection) (state : Nat)
       : eraseGroups
           ((collectSelection schema variables parentType source usage selection).run
-            state).1.fields
+            state).1.collectedFieldsMap
         = GraphQL.Execution.collectSelection schema variables parentType source
             selection.eraseIncrementalDirectives := by
     cases selection with
@@ -65,7 +65,7 @@ mutual
       (usage : Option DeferUsage) (state : Nat)
       : eraseGroups
           ((collectFields schema variables parentType source selections usage).run
-            state).1.fields
+            state).1.collectedFieldsMap
         = GraphQL.Execution.collectFields schema variables parentType source
             (SelectionSet.eraseIncrementalDirectives selections) := by
     cases selections with
@@ -79,10 +79,11 @@ mutual
 end
 
 theorem collectSubfields_erase (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (state : Nat)
     : eraseGroups
-        ((collectSubfields schema variables parentType source fields).run state).1.fields
+        ((collectSubfields schema variables parentType source fields).run
+          state).1.collectedFieldsMap
       = GraphQL.Execution.collectSubfields schema variables parentType source
           (fields.map eraseField) := by
   induction fields generalizing state with

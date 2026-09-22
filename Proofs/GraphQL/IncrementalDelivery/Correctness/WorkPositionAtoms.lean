@@ -5,12 +5,12 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkEventMetadata
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Forget control notices and numeric IDs while retaining every object or item payload.
-One atom is retained per streamed item, even when a WorkEvent coalesces several items.
+One atom is retained per streamed item, even when a WorkQueueEvent coalesces several items.
 -/
-def eventPositionAtoms : WorkEvent → List PositionAtom
+def eventPositionAtoms : WorkQueueEvent → List PositionAtom
   | .groupValues _ values => values.map (fun value => .object value.path value.data)
   | .streamValues node values _ _ => values.map (fun value => .item node.path value.item)
   | _ => []
@@ -103,7 +103,7 @@ theorem admitted_positionAtoms {paths bound work history}
   · exact ⟨events, matching, failures, explained,
       workBatching_positionAtoms grouped (nodePaths explained)⟩
   · refine ⟨events, matching, failures, explained, ?_⟩
-    have paths : ∀ node ∈ (events ++ [WorkEvent.workQueueTermination]).flatMap eventNodes,
+    have paths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap eventNodes,
         paths node.key = node.path := by
       simpa only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,
         List.nil_append, List.append_nil]

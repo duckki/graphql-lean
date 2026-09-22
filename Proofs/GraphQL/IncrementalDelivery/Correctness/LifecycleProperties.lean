@@ -11,29 +11,29 @@ open GraphQL.IncrementalDelivery.Execution
 /-- Complete delivery contains the very same ID-safety check; witness: Boolean conjunction
 projection.
 -/
-theorem idUsageValid_of_deliveryComplete (result : ExecutionObservation)
-    (h : result.deliveryComplete = true)
+theorem idUsageValid_of_lifecycleValid (result : ExecutionObservation)
+    (h : result.lifecycleValid = true)
     : result.idUsageValid := by
   cases result with
   | single response => trivial
   | incremental initial subsequent =>
-      simp only [ExecutionObservation.deliveryComplete, Bool.and_eq_true, and_assoc] at h
+      simp only [ExecutionObservation.lifecycleValid, Bool.and_eq_true, and_assoc] at h
       exact ⟨of_decide_eq_true h.2.1, h.2.2.1⟩
 
 /-- Complete delivery has unique announcements, by its safety witness and ID-usage
 uniqueness.
 -/
-theorem idsUnique_of_deliveryComplete (result : ExecutionObservation)
-    (h : result.deliveryComplete = true)
+theorem idsUnique_of_lifecycleValid (result : ExecutionObservation)
+    (h : result.lifecycleValid = true)
     : result.idsUnique :=
-  idsUnique_of_idUsageValid result (idUsageValid_of_deliveryComplete result h)
+  idsUnique_of_idUsageValid result (idUsageValid_of_lifecycleValid result h)
 
 /-- Complete delivery's patches are causally announced, by the ID-usage reference witness.
 -/
-theorem patchesAnnounced_of_deliveryComplete (result : ExecutionObservation)
-    (h : result.deliveryComplete = true)
+theorem patchesAnnounced_of_lifecycleValid (result : ExecutionObservation)
+    (h : result.lifecycleValid = true)
     : result.patchesAnnounced :=
-  patchesAnnounced_of_idUsageValid result (idUsageValid_of_deliveryComplete result h)
+  patchesAnnounced_of_idUsageValid result (idUsageValid_of_lifecycleValid result h)
 
 /-- Global closure is causal under ID safety: a fresh announcement cannot have completed
 earlier. Witness: induction tracks prior completions as known IDs, excluding them by
@@ -101,25 +101,25 @@ theorem idsEventuallyComplete_iff_allCompleted (initial : InitialIncrementalStre
 /-- Complete delivery closes IDs causally, not merely somewhere in the trace, by safety
 plus closure.
 -/
-theorem idsEventuallyComplete_of_deliveryComplete (result : ExecutionObservation)
-    (h : result.deliveryComplete = true)
+theorem idsEventuallyComplete_of_lifecycleValid (result : ExecutionObservation)
+    (h : result.lifecycleValid = true)
     : result.idsEventuallyComplete := by
-  have safe := idUsageValid_of_deliveryComplete result h
+  have safe := idUsageValid_of_lifecycleValid result h
   cases result with
   | single response => trivial
   | incremental initial subsequent =>
       apply (idsEventuallyComplete_iff_allCompleted initial subsequent safe).mpr
-      simp only [ExecutionObservation.deliveryComplete, Bool.and_eq_true, and_assoc] at h
+      simp only [ExecutionObservation.lifecycleValid, Bool.and_eq_true, and_assoc] at h
       simpa only [List.all_eq_true, List.contains_iff_mem] using h.2.2.2.1
 
 /-- Complete delivery completes each announcement exactly once; combine safety with causal
 liveness.
 -/
-theorem idsCompleteExactlyOnce_of_deliveryComplete (result : ExecutionObservation)
-    (h : result.deliveryComplete = true)
+theorem idsCompleteExactlyOnce_of_lifecycleValid (result : ExecutionObservation)
+    (h : result.lifecycleValid = true)
     : result.idsCompleteExactlyOnce :=
   idsCompleteExactlyOnce_of_idUsageValid_of_liveness result
-    (idUsageValid_of_deliveryComplete result h)
-    (idsEventuallyComplete_of_deliveryComplete result h)
+    (idUsageValid_of_lifecycleValid result h)
+    (idsEventuallyComplete_of_lifecycleValid result h)
 
 end GraphQL.IncrementalDelivery.Correctness

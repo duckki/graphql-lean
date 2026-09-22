@@ -19,11 +19,12 @@ mutual
       (deferMap : DeferMap) (state : Nat)
       : StreamsCompleted state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
-              collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-              usages deferMap).run
+              collection.newDeferUsages
+              (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+              deferMap).run
             state) := by
     have hl := executeCollectedFields_streamAllocations schema resolvers variables fuel
-      parentType source (buildExecutionPlan collection.fields usages).collectedFieldsMap
+      parentType source (buildExecutionPlan collection.collectedFieldsMap usages).collectedFieldsMap
       path usages (getNewDeferMap collection.newDeferUsages path deferMap) state
     simp only [executeExecutionPlan, run_bind]
     split
@@ -98,7 +99,7 @@ mutual
   theorem executeResponseField_streamAllocations (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef) (name : Name)
-      (fields : List ExecutableField) (path : ResponsePath) (usages : List Nat)
+      (fields : List FieldDetails) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (state : Nat)
       : StreamsCompleted state
           ((executeResponseField schema resolvers variables fuel parentType source name
@@ -134,7 +135,7 @@ mutual
 
   theorem completeValue_streamAllocations (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (fieldType : TypeRef) (fields : List ExecutableField)
+      (fieldType : TypeRef) (fields : List FieldDetails)
       (value : ResolverValue ObjectRef) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
       : StreamsCompleted state
@@ -204,7 +205,7 @@ mutual
 
   theorem completeListValueWithStream_streamAllocations (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
       : StreamsCompleted state
@@ -242,7 +243,7 @@ mutual
 
   theorem completeListValue_streamAllocations (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
       (usages : List Nat) (deferMap : DeferMap) (state : Nat)
       : StreamsCompleted state
@@ -271,7 +272,7 @@ mutual
 
   theorem completeStreamItems_streamAllocations (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index state : Nat)
       : let output :=
           (completeStreamItems schema resolvers variables fuel itemType fields

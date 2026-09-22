@@ -28,7 +28,7 @@ end WireReferences
 
 namespace MapperIdentity
 
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Injective stable allocation transports an open key reference to an open ID. -/
 theorem Encodes.reference {state : IDState} (well : Allocated state)
@@ -44,7 +44,7 @@ theorem Encodes.reference {state : IDState} (well : Allocated state)
   exact refs.2 ((known.injective well encoded).symm ▸ source)
 
 /-- Replay preserves open references, by batch induction and allocation injectivity. -/
-theorem mappedTrace_references {batches : List (List WorkEvent)} {state : IDState}
+theorem mappedTrace_references {batches : List (List WorkQueueEvent)} {state : IDState}
     {seen closed : List Nat} {seenIDs closedIDs : List String}
     (well : Allocated state) (announced : Encodes state seen seenIDs)
     (finished : Encodes state closed closedIDs)

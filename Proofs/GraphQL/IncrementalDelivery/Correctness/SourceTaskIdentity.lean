@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceTasks
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- The work-tree route of an occurrence, omitting a streamed item's local ordinal. -/
 def occurrenceAddress : Occurrence → Address

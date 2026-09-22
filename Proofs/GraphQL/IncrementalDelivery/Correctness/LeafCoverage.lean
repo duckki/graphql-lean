@@ -14,9 +14,9 @@ theorem basicLeavesDeliveredExactlyOnce_of_positions {schema : Schema}
     {operation : Operation}
     (coverage : deliveredResponsePositionsEquivalentToBasic schema operation)
     : basicLeavesDeliveredExactlyOnce schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed zero
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed zero
   obtain ⟨slices, delivered, perm⟩ :=
-    coverage resolvers variables fuel source result observed zero false
+    coverage resolvers variables fuel source createWorkQueue result conforms observed zero false
   have unique := BasicPositions.executeQueryWithFuel_nodup schema resolvers variables
     operation.eraseIncrementalDirectives fuel source false
   refine ⟨slices, delivered, ?_⟩

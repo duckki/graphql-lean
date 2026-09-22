@@ -9,7 +9,7 @@ namespace GraphQL.IncrementalDelivery.Tests.InitialDeferredExistence
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 open DeferredPhase
 
 /-- Two root deferred tasks with overlapping owners and a child stream have a complete
@@ -28,13 +28,14 @@ theorem multiple_run_exists (first second : Result (List (Name × ResponseValue)
   · intro address owners producer payload known
     simpa [node] using (deferred_task known).2
 
-/-- The two-task construction is observable through an actual conforming source factory.
-Witness: complete-history realization, with no supplied history or factory as a premise.
+/-- The two-task construction is observable through an actual conforming source queue constructor.
+Witness: complete-history realization, with no supplied history or queue constructor as a premise.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (work first second)
+        ((work first second).size ≠ 0
+          → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
   (completeObservation_exists_iff _ _).mpr (Or.inr (multiple_run_exists first second))
@@ -69,8 +70,8 @@ example (outer middle inner : Result ResponseValue)
     have same := List.mem_singleton.mp member
     subst stream
     refine ⟨[], none, NodeAt.stream (.left .root), ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
-      Or.inl rfl, by simp, Or.inl rfl⟩
+    exact ⟨by simp [announcedKeys, pendingKeys],
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   · exact fun _ _ _ _ known => (noDeferred known).elim
   · exact fun _ _ _ _ known => (noDeferred known).elim
 

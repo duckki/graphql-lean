@@ -1,12 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourcePositions
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 
 /-! Work provenance determines the absolute paths encoded by selected owner IDs. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A located region's enclosing keys come from its nearest deferred producer; a root or
 stream-item producer has no enclosing defer keys. Witness: structural navigation, which
@@ -127,8 +127,8 @@ owner choice. Witness: contributing-owner prefix and list drop at the prefix len
 theorem object_subPath_exact {paths bound work occurrence owners producer path result}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (task : TaskAt work occurrence owners producer (.object path result))
-    {owner initial events failed}
-    (selected : Owner work initial events failed owners owner)
+    {owner initial matching events failed}
+    (selected : PublicationOwner work initial matching events failed owners owner)
     : owner.path ++ path.drop owner.path.length = path := by
   obtain ⟨kind, dependencies, producer, known⟩ := selected.1.1
   obtain ⟨suffix, equal⟩ :=

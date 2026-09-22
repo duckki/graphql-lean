@@ -5,7 +5,7 @@ These proof-only folds replay supplied observations; they do not choose future i
 Witnesses need not be unique: distinct inputs may map to the same response.
 -/
 
-namespace GraphQL.IncrementalDelivery.Execution
+namespace GraphQL.IncrementalDelivery
 
 /-- Empty admission checks the current source state, by the unique prefix of the empty
 list.
@@ -30,6 +30,10 @@ theorem EventSource.batch_allows_iff (source : EventSource α) (groups : List (L
     apply allowed.prefix
     rw [List.flatten_append]
     exact List.prefix_append _ _
+
+end GraphQL.IncrementalDelivery
+
+namespace GraphQL.IncrementalDelivery.Execution
 
 /-- Evaluate only the supplied finite input history, threading the actual mapper's IDs. -/
 def ResponseEventStream.mapInputs (stream : ResponseEventStream)

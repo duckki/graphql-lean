@@ -9,7 +9,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Defer-only work supplies the general theorem's role and coverage premises
@@ -41,27 +41,39 @@ theorem DeferOnly.roles {work} (shape : DeferOnly work)
     : KeyRoles.WorkRoles (fun _ => false) work :=
   shape.roles_at Located.root
 
-/-- Supported coverage equals ordinary notice coverage when every descriptor is a group.
-Witness: the stronger stream-dependency support clause is vacuous for defer-only work.
+/-- No healthy descriptor has an eligible fresh notice. Failed reporting opportunities
+are deliberately outside this proof-only progress construction.
+-/
+def HealthyNoticesCovered (work : Work) (initial : Keys) (matching : PublicationMatching)
+    (events : List WorkQueueEvent) (failed : FailureCuts)
+    : Prop :=
+  ∀ node kind dependencies producer,
+    NodeAt work node kind dependencies producer
+    → ¬NodeFailed work matching events failed node.key
+    → ¬CanAnnounce work initial matching events failed node kind dependencies producer
+
+/-- Supported coverage equals healthy notice coverage for defer-only work.
+Witness: the extra stream-dependency support clause is vacuous for every descriptor.
 -/
 theorem DeferOnly.supportedNoticesCovered_iff
     {ancestry work initial matching events failed} (shape : DeferOnly work)
     : SupportedNoticesCovered ancestry work initial matching events failed
-      ↔ NoticesCovered work initial matching events failed := by
-  refine ⟨?_, supportedNoticesCovered_of_noticesCovered⟩
-  intro covered node kind parents producer known eligible
-  have group := shape _ _ _ _ known
-  subst kind
-  exact covered node .group parents producer known
-    ⟨eligible, by intro impossible; cases impossible⟩
+      ↔ HealthyNoticesCovered work initial matching events failed := by
+  constructor
+  · intro covered node kind parents producer known healthy eligible
+    have group := shape _ _ _ _ known
+    subst kind
+    exact covered node .group parents producer known
+      ⟨eligible, healthy, by intro impossible; cases impossible⟩
+  · intro covered node kind parents producer known supported
+    exact covered node kind parents producer known supported.2.1 supported.1
 
 -----------------------------------------------------------------------------------------
 -- Existing defer-only interfaces reuse mixed progress
 -----------------------------------------------------------------------------------------
 
-/-- A ready announced defer task extends a notice-covering history.
-Witness: specialize mixed supported extension and identify the two coverage predicates.
-The original interface needs no explicit role assignment.
+/-- A ready announced defer task extends a healthy-notice-covering history.
+Witness: specialize mixed supported extension without an explicit role assignment.
 -/
 theorem DeferOnly.extend_ready_covered
     {ancestry keyBound paths bound work groups streams events matching failures occurrence
@@ -72,20 +84,18 @@ theorem DeferOnly.extend_ready_covered
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (covered
-      : NoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching
-          events (failures.map Prod.snd))
+      : HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.key) matching
+          events failures)
     (known : TaskAt work occurrence owners producer payload)
-    (ready
-      : CanPublish work matching events (failedBefore failures events.length)
-          occurrence producer)
+    (ready : CanPublish work matching events failures occurrence producer)
     (announced
       : ∃ key ∈ owners,
           key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work (failedBefore failures events.length) key)
+          ∧ ¬NodeFailed work matching events failures key)
     : ∃ event next cuts,
         Explains work groups streams (events ++ [event]) next cuts
-        ∧ NoticesCovered work ((groups ++ streams).map DeliveryNode.key) next
-            (events ++ [event]) (cuts.map Prod.snd) := by
+        ∧ HealthyNoticesCovered work ((groups ++ streams).map DeliveryNode.key) next
+            (events ++ [event]) cuts := by
   obtain ⟨event, next, cuts, extended, retained⟩ :=
     extend_ready_supported valid keys shape.roles continuous ordered coherent explained
       (shape.supportedNoticesCovered_iff.mpr covered) known ready announced

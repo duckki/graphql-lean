@@ -122,7 +122,7 @@ example : unattached.DeliversSlices false [[[]], [[.field "missing", .field "x"]
 
 /-- The same raw trace has a valid lifecycle but fails the independent data merger. -/
 example
-    : unattached.deliveryComplete = true ∧ mergeExecutionObservation unattached = none :=
+    : unattached.lifecycleValid = true ∧ mergeExecutionObservation unattached = none :=
   ⟨rfl, rfl⟩
 
 /-- An interrupted observation can still have decoded slices despite incomplete delivery. -/

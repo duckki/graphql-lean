@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.HistoryCursorPreservation
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- Cursor replay before a stream publication yields its absolute source index.

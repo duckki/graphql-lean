@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.CursorOwnership
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- Items at one structural stream address have the same node and producer. Witness:

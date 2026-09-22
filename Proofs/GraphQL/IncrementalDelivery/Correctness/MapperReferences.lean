@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MapperEvents
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.References
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.References
 
 /-! Each actual object/list patch carries the stable wire ID of a source-event node.
 The proof follows the mapper, including all ID allocations made by new notices.
@@ -8,7 +8,7 @@ The proof follows the mapper, including all ID allocations made by new notices.
 namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 def PatchReferences (state : IDState) (keys : List Nat) (patches : List IncrementalResult)
     : Prop :=
@@ -36,7 +36,8 @@ theorem PatchReferences.append {state : IDState} {keys more : List Nat}
     exact ⟨key, List.mem_append_right _ source, known⟩
 
 structure MappedPatches (state : IDState) (initial : IncrementalStreamUpdateResult)
-    (events : List WorkEvent) (update : IncrementalStreamUpdateResult) (next : IDState)
+    (events : List WorkQueueEvent) (update : IncrementalStreamUpdateResult)
+    (next : IDState)
     : Prop where
   preserves : Preserves state next
   patches
@@ -45,8 +46,8 @@ structure MappedPatches (state : IDState) (initial : IncrementalStreamUpdateResu
         ∧ PatchReferences next (usedKeys events) entries
 
 /-- Every mapped patch names its source owner, by event case analysis. -/
-theorem eventLoop_patches (event : WorkEvent) (initial : IncrementalStreamUpdateResult)
-    (state : IDState)
+theorem eventLoop_patches (event : WorkQueueEvent)
+    (initial : IncrementalStreamUpdateResult) (state : IDState)
     : ∃ update next,
         (eventLoop event initial).run state = (.yield update, next)
         ∧ MappedPatches state initial [event] update next := by
@@ -119,7 +120,7 @@ theorem eventLoop_patches (event : WorkEvent) (initial : IncrementalStreamUpdate
           | mk pending next =>
               have preserved := (getPendingEntry_of_eq hp).1
               let patch : IncrementalResult :=
-                .list id (values.map StreamValue.item) ((values.map StreamValue.errors).sum)
+                .list id (values.map StreamItemValue.item) ((values.map StreamItemValue.errors).sum)
               refine ⟨{ initial with
                   pending := initial.pending ++ pending
                   incremental := initial.incremental ++ [patch] }, next, ?_,
@@ -152,8 +153,8 @@ theorem eventLoop_patches (event : WorkEvent) (initial : IncrementalStreamUpdate
 
 /-- Sequential mapper loops preserve combined patch provenance. -/
 theorem MappedPatches.append {state middle final : IDState}
-    {initial update last : IncrementalStreamUpdateResult} {head tail : List WorkEvent}
-    (h : MappedPatches state initial head update middle)
+    {initial update last : IncrementalStreamUpdateResult}
+    {head tail : List WorkQueueEvent} (h : MappedPatches state initial head update middle)
     (t : MappedPatches middle update tail last final)
     : MappedPatches state initial (head ++ tail) last final := by
   obtain ⟨preserved, entries, he, refs⟩ := h
@@ -168,8 +169,8 @@ theorem MappedPatches.append {state middle final : IDState}
   ⟩
 
 /-- All mapped patches have source-owner witnesses, by event-list induction. -/
-theorem loop_patches (events : List WorkEvent) (initial : IncrementalStreamUpdateResult)
-    (state : IDState)
+theorem loop_patches (events : List WorkQueueEvent)
+    (initial : IncrementalStreamUpdateResult) (state : IDState)
     : ∃ update next,
         (forIn events initial eventLoop).run state = (update, next)
         ∧ MappedPatches state initial events update next := by
@@ -184,7 +185,7 @@ theorem loop_patches (events : List WorkEvent) (initial : IncrementalStreamUpdat
       simp only [he, ht]
 
 /-- Public batch mapping preserves patch provenance, by the loop equation. -/
-theorem mapWorkEventBatch_references (events : List WorkEvent) (state : IDState)
+theorem mapWorkEventBatch_references (events : List WorkQueueEvent) (state : IDState)
     : let (update, next) := (mapWorkEventBatch events).run state
       PatchReferences next (usedKeys events) update.incremental := by
   obtain ⟨update, next, he, _, entries, hp, refs⟩ := loop_patches events { hasNext := true } state

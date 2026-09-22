@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryLifecycle
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! Full lifecycle regressions include an independently batched termination-only response. -/
 
@@ -12,36 +12,42 @@ example (schema : Schema) (operation : Operation)
     : deliveryLifecycleValid schema operation :=
   deliveryLifecycleValid_holds schema operation
 
-def separated : List (List (List WorkEvent)) :=
-  [[[WorkScheduler.value, WorkScheduler.success]], [[.workQueueTermination]]]
+def separated : List (List (List WorkQueueEvent)) :=
+  [[[WorkQueueSemantics.value, WorkQueueSemantics.success]], [[.workQueueTermination]]]
 
 /-- The queue can close its last ID before a separate termination-only batch. -/
 theorem separatedRun
-    : GraphQL.IncrementalDelivery.WorkScheduler.AdmissibleRun
-        WorkScheduler.work ⟨[WorkScheduler.node], [], separated.flatten⟩ := by
-  refine ⟨WorkScheduler.events, WorkScheduler.matching, [], WorkScheduler.explained,
-    WorkScheduler.terminal, ?_⟩
-  exact .cons (by simp [WorkScheduler.events]) (.separate _ (.separate _ .nil))
+    : GraphQL.IncrementalDelivery.WorkQueueSemantics.AdmissibleRun
+        WorkQueueSemantics.work ⟨[WorkQueueSemantics.node], [], separated.flatten⟩ := by
+  refine ⟨
+    WorkQueueSemantics.events,
+    WorkQueueSemantics.matching,
+    [],
+    WorkQueueSemantics.explained,
+    WorkQueueSemantics.terminal,
+    ?_
+  ⟩
+  exact .cons (by simp [WorkQueueSemantics.events]) (.separate _ (.separate _ .nil))
     (.cons (tail := []) (by simp) (.separate _ .nil) .nil)
 
 /-- Independent work admission yields the exact two-response replay witness. -/
 theorem separatedObservation (response : Response)
-    : WorkObservation response WorkScheduler.work true
-        (replayResponse response [WorkScheduler.node] [] separated) :=
-  .incremental [WorkScheduler.node] [] separated (by decide) (by simp [separated])
+    : WorkObservation response WorkQueueSemantics.work true
+        (replayResponse response [WorkQueueSemantics.node] [] separated) :=
+  .incremental [WorkQueueSemantics.node] [] separated (by decide) (by simp [separated])
     (Or.inr separatedRun) (fun _ => separatedRun)
 
 /-- Full lifecycle validity retains hasNext=true after last-ID closure, by the witness. -/
 example (response : Response)
-    : (replayResponse response [WorkScheduler.node] [] separated).deliveryComplete
+    : (replayResponse response [WorkQueueSemantics.node] [] separated).lifecycleValid
       = true :=
-  (separatedObservation response).deliveryComplete
+  (separatedObservation response).lifecycleValid
 
 /-- The actual mapper emits a continuation after closure and then a termination-only
 response, by computation of the supplied batches.
 -/
 example
-    : replayResponse { data := .object [] } [WorkScheduler.node] [] separated
+    : replayResponse { data := .object [] } [WorkQueueSemantics.node] [] separated
       = .incremental
           { data := .object [], pending := [{ id := "0", path := [] }], hasNext := true }
           [
@@ -57,12 +63,12 @@ example
 an assumption of the lifecycle theorem.
 -/
 example (response : Response)
-    : (replayResponse response [WorkScheduler.node] []
-        [[[WorkScheduler.failure, .workQueueTermination]]]).deliveryComplete
+    : (replayResponse response [WorkQueueSemantics.node] []
+        [[[WorkQueueSemantics.failure, .workQueueTermination]]]).lifecycleValid
       = true := by
-  apply WorkObservation.deliveryComplete
-    (work := WorkScheduler.failingWork) (response := response)
-  exact .incremental [WorkScheduler.node] [] _ (by decide) (by simp)
-    (Or.inr WorkScheduler.failedRun) (fun _ => WorkScheduler.failedRun)
+  apply WorkObservation.lifecycleValid
+    (work := WorkQueueSemantics.failingWork) (response := response)
+  exact .incremental [WorkQueueSemantics.node] [] _ (by decide) (by simp)
+    (Or.inr WorkQueueSemantics.failedRun) (fun _ => WorkQueueSemantics.failedRun)
 
 end GraphQL.IncrementalDelivery.Tests.QueryLifecycle

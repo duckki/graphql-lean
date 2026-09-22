@@ -64,17 +64,18 @@ mutual
             KeyRoles.fragmentKeys)
           state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
-              collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-              usages deferMap).run
+              collection.newDeferUsages
+              (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+              deferMap).run
             state) := by
     have hl := executeCollectedFields_regions schema resolvers variables fuel parentType source
-      (buildExecutionPlan collection.fields usages).collectedFieldsMap path usages
+      (buildExecutionPlan collection.collectedFieldsMap usages).collectedFieldsMap path usages
       (getNewDeferMap collection.newDeferUsages path deferMap) state hm
     simp only [executeExecutionPlan, run_bind]
     split
     · exact hl
     · have hr := collectExecutionGroups_regions schema resolvers variables fuel parentType source
-        (buildExecutionPlan collection.fields usages).newCollectedFieldsMaps path
+        (buildExecutionPlan collection.collectedFieldsMap usages).newCollectedFieldsMaps path
         (getNewDeferMap collection.newDeferUsages path deferMap) _
         (fun key hk => Nat.lt_of_lt_of_le (hm key hk) hl.monotone)
       simp only [run_bind, StateT.run_pure, id_pure_eq]
@@ -148,7 +149,7 @@ mutual
 
   theorem executeResponseField_regions (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
-      (source : ResolverValue ObjectRef) (name : Name) (fields : List ExecutableField)
+      (source : ResolverValue ObjectRef) (name : Name) (fields : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (state : Nat)
       (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
       : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
@@ -187,7 +188,7 @@ mutual
 
   theorem completeValue_regions (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
       (state : Nat) (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
       : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
@@ -264,7 +265,7 @@ mutual
 
   theorem completeListValueWithStream_regions (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
       (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
@@ -303,7 +304,7 @@ mutual
 
   theorem completeListValue_regions (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
       (state : Nat) (hm : ∀ key ∈ deferMap.flatMap KeyRoles.fragmentKeys, key < state)
       : Completed (deferMap.flatMap KeyRoles.fragmentKeys) state
@@ -331,7 +332,7 @@ mutual
 
   theorem completeStreamItems_regions (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index state : Nat)
       : let output :=
           (completeStreamItems schema resolvers variables fuel itemType fields

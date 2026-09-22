@@ -7,7 +7,7 @@ and error outcomes are unrestricted; no complete history is supplied as a premis
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A child-free stream has only its root stream boundary and empty located subtrees.
 Witness: structural navigation and the supplied empty-child equations for every item.
@@ -68,7 +68,7 @@ theorem childFreeStream_completeRun_exists (node : DeliveryNode)
     subst stream
     refine ⟨[], none, .stream .root, ?_⟩
     exact ⟨by simp [announcedKeys, pendingKeys],
-      fun failure => failure.nonempty rfl, Or.inl rfl, by simp, Or.inl rfl⟩
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   apply completeRun_exists_of_initial_owner_coverage coherent initialized
   intro occurrence owners producer payload known
   obtain ⟨rfl, _⟩ := childFreeStream_task childrenEmpty known

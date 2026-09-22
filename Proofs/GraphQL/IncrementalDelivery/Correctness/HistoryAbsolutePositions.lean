@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.PublicationPositions
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- A value atom decodes to its exact source positions and cursor writes. Witness:
@@ -43,14 +43,14 @@ theorem decode_eventPositionAtoms_value
   rw [matched] at known
   cases event <;> try contradiction
   case groupValues node values =>
-    obtain ⟨_, _, path, data, errors, rfl, actual, _⟩ := allowed
+    obtain ⟨_, _, ⟨path, data, errors, deliveryGroups⟩, rfl, actual, _⟩ := allowed
     rw [length] at actual
     have payload := (known.unique actual).2.2
     simp [eventPositionAtoms, decodeAtoms, PositionAtom.decode, SourceTask.positions,
       SourceTask.cursorUpdates, SourceTask.cursors, payload, resultCursors,
       DeliveryPaths.result]
   case streamValues node values groups streams =>
-    obtain ⟨_, _, item, errors, rfl, actual, _⟩ := allowed
+    obtain ⟨_, _, ⟨item, errors⟩, rfl, actual, _⟩ := allowed
     rw [length] at actual
     have payload := (known.unique actual).2.2
     obtain ⟨address, ordinal, occurrence⟩ := sourceTask_item_occurrence member payload

@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.Tests.NestedStreamExistence
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Four differently keyed streams share a harmless fixed owner path in this raw fixture.
 -/
@@ -43,16 +43,18 @@ example (outer middle inner : Result ResponseValue)
     : ¬CanAnnounce (nested outer middle inner) [] (fun _ => .item [] 0) [] []
         (node 1) .stream [] (some (.item [] 0)) := by
   intro eligible
-  have published := eligible.2.2.2.1 (.item [] 0) rfl
+  have published := eligible.2.2.1 (.item [] 0) rfl
   simp [Published] at published
 
 /-- Nested failure runs become complete observations through an actually conforming
-factory. Witness: terminal-run realization after constructive stream progress.
+queue constructor. Witness: terminal-run realization after constructive stream progress.
 -/
 example (response : Response)
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))
+        ((nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0))).size ≠ 0
+          → (scheduler (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Conforms
+              (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0))))
         ∧ (executionFromWork scheduler response
             (nested (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
             observed true :=

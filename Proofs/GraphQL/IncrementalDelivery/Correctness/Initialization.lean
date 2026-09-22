@@ -1,6 +1,6 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SpecificationSource
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureCauses
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SpecificationSource
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureCauses
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedDeferContinuity
 import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerKeys
 
@@ -8,7 +8,7 @@ import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerKeys
 This execution-specific bridge is outside the raw work-history proof surface.
 -/
 
-namespace GraphQL.IncrementalDelivery.WorkScheduler
+namespace GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Execution
 open Semantics Semantics.Ancestry Semantics.GeneralScheduling
 
@@ -267,13 +267,14 @@ theorem initialization_exists {parents bound work}
   have bounded := initialCandidates_lower valid coherent continuous ordered
     (fun entry member => least _ (List.mem_map.mpr ⟨entry, member, rfl⟩))
   have known := initialCandidates_known (root := work) .root inCandidates
-  have healthy : ¬NodeFailed work [] node.key := fun failure => failure.nonempty rfl
+  have healthy : ¬NodeFailed work (fun _ => .executionGroup []) [] [] node.key :=
+    fun failure => failure.nonempty rfl
   have fresh : node.key ∉ announcedKeys [] [] := by simp [announcedKeys, pendingKeys]
   cases kind with
   | group =>
       have eligible : CanAnnounce work [] (fun _ => .executionGroup []) [] []
           node .group dependencies none := by
-        refine ⟨fresh, healthy, Or.inr (group_not_initially_accounted known),
+        refine ⟨fresh, Or.inl ⟨healthy, Or.inr (group_not_initially_accounted known)⟩,
           by simp, ?_⟩
         intro key member
         refine ⟨fun failure => failure.nonempty rfl, Or.inl ?_⟩
@@ -296,7 +297,7 @@ theorem initialization_exists {parents bound work}
       subst dependencies
       have eligible : CanAnnounce work [] (fun _ => .executionGroup []) [] []
           node .stream [] none :=
-        ⟨fresh, healthy, Or.inl rfl, by simp, Or.inl rfl⟩
+        ⟨fresh, Or.inl ⟨healthy, Or.inl rfl⟩, by simp, Or.inl rfl⟩
       refine ⟨[], [node], ⟨?_, by simp⟩⟩
       exact ⟨
         by simp,
@@ -325,4 +326,4 @@ theorem executeRoot_initialization_exists (schema : Schema)
     (executeRoot_streamOwnersOrdered schema resolvers variables fuel parentType source
       selections 0) nonempty
 
-end GraphQL.IncrementalDelivery.WorkScheduler
+end GraphQL.IncrementalDelivery.WorkQueueSemantics

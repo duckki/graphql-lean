@@ -61,11 +61,16 @@ theorem WorkObservation.source_coverage
 mixed nested defer/stream work. Witness: actual-root reduction and execution certificates;
 the invalid-root branch contradicts the zero-error premise.
 -/
-theorem queryOutcome_source_coverage
+theorem queryOutcome_source_coverage {createWorkQueue : Work → WorkQueue}
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     (zero : result.totalErrors = 0) (containers : Bool)
     : let completed :=
         ((executeRootSelectionSetCore schema resolvers
@@ -80,7 +85,7 @@ theorem queryOutcome_source_coverage
               ++ (sourceTasks [] none (ResponsePositions.listCursors [] response.data)
                     completed.work).flatMap
                   (SourceTask.positions containers)) := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   split at witnessed
   · obtain ⟨paths, coherent⟩ := Semantics.MixedOwnerPaths.executeRoot_owners schema resolvers
       (coerceVariableValues operation variables) fuel (operation.rootType schema) source

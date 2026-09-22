@@ -9,7 +9,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.TypedEquivalence
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 open SourceReconstruction SourceAttachments
 
@@ -38,7 +38,7 @@ theorem WorkObservation.merge_entries {paths bound response work result slices}
                     work).flatMap
                   SourceTask.entries) := by
   have safe := observed.idUsageValid
-  have complete := observed.deliveryComplete
+  have complete := observed.lifecycleValid
   have success := observed.workSuccess positive zero
   cases observed with
   | single empty =>
@@ -63,7 +63,7 @@ theorem WorkObservation.merge_entries {paths bound response work result slices}
       obtain ⟨data, merged, entries, _⟩ := merge_history explained seeded success attached
         initialHistory (by simp only [TypedResponse.value_paths, source_value_eq_positions])
         sourceUnique events.length (Nat.le_refl _)
-      have nodePaths : ∀ node ∈ (events ++ [WorkEvent.workQueueTermination]).flatMap
+      have nodePaths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap
           eventNodes, paths node.key = node.path := by
         intro node member
         simp only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,
@@ -135,8 +135,8 @@ equivalence to basic execution, unique ordinary positions, and conserved total e
 -/
 theorem mergedExecutionEquivalentToBasic_holds (schema : Schema) (operation : Operation)
     : mergedExecutionEquivalentToBasic schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed zero
-  have witnessed := queryObservation_workHistory observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed zero
+  have witnessed := queryObservation_workHistory conforms observed
   cases applies : rootSourceAppliesBool schema operation source with
   | false =>
       simp only [applies, Bool.false_eq_true, ↓reduceIte] at witnessed

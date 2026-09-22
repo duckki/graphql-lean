@@ -1,11 +1,11 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeFrontiers
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeFrontiers
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 
 /-! Complete eligible notice frontiers, including notices introduced by item publication. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.NoticeFrontiers
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Completing an initial frontier retains both independent shared-work owner keys.
 Witness: both original notices are eligible, so the covering frontier contains each key.
@@ -39,8 +39,7 @@ theorem child_eligible
         HistoryScheduling.right .stream [] (some (.item [] 0)) := by
   refine ⟨
     by simp [announcedKeys, pendingKeys, eventPending, HistoryScheduling.right],
-    fun failure => failure.nonempty rfl,
-    Or.inl rfl,
+    Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩,
     ?_,
     Or.inl rfl
   ⟩

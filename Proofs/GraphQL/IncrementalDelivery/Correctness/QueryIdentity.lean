@@ -21,8 +21,8 @@ theorem WorkObservation.uniqueIDs {response work complete result}
   cases observed with
   | single empty => exact ⟨True.intro, True.intro⟩
   | incremental groups streams batches nonempty batchNonempty admitted finished =>
-      have unique := admitted.elim WorkScheduler.AdmissiblePrefix.uniqueKeys
-        WorkScheduler.AdmissibleRun.uniqueKeys
+      have unique := admitted.elim WorkQueueSemantics.AdmissiblePrefix.uniqueKeys
+        WorkQueueSemantics.AdmissibleRun.uniqueKeys
       have grouped := replayResponse_groups response groups streams batches
       cases allocated
             : (getPendingEntry (m := StateM IDState) groups streams ensureID).run {} with
@@ -80,18 +80,18 @@ theorem WorkObservation.idsEventuallyComplete {response work result}
 /-- Every query prefix has unique wire IDs, by query-to-work observation soundness. -/
 theorem deliveryIDsUnique_holds (schema : Schema) (operation : Operation)
     : deliveryIDsUnique schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   exact queryObservation_property ExecutionObservation.idsUnique
-    (fun _ _ _ h => h.uniqueIDs.1) observed
+    (fun _ _ _ h => h.uniqueIDs.1) conforms observed
 
 /-- Every complete query outcome closes each announced ID, by finite work liveness.
 This asserts no scheduler fairness or eventual host termination.
 -/
 theorem deliveryIDsEventuallyComplete_holds (schema : Schema) (operation : Operation)
     : deliveryIDsEventuallyComplete schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   exact queryObservation_property ExecutionObservation.idsEventuallyComplete
-    (fun _ _ _ h => h.idsEventuallyComplete) observed
+    (fun _ _ _ h => h.idsEventuallyComplete) conforms observed
 
 /-- Unique completions plus causal liveness give exactly one completion per announced
 ID, by membership and Nodup counts.
@@ -116,11 +116,11 @@ derived uniqueness and finite-run liveness through the query observation bridge.
 -/
 theorem deliveryIDsCompleteExactlyOnce_holds (schema : Schema) (operation : Operation)
     : deliveryIDsCompleteExactlyOnce schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   apply idsCompleteExactlyOnce_of_uniqueCompletions_of_liveness result
   · exact queryObservation_property UniqueCompletions
-      (fun _ _ _ h => h.uniqueIDs.2) observed
+      (fun _ _ _ h => h.uniqueIDs.2) conforms observed
   · exact deliveryIDsEventuallyComplete_holds schema operation resolvers variables fuel
-      source result observed
+      source createWorkQueue result conforms observed
 
 end GraphQL.IncrementalDelivery.Correctness

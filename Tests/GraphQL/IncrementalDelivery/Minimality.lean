@@ -1,5 +1,5 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Minimality
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Independence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Independence
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 import Tests.GraphQL.IncrementalDelivery.FailureReporting
 
@@ -7,28 +7,84 @@ import Tests.GraphQL.IncrementalDelivery.FailureReporting
 
 namespace GraphQL.IncrementalDelivery.Tests.Minimality
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Failure uniqueness is derived, not an admission premise
 -----------------------------------------------------------------------------------------
 
-/-- The shortened witness implies the old explicit uniqueness clause for arbitrary work.
-Witness: the general licensing-derived uniqueness theorem, with no ownership premise.
+/-- Failure uniqueness is derived for arbitrary admitted work, not assumed.
+Witness: provenance excludes failed publications, and failure licensing excludes repeats.
 -/
-example {work initial events failures}
-    (witness : FailureWitness work initial events failures)
+example {work groups streams events matching failures}
+    (explained : Explains work groups streams events matching failures)
     : (failures.map Prod.snd).Nodup :=
-  witness.nodup
+  explained.failures_nodup
 
-/-- Duplicated actual failures are still rejected after removing the explicit clause.
-Witness: derived occurrence uniqueness, even when both cuts name a genuinely failing task.
+/-- Duplicated actual failures at the initial cut are rejected even before event checking.
+Witness: the first failure cancels the unpublished task in the empty cut snapshot.
 -/
-example (events : List WorkEvent)
-    : ¬FailureWitness WorkScheduler.failingWork [0] events
-        [(0, .executionGroup []), (0, .executionGroup [])] := by
+example (events : List WorkQueueEvent)
+    : ¬FailureWitness WorkQueueSemantics.failingWork [0] WorkQueueSemantics.matching
+        events [(0, .executionGroup []), (0, .executionGroup [])] := by
   intro witness
-  have unique := witness.nodup
+  have uncancelled :=
+    (witness [(0, .executionGroup [])] 0 (.executionGroup []) [] rfl).2.2.2
+  exact uncancelled WorkQueueSemantics.cancelled
+
+/-- Licensing alone does not exclude a forged successful publication of a failing task.
+Witness: both duplicate failures occur after that forged publication, which blocks the
+kernel's self-cancellation. Full event provenance rejects this fixture below.
+-/
+theorem forgedPublication_failureWitness
+    : FailureWitness WorkQueueSemantics.failingWork [0] WorkQueueSemantics.matching
+        [WorkQueueSemantics.value]
+        [(1, .executionGroup []), (1, .executionGroup [])] := by
+  have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
+      (.object [] (.error 2)) := .executionGroup .root
+  have licensed : ∃ owners producer payload,
+      TaskAt WorkQueueSemantics.failingWork (.executionGroup []) owners producer payload
+      ∧ payload.failure.isSome = true
+      ∧ Reachable WorkQueueSemantics.failingWork (.executionGroup [])
+      ∧ ∃ key ∈ owners, key ∈ announcedKeys [0] [WorkQueueSemantics.value] :=
+    ⟨[0], none, .object [] (.error 2), known, rfl, .root ⟨_, _, known⟩, 0, by simp,
+      by simp [announcedKeys, pendingKeys, eventPending, WorkQueueSemantics.value]⟩
+  have uncancelled : ¬TaskCancelled WorkQueueSemantics.failingWork WorkQueueSemantics.matching
+      [WorkQueueSemantics.value] [(1, .executionGroup [])] (.executionGroup []) := by
+    rintro ⟨cut, member, _, cause⟩
+    have same : cut = 1 := by simpa using member
+    subst cut
+    exact cause.unpublished ⟨0, WorkQueueSemantics.value, rfl, trivial, rfl⟩
+  intro before cut occurrence after equal
+  cases before with
+  | nil =>
+      have same : cut = 1 ∧ occurrence = .executionGroup []
+          ∧ after = [(1, .executionGroup [])] := by
+        simpa [Prod.mk.injEq, and_assoc] using equal.symm
+      rcases same with ⟨rfl, rfl, rfl⟩
+      exact ⟨by simp, by simp, licensed, WorkQueueSemantics.noCancellation _ _⟩
+  | cons first rest =>
+      cases rest with
+      | nil =>
+          have firstEq := (List.cons.inj equal).1
+          have same : cut = 1 ∧ occurrence = .executionGroup [] ∧ after = [] := by
+            simpa [Prod.mk.injEq, and_assoc] using (List.cons.inj equal).2.symm
+          rcases same with ⟨rfl, rfl, rfl⟩
+          subst first
+          exact ⟨by simp, by simp, licensed, uncancelled⟩
+      | cons second rest =>
+          have impossible := congrArg List.length equal
+          simp at impossible
+
+/-- The forged fixture cannot be an admitted history.
+Witness: explained histories have unique failure occurrences; the supplied list repeats.
+-/
+example
+    : ¬Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] []
+        [WorkQueueSemantics.value] WorkQueueSemantics.matching
+        [(1, .executionGroup []), (1, .executionGroup [])] := by
+  intro explained
+  have unique := explained.failures_nodup
   simp at unique
 
 -----------------------------------------------------------------------------------------
@@ -42,15 +98,17 @@ example
     : let events := [HistoryScheduling.value HistoryScheduling.left]
       TaskAt HistoryScheduling.shared (.executionGroup []) [0, 1] none
         (.object [] (.ok ([], 0)))
-      ∧ ¬TaskCancelled HistoryScheduling.shared [] (.executionGroup [])
+      ∧ ¬TaskCancelled HistoryScheduling.shared HistoryScheduling.matching events []
+          (.executionGroup [])
       ∧ (∀ parent,
           (none : Option Occurrence) = some parent
           → Published HistoryScheduling.matching events parent)
-      ∧ Owner HistoryScheduling.shared [0, 1] events [] [0, 1] HistoryScheduling.right
+      ∧ PublicationOwner HistoryScheduling.shared [0, 1] HistoryScheduling.matching events
+          [] [0, 1] HistoryScheduling.right
       ∧ ¬CanPublish HistoryScheduling.shared HistoryScheduling.matching events []
           (.executionGroup []) none := by
-  refine ⟨.executionGroup .root, WorkScheduler.noCancellation _ _, by simp, ?_, ?_⟩
-  · exact owner_after_object.mpr (HistoryScheduling.owner _ (by simp))
+  refine ⟨.executionGroup .root, WorkQueueSemantics.noCancellation _ _, by simp, ?_, ?_⟩
+  · exact (owner_after_object (by simp)).mpr (HistoryScheduling.owner _ (by simp))
   · intro ready
     exact ready.1 ⟨0, _, rfl, trivial, rfl⟩
 
@@ -59,41 +117,49 @@ Witness: every other CanPublish clause holds, but no first-item publication exis
 -/
 example
     : ¬Published HistoryScheduling.itemMatching [] (.item [] 1)
-      ∧ ¬TaskCancelled HistoryScheduling.items [] (.item [] 1)
+      ∧ ¬TaskCancelled HistoryScheduling.items HistoryScheduling.itemMatching [] []
+          (.item [] 1)
       ∧ (∀ parent,
           (none : Option Occurrence) = some parent
           → Published HistoryScheduling.itemMatching [] parent)
       ∧ ¬CanPublish HistoryScheduling.items HistoryScheduling.itemMatching [] []
           (.item [] 1) none := by
-  refine ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, ?_⟩
+  refine ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, ?_⟩
   rintro ⟨_, _, _, previous⟩
   simp [Published] at previous
 
 /-- An unlicensed failure could cancel an unannounced task without any output.
 Witness: the causal kernel accepts a recorded failure, whereas ordered failure licensing
-rejects its missing open owner. The kernel alone is not an admission contract.
+rejects its missing announced owner. The kernel alone is not an admission contract.
 -/
 example
-    : TaskCancelled FailureReporting.wk [FailureReporting.badID] FailureReporting.badID
-      ∧ ¬FailureWitness FailureReporting.wk [0] [] [(0, FailureReporting.badID)] := by
-  refine ⟨TaskCancelled.of_recorded FailureReporting.badTask (by simp) (by simp), ?_⟩
+    : TaskCancelled FailureReporting.wk WorkQueueSemantics.matching []
+        [(0, FailureReporting.badID)] FailureReporting.badID
+      ∧ ¬FailureWitness FailureReporting.wk [0] WorkQueueSemantics.matching []
+          [(0, FailureReporting.badID)] := by
+  refine ⟨
+    TaskCancelled.of_recorded FailureReporting.badTask (by simp)
+      (by simp [Published]) (by simp [failedBefore]),
+    ?_
+  ⟩
   intro witness
-  obtain ⟨key, member, opened⟩ := witness.open_owner (cut := 0) (by simp)
+  obtain ⟨key, member, announced⟩ := witness.announced_owner (cut := 0) (by simp)
     FailureReporting.badTask
   have same : key = 1 := by simpa using member
   subst key
-  simpa [Open, announcedKeys, pendingKeys] using opened.1
+  simp [announcedKeys, pendingKeys] at announced
 
 /-- Known failure and an open owner alone do not enforce the reported error count.
 Witness: the two-error task contributes at least two, so zero cannot satisfy NodeErrors.
 -/
 example
-    : NodeFailed WorkScheduler.failingWork [.executionGroup []] 0
+    : NodeFailed WorkQueueSemantics.failingWork WorkQueueSemantics.matching []
+        [(0, .executionGroup [])] 0
       ∧ Open [0] [] 0
-      ∧ ¬NodeErrors WorkScheduler.failingWork [.executionGroup []] 0 0 := by
-  have known : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+      ∧ ¬NodeErrors WorkQueueSemantics.failingWork [.executionGroup []] 0 0 := by
+  have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
-  refine ⟨NodeFailed.task known (by simp) (by simp), ?_, ?_⟩
+  refine ⟨NodeFailed.task known (by simp) (by simp [failedBefore]), ?_, ?_⟩
   · simp [Open, announcedKeys, pendingKeys, completedKeys]
   · intro counted
     have bound := counted.contribution_le (by simp) known (by simp)
@@ -105,7 +171,8 @@ example
 
 /-- One empty stream supplies legal notices alongside a task with no owning node. -/
 def orphanWork : Work :=
-  .combine (.stream WorkScheduler.node []) (.executionGroup [] [] (.ok ([], 0)) .empty)
+  .combine (.stream WorkQueueSemantics.node [])
+    (.executionGroup [] [] (.ok ([], 0)) .empty)
 
 /-- Only the root append, its two children, and the empty deferred child are located.
 Witness: structural navigation; subtree shape suffices for this boundary example.
@@ -113,7 +180,7 @@ Witness: structural navigation; subtree shape suffices for this boundary example
 private theorem orphan_locations {address current producer owners}
     (known : Located orphanWork address current producer owners)
     : current = orphanWork
-      ∨ current = .stream WorkScheduler.node []
+      ∨ current = .stream WorkQueueSemantics.node []
       ∨ current = .executionGroup [] [] (.ok ([], 0)) .empty
       ∨ current = .empty := by
   replace known := StructuralEquivalence.located_of_current known
@@ -126,7 +193,7 @@ private theorem orphan_locations {address current producer owners}
 -/
 private theorem orphan_node {node kind parents birth}
     (known : NodeAt orphanWork node kind parents birth)
-    : node = WorkScheduler.node ∧ kind = .stream := by
+    : node = WorkQueueSemantics.node ∧ kind = .stream := by
   cases kind with
   | group =>
       obtain ⟨address, groups, path, result, children, enclosing, group,
@@ -139,7 +206,7 @@ private theorem orphan_node {node kind parents birth}
 /-- No task contributes to the empty stream. Witness: task lookup has only empty owners.
 -/
 private theorem orphan_accounted
-    : NodeAccounted orphanWork WorkScheduler.matching [] [] 0 := by
+    : NodeAccounted orphanWork WorkQueueSemantics.matching [] [] 0 := by
   rintro occurrence owners ⟨producer, payload, known⟩ member
   cases occurrence with
   | executionGroup address =>
@@ -155,25 +222,26 @@ uncancelled. Generated nonempty ownership is essential to the redundancy theorem
 -/
 example
     : ∃ events,
-        Explains orphanWork [] [WorkScheduler.node] events WorkScheduler.matching []
-        ∧ NodesTerminal orphanWork [0] WorkScheduler.matching events []
-        ∧ ¬Terminal orphanWork [0] WorkScheduler.matching events [] := by
-  have initial : Initializes orphanWork [] [WorkScheduler.node] := by
+        Explains orphanWork [] [WorkQueueSemantics.node] events
+          WorkQueueSemantics.matching []
+        ∧ NodesTerminal orphanWork [0] WorkQueueSemantics.matching events []
+        ∧ ¬Terminal orphanWork [0] WorkQueueSemantics.matching events [] := by
+  have initial : Initializes orphanWork [] [WorkQueueSemantics.node] := by
     refine ⟨⟨by simp, by simp, ?_⟩, by simp⟩
     intro node member
     obtain rfl := List.mem_singleton.mp member
     refine ⟨[], none, .stream (.left .root), ?_⟩
-    exact ⟨by simp [announcedKeys, pendingKeys], WorkScheduler.noFailure _ _,
-      Or.inl rfl, by simp, Or.inl rfl⟩
-  have empty : Explains orphanWork [] [WorkScheduler.node] [] WorkScheduler.matching [] :=
+    exact ⟨by simp [announcedKeys, pendingKeys],
+      Or.inl ⟨WorkQueueSemantics.noFailure _ _, Or.inl rfl⟩, by simp, Or.inl rfl⟩
+  have empty : Explains orphanWork [] [WorkQueueSemantics.node] [] WorkQueueSemantics.matching [] :=
     ⟨initial, by simp [FailureWitness], by simp⟩
-  have allowed : EventAllowed orphanWork [0] WorkScheduler.matching [] []
-      (.streamSuccess WorkScheduler.node) := by
+  have allowed : EventAllowed orphanWork [0] WorkQueueSemantics.matching [] []
+      (.streamSuccess WorkQueueSemantics.node) := by
     exact ⟨⟨[], none, .stream (.left .root)⟩,
-      by simp [Open, announcedKeys, pendingKeys, completedKeys, WorkScheduler.node],
-      WorkScheduler.noFailure _ _, orphan_accounted⟩
-  refine ⟨[.streamSuccess WorkScheduler.node], ?_, ?_, ?_⟩
-  · simpa [WorkScheduler.node, failedBefore] using empty.append_event allowed
+      by simp [Open, announcedKeys, pendingKeys, completedKeys, WorkQueueSemantics.node],
+      WorkQueueSemantics.noFailure _ _, orphan_accounted⟩
+  refine ⟨[.streamSuccess WorkQueueSemantics.node], ?_, ?_, ?_⟩
+  · simpa [WorkQueueSemantics.node, failedBefore] using empty.append_event allowed
   · intro node kind parents birth known
     obtain ⟨rfl, _⟩ := orphan_node known
     exact Or.inl (by simp [completedKeys, eventCompleted])
@@ -181,11 +249,11 @@ example
     have known : TaskAt orphanWork (.executionGroup [1]) [] none (.object [] (.ok ([], 0))) :=
       .executionGroup (.right .root)
     rcases terminal.1 _ _ _ _ known with cancelled | published
-    · exact WorkScheduler.noCancellation _ _ cancelled
+    · exact WorkQueueSemantics.noCancellation _ _ cancelled
     · rcases published with ⟨index, event, selected, value, _⟩
       cases index with
       | zero =>
-          have same : event = .streamSuccess WorkScheduler.node := by
+          have same : event = .streamSuccess WorkQueueSemantics.node := by
             simpa using selected.symm
           subst event
           exact value

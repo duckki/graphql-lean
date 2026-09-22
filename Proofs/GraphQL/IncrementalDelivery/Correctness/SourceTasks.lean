@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourcePositions
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.PublicationOrder
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationOrder
 
 /-! Proof-only labels connect scheduler occurrences to the execution's source slices.
 The labels are derived from finite prepared work, not from a chosen output order.
@@ -7,7 +7,7 @@ The labels are derived from finite prepared work, not from a chosen output order
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- A task's fixed source payload and producer, with its absolute streamed-item index.

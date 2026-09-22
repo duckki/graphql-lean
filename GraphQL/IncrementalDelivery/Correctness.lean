@@ -1,8 +1,9 @@
-import GraphQL.IncrementalDelivery.WorkScheduler
+import GraphQL.IncrementalDelivery.Observation
 
 /-! Correctness of incremental delivery relative to basic execution.
-Read in order: directive erasure, finite observations, wire positions and ID lifecycle,
-response reconstruction, then scheduler-quantified query statements. Wire definitions
+Shared finite observations and query-local conformance come from `Observation`.
+Read in order: directive erasure, wire positions and ID lifecycle, response reconstruction,
+then queue-quantified query statements. Wire definitions
 do not depend on work admission or assume successful merging. Proof witnesses live
 under Proofs/GraphQL/IncrementalDelivery/Correctness/.
 -/
@@ -86,61 +87,6 @@ def Operation.eraseIncrementalDirectives (operation : Operation) : GraphQL.Opera
   }
 
 namespace Execution
-
------------------------------------------------------------------------------------------
--- Finite response observations
------------------------------------------------------------------------------------------
-
-/-- A finite observation of query execution. Unlike `ExecutionResult`, which retains a
-resumable response-event stream, this type materializes only the updates observed so far.
--/
-inductive ExecutionObservation where
-  | single (response : Response)
-  | incremental (initial : InitialIncrementalStreamResult)
-    (subsequent : List IncrementalStreamUpdateResult)
-deriving Repr
-
-/-- An observation supplies one input to this stage. For a batched stream, that input is
-itself a nonempty available group. Admission belongs to the upstream source.
--/
-def ResponseEventStream.Accepts (stream : ResponseEventStream) (input : stream.Input)
-    : Prop :=
-  stream.source.Allows [input]
-
-/-- Deterministic state update after an admissible observation. This does not choose what
-becomes available next; several inputs may satisfy Accepts at the same state.
--/
-def ResponseEventStream.next (stream : ResponseEventStream) (input : stream.Input)
-    (_allowed : stream.Accepts input)
-    : IncrementalStreamUpdateResult × ResponseEventStream :=
-  let result := (stream.mapEvent input).run stream.ids
-  (result.1, { stream with source := stream.source.advance [input], ids := result.2 })
-
-/-- Single-threaded observation: accept an available batch, update the partial source
-history and mapper IDs, then repeat. Stopping observation does not assert termination.
--/
-inductive ResponseEventStream.Observes
-    : ResponseEventStream → List IncrementalStreamUpdateResult → ResponseEventStream
-      → Prop where
-  | nil (stream) : Observes stream [] stream
-  | cons (stream batches) (allowed : stream.Accepts batches)
-    {updates final}
-    (rest : Observes (stream.next batches allowed).2 updates final)
-    : Observes stream ((stream.next batches allowed).1 :: updates) final
-
-/-- complete=false includes stalled/interrupted observations; complete=true additionally
-requires source termination, independently of response lifecycle or merge predicates.
--/
-def ExecutionResult.Observes (execution : ExecutionResult) (result : ExecutionObservation)
-    (complete : Bool := false)
-    : Prop :=
-  match execution, result with
-  | .single response, .single observed => response = observed
-  | .incremental initial stream, .incremental observed updates =>
-      initial = observed
-      ∧ ∃ final,
-          stream.Observes updates final ∧ (complete = true → final.source.IsFinished)
-  | _, _ => False
 
 -----------------------------------------------------------------------------------------
 -- Response positions
@@ -395,13 +341,14 @@ def idsEventuallyComplete : ExecutionObservation → Prop
       ∧ DeliveryTrace.announcementsEventuallyComplete subsequent
 
 -----------------------------------------------------------------------------------------
--- Delivery completion and execution errors
+-- Complete lifecycle validity and execution errors
 -----------------------------------------------------------------------------------------
 
-/-- Complete delivery combines ID safety, closure of every announcement, and the
-response-continuation flags. A termination-only final response is permitted.
+/-- A valid complete lifecycle combines ID safety, closure of every announcement, and
+the response-continuation flags. Execution errors are permitted, as is a termination-only
+final response. For prefix safety without completion, use `idUsageValid`.
 -/
-def deliveryComplete : ExecutionObservation → Bool
+def lifecycleValid : ExecutionObservation → Bool
   | .single _ => true
   | .incremental initial subsequent =>
       let ids := initial.pending.map IncrementalPendingNotice.id
@@ -431,13 +378,13 @@ Closing IDs alone permits discarded fields/items or cancelled work. Zero errors 
 excludes reported fuel exhaustion. Merge success, response equivalence, and parent-before-
 child attachment are conclusions of the correctness proofs, not premises here.
 -/
-def executionComplete (result : ExecutionObservation) : Prop :=
-  result.deliveryComplete = true ∧ result.totalErrors = 0
+def completedWithoutErrors (result : ExecutionObservation) : Prop :=
+  result.lifecycleValid = true ∧ result.totalErrors = 0
 
 end ExecutionObservation
 
-instance (result : ExecutionObservation) : Decidable result.executionComplete :=
-  inferInstanceAs (Decidable (result.deliveryComplete = true ∧ result.totalErrors = 0))
+instance (result : ExecutionObservation) : Decidable result.completedWithoutErrors :=
+  inferInstanceAs (Decidable (result.lifecycleValid = true ∧ result.totalErrors = 0))
 
 -----------------------------------------------------------------------------------------
 -- Response reconstruction
@@ -517,7 +464,7 @@ deliveries may still merge to partial data with errors; merging does not undo al
 delivered data or simulate basic execution's different null bubbling.
 -/
 def mergeExecutionObservation (result : ExecutionObservation) : Option Response :=
-  if !result.deliveryComplete then
+  if !result.lifecycleValid then
     none
   else
     match result with
@@ -535,43 +482,10 @@ open GraphQL.IncrementalDelivery.Execution (
   Resolvers ResolverValue VariableValues ExecutionObservation)
 
 -----------------------------------------------------------------------------------------
--- Query observations under the scheduler contract
------------------------------------------------------------------------------------------
-
-/-- The invariant is local to the work this query actually submits. Invalid roots and
-ordinary responses do not use a work queue; unrelated raw Work is irrelevant.
--/
-def queryObservation (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variables : VariableValues) (operation : Operation) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
-    (complete : Bool := false)
-    : Prop :=
-  ∃ scheduler : Execution.WorkScheduler,
-    (Execution.rootSourceAppliesBool schema operation source = true
-      → let prepared := Execution.coerceVariableValues operation variables
-        let completed :=
-          ((Execution.executeRootSelectionSetCore schema resolvers prepared fuel
-              (operation.rootType schema) source operation.selectionSet).run
-            0).1
-        scheduler.Conforms completed.work)
-    ∧ (Execution.executeQueryWithFuel scheduler schema resolvers variables operation fuel
-        source).Observes
-        result complete
-
-/-- Complete observations use the same definition, additionally requiring termination.
-Prefix observations permit an interrupted or stalled computation.
--/
-def queryOutcome (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variables : VariableValues) (operation : Operation) (fuel : Nat)
-    (source : ResolverValue ObjectRef) (result : ExecutionObservation)
-    : Prop :=
-  queryObservation schema resolvers variables operation fuel source result true
-
------------------------------------------------------------------------------------------
 -- Correctness statements: defer/stream-free operation
 -----------------------------------------------------------------------------------------
 
-/-- Ordinary execution is independent of the supplied factory, even before conformance.
+/-- Ordinary execution is independent of the queue constructor, even before conformance.
 Witness: incrementalDirectiveFreeExecutionEquivalentToBasic_holds in Correctness/Query,
 via work-free execution.
 -/
@@ -581,9 +495,9 @@ def incrementalDirectiveFreeExecutionEquivalentToBasic (schema : Schema)
   operation.incrementalDirectiveFree
   → ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
       variables fuel (source : ResolverValue ObjectRef)
-      (scheduler : Execution.WorkScheduler),
-      Execution.executeQueryWithFuel scheduler schema resolvers variables operation fuel
-        source
+      (createWorkQueue : Execution.Work → Execution.WorkQueue),
+      Execution.executeQueryWithFuel createWorkQueue schema resolvers variables operation
+        fuel source
       = .single
           (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
             operation.eraseIncrementalDirectives fuel source)
@@ -597,8 +511,12 @@ Correctness/QueryIdentity, via key uniqueness and injective stable allocation.
 -/
 def deliveryIDsUnique (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryObservation schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result
     → result.idsUnique
 
 /-- Patches refer to announced IDs. Witness: deliveryPatchesAnnounced_holds in
@@ -606,8 +524,12 @@ Correctness/QueryIDUsage, derived from the stronger open-ID safety statement.
 -/
 def deliveryPatchesAnnounced (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryObservation schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result
     → result.patchesAnnounced
 
 /-- Prefixes obey open-ID safety. Witness: deliveryIDUsageValid_holds in
@@ -615,8 +537,12 @@ Correctness/QueryIDUsage, via work references, stable allocation, and batching.
 -/
 def deliveryIDUsageValid (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryObservation schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result
     → result.idUsageValid
 
 /-- All delivered paths are globally unique: each slice is internally unique and
@@ -626,32 +552,44 @@ ownership, causal stream cursors, stable IDs, and batching preservation.
 -/
 def deliverySlicesDisjoint (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef) variables fuel
-    (source : ResolverValue ObjectRef) result (containers : Bool),
-    queryObservation schema resolvers variables operation fuel source result
+    (source : ResolverValue ObjectRef)
+    createWorkQueue result (containers : Bool),
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result
     → ∃ slices, result.DeliversSlices containers slices ∧ slices.flatten.Nodup
 
 -----------------------------------------------------------------------------------------
 -- Correctness statements: complete finite runs
 -----------------------------------------------------------------------------------------
 
-/-- Every modeled query has some complete finite outcome, including failures and exhausted
-fuel. This does not require every admitted prefix or every conforming source to complete.
+/-- Every modeled query has a conforming queue constructor and some complete finite outcome,
+including failures and exhausted fuel. This does not require every admitted prefix or every
+conforming source to complete.
 Witness: queryOutcomeExists_holds in Correctness/QueryOutcomeExistence, via generated-work
-progress and actual response realization. No scheduler or successful-run premise is used.
+progress and actual response realization. No queue or successful-run premise is used.
 -/
 def queryOutcomeExists (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
     variables fuel (source : ResolverValue ObjectRef),
-    ∃ result, queryOutcome schema resolvers variables operation fuel source result
+    ∃ result createWorkQueue,
+      queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+        source
+      ∧ queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result
 
 /-- Liveness is conditional on a complete finite work run. It does not assert that an
-arbitrary asynchronous resolver or unfair scheduler eventually produces such a run.
+arbitrary asynchronous resolver or host event source eventually produces such a run.
 Witness: deliveryIDsEventuallyComplete_holds in Correctness/QueryIdentity.
 -/
 def deliveryIDsEventuallyComplete (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.idsEventuallyComplete
 
 /-- Each announced ID completes exactly once in terminal observations. Witness:
@@ -659,8 +597,11 @@ deliveryIDsCompleteExactlyOnce_holds in Correctness/QueryIdentity, by uniqueness
 -/
 def deliveryIDsCompleteExactlyOnce (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.idsCompleteExactlyOnce
 
 /-- Complete runs satisfy the whole lifecycle checker. Witness:
@@ -669,24 +610,31 @@ control independent of the number of open IDs.
 -/
 def deliveryLifecycleValid (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
-    → result.deliveryComplete = true
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
+    → result.lifecycleValid = true
 
 -----------------------------------------------------------------------------------------
 -- Correctness statements: successful complete execution
 -----------------------------------------------------------------------------------------
 
 /-- Successful complete outcomes merge to the ordinary directive-erased response.
-Only zero errors is assumed beyond queryOutcome; delivery lifecycle validity is proved.
+Beyond queue conformance and queryOutcome, only zero errors is assumed; delivery lifecycle
+validity is proved.
 Witness: mergedExecutionEquivalentToBasic_holds in Correctness/QueryReconstruction,
 via causal attachments, actual wire merging, and typed source equivalence. Correctness
-quantifies over the independent scheduler contract; it is not an admission condition.
+quantifies over the independent queue contract; it is not an admission condition.
 -/
 def mergedExecutionEquivalentToBasic (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.totalErrors = 0
     → ∃ response,
         Execution.mergeExecutionObservation result = some response
@@ -695,15 +643,19 @@ def mergedExecutionEquivalentToBasic (schema : Schema) (operation : Operation) :
               operation.eraseIncrementalDirectives fuel source)
 
 /-- Successful complete outcomes deliver exactly the ordinary execution's positions.
-Only zero errors is assumed beyond queryOutcome; delivery lifecycle validity is proved.
+Beyond queue conformance and queryOutcome, only zero errors is assumed; delivery lifecycle
+validity is proved.
 Witness: deliveredResponsePositionsEquivalentToBasic_holds in Correctness/QueryCoverage,
 via typed source reconstruction and schedule-independent full wire coverage.
 -/
 def deliveredResponsePositionsEquivalentToBasic (schema : Schema) (operation : Operation)
     : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.totalErrors = 0
     → ∀ containers,
         ∃ slices,
@@ -714,14 +666,18 @@ def deliveredResponsePositionsEquivalentToBasic (schema : Schema) (operation : O
                   operation.eraseIncrementalDirectives fuel source).data)
 
 /-- Every ordinary scalar/null leaf occurs exactly once in successful complete delivery.
-Only zero errors is assumed beyond queryOutcome; delivery lifecycle validity is proved.
+Beyond queue conformance and queryOutcome, only zero errors is assumed; delivery lifecycle
+validity is proved.
 Witness: basicLeavesDeliveredExactlyOnce_holds in Correctness/QueryCoverage, by position
 coverage and ordinary response-path uniqueness.
 -/
 def basicLeavesDeliveredExactlyOnce (schema : Schema) (operation : Operation) : Prop :=
   ∀ {ObjectRef : Type} (resolvers : Resolvers ObjectRef)
-    variables fuel (source : ResolverValue ObjectRef) result,
-    queryOutcome schema resolvers variables operation fuel source result
+    variables fuel (source : ResolverValue ObjectRef)
+    createWorkQueue result,
+    queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+      source
+    → queryOutcome createWorkQueue schema resolvers variables operation fuel source result
     → result.totalErrors = 0
     → ∃ slices,
         result.DeliversSlices false slices

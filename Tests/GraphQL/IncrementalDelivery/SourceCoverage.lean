@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.QuerySourceCoverage
 namespace GraphQL.IncrementalDelivery.Tests.SourceCoverage
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Every full successful source inventory is recovered in publication order, even when
 different occurrences have identical payloads. No deterministic order is selected.

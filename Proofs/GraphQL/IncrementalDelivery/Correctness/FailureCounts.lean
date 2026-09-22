@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ResponseReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
 
 /-! Failure-completion counts survive mapping and both response batching stages. -/
 
@@ -12,23 +12,23 @@ def completionErrors (update : IncrementalStreamUpdateResult) : Nat :=
   (update.completed.map IncrementalCompletionNotice.errors).sum
 
 /-- One event adds exactly its failure-completion count; witness: mapper case analysis. -/
-theorem eventLoop_completionErrors (event : WorkEvent)
+theorem eventLoop_completionErrors (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
     (mapped : (eventLoop event initial).run ids = (.yield update, next))
     : completionErrors update
-      = completionErrors initial + WorkScheduler.failureErrors event := by
+      = completionErrors initial + WorkQueueSemantics.failureErrors event := by
   cases event <;>
     simp only [eventLoop, getCompletedEntry, StateT.run, StateT.bind,
       StateT.pure, bind, pure] at mapped
   all_goals
     repeat first | split at mapped | cases mapped
-    simp [completionErrors, WorkScheduler.failureErrors]
+    simp [completionErrors, WorkQueueSemantics.failureErrors]
 
 /-- Iteration adds all supplied event failure counts, by event-loop induction. -/
-theorem loop_completionErrors (events : List WorkEvent)
+theorem loop_completionErrors (events : List WorkQueueEvent)
     (initial : IncrementalStreamUpdateResult) (ids : IDState)
     : completionErrors ((forIn events initial eventLoop).run ids).1
-      = completionErrors initial + (events.map WorkScheduler.failureErrors).sum := by
+      = completionErrors initial + (events.map WorkQueueSemantics.failureErrors).sum := by
   induction events generalizing initial ids with
   | nil =>
       simp; rfl
@@ -41,16 +41,17 @@ theorem loop_completionErrors (events : List WorkEvent)
         Nat.add_assoc]
 
 /-- Public work-event batch mapping preserves the failure-completion subtotal. -/
-theorem mapWorkEventBatch_completionErrors (events : List WorkEvent) (ids : IDState)
+theorem mapWorkEventBatch_completionErrors (events : List WorkQueueEvent) (ids : IDState)
     : completionErrors ((mapWorkEventBatch events).run ids).1
-      = (events.map WorkScheduler.failureErrors).sum := by
+      = (events.map WorkQueueSemantics.failureErrors).sum := by
   rw [mapWorkEventBatch_loop, loop_completionErrors]
   simp [completionErrors]
 
 /-- Finite replay preserves failure errors across all supplied work batches. -/
-theorem mappedTrace_completionErrors (batches : List (List WorkEvent)) (ids : IDState)
+theorem mappedTrace_completionErrors (batches : List (List WorkQueueEvent))
+    (ids : IDState)
     : ((mappedTrace batches ids).map completionErrors).sum
-      = (batches.flatten.map WorkScheduler.failureErrors).sum := by
+      = (batches.flatten.map WorkQueueSemantics.failureErrors).sum := by
   induction batches generalizing ids with
   | nil => rfl
   | cons batch rest ih =>
@@ -112,8 +113,8 @@ counts followed by the total-errors bound. No work admissibility is needed for t
 -/
 theorem replayResponse_failureErrors_le (response : Response)
     (initialGroups initialStreams : List DeliveryNode)
-    (groups : List (List (List WorkEvent)))
-    : (groups.flatten.flatten.map WorkScheduler.failureErrors).sum
+    (groups : List (List (List WorkQueueEvent)))
+    : (groups.flatten.flatten.map WorkQueueSemantics.failureErrors).sum
       ≤ (replayResponse response initialGroups initialStreams groups).totalErrors := by
   cases allocated
         : (getPendingEntry (m := StateM IDState) initialGroups initialStreams

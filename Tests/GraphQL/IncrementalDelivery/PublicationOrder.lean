@@ -6,7 +6,7 @@ import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 namespace GraphQL.IncrementalDelivery.Tests.PublicationOrder
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Equal-valued items cannot be observed in reversed occurrence order, for any matching
 or failure witness; use the general history-order theorem rather than payload inequality.

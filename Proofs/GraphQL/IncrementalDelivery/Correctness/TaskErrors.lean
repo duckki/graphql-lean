@@ -1,12 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ExecutionErrors
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 
 /-! Structural execution certificates apply to each scheduler-visible task. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness.ExecutionErrors
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Every selected stream entry inherits the list certificate, by membership induction. -/
 theorem ItemsPositive.member {items : List (Result ResponseValue × Work)}

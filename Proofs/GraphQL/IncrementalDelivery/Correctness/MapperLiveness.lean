@@ -7,22 +7,23 @@ Materialization here is a proof observation, never an execution step.
 namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Replay supplied observed batches; this helper never selects a source's future. -/
-def mappedTrace : List (List WorkEvent) → IDState → List IncrementalStreamUpdateResult
+def mappedTrace
+    : List (List WorkQueueEvent) → IDState → List IncrementalStreamUpdateResult
   | [], _ => []
   | events :: tail, ids =>
       let (update, nextIDs) := (mapWorkEventBatch events).run ids
       update :: mappedTrace tail nextIDs
 
 /-- The allocation state remaining after the supplied observed batches. -/
-def finalIDs : List (List WorkEvent) → IDState → IDState
+def finalIDs : List (List WorkQueueEvent) → IDState → IDState
   | [], state => state
   | batch :: rest, state => finalIDs rest ((mapWorkEventBatch batch).run state).2
 
 /-- Finite input replay preserves IDs and encodes completions, by batch induction. -/
-theorem mappedTrace_spec (batches : List (List WorkEvent)) (state : IDState)
+theorem mappedTrace_spec (batches : List (List WorkQueueEvent)) (state : IDState)
     : Preserves state (finalIDs batches state)
       ∧ Encodes (finalIDs batches state) (completedKeys batches.flatten)
           (DeliveryTrace.completedIDs (mappedTrace batches state)) := by
@@ -40,7 +41,7 @@ theorem mappedTrace_spec (batches : List (List WorkEvent)) (state : IDState)
               using (hc.mono tp).append tc
 
 /-- A completed key yields its previously known ID, by stable lookup uniqueness. -/
-theorem mappedTrace_completion {batches : List (List WorkEvent)} {state : IDState}
+theorem mappedTrace_completion {batches : List (List WorkQueueEvent)} {state : IDState}
     {key : Nat} {id : String} (known : Known state key id)
     (closed : key ∈ completedKeys batches.flatten)
     : id ∈ DeliveryTrace.completedIDs (mappedTrace batches state) := by
@@ -50,7 +51,7 @@ theorem mappedTrace_completion {batches : List (List WorkEvent)} {state : IDStat
   simpa [same] using ho
 
 /-- Causal key liveness yields causal ID liveness, by replay induction. -/
-theorem mappedTrace_live {batches : List (List WorkEvent)} (state : IDState)
+theorem mappedTrace_live {batches : List (List WorkQueueEvent)} (state : IDState)
     (live : liveBatches batches)
     : DeliveryTrace.announcementsEventuallyComplete (mappedTrace batches state) := by
   induction batches generalizing state with

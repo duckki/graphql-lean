@@ -30,12 +30,12 @@ theorem executeRootSelectionSetCore_plain (schema : Schema)
     (collectFields_plain schema variables parentType source selections hplain state)
   intro collection hn hp he
   have hr := executeCollectedFields_plain schema resolvers variables fuel parentType source
-    collection.fields hp [] state
+    collection.collectedFieldsMap hp [] state
   rw [he] at hr
   exact executePlan_plain schema resolvers variables fuel parentType source collection [] state _
     hn hp hr
 
-/-- Public equivalence for every factory, with no scheduler law or error-free premise.
+/-- Public equivalence for every queue constructor, with no scheduler law or error-free premise.
 Witness: the plain core generates no work, so root packaging takes the ordinary branch.
 -/
 theorem incrementalDirectiveFreeExecutionEquivalentToBasic_holds
@@ -104,7 +104,7 @@ theorem eraseOperation_fuelBound (schema : Schema) (operation : Operation)
 /-- Default-fuel equivalence follows from the public explicit-fuel witness and equal
 bounds.
 -/
-theorem executeQuery_plain (scheduler : Execution.WorkScheduler)
+theorem executeQuery_plain (scheduler : (Execution.Work → Execution.WorkQueue))
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation)
     (source : ResolverValue ObjectRef) (hplain : operation.incrementalDirectiveFree)

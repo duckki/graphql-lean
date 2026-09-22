@@ -8,7 +8,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Object publication cannot create a newly supported notice without a carrier
@@ -25,7 +25,7 @@ theorem supported_ready_owner_announced
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (member : key ∈ owners)
     (ready : CanPublish work matching events failed (.executionGroup address) producer)
-    (healthy : ¬NodeFailed work failed key)
+    (healthy : ¬NodeFailed work matching events failed key)
     (dependencies
       : ∀ ancestor ∈ ancestry key,
           DependencySatisfied work initial matching events failed ancestor)
@@ -36,7 +36,8 @@ theorem supported_ready_owner_announced
   obtain ⟨node, nodeDependencies, descriptor, same⟩ := known.executionGroup_owner member
   apply covered node .group nodeDependencies producer descriptor
   refine ⟨
-    ⟨same ▸ fresh, same ▸ healthy, Or.inr ?_, ready.2.2.1, ?_⟩,
+    ⟨same ▸ fresh, Or.inl ⟨same ▸ healthy, Or.inr ?_⟩, ready.2.2.1, ?_⟩,
+    same ▸ healthy,
     by intro impossible; cases impossible
   ⟩
   · intro accounted
@@ -54,12 +55,17 @@ owner or waits on an outstanding one; a stream's full supporting dependency is
 outstanding.
 -/
 theorem supported_coverage_publication
-    {ancestry bound roles work initial before events oldMatching matching failed address
-      owners producer payload}
+    {ancestry bound roles work groups streams initial before events oldMatching matching
+      failed address owners producer payload}
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (roleCoherent : KeyRoles.WorkRoles roles work)
     (continuous : DeferContinuous ancestry work) (ordered : StreamOwnersOrdered work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before failed)
+    (explained : Explains work groups streams events matching failed)
+    (failureTransport
+      : ∀ key,
+          NodeFailed work oldMatching before failed key
+          → NodeFailed work matching events failed key)
     (known : TaskAt work (.executionGroup address) owners producer payload)
     (ready : CanPublish work oldMatching before failed (.executionGroup address) producer)
     (unavailable
@@ -92,15 +98,15 @@ theorem supported_coverage_publication
     · exact ready.2.2.1 producerOccurrence
         ((TaskAt.unique known task).2.1.trans generated)
   apply supported_coverage_noncarrier valid coherent roleCoherent covered
-    (List.Subset.refl _) notices (fun _ _ _ member => completions member) producers
+    explained failureTransport notices (fun _ _ _ member => completions member) producers
     accounting
   intro node kind dependencies nodeProducer descriptor supported producerOccurrence generated
   rcases publications producerOccurrence
-      (supported.1.2.2.2.1 producerOccurrence generated) with earlier | rfl
+      (supported.1.2.2.1 producerOccurrence generated) with earlier | rfl
   · exact earlier
   subst nodeProducer
   have dependenciesBefore := supported.dependencies_before descriptor valid coherent
-    roleCoherent covered (List.Subset.refl _) notices
+    roleCoherent covered explained failureTransport notices
       (fun _ _ _ member => completions member) producers
   cases kind with
   | group =>
@@ -109,7 +115,7 @@ theorem supported_coverage_publication
       have contributes := (TaskAt.unique task known).1 ▸ member
       rcases support with reused | dependency
       · have notified := supported_ready_owner_announced coherent covered known contributes
-          ready (reused ▸ supported.1.2.1) (by
+          ready (reused ▸ (fun failure => supported.2.1 (failureTransport _ failure))) (by
             intro ancestor member
             apply dependenciesBefore ancestor
             simpa only [DeferOnly.node_dependencies coherent descriptor, ← reused] using member)
@@ -140,31 +146,35 @@ theorem supported_coverage_control
     (explained : Explains work groups streams before oldMatching failures)
     (covered
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
-          oldMatching before (failures.map Prod.snd))
-    (included : failures.map Prod.snd ⊆ failed)
+          oldMatching before failures)
+    (extended : Explains work groups streams events matching failed)
+    (included
+      : ∀ key,
+          NodeFailed work oldMatching before failures key
+          → NodeFailed work matching events failed key)
     (notices
       : (announcedKeys ((groups ++ streams).map DeliveryNode.key) before).Subset
           (announcedKeys ((groups ++ streams).map DeliveryNode.key) events))
     (completions
       : ∀ key,
           roles key = false
-          → ¬NodeFailed work failed key
+          → ¬NodeFailed work matching events failed key
           → key ∈ completedKeys events
           → key ∈ completedKeys before)
     (publications
       : ∀ task, Published matching events task → Published oldMatching before task)
     (accounting
       : ∀ key,
-          NodeAccounted work oldMatching before (failures.map Prod.snd) key
+          NodeAccounted work oldMatching before failures key
           → NodeAccounted work matching events failed key)
     : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
         matching events failed := by
-  refine supported_coverage_noncarrier valid coherent roleCoherent covered included notices
+  refine supported_coverage_noncarrier valid coherent roleCoherent covered extended included notices
     completions ?_ accounting ?_
   · intro occurrence owners producer payload known published
     exact explained.published_producer known (publications occurrence published)
   · intro node kind dependencies producer _ supported producerOccurrence generated
     exact publications producerOccurrence
-      (supported.1.2.2.2.1 producerOccurrence generated)
+      (supported.1.2.2.1 producerOccurrence generated)
 
 end GraphQL.IncrementalDelivery.Correctness

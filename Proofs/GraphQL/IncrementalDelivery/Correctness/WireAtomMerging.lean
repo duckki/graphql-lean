@@ -109,10 +109,10 @@ Witness: initial allocation, mapper encoding, update coalescing, and the lifecyc
 theorem replayResponse_merge_atoms {paths bound response work groups streams batches}
     (coherent : Semantics.MixedOwnerPaths.WorkAt paths bound work)
     (admitted
-      : WorkScheduler.AdmissiblePrefix work ⟨groups, streams, batches.flatten⟩
-        ∨ WorkScheduler.AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
+      : WorkQueueSemantics.AdmissiblePrefix work ⟨groups, streams, batches.flatten⟩
+        ∨ WorkQueueSemantics.AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
     (safe : (replayResponse response groups streams batches).idUsageValid)
-    (complete : (replayResponse response groups streams batches).deliveryComplete = true)
+    (complete : (replayResponse response groups streams batches).lifecycleValid = true)
     : mergeExecutionObservation (replayResponse response groups streams batches)
       = (applyAtoms (batches.flatten.flatten.flatMap eventPositionAtoms)
           response.data).map

@@ -40,13 +40,13 @@ theorem putFields_nil_of_nodup (fields : List (Name × ResponseValue))
 /-- Successful reconstruction requires lifecycle validity; witness: the merger's initial
 guard.
 -/
-theorem deliveryComplete_of_mergeExecutionObservation (result : ExecutionObservation)
+theorem lifecycleValid_of_mergeExecutionObservation (result : ExecutionObservation)
     (response : Response) (h : mergeExecutionObservation result = some response)
-    : result.deliveryComplete = true := by
+    : result.lifecycleValid = true := by
   unfold mergeExecutionObservation at h
   split at h
   · cases h
-  · simpa using ‹¬(!result.deliveryComplete) = true›
+  · simpa using ‹¬(!result.lifecycleValid) = true›
 
 /-- A reconstructed response uses the trace's total errors, by its final envelope
 constructor.
@@ -56,7 +56,7 @@ theorem mergeExecutionObservation_errors (result : ExecutionObservation)
     : response.errors = result.totalErrors := by
   cases result with
   | single initial =>
-      simp [mergeExecutionObservation, ExecutionObservation.deliveryComplete] at h
+      simp [mergeExecutionObservation, ExecutionObservation.lifecycleValid] at h
       cases h
       rfl
   | incremental initial updates =>
@@ -73,7 +73,7 @@ theorem mergeExecutionObservation_errors (result : ExecutionObservation)
 preservation.
 -/
 theorem mergeExecutionObservation_errors_zero (result : ExecutionObservation)
-    (response : Response) (hcomplete : result.executionComplete)
+    (response : Response) (hcomplete : result.completedWithoutErrors)
     (hmerge : mergeExecutionObservation result = some response)
     : response.errors = 0 :=
   (mergeExecutionObservation_errors result response hmerge).trans hcomplete.2
@@ -85,7 +85,7 @@ theorem idsCompleteExactlyOnce_of_mergeExecutionObservation
     (result : ExecutionObservation) (response : Response)
     (h : mergeExecutionObservation result = some response)
     : result.idsCompleteExactlyOnce :=
-  idsCompleteExactlyOnce_of_deliveryComplete result
-    (deliveryComplete_of_mergeExecutionObservation result response h)
+  idsCompleteExactlyOnce_of_lifecycleValid result
+    (lifecycleValid_of_mergeExecutionObservation result response h)
 
 end GraphQL.IncrementalDelivery.Correctness

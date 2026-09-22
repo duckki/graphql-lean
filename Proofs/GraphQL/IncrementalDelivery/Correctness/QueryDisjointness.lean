@@ -49,14 +49,18 @@ theorem WorkObservation.disjoint_positions
 position sequence. Witness: root execution's source ownership and cursor certificates,
 or the ordinary singleton null position for an inapplicable root.
 -/
-theorem queryObservation_disjoint_positions
+theorem queryObservation_disjoint_positions {createWorkQueue : Work → WorkQueue}
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation} {complete : Bool}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
     (observed
-      : queryObservation schema resolvers variables operation fuel source result complete)
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result complete)
     : ∃ slices, result.DeliversSlices true slices ∧ slices.flatten.Nodup := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   split at witnessed
   · obtain ⟨paths, coherent⟩ := Semantics.MixedOwnerPaths.executeRoot_owners schema resolvers
       (coerceVariableValues operation variables) fuel (operation.rootType schema) source
@@ -75,8 +79,9 @@ when containers are omitted.
 -/
 theorem deliverySlicesDisjoint_holds (schema : Schema) (operation : Operation)
     : deliverySlicesDisjoint schema operation := by
-  intro ObjectRef resolvers variables fuel source result containers observed
-  obtain ⟨slices, delivered, disjoint⟩ := queryObservation_disjoint_positions observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result containers conforms
+    observed
+  obtain ⟨slices, delivered, disjoint⟩ := queryObservation_disjoint_positions conforms observed
   cases containers with
   | true => exact ⟨slices, delivered, disjoint⟩
   | false => exact Semantics.deliversSlices_leaves_nodup delivered disjoint

@@ -11,7 +11,7 @@ def executionPlanGroups (plan : ExecutionPlan) : CollectedFieldsMap :=
   plan.collectedFieldsMap ++ plan.newCollectedFieldsMaps.flatMap Prod.snd
 
 theorem addExecutionPartition_perm (usages : List Nat)
-    (group : Name × List ExecutableField)
+    (group : Name × List FieldDetails)
     (partitions : List (List Nat × CollectedFieldsMap))
     : ((addExecutionPartition usages group partitions).flatMap Prod.snd).Perm
         (group :: partitions.flatMap Prod.snd) := by
@@ -26,7 +26,7 @@ theorem addExecutionPartition_perm (usages : List Nat)
       · simp [addExecutionPartition, he, List.append_assoc]
 
 theorem executionPlanGroups_step (plan : ExecutionPlan)
-    (group : Name × List ExecutableField) (parent : List Nat)
+    (group : Name × List FieldDetails) (parent : List Nat)
     : (executionPlanGroups
         (if deferUsageSetsEquivalent (getFilteredDeferUsageSet group.2) parent then
             { plan with collectedFieldsMap := plan.collectedFieldsMap ++ [group] }
@@ -75,7 +75,7 @@ theorem buildExecutionPlan_erasure_perm (groups : CollectedFieldsMap) (parent : 
         (eraseGroups groups) :=
   (buildExecutionPlan_perm groups parent).map eraseGroup
 
-theorem buildExecutionPlan_preserves_property (property : ExecutableField → Prop)
+theorem buildExecutionPlan_preserves_property (property : FieldDetails → Prop)
     (groups : CollectedFieldsMap) (parent : List Nat) (h : GroupsSatisfy property groups)
     : GroupsSatisfy property (buildExecutionPlan groups parent).collectedFieldsMap
       ∧ ∀ partition ∈ (buildExecutionPlan groups parent).newCollectedFieldsMaps,

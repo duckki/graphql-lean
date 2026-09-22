@@ -11,7 +11,7 @@ namespace GraphQL.IncrementalDelivery.Semantics.Ancestry
 
 open GraphQL.IncrementalDelivery.Execution
 
-theorem filtered_key_source (fields : List ExecutableField) (key : Nat)
+theorem filtered_key_source (fields : List FieldDetails) (key : Nat)
     (h : key ∈ getFilteredDeferUsageSet fields)
     : ∃ field ∈ fields, ∃ usage, field.deferUsage = some usage ∧ usage.key = key := by
   unfold getFilteredDeferUsageSet at h
@@ -55,7 +55,7 @@ theorem filtered_usage_ancestor (parents : Assignment) (bound : Nat)
       · exact ⟨key, List.mem_filter.mpr ⟨hk, by simpa using hremove⟩, Or.inl rfl⟩
 
 theorem fieldsUnder_filtered (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
-    (fields : List ExecutableField) (hv : Valid parents bound)
+    (fields : List FieldDetails) (hv : Valid parents bound)
     (known : ∀ field ∈ fields, OptionalUsageAt parents bound deferMap field.deferUsage)
     : FieldsUnder (getFilteredDeferUsageSet fields) fields := by
   by_cases himmediate : fields.any (fun field => field.deferUsage.isNone) = true
@@ -70,7 +70,7 @@ theorem fieldsUnder_filtered (parents : Assignment) (bound : Nat) (deferMap : De
     | some usage =>
         have hu := known field hf usage husage
         obtain ⟨owner, ho, hh⟩ := filtered_usage_ancestor parents bound
-          (fields.filterMap ExecutableField.deferUsage) hv
+          (fields.filterMap FieldDetails.deferUsage) hv
           (by
             intro actual ha
             obtain ⟨f, hfm, hfu⟩ := List.mem_filterMap.mp ha
@@ -83,7 +83,7 @@ theorem fieldsUnder_filtered (parents : Assignment) (bound : Nat) (deferMap : De
         · simpa only [hu.2.1] using hh
 
 theorem filtered_keys_known (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
-    (fields : List ExecutableField)
+    (fields : List FieldDetails)
     (known : ∀ field ∈ fields, OptionalUsageAt parents bound deferMap field.deferUsage)
     : (getFilteredDeferUsageSet fields).Subset (mapKeys deferMap) := by
   intro key hk
@@ -91,7 +91,7 @@ theorem filtered_keys_known (parents : Assignment) (bound : Nat) (deferMap : Def
   simpa only [he] using (known field hf usage hfu).2.2
 
 theorem filtered_keys_under (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
-    (owners : List Nat) (fields : List ExecutableField)
+    (owners : List Nat) (fields : List FieldDetails)
     (known : ∀ field ∈ fields, OptionalUsageAt parents bound deferMap field.deferUsage)
     (under : FieldsUnder owners fields)
     : owners = []
@@ -108,7 +108,7 @@ theorem filtered_keys_under (parents : Assignment) (bound : Nat) (deferMap : Def
     exact ⟨owner, ho, by simpa only [← he, hparents] using hu⟩
 
 theorem filtered_keys_nonempty (parents : Assignment) (bound : Nat) (deferMap : DeferMap)
-    (owners : List Nat) (fields : List ExecutableField) (hv : Valid parents bound)
+    (owners : List Nat) (fields : List FieldDetails) (hv : Valid parents bound)
     (known : ∀ field ∈ fields, OptionalUsageAt parents bound deferMap field.deferUsage)
     (under : FieldsUnder owners fields) (hne : fields ≠ [])
     (hdifferent
@@ -141,7 +141,7 @@ theorem OptionalUnder.mono {owners more : List Nat} {usage : Option DeferUsage}
   exact Or.inr ⟨actual, ha, owner, hs ho, hu⟩
 
 theorem partitionsAt_add (parents : Assignment) (deferMap : DeferMap)
-    (owners keys : List Nat) (group : Name × List ExecutableField)
+    (owners keys : List Nat) (group : Name × List FieldDetails)
     (partitions : List (List Nat × CollectedFieldsMap)) (hk : keys ≠ [])
     (hknown : keys.Subset (mapKeys deferMap)) (hunder : FieldsUnder keys group.2)
     (houter : owners = [] ∨ ∀ key ∈ keys, Descends parents owners key)

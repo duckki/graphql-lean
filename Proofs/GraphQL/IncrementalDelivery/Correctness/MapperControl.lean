@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ResponseReplay
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Termination
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Termination
 
 /-! The mapper's continuation flag observes termination, not the number of open IDs. -/
 
@@ -8,13 +8,13 @@ open GraphQL.IncrementalDelivery.Execution
 open MapperIdentity
 
 /-- A proof-only projection identifying the queue's termination marker. -/
-def isTermination : WorkEvent → Bool
+def isTermination : WorkQueueEvent → Bool
   | .workQueueTermination => true
   | _ => false
 
 /-- The termination projection detects exactly the termination constructor. -/
-theorem any_termination (events : List WorkEvent)
-    : events.any isTermination = true ↔ WorkEvent.workQueueTermination ∈ events := by
+theorem any_termination (events : List WorkQueueEvent)
+    : events.any isTermination = true ↔ WorkQueueEvent.workQueueTermination ∈ events := by
   simp only [List.any_eq_true]
   constructor
   · rintro ⟨event, member, terminal⟩
@@ -25,7 +25,7 @@ theorem any_termination (events : List WorkEvent)
 /-- Each event retains the previous flag unless it is termination; witness: reduce
 the mapper cases and their state-result pairs.
 -/
-theorem eventLoop_hasNext (event : WorkEvent)
+theorem eventLoop_hasNext (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
     (mapped : (eventLoop event initial).run ids = (.yield update, next))
     : update.hasNext = (initial.hasNext && !isTermination event) := by
@@ -38,8 +38,8 @@ theorem eventLoop_hasNext (event : WorkEvent)
 /-- Iteration stops the flag exactly when an input termination is present; witness:
 event-loop induction with the actual mapper result witnesses.
 -/
-theorem loop_hasNext (events : List WorkEvent) (initial : IncrementalStreamUpdateResult)
-    (ids : IDState)
+theorem loop_hasNext (events : List WorkQueueEvent)
+    (initial : IncrementalStreamUpdateResult) (ids : IDState)
     : ((forIn events initial eventLoop).run ids).1.hasNext
       = (initial.hasNext && !events.any isTermination) := by
   induction events generalizing initial ids with
@@ -54,14 +54,14 @@ theorem loop_hasNext (events : List WorkEvent) (initial : IncrementalStreamUpdat
         flag, Bool.not_or, Bool.and_assoc]
 
 /-- Public batch mapping hasNext is false exactly when its supplied inputs terminate. -/
-theorem mapWorkEventBatch_hasNext (events : List WorkEvent) (ids : IDState)
+theorem mapWorkEventBatch_hasNext (events : List WorkQueueEvent) (ids : IDState)
     : ((mapWorkEventBatch events).run ids).1.hasNext = !events.any isTermination := by
   rw [mapWorkEventBatch_loop, loop_hasNext]
   rfl
 
 /-- No termination in a batch means another event may follow, by the mapper equation. -/
-theorem mapWorkEventBatch_continues {events : List WorkEvent} (ids : IDState)
-    (ordinary : WorkEvent.workQueueTermination ∉ events)
+theorem mapWorkEventBatch_continues {events : List WorkQueueEvent} (ids : IDState)
+    (ordinary : WorkQueueEvent.workQueueTermination ∉ events)
     : ((mapWorkEventBatch events).run ids).1.hasNext = true := by
   rw [mapWorkEventBatch_hasNext]
   have absent : events.any isTermination = false := by
@@ -72,8 +72,8 @@ theorem mapWorkEventBatch_continues {events : List WorkEvent} (ids : IDState)
 
 /-- A terminal batch stops continuation, by termination membership and the mapper equation.
 -/
-theorem mapWorkEventBatch_stops {events : List WorkEvent} (ids : IDState)
-    (terminal : WorkScheduler.Terminates events)
+theorem mapWorkEventBatch_stops {events : List WorkQueueEvent} (ids : IDState)
+    (terminal : WorkQueueSemantics.Terminates events)
     : ((mapWorkEventBatch events).run ids).1.hasNext = false := by
   rw [mapWorkEventBatch_hasNext, (any_termination events).mpr terminal.member]
   rfl
@@ -81,8 +81,8 @@ theorem mapWorkEventBatch_stops {events : List WorkEvent} (ids : IDState)
 /-- Terminal work-batch replay is nonempty with accurate continuation flags; witness:
 batch-sequence induction and the independent termination marker.
 -/
-theorem mappedTrace_control {batches} (terminal : WorkScheduler.TerminalBatches batches)
-    (ids : IDState)
+theorem mappedTrace_control {batches}
+    (terminal : WorkQueueSemantics.TerminalBatches batches) (ids : IDState)
     : mappedTrace batches ids ≠ []
       ∧ DeliveryTrace.hasNextValid (mappedTrace batches ids) = true := by
   induction terminal generalizing ids with

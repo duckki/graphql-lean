@@ -8,7 +8,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Deferred producers preserve the ancestry of every contributing owner
@@ -112,14 +112,15 @@ theorem DeferOnly.node_dependencies {parents lower bound work node dependencies 
 Witness: the supporting producer owner is reused or an explicit failed group dependency.
 -/
 theorem DeferOnly.producer_failure
-    {parents bound work failed occurrence owners key producer payload parentOwners
-      ancestor result}
+    {parents bound work matching events failed occurrence owners key producer payload
+      parentOwners ancestor result}
     (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners (some producer) payload)
     (member : key ∈ owners) (parent : TaskAt work producer parentOwners ancestor result)
-    (failures : ∀ parentKey ∈ parentOwners, NodeFailed work failed parentKey)
-    : NodeFailed work failed key := by
+    (failures
+      : ∀ parentKey ∈ parentOwners, NodeFailed work matching events failed parentKey)
+    : NodeFailed work matching events failed key := by
   obtain ⟨node, kind, dependencies, descriptor, same⟩ := known.owner_at_producer member
   obtain ⟨supportOwners, birth, value, parentKey, task, contributes, support⟩ :=
     shape.producer_parent coherent continuous ordered descriptor
@@ -136,34 +137,38 @@ Witness: dependency-rank induction, propagating all producer failures through an
 Repeated descriptors and arbitrarily nested producers remain permitted.
 -/
 theorem DeferOnly.cancelled_owner_failed
-    {parents bound work failed occurrence owners key producer payload}
+    {parents bound work matching events failed occurrence owners key producer payload}
     (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    (cancelled : TaskCancelled work failed occurrence)
-    : NodeFailed work failed key := by
+    (cancelled : TaskCancelled work matching events failed occurrence)
+    : NodeFailed work matching events failed key := by
   induction rank : occurrence.dependencyRank
     using Nat.strongRecOn generalizing occurrence owners key producer payload with
   | ind rank ih =>
-      cases cancelled with
-      | owners projected _ failedOwners =>
+      obtain ⟨cut, cutMember, reached, cause⟩ := cancelled
+      cases cause with
+      | owners projected _ _ failedOwners =>
           obtain ⟨birth, result, task⟩ := projected
-          exact failedOwners key ((TaskAt.unique task known).1.symm ▸ member)
-      | producerFailed projected failure =>
+          exact ⟨cut, cutMember, reached,
+            failedOwners key ((TaskAt.unique task known).1.symm ▸ member)⟩
+      | producerFailed projected _ failure =>
           obtain ⟨otherOwners, result, task⟩ := projected
           have same := (TaskAt.unique known task).2.1
           subst producer
           obtain ⟨_, parentOwners, ancestor, value, parent⟩ := task.producer_dependency
           exact shape.producer_failure coherent continuous ordered known member parent
-            (fun parentKey contributes => .task parent contributes failure)
-      | producerCancelled projected cancellation =>
+            (fun parentKey contributes => .task parent contributes
+              (failedBefore_subset failed reached failure))
+      | producerCancelled projected _ cancellation =>
           obtain ⟨otherOwners, result, task⟩ := projected
           have same := (TaskAt.unique known task).2.1
           subst producer
           obtain ⟨lower, parentOwners, ancestor, value, parent⟩ := task.producer_dependency
           exact shape.producer_failure coherent continuous ordered known member parent
             (fun parentKey contributes =>
-              ih _ (by omega) parent contributes cancellation rfl)
+              ih _ (by omega) parent contributes
+                ⟨cut, cutMember, reached, cancellation⟩ rfl)
 
 /-- A task with any healthy owner is accounted for exactly when it has published.
 Witness: cancellation would fail that owner; publication is itself an accounting case.
@@ -174,8 +179,8 @@ theorem DeferOnly.accounted_iff_published
     (shape : DeferOnly work) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    (healthy : ¬NodeFailed work failed key)
-    : Accounted work matching events failed occurrence
+    (healthy : ¬NodeFailed work matching events failed key)
+    : TaskAccounted work matching events failed occurrence
       ↔ Published matching events occurrence := by
   constructor
   · rintro (cancelled | published)

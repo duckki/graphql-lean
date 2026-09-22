@@ -1,0 +1,34 @@
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Causality
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.EventAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureCauses
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SpecificationSource
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Nonblocking
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Minimality
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Independence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.OwnerNormalization
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.GroupValueMetadata
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.GroupAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeFrontiers
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeEligibility
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SingletonOwners
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReleasedStreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.EventLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.BatchLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.References
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Termination
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Publication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationOrder
+
+/-! Structural and causal equivalence, work-history accounting, and conditional liveness.
+These are node-key properties; transport to wire IDs and public query claims remains separate.
+-/

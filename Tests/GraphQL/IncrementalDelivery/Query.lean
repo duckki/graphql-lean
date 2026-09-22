@@ -18,7 +18,7 @@ example (schema : Schema) (operation : Operation)
 /-- Default-fuel agreement also accepts arbitrary factories, without a conformance
 premise.
 -/
-example (scheduler : Execution.WorkScheduler) (schema : Schema)
+example (scheduler : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (operation : Operation)
     (source : ResolverValue ObjectRef) (plain : operation.incrementalDirectiveFree)
     : executeQuery scheduler schema resolvers variables operation source
@@ -29,7 +29,7 @@ example (scheduler : Execution.WorkScheduler) (schema : Schema)
 
 /-- Initial data/errors agree even when the supplied factories are not known to conform.
 -/
-example (left right : Execution.WorkScheduler) (schema : Schema)
+example (left right : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (operation : Operation)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     : initialResponse
@@ -90,8 +90,12 @@ witness.
 example {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (completed : queryOutcome schema resolvers variables operation fuel source result)
-    : queryObservation schema resolvers variables operation fuel source result :=
+    {createWorkQueue : Work → WorkQueue}
+    (completed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
+    : queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result :=
   queryOutcome_observation completed
 
 end GraphQL.IncrementalDelivery.Tests.Query

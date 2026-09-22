@@ -11,7 +11,7 @@ open MapperIdentity
 /-- One mapped event preserves old notice metadata and adds coherent new notices.
 Witness: stable allocation plus the pending-entry metadata specification.
 -/
-theorem eventLoop_noticePaths {paths : Nat → ResponsePath} (event : WorkEvent)
+theorem eventLoop_noticePaths {paths : Nat → ResponsePath} (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
     (coherent : ∀ node ∈ eventNodes event, paths node.key = node.path)
     (valid : NoticePaths paths ids initial.pending)
@@ -67,7 +67,7 @@ theorem eventLoop_noticePaths {paths : Nat → ResponsePath} (event : WorkEvent)
 /-- Mapping an event prefix retains metadata for every accumulated notice, by loop
 induction. Descriptors are assumed coherent, not lifecycle-valid or successfully merged.
 -/
-theorem loop_noticePaths {paths : Nat → ResponsePath} (events : List WorkEvent)
+theorem loop_noticePaths {paths : Nat → ResponsePath} (events : List WorkQueueEvent)
     (initial : IncrementalStreamUpdateResult) (ids : IDState)
     (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
     (valid : NoticePaths paths ids initial.pending)
@@ -87,7 +87,7 @@ theorem loop_noticePaths {paths : Nat → ResponsePath} (events : List WorkEvent
 /-- Public batch mapping retains every pending notice's source path, by the loop rule.
 -/
 theorem mapWorkEventBatch_noticePaths {paths : Nat → ResponsePath}
-    (events : List WorkEvent) (ids : IDState)
+    (events : List WorkQueueEvent) (ids : IDState)
     (coherent : ∀ node ∈ events.flatMap eventNodes, paths node.key = node.path)
     : NoticePaths paths ((mapWorkEventBatch events).run ids).2
         ((mapWorkEventBatch events).run ids).1.pending := by
@@ -98,7 +98,7 @@ theorem mapWorkEventBatch_noticePaths {paths : Nat → ResponsePath}
 Witness: batch induction and allocation stability through the remaining supplied inputs.
 -/
 theorem mappedTrace_noticePaths {paths : Nat → ResponsePath}
-    (batches : List (List WorkEvent)) (ids : IDState)
+    (batches : List (List WorkQueueEvent)) (ids : IDState)
     (coherent : ∀ node ∈ batches.flatten.flatMap eventNodes, paths node.key = node.path)
     : NoticePaths paths (finalIDs batches ids)
         ((mappedTrace batches ids).flatMap IncrementalStreamUpdateResult.pending) := by

@@ -10,9 +10,9 @@ namespace GraphQL.IncrementalDelivery.Execution
 history. Witness: inspect the full prefix in one direction and use prefix closure in the
 other.
 -/
-theorem WorkQueueResult.allows_iff_admissible (source : WorkQueueResult)
+theorem WorkQueue.allows_iff_admissible (source : WorkQueue)
     (initialized : source.Initialized) (closed : source.PrefixClosed)
-    (batches : List (List WorkEvent))
+    (batches : List (List WorkQueueEvent))
     : source.workEventStream.Allows batches
       ↔ source.workEventStream.admissible batches := by
   constructor
@@ -25,9 +25,9 @@ theorem WorkQueueResult.allows_iff_admissible (source : WorkQueueResult)
 admission. Witness: account for its admitted empty history and retain the run's
 initialization.
 -/
-theorem WorkQueueResult.Conforms.initializes {source : WorkQueueResult} {work : Work}
+theorem WorkQueue.Conforms.initializes {source : WorkQueue} {work : Work}
     (conforms : source.Conforms work)
-    : WorkScheduler.Initializes work source.initialGroups source.initialStreams := by
+    : WorkQueueSemantics.Initializes work source.initialGroups source.initialStreams := by
   rcases conforms.2.2.1 [] conforms.1.2 with prefixRun | run
   · obtain ⟨_, _, _, explained, _⟩ := prefixRun
     exact explained.1
@@ -38,30 +38,36 @@ theorem WorkQueueResult.Conforms.initializes {source : WorkQueueResult} {work : 
 Witness: replay exposes ordered nonempty response groups; conformance accounts for their
 flattened work batches and characterizes termination, without inspecting wire IDs.
 -/
-theorem WorkQueueResult.observes_workHistory (source : WorkQueueResult) (work : Work)
+theorem WorkQueue.observes_workHistory (source : WorkQueue) (work : Work)
     (ids : IDState) (conforms : source.Conforms work)
     {updates : List IncrementalStreamUpdateResult} {final : ResponseEventStream}
     (observed
       : (batchIncrementalResults
           (mapIncrementalWorkEventsToResponseEvent source.workEventStream ids)).Observes
           updates final)
-    : ∃ groups : List (List (List WorkEvent)),
+    : ∃ groups : List (List (List WorkQueueEvent)),
         (∀ group ∈ groups, group ≠ [])
         ∧ source.workEventStream.Allows groups.flatten
-        ∧ (WorkScheduler.AdmissiblePrefix work (source.toHistory groups.flatten)
-            ∨ WorkScheduler.AdmissibleRun work (source.toHistory groups.flatten))
+        ∧ (WorkQueueSemantics.AdmissiblePrefix work
+              ((⟨source.initialGroups, source.initialStreams, groups.flatten⟩
+                : WorkQueueSemantics.History))
+            ∨ WorkQueueSemantics.AdmissibleRun work
+                ((⟨source.initialGroups, source.initialStreams, groups.flatten⟩
+                  : WorkQueueSemantics.History)))
         ∧ updates
           = ((batchIncrementalResults
                 (mapIncrementalWorkEventsToResponseEvent source.workEventStream
                   ids)).mapInputs
               groups).1
         ∧ (final.source.IsFinished
-            ↔ WorkScheduler.AdmissibleRun work (source.toHistory groups.flatten)) := by
+            ↔ WorkQueueSemantics.AdmissibleRun work
+                ((⟨source.initialGroups, source.initialStreams, groups.flatten⟩
+                  : WorkQueueSemantics.History))) := by
   have initial : source.workEventStream.admissible source.workEventStream.history := by
     simpa [conforms.1.1] using conforms.1.2
   obtain ⟨groups, nonempty, allowed, outputs, residual⟩ :=
     (ResponseEventStream.batch_observes_iff_inputs _ _ _ initial).mp observed
-  change List (List (List WorkEvent)) at groups
+  change List (List (List WorkQueueEvent)) at groups
   have admitted := (source.allows_iff_admissible conforms.1 conforms.2.1 _).mp allowed
   refine ⟨groups, nonempty, allowed, conforms.2.2.1 _ admitted, outputs, ?_⟩
   rw [residual]
@@ -73,7 +79,7 @@ theorem WorkQueueResult.observes_workHistory (source : WorkQueueResult) (work : 
 /-- A finished observation exposes a terminal work run, by the source's termination
 equivalence.
 -/
-theorem WorkQueueResult.observes_complete_workHistory (source : WorkQueueResult)
+theorem WorkQueue.observes_complete_workHistory (source : WorkQueue)
     (work : Work) (ids : IDState) (conforms : source.Conforms work)
     {updates : List IncrementalStreamUpdateResult} {final : ResponseEventStream}
     (observed
@@ -81,9 +87,11 @@ theorem WorkQueueResult.observes_complete_workHistory (source : WorkQueueResult)
           (mapIncrementalWorkEventsToResponseEvent source.workEventStream ids)).Observes
           updates final)
     (finished : final.source.IsFinished)
-    : ∃ groups : List (List (List WorkEvent)),
+    : ∃ groups : List (List (List WorkQueueEvent)),
         (∀ group ∈ groups, group ≠ [])
-        ∧ WorkScheduler.AdmissibleRun work (source.toHistory groups.flatten)
+        ∧ WorkQueueSemantics.AdmissibleRun work
+            ((⟨source.initialGroups, source.initialStreams, groups.flatten⟩
+              : WorkQueueSemantics.History))
         ∧ updates
           = ((batchIncrementalResults
                 (mapIncrementalWorkEventsToResponseEvent source.workEventStream

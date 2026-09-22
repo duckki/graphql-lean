@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferDependencies
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SingletonOwners
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SingletonOwners
 
 /-! Singleton defer owners retain causal ancestry through arbitrarily nested producers.
 The shape restriction is proof-only and does not alter scheduler admission.
@@ -9,7 +9,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Singleton deferred work may contain nested task producers
@@ -101,13 +101,14 @@ theorem SingletonDefer.producer_parent
 Witness: the owner is reused or is an explicit group dependency.
 -/
 theorem SingletonDefer.producer_failure
-    {parents bound work failed occurrence key producer payload parentKey ancestor result}
+    {parents bound work matching events failures occurrence key producer payload
+      parentKey ancestor result}
     (shape : SingletonDefer work) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence [key] (some producer) payload)
     (parent : TaskAt work producer [parentKey] ancestor result)
-    (failure : NodeFailed work failed parentKey)
-    : NodeFailed work failed key := by
+    (failure : NodeFailed work matching events failures parentKey)
+    : NodeFailed work matching events failures key := by
   apply shape.toDeferOnly.producer_failure coherent continuous ordered known (by simp)
     parent
   intro owner member
@@ -118,12 +119,12 @@ producers. Witness: dependency-rank induction and defer ancestry propagation; re
 descriptors do not require a unique producer for the owner's key.
 -/
 theorem SingletonDefer.cancelled_owner_failed
-    {parents bound work failed occurrence key producer payload}
+    {parents bound work matching events failures occurrence key producer payload}
     (shape : SingletonDefer work) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence [key] producer payload)
-    (cancelled : TaskCancelled work failed occurrence)
-    : NodeFailed work failed key :=
+    (cancelled : TaskCancelled work matching events failures occurrence)
+    : NodeFailed work matching events failures key :=
   shape.toDeferOnly.cancelled_owner_failed coherent continuous ordered known (by simp)
     cancelled
 
@@ -138,7 +139,7 @@ theorem SingletonDefer.dependency_cases
     (explained : Explains work groups streams events matching failures)
     (dependency
       : DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching
-          events (failures.map Prod.snd) key)
+          events failures key)
     : (¬∃ birth, NodeHasProducer work key birth) ∨ key ∈ completedKeys events := by
   rcases dependency with ⟨healthy, absent | completed | ⟨fresh, accounted⟩⟩
   · exact Or.inl absent

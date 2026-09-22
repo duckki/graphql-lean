@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness
 import Tests.GraphQL.IncrementalDelivery.Sources
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! Input-history correspondence with real source and work-accounting witnesses. -/
 
@@ -11,38 +11,40 @@ open GraphQL.IncrementalDelivery.Execution
 /-- A single admitted work-event batch, copied from the explicit terminal work-run
 fixture.
 -/
-def events : List WorkEvent :=
+def events : List WorkQueueEvent :=
   [
-    .groupValues WorkScheduler.node [{ path := [], data := [] }],
-    .groupSuccess WorkScheduler.node [] [],
+    .groupValues WorkQueueSemantics.node [{ path := [], data := [] }],
+    .groupSuccess WorkQueueSemantics.node [] [],
     .workQueueTermination
   ]
 
-def queue : WorkQueueResult :=
+def queue : WorkQueue :=
   {
-    initialGroups := [WorkScheduler.node],
+    initialGroups := [WorkQueueSemantics.node],
     initialStreams := [],
     workEventStream := .ofList [events]
   }
 
 /-- The source's empty history is admitted directly by its valid initial notices. -/
 theorem emptyHistory
-    : GraphQL.IncrementalDelivery.WorkScheduler.AdmissiblePrefix WorkScheduler.work
-        (queue.toHistory []) :=
-  WorkScheduler.emptyHistory
+    : GraphQL.IncrementalDelivery.WorkQueueSemantics.AdmissiblePrefix
+        WorkQueueSemantics.work
+        ((⟨queue.initialGroups, queue.initialStreams, []⟩
+          : WorkQueueSemantics.History)) :=
+  WorkQueueSemantics.emptyHistory
 
 /-- A terminal run cannot have zero work batches: batching cannot discard its termination
 event.
 -/
 private theorem terminalNonempty {work : Work}
-    {history : GraphQL.IncrementalDelivery.WorkScheduler.History}
-    (run : GraphQL.IncrementalDelivery.WorkScheduler.AdmissibleRun work history)
+    {history : GraphQL.IncrementalDelivery.WorkQueueSemantics.History}
+    (run : GraphQL.IncrementalDelivery.WorkQueueSemantics.AdmissibleRun work history)
     : history.batches ≠ [] := by
   rintro empty
   obtain ⟨events, _, _, _, _, batched⟩ := run
   rw [empty] at batched
-  have noEvents {events : List WorkEvent}
-      (h : GraphQL.IncrementalDelivery.WorkScheduler.WorkBatching events []) : events = [] := by
+  have noEvents {events : List WorkQueueEvent}
+      (h : GraphQL.IncrementalDelivery.WorkQueueSemantics.WorkBatching events []) : events = [] := by
     cases h
     rfl
   have impossible := noEvents batched
@@ -51,7 +53,7 @@ private theorem terminalNonempty {work : Work}
 /-- This replay source satisfies every contract clause; its only histories are empty or
 terminal.
 -/
-theorem conforms : queue.Conforms WorkScheduler.work := by
+theorem conforms : queue.Conforms WorkQueueSemantics.work := by
   refine ⟨
     ⟨rfl, List.nil_prefix⟩,
     fun _ _ before admitted => before.trans admitted,
@@ -66,14 +68,14 @@ theorem conforms : queue.Conforms WorkScheduler.work := by
         obtain ⟨rfl, tail⟩ := List.cons_prefix_cons.mp admitted
         have empty := List.prefix_nil.mp tail
         subst rest
-        exact Or.inr WorkScheduler.completedRun
+        exact Or.inr WorkQueueSemantics.completedRun
   · intro batches
     change batches = [events] ↔ batches.IsPrefix [events]
-      ∧ GraphQL.IncrementalDelivery.WorkScheduler.AdmissibleRun WorkScheduler.work
-          (queue.toHistory batches)
+      ∧ GraphQL.IncrementalDelivery.WorkQueueSemantics.AdmissibleRun WorkQueueSemantics.work
+          ((⟨queue.initialGroups, queue.initialStreams, batches⟩ : WorkQueueSemantics.History))
     constructor
     · rintro rfl
-      exact ⟨List.prefix_refl _, WorkScheduler.completedRun⟩
+      exact ⟨List.prefix_refl _, WorkQueueSemantics.completedRun⟩
     · rintro ⟨admitted, terminal⟩
       cases batches with
       | nil => exact False.elim (terminalNonempty terminal rfl)
@@ -114,12 +116,14 @@ theorem finished : (batched.afterInputs [[events]]).source.IsFinished := by
 update.
 -/
 example
-    : ∃ groups : List (List (List WorkEvent)),
+    : ∃ groups : List (List (List WorkQueueEvent)),
         (∀ group ∈ groups, group ≠ [])
-        ∧ GraphQL.IncrementalDelivery.WorkScheduler.AdmissibleRun WorkScheduler.work
-            (queue.toHistory groups.flatten)
+        ∧ GraphQL.IncrementalDelivery.WorkQueueSemantics.AdmissibleRun
+            WorkQueueSemantics.work
+            ((⟨queue.initialGroups, queue.initialStreams, groups.flatten⟩
+              : WorkQueueSemantics.History))
         ∧ (batched.mapInputs [[events]]).1 = (batched.mapInputs groups).1 :=
-  queue.observes_complete_workHistory WorkScheduler.work _ conforms observed finished
+  queue.observes_complete_workHistory WorkQueueSemantics.work _ conforms observed finished
 
 /-- The witness has the expected wire ID and termination flag, using the actual stateful
 mapper.

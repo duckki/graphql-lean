@@ -17,7 +17,7 @@ def UsageUnder (owners : List Nat) (usage : DeferUsage) : Prop :=
 def OptionalUnder (owners : List Nat) (usage : Option DeferUsage) : Prop :=
   owners = [] ∨ ∃ actual, usage = some actual ∧ UsageUnder owners actual
 
-def FieldsUnder (owners : List Nat) (fields : List ExecutableField) : Prop :=
+def FieldsUnder (owners : List Nat) (fields : List FieldDetails) : Prop :=
   ∀ field ∈ fields, OptionalUnder owners field.deferUsage
 
 def GroupsUnder (owners : List Nat) (groups : CollectedFieldsMap) : Prop :=
@@ -44,7 +44,7 @@ mutual
       (h : OptionalUnder owners usage)
       : GroupsUnder owners
           ((collectSelection schema variables parentType source usage selection).run
-            state).1.fields := by
+            state).1.collectedFieldsMap := by
     cases selection with
     | field name fieldName arguments directives children =>
         cases ha : selectionDirectivesAllowBool variables directives <;>
@@ -71,7 +71,7 @@ mutual
       (h : OptionalUnder owners usage)
       : GroupsUnder owners
           ((collectFields schema variables parentType source selections usage).run
-            state).1.fields := by
+            state).1.collectedFieldsMap := by
     cases selections with
     | nil => simp [collectFields, GroupsUnder, GroupsSatisfy]
     | cons selection rest =>
@@ -83,11 +83,11 @@ mutual
 end
 
 theorem collectSubfields_under (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (owners : List Nat) (state : Nat) (h : FieldsUnder owners fields)
     : GroupsUnder owners
         ((collectSubfields schema variables parentType source fields).run
-          state).1.fields := by
+          state).1.collectedFieldsMap := by
   induction fields generalizing state with
   | nil => simp [collectSubfields, GroupsUnder, GroupsSatisfy]
   | cons field rest ih =>
@@ -319,7 +319,7 @@ theorem groupsKnown_extend {parents next : Assignment} {start finish : Nat}
   exact (h group hg field hf).extend he hle (List.Subset.refl _)
 
 theorem fieldsKnown_extend {parents next : Assignment} {start finish : Nat}
-    {deferMap : DeferMap} {fields : List ExecutableField}
+    {deferMap : DeferMap} {fields : List FieldDetails}
     (h : ∀ field ∈ fields, OptionalUsageAt parents start deferMap field.deferUsage)
     (he : Extends start parents next) (hle : start ≤ finish)
     : ∀ field ∈ fields, OptionalUsageAt next finish deferMap field.deferUsage := by

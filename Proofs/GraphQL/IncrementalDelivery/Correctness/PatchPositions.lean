@@ -26,7 +26,7 @@ theorem notice_exists {notices : List IncrementalPendingNotice} {id : String}
 Witness: stable allocation, current notice metadata, and the source-owner path prefix.
 The final ID state may include later allocations in the same response batch.
 -/
-theorem getIncrementalEntry_positions (node : DeliveryNode) (value : GroupValue)
+theorem getIncrementalEntry_positions (node : DeliveryNode) (value : ExecutionGroupValue)
     (ids final : IDState) (paths : Nat → ResponsePath)
     (notices : List IncrementalPendingNotice) (cursors : ResponsePositions.Cursors)
     (containers : Bool)

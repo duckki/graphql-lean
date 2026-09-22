@@ -1,12 +1,12 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! Node-key lifecycle proofs for declarative work, without importing query/wire correctness. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.WorkLifecycle
 
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! The work proof surface does not bring in wire correctness definitions. -/
 
@@ -34,62 +34,68 @@ example (work : Work) (history : History) (h : AdmissibleRun work history)
 states.
 -/
 example (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (before : List WorkEvent) (failed : List Occurrence) (event : WorkEvent)
+    (before : List WorkQueueEvent) (failed : FailureCuts) (event : WorkQueueEvent)
     (allowed : EventAllowed work initial matching before failed event)
     : (eventPending event).Nodup ∧ (eventCompleted event).Nodup :=
   ⟨allowed.accounting.pendingUnique, allowed.accounting.completedUnique⟩
 
 def completed : History :=
   {
-    initialGroups := [WorkScheduler.node],
+    initialGroups := [WorkQueueSemantics.node],
     initialStreams := [],
     batches :=
       [[
-        .groupValues WorkScheduler.node [{ path := [], data := [] }],
-        .groupSuccess WorkScheduler.node [] [],
+        .groupValues WorkQueueSemantics.node [{ path := [], data := [] }],
+        .groupSuccess WorkQueueSemantics.node [] [],
         .workQueueTermination
       ]]
   }
 
 /-- The concrete terminal fixture satisfies the universal key-identity witness. -/
-example : completed.UniqueKeys := WorkScheduler.completedRun.uniqueKeys
+example : completed.UniqueKeys := WorkQueueSemantics.completedRun.uniqueKeys
 
 /-- Its initially announced key has one completion, by terminal liveness and uniqueness.
 -/
 example : (completedKeys completed.batches.flatten).count 0 = 1 :=
-  WorkScheduler.completedRun.keysCompleteExactlyOnce 0 (by simp [WorkScheduler.node])
+  WorkQueueSemantics.completedRun.keysCompleteExactlyOnce 0
+    (by simp [WorkQueueSemantics.node])
 
 /-- Causal failure/cancellation retains the same terminal exactly-once guarantee. -/
 example
-    : (completedKeys [[WorkScheduler.failure, .workQueueTermination]].flatten).count 0
+    : (completedKeys [[WorkQueueSemantics.failure, .workQueueTermination]].flatten).count
+        0
       = 1 :=
-  WorkScheduler.failedRun.keysCompleteExactlyOnce 0 (by simp [WorkScheduler.node])
+  WorkQueueSemantics.failedRun.keysCompleteExactlyOnce 0
+    (by simp [WorkQueueSemantics.node])
 
 def stalled : History :=
-  { initialGroups := [WorkScheduler.node], initialStreams := [], batches := [] }
+  { initialGroups := [WorkQueueSemantics.node], initialStreams := [], batches := [] }
 
 /-- A stalled prefix is genuinely admitted, by valid initialization and an empty output
 history.
 -/
-theorem stalledAdmitted : AdmissiblePrefix WorkScheduler.work stalled :=
-  WorkScheduler.emptyHistory
+theorem stalledAdmitted : AdmissiblePrefix WorkQueueSemantics.work stalled :=
+  WorkQueueSemantics.emptyHistory
 
 /-- Prefix admission supplies uniqueness but does not imply terminal liveness. -/
 example : stalled.UniqueKeys := stalledAdmitted.uniqueKeys
 
 /-- The terminal count theorem rules out declaring this unfinished prefix a complete run.
 -/
-example : ¬AdmissibleRun WorkScheduler.work stalled := by
+example : ¬AdmissibleRun WorkQueueSemantics.work stalled := by
   intro done
-  have count := done.keysCompleteExactlyOnce 0 (by simp [stalled, WorkScheduler.node])
+  have count := done.keysCompleteExactlyOnce 0 (by simp [stalled, WorkQueueSemantics.node])
   simp [stalled, completedKeys] at count
 
 def duplicateCompletion : History :=
   {
-    initialGroups := [WorkScheduler.node],
+    initialGroups := [WorkQueueSemantics.node],
     initialStreams := [],
     batches :=
-      [[.groupSuccess WorkScheduler.node [] [], .streamFailure WorkScheduler.node 2]]
+      [[
+        .groupSuccess WorkQueueSemantics.node [] [],
+        .streamFailure WorkQueueSemantics.node 2
+      ]]
   }
 
 /-- Changing completion kind cannot hide duplicate keys in a prefix, by the general Nodup
@@ -110,25 +116,25 @@ example (work : Work) : ¬AdmissibleRun work duplicateCompletion := by
 
 /-- A failure notification already in the prefix excludes a second closure of that key. -/
 example (work : Work) (initial : Keys) (matching : PublicationMatching)
-    (failed : List Occurrence) (event : WorkEvent)
+    (failed : FailureCuts) (event : WorkQueueEvent)
     (allowed
       : EventAllowed work initial matching
-          [.groupFailure WorkScheduler.node 2] failed event)
+          [.groupFailure WorkQueueSemantics.node 2] failed event)
     : 0 ∉ eventCompleted event := by
   intro member
   exact (allowed.accounting.completion 0 member).2
-    (by simp [completedKeys, eventCompleted, WorkScheduler.node])
+    (by simp [completedKeys, eventCompleted, WorkQueueSemantics.node])
 
-def first : WorkEvent :=
-  .streamValues WorkScheduler.node [{ item := .null }]
+def first : WorkQueueEvent :=
+  .streamValues WorkQueueSemantics.node [{ item := .null }]
     [{ key := 1, path := [] }] [{ key := 2, path := [] }]
 
-def second : WorkEvent :=
-  .streamValues WorkScheduler.node [{ item := .null }]
+def second : WorkQueueEvent :=
+  .streamValues WorkQueueSemantics.node [{ item := .null }]
     [{ key := 3, path := [] }] [{ key := 4, path := [] }]
 
-def combined : WorkEvent :=
-  .streamValues WorkScheduler.node [{ item := .null }, { item := .null }]
+def combined : WorkQueueEvent :=
+  .streamValues WorkQueueSemantics.node [{ item := .null }, { item := .null }]
     [{ key := 1, path := [] }, { key := 3, path := [] }]
     [{ key := 2, path := [] }, { key := 4, path := [] }]
 
@@ -148,7 +154,7 @@ example : (pendingKeys [combined]).Perm (pendingKeys [first, second]) :=
 /-- Coalescing cannot deduplicate repeated announcements; occurrence preservation retains
 both copies.
 -/
-example {merged : WorkEvent} (compatible : combineValues first first = some merged)
+example {merged : WorkQueueEvent} (compatible : combineValues first first = some merged)
     : (pendingKeys [merged]).count 1 = 2 := by
   have preserved := (combineValues_keyPermutation compatible).pending
   rw [preserved.count_eq]

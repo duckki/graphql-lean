@@ -1,14 +1,14 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Nonblocking
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureReporting
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Causality
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.PublicationExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Nonblocking
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Causality
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationExtension
 
 /-! Omitting a notice can strand finite successful work, independently of host fairness. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.Nonblocking
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- An empty root stream and an independent nonempty root stream have distinct IDs. -/
 def node (key : Nat) : DeliveryNode := { key, path := [.field (toString key)] }
@@ -68,8 +68,7 @@ theorem initialized : Initializes work [] [node 0] := by
   refine ⟨[], none, .stream (.left .root), ?_⟩
   exact ⟨
     by simp [announcedKeys, pendingKeys],
-    fun h => h.nonempty rfl,
-    Or.inl rfl,
+    Or.inl ⟨fun h => h.nonempty rfl, Or.inl rfl⟩,
     by simp,
     Or.inl rfl
   ⟩
@@ -105,17 +104,16 @@ theorem no_publications {events matching failures}
       have control : eventPending event = [] ∧ ¬IsValue event := by
         cases event with
         | groupValues owner values =>
-            obtain ⟨_, _, _, _, _, _, known, _⟩ := allowed
+            obtain ⟨_, _, _, _, known, _⟩ := allowed
             have impossible := (task_shape known).2.2.2
             cases impossible
         | streamValues owner values groups streams =>
-            obtain ⟨owners, producer, _, _, _, known, _, selected, _⟩ := allowed
+            obtain ⟨owners, producer, _, _, known, _, selected, _⟩ := allowed
             have shape := task_shape known
             have same : owner = node 1 := by
-              cases shape.2.2.2
-              rfl
+              exact (Payload.item.inj shape.2.2.2).1
             subst owner
-            exact False.elim (inactive (by simpa [node] using selected.1.2.2.1))
+            exact False.elim (inactive (by simpa [node] using selected.1.2.2))
         | groupSuccess owner groups streams =>
             obtain ⟨parents, birth, known⟩ := allowed.1
             exact False.elim (no_group known)
@@ -136,7 +134,7 @@ theorem no_publications {events matching failures}
 all tasks succeed, so no failure cuts exist; the omitted task can neither publish nor
 be cancelled. An empty stream completion cannot repair the lost initial notice.
 -/
-theorem no_complete_run (batches : List (List WorkEvent))
+theorem no_complete_run (batches : List (List WorkQueueEvent))
     : ¬AdmissibleRun work ⟨[], [node 0], batches⟩ := by
   rintro ⟨events, matching, failures, explained, terminal, _⟩
   have empty : failures = [] := by

@@ -86,23 +86,23 @@ def defer (children : List Selection) (label : Option String := none)
     : Selection :=
   .inlineFragment none [.defer condition (label.map InputValue.string)] children
 
-def start (scheduler : WorkScheduler) (selections : List Selection)
+def start (createWorkQueue : Work → WorkQueue) (selections : List Selection)
     (variables : VariableValues := [])
     (definitions : List VariableDefinition := [])
     : ExecutionResult :=
-  executeQuery scheduler schema resolvers variables
+  executeQuery createWorkQueue schema resolvers variables
     { selectionSet := selections, variableDefinitions := definitions } (.object "Query" 0)
 
 def same [Repr α] (actual expected : α) : Bool := reprStr actual == reprStr expected
 
 /-- An intentionally unusable source detects that ordinary queries need no source law. -/
-def unavailable : WorkScheduler :=
-  ⟨fun _ =>
+def unavailable : Work → WorkQueue :=
+  fun _ =>
     {
       initialGroups := [],
       initialStreams := [],
       workEventStream := { admissible := fun _ => False, finished := fun _ => False }
-    }⟩
+    }
 
 /-! Ordinary queries return directly, without consulting or observing a work source. -/
 
@@ -112,7 +112,7 @@ def unavailable : WorkScheduler :=
   | _ => false
 
 /-! Initialization is explicit; even an unavailable source is not consumed at query time.
-Such a factory is useful here but fails the independent scheduler conformance predicate.
+Such a queue constructor is useful here but fails the independent scheduler conformance predicate.
 -/
 
 #guard

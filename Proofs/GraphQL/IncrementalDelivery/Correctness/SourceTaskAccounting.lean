@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceCursorOrigins
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- Every label in a stream inventory belongs to a specific item or its child subtree.

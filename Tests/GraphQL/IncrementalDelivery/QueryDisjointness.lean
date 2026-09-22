@@ -34,11 +34,17 @@ example (slices : List (List ResponsePath))
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (observed : queryObservation schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result)
     (containers : Bool)
     : ∃ slices, result.DeliversSlices containers slices ∧ slices.flatten.Nodup :=
   deliverySlicesDisjoint_holds schema operation
-    resolvers variables fuel source result containers observed
+    resolvers variables fuel source createWorkQueue result containers conforms observed
 
 /-- Arbitrary query prefixes retain a globally unique container-inclusive position list;
 the observation may be interrupted, and its total error count need not be zero.
@@ -46,9 +52,15 @@ the observation may be interrupted, and its total error count need not be zero.
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (observed : queryObservation schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result)
     : ∃ slices, result.DeliversSlices true slices ∧ slices.flatten.Nodup :=
-  queryObservation_disjoint_positions observed
+  queryObservation_disjoint_positions conforms observed
 
 /-- Container-free leaf slices inherit disjointness under the same unrestricted prefix
 premise, independently of the complete basic-response coverage theorem.
@@ -56,9 +68,15 @@ premise, independently of the complete basic-response coverage theorem.
 example {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (observed : queryObservation schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result)
     : ∃ slices, result.DeliversSlices false slices ∧ slices.flatten.Nodup := by
-  obtain ⟨slices, decoded, unique⟩ := queryObservation_disjoint_positions observed
+  obtain ⟨slices, decoded, unique⟩ := queryObservation_disjoint_positions conforms observed
   exact Semantics.deliversSlices_leaves_nodup decoded unique
 
 end GraphQL.IncrementalDelivery.Tests.QueryDisjointness

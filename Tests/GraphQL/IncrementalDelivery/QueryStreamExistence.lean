@@ -19,7 +19,11 @@ def failing : Operation := { selectionSet := [field "strict" [] [.stream]] }
 Witness: the query theorem and direct reduction of its finite prepared-work shape.
 -/
 example
-    : ∃ result, queryOutcome schema resolvers [] nested 8 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 8
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 8 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_streamOnly
   intro _
   cbv
@@ -29,8 +33,11 @@ example
 stream-only generated work, without a zero-error or success assumption.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failing 8 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failing 8
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failing 8 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_streamOnly
   intro _
   cbv
@@ -40,7 +47,11 @@ example
 Witness: its empty prepared work, not an unavailable scheduler law.
 -/
 example
-    : ∃ result, queryOutcome schema resolvers [] nested 0 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 0
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 0 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_streamOnly
   intro _
   cbv
@@ -48,7 +59,10 @@ example
 /-- Invalid roots require no condition on unused generated work. Witness: the impossible
 root-applicability premise and the inherited ordinary error response.
 -/
-example : ∃ result, queryOutcome schema resolvers [] nested 8 .null result := by
+example
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 8 .null
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 8 .null result := by
   apply queryOutcome_exists_of_streamOnly
   intro applies
   cases applies

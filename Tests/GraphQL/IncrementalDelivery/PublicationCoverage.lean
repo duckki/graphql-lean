@@ -7,7 +7,7 @@ import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 namespace GraphQL.IncrementalDelivery.Tests.PublicationCoverage
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Two owners cannot independently publish their shared task. This rejects every
 matching and failure witness, not only the fixture's constant matching function.

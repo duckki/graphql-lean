@@ -54,8 +54,11 @@ def hasProducedWork : Work → Bool
 the singleton work shape; execution supplies metadata and the theorem constructs a run.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] nested 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 12 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_singletonDefer
   intro _
   apply Tree.singleton_defer
@@ -66,8 +69,11 @@ example
 Witness: the same relational existence theorem, not a selected completion serialization.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] branching 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] branching 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] branching 12
+            (.object "Query" 0) result := by
   apply queryOutcome_exists_of_singletonDefer
   intro _
   apply Tree.singleton_defer
@@ -78,8 +84,11 @@ example
 Witness: computed singleton shape without any success premise.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failing 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failing 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failing 12 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_singletonDefer
   intro _
   apply Tree.singleton_defer
@@ -90,7 +99,11 @@ example
 Witness: the same generated-work bridge and direct shape reduction.
 -/
 example
-    : ∃ result, queryOutcome schema resolvers [] nested 0 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 0
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 0 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_singletonDefer
   intro _
   apply Tree.singleton_defer
@@ -100,7 +113,10 @@ example
 /-- Invalid roots need no shape certificate for their unused work. Witness: the
 impossible applicability premise and the ordinary error branch of query realization.
 -/
-example : ∃ result, queryOutcome schema resolvers [] nested 12 .null result := by
+example
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 12 .null
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 12 .null result := by
   apply queryOutcome_exists_of_singletonDefer
   intro applies
   cases applies

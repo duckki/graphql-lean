@@ -89,30 +89,42 @@ def prepared (operation : Operation) (fuel : Nat := 16) : Work :=
 Witness: the unconditional query theorem, without shape, success, or history evidence.
 -/
 example (fuel : Nat)
-    : ∃ result,
-        queryOutcome schema resolvers [] alternating fuel (.object "Query" 0) result :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] alternating fuel
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] alternating fuel
+            (.object "Query" 0) result :=
   queryOutcome_exists schema resolvers [] alternating fuel (.object "Query" 0)
 
 /-- A produced defer failure inside a stream retains a complete error-reporting outcome.
 Witness: mixed progress includes failure accounting and cancellation.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failingChild 16 (.object "Query" 0) result :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failingChild 16
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failingChild 16
+            (.object "Query" 0) result :=
   queryOutcome_exists schema resolvers [] failingChild 16 (.object "Query" 0)
 
 /-- Failure of a streamed item after shared deferred production also completes.
 Witness: the same general query theorem with no zero-error premise.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failingItem 16 (.object "Query" 0) result :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failingItem 16
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failingItem 16
+            (.object "Query" 0) result :=
   queryOutcome_exists schema resolvers [] failingItem 16 (.object "Query" 0)
 
 /-- Invalid roots are covered without examining or constraining unused prepared work.
 Witness: the ordinary error branch of the unconditional theorem.
 -/
-example : ∃ result, queryOutcome schema resolvers [] alternating 16 .null result :=
+example
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] alternating 16 .null
+        ∧ queryOutcome createWorkQueue schema resolvers [] alternating 16 .null result :=
   queryOutcome_exists schema resolvers [] alternating 16 .null
 
 end GraphQL.IncrementalDelivery.Tests.QueryOutcomeExistence

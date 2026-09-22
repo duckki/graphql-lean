@@ -8,7 +8,7 @@ Both producer outcomes admit complete runs; no output history is supplied as a p
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Structural facts for one deferred producer and its stream descendants
@@ -152,8 +152,8 @@ theorem sharedDeferredStreams_completeRun_with_owners
     .group (group := { node }) .root (List.mem_map.mpr ⟨node, member, rfl⟩)
   have eligible (node : DeliveryNode) (member : node ∈ nodes)
       : CanAnnounce work [] (fun _ => .executionGroup []) [] [] node .group [] none := by
-    refine ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
-      Or.inr ?_, by simp, by simp⟩
+    refine ⟨by simp [announcedKeys, pendingKeys],
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inr ?_⟩, by simp, by simp⟩
     intro accounted
     rcases accounted (.executionGroup []) (nodes.map DeliveryNode.key)
       ⟨none, .object path result, task⟩ (List.mem_map.mpr ⟨node, member, rfl⟩)
@@ -184,16 +184,17 @@ theorem sharedDeferredStreams_completeRun_with_owners
         ⟨anchor.key, anchorOwner, opened⟩ (fun cancelled => cancelled.nonempty rfl)
       have accounted : ∀ occurrence owners producer payload,
           TaskAt work occurrence owners producer payload →
-          Accounted work (fun _ => .executionGroup []) []
-            (failedBefore [(0, .executionGroup [])] 0) occurrence := by
+          TaskAccounted work (fun _ => .executionGroup []) []
+            [(0, .executionGroup [])] occurrence := by
         intro occurrence owners producer payload known
         apply Or.inl
-        apply all_tasks_cancelled_of_roots (known := known)
+        apply all_tasks_cancelled_of_roots (by simp [Published]) (known := known)
         intro occurrence owners payload rootTask
         have same := deferredStreams_root_task onlyStreams rootTask
         subst occurrence
         exact TaskCancelled.of_recorded task
           (by intro empty; exact nonempty (List.map_eq_nil_iff.mp empty))
+          (by simp [Published])
           (by simp [failedBefore])
       obtain ⟨tail, run, _, _⟩ := WorkBatching.nil.finish_accounted recorded accounted
       exact ⟨_, run, rootNotified⟩
@@ -202,9 +203,9 @@ theorem sharedDeferredStreams_completeRun_with_owners
       have ready : CanPublish work (fun _ => .executionGroup []) [] [] (.executionGroup []) none :=
         ⟨by simp [Published], fun cancelled => cancelled.nonempty rfl, by simp, trivial⟩
       obtain ⟨owner, selectedOwner⟩ := owner_exists_of_available coherent task
-        ⟨anchor, ⟨.group, [], none, root anchor member⟩, anchorOwner, opened,
+        ⟨anchor, ⟨⟨.group, [], none, root anchor member⟩, anchorOwner, opened⟩,
           fun failure => failure.nonempty rfl⟩
-      let event := WorkEvent.groupValues owner [{ path, data, errors }]
+      let event := WorkQueueEvent.groupValues owner [{ path, data, errors }]
       let matching := matchNext (fun _ => .executionGroup []) 0 (.executionGroup [])
       have published : Explains work groups streams [event] matching [] :=
         initial.publish_object task ready selectedOwner
@@ -257,7 +258,7 @@ theorem sharedDeferredStreams_completeRun_with_owners
       obtain ⟨newGroups, newStreams, released, notified⟩ :=
         closedOthers.complete_group_streams_notified (root anchor member) reserved
           (fun failure => failure.nonempty rfl)
-          (by simpa [failedBefore] using (accounted anchor.key anchorOwner).append closures)
+          ((accounted anchor.key anchorOwner).append closures)
           dependenciesClosed
       have preserved := (deferred.extend (List.Subset.refl []) closures).extend
         (List.Subset.refl []) [.groupSuccess anchor newGroups newStreams]

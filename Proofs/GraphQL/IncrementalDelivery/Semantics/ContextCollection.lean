@@ -10,32 +10,31 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 variable {ObjectRef : Type}
 
-abbrev FieldInContext (usage : Option DeferUsage) (field : ExecutableField) : Prop :=
+abbrev FieldInContext (usage : Option DeferUsage) (field : FieldDetails) : Prop :=
   field.deferUsage = usage
   ∧ DirectivesPlain field.directives
   ∧ SelectionsPlain field.selectionSet
 
-abbrev FieldsInContext (usage : Option DeferUsage) (fields : List ExecutableField)
-    : Prop :=
+abbrev FieldsInContext (usage : Option DeferUsage) (fields : List FieldDetails) : Prop :=
   ∀ field ∈ fields, FieldInContext usage field
 
 abbrev GroupsInContext (usage : Option DeferUsage) (groups : CollectedFieldsMap) : Prop :=
   ∀ group ∈ groups, group.2 ≠ [] ∧ FieldsInContext usage group.2
 
 theorem groupsInContext_add (usage : Option DeferUsage)
-    (group : Name × List ExecutableField) (groups : CollectedFieldsMap)
+    (group : Name × List FieldDetails) (groups : CollectedFieldsMap)
     (hne : group.2 ≠ []) (hg : FieldsInContext usage group.2)
     (hs : GroupsInContext usage groups)
-    : GroupsInContext usage (addExecutableGroup group groups) := by
+    : GroupsInContext usage (CollectedFieldsMap.addFieldSet group groups) := by
   induction groups with
-  | nil => simpa [addExecutableGroup, GroupsInContext] using And.intro hne hg
+  | nil => simpa [CollectedFieldsMap.addFieldSet, GroupsInContext] using And.intro hne hg
   | cons head rest ih =>
       have hh := hs head (by simp)
       have ht : GroupsInContext usage rest := fun g h => hs g (by simp [h])
       rcases group with ⟨key, fields⟩
       rcases head with ⟨name, existing⟩
       by_cases h : name == key
-      · simp only [addExecutableGroup, h, ↓reduceIte]
+      · simp only [CollectedFieldsMap.addFieldSet, h, ↓reduceIte]
         intro candidate hc
         simp only [List.mem_cons] at hc
         rcases hc with rfl | hc
@@ -45,16 +44,16 @@ theorem groupsInContext_add (usage : Option DeferUsage)
           · exact hh.2 field hf
           · exact hg field hf
         · exact ht candidate hc
-      · simpa [addExecutableGroup, h, GroupsInContext] using And.intro hh (ih ht)
+      · simpa [CollectedFieldsMap.addFieldSet, h, GroupsInContext] using And.intro hh (ih ht)
 
 theorem groupsInContext_merge (usage : Option DeferUsage)
     (left right : CollectedFieldsMap) (hl : GroupsInContext usage left)
     (hr : GroupsInContext usage right)
-    : GroupsInContext usage (mergeExecutableGroups left right) := by
+    : GroupsInContext usage (CollectedFieldsMap.merge left right) := by
   induction right generalizing left with
   | nil => exact hl
   | cons group rest ih =>
-      exact ih (addExecutableGroup group left)
+      exact ih (CollectedFieldsMap.addFieldSet group left)
         (groupsInContext_add usage group left (hr group (by simp)).1
           (hr group (by simp)).2 hl)
         (fun g h => hr g (by simp [h]))
@@ -62,7 +61,9 @@ theorem groupsInContext_merge (usage : Option DeferUsage)
 def CollectionInContext (usage : Option DeferUsage) (state : Nat)
     (output : FieldCollection × Nat)
     : Prop :=
-  output.2 = state ∧ output.1.newDeferUsages = [] ∧ GroupsInContext usage output.1.fields
+  output.2 = state
+  ∧ output.1.newDeferUsages = []
+  ∧ GroupsInContext usage output.1.collectedFieldsMap
 
 theorem collectionInContext_append (usage : Option DeferUsage)
     {left right : FieldCollection} {state : Nat}
@@ -144,7 +145,7 @@ mutual
 end
 
 theorem collectSubfields_inContext (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (usage : Option DeferUsage) (hfields : FieldsInContext usage fields) (state : Nat)
     : CollectionInContext usage state
         ((collectSubfields schema variables parentType source fields).run state) := by
@@ -177,7 +178,7 @@ def ContextWellFormed (usage : Option DeferUsage) : Prop :=
   ∀ value ∈ usage, value.key ∉ value.ancestors
 
 theorem filteredUsages_inContext (usage : Option DeferUsage)
-    (hvalid : ContextWellFormed usage) (fields : List ExecutableField)
+    (hvalid : ContextWellFormed usage) (fields : List FieldDetails)
     (hne : fields ≠ []) (hfields : FieldsInContext usage fields)
     : getFilteredDeferUsageSet fields = contextKeys usage := by
   cases fields with
@@ -189,9 +190,9 @@ theorem filteredUsages_inContext (usage : Option DeferUsage)
       | some usage =>
           have hall : ∀ f ∈ field :: rest, f.deferUsage = some usage :=
             fun f hm => (hfields f hm).1
-          have hm : ∀ fs : List ExecutableField,
+          have hm : ∀ fs : List FieldDetails,
               (∀ f ∈ fs, f.deferUsage = some usage) →
-              fs.filterMap ExecutableField.deferUsage = List.replicate fs.length usage := by
+              fs.filterMap FieldDetails.deferUsage = List.replicate fs.length usage := by
             intro fs hs
             induction fs with
             | nil => rfl

@@ -22,8 +22,9 @@ mutual
         : MapAt paths state path (getNewDeferMap collection.newDeferUsages path deferMap))
       : Completed paths state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
-              collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-              usages deferMap).run
+              collection.newDeferUsages
+              (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+              deferMap).run
             state) := by
     obtain ⟨hle, middle, he, hw⟩ := executeCollectedFields_owners schema resolvers variables fuel
       parentType source _ path usages _ paths state hm
@@ -102,7 +103,7 @@ mutual
 
   theorem executeResponseField_owners (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
-      (source : ResolverValue ObjectRef) (name : Name) (fields : List ExecutableField)
+      (source : ResolverValue ObjectRef) (name : Name) (fields : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       (paths : Assignment) (state : Nat) (hm : MapAt paths state path deferMap)
       : Completed paths state
@@ -135,7 +136,7 @@ mutual
 
   theorem completeValue_owners (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       (allowStream : Bool) (paths : Assignment) (state : Nat)
       (hm : MapAt paths state path deferMap)
@@ -193,7 +194,7 @@ mutual
 
   theorem completeListValueWithStream_owners (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (paths : Assignment) (state : Nat)
       (hm : MapAt paths state path deferMap)
@@ -240,7 +241,7 @@ mutual
 
   theorem completeListValue_owners (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
       (paths : Assignment) (state : Nat) (hm : MapAt paths state path deferMap)
       : Completed paths state
@@ -266,7 +267,7 @@ mutual
 
   theorem completeStreamItems_owners (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (paths : Assignment) (state : Nat)
       : ItemsOutput paths state
           ((completeStreamItems schema resolvers variables fuel itemType fields values

@@ -1,4 +1,4 @@
-import GraphQL.IncrementalDelivery.WorkScheduler
+import GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! Small proof-only invariant combinators for the pure state computations. -/
 

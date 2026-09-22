@@ -187,9 +187,10 @@ theorem deliveryIDsCompleteExactlyOnce_of_idUsageValid_of_liveness (schema : Sch
     (operation : Operation) (hs : deliveryIDUsageValid schema operation)
     (hl : deliveryIDsEventuallyComplete schema operation)
     : deliveryIDsCompleteExactlyOnce schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   exact idsCompleteExactlyOnce_of_idUsageValid_of_liveness _
-    (hs resolvers variables fuel source result (queryOutcome_observation observed))
-    (hl resolvers variables fuel source result observed)
+    (hs resolvers variables fuel source createWorkQueue result conforms
+      (queryOutcome_observation observed))
+    (hl resolvers variables fuel source createWorkQueue result conforms observed)
 
 end GraphQL.IncrementalDelivery.Correctness

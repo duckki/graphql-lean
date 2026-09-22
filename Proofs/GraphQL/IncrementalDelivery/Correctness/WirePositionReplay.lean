@@ -15,8 +15,8 @@ theorem replayResponse_positions
     {paths bound response work groups streams batches containers produced final}
     (coherent : Semantics.MixedOwnerPaths.WorkAt paths bound work)
     (admitted
-      : WorkScheduler.AdmissiblePrefix work ⟨groups, streams, batches.flatten⟩
-        ∨ WorkScheduler.AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
+      : WorkQueueSemantics.AdmissiblePrefix work ⟨groups, streams, batches.flatten⟩
+        ∨ WorkQueueSemantics.AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
     (safe : (replayResponse response groups streams batches).idUsageValid)
     (decoded
       : decodeAtoms containers (ResponsePositions.listCursors [] response.data)

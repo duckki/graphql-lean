@@ -7,7 +7,7 @@ A separate incremental-delivery model targets
 
 This page records coverage and exclusions, not full-spec conformance or proof
 completion. Representation details and specification mappings are documented in
-[execution](execution.md) and [incremental delivery](incremental-delivery.md).
+[execution](execution.md) and [incremental delivery](incremental-delivery/README.md).
 
 ## Main model: covered
 
@@ -69,10 +69,10 @@ coverage.
 
 The main model's exclusions also apply. In addition:
 
-- Incremental validation and named-fragment delivery are not implemented.
+- Incremental-delivery-specific validation and named-fragment delivery are not implemented.
 - Directive placement/types, non-repeatability, literal unique labels, and
   non-overlapping streamed field selections are assumed valid.
-- Stream execution includes a model extension for steps absent from the pinned draft.
+- Stream execution includes a model extension for steps absent from the draft spec.
 - Effectful resolvers, infinite sources, real-time availability, fairness, host
   future termination, and external transport cancellation are not modeled.
 - Optional coalescing of later updates into the initial response is not modeled.

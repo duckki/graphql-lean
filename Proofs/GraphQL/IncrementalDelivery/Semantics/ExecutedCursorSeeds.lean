@@ -17,22 +17,23 @@ mutual
   theorem executePlan_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef) (collection : FieldCollection)
-      (hn : GroupsUnique collection.fields) (path : ResponsePath)
+      (hn : GroupsUnique collection.collectedFieldsMap) (path : ResponsePath)
       (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures
           (SeedOwnsCompletion (fields true path) (fieldCursors path)
-            (UnderFields path (collection.fields.map Prod.fst)))
+            (UnderFields path (collection.collectedFieldsMap.map Prod.fst)))
           (executeExecutionPlan schema resolvers variables fuel parentType source
-            collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-            usages deferMap) := by
-    let plan := buildExecutionPlan collection.fields usages
-    have hperm := (buildExecutionPlan_perm collection.fields usages).map Prod.fst
+            collection.newDeferUsages
+            (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+            deferMap) := by
+    let plan := buildExecutionPlan collection.collectedFieldsMap usages
+    have hperm := (buildExecutionPlan_perm collection.collectedFieldsMap usages).map Prod.fst
     have hnames : (plan.collectedFieldsMap.map Prod.fst ++
         (plan.newCollectedFieldsMaps.flatMap Prod.snd).map Prod.fst).Nodup := by
       simpa [executionPlanGroups, plan] using hperm.nodup_iff.mpr hn
     have hwiden : ∀ p, UnderFields path (plan.collectedFieldsMap.map Prod.fst ++
         (plan.newCollectedFieldsMaps.flatMap Prod.snd).map Prod.fst) p →
-        UnderFields path (collection.fields.map Prod.fst) p := by
+        UnderFields path (collection.collectedFieldsMap.map Prod.fst) p := by
       intro p
       apply underFields_mono
       intro name hm
@@ -136,7 +137,7 @@ mutual
 
   theorem executeResponseField_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
-      (source : ResolverValue ObjectRef) (name : Name) (selected : List ExecutableField)
+      (source : ResolverValue ObjectRef) (name : Name) (selected : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures
           (SeedOwnsCompletion (fields true path) (fieldCursors path)
@@ -168,7 +169,7 @@ mutual
 
   theorem completeValue_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (selected : List ExecutableField) (resolved : ResolverValue ObjectRef)
+      (selected : List FieldDetails) (resolved : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       (allowStream : Bool)
       : RunEnsures (SeedOwnsCompletion (value true path) (listCursors path) (Below path))
@@ -200,11 +201,11 @@ mutual
                 simp only [completeValue]
                 split
                 · exact runEnsures_pure _ _ (seeded_error _ _ _ _)
-                · refine runEnsures_bind (fun collection => GroupsUnique collection.fields) _ _ _ ?_ ?_
+                · refine runEnsures_bind (fun collection => GroupsUnique collection.collectedFieldsMap) _ _ _ ?_ ?_
                   · exact collectSubfields_unique schema variables runtimeType (.object runtimeType ref) selected
                   · intro collection hc
                     refine runEnsures_bind (SeedOwnsCompletion (fields true path) (fieldCursors path)
-                      (UnderFields path (collection.fields.map Prod.fst))) _ _ _ ?_ ?_
+                      (UnderFields path (collection.collectedFieldsMap.map Prod.fst))) _ _ _ ?_ ?_
                     · exact executePlan_seeded schema resolvers variables fuel runtimeType
                         (.object runtimeType ref) collection hc  path usages deferMap
                     · intro completed hv
@@ -229,7 +230,7 @@ mutual
 
   theorem completeListValueWithStream_seeded (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (selected : List ExecutableField)
+      (inner : TypeRef) (selected : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool)
       : RunEnsures (SeedOwnsCompletion (value true path) (listCursors path) (Below path))
@@ -288,7 +289,7 @@ mutual
 
   theorem completeListValue_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (selected : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (selected : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat)
       (deferMap : DeferMap)
       : RunEnsures
@@ -331,7 +332,7 @@ mutual
 
   theorem completeStreamItems_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (selected : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (selected : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
       : RunEnsures (SeedOwnsItems path index (UnderItems path index))
           (completeStreamItems schema resolvers variables fuel itemType selected values
@@ -376,7 +377,7 @@ theorem executeRoot_seeded_fields (schema : Schema)
         (executeRootSelectionSetCore schema resolvers variables fuel parentType source
           selections) := by
   simp only [executeRootSelectionSetCore]
-  refine runEnsures_bind (fun collection => GroupsUnique collection.fields) _ _ _ ?_ ?_
+  refine runEnsures_bind (fun collection => GroupsUnique collection.collectedFieldsMap) _ _ _ ?_ ?_
   · exact collectFields_unique schema variables parentType source selections none
   · intro collection hc state
     exact (executePlan_seeded schema resolvers variables fuel parentType source collection hc

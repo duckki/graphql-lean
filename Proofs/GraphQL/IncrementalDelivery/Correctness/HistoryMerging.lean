@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.AtomMerging
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 open SourceReconstruction SourceAttachments
 
@@ -73,7 +73,7 @@ theorem merge_history_value
   rw [sourceHistoryCursors_step selected, sourceEventCursors_value value member same]
   cases event <;> try contradiction
   case groupValues node values =>
-    obtain ⟨_, _, path, data, errors, rfl, actual, _⟩ := allowed
+    obtain ⟨_, _, ⟨path, data, errors, deliveryGroups⟩, rfl, actual, _⟩ := allowed
     rw [length] at actual
     have payload := (known.unique actual).2.2
     obtain ⟨updated, merged, exactEntries, represented⟩ :=
@@ -89,7 +89,7 @@ theorem merge_history_value
     · simpa only [SourceTask.cursorUpdates, SourceTask.cursors, payload, resultCursors]
         using represented
   case streamValues node values groups streams =>
-    obtain ⟨_, _, item, errors, rfl, actual, _⟩ := allowed
+    obtain ⟨_, _, ⟨item, errors⟩, rfl, actual, _⟩ := allowed
     rw [length] at actual
     have payload := (known.unique actual).2.2
     obtain ⟨address, ordinal, occurrence⟩ := sourceTask_item_occurrence member payload

@@ -9,7 +9,7 @@ The numerical supply is internal to mapping and is independent of scheduling ord
 namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Distinct projected values identify distinct list members, by list induction. -/
 private theorem eq_of_map_nodup {values : List α} {key : α → β} {left right : α}
@@ -98,12 +98,13 @@ theorem getCompletedEntry_allocated (node : DeliveryNode) (errors : Nat)
   (ensureID_allocated node).bind fun _ => .pure _ _
 
 /-- Patch allocation preserves freshness, by one ID allocation. -/
-theorem getIncrementalEntry_allocated (node : DeliveryNode) (value : GroupValue)
+theorem getIncrementalEntry_allocated (node : DeliveryNode) (value : ExecutionGroupValue)
     : StateInvariant Allocated (getIncrementalEntry node value ensureID) :=
   (ensureID_allocated node).bind fun _ => .pure _ _
 
 /-- Every mapper event preserves allocation freshness, by event case analysis. -/
-theorem eventLoop_allocated (event : WorkEvent) (update : IncrementalStreamUpdateResult)
+theorem eventLoop_allocated (event : WorkQueueEvent)
+    (update : IncrementalStreamUpdateResult)
     : StateInvariant Allocated (eventLoop event update) := by
   cases event with
   | groupValues group values =>
@@ -122,14 +123,14 @@ theorem eventLoop_allocated (event : WorkEvent) (update : IncrementalStreamUpdat
   | workQueueTermination => exact .pure _ _
 
 /-- Batch mapping preserves allocation freshness, by loop induction. -/
-theorem mapWorkEventBatch_allocated (events : List WorkEvent)
+theorem mapWorkEventBatch_allocated (events : List WorkQueueEvent)
     : StateInvariant Allocated (mapWorkEventBatch events) := by
   intro state well
   rw [mapWorkEventBatch_loop]
   exact StateInvariant.forIn eventLoop_allocated events _ state well
 
 /-- Finite replay preserves allocation freshness, by batch induction. -/
-theorem finalIDs_allocated (batches : List (List WorkEvent)) (state : IDState)
+theorem finalIDs_allocated (batches : List (List WorkQueueEvent)) (state : IDState)
     (well : Allocated state)
     : Allocated (finalIDs batches state) := by
   induction batches generalizing state with
@@ -137,7 +138,7 @@ theorem finalIDs_allocated (batches : List (List WorkEvent)) (state : IDState)
   | cons batch rest ih => exact ih _ (mapWorkEventBatch_allocated batch state well)
 
 /-- Finite replay encodes every pending occurrence in order, by batch induction. -/
-theorem mappedTrace_pending (batches : List (List WorkEvent)) (state : IDState)
+theorem mappedTrace_pending (batches : List (List WorkQueueEvent)) (state : IDState)
     : Encodes (finalIDs batches state) (pendingKeys batches.flatten)
         (DeliveryTrace.pendingIDs (mappedTrace batches state)) := by
   induction batches generalizing state with

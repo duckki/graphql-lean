@@ -8,9 +8,9 @@ namespace GraphQL.IncrementalDelivery.Correctness
 
 open GraphQL.IncrementalDelivery.Execution
 
-/-- Package completed pure work using the supplied factory; this is only a proof helper.
+/-- Package completed pure work using the supplied queue constructor; this is only a proof helper.
 -/
-def executionFromWork (scheduler : Execution.WorkScheduler)
+def executionFromWork (scheduler : (Execution.Work → Execution.WorkQueue))
     (response : Response) (work : Work)
     : ExecutionResult :=
   if work.size == 0 then
@@ -21,10 +21,10 @@ def executionFromWork (scheduler : Execution.WorkScheduler)
 
 /-- Root execution is exactly the pure core followed by response packaging; witness: rfl.
 -/
-theorem executeRootSelectionSet_fromWork (scheduler : Execution.WorkScheduler)
-    (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
-    (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
-    (selections : List Selection)
+theorem executeRootSelectionSet_fromWork
+    (scheduler : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
+    (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
+    (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
     : executeRootSelectionSet scheduler schema resolvers variables fuel parentType source
         selections
       = let completed :=
@@ -35,8 +35,8 @@ theorem executeRootSelectionSet_fromWork (scheduler : Execution.WorkScheduler)
           completed.work :=
   rfl
 
-/-- Empty work returns an ordinary response for every factory, by reducing the branch. -/
-theorem executionFromWork_silent (scheduler : Execution.WorkScheduler)
+/-- Empty work returns an ordinary response for every queue constructor, by reducing the branch. -/
+theorem executionFromWork_silent (scheduler : (Execution.Work → Execution.WorkQueue))
     (response : Response) (work : Work) (h : Work.size work = 0)
     : executionFromWork scheduler response work = .single response := by
   simp [executionFromWork, h]
@@ -51,8 +51,9 @@ def initialResponse : ExecutionResult → Response
 /-- Packaging preserves initial data/errors; witness: both work branches reduce
 identically.
 -/
-theorem executionFromWork_initialResponse (scheduler : Execution.WorkScheduler)
-    (response : Response) (work : Work)
+theorem executionFromWork_initialResponse
+    (scheduler : (Execution.Work → Execution.WorkQueue)) (response : Response)
+    (work : Work)
     : initialResponse (executionFromWork scheduler response work) = response := by
   simp only [executionFromWork]
   split
@@ -64,10 +65,10 @@ theorem executionFromWork_initialResponse (scheduler : Execution.WorkScheduler)
 /-- The root's initial envelope comes from pure completion, by the packaging witness
 above.
 -/
-theorem executeRootSelectionSet_initialResponse (scheduler : Execution.WorkScheduler)
-    (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
-    (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
-    (selections : List Selection)
+theorem executeRootSelectionSet_initialResponse
+    (scheduler : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
+    (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
+    (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
     : initialResponse
         (executeRootSelectionSet scheduler schema resolvers variables fuel parentType
           source selections)
@@ -81,7 +82,7 @@ theorem executeRootSelectionSet_initialResponse (scheduler : Execution.WorkSched
 invalid-root rfl.
 -/
 theorem executeQueryWithFuel_initialResponse_independent
-    (left right : Execution.WorkScheduler) (schema : Schema)
+    (left right : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (operation : Operation)
     (fuel : Nat) (source : ResolverValue ObjectRef)
     : initialResponse

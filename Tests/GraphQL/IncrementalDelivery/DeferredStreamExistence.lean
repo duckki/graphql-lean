@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.Tests.DeferredStreamExistence
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A defer key distinct from the four stream keys in the nested-stream fixture. -/
 def parent : DeliveryNode := { key := 4, path := [] }
@@ -81,9 +81,12 @@ theorem shared_run_completes_owners (result : Result (List (Name × ResponseValu
 Witness: construct its raw terminal history, then apply the general realization bridge.
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))
+        ((shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0))).size ≠ 0
+          → (scheduler
+              (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Conforms
+              (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0))))
         ∧ (executionFromWork scheduler response
             (shared result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
             observed true := by
@@ -100,7 +103,7 @@ example (data : List (Name × ResponseValue)) (outer middle inner : Result Respo
         (fun _ => .executionGroup []) [.groupValues parent [{ path := [], data }]] []
         (NestedStreamExistence.node 0) .stream [4] (some (.executionGroup [])) := by
   intro eligible
-  have dependencies := eligible.2.2.2.2
+  have dependencies := eligible.2.2.2
   simp [DependencySatisfied, announcedKeys, pendingKeys, completedKeys, eventPending,
     eventCompleted] at dependencies
   exact dependencies.2 none
@@ -110,9 +113,12 @@ example (data : List (Name × ResponseValue)) (outer middle inner : Result Respo
 or scheduler evidence. Witness: general realization of the independently constructed run.
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))
+        ((mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0))).size ≠ 0
+          → (scheduler
+              (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Conforms
+              (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0))))
         ∧ (executionFromWork scheduler response
             (mixed result (.ok (.null, 0)) (.error 0) (.ok (.null, 0)))).Observes
             observed true :=
@@ -124,13 +130,13 @@ Witness: the batching extension theorem, which appends rather than replacing old
 example {paths bound work groups streams events matching failures batches}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
-    (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
+    (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-          matching events (failures.map Prod.snd))
+          matching events failures)
     (batched : WorkBatching events batches)
-    : ∃ tail : List WorkEvent,
+    : ∃ tail : List WorkQueueEvent,
         AdmissibleRun work
           ⟨
             groups,

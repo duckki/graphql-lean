@@ -7,9 +7,9 @@ The proof-only loop below is definitionally the body of mapWorkEventBatch.
 namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
-def eventLoop (event : WorkEvent) (update : IncrementalStreamUpdateResult)
+def eventLoop (event : WorkQueueEvent) (update : IncrementalStreamUpdateResult)
     : StateM IDState (ForInStep IncrementalStreamUpdateResult) := do
   match event with
   | .groupValues group values =>
@@ -35,8 +35,8 @@ def eventLoop (event : WorkEvent) (update : IncrementalStreamUpdateResult)
           update with
             incremental :=
               update.incremental
-              ++ [.list id (values.map StreamValue.item)
-                    ((values.map StreamValue.errors).sum)],
+              ++ [.list id (values.map StreamItemValue.item)
+                    ((values.map StreamItemValue.errors).sum)],
             pending := update.pending ++ pending
         }
   | .streamSuccess stream =>
@@ -48,13 +48,14 @@ def eventLoop (event : WorkEvent) (update : IncrementalStreamUpdateResult)
   | .workQueueTermination => return .yield { update with hasNext := false }
 
 /-- The induction loop is definitionally the public event mapper. -/
-theorem mapWorkEventBatch_loop (events : List WorkEvent) (state : IDState)
+theorem mapWorkEventBatch_loop (events : List WorkQueueEvent) (state : IDState)
     : (mapWorkEventBatch events).run state
       = (forIn events { hasNext := true } eventLoop).run state := by
   rfl
 
 structure Mapped (state : IDState) (initial : IncrementalStreamUpdateResult)
-    (events : List WorkEvent) (update : IncrementalStreamUpdateResult) (next : IDState)
+    (events : List WorkQueueEvent) (update : IncrementalStreamUpdateResult)
+    (next : IDState)
     : Prop where
   preserves : Preserves state next
   pending
@@ -67,7 +68,7 @@ structure Mapped (state : IDState) (initial : IncrementalStreamUpdateResult)
         ∧ Encodes next (completedKeys events) (entries.map IncrementalCompletionNotice.id)
 
 /-- One mapped event preserves IDs and encodes notices, by event case analysis. -/
-theorem eventLoop_spec (event : WorkEvent) (initial : IncrementalStreamUpdateResult)
+theorem eventLoop_spec (event : WorkQueueEvent) (initial : IncrementalStreamUpdateResult)
     (state : IDState)
     : ∃ update next,
         (eventLoop event initial).run state = (.yield update, next)
@@ -136,8 +137,8 @@ theorem eventLoop_spec (event : WorkEvent) (initial : IncrementalStreamUpdateRes
                     pending := initial.pending ++ pending
                     incremental :=
                       initial.incremental
-                      ++ [.list id (values.map StreamValue.item)
-                            ((values.map StreamValue.errors).sum)]
+                      ++ [.list id (values.map StreamItemValue.item)
+                            ((values.map StreamItemValue.errors).sum)]
                 },
                 next,
                 ?_,
@@ -172,8 +173,8 @@ theorem eventLoop_spec (event : WorkEvent) (initial : IncrementalStreamUpdateRes
 
 /-- Sequential mapper witnesses compose their ordered notice encodings. -/
 theorem Mapped.append {state middle final : IDState}
-    {initial update last : IncrementalStreamUpdateResult} {head tail : List WorkEvent}
-    (h : Mapped state initial head update middle)
+    {initial update last : IncrementalStreamUpdateResult}
+    {head tail : List WorkQueueEvent} (h : Mapped state initial head update middle)
     (t : Mapped middle update tail last final)
     : Mapped state initial (head ++ tail) last final := by
   obtain ⟨hp, ⟨pending, ep, kp⟩, ⟨completed, ec, kc⟩⟩ := h
@@ -187,7 +188,7 @@ theorem Mapped.append {state middle final : IDState}
       using (kc.mono tp).append kr
 
 /-- The entire mapper loop preserves IDs and notice encodings, by list induction. -/
-theorem loop_spec (events : List WorkEvent) (initial : IncrementalStreamUpdateResult)
+theorem loop_spec (events : List WorkQueueEvent) (initial : IncrementalStreamUpdateResult)
     (state : IDState)
     : ∃ update next,
         (forIn events initial eventLoop).run state = (update, next)
@@ -204,7 +205,7 @@ theorem loop_spec (events : List WorkEvent) (initial : IncrementalStreamUpdateRe
       simp only [he, ht]
 
 /-- A work batch maps its ordered key occurrences to stable IDs, by the loop witness. -/
-theorem mapWorkEventBatch_spec (events : List WorkEvent) (state : IDState)
+theorem mapWorkEventBatch_spec (events : List WorkQueueEvent) (state : IDState)
     : let (update, next) := (mapWorkEventBatch events).run state
       Preserves state next
       ∧ Encodes next (pendingKeys events) (update.pending.map IncrementalPendingNotice.id)
@@ -216,7 +217,7 @@ theorem mapWorkEventBatch_spec (events : List WorkEvent) (state : IDState)
   simpa [ep, ec] using And.intro hp (And.intro kp kc)
 
 /-- An explicit batch-mapping result inherits the ordered encoding witness. -/
-theorem mapWorkEventBatch_of_eq {events : List WorkEvent} {state next : IDState}
+theorem mapWorkEventBatch_of_eq {events : List WorkQueueEvent} {state next : IDState}
     {update : IncrementalStreamUpdateResult}
     (h : (mapWorkEventBatch events).run state = (update, next))
     : Preserves state next

@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.TaskReadiness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
 
 /-! Execution's existing key/ancestry certificates order task-producer dependencies.
 No readiness, notice coverage, or response-correctness premise is added to admission.
@@ -9,7 +9,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Structural lookup preserves the generated dependency context
@@ -104,22 +104,29 @@ theorem coherent_task_owners_nonempty
       exact fun empty => localWork.1 (List.map_eq_nil_iff.mp empty)
   | item => simp
 
-/-- An uncancelled child has some healthy producer owner when producer owners are nonempty.
-Witness: failure of all those owners would cancel the producer and then the child.
+/-- An unpublished, uncancelled child with an unpublished producer has a healthy producer
+owner. Witness: combine failures at the admitted current snapshot, then cancel both tasks.
 -/
 theorem healthy_producer_owner
-    {work failed occurrence owners producer payload parentOwners ancestor result}
+    {work groups streams matching events failed
+      occurrence owners producer payload parentOwners ancestor result}
+    (explained : Explains work groups streams events matching failed)
     (known : TaskAt work occurrence owners (some producer) payload)
     (parentKnown : TaskAt work producer parentOwners ancestor result)
-    (nonempty : parentOwners ≠ []) (active : ¬TaskCancelled work failed occurrence)
-    : ∃ key ∈ parentOwners, ¬NodeFailed work failed key := by
+    (nonempty : parentOwners ≠ [])
+    (fresh : ¬Published matching events occurrence)
+    (parentFresh : ¬Published matching events producer)
+    (active : ¬TaskCancelled work matching events failed occurrence)
+    : ∃ key ∈ parentOwners, ¬NodeFailed work matching events failed key := by
   classical
   apply Classical.byContradiction
   intro absent
   apply active
-  apply TaskCancelled.producerCancelled known
-  apply TaskCancelled.owners parentKnown nonempty
+  apply explained.snapshot_taskCancelled
+  apply Causality.TaskCancelled.producerCancelled ⟨_, _, known⟩ fresh
+  apply Causality.TaskCancelled.owners ⟨_, _, parentKnown⟩ parentFresh nonempty
   intro key member
+  apply explained.nodeFailed_snapshot
   apply Classical.byContradiction
   intro healthy
   exact absent ⟨key, member, healthy⟩
@@ -134,30 +141,34 @@ stream owners, or the fresh key interval below a stream item. This prevents a pr
 dependency from forcing progress through a strictly later owner key.
 -/
 theorem producer_owner_key_le
-    {parents bound work failed occurrence owners producer payload key}
+    {parents bound work groups streams matching events failed
+      occurrence owners producer payload key}
+    (explained : Explains work groups streams events matching failed)
     (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners (some producer) payload)
-    (member : key ∈ owners) (healthy : ¬NodeFailed work failed key)
-    (active : ¬TaskCancelled work failed occurrence)
+    (member : key ∈ owners) (healthy : ¬NodeFailed work matching events failed key)
+    (fresh : ¬Published matching events occurrence)
+    (parentFresh : ¬Published matching events producer)
+    (active : ¬TaskCancelled work matching events failed occurrence)
     : ∃ parentOwners ancestor result parentKey,
         TaskAt work producer parentOwners ancestor result
         ∧ parentKey ∈ parentOwners
-        ∧ ¬NodeFailed work failed parentKey
+        ∧ ¬NodeFailed work matching events failed parentKey
         ∧ parentKey ≤ key := by
   cases StructuralEquivalence.taskAt_of_current known with
   | executionGroup located =>
       obtain ⟨group, inGroups, rfl⟩ := List.mem_map.mp member
       obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
         producer_key_context coherent continuous ordered located.toCurrent
-      rcases support with ⟨under, before⟩ | ⟨parentKey, same, fresh⟩
+      rcases support with ⟨under, before⟩ | ⟨parentKey, same, freshKeys⟩
       · obtain ⟨parentKey, inOwners, reused | dependency⟩ := under.1 group inGroups
         · exact ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
             reused ▸ healthy, Nat.le_of_eq reused⟩
         · have localWork := coherent_located coherent located.toCurrent
           rw [MixedKeys.WorkAt] at localWork
           obtain ⟨_, keyBound, ancestors⟩ := localWork.2.1 group inGroups
-          have parentHealthy : ¬NodeFailed work failed parentKey := by
+          have parentHealthy : ¬NodeFailed work matching events failed parentKey := by
             intro failed
             apply healthy
             exact .groupDependency (.group located.toCurrent inGroups)
@@ -165,20 +176,22 @@ theorem producer_owner_key_le
           exact ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
             parentHealthy, Nat.le_of_lt (valid group.node.key keyBound parentKey dependency).1⟩
       · subst parentOwners
-        have parentHealthy := healthy_producer_owner known parentKnown (by simp) active
+        have parentHealthy := healthy_producer_owner explained known parentKnown
+          (by simp) fresh parentFresh active
         obtain ⟨healthyKey, inOwners, parentHealthy⟩ := parentHealthy
         have equal := List.mem_singleton.mp inOwners
         subst healthyKey
-        rw [MixedKeys.WorkAt] at fresh
+        rw [MixedKeys.WorkAt] at freshKeys
         exact ⟨[parentKey], ancestor, result, parentKey, parentKnown, by simp,
-          parentHealthy, Nat.le_trans (Nat.le_succ _) (fresh.2.1 group inGroups).1⟩
+          parentHealthy, Nat.le_trans (Nat.le_succ _) (freshKeys.2.1 group inGroups).1⟩
   | item located selected =>
       have equal := List.mem_singleton.mp member
       subst key
       obtain ⟨parentOwners, ancestor, result, parentKnown, support⟩ :=
         producer_key_context coherent continuous ordered located.toCurrent
-      obtain ⟨parentKey, inOwners, parentHealthy⟩ := healthy_producer_owner known parentKnown
-        (coherent_task_owners_nonempty coherent parentKnown) active
+      obtain ⟨parentKey, inOwners, parentHealthy⟩ :=
+        healthy_producer_owner explained known parentKnown
+          (coherent_task_owners_nonempty coherent parentKnown) fresh parentFresh active
       refine ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
         parentHealthy, ?_⟩
       rcases support with ⟨under, before⟩ | ⟨key, same, fresh⟩
@@ -194,23 +207,25 @@ owner. Witness: dependency-rank descent, retaining the key bound through produce
 and the shared owner list of successive stream items. No publication order is selected.
 -/
 theorem readyTask_owner_key_le
-    {parents bound work matching events failed occurrence owners producer payload key}
+    {parents bound work groups streams matching events failed
+      occurrence owners producer payload key}
+    (explained : Explains work groups streams events matching failed)
     (valid : Valid parents bound) (coherent : MixedKeys.WorkAt parents 0 bound work)
     (continuous : DeferContinuous parents work) (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload)
-    (member : key ∈ owners) (healthy : ¬NodeFailed work failed key)
-    (outstanding : ¬Accounted work matching events failed occurrence)
+    (member : key ∈ owners) (healthy : ¬NodeFailed work matching events failed key)
+    (outstanding : ¬TaskAccounted work matching events failed occurrence)
     : ∃ next nextOwners nextProducer result nextKey,
         TaskAt work next nextOwners nextProducer result
         ∧ CanPublish work matching events failed next nextProducer
         ∧ nextKey ∈ nextOwners
-        ∧ ¬NodeFailed work failed nextKey
+        ∧ ¬NodeFailed work matching events failed nextKey
         ∧ nextKey ≤ key := by
   classical
   induction rank : occurrence.dependencyRank
     using Nat.strongRecOn generalizing occurrence owners producer payload key with
   | ind rank ih =>
-      have active : ¬TaskCancelled work failed occurrence := fun cancelled =>
+      have active : ¬TaskCancelled work matching events failed occurrence := fun cancelled =>
         outstanding (Or.inl cancelled)
       have fresh : ¬Published matching events occurrence := fun published =>
         outstanding (Or.inr published)
@@ -227,9 +242,9 @@ theorem readyTask_owner_key_le
             | succ index =>
                 obtain ⟨previous, prior⟩ := known.predecessor
                 by_cases accounted :
-                  Accounted work matching events failed (.item address index)
+                  TaskAccounted work matching events failed (.item address index)
                 · rcases accounted with cancelled | published
-                  · exact False.elim (active (cancelled.same_prerequisites prior known))
+                  · exact False.elim (active (cancelled.same_prerequisites prior known fresh))
                   · exact ⟨_, _, _, _, key, known, ⟨fresh, active, generated, published⟩,
                       member, healthy, Nat.le_refl _⟩
                 · exact ih (Occurrence.item address index).dependencyRank
@@ -239,12 +254,13 @@ theorem readyTask_owner_key_le
           |>.imp fun _ h => not_imp.mp h
         subst producer
         obtain ⟨parentOwners, ancestor, result, parentKey, parentKnown, inOwners,
-          parentHealthy, keyBound⟩ := producer_owner_key_le valid coherent continuous ordered
-            known member healthy active
+          parentHealthy, keyBound⟩ :=
+          producer_owner_key_le explained valid coherent continuous ordered
+            known member healthy fresh unpublished active
         have lower := known.producer_dependency.1
-        have unaccounted : ¬Accounted work matching events failed parent := by
+        have unaccounted : ¬TaskAccounted work matching events failed parent := by
           rintro (cancelled | published)
-          · exact active (.producerCancelled known cancelled)
+          · exact active (.producerCancelled known fresh cancelled)
           · exact unpublished published
         obtain ⟨next, nextOwners, nextProducer, result, nextKey,
           task, ready, nextMember, nextHealthy, smaller⟩ :=

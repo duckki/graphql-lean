@@ -1,6 +1,6 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Initialization
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.CompletionExistence
 
 /-! Query-prefix existence without assuming scheduler conformance or an admitted history.
 This establishes initialization independently of the complete-run construction in
@@ -11,51 +11,54 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 
 -----------------------------------------------------------------------------------------
--- A factory exists before any history is assumed
+-- A queue constructor exists before any history is assumed
 -----------------------------------------------------------------------------------------
 
 /-- Choose valid initial notices when they exist, retaining every later history allowed
-by that choice. This proof-only factory chooses no task order or future response stream.
+by that choice. This proof-only queue constructor chooses no task order or future response stream.
 The fallback applies to arbitrary malformed raw work, not nonempty generated work.
 -/
-noncomputable def initializedScheduler : Execution.WorkScheduler :=
+noncomputable def initializedWorkQueue : (Execution.Work → Execution.WorkQueue) :=
   open Classical in
-  WorkScheduler.specificationScheduler
-    (fun work =>
+  fun work =>
+    let notices :=
       if possible
           : ∃ notices : List DeliveryNode × List DeliveryNode,
-              WorkScheduler.Initializes work notices.1 notices.2 then
+              WorkQueueSemantics.Initializes work notices.1 notices.2 then
         Classical.choose possible
       else
-        ([], []))
+        ([], [])
+    WorkQueueSemantics.specificationSource work notices.1 notices.2
 
-/-- The proof-only factory conforms whenever initialization is possible. Witness: the
+/-- The proof-only queue constructor conforms whenever initialization is possible. Witness: the
 chosen notice witness and maximal-source conformance; no future run is selected.
 -/
-theorem initializedScheduler_conforms {work}
+theorem initializedWorkQueue_conforms {work}
     (possible
-      : work.size ≠ 0 → ∃ groups streams, WorkScheduler.Initializes work groups streams)
-    : initializedScheduler.Conforms work := by
-  apply WorkScheduler.specificationScheduler_conforms
+      : work.size ≠ 0
+        → ∃ groups streams, WorkQueueSemantics.Initializes work groups streams)
+    : (work.size ≠ 0 → (initializedWorkQueue work).Conforms work) := by
   intro nonempty
+  apply WorkQueueSemantics.specificationSource_conforms
   obtain ⟨groups, streams, initialized⟩ := possible nonempty
   have existsNotices : ∃ notices : List DeliveryNode × List DeliveryNode,
-      WorkScheduler.Initializes work notices.1 notices.2 :=
+      WorkQueueSemantics.Initializes work notices.1 notices.2 :=
     ⟨(groups, streams), initialized⟩
   simpa only [dite_eq_left existsNotices] using Classical.choose_spec existsNotices
 
-/-- One factory conforms to every prepared root work. Witness: unconditional generated
+/-- One queue constructor conforms to every prepared root work. Witness: unconditional generated
 work initialization, with no law needed in the empty-work branch.
 -/
-theorem executeRoot_initializedScheduler_conforms (schema : Schema)
+theorem executeRoot_initializedWorkQueue_conforms (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
     (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
-    : initializedScheduler.Conforms
-        ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
-            selections).run
-          0).1.work :=
-  initializedScheduler_conforms
-    (WorkScheduler.executeRoot_initialization_exists schema resolvers variables fuel
+    : let work :=
+        ((executeRootSelectionSetCore schema resolvers variables fuel
+            parentType source selections).run
+          0).1.work
+      work.size ≠ 0 → (initializedWorkQueue work).Conforms work :=
+  initializedWorkQueue_conforms
+    (WorkQueueSemantics.executeRoot_initialization_exists schema resolvers variables fuel
       parentType source selections)
 
 -----------------------------------------------------------------------------------------
@@ -79,7 +82,7 @@ theorem executeRoot_workObservation_exists (schema : Schema)
   by_cases empty : completed.work.size = 0
   · exact ⟨_, .single empty⟩
   · obtain ⟨groups, streams, initialized⟩ :=
-      WorkScheduler.executeRoot_initialization_exists schema resolvers variables fuel
+      WorkQueueSemantics.executeRoot_initialization_exists schema resolvers variables fuel
         parentType source selections empty
     exact ⟨_, .incremental groups streams [] empty (by simp)
       (Or.inl initialized.emptyHistory) (by simp)⟩
@@ -91,9 +94,11 @@ This does not assert that a complete outcome exists.
 theorem queryObservation_exists (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ∃ result,
-        queryObservation schema resolvers variables operation fuel source result
-          false := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source
+        ∧ queryObservation createWorkQueue schema resolvers variables operation fuel
+            source result false := by
   by_cases applies : rootSourceAppliesBool schema operation source = true
   · obtain ⟨result, observed⟩ := executeRoot_workObservation_exists schema resolvers
       (coerceVariableValues operation variables) fuel (operation.rootType schema) source
@@ -110,22 +115,23 @@ theorem queryObservation_exists (schema : Schema) (resolvers : Resolvers ObjectR
 
 /-- A complete observation exists exactly when work is empty or an explained history
 accounts for all tasks. Witness: terminal-history realization and constructive completion
-of every remaining open node. Closing IDs is a conclusion, not a premise on this history.
+of every remaining open node, retaining the failure cuts and publication matching.
+Closing IDs is a conclusion, not a premise on this history.
 -/
 theorem completeObservation_exists_iff_accounted_history (response : Response)
     (work : Work)
-    : (∃ scheduler : Execution.WorkScheduler,
+    : (∃ scheduler : (Execution.Work → Execution.WorkQueue),
         ∃ result : ExecutionObservation,
-          scheduler.Conforms work
+          (work.size ≠ 0 → (scheduler work).Conforms work)
           ∧ (executionFromWork scheduler response work).Observes result true)
       ↔ work.size = 0
         ∨ ∃ groups streams events matching failures,
-            WorkScheduler.Explains work groups streams events matching failures
+            WorkQueueSemantics.Explains work groups streams events matching failures
             ∧ ∀ occurrence owners producer payload,
-                WorkScheduler.TaskAt work occurrence owners producer payload
-                → WorkScheduler.Accounted work matching events
-                    (WorkScheduler.failedBefore failures events.length) occurrence := by
+                WorkQueueSemantics.TaskAt work occurrence owners producer payload
+                → WorkQueueSemantics.TaskAccounted work matching events failures
+                    occurrence := by
   rw [completeObservation_exists_iff,
-    WorkScheduler.admissibleRun_exists_iff_accounted_history]
+    WorkQueueSemantics.admissibleRun_exists_iff_accounted_history]
 
 end GraphQL.IncrementalDelivery.Correctness

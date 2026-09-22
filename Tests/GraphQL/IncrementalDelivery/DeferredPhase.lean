@@ -6,7 +6,7 @@ namespace GraphQL.IncrementalDelivery.Tests.DeferredPhase
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Empty-path nodes keep ownership independent of the two task addresses. -/
 def node (key : Nat) : DeliveryNode := { key, path := [] }
@@ -76,8 +76,7 @@ theorem initialized (first second : Result (List (Name × ResponseValue)))
     none,
     known,
     by simp [announcedKeys, pendingKeys],
-    fun failure => failure.nonempty rfl,
-    Or.inr ?_,
+    Or.inl ⟨fun failure => failure.nonempty rfl, Or.inr ?_⟩,
     by simp,
     by simp
   ⟩
@@ -95,10 +94,9 @@ theorem phase_exists (first second : Result (List (Name × ResponseValue)))
     : ∃ events matching failures,
         Explains (work first second) [node 0, node 1] [] events matching failures
         ∧ (∀ event ∈ events, DeferredPhaseEvent event)
-        ∧ DeferredTasksAccounted (work first second) matching events
-            (failures.map Prod.snd)
+        ∧ DeferredTasksAccounted (work first second) matching events failures
         ∧ ∀ key ∈ [0, 1],
-            ¬NodeFailed (work first second) (failures.map Prod.snd) key
+            ¬NodeFailed (work first second) matching events failures key
             → Open [0, 1] events key := by
   apply finish_root_deferred_tasks (paths := fun _ => []) (bound := 3)
   · simp [work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt, OwnerPaths.mapNodes,

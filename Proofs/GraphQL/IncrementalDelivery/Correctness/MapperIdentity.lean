@@ -1,5 +1,5 @@
 import GraphQL.IncrementalDelivery.Correctness
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.BatchLifecycle
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.BatchLifecycle
 
 /-! Stable wire identities and exact ordered node/ID correspondence. These proofs
 do not require numerical ID freshness: lookup stability suffices for liveness.
@@ -8,7 +8,7 @@ do not require numerical ID freshness: lookup stability suffices for liveness.
 namespace GraphQL.IncrementalDelivery.Correctness.MapperIdentity
 
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 def Known (state : IDState) (key : Nat) (id : String) : Prop :=
   state.ids.find? (fun entry => entry.1 == key) = some (key, id)
@@ -198,7 +198,7 @@ theorem getCompletedEntry_of_eq {node : DeliveryNode} {errors : Nat}
   exact fact
 
 /-- Object patch construction preserves old IDs, by its single allocation. -/
-theorem getIncrementalEntry_preserves (node : DeliveryNode) (value : GroupValue)
+theorem getIncrementalEntry_preserves (node : DeliveryNode) (value : ExecutionGroupValue)
     (state : IDState)
     : Preserves state
         ((getIncrementalEntry (m := StateM IDState) node value ensureID).run state).2 :=

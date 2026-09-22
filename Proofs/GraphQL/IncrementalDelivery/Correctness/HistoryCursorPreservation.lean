@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceCursorReplay
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- A source label carrying an item payload has an item occurrence. Witness: invert its

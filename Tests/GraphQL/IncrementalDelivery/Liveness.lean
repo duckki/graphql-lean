@@ -16,10 +16,16 @@ example (schema : Schema) (operation : Operation)
 example {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     : result.idsEventuallyComplete :=
   deliveryIDsEventuallyComplete_holds schema operation resolvers variables fuel source
-    result observed
+    createWorkQueue result conforms observed
 
 /-- The actual fixture source's complete response observation inherits work liveness. -/
 example (response : Response)
@@ -28,7 +34,8 @@ example (response : Response)
           SourceObservation.queue.initialStreams [[SourceObservation.events]]) :=
   WorkObservation.idsEventuallyComplete
     (executionFromWork_observes_workHistory QueryObservation.scheduler response
-      WorkScheduler.work QueryObservation.conforms (QueryObservation.observed response))
+      WorkQueueSemantics.work QueryObservation.conforms
+      (QueryObservation.observed response))
 
 /-- The witness also covers arbitrary admitted raw work, not only query-produced work. -/
 example {response work result} (observed : WorkObservation response work true result)

@@ -1,12 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SuccessfulWork
 import Proofs.GraphQL.IncrementalDelivery.Correctness.ErrorCounts
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Publication
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Publication
 
 /-! Exact task coverage and payload error-freedom in complete successful observations. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- The counted errors in a task's outcome, including successful null-catching results. -/
 def payloadErrors : Payload → Nat
@@ -51,11 +51,11 @@ theorem event_publication_errors {work initial matching before failed event}
     : payloadErrors payload = workEventErrors event := by
   cases event <;> try contradiction
   case groupValues node values =>
-    obtain ⟨_, _, _, _, _, rfl, task, _⟩ := allowed
+    obtain ⟨_, _, _, rfl, task, _⟩ := allowed
     rw [(known.unique task).2.2]
     simp [payloadErrors, workEventErrors]
   case streamValues node values groups streams =>
-    obtain ⟨_, _, _, _, rfl, task, _⟩ := allowed
+    obtain ⟨_, _, _, rfl, task, _⟩ := allowed
     rw [(known.unique task).2.2]
     simp [payloadErrors, workEventErrors]
 
@@ -82,7 +82,7 @@ Distinct equal-valued tasks remain distinct occurrences; overlapping owners do n
 multiply publication.
 -/
 theorem replayResponse_task_coverage {response : Response} {work : Work}
-    {groups streams : List DeliveryNode} {batches : List (List (List WorkEvent))}
+    {groups streams : List DeliveryNode} {batches : List (List (List WorkQueueEvent))}
     (positive : ExecutionErrors.WorkPositive work)
     (run : AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
     (zero : (replayResponse response groups streams batches).totalErrors = 0)
@@ -150,10 +150,16 @@ theorem WorkObservation.payload_errors_zero {response : Response} {work : Work}
 /-- A zero-error complete query has zero errors in every retained task. Witness:
 actual-work reduction, execution positivity, and exact publication coverage.
 -/
-theorem queryOutcome_payload_errors_zero {schema : Schema}
+theorem queryOutcome_payload_errors_zero {createWorkQueue : Work → WorkQueue}
+    {schema : Schema}
     {resolvers : Resolvers ObjectRef} {variables : VariableValues} {operation : Operation}
     {fuel : Nat} {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     (zero : result.totalErrors = 0)
     (applies : rootSourceAppliesBool schema operation source = true)
     {occurrence owners producer payload}
@@ -165,7 +171,7 @@ theorem queryOutcome_payload_errors_zero {schema : Schema}
             0).1.work
           occurrence owners producer payload)
     : payloadErrors payload = 0 := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   simp only [applies, ↓reduceIte] at witnessed
   exact witnessed.payload_errors_zero
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers _ fuel

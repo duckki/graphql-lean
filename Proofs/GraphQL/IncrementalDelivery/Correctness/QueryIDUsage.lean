@@ -17,8 +17,8 @@ theorem WorkObservation.idUsageValid {response work complete result}
   cases observed with
   | single empty => trivial
   | incremental groups streams batches nonempty batchNonempty admitted finished =>
-      have refs := admitted.elim WorkScheduler.AdmissiblePrefix.openReferences
-        WorkScheduler.AdmissibleRun.openReferences
+      have refs := admitted.elim WorkQueueSemantics.AdmissiblePrefix.openReferences
+        WorkQueueSemantics.AdmissibleRun.openReferences
       have grouped := replayResponse_groups response groups streams batches
       cases allocated
             : (getPendingEntry (m := StateM IDState) groups streams ensureID).run {} with
@@ -38,15 +38,16 @@ theorem WorkObservation.idUsageValid {response work complete result}
 /-- Every query prefix satisfies public ID safety, by the query/history bridge. -/
 theorem deliveryIDUsageValid_holds (schema : Schema) (operation : Operation)
     : deliveryIDUsageValid schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   exact queryObservation_property ExecutionObservation.idUsageValid
-    (fun _ _ _ h => h.idUsageValid) observed
+    (fun _ _ _ h => h.idUsageValid) conforms observed
 
 /-- Every query patch has an earlier or same-response announcement, by ID safety. -/
 theorem deliveryPatchesAnnounced_holds (schema : Schema) (operation : Operation)
     : deliveryPatchesAnnounced schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
   exact patchesAnnounced_of_idUsageValid result
-    (deliveryIDUsageValid_holds schema operation resolvers variables fuel source result observed)
+    (deliveryIDUsageValid_holds schema operation resolvers variables fuel source createWorkQueue
+      result conforms observed)
 
 end GraphQL.IncrementalDelivery.Correctness

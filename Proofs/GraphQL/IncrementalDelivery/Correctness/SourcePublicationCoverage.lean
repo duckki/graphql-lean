@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.PublicationCoverage
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- A matched publication inserts its source label into every later observed prefix.
@@ -83,7 +83,7 @@ theorem replayResponse_absolute_coverage
     replayResponse_successful_history positive run zero
   have exactDecode := decode_historyPositionAtoms (containers := containers)
     explained seeded initialHistory disjoint events.length (Nat.le_refl _)
-  have nodePaths : ∀ node ∈ (events ++ [WorkEvent.workQueueTermination]).flatMap
+  have nodePaths : ∀ node ∈ (events ++ [WorkQueueEvent.workQueueTermination]).flatMap
       eventNodes, paths node.key = node.path := by
     intro node member
     simp only [List.flatMap_append, List.flatMap_cons, List.flatMap_nil, eventNodes,

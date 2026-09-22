@@ -6,7 +6,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedExistence
 namespace GraphQL.IncrementalDelivery.Tests.MixedNoticeCoverage
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Root owner, its dependent co-owner, and their produced stream use separate keys. -/
 def node (key : Nat) : DeliveryNode := { key, path := [] }
@@ -24,7 +24,7 @@ def ancestry (key : Nat) : Keys := if key = 1 then [0] else []
 def matching (_ : Nat) : Occurrence := .executionGroup []
 
 /-- The publication reports the shared selection using the announced root owner. -/
-def value : WorkEvent := .groupValues (node 0) [{ path := [], data := [] }]
+def value : WorkQueueEvent := .groupValues (node 0) [{ path := [], data := [] }]
 
 /-- Only the root task and its stream child can be located in this finite fixture.
 Witness: direct address traversal, including rejection of nonexistent stream items.
@@ -95,8 +95,8 @@ theorem initialized : Initializes work [node 0] [] := by
     none,
     known,
     by simp [announcedKeys, pendingKeys],
-    fun failed => failed.nonempty rfl,
-    Or.inr (group_not_initially_accounted known),
+    Or.inl
+      ⟨fun failed => failed.nonempty rfl, Or.inr (group_not_initially_accounted known)⟩,
     by simp,
     by simp
   ⟩
@@ -123,8 +123,8 @@ theorem initial_covered : NoticesCovered work [0] matching [] [] := by
   · exact ready_owner_dependency_unsatisfied initial_ready.1
       (show TaskAt work (.executionGroup []) [0, 1] none (.object [] (.ok ([], 0)))
         from .executionGroup .root) (by simp : 0 ∈ [0, 1]) initial_ready.2
-      (by simpa [node, failedBefore] using eligible.2.2.2.2 0 (by simp))
-  · have impossible := eligible.2.2.2.1 (.executionGroup []) rfl
+      (by simpa [node, failedBefore] using eligible.2.2.2 0 (by simp))
+  · have impossible := eligible.2.2.1 (.executionGroup []) rfl
     simp [Published] at impossible
 
 /-- The actual shared object publication is admitted using the single open owner.
@@ -132,21 +132,16 @@ Witness: the event rule and equal response-path lengths for all potential owners
 -/
 theorem published : Explains work [node 0] [] [value] matching [] := by
   apply initial_ready.1.append_event
-  refine ⟨[0, 1], none, [], [], 0, rfl, .executionGroup .root, initial_ready.2, ?_⟩
-  refine ⟨
-    ⟨
-      ⟨.group, [], none, .group (group := { node := node 0 }) .root (by simp)⟩,
-      by simp [node],
-      ?_,
-      fun failed => failed.nonempty rfl
-    ⟩,
-    ?_
-  ⟩
-  · simp [Open, announcedKeys, pendingKeys, completedKeys, node]
-  · intro other available
-    obtain ⟨kind, parents, birth, known⟩ := available.1
-    rcases node_work known with ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩
-    all_goals simp [node]
+  refine ⟨[0, 1], none, { path := [], data := [] }, rfl,
+    .executionGroup .root, initial_ready.2, ?_⟩
+  have opened : OpenOwner work [0] [] [0, 1] (node 0) :=
+    ⟨⟨.group, [], none, .group (group := { node := node 0 }) .root (by simp)⟩,
+      by simp [node], by simp [Open, announcedKeys, pendingKeys, completedKeys, node]⟩
+  refine ⟨opened, ⟨node 0, opened, fun failed => failed.nonempty rfl⟩, ?_⟩
+  intro other available
+  obtain ⟨kind, parents, birth, known⟩ := available.1
+  rcases node_work known with ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩ | ⟨rfl, _, _, _⟩
+  all_goals simp [node]
 
 /-- Publication silently accounts for key one, making the stream eligible immediately.
 Witness: its producer has published and its unannounced co-owner is accounted for.
@@ -157,8 +152,7 @@ theorem stream_eligible
   have output : Published matching [value] (.executionGroup []) := ⟨0, value, rfl, trivial, rfl⟩
   refine ⟨
     by simp [node, announcedKeys, pendingKeys, value, eventPending],
-    fun failed => failed.nonempty rfl,
-    Or.inl rfl,
+    Or.inl ⟨fun failed => failed.nonempty rfl, Or.inl rfl⟩,
     ?_,
     Or.inr ⟨1, by simp, ?_⟩
   ⟩
@@ -197,7 +191,7 @@ theorem stream_not_supported
     : ¬SupportedNotice ancestry work [0] matching [value] []
         (node 2) .stream [0, 1] (some (.executionGroup [])) := by
   intro supported
-  rcases supported.2 rfl with impossible | ⟨key, member, dependency, ancestors⟩
+  rcases supported.2.2 rfl with impossible | ⟨key, member, dependency, ancestors⟩
   · cases impossible
   · simp at member
     rcases member with rfl | rfl
@@ -218,8 +212,10 @@ theorem published_supported
   intro other kind parents birth known supported
   rcases node_work known with ⟨rfl, rfl, rfl, rfl⟩
     | ⟨rfl, rfl, rfl, rfl⟩ | ⟨rfl, rfl, rfl, rfl⟩
-  · exact supported.1.2.2.1.resolve_left (by simp) (accounted 0)
-  · exact supported.1.2.2.1.resolve_left (by simp) (accounted 1)
+  · exact ((canAnnounce_healthy_iff supported.2.1).mp supported.1).2.1.resolve_left
+      (by simp) (accounted 0)
+  · exact ((canAnnounce_healthy_iff supported.2.1).mp supported.1).2.1.resolve_left
+      (by simp) (accounted 1)
   · exact stream_not_supported supported
 
 /-- The same fixture still has a complete run despite losing full notice coverage.

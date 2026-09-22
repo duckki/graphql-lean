@@ -1,11 +1,11 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceTasks
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 
 /-! Structural task lookup recovers the same labels used by source-position ownership. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 open scoped List
 

@@ -96,7 +96,7 @@ lake build
   spec-conformance scope and out-of-scope boundaries.
 - [docs/execution.md](docs/execution.md): main execution model, shared abstractions,
   and specification correspondence.
-- [docs/incremental-delivery.md](docs/incremental-delivery.md): draft execution model,
+- [docs/incremental-delivery/README.md](docs/incremental-delivery/README.md): draft execution model,
   specification mapping, scheduler contract, correctness statements, and proof status.
 - [docs/algorithms.md](docs/algorithms.md): algorithmic alternatives to the
   spec-facing executor and their proof status.

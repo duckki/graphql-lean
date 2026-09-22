@@ -1,6 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.MixedNoticeMetadata
 import Proofs.GraphQL.IncrementalDelivery.Correctness.LeastKeyProgress
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeEligibility
 
 /-! Proof-only notice support for mixed work. A stream may wait until one healthy defer
 dependency and that dependency's full ancestry are satisfied. Public admission stays
@@ -11,22 +12,23 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- A weaker coverage witness allows streams to wait for a later notice carrier
 -----------------------------------------------------------------------------------------
 
-/-- An eligible group, or an eligible stream supported by one dependency and its full
-defer ancestry. This is a sufficient proof-construction opportunity, not the public
-stream-admission rule: streams may legally be announced earlier via silent accounting.
+/-- A healthy eligible group, or a healthy eligible stream supported by one dependency
+and its full defer ancestry. This proof-construction opportunity need not announce
+retained failures; public admission also permits them and earlier stream notices.
 -/
 def SupportedNotice (ancestry : Ancestry.Assignment) (work : Work) (initial : Keys)
-    (matching : PublicationMatching) (events : List WorkEvent) (failed : List Occurrence)
+    (matching : PublicationMatching) (events : List WorkQueueEvent) (failed : FailureCuts)
     (node : DeliveryNode) (kind : NodeKind) (dependencies : Keys)
     (producer : Option Occurrence)
     : Prop :=
   CanAnnounce work initial matching events failed node kind dependencies producer
+  ∧ ¬NodeFailed work matching events failed node.key
   ∧ (kind = .stream
       → dependencies = []
         ∨ ∃ key ∈ dependencies,
@@ -38,8 +40,8 @@ def SupportedNotice (ancestry : Ancestry.Assignment) (work : Work) (initial : Ke
 This witness permits an eligible stream to wait on its dependency's still-open ancestry.
 -/
 def SupportedNoticesCovered (ancestry : Ancestry.Assignment) (work : Work)
-    (initial : Keys) (matching : PublicationMatching) (events : List WorkEvent)
-    (failed : List Occurrence)
+    (initial : Keys) (matching : PublicationMatching) (events : List WorkQueueEvent)
+    (failed : FailureCuts)
     : Prop :=
   ∀ node kind dependencies producer,
     NodeAt work node kind dependencies producer
@@ -69,17 +71,21 @@ made the group announceable before. Kind roles include absent ancestor placehold
 The publication premise allows a new ready object publication, not just control events.
 -/
 theorem supported_dependency_before
-    {ancestry bound roles work initial before events oldMatching matching oldFailed failed
-      key}
+    {ancestry bound roles work groups streams initial before events oldMatching matching
+      oldFailed failed key}
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (roleCoherent : KeyRoles.WorkRoles roles work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before oldFailed)
-    (included : oldFailed ⊆ failed)
+    (explained : Explains work groups streams events matching failed)
+    (included
+      : ∀ key,
+          NodeFailed work oldMatching before oldFailed key
+          → NodeFailed work matching events failed key)
     (notices : (announcedKeys initial before).Subset (announcedKeys initial events))
     (completions
       : ∀ key,
           roles key = false
-          → ¬NodeFailed work failed key
+          → ¬NodeFailed work matching events failed key
           → key ∈ completedKeys events
           → key ∈ completedKeys before)
     (producers
@@ -98,8 +104,8 @@ theorem supported_dependency_before
   classical
   induction key using Nat.strongRecOn with
   | ind key ih =>
-      have healthy : ¬NodeFailed work oldFailed key :=
-        fun failure => satisfied.1 (failure.mono included)
+      have healthy : ¬NodeFailed work oldMatching before oldFailed key :=
+        fun failure => satisfied.1 (included _ failure)
       refine ⟨healthy, ?_⟩
       rcases satisfied.2 with absent | completed | ⟨fresh, accounted⟩
       · exact Or.inl absent
@@ -111,7 +117,7 @@ theorem supported_dependency_before
           have group := node_kind_of_defer_role roleCoherent descriptor (same ▸ role)
           subst kind
           obtain ⟨occurrence, owners, producer, payload, task, member, published⟩ :=
-            NodeAccounted.group_published (same ▸ accounted) descriptor
+            NodeAccounted.group_published explained (same ▸ accounted) descriptor
               (by
                 intro other kind dependencies birth known equal
                 exact node_kind_of_defer_role roleCoherent known ((equal.trans same) ▸ role))
@@ -128,11 +134,11 @@ theorem supported_dependency_before
           refine ⟨
             ⟨
               keySame ▸ (fun member => fresh (notices member)),
-              keySame ▸ healthy,
-              Or.inr (keySame ▸ beforeAccounted),
+              Or.inl ⟨keySame ▸ healthy, Or.inr (keySame ▸ beforeAccounted)⟩,
               producers _ _ _ _ task published,
               ?_
             ⟩,
+            keySame ▸ healthy,
             by intro impossible; cases impossible
           ⟩
           intro ancestor dependency
@@ -150,8 +156,8 @@ Witness: the preceding key induction and transitivity of each selected dependenc
 ancestry.
 -/
 theorem SupportedNotice.dependencies_before
-    {ancestry bound roles work initial before events oldMatching matching oldFailed failed
-      node kind dependencies producer}
+    {ancestry bound roles work groups streams initial before events oldMatching matching
+      oldFailed failed node kind dependencies producer}
     (supported
       : SupportedNotice ancestry work initial matching events failed
           node kind dependencies producer)
@@ -159,12 +165,16 @@ theorem SupportedNotice.dependencies_before
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (roleCoherent : KeyRoles.WorkRoles roles work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before oldFailed)
-    (included : oldFailed ⊆ failed)
+    (explained : Explains work groups streams events matching failed)
+    (included
+      : ∀ key,
+          NodeFailed work oldMatching before oldFailed key
+          → NodeFailed work matching events failed key)
     (notices : (announcedKeys initial before).Subset (announcedKeys initial events))
     (completions
       : ∀ key,
           roles key = false
-          → ¬NodeFailed work failed key
+          → ¬NodeFailed work matching events failed key
           → key ∈ completedKeys events
           → key ∈ completedKeys before)
     (producers
@@ -195,23 +205,24 @@ theorem SupportedNotice.dependencies_before
     have full := DeferOnly.node_dependencies coherent descriptor
     have bounded := (coherent_node_bounds coherent descriptor).2
     have prior := valid group.key bounded key member
-    apply supported_dependency_before valid coherent roleCoherent covered included notices
+    apply supported_dependency_before valid coherent roleCoherent covered explained included notices
       completions producers (group_dependency_role roleCoherent descriptor (full ▸ member))
     · exact fun ancestor included => current ancestor (prior.2 included)
     · exact current key member
   cases kind with
   | group =>
       have full := DeferOnly.node_dependencies coherent known
-      have previous := transport known (by simpa only [full] using supported.1.2.2.2.2)
+      have previous := transport known (by simpa only [full] using supported.1.2.2.2)
       simpa only [full] using previous
   | stream =>
-      rcases supported.2 rfl with empty | ⟨key, member, dependency, ancestors⟩
+      rcases supported.2.2 rfl with empty | ⟨key, member, dependency, ancestors⟩
       · exact Or.inl empty
-      · obtain ⟨group, dependencies, birth, descriptor, same⟩ := stream_dependency_group known member
+      · obtain ⟨group, dependencies, birth, descriptor, same⟩ :=
+          stream_dependency_group known member
         have groupRole : roles group.key = false := node_key_role roleCoherent descriptor
         have role : roles key = false := same ▸ groupRole
         exact Or.inr ⟨key, member,
-          supported_dependency_before valid coherent roleCoherent covered included notices
+          supported_dependency_before valid coherent roleCoherent covered explained included notices
             completions producers role ancestors dependency,
           by simpa only [same] using transport descriptor (by simpa only [same] using ancestors)⟩
 
@@ -220,17 +231,21 @@ were already available. Witness: transport dependencies, freshness, health, and
 outstanding accounting backwards. The producer premise is discharged for object events.
 -/
 theorem supported_coverage_noncarrier
-    {ancestry bound roles work initial before events oldMatching matching oldFailed
-      failed}
+    {ancestry bound roles work groups streams initial before events oldMatching matching
+      oldFailed failed}
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (roleCoherent : KeyRoles.WorkRoles roles work)
     (covered : SupportedNoticesCovered ancestry work initial oldMatching before oldFailed)
-    (included : oldFailed ⊆ failed)
+    (explained : Explains work groups streams events matching failed)
+    (included
+      : ∀ key,
+          NodeFailed work oldMatching before oldFailed key
+          → NodeFailed work matching events failed key)
     (notices : (announcedKeys initial before).Subset (announcedKeys initial events))
     (completions
       : ∀ key,
           roles key = false
-          → ¬NodeFailed work failed key
+          → ¬NodeFailed work matching events failed key
           → key ∈ completedKeys events
           → key ∈ completedKeys before)
     (producers
@@ -256,28 +271,33 @@ theorem supported_coverage_noncarrier
     : SupportedNoticesCovered ancestry work initial matching events failed := by
   intro node kind dependencies producer known supported
   have dependenciesBefore := supported.dependencies_before known valid coherent
-    roleCoherent covered included notices completions producers
+    roleCoherent covered explained included notices completions producers
   apply covered node kind dependencies producer known
   have fresh := fun member => supported.1.1 (notices member)
-  have healthy : ¬NodeFailed work oldFailed node.key :=
-    fun failure => supported.1.2.1 (failure.mono included)
+  have healthy : ¬NodeFailed work oldMatching before oldFailed node.key :=
+    fun failure => supported.2.1 (included _ failure)
+  have original := (canAnnounce_healthy_iff supported.2.1).mp supported.1
   have ready := nodeProducers node kind dependencies producer known supported
   cases kind with
   | group =>
       exact ⟨
         ⟨
           fresh,
-          healthy,
-          Or.inr
-            (fun accounted =>
-              supported.1.2.2.1.resolve_left (by simp) (accounting node.key accounted)),
+          Or.inl
+            ⟨
+              healthy,
+              Or.inr
+                (fun accounted =>
+                  original.2.1.resolve_left (by simp) (accounting node.key accounted))
+            ⟩,
           ready,
           dependenciesBefore
         ⟩,
+        healthy,
         by intro impossible; cases impossible
       ⟩
   | stream =>
-      refine ⟨⟨fresh, healthy, Or.inl rfl, ready, ?_⟩,
+      refine ⟨⟨fresh, Or.inl ⟨healthy, Or.inl rfl⟩, ready, ?_⟩, healthy,
         fun _ => dependenciesBefore⟩
       exact dependenciesBefore.imp_right
         (by rintro ⟨key, member, satisfied, _⟩; exact ⟨key, member, satisfied⟩)

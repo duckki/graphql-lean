@@ -13,7 +13,7 @@ def owner : DeliveryNode := { key := 7, path := [.field "viewer"], label := some
 def notice : IncrementalPendingNotice :=
   { id := "0", path := owner.path, label := owner.label }
 
-def payload : GroupValue :=
+def payload : ExecutionGroupValue :=
   { path := [.field "viewer", .field "profile"], data := [("age", .scalar "42")] }
 
 /-- The mapper can reference an ancestor owner while retaining the full source path;

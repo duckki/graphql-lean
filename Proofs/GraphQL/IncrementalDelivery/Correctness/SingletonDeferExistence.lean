@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Coherent singleton defer work has a complete run even when ancestor dependencies
 prevent initial coverage of all IDs. Witness: specialize general defer-only progress

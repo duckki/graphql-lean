@@ -26,17 +26,18 @@ mutual
             (fun field =>
               OptionalUsageAt parents state
                 (getNewDeferMap collection.newDeferUsages path deferMap) field.deferUsage)
-            collection.fields)
-      (hn : GroupsNonempty collection.fields)
-      (hu : GroupsUnder usages collection.fields)
+            collection.collectedFieldsMap)
+      (hn : GroupsNonempty collection.collectedFieldsMap)
+      (hu : GroupsUnder usages collection.collectedFieldsMap)
       : Completed parents lower state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
-              collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-              usages deferMap).run
+              collection.newDeferUsages
+              (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+              deferMap).run
             state) := by
-    have hpk := buildExecutionPlan_preserves_property _ collection.fields usages hk
-    have hpu := buildExecutionPlan_preserves_property _ collection.fields usages hu
-    have hpp := buildExecutionPlan_partitionsAt parents state _ usages collection.fields hv hm hk hn
+    have hpk := buildExecutionPlan_preserves_property _ collection.collectedFieldsMap usages hk
+    have hpu := buildExecutionPlan_preserves_property _ collection.collectedFieldsMap usages hu
+    have hpp := buildExecutionPlan_partitionsAt parents state _ usages collection.collectedFieldsMap hv hm hk hn
       hu
     obtain ⟨hle, middle, he, hmv, hw⟩ := executeCollectedFields_keys schema resolvers variables fuel
       parentType source _ path usages _ parents lower state hls hv hm hl hpk.1 hpu.1
@@ -145,7 +146,7 @@ mutual
 
   theorem executeResponseField_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
-      (source : ResolverValue ObjectRef) (name : Name) (fields : List ExecutableField)
+      (source : ResolverValue ObjectRef) (name : Name) (fields : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       (parents : Assignment) (lower state : Nat) (hls : lower ≤ state)
       (hv : Valid parents state) (hm : MapAt parents state deferMap)
@@ -186,7 +187,7 @@ mutual
 
   theorem completeValue_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
       (parents : Assignment) (lower state : Nat) (hls : lower ≤ state)
       (hv : Valid parents state) (hm : MapAt parents state deferMap)
@@ -262,7 +263,7 @@ mutual
 
   theorem completeListValueWithStream_keys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (parents : Assignment)
       (lower state : Nat) (hls : lower ≤ state) (hv : Valid parents state)
@@ -314,7 +315,7 @@ mutual
 
   theorem completeListValue_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
       (parents : Assignment) (lower state : Nat) (hls : lower ≤ state)
       (hv : Valid parents state) (hm : MapAt parents state deferMap)
@@ -348,7 +349,7 @@ mutual
 
   theorem completeStreamItems_keys (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (parents : Assignment) (lower state : Nat)
       (hls : lower ≤ state) (hv : Valid parents state)
       (hk : ∀ field ∈ fields, field.deferUsage = none)

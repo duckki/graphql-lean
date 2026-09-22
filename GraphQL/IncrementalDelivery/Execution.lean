@@ -1,19 +1,23 @@
 import GraphQL.Execution
+import GraphQL.IncrementalDelivery.EventSource
 import GraphQL.IncrementalDelivery.Operation
 
 /-! Separate execution for incremental-delivery draft PR #1110, revision
 045e19363c2b55f127960bd3b5e8072a15b29aec (2026-08-18).
 
-This module accepts GraphQL.IncrementalDelivery.Operation and an opaque WorkScheduler,
-and returns ExecutionResult directly. Future events are supplied one observation at a time.
+This module accepts GraphQL.IncrementalDelivery.Operation and an opaque work-queue
+construction function, and returns ExecutionResult directly. Future events are supplied
+one observation at a time through the shared EventSource interface.
 It shares resolver values, response data, input coercion, and null-bubbling primitives
 with GraphQL.Execution; field collection, planning, completion, and delivery are separate.
 All incremental execution definitions remain together in this file for review.
 
 The draft leaves CreateWorkQueue unspecified and does not yet wire @stream into
-CompleteListValue. The model retains finite pure resolver outcomes, but no concrete scheduler.
+CompleteListValue. The model retains finite pure resolver outcomes, but chooses no
+completion order.
 Named-fragment delivery and incremental validation are not modeled here yet.
-Trace observations and correctness statements belong to IncrementalDelivery.Correctness.
+Finite observations live in IncrementalDelivery.Observation; response-correctness
+statements live in IncrementalDelivery.Correctness.
 -/
 
 namespace GraphQL
@@ -120,10 +124,10 @@ structure DeferUsage where
   label : Option DirectiveLabel := none
 deriving Repr
 
-/-- Spec 6.3.2 collected field entries: non-spec helper carrying the data needed to
-execute one grouped response name.
+/-- Spec 6.3.2 field detail, named `FieldDetails` in GraphQL.js. The field selection is
+flattened into its execution-relevant components alongside its enclosing defer usage.
 -/
-structure ExecutableField where
+structure FieldDetails where
   fieldName : Name
   arguments : List Argument
   selectionSet : List Selection
@@ -131,32 +135,32 @@ structure ExecutableField where
   deferUsage : Option DeferUsage := none
 deriving Repr
 
-abbrev CollectedFieldsMap := List (Name × List ExecutableField)
+abbrev CollectedFieldsMap := List (Name × List FieldDetails)
 
-/-- Spec 6.3.2 collected fields map helper: inserts one existing group into another map.
+/-- Spec 6.3.2 collected fields map helper: add a field set under its response name.
 -/
-def addExecutableGroup (group : Name × List ExecutableField)
-    : List (Name × List ExecutableField) -> List (Name × List ExecutableField)
+def CollectedFieldsMap.addFieldSet (group : Name × List FieldDetails)
+    : CollectedFieldsMap -> CollectedFieldsMap
   | [] => [group]
   | (responseName, fields) :: rest =>
       if responseName == group.fst then
         (responseName, fields ++ group.snd) :: rest
       else
-        (responseName, fields) :: addExecutableGroup group rest
+        (responseName, fields) :: CollectedFieldsMap.addFieldSet group rest
 
-/-- Spec 6.3.2 `CollectFields` grouping merge for list-backed response-name maps. -/
-def mergeExecutableGroups (left right : List (Name × List ExecutableField))
-    : List (Name × List ExecutableField) :=
-  right.foldl (fun grouped group => addExecutableGroup group grouped) left
+/-- Spec 6.3.2 `CollectFields`: merge list-backed maps, combining matching field sets. -/
+def CollectedFieldsMap.merge (left right : CollectedFieldsMap) : CollectedFieldsMap :=
+  right.foldl (fun grouped group => CollectedFieldsMap.addFieldSet group grouped) left
 
 structure FieldCollection where
-  fields : CollectedFieldsMap := []
+  collectedFieldsMap : CollectedFieldsMap := []
   newDeferUsages : List DeferUsage := []
 deriving Repr
 
 def FieldCollection.append (left right : FieldCollection) : FieldCollection :=
   {
-    fields := mergeExecutableGroups left.fields right.fields
+    collectedFieldsMap :=
+      CollectedFieldsMap.merge left.collectedFieldsMap right.collectedFieldsMap
     newDeferUsages := left.newDeferUsages ++ right.newDeferUsages
   }
 
@@ -198,7 +202,7 @@ mutual
         if !selectionDirectivesAllowBool variableValues directives then
           return {}
         return {
-          fields :=
+          collectedFieldsMap :=
             [(
               responseName,
               [{
@@ -253,7 +257,7 @@ child selections, which are collected under the runtime object type.
 -/
 def collectSubfields (schema : Schema) (variableValues : VariableValues)
     (objectType : Name) (source : ResolverValue ObjectRef)
-    : List ExecutableField -> StateM Nat FieldCollection
+    : List FieldDetails -> StateM Nat FieldCollection
   | [] => pure {}
   | field :: rest => do
       let head ←
@@ -263,7 +267,62 @@ def collectSubfields (schema : Schema) (variableValues : VariableValues)
       return head.append tail
 
 -----------------------------------------------------------------------------------------
--- Incremental completion and execution plans
+-- Execution plans
+-----------------------------------------------------------------------------------------
+
+/-- Spec `GetFilteredDeferUsageSet`. An immediate occurrence dominates all deferred
+occurrences. Otherwise remove usages with an ancestor in the set, keeping the full field
+details for subcollection.
+-/
+def getFilteredDeferUsageSet (fields : List FieldDetails) : List Nat :=
+  if fields.any (fun field => field.deferUsage.isNone) then
+    []
+  else
+    let usages := fields.filterMap FieldDetails.deferUsage
+    let keys := (usages.map DeferUsage.key).eraseDups
+    keys.filter
+      (fun key =>
+        !(usages.any
+            (fun usage =>
+              usage.key == key && usage.ancestors.any keys.contains)))
+
+def deferUsageSetsEquivalent (left right : List Nat) : Bool :=
+  left.all right.contains && right.all left.contains
+
+structure ExecutionPlan where
+  collectedFieldsMap : CollectedFieldsMap := []
+  newCollectedFieldsMaps : List (List Nat × CollectedFieldsMap) := []
+deriving Repr
+
+def addExecutionPartition (usages : List Nat) (group : Name × List FieldDetails)
+    : List (List Nat × CollectedFieldsMap) -> List (List Nat × CollectedFieldsMap)
+  | [] => [(usages, [group])]
+  | (keys, fields) :: rest =>
+      if deferUsageSetsEquivalent keys usages then
+        (keys, fields ++ [group]) :: rest
+      else
+        (keys, fields) :: addExecutionPartition usages group rest
+
+/-- Spec `BuildExecutionPlan`: partition only; do not execute or create work here. -/
+def buildExecutionPlan (fields : CollectedFieldsMap) (parentDeferUsages : List Nat := [])
+    : ExecutionPlan :=
+  fields.foldl
+    (fun plan group =>
+      let usages := getFilteredDeferUsageSet group.2
+      if deferUsageSetsEquivalent usages parentDeferUsages then
+        { plan with collectedFieldsMap := plan.collectedFieldsMap ++ [group] }
+      else
+        {
+          plan with
+            newCollectedFieldsMaps :=
+              addExecutionPartition usages group plan.newCollectedFieldsMaps
+        })
+    {}
+
+-----------------------------------------------------------------------------------------
+-- `Work` and `Completion` definitions for incremental completion modeling.
+-- * Work models the remaining work to be delivered.
+-- * Completion models the initial result and remaining work.
 -----------------------------------------------------------------------------------------
 
 /-! Resolvers are pure and return finite lists. Incremental work therefore records
@@ -278,6 +337,9 @@ deriving Repr, DecidableEq, BEq
 
 abbrev ResponsePath := List ResponsePathSegment
 
+/-- Delivery descriptor for defer/stream nodes. In execution-generated work, `key` is
+allocated by `freshExecutionKey` and represents JavaScript object identity, not a wire ID.
+-/
 structure DeliveryNode where
   key : Nat
   path : ResponsePath
@@ -289,36 +351,6 @@ structure DeferredFragment where
   ancestors : List DeliveryNode := []
 deriving Repr
 
-structure StreamUsage where
-  label : Option DirectiveLabel
-  initialCount : Nat
-deriving Repr
-
-/-- Undefined variables activate the directive argument's default; explicit null does not.
--/
-def streamInitialCount? (variables : VariableValues) : InputValue -> Option Nat
-  | .int value => if value < 0 then none else some value.toNat
-  | .variable name =>
-      match lookupVariableValue? variables name with
-      | none => some 0
-      | some (.int value) => if value < 0 then none else some value.toNat
-      | _ => none
-  | _ => none
-
-/-- Model helper for the @stream directive contract, not a named draft algorithm. -/
-def getStreamUsage (variables : VariableValues)
-    : List DirectiveApplication -> Except Nat (Option StreamUsage)
-  | [] => .ok none
-  | .stream condition label count :: _ =>
-      if inputValueBoolean? variables condition == some false then
-        .ok none
-      else
-        match streamInitialCount? variables count with
-        | none => .error 1
-        | some initialCount =>
-            .ok (some { label := directiveLabel? label, initialCount := initialCount })
-  | _ :: rest => getStreamUsage variables rest
-
 /-- Finite resolver work retained after the initial response.
 
 A task may contribute to multiple fragments, but its data is delivered only once.
@@ -328,7 +360,7 @@ addresses; `combine` therefore states neither commutativity nor associativity.
 inductive Work where
   /-- No deferred or streamed work remains. -/
   | empty
-  /-- Join sibling work components without choosing their scheduling order. -/
+  /-- Join sibling work components without choosing their completion order. -/
   | combine (left right : Work)
   /-- One execution-group task, its contributing fragments, and nested work. -/
   | executionGroup (groups : List DeferredFragment) (path : ResponsePath)
@@ -374,55 +406,6 @@ def nonNull (completed : Completion ResponseValue) : Completion ResponseValue :=
 
 end Completion
 
-/-- Spec `GetFilteredDeferUsageSet`. An immediate occurrence dominates all deferred
-occurrences. Otherwise remove usages with an ancestor in the set, keeping the full field
-details for subcollection.
--/
-def getFilteredDeferUsageSet (fields : List ExecutableField) : List Nat :=
-  if fields.any (fun field => field.deferUsage.isNone) then
-    []
-  else
-    let usages := fields.filterMap ExecutableField.deferUsage
-    let keys := (usages.map DeferUsage.key).eraseDups
-    keys.filter
-      (fun key =>
-        !(usages.any
-            (fun usage =>
-              usage.key == key && usage.ancestors.any keys.contains)))
-
-def deferUsageSetsEquivalent (left right : List Nat) : Bool :=
-  left.all right.contains && right.all left.contains
-
-structure ExecutionPlan where
-  collectedFieldsMap : CollectedFieldsMap := []
-  newCollectedFieldsMaps : List (List Nat × CollectedFieldsMap) := []
-deriving Repr
-
-def addExecutionPartition (usages : List Nat) (group : Name × List ExecutableField)
-    : List (List Nat × CollectedFieldsMap) -> List (List Nat × CollectedFieldsMap)
-  | [] => [(usages, [group])]
-  | (keys, fields) :: rest =>
-      if deferUsageSetsEquivalent keys usages then
-        (keys, fields ++ [group]) :: rest
-      else
-        (keys, fields) :: addExecutionPartition usages group rest
-
-/-- Spec `BuildExecutionPlan`: partition only; do not execute or create work here. -/
-def buildExecutionPlan (fields : CollectedFieldsMap) (parentDeferUsages : List Nat := [])
-    : ExecutionPlan :=
-  fields.foldl
-    (fun plan group =>
-      let usages := getFilteredDeferUsageSet group.2
-      if deferUsageSetsEquivalent usages parentDeferUsages then
-        { plan with collectedFieldsMap := plan.collectedFieldsMap ++ [group] }
-      else
-        {
-          plan with
-            newCollectedFieldsMaps :=
-              addExecutionPartition usages group plan.newCollectedFieldsMaps
-        })
-    {}
-
 -----------------------------------------------------------------------------------------
 -- Executing Collected Fields & Execution Plans
 -----------------------------------------------------------------------------------------
@@ -446,6 +429,36 @@ def getNewDeferMap (usages : List DeferUsage) (path : ResponsePath) (deferMap : 
                   (lookupDeferredFragment? current key).map DeferredFragment.node)
           }])
     deferMap
+
+/-- Undefined variables activate the directive argument's default; explicit null does not.
+-/
+def streamInitialCount? (variables : VariableValues) : InputValue -> Option Nat
+  | .int value => if value < 0 then none else some value.toNat
+  | .variable name =>
+      match lookupVariableValue? variables name with
+      | none => some 0
+      | some (.int value) => if value < 0 then none else some value.toNat
+      | _ => none
+  | _ => none
+
+structure StreamUsage where
+  label : Option DirectiveLabel
+  initialCount : Nat
+deriving Repr
+
+/-- Model helper for the @stream directive contract, not a named draft algorithm. -/
+def getStreamUsage (variables : VariableValues)
+    : List DirectiveApplication -> Except Nat (Option StreamUsage)
+  | [] => .ok none
+  | .stream condition label count :: _ =>
+      if inputValueBoolean? variables condition == some false then
+        .ok none
+      else
+        match streamInitialCount? variables count with
+        | none => .error 1
+        | some initialCount =>
+            .ok (some { label := directiveLabel? label, initialCount := initialCount })
+  | _ :: rest => getStreamUsage variables rest
 
 /-! Spec 6.3.3 `ExecuteCollectedFields`, 6.4 `ExecuteField`, and 6.4.3 `CompleteValue`:
 partial fuel-bounded execution model with spec-shaped null bubbling through non-null
@@ -494,7 +507,7 @@ mutual
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
       (definition : FieldDefinition)
-      (responseName : Name) (fields : List ExecutableField) (path : ResponsePath := [])
+      (responseName : Name) (fields : List FieldDetails) (path : ResponsePath := [])
       (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
       : StateM Nat (Completion ResponseValue) := do
     match fuel, fields with
@@ -520,7 +533,7 @@ mutual
   -/
   def completeValue (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath := []) (deferUsageSet : List Nat := [])
       (deferMap : DeferMap := []) (allowStream : Bool := true)
       : StateM Nat (Completion ResponseValue) := do
@@ -538,7 +551,8 @@ mutual
         if !schema.typeIncludesObjectBool parentType runtimeType then
           return .error 1
         let collection ← collectSubfields schema variables runtimeType source fields
-        let executionPlan := buildExecutionPlan collection.fields deferUsageSet
+        let executionPlan :=
+          buildExecutionPlan collection.collectedFieldsMap deferUsageSet
         let completed ←
           executeExecutionPlan schema resolvers variables fuel runtimeType source
             collection.newDeferUsages executionPlan path deferUsageSet deferMap
@@ -553,7 +567,7 @@ mutual
   -/
   def completeListValue (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (deferUsageSet : List Nat) (deferMap : DeferMap)
       : StateM Nat (Completion (List ResponseValue)) := do
     match values with
@@ -574,13 +588,13 @@ mutual
   -/
   def completeListValueWithStream (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (inner : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (deferUsageSet : List Nat) (deferMap : DeferMap)
       (allowStream : Bool)
       : StateM Nat (Completion ResponseValue) := do
     let streamUsage :=
       if allowStream then
-        getStreamUsage variables (fields.head?.map ExecutableField.directives |>.getD [])
+        getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
       else
         .ok none
     match streamUsage with
@@ -620,7 +634,7 @@ mutual
   -/
   def completeStreamItems (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
       : StateM Nat (List (Result ResponseValue × Work)) := do
     match values with
@@ -696,26 +710,26 @@ mutual
 end
 
 -----------------------------------------------------------------------------------------
--- Work events
+-- Publishing incremental results
 -----------------------------------------------------------------------------------------
 
-/-! Executable work count, independent of any scheduling policy.
-
-`combine` contributes no work record of its own; only execution-group tasks, stream
-descriptors, and remaining stream items contribute to the count.
+/-- GraphQL.js `ExecutionGroupValue`, shared with the reference implementation.
+`deliveryGroups` is publisher metadata, not a wire field or ownership evidence for the
+abstract queue contract. The reference event source checks it against Work; abstract
+sources may omit it. After owner selection the response mapper uses only path/data/errors.
 -/
+structure ExecutionGroupValue where
+  path : ResponsePath
+  data : List (Name × ResponseValue)
+  errors : Nat := 0
+  deliveryGroups : List DeliveryNode := []
+deriving Repr
 
-mutual
-  def Work.size : Work → Nat
-    | .empty => 0
-    | .combine left right => left.size + right.size
-    | .executionGroup _ _ _ children => 1 + children.size
-    | .stream _ items => 1 + Work.itemsSize items
-
-  def Work.itemsSize : List (Result ResponseValue × Work) → Nat
-    | [] => 0
-    | (_, work) :: rest => 1 + work.size + Work.itemsSize rest
-end
+/-- GraphQL.js `StreamItemValue`: one completed stream item and its counted errors. -/
+structure StreamItemValue where
+  item : ResponseValue
+  errors : Nat := 0
+deriving Repr
 
 structure IncrementalPendingNotice where
   id : String
@@ -746,84 +760,9 @@ structure IncrementalStreamUpdateResult where
   completed : List IncrementalCompletionNotice := []
 deriving Repr
 
-/-- Values of successful execution-group tasks. Their complete owner sets remain in Work;
-GROUP_VALUES chooses one contributing delivery group, as in the draft.
--/
-structure GroupValue where
-  path : ResponsePath
-  data : List (Name × ResponseValue)
-  errors : Nat := 0
-deriving Repr
-
-structure StreamValue where
-  item : ResponseValue
-  errors : Nat := 0
-deriving Repr
-
-/-- Spec-facing work events after any implementation-specific owner normalization.
-A GROUP_VALUES owner is the effective publication owner, not necessarily the group whose
-completion triggered a raw queue event. Node keys are internal identities, not wire IDs.
--/
-inductive WorkEvent where
-  | groupValues (group : DeliveryNode) (values : List GroupValue)
-  | groupSuccess (group : DeliveryNode) (newGroups newStreams : List DeliveryNode)
-  | groupFailure (group : DeliveryNode) (errors : Nat)
-  | streamValues (stream : DeliveryNode) (values : List StreamValue)
-    (newGroups newStreams : List DeliveryNode)
-  | streamSuccess (stream : DeliveryNode)
-  | streamFailure (stream : DeliveryNode) (errors : Nat)
-  | workQueueTermination
-deriving Repr
-
------------------------------------------------------------------------------------------
--- Opaque event source helpers
------------------------------------------------------------------------------------------
-
-/-- An opaque source language and its observed prefix, not a preselected future trace.
-This state is intentionally partial: many next values may be admissible. Hidden task state
-is existential in the semantic contract, never supplied to the response mapper.
-Observations are finite and single-threaded; host waiting is not an emitted value.
--/
-structure EventSource (α : Type) where
-  admissible : List α → Prop
-  finished : List α → Prop
-  history : List α := []
-
-/-- Every intermediate prefix must be allowed, including when several source values are
-aggregated into one response. No result being available does not imply finished.
--/
-def EventSource.Allows (source : EventSource α) (values : List α) : Prop :=
-  ∀ initial, initial.IsPrefix values → source.admissible (source.history ++ initial)
-
-def EventSource.advance (source : EventSource α) (values : List α) : EventSource α :=
-  { source with history := source.history ++ values }
-
-def EventSource.IsFinished (source : EventSource α) : Prop :=
-  source.finished source.history
-
-/-- A fixed finite source is useful for fixtures/replay, but is not the query default. -/
-def EventSource.ofList (values : List α) : EventSource α :=
-  { admissible := (·.IsPrefix values), finished := (· = values) }
-
-/-- Available source events grouped for one-at-a-time aggregated observation. Groups are
-nonempty and ordered; every intermediate source prefix must remain admissible. This starts
-at the source's current history, not at the beginning of a consumed source.
--/
-def EventSource.batch (source : EventSource α) : EventSource (List α) :=
-  let admitted :=
-    fun groups : List (List α) =>
-      (∀ group ∈ groups, group ≠ []) ∧ source.Allows groups.flatten
-  {
-    admissible := admitted,
-    finished := fun groups => admitted groups ∧ (source.advance groups.flatten).IsFinished
-  }
-
------------------------------------------------------------------------------------------
--- Processing work queue outputs and yielding batched results
------------------------------------------------------------------------------------------
-
-/-- Only the response mapper owns wire identity. Scheduler implementations cannot allocate
-IDs, inspect the ID supply, or manufacture response entries.
+/-- Wire identity state for response initialization and mapping. The abstract WorkQueue
+interface and concrete queue state carry node keys, not wire IDs; the publisher/mapper
+layer owns allocation and response entries.
 -/
 structure IDState where
   ids : List (Nat × String) := []
@@ -846,7 +785,7 @@ def getPendingEntry {m : Type → Type} [Monad m]
       return { id, path := node.path, label := node.label }
 
 def getIncrementalEntry {m : Type → Type} [Monad m]
-    (group : DeliveryNode) (value : GroupValue) (idFor : DeliveryNode → m String)
+    (group : DeliveryNode) (value : ExecutionGroupValue) (idFor : DeliveryNode → m String)
     : m IncrementalResult := do
   let id ← idFor group
   return .object id value.data value.errors (value.path.drop group.path.length)
@@ -863,8 +802,34 @@ def getIncrementalStreamUpdateResult (hasNext : Bool)
     : IncrementalStreamUpdateResult :=
   { hasNext, completed, incremental, pending }
 
+-----------------------------------------------------------------------------------------
+-- WorkQueue and ResponseEventStream representations for modeling purposes.
+-- * The draft specifies seven queue-event forms and their response mapping.
+-- * Concrete representations and the queue implementation remain unspecified.
+-- * WorkQueueEvent is the GraphQL.js type name, not a named draft definition.
+-- * WorkQueue models the initial pending announcements and opaque queue events.
+-----------------------------------------------------------------------------------------
+
+/-- The draft's seven queue-output forms, named `WorkQueueEvent` in GraphQL.js.
+Raw queue events carry a provisional owner; spec-facing
+events carry the effective owner selected by the publisher. Their values are identical.
+Node keys are internal identities, not wire IDs.
+Value lists support multi-task group flushes and multi-item stream updates. Atomic
+work-history admission checks singleton values; WorkBatching may coalesce them again.
+-/
+inductive WorkQueueEvent where
+  | groupValues (group : DeliveryNode) (values : List ExecutionGroupValue)
+  | groupSuccess (group : DeliveryNode) (newGroups newStreams : List DeliveryNode)
+  | groupFailure (group : DeliveryNode) (errors : Nat)
+  | streamValues (stream : DeliveryNode) (values : List StreamItemValue)
+    (newGroups newStreams : List DeliveryNode)
+  | streamSuccess (stream : DeliveryNode)
+  | streamFailure (stream : DeliveryNode) (errors : Nat)
+  | workQueueTermination
+deriving Repr
+
 /-- The deterministic part of the spec: translate one work-event batch. -/
-def mapWorkEventBatch (events : List WorkEvent)
+def mapWorkEventBatch (events : List WorkQueueEvent)
     : StateM IDState IncrementalStreamUpdateResult := do
   let mut update : IncrementalStreamUpdateResult := { hasNext := true }
   for event in events do
@@ -892,8 +857,8 @@ def mapWorkEventBatch (events : List WorkEvent)
             update with
               incremental :=
                 update.incremental
-                ++ [.list id (values.map StreamValue.item)
-                      ((values.map StreamValue.errors).sum)]
+                ++ [.list id (values.map StreamItemValue.item)
+                      ((values.map StreamItemValue.errors).sum)]
               pending := update.pending ++ pending
           }
     | .streamSuccess stream =>
@@ -906,6 +871,17 @@ def mapWorkEventBatch (events : List WorkEvent)
   return getIncrementalStreamUpdateResult update.hasNext update.completed
     update.incremental update.pending
 
+/-- The observable interface supplied by spec CreateWorkQueue: initial notices and an
+opaque source of normalized work events. Concrete state and host inputs remain hidden.
+An implementation may compose a raw queue with publisher-side owner selection to supply
+this interface; raw queue events need not conform directly. The contract is defined in
+WorkQueueSemantics.lean.
+-/
+structure WorkQueue where
+  initialGroups : List DeliveryNode
+  initialStreams : List DeliveryNode
+  workEventStream : EventSource (List WorkQueueEvent)
+
 /-- A resumable response-event producer. Input names an available source event; the mapper
 uses a work-event batch, while the batcher uses a nonempty list of upstream inputs. Each
 stage computes one response event and threads the mapper-owned ID state. There is no
@@ -917,13 +893,9 @@ structure ResponseEventStream where
   ids : IDState
   mapEvent : Input → StateM IDState IncrementalStreamUpdateResult
 
-/-- Spec MapIncrementalWorkEventsToResponseEvent, represented as a suspended mapper.
-Constructing it neither selects source events nor maps any future batch.
--/
-def mapIncrementalWorkEventsToResponseEvent
-    (source : EventSource (List WorkEvent)) (ids : IDState)
-    : ResponseEventStream :=
-  { Input := List WorkEvent, source, ids, mapEvent := mapWorkEventBatch }
+-----------------------------------------------------------------------------------------
+-- Batching and yielding incremental results
+-----------------------------------------------------------------------------------------
 
 def combineIncrementalResults (updates : List IncrementalStreamUpdateResult)
     : IncrementalStreamUpdateResult :=
@@ -952,31 +924,24 @@ def batchIncrementalResults (updates : ResponseEventStream) : ResponseEventStrea
         return combineIncrementalResults results
   }
 
-/-- Spec CreateWorkQueue's result at the normalized, spec-facing event boundary. A concrete
-implementation may compose a raw queue with publisher-side owner selection to supply it.
-Its implementation is deliberately absent; raw queue events need not conform directly.
+/-- Spec MapIncrementalWorkEventsToResponseEvent, represented as a suspended mapper.
+Constructing it neither selects source events nor maps any future batch.
 -/
-structure WorkQueueResult where
-  initialGroups : List DeliveryNode
-  initialStreams : List DeliveryNode
-  workEventStream : EventSource (List WorkEvent)
-
-/-- The implementation of CreateWorkQueue is an explicit parameter, not a program
-instruction. Initialization supplies notices and a source, without selecting its future
-batches. The conformance contract lives in WorkScheduler.lean.
--/
-structure WorkScheduler where
-  createWorkQueue : Work → WorkQueueResult
+def mapIncrementalWorkEventsToResponseEvent
+    (source : EventSource (List WorkQueueEvent)) (ids : IDState)
+    : ResponseEventStream :=
+  { Input := List WorkQueueEvent, source, ids, mapEvent := mapWorkEventBatch }
 
 /-- Spec YieldIncrementalResults projected to its first result and resumable remainder.
+`createWorkQueue` supplies the draft's otherwise unspecified CreateWorkQueue implementation.
 Initialization abstracts waiting for that first result; no future batch is consumed.
 Initial notices and subsequent events share one ID map. Only initialization, not future
 completion order, determines initial notice identities and order.
 -/
-def yieldIncrementalResults (scheduler : WorkScheduler) (response : Response)
+def yieldIncrementalResults (createWorkQueue : Work → WorkQueue) (response : Response)
     (work : Work)
     : InitialIncrementalStreamResult × ResponseEventStream :=
-  let result := scheduler.createWorkQueue work
+  let result := createWorkQueue work
   let (pending, ids) :=
     (getPendingEntry (m := StateM IDState)
       result.initialGroups result.initialStreams ensureID).run
@@ -999,9 +964,27 @@ def executeRootSelectionSetCore (schema : Schema) (resolvers : Resolvers ObjectR
     (source : ResolverValue ObjectRef) (selectionSet : List Selection)
     : StateM Nat (Completion (List (Name × ResponseValue))) := do
   let collected ← collectFields schema variableValues parentType source selectionSet
-  let executionPlan := buildExecutionPlan collected.fields
+  let executionPlan := buildExecutionPlan collected.collectedFieldsMap
   executeExecutionPlan schema resolvers variableValues fuel parentType source
     collected.newDeferUsages executionPlan
+
+/-! Executable work count, independent of any completion order.
+* `combine` contributes no work record of its own; only execution-group tasks, stream
+descriptors, and remaining stream items contribute to the count.
+* `Work.size = 0` corresponds to "{tasks} is empty and {streams} is empty" from the spec.
+-/
+
+mutual
+  def Work.size : Work → Nat
+    | .empty => 0
+    | .combine left right => left.size + right.size
+    | .executionGroup _ _ _ children => 1 + children.size
+    | .stream _ items => 1 + Work.itemsSize items
+
+  def Work.itemsSize : List (Result ResponseValue × Work) → Nat
+    | [] => 0
+    | (_, work) :: rest => 1 + work.size + Work.itemsSize rest
+end
 
 /-- Generalized return type of query execution: ordinary Response or incremental stream.
 This model name is broader than Section 7's ordinary "execution result" map. Subscription
@@ -1016,7 +999,7 @@ inductive ExecutionResult where
 either the ordinary response or the first incremental payload and suspended stream. The
 incremental branch passes its suspended remainder through BatchIncrementalResults.
 -/
-def executeRootSelectionSet (scheduler : WorkScheduler)
+def executeRootSelectionSet (createWorkQueue : Work → WorkQueue)
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (selectionSet : List Selection)
@@ -1029,7 +1012,8 @@ def executeRootSelectionSet (scheduler : WorkScheduler)
   if completed.work.size == 0 then
     .single response
   else
-    let (initial, subsequent) := yieldIncrementalResults scheduler response completed.work
+    let (initial, subsequent) :=
+      yieldIncrementalResults createWorkQueue response completed.work
     .incremental initial (batchIncrementalResults subsequent)
 
 /-- Spec 6.2.1 root execution expects a runtime object matching the operation root type.
@@ -1048,17 +1032,17 @@ def rootSourceAppliesBool
 /-- Spec 6.1.2 `CoerceVariableValues` followed by spec 6.2.1 `ExecuteQuery`, at an
 explicit recursion fuel. Supplied values are prepared with operation defaults before field
 collection. ExecuteRootSelectionSet owns ordinary/incremental response selection and
-batching. Depth fuel bounds pure value completion. Scheduling and source observation have
-no selection-depth fuel; scheduling is described by a relation on finite observations.
+batching. Depth fuel bounds pure value completion. Source observation has no selection-depth
+fuel; possible completion orders are described by a relation on finite observations.
 -/
-def executeQueryWithFuel (scheduler : WorkScheduler)
+def executeQueryWithFuel (createWorkQueue : Work → WorkQueue)
     (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variableValues : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
     : ExecutionResult :=
   let variables := coerceVariableValues operation variableValues
   if rootSourceAppliesBool schema operation source then
-    executeRootSelectionSet scheduler schema resolvers variables fuel
+    executeRootSelectionSet createWorkQueue schema resolvers variables fuel
       (operation.rootType schema) source operation.selectionSet
   else
     .single { data := .null, errors := 1 }
@@ -1071,11 +1055,11 @@ def executeQueryFuelBound (schema : Schema) (operation : Operation) : Nat :=
   operation.size * (typeDefinitionsExecutionCompletionFuel schema.types + 1) + 1
 
 /-- Default executable query entry point using the schema-aware completion bound. -/
-def executeQuery (scheduler : WorkScheduler) (schema : Schema)
+def executeQuery (createWorkQueue : Work → WorkQueue) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variableValues : VariableValues)
     (operation : Operation) (source : ResolverValue ObjectRef)
     : ExecutionResult :=
-  executeQueryWithFuel scheduler schema resolvers variableValues operation
+  executeQueryWithFuel createWorkQueue schema resolvers variableValues operation
     (executeQueryFuelBound schema operation) source
 
 end Execution

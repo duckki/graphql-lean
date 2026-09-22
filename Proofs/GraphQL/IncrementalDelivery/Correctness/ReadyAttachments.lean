@@ -16,8 +16,8 @@ def SourceTask.attachment (task : SourceTask) : TypedResponse.Entry :=
 /-- A task without a producer is ready; otherwise its producer must already be
 published.
 -/
-def ProducerReady (published : WorkScheduler.Occurrence → Prop)
-    (producer : Option WorkScheduler.Occurrence)
+def ProducerReady (published : WorkQueueSemantics.Occurrence → Prop)
+    (producer : Option WorkQueueSemantics.Occurrence)
     : Prop :=
   ∀ parent, producer = some parent → published parent
 
@@ -25,7 +25,7 @@ def ProducerReady (published : WorkScheduler.Occurrence → Prop)
 Witness: producer closure plus membership of all published entries in available data.
 -/
 theorem published_context {inventory : List SourceTask} {available ambient}
-    {published : WorkScheduler.Occurrence → Prop} {task : SourceTask}
+    {published : WorkQueueSemantics.Occurrence → Prop} {task : SourceTask}
     (member : task ∈ inventory)
     (closed
       : ∀ task ∈ inventory,
@@ -46,7 +46,8 @@ mutual
   attachment certificates, producer closure, and published ancestor payloads.
   -/
   theorem sourceTasks_readyAttached {inventory : List SourceTask}
-      {published : WorkScheduler.Occurrence → Prop} {available : List TypedResponse.Entry}
+      {published : WorkQueueSemantics.Occurrence → Prop}
+      {available : List TypedResponse.Entry}
       (closed
         : ∀ task ∈ inventory,
             published task.occurrence → ProducerReady published task.producer)
@@ -118,7 +119,8 @@ mutual
   item's added entries. Witness: item-list descent with exact attachment offsets.
   -/
   theorem sourceItemTasks_readyAttached {inventory : List SourceTask}
-      {published : WorkScheduler.Occurrence → Prop} {available : List TypedResponse.Entry}
+      {published : WorkQueueSemantics.Occurrence → Prop}
+      {available : List TypedResponse.Entry}
       (closed
         : ∀ task ∈ inventory,
             published task.occurrence → ProducerReady published task.producer)

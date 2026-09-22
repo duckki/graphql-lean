@@ -16,12 +16,12 @@ theorem runMatches_after_contextCollection (usage : Option DeferUsage)
     (groups : List (Name × List GraphQL.Execution.ExecutableField))
     (next : FieldCollection → StateM Nat (Completion α)) (basic : Result α) (state : Nat)
     (h : CollectionInContext usage state (action.run state))
-    (he : eraseGroups (action.run state).1.fields = groups)
+    (he : eraseGroups (action.run state).1.collectedFieldsMap = groups)
     (hn
       : ∀ collection,
           collection.newDeferUsages = []
-          → GroupsInContext usage collection.fields
-          → eraseGroups collection.fields = groups
+          → GroupsInContext usage collection.collectedFieldsMap
+          → eraseGroups collection.collectedFieldsMap = groups
           → RunMatches (next collection) basic state)
     : RunMatches (action >>= next) basic state := by
   generalize hout : action.run state = output at h he
@@ -32,23 +32,23 @@ theorem runMatches_after_contextCollection (usage : Option DeferUsage)
   simpa [RunMatches, hout] using hn collection hnw hp he
 
 theorem executePlan_inContext (usage : Option DeferUsage)
-    (hvalid : ContextWellFormed usage) (deferMap : DeferMap)
-    (schema : Schema) (resolvers : Resolvers ObjectRef)
-    (variables : VariableValues) (fuel : Nat) (parentType : Name)
-    (source : ResolverValue ObjectRef)
-    (collection : FieldCollection) (path : ResponsePath) (state : Nat) (basic : Result _)
-    (hn : collection.newDeferUsages = []) (hp : GroupsInContext usage collection.fields)
+    (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
+    (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
+    (parentType : Name) (source : ResolverValue ObjectRef) (collection : FieldCollection)
+    (path : ResponsePath) (state : Nat) (basic : Result _)
+    (hn : collection.newDeferUsages = [])
+    (hp : GroupsInContext usage collection.collectedFieldsMap)
     (hr
       : RunMatches
           (executeCollectedFields schema resolvers variables fuel parentType source
-            collection.fields path (contextKeys usage) deferMap) basic state)
+            collection.collectedFieldsMap path (contextKeys usage) deferMap) basic state)
     : RunMatches
         (executeExecutionPlan schema resolvers variables fuel parentType source
           collection.newDeferUsages
-          (buildExecutionPlan collection.fields (contextKeys usage)) path
+          (buildExecutionPlan collection.collectedFieldsMap (contextKeys usage)) path
           (contextKeys usage) deferMap) basic state := by
   simp only [executeExecutionPlan, hn, getNewDeferMap, List.foldl_nil,
-    buildExecutionPlan_inContext usage hvalid collection.fields hp]
+    buildExecutionPlan_inContext usage hvalid collection.collectedFieldsMap hp]
   apply runMatches_bind _ _ _ _ _ hr
   intro completed hc
   cases he : completed.result with
@@ -59,8 +59,8 @@ theorem executePlan_inContext (usage : Option DeferUsage)
       exact ⟨by simpa [he] using hc.1, by simpa [Work.size] using hc.2⟩
 
 theorem streamUsage_inContext (usage : Option DeferUsage) (variables : VariableValues)
-    (fields : List ExecutableField) (h : FieldsInContext usage fields)
-    : getStreamUsage variables (fields.head?.map ExecutableField.directives |>.getD [])
+    (fields : List FieldDetails) (h : FieldsInContext usage fields)
+    : getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
       = .ok none := by
   cases fields with
   | nil => rfl
@@ -114,7 +114,7 @@ mutual
       (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef) (name : Name)
-      (fields : List ExecutableField)
+      (fields : List FieldDetails)
       (hplain : FieldsInContext usage fields) (path : ResponsePath) (state : Nat)
       : RunMatches
           (executeResponseField schema resolvers variables fuel parentType source name
@@ -174,7 +174,7 @@ mutual
   theorem completeValue_inContext (usage : Option DeferUsage)
       (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (fieldType : TypeRef) (fields : List ExecutableField)
+      (fieldType : TypeRef) (fields : List FieldDetails)
       (value : ResolverValue ObjectRef) (hplain : FieldsInContext usage fields)
       (path : ResponsePath) (allowStream : Bool) (state : Nat)
       : RunMatches
@@ -227,7 +227,7 @@ mutual
                       runtimeType (.object runtimeType ref)
                       collection path state _ hn hp
                       (executeCollectedFields_inContext usage hvalid deferMap schema resolvers
-                        variables fuel runtimeType (.object runtimeType ref) collection.fields hp
+                        variables fuel runtimeType (.object runtimeType ref) collection.collectedFieldsMap hp
                         path state))
                   intro completed hc
                   apply runMatches_pure
@@ -248,7 +248,7 @@ mutual
                 have hs := streamUsage_inContext usage variables fields hplain
                 have hs' : (if allowStream then
                     getStreamUsage variables
-                      (fields.head?.map ExecutableField.directives |>.getD [])
+                      (fields.head?.map FieldDetails.directives |>.getD [])
                     else .ok none) = .ok none := by simp [hs]
                 simp only [hs']
                 apply runMatches_bind _ _ _ _ _
@@ -270,7 +270,7 @@ mutual
   theorem completeListValue_inContext (usage : Option DeferUsage)
       (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (hplain : FieldsInContext usage fields)
       (path : ResponsePath) (index state : Nat)
       : RunMatches

@@ -11,7 +11,7 @@ open MapperIdentity
 /-- The recursive replay and final-ID helpers are exactly the public batch mapper
 traversal; witness: induction on supplied input batches.
 -/
-theorem mapM_workEvents (batches : List (List WorkEvent)) (ids : IDState)
+theorem mapM_workEvents (batches : List (List WorkQueueEvent)) (ids : IDState)
     : (batches.mapM mapWorkEventBatch).run ids
       = (mappedTrace batches ids, finalIDs batches ids) := by
   induction batches generalizing ids with
@@ -26,7 +26,7 @@ theorem mapM_workEvents (batches : List (List WorkEvent)) (ids : IDState)
 proof-only input replay, not a selected future of an opaque source.
 -/
 def replayGroups
-    : List (List (List WorkEvent)) → IDState
+    : List (List (List WorkQueueEvent)) → IDState
       → List (List IncrementalStreamUpdateResult) × IDState
   | [], ids => ([], ids)
   | group :: rest, ids =>
@@ -37,7 +37,7 @@ def replayGroups
 /-- Flattening grouped replay is replay of flattened inputs, including the final IDs;
 witness: induction using mapM's append equation.
 -/
-theorem replayGroups_flatten (groups : List (List (List WorkEvent))) (ids : IDState)
+theorem replayGroups_flatten (groups : List (List (List WorkQueueEvent))) (ids : IDState)
     : ((replayGroups groups ids).1.flatten, (replayGroups groups ids).2)
       = (groups.flatten.mapM mapWorkEventBatch).run ids := by
   induction groups generalizing ids with
@@ -56,7 +56,7 @@ theorem replayGroups_flatten (groups : List (List (List WorkEvent))) (ids : IDSt
 /-- The actual batching mapper combines precisely the groups supplied to replay;
 witness: induction through the two nested state traversals.
 -/
-theorem replayGroups_combined (groups : List (List (List WorkEvent))) (ids : IDState)
+theorem replayGroups_combined (groups : List (List (List WorkQueueEvent))) (ids : IDState)
     : ((groups.mapM
           fun available => do
             let results ← available.mapM mapWorkEventBatch
@@ -91,7 +91,7 @@ theorem batched_pendingIDs (batches : List (List IncrementalStreamUpdateResult))
 Witness: the grouping equations; no source future or enumeration is used.
 -/
 theorem replayResponse_groups (response : Response) (initialGroups initialStreams)
-    (groups : List (List (List WorkEvent)))
+    (groups : List (List (List WorkQueueEvent)))
     : let (pending, ids) :=
         (getPendingEntry (m := StateM IDState) initialGroups initialStreams ensureID).run
           {}

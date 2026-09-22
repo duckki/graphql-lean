@@ -6,27 +6,31 @@ import Tests.GraphQL.IncrementalDelivery.Execution
 namespace GraphQL.IncrementalDelivery.Tests.Existence
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Arbitrary operations, environments, fuel, and source values have an observation.
 Witness: the universal prefix-existence theorem, without a scheduler premise.
 -/
 example (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
     (operation : Operation) (fuel : Nat) (source : ResolverValue ObjectRef)
-    : ∃ result,
-        queryObservation schema resolvers variables operation fuel source result false :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source
+        ∧ queryObservation createWorkQueue schema resolvers variables operation fuel
+            source result false :=
   queryObservation_exists schema resolvers variables operation fuel source
 
-/-- A single proof-only factory conforms for all prepared query work, not just one
+/-- A single proof-only queue constructor conforms for all prepared query work, not just one
 hard-coded fixture. Witness: generated initialization and the maximal source language.
 -/
 example (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
     (operation : Operation) (fuel : Nat) (source : ResolverValue ObjectRef)
-    : initializedScheduler.Conforms
+    : let work :=
         ((executeRootSelectionSetCore schema resolvers variables fuel
             (operation.rootType schema) source operation.selectionSet).run
-          0).1.work :=
-  executeRoot_initializedScheduler_conforms schema resolvers variables fuel
+          0).1.work
+      work.size ≠ 0 → (initializedWorkQueue work).Conforms work :=
+  executeRoot_initializedWorkQueue_conforms schema resolvers variables fuel
     (operation.rootType schema) source operation.selectionSet
 
 /-- An outer defer can be only an ancestor placeholder, with no actual contributing
@@ -58,9 +62,11 @@ def failed : List Selection := [defer [field "required"]]
 Witness: universal existence; the guard above separately checks their nonempty work.
 -/
 example (selections : List Selection)
-    : ∃ result,
-        queryObservation schema resolvers [] { selectionSet := selections } 8
-          (.object "Query" 0) result false :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers []
+          { selectionSet := selections } 8 (.object "Query" 0)
+        ∧ queryObservation createWorkQueue schema resolvers []
+            { selectionSet := selections } 8 (.object "Query" 0) result false :=
   queryObservation_exists schema resolvers [] { selectionSet := selections } 8
     (.object "Query" 0)
 
@@ -68,9 +74,11 @@ example (selections : List Selection)
 ordinary error responses, rather than requiring a successful query domain.
 -/
 example
-    : ∃ result,
-        queryObservation schema resolvers []
-          { selectionSet := nestedStream } 0 (.object "Query" 0) result false :=
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers []
+          { selectionSet := nestedStream } 0 (.object "Query" 0)
+        ∧ queryObservation createWorkQueue schema resolvers []
+            { selectionSet := nestedStream } 0 (.object "Query" 0) result false :=
   queryObservation_exists schema resolvers [] { selectionSet := nestedStream } 0
     (.object "Query" 0)
 

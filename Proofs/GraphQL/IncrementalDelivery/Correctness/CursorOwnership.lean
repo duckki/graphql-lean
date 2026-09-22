@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceTaskAccounting
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 
 /-- A list path has one seed origin and one starting cursor across the source inventory.

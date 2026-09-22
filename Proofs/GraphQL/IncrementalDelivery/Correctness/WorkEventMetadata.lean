@@ -5,10 +5,10 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Every descriptor carried by an event, including its owner and pending notices. -/
-def eventNodes : WorkEvent → List DeliveryNode
+def eventNodes : WorkQueueEvent → List DeliveryNode
   | .groupValues node _
   | .groupFailure node _
   | .streamSuccess node
@@ -39,7 +39,7 @@ theorem event_allowed_nodes {work initial matching before failed event}
     : ∀ node ∈ eventNodes event, KnownNode work node := by
   cases event with
   | groupValues node values =>
-      obtain ⟨_, _, _, _, _, _, _, _, owner⟩ := allowed
+      obtain ⟨_, _, _, _, _, _, owner⟩ := allowed
       simpa [eventNodes, KnownNode] using owner.1.1
   | groupSuccess node groups streams =>
       obtain ⟨⟨dependencies, producer, known⟩, _, _, _, announced⟩ := allowed
@@ -52,7 +52,7 @@ theorem event_allowed_nodes {work initial matching before failed event}
       simpa [eventNodes]
         using (show KnownNode work node from ⟨.group, dependencies, producer, known⟩)
   | streamValues node values groups streams =>
-      obtain ⟨_, _, _, _, _, _, _, owner, announced⟩ := allowed
+      obtain ⟨_, _, _, _, _, _, owner, announced⟩ := allowed
       intro other member
       rcases List.mem_cons.mp member with rfl | member
       · exact owner.1.1

@@ -1,12 +1,12 @@
 import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRoles
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.StructuralEquivalence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.StructuralEquivalence
 
 /-! Structural node lookup preserves execution's disjoint stream/defer key roles. -/
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A located subtree retains the original assignment of stream and defer key roles.
 Witness: structural navigation through combine, deferred, and stream-item boundaries.

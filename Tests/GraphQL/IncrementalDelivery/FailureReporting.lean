@@ -1,12 +1,12 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FailureReporting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FailureReporting
 import Tests.GraphQL.IncrementalDelivery.Execution
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! Regression for the silent deferred failure found during public-definition review. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.FailureReporting
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 def a : DeliveryNode := { key := 0, path := [] }
 def b : DeliveryNode := { key := 1, path := [] }
@@ -83,12 +83,13 @@ theorem badTask : TaskAt wk badID [1] none (.object [] (.error 1)) :=
   .executionGroup (.left (.right (.right .root)))
 
 /-- Reject the original cut: only group zero is announced, but group one fails. -/
-example (events : List WorkEvent) : ¬FailureWitness wk [0] events [(0, badID)] := by
+example (events : List WorkQueueEvent)
+    : ¬FailureWitness wk [0] WorkQueueSemantics.matching events [(0, badID)] := by
   intro witness
-  obtain ⟨key, member, opened⟩ := witness.open_owner (cut := 0) (by simp) badTask
+  obtain ⟨key, member, announced⟩ := witness.announced_owner (cut := 0) (by simp) badTask
   have same : key = 1 := by simpa using member
   subst key
-  simpa [Open, announcedKeys, pendingKeys] using opened.1
+  simp [announcedKeys, pendingKeys] at announced
 
 def silentHistory : History :=
   {
@@ -120,21 +121,23 @@ theorem silentFailureRejected : ¬AdmissibleRun wk silentHistory := by
     (fun _ _ _ _ => positive) (by decide) badTask
   cases impossible
 
-/-- A closed owner cannot license a newly recorded failure, even when previously
-announced. This prevents reporting the error only after its completion has passed.
+/-- The first failure cannot follow its only owner's closure in an explained history.
+Witness: first-failure openness contradicts the earlier completion, even though prior
+announcement alone would license this cut in an isolated failure witness.
 -/
 example
-    : ¬FailureWitness WorkScheduler.failingWork [0]
-        [WorkScheduler.failure] [(1, .executionGroup [])] := by
-  intro witness
-  have known : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+    : ¬Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] []
+        [WorkQueueSemantics.failure] WorkQueueSemantics.matching
+        [(1, .executionGroup [])] := by
+  intro explained
+  have known : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
-  obtain ⟨key, member, opened⟩ := witness.open_owner (cut := 1) (by simp) known
+  obtain ⟨key, member, opened⟩ := explained.first_failure_open_owner known
   have same : key = 0 := by simpa using member
   subst key
   exact opened.2
     (by simp [completedKeys, eventCompleted,
-      WorkScheduler.failure, WorkScheduler.node])
+      WorkQueueSemantics.failure, WorkQueueSemantics.node])
 
 def sharedFailure : Work :=
   .executionGroup [{ node := a }, { node := b }] [] (.error 1) .empty
@@ -142,7 +145,9 @@ def sharedFailure : Work :=
 /-- One open contributing owner suffices; shared work need not announce every owner,
 and its error notification may still be delayed.
 -/
-example : FailureWitness sharedFailure [1] [] [(0, .executionGroup [])] := by
+example
+    : FailureWitness sharedFailure [1] WorkQueueSemantics.matching []
+        [(0, .executionGroup [])] := by
   intro before cut occurrence after equal
   cases before with
   | nil =>
@@ -163,30 +168,29 @@ example : FailureWitness sharedFailure [1] [] [(0, .executionGroup [])] := by
           .root ⟨_, _, known⟩,
           1,
           by simp,
-          by simp [Open, announcedKeys, pendingKeys, completedKeys]
+          by simp [announcedKeys, pendingKeys]
         ⟩,
-        WorkScheduler.noCancellation _ _
+        WorkQueueSemantics.noCancellation _ _
       ⟩
   | cons first rest =>
       have impossible := congrArg List.length equal
       simp at impossible
 
-/-- The established failed-run fixture still accounts for its reported errors under
-the stronger rule; this also exercises the batching witness.
+/-- The established failed-run fixture bounds its first accepted failure by reported
+errors under the announced-owner rule; this also exercises the batching witness.
 -/
 example
     : ∃ events matching failures,
-        Explains WorkScheduler.failingWork [WorkScheduler.node] [] events matching
-          failures
-        ∧ Terminal WorkScheduler.failingWork [0] matching events
-            (failedBefore failures events.length)
+        Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] [] events
+          matching failures
+        ∧ Terminal WorkQueueSemantics.failingWork [0] matching events failures
         ∧ WorkBatching (events ++ [.workQueueTermination])
-            [[WorkScheduler.failure, .workQueueTermination]]
-        ∧ ∀ cut occurrence owners producer payload,
-            (cut, occurrence) ∈ failures
-            → TaskAt WorkScheduler.failingWork occurrence owners producer payload
+            [[WorkQueueSemantics.failure, .workQueueTermination]]
+        ∧ ∀ cut occurrence rest owners producer payload,
+            failures = (cut, occurrence) :: rest
+            → TaskAt WorkQueueSemantics.failingWork occurrence owners producer payload
             → payload.failure.getD 0 ≤ 2 := by
-  simpa [WorkScheduler.node, WorkScheduler.failure, failureErrors]
-    using WorkScheduler.failedRun.failure_accounting
+  simpa [WorkQueueSemantics.node, WorkQueueSemantics.failure, failureErrors]
+    using WorkQueueSemantics.failedRun.first_failure_accounting
 
 end GraphQL.IncrementalDelivery.Tests.FailureReporting

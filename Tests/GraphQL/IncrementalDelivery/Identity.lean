@@ -28,18 +28,22 @@ example (response : Response)
     : (replayResponse response SourceObservation.queue.initialGroups
         SourceObservation.queue.initialStreams [[SourceObservation.events]]).idsUnique :=
   (executionFromWork_observes_workHistory QueryObservation.scheduler response
-    WorkScheduler.work QueryObservation.conforms
+    WorkQueueSemantics.work QueryObservation.conforms
     (QueryObservation.observed response)).uniqueIDs.1
 
 /-- No query prefix may contain the malformed duplicate announcement fixture. -/
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ¬queryObservation schema resolvers variables operation fuel source
+    (createWorkQueue : Work → WorkQueue)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    : ¬queryObservation createWorkQueue schema resolvers variables operation fuel source
         Tests.Correctness.duplicateAnnouncement := by
   intro observed
   have unique := deliveryIDsUnique_holds schema operation resolvers variables fuel source
-    _ observed
+    createWorkQueue _ conforms observed
   simp [Tests.Correctness.duplicateAnnouncement, ExecutionObservation.idsUnique,
     DeliveryTrace.pendingIDs, List.nodup_cons] at unique
 
@@ -47,19 +51,23 @@ example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
 example {ObjectRef : Type} (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ¬queryOutcome schema resolvers variables operation fuel source
+    (createWorkQueue : Work → WorkQueue)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    : ¬queryOutcome createWorkQueue schema resolvers variables operation fuel source
         Tests.Correctness.duplicateCompletion := by
   intro observed
   have once := deliveryIDsCompleteExactlyOnce_holds schema operation resolvers variables
-    fuel source Tests.Correctness.duplicateCompletion observed
+    fuel source createWorkQueue Tests.Correctness.duplicateCompletion conforms observed
   simp [Tests.Correctness.duplicateCompletion, ExecutionObservation.idsCompleteExactlyOnce,
     DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs] at once
 
 /-- Coalescing may reorder notices inside a batch, but preserves multiplicity. -/
 example {events batches}
-    (grouped : GraphQL.IncrementalDelivery.WorkScheduler.WorkBatching events batches)
-    : (GraphQL.IncrementalDelivery.WorkScheduler.pendingKeys batches.flatten).Perm
-        (GraphQL.IncrementalDelivery.WorkScheduler.pendingKeys events) :=
+    (grouped : GraphQL.IncrementalDelivery.WorkQueueSemantics.WorkBatching events batches)
+    : (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingKeys batches.flatten).Perm
+        (GraphQL.IncrementalDelivery.WorkQueueSemantics.pendingKeys events) :=
   grouped.keyPermutation.pending
 
 end GraphQL.IncrementalDelivery.Tests.Identity

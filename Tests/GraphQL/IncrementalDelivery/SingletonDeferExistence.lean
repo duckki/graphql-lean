@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A test-only recursive certificate with singleton groups and arbitrary defer nesting.
 -/
@@ -62,9 +62,12 @@ def ancestors (key : Nat) : Keys := if key = 1 then [0] else []
 /-- Cancelling the nested task fails its owner, not merely its producer's owner.
 Witness: the general nested cancellation lemma with explicit fixture metadata.
 -/
-example (first second : Result (List (Name × ResponseValue))) (failed : List Occurrence)
-    (cancelled : TaskCancelled (work first second) failed (.executionGroup [0]))
-    : NodeFailed (work first second) failed 1 := by
+example (first second : Result (List (Name × ResponseValue)))
+    (matching : PublicationMatching) (events : List WorkQueueEvent)
+    (failures : FailureCuts)
+    (cancelled
+      : TaskCancelled (work first second) matching events failures (.executionGroup [0]))
+    : NodeFailed (work first second) matching events failures 1 := by
   apply SingletonDefer.cancelled_owner_failed (parents := ancestors) (bound := 2)
     (producer := some (.executionGroup [])) (payload := .object [] second)
     (Tree.singleton_defer (by simp [Tree, work]))
@@ -124,9 +127,10 @@ producer failures that cancel the child. Witness: raw progress followed by sourc
 realization; the mapper and response batching remain the actual implementation.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (work first second)
+        ((work first second).size ≠ 0
+          → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
   (completeObservation_exists_iff _ _).mpr (Or.inr (nested_run_exists first second))

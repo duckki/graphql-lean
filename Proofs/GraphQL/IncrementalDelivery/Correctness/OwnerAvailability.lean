@@ -1,8 +1,8 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.TaskReadiness
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.PublicationExtension
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.FiniteHistories
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.CompletionExistence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.TaskReadiness
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.PublicationExtension
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.FiniteHistories
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.CompletionExistence
 
 /-! Generated path coherence turns an announced healthy owner into a permitted task step.
 Notice availability is an explicit local hypothesis here, not a scheduler invariant.
@@ -11,35 +11,35 @@ Notice availability is an explicit local hypothesis here, not a scheduler invari
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Longest-path ownership does not prevent an available task from publishing
 -----------------------------------------------------------------------------------------
 
 /-- An available contributing owner has a longest-path representative for coherent work.
-Witness: all owner paths are prefixes of the fixed payload path, so eligible lengths
-form a nonempty bounded finite set. Equal-length choices remain nondeterministic.
+Witness: maximize over all open contributors' bounded path lengths, while retaining the
+given healthy supporter independently. Equal-length choices remain nondeterministic.
 -/
 theorem owner_exists_of_available
-    {paths bound work occurrence owners producer payload initial events failed}
+    {paths bound work occurrence owners producer payload initial matching events failed}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (known : TaskAt work occurrence owners producer payload)
-    (available : ∃ node, AvailableOwner work initial events failed owners node)
-    : ∃ node, Owner work initial events failed owners node := by
+    (available : ∃ node, HealthyOpenOwner work initial matching events failed owners node)
+    : ∃ node, PublicationOwner work initial matching events failed owners node := by
   classical
   let eligible (length : Nat) := ∃ node,
-    AvailableOwner work initial events failed owners node ∧ node.path.length = length
+    OpenOwner work initial events owners node ∧ node.path.length = length
   let lengths := (List.range ((payloadPath payload).length + 1)).filter
     (fun length => decide (eligible length))
-  have bounded {node} (active : AvailableOwner work initial events failed owners node)
+  have bounded {node} (active : OpenOwner work initial events owners node)
       : node.path.length ≤ (payloadPath payload).length := by
     obtain ⟨kind, dependencies, producerOccurrence, located⟩ := active.1
     obtain ⟨suffix, equal⟩ := workAt_owner_prefix coherent known located active.2.1
     change payloadPath payload = node.path ++ suffix at equal
     simp only [equal, List.length_append]
     omega
-  have member {node} (active : AvailableOwner work initial events failed owners node)
+  have member {node} (active : OpenOwner work initial events owners node)
       : node.path.length ∈ lengths := by
     apply List.mem_filter.mpr
     exact ⟨List.mem_range.mpr (by have := bounded active; omega),
@@ -47,27 +47,32 @@ theorem owner_exists_of_available
         ⟨node, active, rfl⟩)⟩
   obtain ⟨candidate, active⟩ := available
   obtain ⟨length, maximum⟩ := Option.isSome_iff_exists.mp
-    (List.isSome_max?_of_mem (member active))
+    (List.isSome_max?_of_mem (member active.1))
   have greatest := List.max?_eq_some_iff.mp maximum
   have eligibleLength : eligible length := by
     simpa only [decide_eq_true_eq] using (List.mem_filter.mp greatest.1).2
-  obtain ⟨node, active, equal⟩ := eligibleLength
-  exact ⟨node, active, fun other present => equal ▸ greatest.2 _ (member present)⟩
+  obtain ⟨node, opened, equal⟩ := eligibleLength
+  exact ⟨node, opened, ⟨candidate, active⟩,
+    fun other present => equal ▸ greatest.2 _ (member present)⟩
 
 /-- A stream item's own node is a permitted owner whenever its key is open and healthy.
 Witness: its sole owner key and coherent paths make every alternative descriptor's path
 the same length, rather than requiring descriptor uniqueness.
 -/
 theorem stream_owner_of_open
-    {paths bound work occurrence owners producer node result initial events failed}
+    {paths bound work occurrence owners producer node result initial matching events
+      failed}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (known : TaskAt work occurrence owners producer (.item node result))
-    (opened : Open initial events node.key) (healthy : ¬NodeFailed work failed node.key)
-    : Owner work initial events failed owners node := by
+    (opened : Open initial events node.key)
+    (healthy : ¬NodeFailed work matching events failed node.key)
+    : PublicationOwner work initial matching events failed owners node := by
   cases StructuralEquivalence.taskAt_of_current known with
   | item located selected =>
       have streamKnown := NodeAt.stream located.toCurrent
-      refine ⟨⟨⟨.stream, _, _, streamKnown⟩, by simp, opened, healthy⟩, ?_⟩
+      have active : OpenOwner work initial events [node.key] node :=
+        ⟨⟨.stream, _, _, streamKnown⟩, by simp, opened⟩
+      refine ⟨active, ⟨node, active, healthy⟩, ?_⟩
       intro other available
       obtain ⟨kind, dependencies, producerOccurrence, otherKnown⟩ := available.1
       have equal := workAt_same_path coherent otherKnown streamKnown
@@ -82,11 +87,9 @@ theorem ready_owner_dependency_unsatisfied
     {work groups streams events matching failures occurrence owners producer payload key}
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload) (member : key ∈ owners)
-    (ready
-      : CanPublish work matching events (failedBefore failures events.length)
-          occurrence producer)
+    (ready : CanPublish work matching events failures occurrence producer)
     : ¬DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-        (failedBefore failures events.length) key := by
+        failures key := by
   rintro ⟨healthy, absent | completed | ⟨_, accounted⟩⟩
   · obtain ⟨node, kind, dependencies, descriptor, same⟩ :=
       known.owner_at_producer member
@@ -117,17 +120,15 @@ theorem extend_ready_announced
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
     (known : TaskAt work occurrence owners producer payload)
-    (ready
-      : CanPublish work matching events (failedBefore failures events.length)
-          occurrence producer)
+    (ready : CanPublish work matching events failures occurrence producer)
     (announced
       : ∃ key ∈ owners,
           key ∈ announcedKeys ((groups ++ streams).map DeliveryNode.key) events
-          ∧ ¬NodeFailed work (failedBefore failures events.length) key)
+          ∧ ¬NodeFailed work matching events failures key)
     : ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts := by
   obtain ⟨key, member, notified, healthy⟩ := announced
-  have outstanding : ¬Accounted work matching events
-      (failedBefore failures events.length) occurrence := by
+  have outstanding : ¬TaskAccounted work matching events
+      failures occurrence := by
     rintro (cancelled | published)
     · exact ready.2.1 cancelled
     · exact ready.1 published
@@ -141,7 +142,7 @@ theorem extend_ready_announced
       ∃ event next cuts, Explains work groups streams (events ++ [event]) next cuts := by
     obtain ⟨node, errors, event, _, _, _, extended⟩ := explained.failure_step known fails
       (ready.reachable explained known) ⟨key, member, opened⟩
-      (by simpa only [explained.2.1.failedBefore_eq (Nat.le_refl _)] using ready.2.1)
+      ready.2.1
     exact ⟨event, matching, _, extended⟩
   cases payload with
   | object path result =>
@@ -151,10 +152,10 @@ theorem extend_ready_announced
           obtain ⟨data, errors⟩ := value
           obtain ⟨node, kind, dependencies, nodeProducer, nodeKnown, same⟩ :=
             known.owner_known member
-          have available : AvailableOwner work ((groups ++ streams).map DeliveryNode.key)
-              events (failedBefore failures events.length) owners node :=
-            ⟨⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
-              same ▸ opened,
+          have available : HealthyOpenOwner work ((groups ++ streams).map DeliveryNode.key)
+              matching events failures owners node :=
+            ⟨⟨⟨kind, dependencies, nodeProducer, nodeKnown⟩, same ▸ member,
+              same ▸ opened⟩,
               same ▸ healthy⟩
           obtain ⟨owner, selected⟩ := owner_exists_of_available coherent known ⟨node, available⟩
           exact ⟨_, _, _, explained.publish_object known ready selected⟩
@@ -186,14 +187,12 @@ theorem maximal_outstanding_unannounced
     (maximal
       : ∀ event next cuts, ¬Explains work groups streams (events ++ [event]) next cuts)
     (known : TaskAt work occurrence owners producer payload)
-    (outstanding
-      : ¬Accounted work matching events (failedBefore failures events.length) occurrence)
+    (outstanding : ¬TaskAccounted work matching events failures occurrence)
     : ∃ next nextOwners nextProducer result,
         TaskAt work next nextOwners nextProducer result
-        ∧ CanPublish work matching events (failedBefore failures events.length) next
-            nextProducer
+        ∧ CanPublish work matching events failures next nextProducer
         ∧ ∀ key ∈ nextOwners,
-            ¬NodeFailed work (failedBefore failures events.length) key
+            ¬NodeFailed work matching events failures key
             → key ∉ announcedKeys ((groups ++ streams).map DeliveryNode.key) events := by
   obtain ⟨next, nextOwners, nextProducer, result, task, ready⟩ :=
     readyTask_exists known outstanding
@@ -236,8 +235,8 @@ theorem completeRun_exists_of_initial_owner_coverage
       (fun event next cuts extended => by
         have impossible := maximal [event] next cuts extended
         cases impossible) known outstanding
-  have unaccounted : ¬Accounted work matching events
-      (failedBefore failures events.length) next := by
+  have unaccounted : ¬TaskAccounted work matching events
+      failures next := by
     rintro (cancelled | published)
     · exact ready.2.1 cancelled
     · exact ready.1 published

@@ -1,12 +1,12 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.NoticeCoverage
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.SingletonOwners
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.NoticeCoverage
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.SingletonOwners
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 
 /-! Notice coverage after carriers, and the boundary between singleton and shared owners. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.NoticeCoverage
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- Covering initialization leaves no eligible notice for the shared-work fixture.
 Witness: complete-frontier construction and coverage after installing those notices.
@@ -23,18 +23,18 @@ example (matching : PublicationMatching)
 Witness: dependency reduction after the actual admitted object publication.
 -/
 example
-    : ¬DependencySatisfied WorkScheduler.work [0] WorkScheduler.matching
-        [WorkScheduler.value] [] 0 := by
-  have initial : Explains WorkScheduler.work [WorkScheduler.node] [] []
-      WorkScheduler.matching [] :=
-    ⟨WorkScheduler.initialized _, by simp [FailureWitness], by simp⟩
+    : ¬DependencySatisfied WorkQueueSemantics.work [0] WorkQueueSemantics.matching
+        [WorkQueueSemantics.value] [] 0 := by
+  have initial : Explains WorkQueueSemantics.work [WorkQueueSemantics.node] [] []
+      WorkQueueSemantics.matching [] :=
+    ⟨WorkQueueSemantics.initialized _, by simp [FailureWitness], by simp⟩
   have published := initial.append_event
-    (by simpa [WorkScheduler.node, failedBefore] using WorkScheduler.publishes)
+    (by simpa [WorkQueueSemantics.node, failedBefore] using WorkQueueSemantics.publishes)
   have reduction := published.singleton_dependency_iff_completed
-    (show TaskAt WorkScheduler.work (.executionGroup []) [0] none (.object [] (.ok ([], 0)))
+    (show TaskAt WorkQueueSemantics.work (.executionGroup []) [0] none (.object [] (.ok ([], 0)))
       from .executionGroup .root)
     (fun failure => failure.nonempty rfl)
-  simpa [WorkScheduler.node, WorkScheduler.value, completedKeys, eventCompleted,
+  simpa [WorkQueueSemantics.node, WorkQueueSemantics.value, completedKeys, eventCompleted,
     failedBefore]
     using reduction
 
@@ -60,18 +60,22 @@ example
   have ready : CanPublish HistoryScheduling.shared HistoryScheduling.matching [] []
       (.executionGroup []) none :=
     ⟨by simp [Published], fun cancelled => cancelled.nonempty rfl, by simp, trivial⟩
-  have owner : Owner HistoryScheduling.shared [0] [] [] [0, 1] HistoryScheduling.left := by
-    refine ⟨⟨⟨.group, [], none, .group (group := { node := HistoryScheduling.left })
-      .root (by simp)⟩, by simp [HistoryScheduling.left], ?_,
-      fun failure => failure.nonempty rfl⟩, ?_⟩
-    · simp [Open, announcedKeys, pendingKeys, completedKeys, HistoryScheduling.left]
-    · intro other available
-      obtain ⟨kind, parents, birth, known⟩ := available.1
-      rcases (HistoryScheduling.node_shared known).1 with rfl | rfl <;>
-        simp [HistoryScheduling.left, HistoryScheduling.right]
+  have owner : PublicationOwner HistoryScheduling.shared [0] HistoryScheduling.matching [] []
+      [0, 1] HistoryScheduling.left := by
+    have opened : OpenOwner HistoryScheduling.shared [0] [] [0, 1]
+        HistoryScheduling.left :=
+      ⟨⟨.group, [], none, .group (group := { node := HistoryScheduling.left })
+        .root (by simp)⟩, by simp [HistoryScheduling.left],
+        by simp [Open, announcedKeys, pendingKeys, completedKeys, HistoryScheduling.left]⟩
+    refine ⟨opened, ⟨HistoryScheduling.left, opened, fun failure => failure.nonempty rfl⟩,
+      ?_⟩
+    intro other available
+    obtain ⟨kind, parents, birth, known⟩ := available.1
+    rcases (HistoryScheduling.node_shared known).1 with rfl | rfl <;>
+      simp [HistoryScheduling.left, HistoryScheduling.right]
   have published := initial.publish_object task ready
     (by simpa [HistoryScheduling.left, failedBefore] using owner)
-  let event := WorkEvent.groupValues HistoryScheduling.left [{ path := [], data := [] }]
+  let event := WorkQueueEvent.groupValues HistoryScheduling.left [{ path := [], data := [] }]
   let next := matchNext HistoryScheduling.matching 0 (.executionGroup [])
   refine ⟨[event], next, published, ⟨fun failure => failure.nonempty rfl,
     Or.inr (Or.inr ⟨?_, ?_⟩)⟩, ?_, ?_⟩

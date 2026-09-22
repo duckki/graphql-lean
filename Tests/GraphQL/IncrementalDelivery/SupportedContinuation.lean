@@ -1,5 +1,5 @@
 import Tests.GraphQL.IncrementalDelivery.MixedNoticeCoverage
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Nonblocking
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Nonblocking
 
 /-! Supported-prefix progress retains existing observations, even without full coverage. -/
 
@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.Tests.SupportedContinuation
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler Ancestry GeneralScheduling MixedNoticeCoverage
+open WorkQueueSemantics Ancestry GeneralScheduling MixedNoticeCoverage
 
 /-- The shared-owner publication has a terminal continuation retaining its batches.
 Witness: generated-style metadata and supported coverage, despite the eligible child

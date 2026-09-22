@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Root group and descendant-ID descriptors have separate keys but the same object path.
 -/
@@ -116,7 +116,7 @@ example (first second : Result (List (Name × ResponseValue)))
     : ¬CanAnnounce (work first second) [] (fun _ => .executionGroup [0]) [] []
         (node 1) .group [0] none := by
   intro eligible
-  have dependency := eligible.2.2.2.2 0 (by simp)
+  have dependency := eligible.2.2.2 0 (by simp)
   rcases dependency.2 with absent | completed | ⟨_, accounted⟩
   · exact absent ⟨none, node 0, .group, [],
       NodeAt.group (group := { node := node 0 }) (.left .root) (by simp), rfl⟩
@@ -131,9 +131,10 @@ example (first second : Result (List (Name × ResponseValue)))
 outcome pair. Witness: construct the history first, then use the general source bridge.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (work first second)
+        ((work first second).size ≠ 0
+          → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
   (completeObservation_exists_iff _ _).mpr (Or.inr (dependent_run_exists first second))

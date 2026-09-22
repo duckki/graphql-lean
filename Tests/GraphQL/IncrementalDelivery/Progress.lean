@@ -1,14 +1,14 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryExistence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.StreamExistence
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 
 /-! Constructed continuations: publication, failure, shared closure, and termination. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.Progress
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Correctness
 
 /-- A singleton deferred task starts with an explained empty prefix for any outcome.
@@ -16,59 +16,67 @@ Witness: valid notices and empty failure/event evidence, not a supplied complete
 -/
 theorem single_initial (result : Result (List (Name × ResponseValue)))
     (matching : PublicationMatching)
-    : Explains (WorkScheduler.single result) [WorkScheduler.node] [] [] matching [] := by
-  exact ⟨WorkScheduler.initialized result, by simp [FailureWitness], by simp⟩
+    : Explains (WorkQueueSemantics.single result) [WorkQueueSemantics.node] [] [] matching
+        [] := by
+  exact ⟨WorkQueueSemantics.initialized result, by simp [FailureWitness], by simp⟩
 
 /-- A complete run is constructed for every singleton deferred outcome, including raw
 zero-count failures. Witness: either one justified failure cut, or a fresh publication,
 then generic finite-frontier completion. No terminal-history premise is supplied.
 -/
 theorem single_run_exists (result : Result (List (Name × ResponseValue)))
-    : ∃ history, AdmissibleRun (WorkScheduler.single result) history := by
+    : ∃ history, AdmissibleRun (WorkQueueSemantics.single result) history := by
   apply (admissibleRun_exists_iff_accounted_history _).mpr
-  have initial := single_initial result WorkScheduler.matching
-  have task : TaskAt (WorkScheduler.single result) (.executionGroup []) [0] none
+  have initial := single_initial result WorkQueueSemantics.matching
+  have task : TaskAt (WorkQueueSemantics.single result) (.executionGroup []) [0] none
       (.object [] result) := .executionGroup .root
   have openKey : Open [0] [] 0 := by
     simp [Open, announcedKeys, pendingKeys, completedKeys]
   cases result with
   | error errors =>
       have recorded := initial.record_failure task rfl (.root ⟨_, _, task⟩)
-        (by exact ⟨0, by simp, openKey⟩) (WorkScheduler.noCancellation _ _)
-      refine ⟨[WorkScheduler.node], [], [], WorkScheduler.matching,
+        (by exact ⟨0, by simp, openKey⟩) (WorkQueueSemantics.noCancellation _ _)
+      refine ⟨[WorkQueueSemantics.node], [], [], WorkQueueSemantics.matching,
         [(0, .executionGroup [])], recorded, ?_⟩
       intro occurrence owners producer payload known
-      obtain ⟨rfl, rfl, _, _⟩ := WorkScheduler.task_single known
-      exact Or.inl (.of_recorded known (by simp) (by simp [failedBefore]))
+      obtain ⟨rfl, rfl, _, _⟩ := WorkQueueSemantics.task_single known
+      exact Or.inl
+        (.of_recorded known (by simp) (by simp [Published]) (by simp [failedBefore]))
   | ok value =>
       obtain ⟨data, errors⟩ := value
-      have ready : CanPublish (WorkScheduler.single (.ok (data, errors)))
-          WorkScheduler.matching [] [] (.executionGroup []) none :=
-        ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
-      have owner : Owner (WorkScheduler.single (.ok (data, errors))) [0] [] [] [0]
-          WorkScheduler.node := by
-        refine ⟨⟨⟨.group, [], none, .group (group := { node := WorkScheduler.node })
-          .root (by simp)⟩, by simp [WorkScheduler.node], openKey,
-          WorkScheduler.noFailure _ _⟩, ?_⟩
+      have ready : CanPublish (WorkQueueSemantics.single (.ok (data, errors)))
+          WorkQueueSemantics.matching [] [] (.executionGroup []) none :=
+        ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
+      have owner : PublicationOwner (WorkQueueSemantics.single (.ok (data, errors))) [0]
+          WorkQueueSemantics.matching [] [] [0]
+          WorkQueueSemantics.node := by
+        have opened : OpenOwner (WorkQueueSemantics.single (.ok (data, errors))) [0] [] [0]
+            WorkQueueSemantics.node :=
+          ⟨⟨.group, [], none, .group (group := { node := WorkQueueSemantics.node })
+            .root (by simp)⟩, by simp [WorkQueueSemantics.node], openKey⟩
+        refine ⟨opened, ⟨WorkQueueSemantics.node, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
         intro other available
         obtain ⟨kind, parents, birth, known⟩ := available.1
-        simp only [(WorkScheduler.node_single known).1, Nat.le_refl]
+        simp only [(WorkQueueSemantics.node_single known).1, Nat.le_refl]
       have published := initial.publish_object task ready owner
-      refine ⟨[WorkScheduler.node], [], _, _, [], published, ?_⟩
+      refine ⟨[WorkQueueSemantics.node], [], _, _, [], published, ?_⟩
       intro occurrence owners producer payload known
-      obtain ⟨rfl, _, _, _⟩ := WorkScheduler.task_single known
+      obtain ⟨rfl, _, _, _⟩ := WorkQueueSemantics.task_single known
       exact Or.inr ⟨0, _, rfl, trivial, by simp [matchNext]⟩
 
 /-- The constructed singleton runs are observations of actual conforming factories.
 Witness: complete-run realization, covering both successful and failing outcomes.
 -/
 example (response : Response) (result : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (WorkScheduler.single result)
-        ∧ (executionFromWork scheduler response (WorkScheduler.single result)).Observes
+        ((WorkQueueSemantics.single result).size ≠ 0
+          → (scheduler (WorkQueueSemantics.single result)).Conforms
+              (WorkQueueSemantics.single result))
+        ∧ (executionFromWork scheduler response
+            (WorkQueueSemantics.single result)).Observes
             observed true :=
-  (completeObservation_exists_iff response (WorkScheduler.single result)).mpr
+  (completeObservation_exists_iff response (WorkQueueSemantics.single result)).mpr
     (Or.inr (single_run_exists result))
 
 /-- One shared publication can finish both owners in at most two additional events,
@@ -76,7 +84,7 @@ preserving the already observed batch. Witness: finite-frontier completion, not 
 explicitly supplied pair of success events or a selected owner-closure ordering.
 -/
 example
-    : ∃ tail : List WorkEvent,
+    : ∃ tail : List WorkQueueEvent,
         AdmissibleRun HistoryScheduling.shared
           ⟨
             [HistoryScheduling.left, HistoryScheduling.right],
@@ -97,7 +105,7 @@ example
           using HistoryScheduling.publishes HistoryScheduling.left (by simp))
   have accounted : ∀ occurrence owners producer payload,
       TaskAt HistoryScheduling.shared occurrence owners producer payload →
-      Accounted HistoryScheduling.shared HistoryScheduling.matching
+      TaskAccounted HistoryScheduling.shared HistoryScheduling.matching
         [HistoryScheduling.value HistoryScheduling.left] [] occurrence := by
     intro occurrence owners producer payload known
     have same := HistoryScheduling.task_shared known
@@ -113,7 +121,7 @@ example
 Witness: close key zero despite its repeated selection, while key one remains open.
 -/
 example
-    : ∃ tail : List WorkEvent,
+    : ∃ tail : List WorkQueueEvent,
         Explains HistoryScheduling.shared
           [HistoryScheduling.left, HistoryScheduling.right] []
           ([HistoryScheduling.value HistoryScheduling.left] ++ tail)
@@ -166,18 +174,18 @@ example
         node.key ∈ [0]
         ∧ (event = .groupFailure node errors ∨ event = .streamFailure node errors)
         ∧ 2 ≤ errors
-        ∧ Explains WorkScheduler.failingWork [WorkScheduler.node] [] [event]
-            WorkScheduler.matching [(0, .executionGroup [])] := by
-  have initial := single_initial (.error 2) WorkScheduler.matching
-  have task : TaskAt WorkScheduler.failingWork (.executionGroup []) [0] none
+        ∧ Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] [] [event]
+            WorkQueueSemantics.matching [(0, .executionGroup [])] := by
+  have initial := single_initial (.error 2) WorkQueueSemantics.matching
+  have task : TaskAt WorkQueueSemantics.failingWork (.executionGroup []) [0] none
       (.object [] (.error 2)) := .executionGroup .root
   exact initial.failure_step task rfl (.root ⟨_, _, task⟩)
     ⟨
       0,
       by simp,
       by simp [Open, announcedKeys, pendingKeys, completedKeys,
-        WorkScheduler.node]
-    ⟩ (WorkScheduler.noCancellation _ _)
+        WorkQueueSemantics.node]
+    ⟩ (WorkQueueSemantics.noCancellation _ _)
 
 /-- A failure recorded after two outputs cannot retroactively affect the first output.
 Witness: direct boundary evaluation; equal-boundary cuts are visible only at that cut.
@@ -200,27 +208,31 @@ example
     : ∃ tail,
         tail.length ≤ 0
         ∧ (∀ event ∈ tail, eventPending event = [] ∧ ¬IsValue event)
-        ∧ Explains WorkScheduler.work [WorkScheduler.node] []
-            (WorkScheduler.events ++ tail) WorkScheduler.matching []
-        ∧ ∀ key ∈ announcedKeys [0] (WorkScheduler.events ++ tail),
-            key ∈ completedKeys (WorkScheduler.events ++ tail) := by
-  apply WorkScheduler.explained.close_open_keys
-    (by simpa [failedBefore, WorkScheduler.node] using WorkScheduler.terminal.1) []
+        ∧ Explains WorkQueueSemantics.work [WorkQueueSemantics.node] []
+            (WorkQueueSemantics.events ++ tail) WorkQueueSemantics.matching []
+        ∧ ∀ key ∈ announcedKeys [0] (WorkQueueSemantics.events ++ tail),
+            key ∈ completedKeys (WorkQueueSemantics.events ++ tail) := by
+  apply WorkQueueSemantics.explained.close_open_keys
+    (by
+      simpa [failedBefore, WorkQueueSemantics.node]
+        using WorkQueueSemantics.terminal.1) []
   intro key opened
   exact False.elim
     (opened.2
-      (WorkScheduler.explained.allCompleted
-        (by simpa [WorkScheduler.node, failedBefore] using WorkScheduler.terminal) key
-        opened.1))
+      (WorkQueueSemantics.explained.allCompleted
+        (by
+          simpa [WorkQueueSemantics.node, failedBefore] using WorkQueueSemantics.terminal)
+        key opened.1))
 
 /-- Equal-valued stream items have separate publication tokens, but share one closure.
 Witness: the structural item ordinals, independent of payload equality.
 -/
 example
     : observationTokens []
-        (.stream WorkScheduler.node [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)])
+        (.stream WorkQueueSemantics.node
+          [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)])
       = [.inr 0, .inl (.item [] 0), .inl (.item [] 1)] := by
-  simp [observationTokens, List.finRange_succ, WorkScheduler.node]
+  simp [observationTokens, List.finRange_succ, WorkQueueSemantics.node]
 
 /-- Shared owners consume one publication token and two independent completion tokens.
 Witness: the raw structural inventory, before any owner or schedule is selected.
@@ -234,9 +246,9 @@ whether the fixed outcome succeeds or fails. Witness: the uniform inventory boun
 example (result : Result (List (Name × ResponseValue)))
     {groups streams events matching cuts}
     (explained
-      : Explains (WorkScheduler.single result) groups streams events matching cuts)
+      : Explains (WorkQueueSemantics.single result) groups streams events matching cuts)
     : events.length ≤ 2 := by
-  simpa [WorkScheduler.single, observationTokens]
+  simpa [WorkQueueSemantics.single, observationTokens]
     using explained.length_le_observationTokens
 
 /-- Batching cannot exceed the three possible shared-work actions plus termination.
@@ -252,13 +264,14 @@ Witness: bounded existential extension, not a deterministic future trace.
 -/
 example
     : ∃ events matching cuts,
-        Explains WorkScheduler.failingWork [WorkScheduler.node] [] events matching cuts
+        Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] [] events
+          matching cuts
         ∧ ∀ suffix next nextCuts,
-            Explains WorkScheduler.failingWork [WorkScheduler.node] [] (events ++ suffix)
-              next nextCuts
+            Explains WorkQueueSemantics.failingWork [WorkQueueSemantics.node] []
+              (events ++ suffix) next nextCuts
             → suffix = [] := by
-  simpa only [WorkScheduler.failingWork, List.nil_append]
-    using (single_initial (.error 2) WorkScheduler.matching).maximal_extension
+  simpa only [WorkQueueSemantics.failingWork, List.nil_append]
+    using (single_initial (.error 2) WorkQueueSemantics.matching).maximal_extension
 
 /-- A high-ordinal item still precedes a task inside its child subtree. Witness: edge
 weight includes the parent item index; plain address length would not order all items.
@@ -270,10 +283,13 @@ example
 /-- Equal-valued stream items share cancellation prerequisites but not publication IDs.
 Witness: their equal owner/producer projections and the generic causal transport lemma.
 -/
-example (failures : List Occurrence)
-    (cancelled : TaskCancelled HistoryScheduling.items failures (.item [] 0))
-    : TaskCancelled HistoryScheduling.items failures (.item [] 1) :=
-  cancelled.same_prerequisites (TaskAt.item .root rfl) (TaskAt.item .root rfl)
+example (failures : FailureCuts) (matching : PublicationMatching)
+    (events : List WorkQueueEvent)
+    (cancelled
+      : TaskCancelled HistoryScheduling.items matching events failures (.item [] 0))
+    (unpublished : ¬Published matching events (.item [] 1))
+    : TaskCancelled HistoryScheduling.items matching events failures (.item [] 1) :=
+  cancelled.same_prerequisites (TaskAt.item .root rfl) (TaskAt.item .root rfl) unpublished
 
 /-- Starting from an unaccounted second item finds a structurally ready task, despite
 that second item itself waiting for its predecessor. Witness: dependency-rank descent.
@@ -301,12 +317,15 @@ example (node : DeliveryNode) (results : List (Result ResponseValue))
   rfl
 
 /-- The stream existence theorem realizes complete wire observations through a conforming
-factory, including zero-count raw failures. Witness: the general complete-run bridge.
+queue constructor, including zero-count raw failures. Witness: the general complete-run bridge.
 -/
 example (response : Response) (node : DeliveryNode)
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])
+        ((Work.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)]).size ≠ 0
+          → (scheduler
+              (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])).Conforms
+              (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)]))
         ∧ (executionFromWork scheduler response
             (.stream node [(.ok (.null, 0), .empty), (.error 0, .empty)])).Observes
             observed true := by

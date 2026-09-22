@@ -8,7 +8,7 @@ open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A test-only recursive certificate excludes streams without restricting defer owners.
 -/
@@ -60,10 +60,13 @@ def ancestors (key : Nat) : Keys :=
 /-- Cancelling the shared child fails both its owners, not just the selected delivery ID.
 Witness: the general defer-only cancellation theorem, instantiated for either key.
 -/
-example (first second : Result (List (Name × ResponseValue))) (failed : List Occurrence)
-    (cancelled : TaskCancelled (work first second) failed (.executionGroup [0]))
+example (first second : Result (List (Name × ResponseValue)))
+    (matching : PublicationMatching) (events : List WorkQueueEvent)
+    (failures : FailureCuts)
+    (cancelled
+      : TaskCancelled (work first second) matching events failures (.executionGroup [0]))
     (key : Nat) (member : key ∈ [2, 3])
-    : NodeFailed (work first second) failed key := by
+    : NodeFailed (work first second) matching events failures key := by
   apply DeferOnly.cancelled_owner_failed (parents := ancestors) (bound := 4)
     (producer := some (.executionGroup [])) (payload := .object [] second)
     (Tree.defer_only (by simp [Tree, work]))
@@ -141,9 +144,10 @@ example (first second : Result (List (Name × ResponseValue)))
 Witness: construct its admitted history, then apply conforming-source realization.
 -/
 example (response : Response) (first second : Result (List (Name × ResponseValue)))
-    : ∃ scheduler : Execution.WorkScheduler,
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
       ∃ observed : ExecutionObservation,
-        scheduler.Conforms (work first second)
+        ((work first second).size ≠ 0
+          → (scheduler (work first second)).Conforms (work first second))
         ∧ (executionFromWork scheduler response (work first second)).Observes observed
             true :=
   (completeObservation_exists_iff _ _).mpr (Or.inr (shared_run_exists first second))

@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.Independence
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.Independence
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 import Tests.GraphQL.IncrementalDelivery.DeferredPhase
@@ -7,7 +7,7 @@ import Tests.GraphQL.IncrementalDelivery.DeferredPhase
 
 namespace GraphQL.IncrementalDelivery.Tests.Independence
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 open GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Semantics
 
@@ -25,7 +25,7 @@ def rightData : List (Name × ResponseValue) := [("right", .scalar "b")]
 def work : Work := DeferredPhase.work (.ok (leftData, 0)) (.ok (rightData, 0))
 
 /-- The two object events use the same selected owner but distinct task occurrences. -/
-def value (data : List (Name × ResponseValue)) : WorkEvent :=
+def value (data : List (Name × ResponseValue)) : WorkQueueEvent :=
   .groupValues (DeferredPhase.node 0) [{path := [], data}]
 
 /-- Both orders are explained and account for exactly the same tasks, even with a shared
@@ -38,33 +38,34 @@ example
         ∧ Explains work [DeferredPhase.node 0, DeferredPhase.node 1] []
             [value rightData, value leftData] backward []
         ∧ ∀ occurrence,
-            Accounted work forward [value leftData, value rightData] [] occurrence
-            ↔ Accounted work backward [value rightData, value leftData] []
+            TaskAccounted work forward [value leftData, value rightData] [] occurrence
+            ↔ TaskAccounted work backward [value rightData, value leftData] []
                 occurrence := by
   have coherent : MixedOwnerPaths.WorkAt (fun _ => []) 3 work := by
     simp [work, DeferredPhase.work, MixedOwnerPaths.WorkAt, OwnerPaths.MapAt,
       OwnerPaths.mapNodes, OwnerPaths.fragmentNodes, OwnerPaths.Assigned, Below,
       DeferredPhase.node]
   have selected (owners : Keys) (member : 0 ∈ owners)
-      : Owner work [0, 1] [] [] owners (DeferredPhase.node 0) := by
-    refine ⟨⟨⟨.group, [], none,
-      .group (group := {node := DeferredPhase.node 0}) (.left .root) (by simp)⟩,
-      member, ?_, WorkScheduler.noFailure _ _⟩, ?_⟩
-    · simp [Open, announcedKeys, pendingKeys, completedKeys, DeferredPhase.node]
-    · intro other available
-      obtain ⟨kind, parents, birth, known⟩ := available.1
-      have assigned := workAt_node coherent known
-      simp [← assigned.2, DeferredPhase.node]
+      : PublicationOwner work [0, 1] WorkQueueSemantics.matching [] [] owners (DeferredPhase.node 0) := by
+    have opened : OpenOwner work [0, 1] [] owners (DeferredPhase.node 0) :=
+      ⟨⟨.group, [], none,
+        .group (group := {node := DeferredPhase.node 0}) (.left .root) (by simp)⟩,
+        member, by simp [Open, announcedKeys, pendingKeys, completedKeys, DeferredPhase.node]⟩
+    refine ⟨opened, ⟨DeferredPhase.node 0, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
+    intro other available
+    obtain ⟨kind, parents, birth, known⟩ := available.1
+    have assigned := workAt_node coherent known
+    simp [← assigned.2, DeferredPhase.node]
   have empty : Explains work [DeferredPhase.node 0, DeferredPhase.node 1] [] []
-      WorkScheduler.matching [] :=
+      WorkQueueSemantics.matching [] :=
     ⟨DeferredPhase.initialized _ _, by simp [FailureWitness], by simp⟩
   have left : TaskAt work (.executionGroup [0]) [0] none (.object [] (.ok (leftData, 0))) :=
     .executionGroup (.left .root)
   have right : TaskAt work (.executionGroup [1]) [0, 1] none (.object [] (.ok (rightData, 0))) :=
     .executionGroup (.right .root)
-  have ready (address : Address) : CanPublish work WorkScheduler.matching [] []
+  have ready (address : Address) : CanPublish work WorkQueueSemantics.matching [] []
       (.executionGroup address) none :=
-    ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
+    ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
   simpa [value, failedBefore, DeferredPhase.node]
     using empty.objects_commute left right (ready [0]) (ready [1])
       (selected [0] (by simp)) (selected [0, 1] (by simp)) (by decide)

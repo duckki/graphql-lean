@@ -26,7 +26,7 @@ theorem executeRoot_completeRun_exists (schema : Schema)
         ((executeRootSelectionSetCore schema resolvers variables fuel
             parentType source selections).run
           0).1.work
-      work.size ≠ 0 → ∃ history, WorkScheduler.AdmissibleRun work history := by
+      work.size ≠ 0 → ∃ history, WorkQueueSemantics.AdmissibleRun work history := by
   intro work nonempty
   obtain ⟨_, ancestry, valid, coherent, continuous⟩ :=
     executeRoot_continuity schema resolvers variables fuel parentType source selections 0
@@ -76,7 +76,11 @@ prefix.
 theorem queryOutcome_exists (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (operation : Operation) (fuel : Nat)
     (source : ResolverValue ObjectRef)
-    : ∃ result, queryOutcome schema resolvers variables operation fuel source result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source
+        ∧ queryOutcome createWorkQueue schema resolvers variables operation fuel source
+            result := by
   by_cases applies : rootSourceAppliesBool schema operation source = true
   · obtain ⟨result, observed⟩ := executeRoot_completeObservation schema resolvers
       (coerceVariableValues operation variables) fuel (operation.rootType schema) source

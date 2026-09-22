@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.SourceTaskProvenance
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics.MixedPaths
 open scoped List
 

@@ -5,7 +5,7 @@ import Init.Data.List.Sublist
 forget termination, and preserve initial data/errors without fixing a future schedule.
 -/
 
-namespace GraphQL.IncrementalDelivery.Execution
+namespace GraphQL.IncrementalDelivery
 
 /-- Appending two observed input lists is one history update, by list associativity. -/
 theorem EventSource.advance_append (source : EventSource α) (left right : List α)
@@ -50,6 +50,8 @@ theorem EventSource.extensionality (left right : EventSource α)
   cases left
   cases right
   simp_all
+
+namespace Execution
 
 /-- A newly installed batcher accepts exactly nonempty admitted upstream groups. Witness:
 the singleton group's full prefix in one direction, its two prefixes in the other.
@@ -111,7 +113,8 @@ theorem ExecutionResult.Observes.forgetComplete
   obtain ⟨final, run, _⟩ := observed.2
   exact ⟨final, run⟩
 
-end GraphQL.IncrementalDelivery.Execution
+end Execution
+end GraphQL.IncrementalDelivery
 
 namespace GraphQL.IncrementalDelivery.Correctness
 
@@ -132,37 +135,39 @@ theorem observes_initialResponse {execution : ExecutionResult}
   cases execution <;> cases result <;>
     simp_all [ExecutionResult.Observes, initialResponse, observedInitialResponse]
 
-/-- Every complete query outcome is a prefix observation, with the same conforming
-factory.
+/-- Every complete query outcome is a prefix observation for the same queue constructor.
+Witness: forget source termination; queue conformance is not needed for this projection.
 -/
-theorem queryOutcome_observation {schema : Schema} {resolvers : Resolvers ObjectRef}
+theorem queryOutcome_observation {createWorkQueue : Work → WorkQueue}
+    {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (h : queryOutcome schema resolvers variables operation fuel source result)
-    : queryObservation schema resolvers variables operation fuel source result := by
-  obtain ⟨scheduler, conforms, observed⟩ := h
-  exact ⟨scheduler, conforms, observed.forgetComplete⟩
+    (h
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
+    : queryObservation createWorkQueue schema resolvers variables operation fuel source
+        result :=
+  ExecutionResult.Observes.forgetComplete h
 
 /-- Admitted observations agree on initial data/errors across factories and stopping
 points. Witness: observed envelopes equal their executions', whose pure initial responses
 agree.
 -/
 theorem queryObservation_initialResponse_independent
+    {leftQueue rightQueue : Work → WorkQueue}
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {first second : ExecutionObservation} {firstComplete secondComplete : Bool}
     (left
-      : queryObservation schema resolvers variables operation fuel source first
+      : queryObservation leftQueue schema resolvers variables operation fuel source first
           firstComplete)
     (right
-      : queryObservation schema resolvers variables operation fuel source second
-          secondComplete)
+      : queryObservation rightQueue schema resolvers variables operation fuel source
+          second secondComplete)
     : observedInitialResponse first = observedInitialResponse second := by
-  obtain ⟨leftScheduler, _, leftObserved⟩ := left
-  obtain ⟨rightScheduler, _, rightObserved⟩ := right
-  exact (observes_initialResponse leftObserved).symm.trans
-    ((executeQueryWithFuel_initialResponse_independent leftScheduler rightScheduler
+  exact (observes_initialResponse left).symm.trans
+    ((executeQueryWithFuel_initialResponse_independent leftQueue rightQueue
       schema resolvers variables operation fuel source).trans
-      (observes_initialResponse rightObserved))
+      (observes_initialResponse right))
 
 end GraphQL.IncrementalDelivery.Correctness

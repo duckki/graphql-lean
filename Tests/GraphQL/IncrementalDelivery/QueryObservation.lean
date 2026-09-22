@@ -8,21 +8,23 @@ namespace GraphQL.IncrementalDelivery.Tests.QueryObservation
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
 
-/-- This fixture factory need only conform for the particular work submitted in this test.
+/-- This fixture queue constructor need only conform for the particular work submitted in this test.
 -/
-def scheduler : Execution.WorkScheduler := ⟨fun _ => SourceObservation.queue⟩
+def scheduler : Execution.Work → Execution.WorkQueue := fun _ => SourceObservation.queue
 
 /-- Local conformance follows from the checked replay source, with no law for unrelated
 work.
 -/
-theorem conforms : scheduler.Conforms WorkScheduler.work :=
+theorem conforms
+    : (WorkQueueSemantics.work.size ≠ 0
+        → (scheduler WorkQueueSemantics.work).Conforms WorkQueueSemantics.work) :=
   fun _ => SourceObservation.conforms
 
 /-- Actual root packaging allocates initial IDs and then observes the supplied finite
 response group.
 -/
 theorem observed (response : Response)
-    : (executionFromWork scheduler response WorkScheduler.work).Observes
+    : (executionFromWork scheduler response WorkQueueSemantics.work).Observes
         (replayResponse response SourceObservation.queue.initialGroups
           SourceObservation.queue.initialStreams [[SourceObservation.events]]) true := by
   change ({ toResponse := response, pending := [{ id := "0", path := [] }], hasNext := true }
@@ -33,30 +35,30 @@ theorem observed (response : Response)
 envelope.
 -/
 example (response : Response)
-    : WorkObservation response WorkScheduler.work true
+    : WorkObservation response WorkQueueSemantics.work true
         (replayResponse response SourceObservation.queue.initialGroups
           SourceObservation.queue.initialStreams [[SourceObservation.events]]) :=
-  executionFromWork_observes_workHistory scheduler response WorkScheduler.work conforms
-    (observed response)
+  executionFromWork_observes_workHistory scheduler response WorkQueueSemantics.work
+    conforms (observed response)
 
 /-- Dropping completion keeps the same response and work history, by the forgetting
 witness.
 -/
 example (response : Response)
-    : WorkObservation response WorkScheduler.work false
+    : WorkObservation response WorkQueueSemantics.work false
         (replayResponse response SourceObservation.queue.initialGroups
           SourceObservation.queue.initialStreams [[SourceObservation.events]]) :=
-  (executionFromWork_observes_workHistory scheduler response WorkScheduler.work conforms
-    (observed response)).forgetComplete
+  (executionFromWork_observes_workHistory scheduler response WorkQueueSemantics.work
+    conforms (observed response)).forgetComplete
 
 /-- Stopping before the first update also has a work-history witness, by the nil
 observation.
 -/
 example (response : Response)
-    : WorkObservation response WorkScheduler.work false
+    : WorkObservation response WorkQueueSemantics.work false
         (replayResponse response SourceObservation.queue.initialGroups
           SourceObservation.queue.initialStreams []) := by
-  apply executionFromWork_observes_workHistory scheduler response WorkScheduler.work
+  apply executionFromWork_observes_workHistory scheduler response WorkQueueSemantics.work
     conforms
   change ({ toResponse := response, pending := [{ id := "0", path := [] }], hasNext := true }
       : InitialIncrementalStreamResult) = _ ∧ _
@@ -67,7 +69,7 @@ computation.
 -/
 example
     : replayResponse { data := .scalar "initial", errors := 2 }
-        [WorkScheduler.node] [] [[SourceObservation.events]]
+        [WorkQueueSemantics.node] [] [[SourceObservation.events]]
       = .incremental
           {
             data := .scalar "initial",
@@ -98,11 +100,15 @@ theorem.
 example
     : WorkObservation { data := .object [] } (.combine .empty .empty) true
         (.single { data := .object [] }) := by
-  have run : queryOutcome schema resolvers [] { selectionSet := [] } 5
-      (.object "Query" 0) (.single { data := .object [] }) := by
-    refine ⟨unavailable, ?_, ?_⟩
+  have run : queryWorkQueueConforms unavailable schema resolvers [] { selectionSet := [] } 5
+        (.object "Query" 0)
+      ∧ queryOutcome unavailable schema resolvers [] { selectionSet := [] } 5
+        (.object "Query" 0) (.single { data := .object [] }) := by
+    refine ⟨?_, ?_⟩
     all_goals
-      simp [Execution.WorkScheduler.Conforms, executeQueryWithFuel, executeRootSelectionSet,
+      simp [queryWorkQueueConforms, queryOutcome, queryObservation,
+        queryCompletion,
+        executeQueryWithFuel, executeRootSelectionSet,
         executeRootSelectionSetCore, executeExecutionPlan, executeCollectedFields,
         collectExecutionGroups, collectFields, buildExecutionPlan, getNewDeferMap,
         Completion.pure, StateT.run, ExecutionResult.Observes,
@@ -110,7 +116,7 @@ example
           (.object "Query" 0) = true from rfl]
     · exact fun nonempty => False.elim (nonempty rfl)
     · rfl
-  have witnessed := queryObservation_workHistory run
+  have witnessed := queryObservation_workHistory run.1 run.2
   simp [executeRootSelectionSetCore, executeExecutionPlan, executeCollectedFields,
     collectExecutionGroups, collectFields, buildExecutionPlan, getNewDeferMap,
     Completion.pure, StateT.run, selectionSetResultToResponse,
@@ -119,14 +125,14 @@ example
   exact witnessed
 
 /-- Invalid roots retain the inherited counted error and require no contract on the unused
-factory.
+queue constructor.
 -/
-example {result : ExecutionObservation}
+example {createWorkQueue : Work → WorkQueue} {result : ExecutionObservation}
     (run
-      : queryOutcome schema resolvers [] { selectionSet := [field "a"] } 5
+      : queryOutcome createWorkQueue schema resolvers [] { selectionSet := [field "a"] } 5
           (.scalar "invalid") result)
     : result = .single { data := .null, errors := 1 } :=
-  queryObservation_workHistory run
+  queryObservation_workHistory (by intro applies; cases applies) run
 
 /-- A property derived for all independent work witnesses transfers to complete query
 outcomes.
@@ -138,28 +144,27 @@ example (property : ExecutionObservation → Prop)
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (run : queryOutcome schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (run
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     : property result :=
-  queryObservation_property property proved run
+  queryObservation_property property proved conforms run
 
 /-- The default-fuel entry point feeds the same bridge; no alternative fuel or scheduler
 is selected.
 -/
-example (factory : Execution.WorkScheduler) (operation : Operation)
+example (createWorkQueue : (Execution.Work → Execution.WorkQueue)) (operation : Operation)
     {result : ExecutionObservation}
-    (conforming
-      : rootSourceAppliesBool schema operation (.object "Query" 0) = true
-        → factory.Conforms
-            ((executeRootSelectionSetCore schema resolvers
-                (coerceVariableValues operation [])
-                (executeQueryFuelBound schema operation) (operation.rootType schema)
-                (.object "Query" 0) operation.selectionSet).run
-              0).1.work)
     (run
-      : (executeQuery factory schema resolvers [] operation (.object "Query" 0)).Observes
+      : (executeQuery createWorkQueue schema resolvers [] operation
+          (.object "Query" 0)).Observes
           result)
-    : queryObservation schema resolvers [] operation
+    : queryObservation createWorkQueue schema resolvers [] operation
         (executeQueryFuelBound schema operation) (.object "Query" 0) result :=
-  ⟨factory, conforming, run⟩
+  run
 
 end GraphQL.IncrementalDelivery.Tests.QueryObservation

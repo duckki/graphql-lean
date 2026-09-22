@@ -8,7 +8,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Least outstanding owners have full support, including stream-dependency ancestry
@@ -20,28 +20,30 @@ dependency's strict, healthy ancestry. This excludes merely early silent-account
 notices.
 -/
 theorem least_owner_supported
-    {ancestry bound work initial matching events failed occurrence owners producer payload
-      node kind dependencies}
+    {ancestry bound work groups streams initial matching events failed occurrence owners
+      producer payload node kind dependencies}
+    (explained : Explains work groups streams events matching failed)
     (valid : Valid ancestry bound) (coherent : MixedKeys.WorkAt ancestry 0 bound work)
     (ordered : StreamOwnersOrdered work)
     (known : TaskAt work occurrence owners producer payload)
     (ready : CanPublish work matching events failed occurrence producer)
     (descriptor : NodeAt work node kind dependencies producer)
-    (member : node.key ∈ owners) (healthy : ¬NodeFailed work failed node.key)
+    (member : node.key ∈ owners)
+    (healthy : ¬NodeFailed work matching events failed node.key)
     (fresh : node.key ∉ announcedKeys initial events)
     (smaller
       : ∀ key,
           key < node.key
-          → ¬NodeFailed work failed key
+          → ¬NodeFailed work matching events failed key
           → DependencySatisfied work initial matching events failed key)
     : SupportedNotice ancestry work initial matching events failed node kind dependencies
         producer := by
-  have eligible := least_owner_announceable valid coherent ordered known ready descriptor
+  have eligible := least_owner_announceable explained valid coherent ordered known ready descriptor
     member healthy fresh smaller
-  refine ⟨eligible, ?_⟩
+  refine ⟨eligible, healthy, ?_⟩
   intro stream
   subst kind
-  rcases eligible.2.2.2.2 with empty | ⟨key, contributes, dependency⟩
+  rcases eligible.2.2.2 with empty | ⟨key, contributes, dependency⟩
   · exact Or.inl empty
   · obtain ⟨group, parents, birth, groupKnown, same⟩ :=
       stream_dependency_group descriptor contributes
@@ -75,26 +77,24 @@ theorem mixed_supported_accounted_extension
     (initial : Explains work groups streams head matching failures)
     (coverage
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
-          matching head (failures.map Prod.snd))
+          matching head failures)
     : ∃ tail next cuts,
         Explains work groups streams (head ++ tail) next cuts
         ∧ ∀ occurrence owners producer payload,
             TaskAt work occurrence owners producer payload
-            → Accounted work next (head ++ tail)
-                (failedBefore cuts (head ++ tail).length) occurrence := by
+            → TaskAccounted work next (head ++ tail) cuts occurrence := by
   classical
   obtain ⟨tail, matching, failures, explained, covered, maximal⟩ :=
     initial.maximal_extension_preserving
       (fun events matching failures => SupportedNoticesCovered ancestry work
-        ((groups ++ streams).map DeliveryNode.key) matching events (failures.map Prod.snd))
+        ((groups ++ streams).map DeliveryNode.key) matching events failures)
       coverage
   generalize joined : head ++ tail = events at explained covered maximal
-  have stable := explained.2.1.failedBefore_eq (Nat.le_refl _)
   have dependency {key}
-      (healthy : ¬NodeFailed work (failedBefore failures events.length) key)
-      (accounted : NodeAccounted work matching events (failedBefore failures events.length) key)
+      (healthy : ¬NodeFailed work matching events failures key)
+      (accounted : NodeAccounted work matching events failures key)
       : DependencySatisfied work ((groups ++ streams).map DeliveryNode.key) matching events
-          (failedBefore failures events.length) key := by
+          failures key := by
     refine ⟨healthy, ?_⟩
     by_cases supported : ∃ birth, NodeHasProducer work key birth
     · by_cases announced :
@@ -120,7 +120,7 @@ theorem mixed_supported_accounted_extension
     · exact Or.inl supported
   have accounted : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload →
-      Accounted work matching events (failedBefore failures events.length) occurrence := by
+      TaskAccounted work matching events failures occurrence := by
     intro occurrence owners producer payload known
     apply Classical.byContradiction
     intro outstanding
@@ -130,12 +130,12 @@ theorem mixed_supported_accounted_extension
       apply Classical.byContradiction
       intro fresh
       obtain ⟨node, kind, dependencies, descriptor, same⟩ := task.owner_at_producer member
-      have supported := least_owner_supported valid coherent ordered task ready descriptor
+      have supported := least_owner_supported explained valid coherent ordered task ready descriptor
         (same ▸ member) (same ▸ healthy) (same ▸ fresh)
         (fun smaller before smallerHealthy => dependency smallerHealthy
           (least smaller (by simpa only [same] using before) smallerHealthy))
       exact covered node kind dependencies nextProducer descriptor
-        (by simpa only [stable] using supported)
+        supported
     obtain ⟨event, nextMatching, cuts, extended, retained⟩ :=
       extend_ready_supported valid coherent roleCoherent continuous ordered pathCoherent
         explained covered task ready ⟨key, member, notified, healthy⟩
@@ -157,7 +157,7 @@ theorem mixed_supported_continuation
     (explained : Explains work groups streams events matching failures)
     (covered
       : SupportedNoticesCovered ancestry work ((groups ++ streams).map DeliveryNode.key)
-          matching events (failures.map Prod.snd))
+          matching events failures)
     (batched : WorkBatching events batches)
     : (History.mk groups streams batches).CanFinish work := by
   obtain ⟨tail, next, cuts, extended, accounted⟩ := mixed_supported_accounted_extension

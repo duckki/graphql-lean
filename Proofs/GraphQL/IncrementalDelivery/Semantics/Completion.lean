@@ -101,8 +101,8 @@ theorem runMatches_after_collection (action : StateM Nat FieldCollection)
     (hn
       : ∀ collection,
           collection.newDeferUsages = []
-          → GroupsPlain collection.fields
-          → eraseGroups collection.fields = groups
+          → GroupsPlain collection.collectedFieldsMap
+          → eraseGroups collection.collectedFieldsMap = groups
           → RunMatches (next collection) basic state)
     : RunMatches (action >>= next) basic state := by
   generalize hout : action.run state = output at h
@@ -119,18 +119,19 @@ theorem executePlan_plain (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef)
     (collection : FieldCollection) (path : ResponsePath) (state : Nat) (basic : Result _)
-    (hn : collection.newDeferUsages = []) (hp : GroupsPlain collection.fields)
+    (hn : collection.newDeferUsages = []) (hp : GroupsPlain collection.collectedFieldsMap)
     (hr
       : RunMatches
           (executeCollectedFields schema resolvers variables fuel parentType source
-            collection.fields path [] [])
+            collection.collectedFieldsMap path [] [])
           basic state)
     : RunMatches
         (executeExecutionPlan schema resolvers variables fuel parentType source
-          collection.newDeferUsages (buildExecutionPlan collection.fields) path [] [])
+          collection.newDeferUsages (buildExecutionPlan collection.collectedFieldsMap)
+          path [] [])
         basic state := by
   simp only [executeExecutionPlan, hn, getNewDeferMap, List.foldl_nil,
-    buildExecutionPlan_plain collection.fields hp]
+    buildExecutionPlan_plain collection.collectedFieldsMap hp]
   apply runMatches_bind _ _ _ _ _ hr
   intro completed hc
   cases he : completed.result with
@@ -142,9 +143,9 @@ theorem executePlan_plain (schema : Schema) (resolvers : Resolvers ObjectRef)
       exact ⟨by simpa [he] using hc.1, by simpa [Work.size] using hc.2⟩
 
 /-- Plain fields request no streaming, by the head field's directives_plain witness. -/
-theorem streamUsage_plain (variables : VariableValues) (fields : List ExecutableField)
+theorem streamUsage_plain (variables : VariableValues) (fields : List FieldDetails)
     (h : FieldsPlain fields)
-    : getStreamUsage variables (fields.head?.map ExecutableField.directives |>.getD [])
+    : getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
       = .ok none := by
   cases fields with
   | nil => rfl

@@ -59,10 +59,10 @@ theorem WorkObservation.control {response work result}
 /-- Complete work observations satisfy the full wire checker, combining independently
 derived ID safety with causal closure and continuation control.
 -/
-theorem WorkObservation.deliveryComplete {response work result}
+theorem WorkObservation.lifecycleValid {response work result}
     (observed : WorkObservation response work true result)
-    : result.deliveryComplete = true :=
-  (deliveryComplete_iff_idUsageValid_control result).mpr
+    : result.lifecycleValid = true :=
+  (lifecycleValid_iff_idUsageValid_control result).mpr
     ⟨observed.idUsageValid, observed.control⟩
 
 /-- Every complete query outcome satisfies the public lifecycle statement, by
@@ -70,23 +70,29 @@ query-to-work observation soundness and the complete work-observation witness.
 -/
 theorem deliveryLifecycleValid_holds (schema : Schema) (operation : Operation)
     : deliveryLifecycleValid schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed
-  exact queryObservation_property (fun result => result.deliveryComplete = true)
-    (fun _ _ _ h => h.deliveryComplete) observed
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
+  exact queryObservation_property (fun result => result.lifecycleValid = true)
+    (fun _ _ _ h => h.lifecycleValid) conforms observed
 
 /-- On complete query outcomes, zero errors is the only remaining execution-completeness
 condition. Witness: lifecycle validity is already a consequence of the observation.
 -/
-theorem queryOutcome_executionComplete_iff
+theorem queryOutcome_completedWithoutErrors_iff
+    {createWorkQueue : Work → WorkQueue}
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
-    : result.executionComplete ↔ result.totalErrors = 0 := by
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
+    : result.completedWithoutErrors ↔ result.totalErrors = 0 := by
   constructor
   · exact And.right
   · intro zero
     exact ⟨deliveryLifecycleValid_holds schema operation
-      resolvers variables fuel source result observed, zero⟩
+      resolvers variables fuel source createWorkQueue result conforms observed, zero⟩
 
 end GraphQL.IncrementalDelivery.Correctness

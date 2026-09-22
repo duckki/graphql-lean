@@ -14,12 +14,12 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 variable {ObjectRef : Type}
 
 /-- Plain item selections, with no restriction on the outer field directives. -/
-abbrev ItemFieldsInContext (usage : Option DeferUsage) (fields : List ExecutableField)
+abbrev ItemFieldsInContext (usage : Option DeferUsage) (fields : List FieldDetails)
     : Prop :=
   ∀ field ∈ fields, field.deferUsage = usage ∧ SelectionsPlain field.selectionSet
 
 theorem collectSubfields_itemContext (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (usage : Option DeferUsage) (hfields : ItemFieldsInContext usage fields) (state : Nat)
     : CollectionInContext usage state
         ((collectSubfields schema variables parentType source fields).run state) := by
@@ -49,7 +49,7 @@ mutual
   theorem completeValue_itemContext (usage : Option DeferUsage)
       (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (fieldType : TypeRef) (fields : List ExecutableField)
+      (fieldType : TypeRef) (fields : List FieldDetails)
       (value : ResolverValue ObjectRef) (hplain : ItemFieldsInContext usage fields)
       (path : ResponsePath) (state : Nat)
       : RunMatches
@@ -102,7 +102,7 @@ mutual
                       runtimeType (.object runtimeType ref)
                       collection path state _ hn hp
                       (executeCollectedFields_inContext usage hvalid deferMap schema resolvers
-                        variables fuel runtimeType (.object runtimeType ref) collection.fields hp
+                        variables fuel runtimeType (.object runtimeType ref) collection.collectedFieldsMap hp
                         path state))
                   intro completed hc
                   apply runMatches_pure
@@ -141,7 +141,7 @@ mutual
   theorem completeListValue_itemContext (usage : Option DeferUsage)
       (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef))
       (hplain : ItemFieldsInContext usage fields) (path : ResponsePath)
       (index state : Nat)
@@ -183,7 +183,7 @@ end
 Successful results with a positive error count do not stop the stream. -/
 def basicStreamResults (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-    (fields : List ExecutableField)
+    (fields : List FieldDetails)
     : List (ResolverValue ObjectRef) → List (Result ResponseValue)
   | [] => []
   | value :: rest =>
@@ -198,7 +198,7 @@ def basicStreamResults (schema : Schema) (resolvers : Resolvers ObjectRef)
 
 theorem completeStreamItems_itemContext (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (hplain : ItemFieldsInContext none fields)
     (path : ResponsePath) (index state : Nat)
     : let output :=
@@ -246,7 +246,7 @@ theorem completeStreamItems_itemContext (schema : Schema)
 
 theorem basicStreamResults_success (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (data : List ResponseValue)
     (hsuccess
       : basicStreamResults schema resolvers variables fuel itemType fields values
@@ -275,7 +275,7 @@ theorem basicStreamResults_success (schema : Schema)
 
 theorem completeStreamItems_success (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (hplain : ItemFieldsInContext none fields)
     (path : ResponsePath) (index state : Nat) (data : List ResponseValue)
     (hsuccess
@@ -294,7 +294,7 @@ theorem completeStreamItems_success (schema : Schema)
 
 theorem basicStreamResults_positive (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef))
     : ∀ result ∈
         basicStreamResults schema resolvers variables fuel itemType fields values,
@@ -345,12 +345,12 @@ theorem basicCompleteValueList_append (schema : Schema)
         cases GraphQL.Execution.completeValueList schema resolvers variables fuel itemType fields right <;>
         simp [GraphQL.Execution.Result.combine, List.cons_append, Nat.add_assoc]
 
-theorem eraseFields_clearDefer (fields : List ExecutableField)
+theorem eraseFields_clearDefer (fields : List FieldDetails)
     : (fields.map (fun field => { field with deferUsage := none })).map eraseField
       = fields.map eraseField := by
   simp [List.map_map, eraseField]
 
-theorem itemFields_clearDefer (usage : Option DeferUsage) (fields : List ExecutableField)
+theorem itemFields_clearDefer (usage : Option DeferUsage) (fields : List FieldDetails)
     (hplain : ItemFieldsInContext usage fields)
     : ItemFieldsInContext none
         (fields.map (fun field => { field with deferUsage := none })) := by
@@ -361,7 +361,7 @@ theorem itemFields_clearDefer (usage : Option DeferUsage) (fields : List Executa
 theorem completeList_split_success (usage : Option DeferUsage)
     (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (hplain : ItemFieldsInContext usage fields)
     (path : ResponsePath) (count state : Nat) (initialData tail : List ResponseValue)
     (hinitial
@@ -392,11 +392,11 @@ theorem completeList_split_success (usage : Option DeferUsage)
 theorem completeListValueWithStream_stream_run (usage : Option DeferUsage)
     (hvalid : ContextWellFormed usage) (deferMap : DeferMap) (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (hplain : ItemFieldsInContext usage fields)
     (path : ResponsePath) (stream : StreamUsage) (state : Nat)
     (hstream
-      : getStreamUsage variables (fields.head?.map ExecutableField.directives |>.getD [])
+      : getStreamUsage variables (fields.head?.map FieldDetails.directives |>.getD [])
         = .ok (some stream))
     : (completeListValueWithStream schema resolvers variables fuel itemType fields values
         path (contextKeys usage) deferMap true).run
@@ -456,7 +456,7 @@ theorem catchNull_result_ok (completed : Completion α) (wrap : α → ResponseV
 
 theorem completeListValueWithStream_result_ok (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (fields : List ExecutableField)
+    (itemType : TypeRef) (fields : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (path : ResponsePath)
     (deferUsageSet : List Nat) (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
     : ∃ value errors,
@@ -467,7 +467,7 @@ theorem completeListValueWithStream_result_ok (schema : Schema)
   cases hs
         : (if allowStream then
               getStreamUsage variables
-                (fields.head?.map ExecutableField.directives |>.getD [])
+                (fields.head?.map FieldDetails.directives |>.getD [])
             else
               .ok none) with
   | error errors => simp [completeListValueWithStream, hs]
@@ -490,7 +490,7 @@ theorem completeListValueWithStream_result_ok (schema : Schema)
 
 theorem completeValue_error_silent (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-    (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+    (fields : List FieldDetails) (value : ResolverValue ObjectRef)
     (path : ResponsePath) (deferUsageSet : List Nat) (deferMap : DeferMap)
     (allowStream : Bool) (state errors : Nat)
     (herror
@@ -530,7 +530,7 @@ theorem completeValue_error_silent (schema : Schema) (resolvers : Resolvers Obje
                       fields).run state).1.newDeferUsages
                     (buildExecutionPlan
                       ((collectSubfields schema variables runtimeType (.object runtimeType ref)
-                        fields).run state).1.fields deferUsageSet)
+                        fields).run state).1.collectedFieldsMap deferUsageSet)
                     path deferUsageSet deferMap).run
                     ((collectSubfields schema variables runtimeType (.object runtimeType ref)
                       fields).run state).2).1 ResponseValue.object

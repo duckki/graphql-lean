@@ -17,14 +17,14 @@ example (result : ExecutionObservation) (safe : result.idUsageValid)
   ⟨idsUnique_of_idUsageValid result safe, patchesAnnounced_of_idUsageValid result safe⟩
 
 /-- The complete checker supplies safety, causal liveness, and exactly-once completion. -/
-example (result : ExecutionObservation) (complete : result.deliveryComplete = true)
+example (result : ExecutionObservation) (complete : result.lifecycleValid = true)
     : result.idUsageValid
       ∧ result.idsEventuallyComplete
       ∧ result.idsCompleteExactlyOnce :=
   ⟨
-    idUsageValid_of_deliveryComplete result complete,
-    idsEventuallyComplete_of_deliveryComplete result complete,
-    idsCompleteExactlyOnce_of_deliveryComplete result complete
+    idUsageValid_of_lifecycleValid result complete,
+    idsEventuallyComplete_of_lifecycleValid result complete,
+    idsCompleteExactlyOnce_of_lifecycleValid result complete
   ⟩
 
 /-- Public exactly-once composition still requires independent safety and liveness
@@ -39,14 +39,14 @@ example (schema : Schema) (operation : Operation)
 /-- Lifecycle decomposes into safety and the independent closure/continuation obligations.
 -/
 example (result : ExecutionObservation)
-    : result.deliveryComplete = true ↔ result.idUsageValid ∧ QueryControl result :=
-  deliveryComplete_iff_idUsageValid_control result
+    : result.lifecycleValid = true ↔ result.idUsageValid ∧ QueryControl result :=
+  lifecycleValid_iff_idUsageValid_control result
 
 /-- Same-update announcements, patches, and completions satisfy the general exactly-once
 theorem.
 -/
 example : sameUpdateNotice.idsCompleteExactlyOnce :=
-  idsCompleteExactlyOnce_of_deliveryComplete sameUpdateNotice (by decide)
+  idsCompleteExactlyOnce_of_lifecycleValid sameUpdateNotice (by decide)
 
 /-- IDs may close before the final response; the checker still supplies full control and
 liveness.
@@ -54,8 +54,8 @@ liveness.
 example
     : QueryControl separatedTermination ∧ separatedTermination.idsEventuallyComplete :=
   ⟨
-    (deliveryComplete_iff_idUsageValid_control separatedTermination).mp (by decide) |>.2,
-    idsEventuallyComplete_of_deliveryComplete separatedTermination (by decide)
+    (lifecycleValid_iff_idUsageValid_control separatedTermination).mp (by decide) |>.2,
+    idsEventuallyComplete_of_lifecycleValid separatedTermination (by decide)
   ⟩
 
 def badContinuation : ExecutionObservation :=
@@ -70,7 +70,7 @@ example : badContinuation.idsCompleteExactlyOnce := by
   · simp [badContinuation, ExecutionObservation.idsEventuallyComplete,
       DeliveryTrace.completedIDs, DeliveryTrace.announcementsEventuallyComplete]
 
-#guard !badContinuation.deliveryComplete
+#guard !badContinuation.lifecycleValid
 
 def completionBeforeAnnouncement : ExecutionObservation :=
   .incremental
@@ -94,16 +94,16 @@ example
     ExecutionObservation.idsEventuallyComplete, DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs,
     DeliveryTrace.announcementsEventuallyComplete]
 
-#guard !completionBeforeAnnouncement.deliveryComplete
+#guard !completionBeforeAnnouncement.lifecycleValid
 
 /-- Successful reconstruction inherits the checker's lifecycle and exactly-once
 guarantees.
 -/
 example (result : ExecutionObservation) (response : Response)
     (merged : mergeExecutionObservation result = some response)
-    : result.deliveryComplete = true ∧ result.idsCompleteExactlyOnce :=
+    : result.lifecycleValid = true ∧ result.idsCompleteExactlyOnce :=
   ⟨
-    deliveryComplete_of_mergeExecutionObservation result response merged,
+    lifecycleValid_of_mergeExecutionObservation result response merged,
     idsCompleteExactlyOnce_of_mergeExecutionObservation result response merged
   ⟩
 
@@ -121,6 +121,6 @@ unchanged.
 example
     : missingParent.idsCompleteExactlyOnce
       ∧ mergeExecutionObservation missingParent = none :=
-  ⟨idsCompleteExactlyOnce_of_deliveryComplete missingParent (by decide), rfl⟩
+  ⟨idsCompleteExactlyOnce_of_lifecycleValid missingParent (by decide), rfl⟩
 
 end GraphQL.IncrementalDelivery.Tests.WireProperties

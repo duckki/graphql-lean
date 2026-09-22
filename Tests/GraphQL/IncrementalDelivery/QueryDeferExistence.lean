@@ -72,8 +72,11 @@ Witness: compute only the defer-only shape; execution supplies the metadata and 
 constructs a terminal history rather than assuming one.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] nested 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 12 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_deferOnly
   intro _
   apply Tree.defer_only
@@ -83,8 +86,11 @@ example
 Witness: the same query bridge with no restriction on co-owner choices or outcomes.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] branching 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] branching 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] branching 12
+            (.object "Query" 0) result := by
   apply queryOutcome_exists_of_deferOnly
   intro _
   apply Tree.defer_only
@@ -94,8 +100,11 @@ example
 Witness: defer-only progress has no successful-execution premise.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failing 12 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failing 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failing 12 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_deferOnly
   intro _
   apply Tree.defer_only
@@ -105,7 +114,11 @@ example
 Witness: generated-work shape and the same finite progress theorem.
 -/
 example
-    : ∃ result, queryOutcome schema resolvers [] nested 0 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 0
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 0 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_deferOnly
   intro _
   apply Tree.defer_only
@@ -114,7 +127,10 @@ example
 /-- Invalid roots require no shape premise for unused prepared work.
 Witness: the impossible applicability hypothesis and ordinary query error branch.
 -/
-example : ∃ result, queryOutcome schema resolvers [] nested 12 .null result := by
+example
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] nested 12 .null
+        ∧ queryOutcome createWorkQueue schema resolvers [] nested 12 .null result := by
   apply queryOutcome_exists_of_deferOnly
   intro applies
   cases applies

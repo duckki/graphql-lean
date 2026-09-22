@@ -16,7 +16,8 @@ def UsageBefore (state : Nat) (usage : Option DeferUsage) : Prop :=
 
 def CollectionKeys (start : Nat) (output : FieldCollection × Nat) : Prop :=
   start ≤ output.2
-  ∧ GroupsSatisfy (fun field => UsageBefore output.2 field.deferUsage) output.1.fields
+  ∧ GroupsSatisfy (fun field => UsageBefore output.2 field.deferUsage)
+      output.1.collectedFieldsMap
   ∧ ∀ usage ∈ output.1.newDeferUsages,
       start ≤ usage.key ∧ usage.key < output.2 ∧ UsageOrdered usage
 
@@ -129,7 +130,7 @@ mutual
 end
 
 theorem collectSubfields_keys (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (state : Nat) (h : ∀ field ∈ fields, UsageBefore state field.deferUsage)
     : CollectionKeys state
         ((collectSubfields schema variables parentType source fields).run state) := by
@@ -168,12 +169,12 @@ theorem nonempty_keys_minimum (keys : List Nat) (hne : keys ≠ [])
 /-- Overlap can eliminate descendant usages, but it cannot eliminate every usage in a
 nonempty deferred group whose ancestry is ordered by fresh keys.
 -/
-theorem filteredDeferUsageSet_nonempty (fields : List ExecutableField)
+theorem filteredDeferUsageSet_nonempty (fields : List FieldDetails)
     (hne : fields ≠ [])
     (himmediate : fields.any (fun field => field.deferUsage.isNone) = false)
     (hordered : ∀ field ∈ fields, ∀ usage ∈ field.deferUsage, UsageOrdered usage)
     : getFilteredDeferUsageSet fields ≠ [] := by
-  let usages := fields.filterMap ExecutableField.deferUsage
+  let usages := fields.filterMap FieldDetails.deferUsage
   let keys := (usages.map DeferUsage.key).eraseDups
   have hkeys : keys ≠ [] := by
     cases fields with

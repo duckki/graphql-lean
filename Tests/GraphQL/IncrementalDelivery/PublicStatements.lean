@@ -70,12 +70,18 @@ section SuccessfulOutcomes
 variable {ObjectRef : Type} {schema : Schema} {resolvers : Resolvers ObjectRef}
   {variables : VariableValues} {operation : Operation} {fuel : Nat}
   {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-  (observed : queryOutcome schema resolvers variables operation fuel source result)
+  {createWorkQueue : Work → WorkQueue}
+  (conforms
+    : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+        source)
+  (observed
+    : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+        result)
   (zero : result.totalErrors = 0)
 
 /-- Raw execution completeness follows from a complete outcome and zero errors. -/
-example : result.executionComplete :=
-  (queryOutcome_executionComplete_iff observed).mpr zero
+example : result.completedWithoutErrors :=
+  (queryOutcome_completedWithoutErrors_iff conforms observed).mpr zero
 
 /-- Reconstruction requires no separately supplied lifecycle/completeness certificate. -/
 example
@@ -85,7 +91,7 @@ example
             (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
               operation.eraseIncrementalDirectives fuel source) :=
   mergedExecutionEquivalentToBasic_holds schema operation
-    resolvers variables fuel source result observed zero
+    resolvers variables fuel source createWorkQueue result conforms observed zero
 
 /-- Position coverage uses only the complete observation and its zero error count. -/
 example (containers : Bool)
@@ -95,8 +101,8 @@ example (containers : Bool)
             (ResponsePositions.value containers []
               (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
                 operation.eraseIncrementalDirectives fuel source).data) :=
-  deliveredResponsePositionsEquivalentToBasic_holds schema operation
-    resolvers variables fuel source result observed zero containers
+  deliveredResponsePositionsEquivalentToBasic_holds schema operation resolvers variables
+    fuel source createWorkQueue result conforms observed zero containers
 
 /-- Exactly-once leaves uses the same simplified public premises. -/
 example
@@ -108,7 +114,7 @@ example
                 operation.eraseIncrementalDirectives fuel source).data,
             slices.flatten.count path = 1 :=
   basicLeavesDeliveredExactlyOnce_holds schema operation
-    resolvers variables fuel source result observed zero
+    resolvers variables fuel source createWorkQueue result conforms observed zero
 
 end SuccessfulOutcomes
 

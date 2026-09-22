@@ -1,4 +1,4 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Proofs.GraphQL.IncrementalDelivery.Correctness.RootExecution
 import Proofs.GraphQL.IncrementalDelivery.Correctness.Observation
 import Proofs.GraphQL.IncrementalDelivery.Correctness.InputObservation

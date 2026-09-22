@@ -5,11 +5,11 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.FailureCounts
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- A zero-error terminal history has an explanation with no failures. Every task is
 published, rather than cancelled. Witness: positive execution failures contradict the
-failure-accounting bound; terminal accounting then forces publication.
+first-failure accounting bound; terminal accounting then forces publication.
 -/
 theorem successful_history {work history}
     (positive : ExecutionErrors.WorkPositive work) (run : AdmissibleRun work history)
@@ -24,7 +24,7 @@ theorem successful_history {work history}
             TaskAt work occurrence owners producer payload
             → Published matching events occurrence ∧ payload.failure = none := by
   obtain ⟨events, matching, failures, explained, done, batching, counts⟩ :=
-    run.failure_accounting
+    run.first_failure_accounting
   have empty : failures = [] := by
     cases failures with
     | nil => rfl
@@ -33,10 +33,9 @@ theorem successful_history {work history}
         obtain ⟨owners, producer, payload, known, fails, _⟩ :=
           (explained.2.1 [] cut task rest rfl).2.2.1
         have nonzero := positive.task known fails
-        have bound := counts cut task owners producer payload (by simp) known
+        have bound := counts cut task rest owners producer payload rfl known
         omega
   subst failures
-  simp only [failedBefore, List.filter_nil, List.map_nil] at done
   refine ⟨events, matching, explained, done, batching, ?_⟩
   intro occurrence owners producer payload known
   rcases done.1 occurrence owners producer payload known with cancelled | published
@@ -47,7 +46,7 @@ theorem successful_history {work history}
 witness: the actual mapper's count bound and the independent terminal history.
 -/
 theorem replayResponse_successful_history {response : Response} {work : Work}
-    {groups streams : List DeliveryNode} {batches : List (List (List WorkEvent))}
+    {groups streams : List DeliveryNode} {batches : List (List (List WorkQueueEvent))}
     (positive : ExecutionErrors.WorkPositive work)
     (run : AdmissibleRun work ⟨groups, streams, batches.flatten⟩)
     (zero : (replayResponse response groups streams batches).totalErrors = 0)
@@ -105,10 +104,16 @@ theorem WorkObservation.tasks_succeed {response : Response} {work : Work}
 /-- Zero errors at query level exclude every failed task in the actual prepared work.
 Witness: query-to-work soundness, positive finite execution, and preserved failure counts.
 -/
-theorem queryOutcome_tasks_succeed {schema : Schema} {resolvers : Resolvers ObjectRef}
+theorem queryOutcome_tasks_succeed {createWorkQueue : Work → WorkQueue}
+    {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     (zero : result.totalErrors = 0)
     (applies : rootSourceAppliesBool schema operation source = true)
     {occurrence owners producer payload}
@@ -120,7 +125,7 @@ theorem queryOutcome_tasks_succeed {schema : Schema} {resolvers : Resolvers Obje
             0).1.work
           occurrence owners producer payload)
     : payload.failure = none := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   simp only [applies, ↓reduceIte] at witnessed
   exact witnessed.tasks_succeed
     (ExecutionErrors.executeRootSelectionSetCore_positive schema resolvers _ fuel

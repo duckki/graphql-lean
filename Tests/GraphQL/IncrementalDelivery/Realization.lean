@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.QueryRealization
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 import Tests.GraphQL.IncrementalDelivery.HistoryScheduling
 import Tests.GraphQL.IncrementalDelivery.Execution
 
@@ -8,7 +8,7 @@ import Tests.GraphQL.IncrementalDelivery.Execution
 namespace GraphQL.IncrementalDelivery.Tests.Realization
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- One conforming source admits both owner choices from the same initialization;
 witness: maximal-source conformance and the two independent history witnesses.
@@ -27,32 +27,39 @@ example
   exact ⟨specificationSource_conforms HistoryScheduling.initialized,
     fun node member => (HistoryScheduling.nextOwner node member).2.2.2⟩
 
-/-- A complete successful history has a real conforming factory, with no manually
+/-- A complete successful history has a real conforming queue constructor, with no manually
 implemented replay source; witness: work-observation realization.
 -/
 example (response : Response)
-    : ∃ scheduler : Execution.WorkScheduler,
-        scheduler.Conforms WorkScheduler.work
-        ∧ (executionFromWork scheduler response WorkScheduler.work).Observes
-            (replayResponse response [WorkScheduler.node] []
-              [[[WorkScheduler.value, WorkScheduler.success, .workQueueTermination]]])
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
+        (WorkQueueSemantics.work.size ≠ 0
+          → (scheduler WorkQueueSemantics.work).Conforms WorkQueueSemantics.work)
+        ∧ (executionFromWork scheduler response WorkQueueSemantics.work).Observes
+            (replayResponse response [WorkQueueSemantics.node] []
+              [[[
+                  WorkQueueSemantics.value,
+                  WorkQueueSemantics.success,
+                  .workQueueTermination
+                ]]])
             true := by
   apply WorkObservation.realizes
   exact .incremental _ _ _ (by decide) (by simp)
-    (Or.inr WorkScheduler.completedRun) (fun _ => WorkScheduler.completedRun)
+    (Or.inr WorkQueueSemantics.completedRun) (fun _ => WorkQueueSemantics.completedRun)
 
 /-- Realizability includes failure and error notifications; witness: the existing
 failure-cut run transported through the maximal source and actual mapper.
 -/
 example (response : Response)
-    : ∃ scheduler : Execution.WorkScheduler,
-        scheduler.Conforms WorkScheduler.failingWork
-        ∧ (executionFromWork scheduler response WorkScheduler.failingWork).Observes
-            (replayResponse response [WorkScheduler.node] []
-              [[[WorkScheduler.failure, .workQueueTermination]]]) true := by
+    : ∃ scheduler : (Execution.Work → Execution.WorkQueue),
+        (WorkQueueSemantics.failingWork.size ≠ 0
+          → (scheduler WorkQueueSemantics.failingWork).Conforms
+              WorkQueueSemantics.failingWork)
+        ∧ (executionFromWork scheduler response WorkQueueSemantics.failingWork).Observes
+            (replayResponse response [WorkQueueSemantics.node] []
+              [[[WorkQueueSemantics.failure, .workQueueTermination]]]) true := by
   apply WorkObservation.realizes
   exact .incremental _ _ _ (by decide) (by simp)
-    (Or.inr WorkScheduler.failedRun) (fun _ => WorkScheduler.failedRun)
+    (Or.inr WorkQueueSemantics.failedRun) (fun _ => WorkQueueSemantics.failedRun)
 
 /-- Truncating an explained output sequence retains only earlier failure cuts;
 witness: the general prefix theorem, not a new cancellation assumption.
@@ -67,8 +74,11 @@ example {work groups streams head tail matching failures}
 query/history equivalence's ordinary error branch.
 -/
 example
-    : queryOutcome schema resolvers [] { selectionSet := [field "a"] } 5
-        (.scalar "invalid") (.single { data := .null, errors := 1 }) := by
+    : ∃ createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers []
+          { selectionSet := [field "a"] } 5 (.scalar "invalid")
+        ∧ queryOutcome createWorkQueue schema resolvers [] { selectionSet := [field "a"] }
+            5 (.scalar "invalid") (.single { data := .null, errors := 1 }) := by
   apply queryObservation_iff_workHistory.mpr
   rfl
 
@@ -76,8 +86,11 @@ example
 witness: query/history equivalence and the zero-work constructor.
 -/
 example
-    : queryOutcome schema resolvers [] { selectionSet := [] } 5
-        (.object "Query" 0) (.single { data := .object [] }) := by
+    : ∃ createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] { selectionSet := [] }
+          5 (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] { selectionSet := [] } 5
+            (.object "Query" 0) (.single { data := .object [] }) := by
   apply queryObservation_iff_workHistory.mpr
   simp [executeRootSelectionSetCore, executeExecutionPlan, executeCollectedFields,
     collectExecutionGroups, collectFields, buildExecutionPlan, getNewDeferMap,

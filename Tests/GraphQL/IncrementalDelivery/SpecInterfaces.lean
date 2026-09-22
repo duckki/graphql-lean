@@ -13,7 +13,7 @@ example (response : GraphQL.Execution.Response) : Response := response
 example (response : Response) : GraphQL.Execution.Response := response
 example (response : Response) : ExecutionResult := .single response
 
-def selectedField : ExecutableField :=
+def selectedField : FieldDetails :=
   {
     fieldName := "a",
     arguments := [],
@@ -21,6 +21,19 @@ def selectedField : ExecutableField :=
     directives := [],
     deferUsage := none
   }
+
+/-- Collection exposes the draft's named map; merging preserves field-set order. -/
+example
+    : (FieldCollection.append
+        { collectedFieldsMap := [("alias", [selectedField])] }
+        { collectedFieldsMap := [("alias", [selectedField])] }).collectedFieldsMap
+      = [("alias", [selectedField, selectedField])] :=
+  rfl
+
+example
+    : CollectedFieldsMap.addFieldSet ("alias", [selectedField]) []
+      = [("alias", [selectedField])] :=
+  rfl
 
 /-! ExecuteExecutionPlan consumes the supplied partitions. It must not rebuild a plan from
 field metadata: this immediate field is deliberately placed in a task here.
@@ -117,7 +130,7 @@ def stream : DeliveryNode := { key := 20, path := [.field "values"] }
   let (_, ids) := initial.run {}
   let events :=
     [
-      WorkEvent.groupValues group
+      WorkQueueEvent.groupValues group
         [{
           path := [.field "user", .field "profile"],
           data := [("name", .scalar "Ada")],
@@ -155,8 +168,10 @@ def first : IncrementalStreamUpdateResult :=
 def last : IncrementalStreamUpdateResult :=
   { hasNext := false, completed := [{ id := "0" }] }
 
-def firstBatch : List WorkEvent := [.streamValues stream [{ item := .scalar "x" }] [] []]
-def lastBatch : List WorkEvent := [.streamSuccess stream, .workQueueTermination]
+def firstBatch : List WorkQueueEvent :=
+  [.streamValues stream [{ item := .scalar "x" }] [] []]
+
+def lastBatch : List WorkQueueEvent := [.streamSuccess stream, .workQueueTermination]
 
 def mapped : ResponseEventStream :=
   mapIncrementalWorkEventsToResponseEvent (.ofList [firstBatch, lastBatch])
@@ -273,18 +288,18 @@ def afterFirst : ResponseEventStream :=
 /-! Changing future events cannot change the initial data and errors. -/
 
 #guard
-  let leftScheduler : WorkScheduler :=
-    ⟨fun _ =>
-      { initialGroups := [group], initialStreams := [], workEventStream := .ofList [] }⟩
-  let rightScheduler : WorkScheduler :=
-    ⟨fun _ =>
+  let leftQueue : Work → WorkQueue :=
+    fun _ =>
+      { initialGroups := [group], initialStreams := [], workEventStream := .ofList [] }
+  let rightQueue : Work → WorkQueue :=
+    fun _ =>
       {
         initialGroups := [stream],
         initialStreams := [],
         workEventStream := .ofList [[.workQueueTermination]]
-      }⟩
-  match start leftScheduler [field "a", defer [field "b"]],
-        start rightScheduler [field "a", defer [field "b"]] with
+      }
+  match start leftQueue [field "a", defer [field "b"]],
+        start rightQueue [field "a", defer [field "b"]] with
   | .incremental left _, .incremental right _ =>
       same left.toResponse right.toResponse && !same left.pending right.pending
   | _, _ => false

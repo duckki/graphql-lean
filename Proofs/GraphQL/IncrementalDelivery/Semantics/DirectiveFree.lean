@@ -61,7 +61,7 @@ mutual
   theorem executeResponseField_plain (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
       (source : ResolverValue ObjectRef)
-      (name : Name) (fields : List ExecutableField) (hplain : FieldsPlain fields)
+      (name : Name) (fields : List FieldDetails) (hplain : FieldsPlain fields)
       (path : ResponsePath) (state : Nat)
       : RunMatches
           (executeResponseField schema resolvers variables fuel parentType source name
@@ -122,7 +122,7 @@ mutual
   -/
   theorem completeValue_plain (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (hplain : FieldsPlain fields) (path : ResponsePath) (allowStream : Bool)
       (state : Nat)
       : RunMatches
@@ -170,7 +170,7 @@ mutual
                     (executePlan_plain schema resolvers variables fuel runtimeType
                       (.object runtimeType ref) collection path state _ hn hp
                       (executeCollectedFields_plain schema resolvers variables fuel
-                        runtimeType (.object runtimeType ref) collection.fields hp path state))
+                        runtimeType (.object runtimeType ref) collection.collectedFieldsMap hp path state))
                   intro completed hc
                   apply runMatches_pure
                   simpa [he] using completionMatches_catchNull ResponseValue.object completed _ hc
@@ -190,7 +190,7 @@ mutual
                 have hs := streamUsage_plain variables fields hplain
                 have hs' : (if allowStream then
                     getStreamUsage variables
-                      (fields.head?.map ExecutableField.directives |>.getD [])
+                      (fields.head?.map FieldDetails.directives |>.getD [])
                     else .ok none) = .ok none := by simp [hs]
                 simp only [hs']
                 apply runMatches_bind _ _ _ _ _
@@ -214,7 +214,7 @@ mutual
   -/
   theorem completeListValue_plain (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (fields : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (fields : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (hplain : FieldsPlain fields) (path : ResponsePath) (index state : Nat)
       : RunMatches
           (completeListValue schema resolvers variables fuel itemType fields values

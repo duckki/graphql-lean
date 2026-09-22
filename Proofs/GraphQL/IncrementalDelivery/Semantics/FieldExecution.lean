@@ -12,7 +12,7 @@ open GraphQL.IncrementalDelivery.Execution
 def executeResponseField (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (responseName : Name)
-    (fields : List ExecutableField) (path : ResponsePath := [])
+    (fields : List FieldDetails) (path : ResponsePath := [])
     (deferUsageSet : List Nat := []) (deferMap : DeferMap := [])
     : StateM Nat (Completion (List (Name × ResponseValue))) := do
   match fuel, fields with
@@ -111,7 +111,7 @@ theorem executeCollectedFields_nil (schema : Schema) (resolvers : Resolvers Obje
 theorem executeCollectedFields_cons (schema : Schema) (resolvers : Resolvers ObjectRef)
     (variables : VariableValues) (fuel : Nat) (parentType : Name)
     (source : ResolverValue ObjectRef) (responseName : Name)
-    (group : List ExecutableField) (rest : CollectedFieldsMap) (path : ResponsePath)
+    (group : List FieldDetails) (rest : CollectedFieldsMap) (path : ResponsePath)
     (deferUsageSet : List Nat) (deferMap : DeferMap)
     : executeCollectedFields schema resolvers variables fuel parentType source
         ((responseName, group) :: rest) path deferUsageSet deferMap

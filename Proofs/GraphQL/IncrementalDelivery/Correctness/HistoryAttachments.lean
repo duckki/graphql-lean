@@ -4,7 +4,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.ReadyAttachments
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open SourceReconstruction SourceAttachments
 
 /-- Published tasks in any prefix have already-published producers. Witness: the

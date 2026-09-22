@@ -1,7 +1,7 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.DeferDependencies
 import Proofs.GraphQL.IncrementalDelivery.Correctness.NodeRoles
 import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkMetadata
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.GroupAccounting
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.GroupAccounting
 
 /-! Structural support for mixed-work notice progress, using existing execution metadata.
 Stream dependencies are deferred owners; deferred producers retain group ancestry.
@@ -11,7 +11,7 @@ namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
 open Semantics.Ancestry Semantics.GeneralScheduling
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Dependency keys have defer roles, including absent ancestor placeholders

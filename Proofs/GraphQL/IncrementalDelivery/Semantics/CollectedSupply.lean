@@ -81,7 +81,7 @@ mutual
 end
 
 theorem collectSubfields_supply (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (state : Nat)
     : SupplyBounds state
         ((collectSubfields schema variables parentType source fields).run state) := by

@@ -55,7 +55,11 @@ theorem queryOutcome_exists_of_rootSingleton (schema : Schema)
                 (coerceVariableValues operation variables) fuel
                 (operation.rootType schema) source operation.selectionSet).run
               0).1.work)
-    : ∃ result, queryOutcome schema resolvers variables operation fuel source result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source
+        ∧ queryOutcome createWorkQueue schema resolvers variables operation fuel source
+            result := by
   have _ := shape
   exact queryOutcome_exists schema resolvers variables operation fuel source
 

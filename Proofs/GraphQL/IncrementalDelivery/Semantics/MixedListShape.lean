@@ -13,7 +13,7 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 
 theorem completeListValue_result_length (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (selected : List ExecutableField)
+    (itemType : TypeRef) (selected : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
     (usages : List Nat) (deferMap : DeferMap) (state : Nat)
     (data : List ResponseValue) (errors : Nat)
@@ -56,7 +56,7 @@ theorem completeListValue_result_length (schema : Schema)
 
 theorem activeStream_prefix_length (schema : Schema)
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-    (itemType : TypeRef) (selected : List ExecutableField)
+    (itemType : TypeRef) (selected : List FieldDetails)
     (values : List (ResolverValue ObjectRef)) (path : ResponsePath)
     (usages : List Nat) (deferMap : DeferMap) (state count : Nat)
     (data : List ResponseValue) (errors : Nat)

@@ -26,11 +26,12 @@ mutual
       : RunEnsures
           (SeededReconstructs (fields path) (fieldCursors path)
             (GraphQL.Execution.executeCollectedFields schema resolvers variables fuel
-              parentType source (eraseGroups collection.fields)))
+              parentType source (eraseGroups collection.collectedFieldsMap)))
           (executeExecutionPlan schema resolvers variables fuel parentType source
-            collection.newDeferUsages (buildExecutionPlan collection.fields usages)
-            path usages deferMap) := by
-    let plan := buildExecutionPlan collection.fields usages
+            collection.newDeferUsages
+            (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+            deferMap) := by
+    let plan := buildExecutionPlan collection.collectedFieldsMap usages
     simp only [executeExecutionPlan]
     refine runEnsures_bind
       (SeededReconstructs (fields path) (fieldCursors path)
@@ -59,7 +60,7 @@ mutual
           obtain ⟨taskData, st, htData, hts, htp, htseed⟩ := ht hs.2.2
           have hb := basicFields_append schema resolvers variables fuel parentType source
             _ _ initialData taskData hiData htData
-          have hpall := buildExecutionPlan_erasure_perm collection.fields usages
+          have hpall := buildExecutionPlan_erasure_perm collection.collectedFieldsMap usages
           have hcombined : GraphQL.Execution.executeCollectedFields schema resolvers variables fuel parentType source
               (eraseGroups (executionPlanGroups plan)) = .ok (initialData ++ taskData, 0) := by
             simpa [executionPlanGroups, eraseGroups] using hb
@@ -188,7 +189,7 @@ mutual
   cases. -/
   theorem executeResponseField_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (parentType : Name)
-      (source : ResolverValue ObjectRef) (name : Name) (selected : List ExecutableField)
+      (source : ResolverValue ObjectRef) (name : Name) (selected : List FieldDetails)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures
           (SeededReconstructs (fields path) (fieldCursors path)
@@ -241,7 +242,7 @@ mutual
   /-- Mixed value completion reconstructs basic values, by mutual fuel/type descent. -/
   theorem completeValue_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (selected : List ExecutableField) (resolved : ResolverValue ObjectRef)
+      (selected : List FieldDetails) (resolved : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
       : RunEnsures
           (SeededReconstructs (value path) (listCursors path)
@@ -281,7 +282,7 @@ mutual
                   simp only [completeValue, GraphQL.Execution.completeValue, ht,
                     Bool.not_false, Bool.not_true, Bool.false_eq_true, ↓reduceIte]
                 · exact runEnsures_pure _ _ (seeded_error _ _ _ _ (by omega))
-                · refine runEnsures_bind (fun collection => eraseGroups collection.fields =
+                · refine runEnsures_bind (fun collection => eraseGroups collection.collectedFieldsMap =
                     GraphQL.Execution.collectSubfields schema variables runtimeType (.object runtimeType ref)
                       (selected.map eraseField)) _ _ _ ?_ ?_
                   · exact collectSubfields_erase schema variables runtimeType (.object runtimeType ref) selected
@@ -318,7 +319,7 @@ mutual
   splitting. -/
   theorem completeListValueWithStream_seeded (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (selected : List ExecutableField)
+      (inner : TypeRef) (selected : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool)
       : RunEnsures
@@ -408,7 +409,7 @@ mutual
   /-- Ordinary list completion reconstructs each item at its index, by list descent. -/
   theorem completeListValue_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (selected : List ExecutableField) (data : List (ResolverValue ObjectRef))
+      (selected : List FieldDetails) (data : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures
           (SeededReconstructs (items path index) (itemCursors path index)
@@ -443,7 +444,7 @@ mutual
   descent. -/
   theorem completeStreamItems_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (itemType : TypeRef)
-      (selected : List ExecutableField) (values : List (ResolverValue ObjectRef))
+      (selected : List FieldDetails) (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat)
       : RunEnsures
           (SeededItemsReconstructs path index
@@ -501,7 +502,7 @@ theorem executeRoot_seeded (schema : Schema) (resolvers : Resolvers ObjectRef)
         (executeRootSelectionSetCore schema resolvers variables fuel parentType source
           selections) := by
   simp only [executeRootSelectionSetCore]
-  refine runEnsures_bind (fun collection => eraseGroups collection.fields =
+  refine runEnsures_bind (fun collection => eraseGroups collection.collectedFieldsMap =
     GraphQL.Execution.collectFields schema variables parentType source
       (SelectionSet.eraseIncrementalDirectives selections)) _ _ _ ?_ ?_
   · exact collectFields_erase schema variables parentType source selections none

@@ -6,7 +6,7 @@ No future output is selected and no correctness premise is added to scheduler ad
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics
 open Semantics.MixedPaths
 
@@ -125,7 +125,7 @@ theorem sourceTasks_find {work initial task}
 The total projection's missing-label branch is excluded by publication provenance.
 -/
 def sourceEventCursors (tasks : List SourceTask) (matching : PublicationMatching)
-    (index : Nat) (event : WorkEvent)
+    (index : Nat) (event : WorkQueueEvent)
     : ResponsePositions.Cursors :=
   match event with
   | .groupValues .. | .streamValues .. =>
@@ -153,7 +153,7 @@ This proof projection uses source coordinates; the next lemma must justify those
 against the cursors available before publication.
 -/
 def sourceHistoryCursors (tasks : List SourceTask) (matching : PublicationMatching)
-    (events : List WorkEvent) (initial : ResponsePositions.Cursors)
+    (events : List WorkQueueEvent) (initial : ResponsePositions.Cursors)
     : Nat → ResponsePositions.Cursors
   | 0 => initial
   | cut + 1 =>

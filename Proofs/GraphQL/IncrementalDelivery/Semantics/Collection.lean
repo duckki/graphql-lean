@@ -44,25 +44,25 @@ abbrev DirectivesPlain (directives : List DirectiveApplication) : Prop :=
 abbrev SelectionsPlain (selections : List Selection) : Prop :=
   SelectionSet.hasIncrementalDirectives selections = false
 
-abbrev FieldPlain (field : ExecutableField) : Prop :=
+abbrev FieldPlain (field : FieldDetails) : Prop :=
   field.deferUsage = none
   ∧ DirectivesPlain field.directives
   ∧ SelectionsPlain field.selectionSet
 
-abbrev FieldsPlain (fields : List ExecutableField) : Prop :=
+abbrev FieldsPlain (fields : List FieldDetails) : Prop :=
   ∀ field ∈ fields, FieldPlain field
 
 abbrev GroupsPlain (groups : CollectedFieldsMap) : Prop :=
   ∀ group ∈ groups, FieldsPlain group.snd
 
-def eraseField (field : ExecutableField) : GraphQL.Execution.ExecutableField :=
+def eraseField (field : FieldDetails) : GraphQL.Execution.ExecutableField :=
   {
     fieldName := field.fieldName
     arguments := field.arguments
     selectionSet := SelectionSet.eraseIncrementalDirectives field.selectionSet
   }
 
-def eraseGroup (group : Name × List ExecutableField)
+def eraseGroup (group : Name × List FieldDetails)
     : Name × List GraphQL.Execution.ExecutableField :=
   (group.fst, group.snd.map eraseField)
 
@@ -94,9 +94,8 @@ theorem directives_plain (variables : VariableValues)
 
 /-- Field erasure commutes with ordered group insertion, by induction on existing groups.
 -/
-theorem eraseGroups_add (group : Name × List ExecutableField)
-    (groups : CollectedFieldsMap)
-    : eraseGroups (addExecutableGroup group groups)
+theorem eraseGroups_add (group : Name × List FieldDetails) (groups : CollectedFieldsMap)
+    : eraseGroups (CollectedFieldsMap.addFieldSet group groups)
       = GraphQL.Execution.addExecutableGroup (eraseGroup group) (eraseGroups groups) := by
   induction groups with
   | nil => rfl
@@ -104,39 +103,39 @@ theorem eraseGroups_add (group : Name × List ExecutableField)
       rcases group with ⟨key, fields⟩
       rcases head with ⟨name, existing⟩
       by_cases h : name == key
-      · simp [addExecutableGroup, GraphQL.Execution.addExecutableGroup, h,
+      · simp [CollectedFieldsMap.addFieldSet, GraphQL.Execution.addExecutableGroup, h,
           eraseGroups, eraseGroup, List.map_append]
-      · simpa [addExecutableGroup, GraphQL.Execution.addExecutableGroup, h,
+      · simpa [CollectedFieldsMap.addFieldSet, GraphQL.Execution.addExecutableGroup, h,
           eraseGroups, eraseGroup] using congrArg (List.cons (name, existing.map eraseField)) ih
 
 /-- Group erasure commutes with merging; witness: fold induction and eraseGroups_add. -/
 theorem eraseGroups_merge (left right : CollectedFieldsMap)
-    : eraseGroups (mergeExecutableGroups left right)
+    : eraseGroups (CollectedFieldsMap.merge left right)
       = GraphQL.Execution.mergeExecutableGroups (eraseGroups left)
           (eraseGroups right) := by
   induction right generalizing left with
   | nil => rfl
   | cons group rest ih =>
-      simp only [mergeExecutableGroups, List.foldl_cons, eraseGroups, List.map_cons,
+      simp only [CollectedFieldsMap.merge, List.foldl_cons, eraseGroups, List.map_cons,
         GraphQL.Execution.mergeExecutableGroups]
-      exact (ih (addExecutableGroup group left)).trans
+      exact (ih (CollectedFieldsMap.addFieldSet group left)).trans
         (congrArg (fun gs => GraphQL.Execution.mergeExecutableGroups gs (eraseGroups rest))
           (eraseGroups_add group left))
 
 /-- Insertion preserves plain field groups, by checking matching and fresh response names.
 -/
-theorem groupsPlain_add (group : Name × List ExecutableField)
+theorem groupsPlain_add (group : Name × List FieldDetails)
     (groups : CollectedFieldsMap) (hg : FieldsPlain group.snd) (hs : GroupsPlain groups)
-    : GroupsPlain (addExecutableGroup group groups) := by
+    : GroupsPlain (CollectedFieldsMap.addFieldSet group groups) := by
   induction groups with
-  | nil => simpa [addExecutableGroup, GroupsPlain] using hg
+  | nil => simpa [CollectedFieldsMap.addFieldSet, GroupsPlain] using hg
   | cons head rest ih =>
       have hh : FieldsPlain head.snd := hs head (by simp)
       have ht : GroupsPlain rest := fun g h => hs g (by simp [h])
       rcases group with ⟨key, fields⟩
       rcases head with ⟨name, existing⟩
       by_cases h : name == key
-      · simp only [addExecutableGroup, h, ↓reduceIte]
+      · simp only [CollectedFieldsMap.addFieldSet, h, ↓reduceIte]
         intro candidate hc field hf
         simp only [List.mem_cons] at hc
         rcases hc with rfl | hc
@@ -144,16 +143,16 @@ theorem groupsPlain_add (group : Name × List ExecutableField)
           · exact hh field hf
           · exact hg field hf
         · exact ht candidate hc field hf
-      · simpa [addExecutableGroup, h, GroupsPlain] using And.intro hh (ih ht)
+      · simpa [CollectedFieldsMap.addFieldSet, h, GroupsPlain] using And.intro hh (ih ht)
 
 /-- Merging preserves plain groups, by fold induction using groupsPlain_add. -/
 theorem groupsPlain_merge (left right : CollectedFieldsMap)
     (hl : GroupsPlain left) (hr : GroupsPlain right)
-    : GroupsPlain (mergeExecutableGroups left right) := by
+    : GroupsPlain (CollectedFieldsMap.merge left right) := by
   induction right generalizing left with
   | nil => exact hl
   | cons group rest ih =>
-      exact ih (addExecutableGroup group left)
+      exact ih (CollectedFieldsMap.addFieldSet group left)
         (groupsPlain_add group left (hr group (by simp)) hl)
         (fun g h => hr g (by simp [h]))
 
@@ -163,8 +162,8 @@ def CollectionMatches (basic : List (Name × List GraphQL.Execution.ExecutableFi
     : Prop :=
   output.2 = state
   ∧ output.1.newDeferUsages = []
-  ∧ GroupsPlain output.1.fields
-  ∧ eraseGroups output.1.fields = basic
+  ∧ GroupsPlain output.1.collectedFieldsMap
+  ∧ eraseGroups output.1.collectedFieldsMap = basic
 
 /-- Combining matching collections preserves state and erasure, using the group-merge
 witnesses.
@@ -184,7 +183,7 @@ theorem collectionMatches_append {left right : FieldCollection} {state : Nat}
     groupsPlain_merge _ _ hlp hrp,
     by
       simpa [FieldCollection.append, hle, hre]
-        using eraseGroups_merge left.fields right.fields
+        using eraseGroups_merge left.collectedFieldsMap right.collectedFieldsMap
   ⟩
 
 mutual
@@ -277,7 +276,7 @@ end
 erasure.
 -/
 theorem collectSubfields_plain (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (hplain : FieldsPlain fields) (state : Nat)
     : CollectionMatches
         (GraphQL.Execution.collectSubfields schema variables parentType source
@@ -310,7 +309,7 @@ theorem collectSubfields_plain (schema : Schema) (variables : VariableValues)
         using hp
 
 /-- Plain fields have no filtered defer usages, witnessed by their absent defer owner. -/
-theorem filteredUsages_plain (fields : List ExecutableField) (hplain : FieldsPlain fields)
+theorem filteredUsages_plain (fields : List FieldDetails) (hplain : FieldsPlain fields)
     : getFilteredDeferUsageSet fields = [] := by
   cases fields with
   | nil => rfl

@@ -12,7 +12,7 @@ open MapperIdentity
 Witness: ensureID correctness and exact reconstruction from the owner's subPath.
 -/
 theorem getIncrementalEntry_positionAtoms {paths : Nat → ResponsePath}
-    (node : DeliveryNode) (value : GroupValue) (ids : IDState)
+    (node : DeliveryNode) (value : ExecutionGroupValue) (ids : IDState)
     (path : paths node.key = node.path)
     (absolute : node.path ++ value.path.drop node.path.length = value.path)
     : EntryPositionAtoms paths
@@ -29,7 +29,7 @@ theorem getIncrementalEntry_positionAtoms {paths : Nat → ResponsePath}
 Witness: mapM induction and transport of the first ID through subsequent allocations.
 -/
 theorem getIncrementalEntries_positionAtoms {paths : Nat → ResponsePath}
-    (node : DeliveryNode) (values : List GroupValue) (ids : IDState)
+    (node : DeliveryNode) (values : List ExecutionGroupValue) (ids : IDState)
     (shape : EventPatchShape paths (.groupValues node values))
     : let action :=
         fun value => getIncrementalEntry (m := StateM IDState) node value ensureID
@@ -62,7 +62,7 @@ theorem getIncrementalEntries_positionAtoms {paths : Nat → ResponsePath}
 /-- One actual event-mapper step preserves previous data atoms and appends its own.
 Witness: object list mapping, stable stream IDs, or unchanged entries for controls.
 -/
-theorem eventLoop_positionAtoms {paths : Nat → ResponsePath} (event : WorkEvent)
+theorem eventLoop_positionAtoms {paths : Nat → ResponsePath} (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
     {prior : List PositionAtom} (shape : EventPatchShape paths event)
     (encoded : EntriesPositionAtoms paths ids initial.incremental prior)
@@ -101,11 +101,11 @@ theorem eventLoop_positionAtoms {paths : Nat → ResponsePath} (event : WorkEven
                     middle with
           | mk notices final =>
               have fresh : EntriesPositionAtoms paths final
-                  [.list id (values.map StreamValue.item) ((values.map StreamValue.errors).sum)]
+                  [.list id (values.map StreamItemValue.item) ((values.map StreamItemValue.errors).sum)]
                   (eventPositionAtoms (.streamValues node values groups streams)) := by
                 have stream := EntryPositionAtoms.list (paths := paths)
-                  (data := values.map StreamValue.item)
-                  (errors := (values.map StreamValue.errors).sum)
+                  (data := values.map StreamItemValue.item)
+                  (errors := (values.map StreamItemValue.errors).sum)
                   ((getPendingEntry_of_eq pending).1 _ _ known)
                   (by simpa using shape.2)
                 simpa only [eventPositionAtoms, List.map_map, Function.comp_def, shape.1,
@@ -125,9 +125,9 @@ theorem eventLoop_positionAtoms {paths : Nat → ResponsePath} (event : WorkEven
 
 /-- Finite event mapping concatenates the exact encoded absolute atoms, by loop induction.
 -/
-theorem loop_positionAtoms {paths : Nat → ResponsePath}
-    (events : List WorkEvent) (initial : IncrementalStreamUpdateResult) (ids : IDState)
-    {prior : List PositionAtom} (shapes : ∀ event ∈ events, EventPatchShape paths event)
+theorem loop_positionAtoms {paths : Nat → ResponsePath} (events : List WorkQueueEvent)
+    (initial : IncrementalStreamUpdateResult) (ids : IDState) {prior : List PositionAtom}
+    (shapes : ∀ event ∈ events, EventPatchShape paths event)
     (encoded : EntriesPositionAtoms paths ids initial.incremental prior)
     : EntriesPositionAtoms paths ((forIn events initial eventLoop).run ids).2
         ((forIn events initial eventLoop).run ids).1.incremental
@@ -147,7 +147,7 @@ theorem loop_positionAtoms {paths : Nat → ResponsePath}
 
 /-- Public work-batch mapping encodes precisely the batch's absolute atoms. -/
 theorem mapWorkEventBatch_positionAtoms {paths : Nat → ResponsePath}
-    (events : List WorkEvent) (ids : IDState)
+    (events : List WorkQueueEvent) (ids : IDState)
     (shapes : ∀ event ∈ events, EventPatchShape paths event)
     : EntriesPositionAtoms paths ((mapWorkEventBatch events).run ids).2
         ((mapWorkEventBatch events).run ids).1.incremental
@@ -159,7 +159,7 @@ theorem mapWorkEventBatch_positionAtoms {paths : Nat → ResponsePath}
 Witness: batch induction and stable allocation through later supplied batches.
 -/
 theorem mappedTrace_positionAtoms {paths : Nat → ResponsePath}
-    (batches : List (List WorkEvent)) (ids : IDState)
+    (batches : List (List WorkQueueEvent)) (ids : IDState)
     (shapes : ∀ event ∈ batches.flatten, EventPatchShape paths event)
     : EntriesPositionAtoms paths (finalIDs batches ids)
         ((mappedTrace batches ids).flatMap IncrementalStreamUpdateResult.incremental)

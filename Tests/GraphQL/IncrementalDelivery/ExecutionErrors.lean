@@ -6,15 +6,19 @@ import Tests.GraphQL.IncrementalDelivery.FailureReporting
 namespace GraphQL.IncrementalDelivery.Tests.ExecutionErrors
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-- The review counterexample fails for every conforming source and response grouping,
 not only the originally proposed trace; witness: its actual failing task.
 -/
 example {result : ExecutionObservation}
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue Tests.schema Tests.resolvers []
+          FailureReporting.op 10 (.object "Query" 0))
     (observed
-      : queryOutcome Tests.schema Tests.resolvers [] FailureReporting.op 10
-          (.object "Query" 0) result)
+      : queryOutcome createWorkQueue Tests.schema Tests.resolvers [] FailureReporting.op
+          10 (.object "Query" 0) result)
     : result.totalErrors ≠ 0 := by
   intro zero
   have known : TaskAt
@@ -23,7 +27,7 @@ example {result : ExecutionObservation}
       FailureReporting.badID [1] none (.object [] (.error 1)) := by
     rw [FailureReporting.prepared]
     exact FailureReporting.badTask
-  have success := queryOutcome_tasks_succeed observed zero (by decide) known
+  have success := queryOutcome_tasks_succeed conforms observed zero (by decide) known
   cases success
 
 /-- A streamed non-null item failure inherits positivity from real execution. -/
@@ -47,9 +51,12 @@ example
 /-- Completion counts survive both work and response aggregation, by actual replay. -/
 example
     : 2
-      ≤ (replayResponse { data := .object [] } [Tests.WorkScheduler.node] []
-          [[[Tests.WorkScheduler.failure], [.workQueueTermination]]]).totalErrors := by
-  exact replayResponse_failureErrors_le { data := .object [] } [Tests.WorkScheduler.node]
-    [] [[[Tests.WorkScheduler.failure], [.workQueueTermination]]]
+      ≤ (replayResponse { data := .object [] } [Tests.WorkQueueSemantics.node] []
+          [[
+            [Tests.WorkQueueSemantics.failure],
+            [.workQueueTermination]
+          ]]).totalErrors := by
+  exact replayResponse_failureErrors_le { data := .object [] } [Tests.WorkQueueSemantics.node]
+    [] [[[Tests.WorkQueueSemantics.failure], [.workQueueTermination]]]
 
 end GraphQL.IncrementalDelivery.Tests.ExecutionErrors

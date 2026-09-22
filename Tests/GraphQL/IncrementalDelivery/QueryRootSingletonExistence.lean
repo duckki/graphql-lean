@@ -6,7 +6,7 @@ import Tests.GraphQL.IncrementalDelivery.Execution
 namespace GraphQL.IncrementalDelivery.Tests.QueryRootSingletonExistence
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- A test-only structural certificate for computed work
@@ -104,8 +104,11 @@ def failing : Operation :=
 histories. Witness: computed root-singleton shape and the execution-metadata bridge.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] dependent 8 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] dependent 8
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] dependent 8 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_rootSingleton
   intro _
   apply Flat.root_singleton
@@ -116,8 +119,11 @@ example
 work-shape bridge, without a success or zero-error premise.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] failing 8 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] failing 8
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] failing 8 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_rootSingleton
   intro _
   apply Flat.root_singleton
@@ -128,8 +134,11 @@ example
 Witness: reduction confirms singleton root groups even when their executions lack fuel.
 -/
 example
-    : ∃ result,
-        queryOutcome schema resolvers [] dependent 0 (.object "Query" 0) result := by
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] dependent 0
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] dependent 0 (.object "Query" 0)
+            result := by
   apply queryOutcome_exists_of_rootSingleton
   intro _
   apply Flat.root_singleton
@@ -139,7 +148,10 @@ example
 /-- Invalid roots require no work-shape evidence for unused execution. Witness: the
 impossible applicability premise and the inherited ordinary error-response branch.
 -/
-example : ∃ result, queryOutcome schema resolvers [] dependent 8 .null result := by
+example
+    : ∃ result createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] dependent 8 .null
+        ∧ queryOutcome createWorkQueue schema resolvers [] dependent 8 .null result := by
   apply queryOutcome_exists_of_rootSingleton
   intro applies
   cases applies

@@ -16,7 +16,7 @@ def GroupsUnique (groups : CollectedFieldsMap) : Prop := (groups.map Prod.fst).N
 theorem collectFields_unique (schema : Schema) (variables : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
     (usage : Option DeferUsage)
-    : RunEnsures (fun collection => GroupsUnique collection.fields)
+    : RunEnsures (fun collection => GroupsUnique collection.collectedFieldsMap)
         (collectFields schema variables parentType source selections usage) := by
   intro state
   have he := congrArg (List.map Prod.fst)
@@ -28,8 +28,8 @@ theorem collectFields_unique (schema : Schema) (variables : VariableValues)
     (GraphQL.NormalForm.collectFields_namesNodup _ _ _ _ _)
 
 theorem collectSubfields_unique (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
-    : RunEnsures (fun collection => GroupsUnique collection.fields)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
+    : RunEnsures (fun collection => GroupsUnique collection.collectedFieldsMap)
         (collectSubfields schema variables parentType source fields) := by
   intro state
   have he := congrArg (List.map Prod.fst)

@@ -1,11 +1,11 @@
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler
-import Tests.GraphQL.IncrementalDelivery.WorkScheduler
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics
+import Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 /-! History-branching, shared ownership, and structural stream-item identity. -/
 
 namespace GraphQL.IncrementalDelivery.Tests.HistoryScheduling
 open GraphQL.IncrementalDelivery.Execution
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 def left : DeliveryNode := { key := 0, path := [] }
 def right : DeliveryNode := { key := 1, path := [] }
@@ -18,7 +18,7 @@ def matching (_ : Nat) : Occurrence := .executionGroup []
 def initial : History :=
   { initialGroups := [left, right], initialStreams := [], batches := [] }
 
-def value (owner : DeliveryNode) : WorkEvent :=
+def value (owner : DeliveryNode) : WorkQueueEvent :=
   .groupValues owner [{ path := [], data := [] }]
 
 /-- Static navigation sees one shared task, not one task per owning defer ID. -/
@@ -67,8 +67,7 @@ theorem initialized : Initializes shared [left, right] [] := by
     none,
     known,
     by simp [announcedKeys, pendingKeys],
-    WorkScheduler.noFailure _ _,
-    Or.inr ?_,
+    Or.inl ⟨WorkQueueSemantics.noFailure _ _, Or.inr ?_⟩,
     by simp,
     by simp
   ⟩
@@ -78,12 +77,12 @@ theorem initialized : Initializes shared [left, right] [] := by
   have impossible := accounted (.executionGroup []) [0, 1]
     ⟨none, .object [] (.ok ([], 0)), .executionGroup .root⟩ owner
   rcases impossible with cancelled | published
-  · exact WorkScheduler.noCancellation _ _ cancelled
+  · exact WorkQueueSemantics.noCancellation _ _ cancelled
   · simp [Published] at published
 
 /-- Both equal-length owners are permitted; the contract does not resolve the tie. -/
 theorem owner (node : DeliveryNode) (member : node ∈ [left, right])
-    : Owner shared [0, 1] [] [] [0, 1] node := by
+    : PublicationOwner shared [0, 1] matching [] [] [0, 1] node := by
   have known : NodeAt shared node .group [] none := by
     simp at member
     rcases member with rfl | rfl
@@ -91,17 +90,20 @@ theorem owner (node : DeliveryNode) (member : node ∈ [left, right])
     · exact .group (group := { node := right }) .root (by simp)
   have key : node.key ∈ [0, 1] := by
     rcases (node_shared known).1 with rfl | rfl <;> simp [left, right]
-  refine ⟨⟨⟨.group, [], none, known⟩, key, ?_, WorkScheduler.noFailure _ _⟩, ?_⟩
-  · exact ⟨by simpa [announcedKeys, pendingKeys] using key, by simp [completedKeys]⟩
-  · intro other available
-    obtain ⟨kind, parents, birth, otherKnown⟩ := available.1
-    rcases (node_shared otherKnown).1 with rfl | rfl <;> simp [left, right]
+  have opened : OpenOwner shared [0, 1] [] [0, 1] node :=
+    ⟨⟨.group, [], none, known⟩, key,
+      by simpa [Open, announcedKeys, pendingKeys, completedKeys] using key⟩
+  refine ⟨opened, ⟨node, opened, WorkQueueSemantics.noFailure _ _⟩, ?_⟩
+  intro other available
+  obtain ⟨kind, parents, birth, otherKnown⟩ := available.1
+  rcases (node_shared otherKnown).1 with rfl | rfl <;> simp [left, right]
 
 /-- Either owner can carry the single output occurrence. -/
 theorem publishes (node : DeliveryNode) (member : node ∈ [left, right])
     : EventAllowed shared [0, 1] matching [] [] (value node) := by
-  refine ⟨[0, 1], none, [], [], 0, rfl, .executionGroup .root, ?_, owner node member⟩
-  exact ⟨by simp [Published], WorkScheduler.noCancellation _ _, by simp, trivial⟩
+  refine ⟨[0, 1], none, { path := [], data := [] }, rfl,
+    .executionGroup .root, ?_, owner node member⟩
+  exact ⟨by simp [Published], WorkQueueSemantics.noCancellation _ _, by simp, trivial⟩
 
 /-- Empty output is an admitted prefix, with neither a selected owner nor a selected
 future.
@@ -167,7 +169,13 @@ theorem closes (node : DeliveryNode) (member : node ∈ [left, right])
   have available := (owner node member).1
   obtain ⟨kind, parents, birth, known⟩ := available.1
   obtain ⟨_, rfl, rfl, rfl⟩ := node_shared known
-  refine ⟨⟨[], none, known⟩, ?_, WorkScheduler.noFailure _ _, ?_, by simp [Announcements]⟩
+  refine ⟨
+    ⟨[], none, known⟩,
+    ?_,
+    WorkQueueSemantics.noFailure _ _,
+    ?_,
+    by simp [Announcements]
+  ⟩
   · simpa [Open, announcedKeys, pendingKeys, eventPending, completedKeys, eventCompleted,
       value] using available.2.2.1
   · rintro occurrence owners ⟨producer, payload, task⟩ _
@@ -218,7 +226,7 @@ example
 def stream : DeliveryNode := { key := 2, path := [.field "items"] }
 def items : Work := .stream stream [(.ok (.null, 0), .empty), (.ok (.null, 0), .empty)]
 def itemMatching (index : Nat) : Occurrence := .item [] index
-def itemValue : WorkEvent := .streamValues stream [{ item := .null }] [] []
+def itemValue : WorkQueueEvent := .streamValues stream [{ item := .null }] [] []
 
 /-- Equal values at different list positions are distinct licensed work occurrences. -/
 example : TaskAt items (.item [] 0) [2] none (.item stream (.ok (.null, 0))) :=
@@ -237,7 +245,7 @@ example : ¬CanPublish items itemMatching [] [] (.item [] 1) none := by
 
 /-- After the first item, the second distinct occurrence is eligible for publication. -/
 example : CanPublish items itemMatching [itemValue] [] (.item [] 1) none := by
-  refine ⟨?_, WorkScheduler.noCancellation _ _, by simp, ?_⟩
+  refine ⟨?_, WorkQueueSemantics.noCancellation _ _, by simp, ?_⟩
   · rintro ⟨index, event, selected, _, equal⟩
     cases index with
     | zero => cases equal
@@ -265,8 +273,13 @@ example
 
 /-- The failed producer cancels its child without a graph edge or a stored cancelled bit.
 -/
-example : TaskCancelled nested [.executionGroup []] (.executionGroup [0]) :=
-  .producerFailed (.executionGroup (.executionGroup .root)) (by simp)
+example
+    : TaskCancelled nested matching [] [(0, .executionGroup [])]
+        (.executionGroup [0]) := by
+  refine ⟨0, by simp, by simp, ?_⟩
+  exact Causality.TaskCancelled.producerFailed
+    ⟨[1], .object [] (.ok ([], 0)), .executionGroup (.executionGroup .root)⟩
+    (by simp [Published]) (by simp [failedBefore])
 
 /-- Publication cannot bypass an unobserved producer even when its outcome is already
 known.
@@ -285,29 +298,41 @@ def cancelledDescendant : Work :=
 
 /-- Cancellation propagates through a cancelled producer, not only a failing producer. -/
 example
-    : TaskCancelled cancelledDescendant [.executionGroup []] (.executionGroup [0, 0]) :=
-  .producerCancelled (.executionGroup (.executionGroup (.executionGroup .root)))
-    (.producerFailed (.executionGroup (.executionGroup .root)) (by simp))
+    : TaskCancelled cancelledDescendant matching [] [(0, .executionGroup [])]
+        (.executionGroup [0, 0]) := by
+  refine ⟨0, by simp, by simp, ?_⟩
+  apply Causality.TaskCancelled.producerCancelled
+    ⟨
+      [2],
+      .object [] (.ok ([], 0)),
+      .executionGroup (.executionGroup (.executionGroup .root))
+    ⟩
+    (by simp [Published])
+  exact Causality.TaskCancelled.producerFailed
+    ⟨[1], .object [] (.ok ([], 0)), .executionGroup (.executionGroup .root)⟩
+    (by simp [Published]) (by simp [failedBefore])
 
 /-- A dependency can be satisfied without a success notification for an unannounced node.
 -/
 example {work initial matching events failed key}
-    (notFailed : ¬NodeFailed work failed key)
+    (notFailed : ¬NodeFailed work matching events failed key)
     (unannounced : key ∉ announcedKeys initial events)
     (accounted : NodeAccounted work matching events failed key)
     : DependencySatisfied work initial matching events failed key :=
   ⟨notFailed, Or.inr (Or.inr ⟨unannounced, accounted⟩)⟩
 
-/-- The failure refactor preserves arbitrary raw work, including repeated node metadata.
+/-- Without protected publications, the kernel preserves the former raw-work rules.
 -/
 example {work failed key}
-    : FailureEquivalence.NodeFailed work failed key ↔ NodeFailed work failed key :=
+    : FailureEquivalence.NodeFailed work failed key
+      ↔ Causality.NodeFailed work failed (fun _ => False) key :=
   FailureEquivalence.nodeFailed_iff
 
-/-- The removed wrapper carries exactly the explicit failure/cancellation alternatives. -/
+/-- Without protected publications, the removed wrapper has the same alternatives. -/
 example {work failed occurrence}
     : FailureEquivalence.ProducerUnavailable work failed occurrence
-      ↔ occurrence ∈ failed ∨ TaskCancelled work failed occurrence :=
+      ↔ occurrence ∈ failed
+        ∨ Causality.TaskCancelled work failed (fun _ => False) occurrence :=
   FailureEquivalence.producerUnavailable_iff
 
 namespace Lookup

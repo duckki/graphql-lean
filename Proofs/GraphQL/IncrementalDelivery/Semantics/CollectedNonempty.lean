@@ -14,15 +14,15 @@ attribute [local simp] id_pure_eq id_bind_eq id_map_eq run_bind run_map
 def GroupsNonempty (groups : CollectedFieldsMap) : Prop :=
   ∀ group ∈ groups, group.2 ≠ []
 
-theorem groupsNonempty_add (group : Name × List ExecutableField)
+theorem groupsNonempty_add (group : Name × List FieldDetails)
     (groups : CollectedFieldsMap) (hg : group.2 ≠ []) (hs : GroupsNonempty groups)
-    : GroupsNonempty (addExecutableGroup group groups) := by
+    : GroupsNonempty (CollectedFieldsMap.addFieldSet group groups) := by
   induction groups with
-  | nil => simpa [addExecutableGroup, GroupsNonempty] using hg
+  | nil => simpa [CollectedFieldsMap.addFieldSet, GroupsNonempty] using hg
   | cons head rest ih =>
       have hh := hs head (by simp)
       have ht : GroupsNonempty rest := fun g hm => hs g (List.mem_cons_of_mem head hm)
-      simp only [addExecutableGroup]
+      simp only [CollectedFieldsMap.addFieldSet]
       split
       · intro next hn
         rcases List.mem_cons.mp hn with rfl | hn
@@ -33,7 +33,7 @@ theorem groupsNonempty_add (group : Name × List ExecutableField)
 
 theorem groupsNonempty_merge (left right : CollectedFieldsMap)
     (hl : GroupsNonempty left) (hr : GroupsNonempty right)
-    : GroupsNonempty (mergeExecutableGroups left right) := by
+    : GroupsNonempty (CollectedFieldsMap.merge left right) := by
   induction right generalizing left with
   | nil => exact hl
   | cons group rest ih =>
@@ -46,7 +46,7 @@ mutual
       (usage : Option DeferUsage) (state : Nat)
       : GroupsNonempty
           ((collectSelection schema variables parentType source usage selection).run
-            state).1.fields := by
+            state).1.collectedFieldsMap := by
     cases selection with
     | field name fieldName arguments directives children =>
         cases ha : selectionDirectivesAllowBool variables directives <;>
@@ -80,7 +80,7 @@ mutual
       (usage : Option DeferUsage) (state : Nat)
       : GroupsNonempty
           ((collectFields schema variables parentType source selections usage).run
-            state).1.fields := by
+            state).1.collectedFieldsMap := by
     cases selections with
     | nil => simp [collectFields, GroupsNonempty]
     | cons selection rest =>
@@ -92,11 +92,11 @@ mutual
 end
 
 theorem collectSubfields_nonempty (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (state : Nat)
     : GroupsNonempty
         ((collectSubfields schema variables parentType source fields).run
-          state).1.fields := by
+          state).1.collectedFieldsMap := by
   induction fields generalizing state with
   | nil => simp [collectSubfields, GroupsNonempty]
   | cons field rest ih =>

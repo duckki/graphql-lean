@@ -109,8 +109,9 @@ mutual
       (path : ResponsePath) (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures Positive
           (executeExecutionPlan schema resolvers variables fuel parentType source
-            collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-            usages deferMap) := by
+            collection.newDeferUsages
+            (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+            deferMap) := by
     simp only [executeExecutionPlan]
     refine runEnsures_bind Positive _ _ _ ?_ ?_
     · exact executeCollectedFields_positive schema resolvers variables fuel parentType source
@@ -202,7 +203,7 @@ mutual
   theorem executeResponseField_positive (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef) (name : Name)
-      (fields : List ExecutableField) (path : ResponsePath)
+      (fields : List FieldDetails) (path : ResponsePath)
       (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures Positive
           (executeResponseField schema resolvers variables fuel parentType source name
@@ -243,7 +244,7 @@ mutual
 
   theorem completeValue_positive (schema : Schema) (resolvers : Resolvers ObjectRef)
       (variables : VariableValues) (fuel : Nat) (fieldType : TypeRef)
-      (fields : List ExecutableField) (value : ResolverValue ObjectRef)
+      (fields : List FieldDetails) (value : ResolverValue ObjectRef)
       (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool)
       : RunEnsures Positive
@@ -313,7 +314,7 @@ mutual
   -/
   theorem completeListValueWithStream_positive (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath)
       (usages : List Nat) (deferMap : DeferMap) (allowStream : Bool)
       : RunEnsures Positive
@@ -354,7 +355,7 @@ mutual
 
   theorem completeListValue_positive (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef))
       (path : ResponsePath) (index : Nat) (usages : List Nat) (deferMap : DeferMap)
       : RunEnsures Positive
@@ -387,7 +388,7 @@ mutual
   -/
   theorem completeStreamItems_positive (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
       : RunEnsures ItemsPositive
           (completeStreamItems schema resolvers variables fuel itemType fields values

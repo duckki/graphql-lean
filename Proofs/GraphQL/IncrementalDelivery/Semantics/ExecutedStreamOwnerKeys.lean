@@ -19,13 +19,14 @@ mutual
       (hm : DeferMapBefore state (getNewDeferMap collection.newDeferUsages path deferMap))
       (hk
         : GroupsSatisfy (fun field => UsageBefore state field.deferUsage)
-            collection.fields)
+            collection.collectedFieldsMap)
       : StreamKeyCompleted state
           ((executeExecutionPlan schema resolvers variables fuel parentType source
-              collection.newDeferUsages (buildExecutionPlan collection.fields usages) path
-              usages deferMap).run
+              collection.newDeferUsages
+              (buildExecutionPlan collection.collectedFieldsMap usages) path usages
+              deferMap).run
             state) := by
-    have hp := buildExecutionPlan_preserves_property _ collection.fields usages hk
+    have hp := buildExecutionPlan_preserves_property _ collection.collectedFieldsMap usages hk
     obtain ⟨hle, hw, ho⟩ := executeCollectedFields_streamOwnerKeys schema resolvers variables fuel parentType source
       _ path usages _ state hm hp.1
     simp only [executeExecutionPlan, run_bind]
@@ -116,7 +117,7 @@ mutual
   theorem executeResponseField_streamOwnerKeys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
       (parentType : Name) (source : ResolverValue ObjectRef) (name : Name)
-      (fields : List ExecutableField) (path : ResponsePath) (usages : List Nat)
+      (fields : List FieldDetails) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (state : Nat) (hm : DeferMapBefore state deferMap)
       (hk : ∀ field ∈ fields, UsageBefore state field.deferUsage)
       : StreamKeyCompleted state
@@ -153,7 +154,7 @@ mutual
 
   theorem completeValue_streamOwnerKeys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (fieldType : TypeRef) (fields : List ExecutableField)
+      (fieldType : TypeRef) (fields : List FieldDetails)
       (value : ResolverValue ObjectRef) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
       (hm : DeferMapBefore state deferMap)
@@ -222,7 +223,7 @@ mutual
 
   theorem completeListValueWithStream_streamOwnerKeys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (inner : TypeRef) (fields : List ExecutableField)
+      (inner : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (usages : List Nat)
       (deferMap : DeferMap) (allowStream : Bool) (state : Nat)
       (hm : DeferMapBefore state deferMap)
@@ -268,7 +269,7 @@ mutual
 
   theorem completeListValue_streamOwnerKeys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
       (usages : List Nat) (deferMap : DeferMap) (state : Nat)
       (hm : DeferMapBefore state deferMap)
@@ -300,7 +301,7 @@ mutual
 
   theorem completeStreamItems_streamOwnerKeys (schema : Schema)
       (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
-      (itemType : TypeRef) (fields : List ExecutableField)
+      (itemType : TypeRef) (fields : List FieldDetails)
       (values : List (ResolverValue ObjectRef)) (path : ResponsePath) (index : Nat)
       (state : Nat) (hk : ∀ field ∈ fields, UsageBefore state field.deferUsage)
       : let output :=

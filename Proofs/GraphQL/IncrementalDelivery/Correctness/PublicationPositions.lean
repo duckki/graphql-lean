@@ -5,11 +5,11 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkPositionAtoms
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- The source label for a supplied value publication; controls carry no source label. -/
 def sourceEventTask (tasks : List SourceTask) (matching : PublicationMatching)
-    (index : Nat) (event : WorkEvent)
+    (index : Nat) (event : WorkQueueEvent)
     : Option SourceTask :=
   match event with
   | .groupValues .. | .streamValues .. =>
@@ -36,7 +36,7 @@ theorem sourceEventTask_value {initial work matching index event task}
 /-- The source labels published in the first cut supplied outputs, in observation order.
 -/
 def sourcePrefixTasks (tasks : List SourceTask) (matching : PublicationMatching)
-    (events : List WorkEvent)
+    (events : List WorkQueueEvent)
     : Nat → List SourceTask
   | 0 => []
   | cut + 1 =>

@@ -7,7 +7,7 @@ namespace GraphQL.IncrementalDelivery.Tests.EmptyStreams
 
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Correctness
-open GraphQL.IncrementalDelivery.WorkScheduler
+open GraphQL.IncrementalDelivery.WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Reaching the stream boundary
@@ -85,7 +85,7 @@ theorem BoundaryTree.run {node work} (shape : BoundaryTree node work)
     intro stream member
     obtain rfl := List.mem_singleton.mp member
     exact ⟨[], none, known, by simp [announcedKeys, pendingKeys],
-      fun failure => failure.nonempty rfl, Or.inl rfl, by simp, Or.inl rfl⟩
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl rfl⟩
   have initial : Explains work [] [node] [] matching [] :=
     ⟨initialized, by simp [FailureWitness], by simp⟩
   have allowed : EventAllowed work [node.key] matching [] [] (.streamSuccess node) := by
@@ -117,8 +117,11 @@ def wire (name : Name) (data : List ResponseValue) : ExecutionObservation :=
 Witness: generated work, the unchanged queue contract, and actual response realization.
 -/
 theorem empty_outcome
-    : queryOutcome schema resolvers [] (streamed "empty" 0) 12
-        (.object "Query" 0) (wire "empty" []) := by
+    : ∃ createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] (streamed "empty" 0) 12
+          (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] (streamed "empty" 0) 12
+            (.object "Query" 0) (wire "empty" []) := by
   apply queryObservation_iff_workHistory.mpr
   rw [ite_eq_left (by decide)]
   change WorkObservation (selectionSetResultToResponse (prepared (streamed "empty" 0)).result)
@@ -145,8 +148,11 @@ theorem empty_outcome
 Witness: the same task-free history, now following a three-item initial prefix.
 -/
 theorem exact_outcome
-    : queryOutcome schema resolvers [] (streamed "values" 3) 12
-        (.object "Query" 0) (wire "values" [.scalar "x", .null, .scalar "z"]) := by
+    : ∃ createWorkQueue,
+        queryWorkQueueConforms createWorkQueue schema resolvers [] (streamed "values" 3)
+          12 (.object "Query" 0)
+        ∧ queryOutcome createWorkQueue schema resolvers [] (streamed "values" 3) 12
+            (.object "Query" 0) (wire "values" [.scalar "x", .null, .scalar "z"]) := by
   apply queryObservation_iff_workHistory.mpr
   rw [ite_eq_left (by decide)]
   change WorkObservation (selectionSetResultToResponse (prepared (streamed "values" 3)).result)
@@ -178,35 +184,40 @@ theorem exact_outcome
 -----------------------------------------------------------------------------------------
 
 /-- Any retained boundary excludes an ordinary query outcome, regardless of scheduler.
-Witness: ordinary work observations require zero work, not merely absence of item tasks.
+Witness: the public query entry point selects incremental form before using its queue constructor.
 -/
 theorem boundary_no_single (name : Name) (count : Nat)
     (nonempty : (prepared (streamed name count)).work.size ≠ 0) (response : Response)
-    : ¬queryOutcome schema resolvers [] (streamed name count) 12
+    (createWorkQueue : Work → WorkQueue)
+    : ¬queryOutcome createWorkQueue schema resolvers [] (streamed name count) 12
         (.object "Query" 0) (.single response) := by
   intro observed
-  have witness := queryObservation_workHistory observed
-  rw [ite_eq_left (by rfl)] at witness
-  change WorkObservation _ (prepared (streamed name count)).work true
-    (.single response) at witness
-  cases witness with
-  | single empty => exact nonempty empty
+  change (executeQueryWithFuel createWorkQueue schema resolvers [] (streamed name count)
+    12 (.object "Query" 0)).Observes (.single response) true at observed
+  simp only [executeQueryWithFuel,
+    show rootSourceAppliesBool schema (streamed name count) (.object "Query" 0) = true
+      from rfl, ↓reduceIte, executeRootSelectionSet_fromWork] at observed
+  change (executionFromWork createWorkQueue
+    (selectionSetResultToResponse (prepared (streamed name count)).result)
+    (prepared (streamed name count)).work).Observes (.single response) true at observed
+  simp [executionFromWork, nonempty, yieldIncrementalResults,
+    ExecutionResult.Observes] at observed
 
 /-- An empty list at initialCount zero must retain incremental response form.
 Witness: its positive-size stream boundary and the ordinary-outcome exclusion.
 -/
-theorem empty_no_single (response : Response)
-    : ¬queryOutcome schema resolvers [] (streamed "empty" 0) 12
+theorem empty_no_single (response : Response) (createWorkQueue : Work → WorkQueue)
+    : ¬queryOutcome createWorkQueue schema resolvers [] (streamed "empty" 0) 12
         (.object "Query" 0) (.single response) :=
-  boundary_no_single "empty" 0 (by cbv) response
+  boundary_no_single "empty" 0 (by cbv) response createWorkQueue
 
 /-- Exact positive counts also exclude ordinary outcomes after creating a stream.
 Witness: the same branch exclusion for the fully consumed initial prefix.
 -/
-theorem exact_no_single (response : Response)
-    : ¬queryOutcome schema resolvers [] (streamed "values" 3) 12
+theorem exact_no_single (response : Response) (createWorkQueue : Work → WorkQueue)
+    : ¬queryOutcome createWorkQueue schema resolvers [] (streamed "values" 3) 12
         (.object "Query" 0) (.single response) :=
-  boundary_no_single "values" 3 (by cbv) response
+  boundary_no_single "values" 3 (by cbv) response createWorkQueue
 
 /-- Even an empty notice frontier cannot switch nonempty work to an ordinary response.
 Witness: executable root packaging branches on work before consulting the supplied queue.
@@ -363,9 +374,10 @@ example
 /-- The new exact-count trace satisfies the existing lifecycle theorem.
 Witness: the public theorem applied to its actual query outcome.
 -/
-example : (wire "values" [.scalar "x", .null, .scalar "z"]).deliveryComplete = true :=
-  deliveryLifecycleValid_holds schema (streamed "values" 3) resolvers [] 12
-    (.object "Query" 0) _ exact_outcome
+example : (wire "values" [.scalar "x", .null, .scalar "z"]).lifecycleValid = true := by
+  obtain ⟨createWorkQueue, conforms, observed⟩ := exact_outcome
+  exact deliveryLifecycleValid_holds schema (streamed "values" 3) resolvers [] 12
+    (.object "Query" 0) createWorkQueue _ conforms observed
 
 /-- Empty-stream completion adds no data or error contribution.
 Witness: reconstruction of the exact concrete wire trace.

@@ -7,9 +7,9 @@ open GraphQL.IncrementalDelivery.Execution
 open MapperIdentity
 
 /-- All error counts carried by an individual work event. -/
-def workEventErrors : WorkEvent → Nat
-  | .groupValues _ values => (values.map GroupValue.errors).sum
-  | .streamValues _ values _ _ => (values.map StreamValue.errors).sum
+def workEventErrors : WorkQueueEvent → Nat
+  | .groupValues _ values => (values.map ExecutionGroupValue.errors).sum
+  | .streamValues _ values _ _ => (values.map StreamItemValue.errors).sum
   | .groupFailure _ errors | .streamFailure _ errors => errors
   | _ => 0
 
@@ -18,14 +18,14 @@ def updateErrors (update : IncrementalStreamUpdateResult) : Nat :=
   (update.incremental.map IncrementalResult.errors).sum + completionErrors update
 
 /-- Object-entry mapping retains each payload's error count, independently of IDs. -/
-theorem incrementalEntries_errors (node : DeliveryNode) (values : List GroupValue)
-    (ids : IDState)
+theorem incrementalEntries_errors (node : DeliveryNode)
+    (values : List ExecutionGroupValue) (ids : IDState)
     : (((values.mapM
           (fun value =>
             getIncrementalEntry (m := StateM IDState) node value ensureID)).run
           ids).1.map
         IncrementalResult.errors).sum
-      = (values.map GroupValue.errors).sum := by
+      = (values.map ExecutionGroupValue.errors).sum := by
   induction values generalizing ids with
   | nil => rfl
   | cons value rest ih =>
@@ -40,7 +40,7 @@ theorem incrementalEntries_errors (node : DeliveryNode) (values : List GroupValu
 
 /-- Each event adds exactly its full error count; witness: mapper cases and entry counts.
 -/
-theorem eventLoop_errors (event : WorkEvent)
+theorem eventLoop_errors (event : WorkQueueEvent)
     (initial update : IncrementalStreamUpdateResult) (ids next : IDState)
     (mapped : (eventLoop event initial).run ids = (.yield update, next))
     : updateErrors update = updateErrors initial + workEventErrors event := by
@@ -65,8 +65,8 @@ theorem eventLoop_errors (event : WorkEvent)
           Nat.add_assoc, Nat.add_left_comm, Nat.add_comm]
 
 /-- Iteration preserves the sum of all supplied event error counts, by loop induction. -/
-theorem loop_errors (events : List WorkEvent) (initial : IncrementalStreamUpdateResult)
-    (ids : IDState)
+theorem loop_errors (events : List WorkQueueEvent)
+    (initial : IncrementalStreamUpdateResult) (ids : IDState)
     : updateErrors ((forIn events initial eventLoop).run ids).1
       = updateErrors initial + (events.map workEventErrors).sum := by
   induction events generalizing initial ids with
@@ -81,14 +81,14 @@ theorem loop_errors (events : List WorkEvent) (initial : IncrementalStreamUpdate
         Nat.add_assoc]
 
 /-- Public event-batch mapping preserves the full error sum. -/
-theorem mapWorkEventBatch_errors (events : List WorkEvent) (ids : IDState)
+theorem mapWorkEventBatch_errors (events : List WorkQueueEvent) (ids : IDState)
     : updateErrors ((mapWorkEventBatch events).run ids).1
       = (events.map workEventErrors).sum := by
   rw [mapWorkEventBatch_loop, loop_errors]
   simp [updateErrors, completionErrors]
 
 /-- Mapping any finite sequence of supplied batches preserves its full error sum. -/
-theorem mappedTrace_errors (batches : List (List WorkEvent)) (ids : IDState)
+theorem mappedTrace_errors (batches : List (List WorkQueueEvent)) (ids : IDState)
     : ((mappedTrace batches ids).map updateErrors).sum
       = (batches.flatten.map workEventErrors).sum := by
   induction batches generalizing ids with
@@ -137,7 +137,7 @@ arbitrary supplied work and response groups. Witness: exact mapper and coalescin
 -/
 theorem replayResponse_errors (response : Response)
     (initialGroups initialStreams : List DeliveryNode)
-    (groups : List (List (List WorkEvent)))
+    (groups : List (List (List WorkQueueEvent)))
     : (replayResponse response initialGroups initialStreams groups).totalErrors
       = response.errors + (groups.flatten.flatten.map workEventErrors).sum := by
   cases allocated

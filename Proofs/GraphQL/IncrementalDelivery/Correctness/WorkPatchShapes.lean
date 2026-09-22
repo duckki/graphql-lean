@@ -4,13 +4,13 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.WorkPositionAtoms
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 open Semantics
 
 /-- Data events retain their source owner path; object subpaths are exact and stream
 value lists are nonempty. These are derived facts, not extra admission constraints.
 -/
-def EventPatchShape (paths : Nat → ResponsePath) : WorkEvent → Prop
+def EventPatchShape (paths : Nat → ResponsePath) : WorkQueueEvent → Prop
   | .groupValues node values =>
       paths node.key = node.path
       ∧ ∀ value ∈ values, node.path ++ value.path.drop node.path.length = value.path
@@ -26,7 +26,7 @@ theorem eventAllowed_patchShape {paths bound work initial matching before failed
     : EventPatchShape paths event := by
   cases event <;> try trivial
   case groupValues node values =>
-    obtain ⟨owners, producer, path, data, errors, rfl, known, _, owner⟩ := allowed
+    obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, rfl, known, _, owner⟩ := allowed
     obtain ⟨kind, dependencies, producerOccurrence, nodeAt⟩ := owner.1.1
     refine ⟨(workAt_node coherent nodeAt).2, ?_⟩
     intro value member
@@ -34,7 +34,7 @@ theorem eventAllowed_patchShape {paths bound work initial matching before failed
     subst value
     exact object_subPath_exact coherent known owner
   case streamValues node values groups streams =>
-    obtain ⟨_, _, _, _, rfl, _, _, owner, _⟩ := allowed
+    obtain ⟨_, _, _, rfl, _, _, owner, _⟩ := allowed
     obtain ⟨kind, dependencies, producerOccurrence, nodeAt⟩ := owner.1.1
     exact ⟨(workAt_node coherent nodeAt).2, by simp⟩
 

@@ -9,7 +9,7 @@ The construction reserves a final healthy group carrier, or uses justified cance
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Deferred-phase publications and control-only suffixes
@@ -32,7 +32,7 @@ theorem deferredPhase_published_deferred
   cases event <;> simp only [DeferredPhaseEvent, IsValue] at permitted value
   all_goals try contradiction
   rename_i owner values
-  obtain ⟨owners, producer, path, data, errors, _, known, _, _⟩ := allowed
+  obtain ⟨owners, producer, ⟨path, data, errors, deliveryGroups⟩, _, known, _, _⟩ := allowed
   have task : TaskAt work occurrence owners producer (.object path (.ok (data, errors))) := by
     simpa only [List.length_take,
       Nat.min_eq_left
@@ -47,7 +47,7 @@ new producer, irrespective of their pending notices or completion entries.
 -/
 theorem streamsNotified_append_controls {work initial matching events failed}
     (notified : StreamsNotified work initial matching events failed)
-    {tail : List WorkEvent} (controls : ∀ event ∈ tail, ¬IsValue event)
+    {tail : List WorkQueueEvent} (controls : ∀ event ∈ tail, ¬IsValue event)
     : StreamsNotified work initial matching (events ++ tail) failed := by
   induction tail generalizing events with
   | nil => simpa using notified
@@ -120,7 +120,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
     finish_root_deferred_tasks coherent initialized roots covered
   have groupAccounted {node dependencies producer}
       (known : NodeAt work node .group dependencies producer)
-      : NodeAccounted work matching events (failures.map Prod.snd) node.key := by
+      : NodeAccounted work matching events failures node.key := by
     rintro occurrence owners ⟨producer, payload, task⟩ contributes
     cases StructuralEquivalence.taskAt_of_current task with
     | executionGroup located => exact deferred _ _ _ _ task
@@ -128,7 +128,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
         exact False.elim (stream_group_keys_distinct roleCoherent
           (NodeAt.stream located.toCurrent) known (List.mem_singleton.mp contributes).symm)
   have accounted (key : Nat) (member : key ∈ groups.map DeliveryNode.key)
-      : NodeAccounted work matching events (failures.map Prod.snd) key := by
+      : NodeAccounted work matching events failures key := by
     obtain ⟨node, inGroups, rfl⟩ := List.mem_map.mp member
     obtain ⟨dependencies, producer, known, _⟩ := initialized.1.2.1 node inGroups
     exact groupAccounted known
@@ -137,7 +137,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
     apply List.mem_append_left
     simpa only [List.map_append]
       using List.mem_append_left (streams.map DeliveryNode.key) member
-  by_cases available : ∃ node ∈ groups, ¬NodeFailed work (failures.map Prod.snd) node.key
+  by_cases available : ∃ node ∈ groups, ¬NodeFailed work matching events failures node.key
   · obtain ⟨anchor, inGroups, healthy⟩ := available
     obtain ⟨dependencies, producer, known, _⟩ :=
       initialized.1.2.1 anchor inGroups
@@ -168,9 +168,11 @@ theorem completeRun_exists_of_initial_deferred_coverage
             (completedKeys [.groupSuccess anchor newGroups newStreams]) previous
     obtain ⟨newGroups, newStreams, released, notified⟩ :=
       closedOthers.complete_group_streams_notified known reserved
-        (by simpa only [closedOthers.2.1.failedBefore_eq (Nat.le_refl _)] using healthy)
-        (by simpa only [closedOthers.2.1.failedBefore_eq (Nat.le_refl _)]
-          using (accounted anchor.key anchorMember).append closures)
+        (by
+          rw [(causality_append_eq
+            (fun _ member => explained.2.1.cut_le member) closures).1]
+          exact healthy)
+        ((accounted anchor.key anchorMember).append closures)
         dependenciesClosed
     have preserved := (deferred.extend (List.Subset.refl _) closures).extend
       (List.Subset.refl _) [.groupSuccess anchor newGroups newStreams]
@@ -178,11 +180,11 @@ theorem completeRun_exists_of_initial_deferred_coverage
       dependenciesClosed notified (WorkBatching.singletons _)
     exact ⟨_, run⟩
   · have allFailed (key : Nat) (member : key ∈ groups.map DeliveryNode.key)
-        : NodeFailed work (failures.map Prod.snd) key := by
+        : NodeFailed work matching events failures key := by
       obtain ⟨node, inGroups, rfl⟩ := List.mem_map.mp member
       exact Classical.byContradiction (fun healthy => available ⟨node, inGroups, healthy⟩)
     have notified : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-        matching events (failures.map Prod.snd) := by
+        matching events failures := by
       intro node dependencies producer descriptor produced healthy
       cases producer with
       | none => exact List.mem_append_left _ (rootStreams node dependencies descriptor)
@@ -191,9 +193,11 @@ theorem completeRun_exists_of_initial_deferred_coverage
             (produced occurrence rfl)
           obtain ⟨route, items, located⟩ := descriptor
           obtain ⟨ancestor, path, result, task⟩ := located_producer_context located
-          exact False.elim (healthy (.streamDependencies (NodeAt.stream located)
-            (covered _ _ _ _ task).1
-            (fun key member => allFailed key (dependenciesCovered (NodeAt.stream located) key member))))
+          exact False.elim (healthy (explained.snapshot_nodeFailed
+            (.streamDependencies ⟨_, _, NodeAt.stream located, rfl⟩
+              (covered _ _ _ _ task).1
+              (fun key member => explained.nodeFailed_snapshot
+                (allFailed key (dependenciesCovered (NodeAt.stream located) key member))))))
     obtain ⟨closures, _, controls, closed, completed, _⟩ :=
       explained.close_accounted_keys (groups.map DeliveryNode.key) announced accounted
     have dependenciesClosed : StreamDependenciesCompleted work (events ++ closures) :=
@@ -209,7 +213,7 @@ theorem completeRun_exists_of_initial_deferred_coverage
 root-deferred complete-run existence. Witness: enlarge the frontier to all eligible keys;
 root streams have no producer or enclosing dependencies, so the enlarged frontier covers
 them.
-The execution factory remains opaque, and no completion ordering is prescribed.
+The execution queue constructor remains opaque, and no completion ordering is prescribed.
 -/
 theorem completeRun_exists_of_root_deferred_coverage
     {paths bound roles work groups streams}
@@ -245,7 +249,7 @@ theorem completeRun_exists_of_root_deferred_coverage
       obtain ⟨address, items, located⟩ := known
       exact located_producer_context located
     apply covers node .stream dependencies none known
-    exact ⟨by simp [announcedKeys, pendingKeys], fun failure => failure.nonempty rfl,
-      Or.inl rfl, by simp, Or.inl empty⟩
+    exact ⟨by simp [announcedKeys, pendingKeys],
+      Or.inl ⟨fun failure => failure.nonempty rfl, Or.inl rfl⟩, by simp, Or.inl empty⟩
 
 end GraphQL.IncrementalDelivery.Correctness

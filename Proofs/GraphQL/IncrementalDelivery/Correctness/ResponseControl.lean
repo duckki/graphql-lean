@@ -7,7 +7,7 @@ open GraphQL.IncrementalDelivery.Execution
 open MapperIdentity
 
 /-- Finite mapper replay emits one response per supplied work batch, by list induction. -/
-theorem mappedTrace_length (batches : List (List WorkEvent)) (ids : IDState)
+theorem mappedTrace_length (batches : List (List WorkQueueEvent)) (ids : IDState)
     : (mappedTrace batches ids).length = batches.length := by
   induction batches generalizing ids with
   | nil => rfl
@@ -18,7 +18,7 @@ theorem mappedTrace_length (batches : List (List WorkEvent)) (ids : IDState)
 /-- Nonempty supplied input groups yield nonempty groups of mapped responses, by
 induction and preservation of traversal length.
 -/
-theorem replayGroups_nonempty {groups : List (List (List WorkEvent))}
+theorem replayGroups_nonempty {groups : List (List (List WorkQueueEvent))}
     (nonempty : ∀ group ∈ groups, group ≠ []) (ids : IDState)
     : ∀ updates ∈ (replayGroups groups ids).1, updates ≠ [] := by
   induction groups generalizing ids with

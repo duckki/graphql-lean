@@ -22,7 +22,7 @@ example : ExecutionObservation → ExecutionObservation := id
 #check_failure Operation.streamFree
 
 /-- Proposed queue premises are separately named and available without proof modules. -/
-example (result : WorkQueueResult) (work : Work) (h : result.Conforms work)
+example (result : WorkQueue) (work : Work) (h : result.Conforms work)
     : result.Initialized
       ∧ result.PrefixClosed
       ∧ result.AccountsForWork work
@@ -49,20 +49,32 @@ example (schema : Schema) (operation : Operation)
     (hp : deliveryPatchesAnnounced schema operation) {ObjectRef : Type}
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
     (source : ResolverValue ObjectRef) (result : ExecutionObservation)
-    (observed : queryObservation schema resolvers variables operation fuel source result)
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result)
     : result.idsUnique ∧ result.patchesAnnounced :=
   ⟨
-    hu resolvers variables fuel source result observed,
-    hp resolvers variables fuel source result observed
+    hu resolvers variables fuel source createWorkQueue result conforms observed,
+    hp resolvers variables fuel source createWorkQueue result conforms observed
   ⟩
 
 example (schema : Schema) (operation : Operation)
     (h : deliveryLifecycleValid schema operation) {ObjectRef : Type}
     (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
     (source : ResolverValue ObjectRef) (result : ExecutionObservation)
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
-    : result.deliveryComplete = true :=
-  h resolvers variables fuel source result observed
+    {createWorkQueue : Work → WorkQueue}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
+    : result.lifecycleValid = true :=
+  h resolvers variables fuel source createWorkQueue result conforms observed
 
 example (response : Response) (containers : Bool)
     : (ExecutionObservation.single response).DeliversSlices containers
@@ -79,7 +91,7 @@ example : duplicateCompletion.idsEventuallyComplete := by
   simp [duplicateCompletion, ExecutionObservation.idsEventuallyComplete,
     DeliveryTrace.completedIDs, DeliveryTrace.announcementsEventuallyComplete]
 
-#guard !duplicateCompletion.deliveryComplete
+#guard !duplicateCompletion.lifecycleValid
 
 example : ¬duplicateCompletion.idUsageValid := by
   simp [duplicateCompletion, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
@@ -121,7 +133,7 @@ example : sameUpdateNotice.idsUnique ∧ sameUpdateNotice.patchesAnnounced := by
     ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
     List.nodup_cons]
 
-#guard sameUpdateNotice.deliveryComplete
+#guard sameUpdateNotice.lifecycleValid
 
 /-- A defer payload can introduce a list before its same-update stream append. -/
 example
@@ -163,7 +175,7 @@ example : closedReference.idsUnique ∧ closedReference.patchesAnnounced := by
     ExecutionObservation.patchesAnnounced, DeliveryTrace.patchesAnnounced, IncrementalResult.id,
     List.nodup_cons]
 
-#guard !closedReference.deliveryComplete
+#guard !closedReference.lifecycleValid
 
 example : ¬closedReference.idUsageValid := by
   simp [closedReference, ExecutionObservation.idUsageValid, DeliveryTrace.idUsageValid,
@@ -190,14 +202,14 @@ example : ¬incompleteObservation.idsCompleteExactlyOnce := by
   simp [incompleteObservation, ExecutionObservation.idsCompleteExactlyOnce,
     DeliveryTrace.pendingIDs, DeliveryTrace.completedIDs]
 
-#guard !incompleteObservation.deliveryComplete
+#guard !incompleteObservation.lifecycleValid
 
 def separatedTermination : ExecutionObservation :=
   .incremental
     { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
     [{ hasNext := true, completed := [{ id := "d" }] }, { hasNext := false }]
 
-#guard separatedTermination.deliveryComplete
+#guard separatedTermination.lifecycleValid
 
 /-- Reconstruction counts initial, object/list-patch, and completion errors once. -/
 def errorEnvelopes : ExecutionObservation :=
@@ -215,7 +227,7 @@ def errorEnvelopes : ExecutionObservation :=
       completed := [{ id := "d", errors := 8 }, { id := "s", errors := 16 }]
     }]
 
-#guard errorEnvelopes.deliveryComplete
+#guard errorEnvelopes.lifecycleValid
 #guard errorEnvelopes.totalErrors == 31
 
 example
@@ -235,13 +247,13 @@ def missingParent : ExecutionObservation :=
       hasNext := false, incremental := [.list "s" [.null]], completed := [{ id := "s" }]
     }]
 
-#guard missingParent.deliveryComplete
+#guard missingParent.lifecycleValid
 #guard (mergeExecutionObservation missingParent).isNone
 
 /-! Finishing one announced ID cannot hide a second uncompleted ID. -/
 
 #guard
-  !ExecutionObservation.deliveryComplete
+  !ExecutionObservation.lifecycleValid
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{
@@ -253,7 +265,7 @@ def missingParent : ExecutionObservation :=
 /-! Completing the same ID in separate updates is also invalid. -/
 
 #guard
-  !ExecutionObservation.deliveryComplete
+  !ExecutionObservation.lifecycleValid
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [
@@ -264,7 +276,7 @@ def missingParent : ExecutionObservation :=
 /-! All continuation flags must agree with the observed suffix, not just the final one. -/
 
 #guard
-  !ExecutionObservation.deliveryComplete
+  !ExecutionObservation.lifecycleValid
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{ hasNext := false, completed := [{ id := "d" }] }, { hasNext := false }])
@@ -272,7 +284,7 @@ def missingParent : ExecutionObservation :=
 /-! Closing all IDs does not excuse claiming another update that never appears. -/
 
 #guard
-  !ExecutionObservation.deliveryComplete
+  !ExecutionObservation.lifecycleValid
     (.incremental
       { data := .object [], pending := [{ id := "d", path := [] }], hasNext := true }
       [{ hasNext := true, completed := [{ id := "d" }] }])

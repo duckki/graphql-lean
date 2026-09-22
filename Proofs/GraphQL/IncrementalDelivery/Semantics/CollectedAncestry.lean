@@ -36,7 +36,7 @@ def Collected (parents : Assignment) (start : Nat) (deferMap : DeferMap)
           (fun field =>
             OptionalUsageAt next output.2
               (getNewDeferMap output.1.newDeferUsages path deferMap) field.deferUsage)
-          output.1.fields
+          output.1.collectedFieldsMap
 
 theorem collected_empty (parents : Assignment) (state : Nat) (deferMap : DeferMap)
     (path : ResponsePath) (hv : Valid parents state) (hm : MapAt parents state deferMap)
@@ -52,7 +52,7 @@ theorem collected_append {first middle : Assignment} {start mid finish : Nat}
           (fun field =>
             OptionalUsageAt middle mid
               (getNewDeferMap left.newDeferUsages path deferMap) field.deferUsage)
-          left.fields)
+          left.collectedFieldsMap)
     (hr
       : Collected middle mid (getNewDeferMap left.newDeferUsages path deferMap) path
           (right, finish))
@@ -139,7 +139,7 @@ mutual
 end
 
 theorem collectSubfields_ancestry (schema : Schema) (variables : VariableValues)
-    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List ExecutableField)
+    (parentType : Name) (source : ResolverValue ObjectRef) (fields : List FieldDetails)
     (parents : Assignment) (state : Nat) (deferMap : DeferMap) (path : ResponsePath)
     (hv : Valid parents state) (hm : MapAt parents state deferMap)
     (hu : ∀ field ∈ fields, OptionalUsageAt parents state deferMap field.deferUsage)

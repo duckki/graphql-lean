@@ -15,7 +15,7 @@ history.
 -/
 def replayResponse (response : Response)
     (initialGroups initialStreams : List DeliveryNode)
-    (groups : List (List (List WorkEvent)))
+    (groups : List (List (List WorkQueueEvent)))
     : ExecutionObservation :=
   let (pending, ids) :=
     (getPendingEntry (m := StateM IDState) initialGroups initialStreams ensureID).run {}
@@ -36,16 +36,16 @@ inductive WorkObservation (response : Response) (work : Work) (complete : Bool)
   | single (empty : work.size = 0)
     : WorkObservation response work complete (.single response)
   | incremental (initialGroups initialStreams : List DeliveryNode)
-    (groups : List (List (List WorkEvent)))
+    (groups : List (List (List WorkQueueEvent)))
     (nonempty : work.size ≠ 0) (batches : ∀ group ∈ groups, group ≠ [])
     (admitted
-      : WorkScheduler.AdmissiblePrefix work
+      : WorkQueueSemantics.AdmissiblePrefix work
           ⟨initialGroups, initialStreams, groups.flatten⟩
-        ∨ WorkScheduler.AdmissibleRun work
+        ∨ WorkQueueSemantics.AdmissibleRun work
             ⟨initialGroups, initialStreams, groups.flatten⟩)
     (finished
       : complete = true
-        → WorkScheduler.AdmissibleRun work
+        → WorkQueueSemantics.AdmissibleRun work
             ⟨initialGroups, initialStreams, groups.flatten⟩)
     : WorkObservation response work complete
         (replayResponse response initialGroups initialStreams groups)
@@ -66,8 +66,9 @@ theorem WorkObservation.forgetComplete {response : Response} {work : Work}
 Witness: split the empty-work branch, then extract actual inputs through source
 conformance.
 -/
-theorem executionFromWork_observes_workHistory (scheduler : Execution.WorkScheduler)
-    (response : Response) (work : Work) (conforms : scheduler.Conforms work)
+theorem executionFromWork_observes_workHistory
+    (scheduler : (Execution.Work → Execution.WorkQueue)) (response : Response)
+    (work : Work) (conforms : (work.size ≠ 0 → (scheduler work).Conforms work))
     {result : ExecutionObservation} {complete : Bool}
     (observed : (executionFromWork scheduler response work).Observes result complete)
     : WorkObservation response work complete result := by
@@ -82,8 +83,8 @@ theorem executionFromWork_observes_workHistory (scheduler : Execution.WorkSchedu
   · have sourceConforms := conforms empty
     cases allocated
           : (getPendingEntry (m := StateM IDState)
-              (scheduler.createWorkQueue work).initialGroups
-              (scheduler.createWorkQueue work).initialStreams ensureID).run
+              (scheduler work).initialGroups
+              (scheduler work).initialStreams ensureID).run
               {} with
     | mk pending ids =>
         simp only [executionFromWork, empty, beq_iff_eq, ↓reduceIte,
@@ -93,10 +94,10 @@ theorem executionFromWork_observes_workHistory (scheduler : Execution.WorkSchedu
         | incremental initial updates =>
             obtain ⟨rfl, final, run, terminated⟩ := observed
             obtain ⟨groups, nonempty, _, admitted, outputs, terminal⟩ :=
-              (scheduler.createWorkQueue work).observes_workHistory work ids sourceConforms run
+              (scheduler work).observes_workHistory work ids sourceConforms run
             have witnessed := WorkObservation.incremental (response := response) (work := work)
-              (complete := complete) (scheduler.createWorkQueue work).initialGroups
-              (scheduler.createWorkQueue work).initialStreams groups empty nonempty admitted
+              (complete := complete) (scheduler work).initialGroups
+              (scheduler work).initialStreams groups empty nonempty admitted
               (fun finished => terminal.mp (terminated finished))
             simpa only [replayResponse, allocated, outputs,
               ResponseEventStream.mapInputs, batchIncrementalResults,
@@ -105,15 +106,17 @@ theorem executionFromWork_observes_workHistory (scheduler : Execution.WorkSchedu
 /-- Root observations retain the actual core response/work, by the checked packaging
 equation.
 -/
-theorem executeRootSelectionSet_observes_workHistory (scheduler : Execution.WorkScheduler)
-    (schema : Schema) (resolvers : Resolvers ObjectRef) (variables : VariableValues)
-    (fuel : Nat) (parentType : Name) (source : ResolverValue ObjectRef)
-    (selections : List Selection) {result : ExecutionObservation} {complete : Bool}
+theorem executeRootSelectionSet_observes_workHistory
+    (scheduler : (Execution.Work → Execution.WorkQueue)) (schema : Schema)
+    (resolvers : Resolvers ObjectRef) (variables : VariableValues) (fuel : Nat)
+    (parentType : Name) (source : ResolverValue ObjectRef) (selections : List Selection)
+    {result : ExecutionObservation} {complete : Bool}
     (conforms
-      : scheduler.Conforms
-          ((executeRootSelectionSetCore schema resolvers variables fuel parentType source
-              selections).run
-            0).1.work)
+      : let work :=
+          ((executeRootSelectionSetCore schema resolvers variables fuel
+              parentType source selections).run
+            0).1.work
+        work.size ≠ 0 → (scheduler work).Conforms work)
     (observed
       : (executeRootSelectionSet scheduler schema resolvers variables fuel parentType
           source selections).Observes
@@ -131,11 +134,16 @@ theorem executeRootSelectionSet_observes_workHistory (scheduler : Execution.Work
 invalid-root error. Witness: retain the operation-local conformance premise and apply the
 root-history theorem.
 -/
-theorem queryObservation_workHistory {schema : Schema} {resolvers : Resolvers ObjectRef}
+theorem queryObservation_workHistory {createWorkQueue : Work → WorkQueue}
+    {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation} {complete : Bool}
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
     (observed
-      : queryObservation schema resolvers variables operation fuel source result complete)
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result complete)
     : if rootSourceAppliesBool schema operation source then
         let completed :=
           ((executeRootSelectionSetCore schema resolvers
@@ -146,14 +154,13 @@ theorem queryObservation_workHistory {schema : Schema} {resolvers : Resolvers Ob
           complete result
       else
         result = .single { data := .null, errors := 1 } := by
-  obtain ⟨scheduler, conforms, observed⟩ := observed
   split
   · rename_i applies
-    simp only [executeQueryWithFuel, applies, ↓reduceIte] at observed
-    exact executeRootSelectionSet_observes_workHistory scheduler schema resolvers _ fuel
+    simp only [queryObservation, executeQueryWithFuel, applies, ↓reduceIte] at observed
+    exact executeRootSelectionSet_observes_workHistory createWorkQueue schema resolvers _ fuel
       (operation.rootType schema) source operation.selectionSet (conforms applies) observed
   · rename_i invalid
-    simp only [executeQueryWithFuel, invalid] at observed
+    simp only [queryObservation, executeQueryWithFuel, invalid] at observed
     cases result with
     | single response => exact congrArg ExecutionObservation.single observed.symm
     | incremental initial updates => cases observed
@@ -162,17 +169,22 @@ theorem queryObservation_workHistory {schema : Schema} {resolvers : Resolvers Ob
 invalid-root branch. Witness: the query-history theorem and the single zero-work witness
 for the counted root error.
 -/
-theorem queryObservation_property {schema : Schema} {resolvers : Resolvers ObjectRef}
+theorem queryObservation_property {createWorkQueue : Work → WorkQueue}
+    {schema : Schema} {resolvers : Resolvers ObjectRef}
     {variables : VariableValues} {operation : Operation} {fuel : Nat}
     {source : ResolverValue ObjectRef} {result : ExecutionObservation} {complete : Bool}
     (property : ExecutionObservation → Prop)
     (workProperty
       : ∀ response work result,
           WorkObservation response work complete result → property result)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
     (observed
-      : queryObservation schema resolvers variables operation fuel source result complete)
+      : queryObservation createWorkQueue schema resolvers variables operation fuel source
+          result complete)
     : property result := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   split at witnessed
   · exact workProperty _ _ _ witnessed
   · subst result

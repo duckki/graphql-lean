@@ -61,11 +61,16 @@ theorem root_source_entries (schema : Schema) (resolvers : Resolvers ObjectRef)
 Witness: typed entry equality survives optional removal of container tags; invalid roots
 are excluded by the zero-error premise, not by a new validity assumption.
 -/
-theorem queryOutcome_source_equivalent
+theorem queryOutcome_source_equivalent {createWorkQueue : Work → WorkQueue}
     {schema : Schema} {resolvers : Resolvers ObjectRef} {variables : VariableValues}
     {operation : Operation} {fuel : Nat} {source : ResolverValue ObjectRef}
     {result : ExecutionObservation}
-    (observed : queryOutcome schema resolvers variables operation fuel source result)
+    (conforms
+      : queryWorkQueueConforms createWorkQueue schema resolvers variables operation fuel
+          source)
+    (observed
+      : queryOutcome createWorkQueue schema resolvers variables operation fuel source
+          result)
     (zero : result.totalErrors = 0) (containers : Bool)
     : let completed :=
         ((executeRootSelectionSetCore schema resolvers
@@ -80,7 +85,7 @@ theorem queryOutcome_source_equivalent
         (ResponsePositions.value containers []
           (GraphQL.Execution.executeQueryWithFuel schema resolvers variables
             operation.eraseIncrementalDirectives fuel source).data) := by
-  have witnessed := queryObservation_workHistory observed
+  have witnessed := queryObservation_workHistory conforms observed
   cases applies : rootSourceAppliesBool schema operation source with
   | false =>
       simp only [applies, Bool.false_eq_true, ↓reduceIte] at witnessed
@@ -118,10 +123,12 @@ source/basic reconstruction. No scheduler, syntax, or resolver restriction is ad
 theorem deliveredResponsePositionsEquivalentToBasic_holds (schema : Schema)
     (operation : Operation)
     : deliveredResponsePositionsEquivalentToBasic schema operation := by
-  intro ObjectRef resolvers variables fuel source result observed zero containers
-  obtain ⟨slices, delivered, covered⟩ := queryOutcome_source_coverage observed zero containers
+  intro ObjectRef resolvers variables fuel source createWorkQueue result conforms observed
+    zero containers
+  obtain ⟨slices, delivered, covered⟩ :=
+    queryOutcome_source_coverage conforms observed zero containers
   exact ⟨slices, delivered,
-    covered.trans (queryOutcome_source_equivalent observed zero containers)⟩
+    covered.trans (queryOutcome_source_equivalent conforms observed zero containers)⟩
 
 /-- Each ordinary scalar/null leaf occurs once across all delivered slices. Witness:
 public position coverage and ordinary response-path uniqueness.

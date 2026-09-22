@@ -1,5 +1,5 @@
 import Proofs.GraphQL.IncrementalDelivery.Correctness.OwnerAvailability
-import Proofs.GraphQL.IncrementalDelivery.WorkScheduler.ReleasedStreamNotices
+import Proofs.GraphQL.IncrementalDelivery.WorkQueueSemantics.ReleasedStreamNotices
 
 /-! Constructive continuation after deferred work releases its remaining streams.
 The hypotheses describe a reached prefix, not a stronger public scheduler contract.
@@ -8,7 +8,7 @@ The hypotheses describe a reached prefix, not a stronger public scheduler contra
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
 open GraphQL.IncrementalDelivery.Semantics
-open WorkScheduler
+open WorkQueueSemantics
 
 -----------------------------------------------------------------------------------------
 -- Retain already accounted deferred tasks while processing streams
@@ -19,18 +19,18 @@ cancelled.
 Stream items can remain unprocessed, including items with dynamically introduced children.
 -/
 def DeferredTasksAccounted (work : Work) (matching : PublicationMatching)
-    (events : List WorkEvent) (failed : List Occurrence)
+    (events : List WorkQueueEvent) (failed : FailureCuts)
     : Prop :=
   ∀ address owners producer payload,
     TaskAt work (.executionGroup address) owners producer payload
-    → Accounted work matching events failed (.executionGroup address)
+    → TaskAccounted work matching events failed (.executionGroup address)
 
 /-- A new matched publication preserves deferred accounting. Witness: cancellation is
 unchanged and every earlier publication retains its matching index.
 -/
 theorem DeferredTasksAccounted.publish {work matching events failed}
     (accounted : DeferredTasksAccounted work matching events failed)
-    (occurrence : Occurrence) (event : WorkEvent)
+    (occurrence : Occurrence) (event : WorkQueueEvent)
     : DeferredTasksAccounted work (matchNext matching events.length occurrence)
         (events ++ [event]) failed :=
   fun address owners producer payload known =>
@@ -41,7 +41,7 @@ Witness: publication-prefix preservation and causal failure monotonicity.
 -/
 theorem DeferredTasksAccounted.extend {work matching events failed more}
     (accounted : DeferredTasksAccounted work matching events failed)
-    (included : failed ⊆ more) (tail : List WorkEvent)
+    (included : failed ⊆ more) (tail : List WorkQueueEvent)
     : DeferredTasksAccounted work matching (events ++ tail) more :=
   fun address owners producer payload known =>
     ((accounted address owners producer payload known).more_failures included).append tail
@@ -59,40 +59,39 @@ theorem finish_released_streams
     {paths bound work groups streams events matching failures}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
-    (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
+    (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-          matching events (failures.map Prod.snd))
+          matching events failures)
     : ∃ tail next cuts,
         Explains work groups streams (events ++ tail) next cuts
         ∧ Terminal work ((groups ++ streams).map DeliveryNode.key) next (events ++ tail)
-            (failedBefore cuts (events ++ tail).length) := by
+            cuts := by
   classical
   let property outputs next (cuts : FailureCuts) :=
-    DeferredTasksAccounted work next outputs (cuts.map Prod.snd)
+    DeferredTasksAccounted work next outputs cuts
     ∧ StreamsNotified work ((groups ++ streams).map DeliveryNode.key) next outputs
-      (cuts.map Prod.snd)
+      cuts
   obtain ⟨tail, next, cuts, admitted, retained, maximal⟩ :=
     explained.maximal_extension_preserving property ⟨deferred, notified⟩
   have accounted : ∀ occurrence owners producer payload,
       TaskAt work occurrence owners producer payload
-      → Accounted work next (events ++ tail) (failedBefore cuts (events ++ tail).length)
+      → TaskAccounted work next (events ++ tail) cuts
           occurrence := by
     intro occurrence owners producer payload known
     apply Classical.byContradiction
     intro outstanding
     obtain ⟨taskOccurrence, taskOwners, taskProducer, result, task, ready⟩ :=
       readyTask_exists known outstanding
-    have unaccounted : ¬Accounted work next (events ++ tail)
-        (failedBefore cuts (events ++ tail).length) taskOccurrence := by
+    have unaccounted : ¬TaskAccounted work next (events ++ tail)
+        cuts taskOccurrence := by
       rintro (cancelled | published)
       · exact ready.2.1 cancelled
       · exact ready.1 published
     cases StructuralEquivalence.taskAt_of_current task with
     | executionGroup located =>
         apply unaccounted
-        rw [admitted.2.1.failedBefore_eq (Nat.le_refl _)]
         exact retained.1 _ _ _ _ task
     | @item address stream items producer enclosing index outcome children located entry
       =>
@@ -104,7 +103,7 @@ theorem finish_released_streams
         have opened : Open ((groups ++ streams).map DeliveryNode.key) (events ++ tail)
             stream.key := by
           refine ⟨retained.2 stream enclosing _ streamKnown ready.2.2.1 ?_, uncompleted⟩
-          simpa only [admitted.2.1.failedBefore_eq (Nat.le_refl _)] using healthy
+          exact healthy
         cases outcome with
         | ok value =>
             obtain ⟨item, errors⟩ := value
@@ -121,14 +120,12 @@ theorem finish_released_streams
         | error errors =>
             obtain ⟨owner, count, event, _, control, _, extended⟩ := admitted.failure_step
               task rfl (ready.reachable admitted task) ⟨stream.key, by simp, opened⟩
-              (by simpa only [admitted.2.1.failedBefore_eq (Nat.le_refl _)] using ready.2.1)
+              ready.2.1
             have noValue : ¬IsValue event := by
               rcases control with rfl | rfl <;> simp [IsValue]
-            have included : cuts.map Prod.snd ⊆
-                (cuts ++ [((events ++ tail).length, Occurrence.item address index)]).map
-                  Prod.snd := by
-              simp only [List.map_append]
-              exact List.subset_append_left _ _
+            have included : cuts ⊆
+                cuts ++ [((events ++ tail).length, Occurrence.item address index)] :=
+              List.subset_append_left _ _
             have covered := retained.2.append_control noValue included
             have preserved := retained.1.extend included [event]
             have impossible := maximal [event] next
@@ -151,13 +148,13 @@ theorem released_streams_run_extension
     {paths bound work groups streams events matching failures batches}
     (coherent : MixedOwnerPaths.WorkAt paths bound work)
     (explained : Explains work groups streams events matching failures)
-    (deferred : DeferredTasksAccounted work matching events (failures.map Prod.snd))
+    (deferred : DeferredTasksAccounted work matching events failures)
     (closed : StreamDependenciesCompleted work events)
     (notified
       : StreamsNotified work ((groups ++ streams).map DeliveryNode.key)
-          matching events (failures.map Prod.snd))
+          matching events failures)
     (batched : WorkBatching events batches)
-    : ∃ tail : List WorkEvent,
+    : ∃ tail : List WorkQueueEvent,
         AdmissibleRun work
           ⟨
             groups,

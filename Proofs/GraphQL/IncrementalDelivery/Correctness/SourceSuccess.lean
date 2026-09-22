@@ -5,7 +5,7 @@ import Proofs.GraphQL.IncrementalDelivery.Correctness.PublicationCoverage
 
 namespace GraphQL.IncrementalDelivery.Correctness
 open GraphQL.IncrementalDelivery.Execution
-open WorkScheduler
+open WorkQueueSemantics
 
 /-- Successful zero-count object outcomes contain a value with no counted errors.
 Witness: the two result constructors exclude a failed payload.
