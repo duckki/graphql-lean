@@ -137,6 +137,16 @@ enumerating unrelated variables. Because selection conditions are flattened befo
 check, a broader left type condition can directly cover a narrower right type region even
 when their inline-fragment syntax differs.
 
+Guarded composite groups have a recursive symbolic witness as well. When every occurrence
+uses the same resolver call and the left occurrence conditions cover every right condition,
+the checker carries each occurrence's cumulative Boolean condition into its child boundary.
+`SelectionConditions.ofTypeRegionUnder` performs this seeded extraction. Child response names
+then split only the variables they actually read, avoiding the product of independent guards
+that happen to share a parent response name. A child condition that contradicts its carried
+parent condition is discarded during extraction. The witness is tried only for groups with a
+Boolean condition; if resolver-call equality, condition coverage, or the seeded child check
+fails, the complete assignment-enumerating search remains the fallback.
+
 The same local proof follows a one-to-one composite field when its child selection has the
 verified syntactic-inclusion witness. Composite field merging and other ambiguous cases
 continue through the complete response-local search.
@@ -156,7 +166,8 @@ every reference-checker case.
 ## Benchmark
 
 The native benchmark includes explicit positive and negative pairs, a reflexive shortcut
-case, a deep missing-field case, and symbolic Boolean-clause coverage:
+case, a deep missing-field case, symbolic Boolean-clause coverage, and a guarded-parent
+case with fourteen independent child guards:
 
 ```sh
 lake exe query-inclusion-bench

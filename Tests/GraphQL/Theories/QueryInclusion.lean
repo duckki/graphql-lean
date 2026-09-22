@@ -338,6 +338,104 @@ theorem guardedFieldGroup_incrementalBooleanSplitSmoke
       = true := by
   native_decide
 
+def symbolicParentVariables : List VariableDefinition :=
+  [
+    { name := "leftBranch", typeRef := .nonNull (.named "Boolean") },
+    { name := "rightBranch", typeRef := .nonNull (.named "Boolean") }
+  ]
+
+def symbolicLeftBranchVariables : List VariableDefinition :=
+  [{ name := "leftBranch", typeRef := .nonNull (.named "Boolean") }]
+
+def symbolicIndependentParentSelectionSet : List Selection :=
+  [
+    .field "hero" "hero" [] [.include (.variable "leftBranch")]
+      [.field "leftName" "name" [] [] []],
+    .field "hero" "hero" [] [.include (.variable "rightBranch")]
+      [.field "rightName" "name" [] [] []]
+  ]
+
+-- This is the performance-critical shape: independent guards share the parent
+-- response name but belong to different child response names. The symbolic rule
+-- carries each guard into its child boundary instead of enumerating their product.
+theorem guardedFieldGroup_symbolicIndependentChildrenSmoke
+    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        symbolicIndependentParentSelectionSet
+      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        symbolicIndependentParentSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+        left right (guardedFieldGroupTypeRegions ["Query"] left right)
+      = true := by
+  native_decide
+
+def guardedParentLeftSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [.field "name" "name" [] [] []]]
+
+def unconditionalParentRightSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [] [.field "name" "name" [] [] []]]
+
+def guardedParentLeftQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := guardedParentLeftSelectionSet
+  }
+
+def unconditionalParentRightQuery : Operation :=
+  { selectionSet := unconditionalParentRightSelectionSet }
+
+-- A conditional occurrence cannot cover the unconditional right occurrence. The
+-- symbolic witness declines, and the complete fallback reaches the same rejection.
+theorem guardedFieldGroup_symbolicRejectsGuardedCoverageGapSmoke
+    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        guardedParentLeftSelectionSet
+      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        unconditionalParentRightSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+          left right (guardedFieldGroupTypeRegions ["Query"] left right)
+        = false
+      ∧ includesBool sampleSchema guardedParentLeftQuery unconditionalParentRightQuery
+        = false := by
+  native_decide
+
+def contradictoryChildLeftSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [.field "name" "name" [] [] []]]
+
+def contradictoryChildRightSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [
+      .field "name" "name" [] [] [],
+      .field "impossible" "name" [] [.skip (.variable "leftBranch")] []
+    ]]
+
+def contradictoryChildLeftQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := contradictoryChildLeftSelectionSet
+  }
+
+def contradictoryChildRightQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := contradictoryChildRightSelectionSet
+  }
+
+-- The child's `@skip` contradicts the parent occurrence's `@include`. Seeding the
+-- child extraction with the parent condition removes that infeasible contribution.
+theorem guardedFieldGroup_symbolicDropsContradictoryChildSmoke
+    : let left := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        contradictoryChildLeftSelectionSet
+      let right := guardedGroupForSelectionSet sampleSchema "Query" "hero"
+        contradictoryChildRightSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+          left right (guardedFieldGroupTypeRegions ["Query"] left right)
+        = true
+      ∧ includesBool sampleSchema contradictoryChildLeftQuery
+          contradictoryChildRightQuery
+        = true := by
+  native_decide
+
 -- One-pass grouping preserves first-response occurrence order and source order within
 -- the repeated `age` group.
 theorem guardedFieldGroups_onePassOrderSmoke

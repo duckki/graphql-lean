@@ -137,6 +137,39 @@ def clauseCoverageOperation (booleanCount : Nat) (left : Bool) : Operation :=
       [.field "entity" "entity" [] [] (clauseCoverageFields booleanCount left)]
   }
 
+def symbolicParentLeftOperation (booleanCount : Nat) : Operation :=
+  let guardedOccurrences :=
+    (List.range booleanCount).map
+      fun index =>
+        .field "entity" "entity" []
+          [.include (.variable (indexedName "enabled" index))]
+          [.field (indexedName "branch" index) "id" [] [] []]
+  {
+    variableDefinitions :=
+      (List.range booleanCount).map
+        fun index =>
+          { name := indexedName "enabled" index, typeRef := .named "Boolean" }
+    selectionSet :=
+      .field "entity" "entity" [] [] [.field "id" "id" [] [] []]
+        :: guardedOccurrences
+  }
+
+def symbolicParentRightOperation (booleanCount : Nat) : Operation :=
+  let guardedChildren :=
+    (List.range booleanCount).map
+      fun index =>
+        .field (indexedName "branch" index) "id" []
+          [.include (.variable (indexedName "enabled" index))] []
+  {
+    variableDefinitions :=
+      (List.range booleanCount).map
+        fun index =>
+          { name := indexedName "enabled" index, typeRef := .named "Boolean" }
+    selectionSet :=
+      [.field "entity" "entity" [] []
+        (.field "id" "id" [] [] [] :: guardedChildren)]
+  }
+
 def runChecker (iterations : Nat) (expected : Bool) (checker : Unit -> Bool)
     : IO Nat := do
   let mut accepted := 0
@@ -183,11 +216,20 @@ def runClauseCoverageScenario (booleanCount iterations : Nat) : IO Unit := do
   IO.println s!"\nsymbolic clause coverage: booleans={booleanCount}"
   timeChecker "complementary clauses" iterations true checker
 
+def runSymbolicParentScenario (booleanCount iterations : Nat) : IO Unit := do
+  let schema := benchmarkSchema 1 0
+  let left := symbolicParentLeftOperation booleanCount
+  let right := symbolicParentRightOperation booleanCount
+  IO.println s!"\nsymbolic guarded parent: independent booleans={booleanCount}"
+  timeChecker "seeded child boundaries" iterations true
+    fun _ => includesBool schema left right
+
 def run : IO Unit := do
   runScenario "wide type regions" 96 3 0 0 500
   runScenario "Boolean conditions" 48 3 7 0 200
   runScenario "nested response scopes" 12 2 2 2 100
   runClauseCoverageScenario 18 500
+  runSymbolicParentScenario 14 500
 
 end GraphQL.Benchmarks.QueryInclusion
 

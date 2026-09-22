@@ -368,6 +368,19 @@ def ofTypeRegion (schema : Schema) (region : List Name) (selectionSet : List Sel
     : List ConditionedField :=
   extractFields schema [] { possibleTypes := region, booleanCondition := [] } selectionSet
 
+-- Extracts several contributions to one response boundary while retaining the
+-- Boolean condition under which each contribution reaches that boundary.  The
+-- seed is the current condition, rather than `extractFields`' separate inherited
+-- condition: child directives are conjoined with it and contradictory branches
+-- are discarded in the usual way.
+def ofTypeRegionUnder (schema : Schema) (region : List Name)
+    (contributions : List (List BooleanLiteral × List Selection))
+    : List ConditionedField :=
+  contributions.flatMap
+    fun (booleanCondition, selectionSet) =>
+      extractFields schema [] { possibleTypes := region, booleanCondition }
+        selectionSet
+
 -- Runtime interpretation of a flat conditioned-field boundary. The cumulative
 -- condition is the complete gate; extracted fields no longer carry modeled directives.
 def runtimeFields (variableValues : VariableValues)
