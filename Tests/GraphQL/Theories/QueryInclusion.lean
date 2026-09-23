@@ -338,12 +338,6 @@ theorem guardedFieldGroup_incrementalBooleanSplitSmoke
       = true := by
   native_decide
 
-def symbolicParentVariables : List VariableDefinition :=
-  [
-    { name := "leftBranch", typeRef := .nonNull (.named "Boolean") },
-    { name := "rightBranch", typeRef := .nonNull (.named "Boolean") }
-  ]
-
 def symbolicLeftBranchVariables : List VariableDefinition :=
   [{ name := "leftBranch", typeRef := .nonNull (.named "Boolean") }]
 
