@@ -666,14 +666,14 @@ def syntacticShortcutRight : List Selection :=
 -- Exact right syntax is a directional witness even when the left has extra response
 -- fields. Two units of fuel are required for the `hero.id` response path.
 theorem syntacticInclusionShortcutSmoke
-    : selectionSetSyntacticInclusionShortcutBool sampleSchema 2 ["Query"] syntacticShortcutLeft
-        syntacticShortcutRight
+    : selectionSetSyntacticInclusionShortcutBool sampleSchema 2 ["Query"]
+        syntacticShortcutLeft syntacticShortcutRight
       = true := by
   native_decide
 
 theorem syntacticInclusionShortcutRespectsFuelSmoke
-    : selectionSetSyntacticInclusionShortcutBool sampleSchema 1 ["Query"] syntacticShortcutLeft
-        syntacticShortcutRight
+    : selectionSetSyntacticInclusionShortcutBool sampleSchema 1 ["Query"]
+        syntacticShortcutLeft syntacticShortcutRight
       = false := by
   native_decide
 
@@ -681,8 +681,10 @@ theorem syntacticInclusionShortcutRespectsFuelSmoke
 theorem syntacticInclusionShortcutDuplicateRightSmoke
     : selectionSetSyntacticInclusionShortcutBool sampleSchema 2 ["Query"]
         [.field "hero" "hero" [] [] [.field "id" "id" [] [] []]]
-        [.field "hero" "hero" [] [] [.field "id" "id" [] [] []],
-          .field "hero" "hero" [] [] [.field "id" "id" [] [] []]]
+        [
+          .field "hero" "hero" [] [] [.field "id" "id" [] [] []],
+          .field "hero" "hero" [] [] [.field "id" "id" [] [] []]
+        ]
       = true := by
   native_decide
 

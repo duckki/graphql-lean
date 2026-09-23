@@ -346,8 +346,7 @@ def selectionSetRecursiveSyntacticInclusionShortcutBool (schema : Schema)
     (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
     : Bool :=
   decide (selectionSetResponseDepth right ≤ responseFuel)
-  && selectionSetSyntacticallyIncludesRecursivelyBool schema
-      possibleTypes left right
+  && selectionSetSyntacticallyIncludesRecursivelyBool schema possibleTypes left right
 
 private def syntacticFieldsShallowEqBool : Selection -> Selection -> Bool
   | .field leftResponseName leftFieldName leftArguments leftDirectives _,
@@ -375,7 +374,8 @@ end
 
 -- A pair of fragment bodies can be worth comparing even when both sides are
 -- wrapped: distinct type conditions may both become transparent after descent.
-private def selectionSetSharesFieldLikeAux : Nat -> List Selection -> List Selection -> Bool
+private def selectionSetSharesFieldLikeAux
+    : Nat -> List Selection -> List Selection -> Bool
   | 0, _left, _right => false
   | budget + 1, left, right =>
       left.any
@@ -404,15 +404,13 @@ def selectionSetsMayNeedRecursiveSyntaxAux
               match leftSelection, rightSelection with
               | .field _ _ _ _ leftChild, .field _ _ _ _ rightChild =>
                   syntacticFieldsShallowEqBool leftSelection rightSelection
-                  && selectionSetsMayNeedRecursiveSyntaxAux budget
-                      leftChild rightChild
+                  && selectionSetsMayNeedRecursiveSyntaxAux budget leftChild rightChild
               | .inlineFragment leftCondition leftDirectives leftChild,
                 .inlineFragment rightCondition rightDirectives rightChild =>
                   if leftCondition == rightCondition
                       && Algorithms.directiveListEqBool leftDirectives
                           rightDirectives then
-                    selectionSetsMayNeedRecursiveSyntaxAux budget
-                      leftChild rightChild
+                    selectionSetsMayNeedRecursiveSyntaxAux budget leftChild rightChild
                   else
                     leftDirectives.isEmpty
                     && rightDirectives.isEmpty

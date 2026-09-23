@@ -130,8 +130,7 @@ theorem selectionSetsMayNeedRecursiveSyntaxAux_eq_of_perm
     (budget : Nat) {left reorderedLeft right reorderedRight : List Selection}
     (hleft : left.Perm reorderedLeft) (hright : right.Perm reorderedRight)
     : selectionSetsMayNeedRecursiveSyntaxAux budget left right
-      = selectionSetsMayNeedRecursiveSyntaxAux budget reorderedLeft
-          reorderedRight := by
+      = selectionSetsMayNeedRecursiveSyntaxAux budget reorderedLeft reorderedRight := by
   cases budget with
   | zero => rfl
   | succ budget =>

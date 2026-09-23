@@ -499,8 +499,7 @@ private theorem collectFields_possibleTypes_syntactically_includes
     (parentType runtimeType : Name) (left right : List Selection)
     (hruntime : runtimeType ∈ possibleTypes)
     (hsyntax
-      : selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes
-          left right
+      : selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes left right
         = true)
     : ∀ rightEntry,
         rightEntry
