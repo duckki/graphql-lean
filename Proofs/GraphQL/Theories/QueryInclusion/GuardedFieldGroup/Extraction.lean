@@ -494,6 +494,95 @@ decreasing_by
     simp_all [SelectionSet.size, Selection.size]
     omega
 
+theorem extractFields_childBooleanVariablesWithin
+    (schema : Schema)
+    (inherited : List SelectionConditions.BooleanLiteral)
+    (currentCondition : SelectionConditions.Condition)
+    (selectionSet : List Selection)
+    {entry : SelectionConditions.ConditionedField}
+    (hentry
+      : entry
+        ∈ SelectionConditions.extractFields schema inherited currentCondition
+            selectionSet)
+    {variableName : Name}
+    (hvariable
+      : variableName
+        ∈ SelectionConditions.selectionSetBooleanVariables entry.field.selectionSet)
+    : variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet := by
+  cases selectionSet with
+  | nil => simp [SelectionConditions.extractFields] at hentry
+  | cons selection rest =>
+      cases selection with
+      | field responseName fieldName arguments directives childSelectionSet =>
+          rw [SelectionConditions.extractFields] at hentry
+          cases hbranches
+                : SelectionConditions.branchConditionsForDirectives? directives with
+          | none =>
+              simp [hbranches] at hentry
+              have hrest := extractFields_childBooleanVariablesWithin schema inherited
+                currentCondition rest hentry hvariable
+              simp [SelectionConditions.selectionSetBooleanVariables,
+                SelectionConditions.selectionBooleanVariables, hrest]
+          | some branches =>
+              cases hnext
+                    : SelectionConditions.conditionForBranches? schema inherited
+                        currentCondition branches with
+              | none =>
+                  simp [hbranches, hnext] at hentry
+                  have hrest := extractFields_childBooleanVariablesWithin schema
+                    inherited currentCondition rest hentry hvariable
+                  simp [SelectionConditions.selectionSetBooleanVariables,
+                    SelectionConditions.selectionBooleanVariables, hrest]
+              | some nextCondition =>
+                  simp only [hbranches, hnext, List.mem_append,
+                    List.mem_singleton] at hentry
+                  rcases hentry with hhead | hrest
+                  · subst entry
+                    simp [SelectionConditions.selectionSetBooleanVariables,
+                      SelectionConditions.selectionBooleanVariables, hvariable]
+                  · have hrest := extractFields_childBooleanVariablesWithin schema
+                      inherited currentCondition rest hrest hvariable
+                    simp [SelectionConditions.selectionSetBooleanVariables,
+                      SelectionConditions.selectionBooleanVariables, hrest]
+      | inlineFragment typeCondition directives childSelectionSet =>
+          rw [SelectionConditions.extractFields] at hentry
+          cases hbranches
+                : SelectionConditions.branchConditionsForInlineFragment?
+                    typeCondition directives with
+          | none =>
+              simp [hbranches] at hentry
+              have hrest := extractFields_childBooleanVariablesWithin schema inherited
+                currentCondition rest hentry hvariable
+              simp [SelectionConditions.selectionSetBooleanVariables,
+                SelectionConditions.selectionBooleanVariables, hrest]
+          | some branches =>
+              cases hnext
+                    : SelectionConditions.conditionForBranches? schema inherited
+                        currentCondition branches with
+              | none =>
+                  simp [hbranches, hnext] at hentry
+                  have hrest := extractFields_childBooleanVariablesWithin schema
+                    inherited currentCondition rest hentry hvariable
+                  simp [SelectionConditions.selectionSetBooleanVariables,
+                    SelectionConditions.selectionBooleanVariables, hrest]
+              | some nextCondition =>
+                  simp only [hbranches, hnext, List.mem_append] at hentry
+                  rcases hentry with hchild | hrest
+                  · have hchild := extractFields_childBooleanVariablesWithin schema
+                      inherited nextCondition childSelectionSet hchild hvariable
+                    simp [SelectionConditions.selectionSetBooleanVariables,
+                      SelectionConditions.selectionBooleanVariables, hchild]
+                  · have hrest := extractFields_childBooleanVariablesWithin schema
+                      inherited currentCondition rest hrest hvariable
+                    simp [SelectionConditions.selectionSetBooleanVariables,
+                      SelectionConditions.selectionBooleanVariables, hrest]
+termination_by SelectionSet.size selectionSet
+decreasing_by
+  all_goals
+    simp_wf
+    simp_all [SelectionSet.size, Selection.size]
+    omega
+
 theorem conditionedFieldsForResponseName_origin
     (responseName : Name) (entries : List SelectionConditions.ConditionedField)
     {entry : SelectionConditions.ConditionedField}
@@ -611,6 +700,29 @@ theorem guardedFieldGroupBooleanVariablesWithinSelectionSet
   exact (guardedFieldGroupBooleanVariablesWithinSelectionSets schema region
     selectionSet selectionSet
     group hgroup group hgroup hcombined).elim id id
+
+theorem guardedFieldGroup_childBooleanVariablesWithinSelectionSet
+    (schema : Schema) (region : List Name) (selectionSet : List Selection)
+    (group : GuardedFieldGroup)
+    (hgroup
+      : group
+        ∈ guardedFieldGroups
+            (SelectionConditions.ofTypeRegion schema region selectionSet))
+    {entry : SelectionConditions.ConditionedField} (hentry : entry ∈ group.entries)
+    {variableName : Name}
+    (hvariable
+      : variableName
+        ∈ SelectionConditions.selectionSetBooleanVariables entry.field.selectionSet)
+    : variableName ∈ SelectionConditions.selectionSetBooleanVariables selectionSet := by
+  have hsource := (guardedFieldGroup_entry_origin
+    (SelectionConditions.ofTypeRegion schema region selectionSet) hgroup hentry).1
+  let condition : SelectionConditions.Condition :=
+    { possibleTypes := region, booleanCondition := [] }
+  have hsource' : entry ∈
+      SelectionConditions.extractFields schema [] condition selectionSet := by
+    simpa [SelectionConditions.ofTypeRegion, condition] using hsource
+  exact extractFields_childBooleanVariablesWithin schema [] condition selectionSet
+    hsource' hvariable
 
 end QueryInclusion
 end GraphQL

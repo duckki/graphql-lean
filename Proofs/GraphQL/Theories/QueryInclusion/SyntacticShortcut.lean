@@ -1,4 +1,5 @@
 import Proofs.GraphQL.Theories.QueryInclusion.RegionSearch
+import Proofs.GraphQL.List
 
 /-! Soundness of the conservative syntax-only query-inclusion shortcut. -/
 
@@ -63,20 +64,53 @@ theorem selectionSetResponseDepth_eq_of_perm
       omega
   | trans _ _ ihleft ihright => exact ihleft.trans ihright
 
-theorem selectionSetSyntacticInclusionShortcutBool_of_perm
-    {fuel : Nat} {left reorderedLeft right reorderedRight : List Selection}
+theorem withoutTransparentFragments_eq_flatMap
+    (schema : Schema) (possibleTypes : List Name) (selectionSet : List Selection)
+    : withoutTransparentFragments schema possibleTypes selectionSet
+      = selectionSet.flatMap
+          fun selection =>
+            match selection with
+            | .inlineFragment typeCondition directives body =>
+                if fragmentTransparentForPossibleTypesBool schema possibleTypes
+                    typeCondition directives then
+                  withoutTransparentFragments schema possibleTypes body
+                else
+                  [.inlineFragment typeCondition directives body]
+            | selection => [selection] := by
+  induction selectionSet with
+  | nil => simp [withoutTransparentFragments]
+  | cons selection rest ih =>
+      cases selection <;>
+        simp [withoutTransparentFragments, ih]
+
+theorem selectionSetBoundarySyntacticInclusionShortcutBool_of_perm
+    {schema : Schema} {possibleTypes : List Name} {fuel : Nat}
+    {left reorderedLeft right reorderedRight : List Selection}
     (hleft : left.Perm reorderedLeft) (hright : right.Perm reorderedRight)
-    (hcheck : selectionSetSyntacticInclusionShortcutBool fuel left right = true)
-    : selectionSetSyntacticInclusionShortcutBool fuel reorderedLeft reorderedRight
+    (hcheck
+      : selectionSetBoundarySyntacticInclusionShortcutBool schema fuel
+          possibleTypes left right
+        = true)
+    : selectionSetBoundarySyntacticInclusionShortcutBool schema fuel
+        possibleTypes reorderedLeft reorderedRight
       = true := by
-  simp only [selectionSetSyntacticInclusionShortcutBool, Bool.and_eq_true,
-    decide_eq_true_iff] at hcheck ⊢
-  exact ⟨
-    by simpa [selectionSetResponseDepth_eq_of_perm hright] using hcheck.1,
-    by
-      rw [← selectionSetSyntacticallyIncludesBool_eq_of_perm hleft hright]
-      exact hcheck.2
-  ⟩
+  simp only [selectionSetBoundarySyntacticInclusionShortcutBool,
+    Bool.and_eq_true, decide_eq_true_iff] at hcheck ⊢
+  refine ⟨by simpa [selectionSetResponseDepth_eq_of_perm hright] using hcheck.1, ?_⟩
+  have hleftFlattened : (withoutTransparentFragments schema possibleTypes left).Perm
+      (withoutTransparentFragments schema possibleTypes reorderedLeft) := by
+    rw [withoutTransparentFragments_eq_flatMap,
+      withoutTransparentFragments_eq_flatMap]
+    exact hleft.flatMap _
+  have hrightFlattened : (withoutTransparentFragments schema possibleTypes right).Perm
+      (withoutTransparentFragments schema possibleTypes reorderedRight) := by
+    rw [withoutTransparentFragments_eq_flatMap,
+      withoutTransparentFragments_eq_flatMap]
+    exact hright.flatMap _
+  unfold selectionSetSyntacticallyIncludesAtBoundaryBool at hcheck ⊢
+  rw [← selectionSetSyntacticallyIncludesBool_eq_of_perm hleftFlattened
+    hrightFlattened]
+  exact hcheck.2
 
 private theorem selection_size_le_selectionSet_size_of_mem
     {selection : Selection} {selectionSet : List Selection}
@@ -220,6 +254,94 @@ mutual
       omega
 end
 
+private theorem collectFlatFields_append_local (schema : Schema)
+    (variableValues : VariableValues) (parentType runtimeType : Name)
+    (left right : List Selection)
+    : collectFlatFields schema variableValues parentType
+        (ResolverValue.object runtimeType PUnit.unit) (left ++ right)
+      = collectFlatFields schema variableValues parentType
+          (ResolverValue.object runtimeType PUnit.unit) left
+        ++ collectFlatFields schema variableValues parentType
+            (ResolverValue.object runtimeType PUnit.unit) right := by
+  induction left with
+  | nil => rfl
+  | cons selection rest ih =>
+      simp [collectFlatFields, ih, List.append_assoc]
+
+private theorem transparentFragment_applies
+    (schema : Schema) (possibleTypes : List Name) (runtimeType : Name)
+    (typeCondition : Option Name) (directives : List DirectiveApplication)
+    (htransparent
+      : fragmentTransparentForPossibleTypesBool schema possibleTypes
+          typeCondition directives
+        = true)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : directives = []
+      ∧ ∀ condition,
+          typeCondition = some condition
+          -> schema.typeIncludesObjectBool condition runtimeType = true := by
+  simp only [fragmentTransparentForPossibleTypesBool, Bool.and_eq_true] at htransparent
+  have hdirectives : directives = [] := List.isEmpty_iff.mp htransparent.1
+  refine ⟨hdirectives, ?_⟩
+  intro condition hcondition
+  subst typeCondition
+  simp only [Bool.and_eq_true] at htransparent
+  exact (List.all_eq_true.mp htransparent.2.2) runtimeType hruntime
+
+theorem collectFlatFields_withoutTransparentFragments
+    (schema : Schema) (possibleTypes : List Name) (variableValues : VariableValues)
+    (parentType runtimeType : Name) (selectionSet : List Selection)
+    (hruntime : runtimeType ∈ possibleTypes)
+    : collectFlatFields schema variableValues parentType
+        (ResolverValue.object runtimeType PUnit.unit)
+        (withoutTransparentFragments schema possibleTypes selectionSet)
+      = collectFlatFields schema variableValues parentType
+          (ResolverValue.object runtimeType PUnit.unit) selectionSet := by
+  cases selectionSet with
+  | nil => simp [withoutTransparentFragments, collectFlatFields]
+  | cons selection rest =>
+      have hrest := collectFlatFields_withoutTransparentFragments schema possibleTypes
+        variableValues parentType runtimeType rest hruntime
+      cases selection with
+      | field responseName fieldName arguments directives child =>
+          simpa [withoutTransparentFragments, collectFlatFields]
+            using congrArg
+              (collectFlatSelection schema variableValues parentType
+                  (ResolverValue.object runtimeType PUnit.unit)
+                  (.field responseName fieldName arguments directives child)
+                ++ ·)
+              hrest
+      | inlineFragment typeCondition directives body =>
+          by_cases htransparent :
+            fragmentTransparentForPossibleTypesBool schema possibleTypes
+              typeCondition directives
+            = true
+          · have hbody := collectFlatFields_withoutTransparentFragments schema possibleTypes
+              variableValues parentType runtimeType body hruntime
+            rcases transparentFragment_applies schema possibleTypes runtimeType
+                typeCondition directives htransparent hruntime with
+              ⟨hdirectives, happlies⟩
+            subst directives
+            cases typeCondition with
+            | none =>
+                simp [withoutTransparentFragments, htransparent,
+                  collectFlatFields_append_local, collectFlatFields,
+                  collectFlatSelection, hbody, hrest,
+                  selectionDirectivesAllowBool]
+            | some condition =>
+                have happly := happlies condition rfl
+                simp [withoutTransparentFragments, htransparent,
+                  collectFlatFields_append_local, collectFlatFields,
+                  collectFlatSelection, hbody, hrest,
+                  selectionDirectivesAllowBool, doesFragmentTypeApplyBool,
+                  runtimeObjectType?, happly]
+          · simp [withoutTransparentFragments, htransparent,
+              collectFlatFields, hrest]
+termination_by SelectionSet.size selectionSet
+decreasing_by
+  all_goals simp only [SelectionSet.size, Selection.size]
+  all_goals first | omega | (cases selection <;> simp [Selection.size] <;> omega)
+
 theorem collectFields_syntactically_includes
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef)
@@ -273,11 +395,22 @@ theorem syntacticallyIncludedMergedSelectionSets
   exact ⟨leftSelection, List.mem_flatMap.mpr
     ⟨leftField, hleftField, hleftSelection⟩, hselection⟩
 
-theorem collectFields_syntactically_included_group
+theorem collectFields_included_group_of_cover
+    (fieldRelation : ExecutableField -> ExecutableField -> Prop)
     (schema : Schema) (variableValues : VariableValues)
     (parentType : Name) (source : ResolverValue ObjectRef)
     (left right : List Selection)
-    (hsyntax : selectionSetSyntacticallyIncludesBool left right = true)
+    (hcover
+      : ∀ rightEntry,
+          rightEntry
+            ∈ ConditionTree.flattenExecutableFieldGroups
+                (collectFields schema variableValues parentType source right)
+          -> ∃ leftEntry,
+              leftEntry
+                ∈ ConditionTree.flattenExecutableFieldGroups
+                    (collectFields schema variableValues parentType source left)
+              ∧ leftEntry.1 = rightEntry.1
+              ∧ fieldRelation leftEntry.2 rightEntry.2)
     (rightName : Name) (rightFields : List ExecutableField)
     (hrightGroup
       : (rightName, rightFields)
@@ -288,8 +421,7 @@ theorem collectFields_syntactically_included_group
         ∧ ∀ rightField,
             rightField ∈ rightFields
             -> ∃ leftField,
-                leftField ∈ leftFields
-                ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
+                leftField ∈ leftFields ∧ fieldRelation leftField rightField := by
   let leftGroups := collectFields schema variableValues parentType source left
   let rightGroups := collectFields schema variableValues parentType source right
   have hrightWellFormed :=
@@ -298,8 +430,6 @@ theorem collectFields_syntactically_included_group
   have hleftKeysNodup :=
     (executableGroupNamesNodup_iff_map_fst_nodup leftGroups).mp
       (NormalForm.collectFields_namesNodup schema variableValues parentType source left)
-  have hcover := collectFields_syntactically_includes schema variableValues parentType
-    source left right hsyntax
   have hrightNonempty := hrightWellFormed (rightName, rightFields) hrightGroup
   cases hrightFieldsEq : rightFields with
   | nil => exact False.elim (hrightNonempty hrightFieldsEq)
@@ -342,21 +472,132 @@ theorem collectFields_syntactically_included_group
       subst candidateFields
       exact ⟨leftField, hcandidateField, hincludes⟩
 
-theorem selectionSetSyntacticInclusionShortcutBool_sound
+theorem collectFields_syntactically_included_group
+    (schema : Schema) (variableValues : VariableValues)
+    (parentType : Name) (source : ResolverValue ObjectRef)
+    (left right : List Selection)
+    (hsyntax : selectionSetSyntacticallyIncludesBool left right = true)
+    (rightName : Name) (rightFields : List ExecutableField)
+    (hrightGroup
+      : (rightName, rightFields)
+        ∈ collectFields schema variableValues parentType source right)
+    : ∃ leftFields,
+        (rightName, leftFields)
+          ∈ collectFields schema variableValues parentType source left
+        ∧ ∀ rightField,
+            rightField ∈ rightFields
+            -> ∃ leftField,
+                leftField ∈ leftFields
+                ∧ ExecutableFieldSyntacticallyIncludes leftField rightField := by
+  exact collectFields_included_group_of_cover ExecutableFieldSyntacticallyIncludes
+    schema variableValues parentType source
+    left right (collectFields_syntactically_includes schema variableValues parentType
+      source left right hsyntax) rightName rightFields hrightGroup
+
+private theorem collectFields_possibleTypes_syntactically_includes
+    (schema : Schema) (possibleTypes : List Name) (variableValues : VariableValues)
+    (parentType runtimeType : Name) (left right : List Selection)
+    (hruntime : runtimeType ∈ possibleTypes)
+    (hsyntax
+      : selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes left right
+        = true)
+    : ∀ rightEntry,
+        rightEntry
+          ∈ ConditionTree.flattenExecutableFieldGroups
+              (collectFields schema variableValues parentType
+                (ResolverValue.object runtimeType PUnit.unit) right)
+        -> ∃ leftEntry,
+            leftEntry
+              ∈ ConditionTree.flattenExecutableFieldGroups
+                  (collectFields schema variableValues parentType
+                    (ResolverValue.object runtimeType PUnit.unit) left)
+            ∧ leftEntry.1 = rightEntry.1
+            ∧ ExecutableFieldSyntacticallyIncludes leftEntry.2 rightEntry.2 := by
+  intro rightEntry hrightEntry
+  have hrightFlat :=
+    (collectFlatFields_perm_flatten_collectFields schema variableValues parentType
+      (ResolverValue.object runtimeType PUnit.unit) right).mem_iff.mpr hrightEntry
+  have hrightNormalized : rightEntry ∈ collectFlatFields schema variableValues
+      parentType (ResolverValue.object runtimeType PUnit.unit)
+        (withoutTransparentFragments schema possibleTypes right) := by
+    rw [collectFlatFields_withoutTransparentFragments schema possibleTypes variableValues
+      parentType runtimeType right hruntime]
+    exact hrightFlat
+  rcases collectFlatFields_syntactically_includes schema variableValues parentType
+      (ResolverValue.object runtimeType PUnit.unit)
+      (withoutTransparentFragments schema possibleTypes left)
+      (withoutTransparentFragments schema possibleTypes right)
+      hsyntax rightEntry hrightNormalized with
+    ⟨leftEntry, hleftNormalized, hname, hincludes⟩
+  have hleftFlat : leftEntry ∈ collectFlatFields schema variableValues parentType
+      (ResolverValue.object runtimeType PUnit.unit) left := by
+    rw [← collectFlatFields_withoutTransparentFragments schema possibleTypes variableValues
+      parentType runtimeType left hruntime]
+    exact hleftNormalized
+  exact ⟨leftEntry,
+    (collectFlatFields_perm_flatten_collectFields schema variableValues parentType
+      (ResolverValue.object runtimeType PUnit.unit) left).mem_iff.mp hleftFlat,
+    hname, hincludes⟩
+
+theorem selectionSetFieldCover_sound
     (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
-    (fuel : Nat) (parentType : Name) (variableValues : VariableValues)
+    (variableValues : VariableValues)
+    (fieldRelation : Name -> ExecutableField -> ExecutableField -> Prop)
+    (hidentity
+      : ∀ parentType leftField rightField,
+          fieldRelation parentType leftField rightField
+          -> leftField.fieldName = rightField.fieldName
+              ∧ Argument.argumentsEquivalent leftField.arguments rightField.arguments)
+    (hdescend
+      : ∀ parentType childRuntimeType definition
+          (leftFields rightFields : List ExecutableField),
+          (∀ rightField,
+            rightField ∈ rightFields
+            -> ∃ leftField,
+                leftField ∈ leftFields ∧ fieldRelation parentType leftField rightField)
+          -> (∀ rightField,
+                rightField ∈ rightFields
+                -> schema.lookupField parentType rightField.fieldName = some definition)
+          -> childRuntimeType ∈ schema.getPossibleTypes definition.outputType.namedType
+          -> ∀ rightName childRightFields,
+              (rightName, childRightFields)
+                ∈ collectFields schema variableValues
+                    childRuntimeType (ResolverValue.object childRuntimeType PUnit.unit)
+                    (executableFieldsMergedSelectionSet rightFields)
+              -> ∃ childLeftFields,
+                  (rightName, childLeftFields)
+                    ∈ collectFields schema variableValues childRuntimeType
+                        (ResolverValue.object childRuntimeType PUnit.unit)
+                        (executableFieldsMergedSelectionSet leftFields)
+                  ∧ ∀ childRightField,
+                      childRightField ∈ childRightFields
+                      -> ∃ childLeftField,
+                          childLeftField ∈ childLeftFields
+                          ∧ fieldRelation childRuntimeType childLeftField childRightField)
+    (fuel : Nat) (parentType : Name)
     (left right : List Selection)
     (hparentObject : schema.objectType parentType)
     (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
     (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
     (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
     (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
-    (hcheck : selectionSetSyntacticInclusionShortcutBool fuel left right = true)
+    (hdepth : selectionSetResponseDepth right ≤ fuel)
+    (hcover
+      : ∀ rightName rightFields,
+          (rightName, rightFields)
+            ∈ collectFields schema variableValues parentType
+                (ResolverValue.object parentType PUnit.unit) right
+          -> ∃ leftFields,
+              (rightName, leftFields)
+                ∈ collectFields schema variableValues parentType
+                    (ResolverValue.object parentType PUnit.unit) left
+              ∧ ∀ rightField,
+                  rightField ∈ rightFields
+                  -> ∃ leftField,
+                      leftField ∈ leftFields
+                      ∧ fieldRelation parentType leftField rightField)
     : selectionSetIncludesBoolWithFuel schema fuel parentType variableValues left right
       = true := by
-  simp only [selectionSetSyntacticInclusionShortcutBool, Bool.and_eq_true,
-    decide_eq_true_iff] at hcheck
-  rcases hcheck with ⟨hdepth, hsyntax⟩
   induction fuel generalizing parentType left right with
   | zero =>
       rw [selectionSetIncludesBoolWithFuel,
@@ -418,8 +659,7 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
       have hrightGroup' : (rightName, rightFields) ∈
           collectFields schema variableValues parentType source right := by
         simpa [rightGroups, source, collectRuntimeFieldGroups] using hrightGroup
-      rcases collectFields_syntactically_included_group schema variableValues parentType
-          source left right hsyntax rightName rightFields hrightGroup' with
+      rcases hcover rightName rightFields hrightGroup' with
         ⟨leftFields, hleftGroup, hfields⟩
       apply List.any_eq_true.mpr
       refine ⟨(rightName, leftFields), ?_, ?_⟩
@@ -441,6 +681,8 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
               have hrightHead : rightHead ∈ rightFields := by simp [hrightFieldsEq]
               rcases hfields rightHead hrightHead with
                 ⟨leftWitness, hleftWitness, hwitness⟩
+              rcases hidentity parentType leftWitness rightHead hwitness with
+                ⟨hwitnessName, hwitnessArguments⟩
               have hleftGroupReady :=
                 hleftGroupsReady rightName leftFields (by simpa [source] using hleftGroup)
               have hrightGroupReady :=
@@ -450,10 +692,10 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                   hleftWitness with
                 ⟨hleftFieldName, hleftArguments⟩
               have hfieldName : leftHead.fieldName = rightHead.fieldName :=
-                hleftFieldName.trans hwitness.fieldName
+                hleftFieldName.trans hwitnessName
               have harguments : Argument.argumentsEquivalent leftHead.arguments
                   rightHead.arguments :=
-                argumentsEquivalent_trans hleftArguments hwitness.arguments
+                argumentsEquivalent_trans hleftArguments hwitnessArguments
               simp only [beq_self_eq_true, Bool.true_and, Bool.and_eq_true]
               refine ⟨⟨beq_iff_eq.mpr hfieldName,
                 (argumentsSyntacticallyEquivalentBool_iff _ _).mpr harguments⟩, ?_⟩
@@ -473,7 +715,7 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                     List.contains_iff_mem.mpr hchildRuntime
                   have hleftWitnessLookup : schema.lookupField parentType
                       leftWitness.fieldName = some definition := by
-                    simpa [hwitness.fieldName] using hlookup
+                    simpa [hwitnessName] using hlookup
                   have hleftCompletion : completionFieldsSemanticsReady schema
                       parentType definition.outputType leftFields :=
                     ⟨hleftGroupReady, leftWitness, definition, hleftWitness,
@@ -493,7 +735,13 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                   have hrightChildMerge :=
                     completionFieldsSemanticsReady_merged_canMerge hrightCompletion
                       childRuntimeType
-                  have hchildSyntax := syntacticallyIncludedMergedSelectionSets hfields
+                  have hlookupAll : ∀ rightField, rightField ∈ rightFields
+                      -> schema.lookupField parentType rightField.fieldName
+                        = some definition := by
+                    intro rightField hrightField
+                    rcases hrightGroupReady.2.2.1 rightHead rightField hrightHead
+                        hrightField with ⟨hname, _⟩
+                    simpa [← hname] using hlookup
                   have hrightFieldsDepth : ExecutableFieldsResponseDepthBound rightFields
                       (childFuel + 1) := by
                     intro field hfield
@@ -511,7 +759,8 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                   have hresult :=
                     ih childRuntimeType
                       (executableFieldsMergedSelectionSet leftFields)
-                      (executableFieldsMergedSelectionSet rightFields) hchildObject
+                      (executableFieldsMergedSelectionSet rightFields)
+                      hchildObject
                       (by
                         simpa [
                           executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
@@ -528,8 +777,86 @@ theorem selectionSetSyntacticInclusionShortcutBool_sound
                         simpa [
                           executableFieldsMergedSelectionSet_eq_mergedFieldSelectionSet]
                           using hrightChildMerge)
-                      hchildDepth hchildSyntax
+                      hchildDepth
+                      (by
+                        intro childRightName childRightFields hrightGroup
+                        exact hdescend parentType childRuntimeType definition
+                          leftFields rightFields hfields hlookupAll hchildRuntime
+                          childRightName childRightFields hrightGroup)
                   simpa [hleftFieldsEq, hrightFieldsEq] using hresult
+
+private theorem selectionSetSyntacticFieldCover_sound
+    (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (fuel : Nat) (parentType : Name) (variableValues : VariableValues)
+    (left right : List Selection)
+    (hparentObject : schema.objectType parentType)
+    (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
+    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
+    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hdepth : selectionSetResponseDepth right ≤ fuel)
+    (hcover
+      : ∀ rightName rightFields,
+          (rightName, rightFields)
+            ∈ collectFields schema variableValues parentType
+                (ResolverValue.object parentType PUnit.unit) right
+          -> ∃ leftFields,
+              (rightName, leftFields)
+                ∈ collectFields schema variableValues parentType
+                    (ResolverValue.object parentType PUnit.unit) left
+              ∧ ∀ rightField,
+                  rightField ∈ rightFields
+                  -> ∃ leftField,
+                      leftField ∈ leftFields
+                      ∧ ExecutableFieldSyntacticallyIncludes leftField rightField)
+    : selectionSetIncludesBoolWithFuel schema fuel parentType variableValues left right
+      = true := by
+  exact selectionSetFieldCover_sound schema hschema variableValues
+    (fun _ => ExecutableFieldSyntacticallyIncludes)
+    (by intro _ leftField rightField hwitness
+        exact ⟨hwitness.fieldName, hwitness.arguments⟩)
+    (by
+      intro _ childRuntimeType _ leftFields rightFields hfields _ _
+        childRightName childRightFields hrightGroup
+      have hchildSyntax := syntacticallyIncludedMergedSelectionSets hfields
+      exact collectFields_syntactically_included_group schema variableValues
+        childRuntimeType (ResolverValue.object childRuntimeType PUnit.unit)
+        (executableFieldsMergedSelectionSet leftFields)
+        (executableFieldsMergedSelectionSet rightFields) hchildSyntax
+        childRightName childRightFields hrightGroup)
+    fuel parentType left right hparentObject hleftReady hleftMerge hrightReady
+    hrightMerge hdepth hcover
+
+theorem selectionSetBoundarySyntacticInclusionShortcutBool_sound
+    (schema : Schema) (hschema : SchemaWellFormedness.schemaWellFormed schema)
+    (fuel : Nat) (possibleTypes : List Name) (parentType : Name)
+    (variableValues : VariableValues) (left right : List Selection)
+    (hparentInPossibleTypes : parentType ∈ possibleTypes)
+    (hparentObject : schema.objectType parentType)
+    (hleftReady : NormalForm.selectionSetSemanticsReady schema parentType left)
+    (hleftMerge : FieldMerge.fieldsInSetCanMerge schema parentType left)
+    (hrightReady : NormalForm.selectionSetSemanticsReady schema parentType right)
+    (hrightMerge : FieldMerge.fieldsInSetCanMerge schema parentType right)
+    (hcheck
+      : selectionSetBoundarySyntacticInclusionShortcutBool schema fuel
+          possibleTypes left right
+        = true)
+    : selectionSetIncludesBoolWithFuel schema fuel parentType variableValues left right
+      = true := by
+  simp only [selectionSetBoundarySyntacticInclusionShortcutBool, Bool.and_eq_true,
+    decide_eq_true_iff] at hcheck
+  rcases hcheck with ⟨hdepth, hsyntax⟩
+  exact selectionSetSyntacticFieldCover_sound schema hschema fuel parentType
+    variableValues left right hparentObject hleftReady hleftMerge hrightReady hrightMerge
+    hdepth
+    (by
+      intro rightName rightFields hrightGroup
+      exact collectFields_included_group_of_cover ExecutableFieldSyntacticallyIncludes
+        schema variableValues parentType
+        (ResolverValue.object parentType PUnit.unit) left right
+        (collectFields_possibleTypes_syntactically_includes schema possibleTypes variableValues
+          parentType parentType left right hparentInPossibleTypes hsyntax)
+        rightName rightFields hrightGroup)
 
 end QueryInclusion
 end GraphQL

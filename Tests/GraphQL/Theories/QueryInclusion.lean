@@ -76,7 +76,7 @@ def nestedConditionalHeroQuery : Operation :=
         [.field "name" "name" [] [.include (.variable "showName")] []]]
   }
 
--- Identical nested syntax is accepted by the recursive syntax shortcut without
+-- Identical nested syntax is accepted by the syntactic shortcut without
 -- enumerating `showName`.
 theorem includesBool_nestedSyntacticShortcutSmoke
     : includesBool sampleSchema nestedConditionalHeroQuery nestedConditionalHeroQuery
@@ -126,7 +126,7 @@ def regionalCharacterQuery : Operation :=
         ]]
   }
 
--- A reflexive regional query is a positive smoke test for the recursive shortcut.
+-- A reflexive regional query is a positive smoke test for the syntactic shortcut.
 -- Region-search behavior is tested directly below after guarded groups are available.
 theorem includesBool_regionalReflexiveShortcutSmoke
     : includesBool regionalSchema regionalCharacterQuery regionalCharacterQuery
@@ -338,6 +338,103 @@ theorem guardedFieldGroup_incrementalBooleanSplitSmoke
       = true := by
   native_decide
 
+def symbolicLeftBranchVariables : List VariableDefinition :=
+  [{ name := "leftBranch", typeRef := .nonNull (.named "Boolean") }]
+
+def symbolicIndependentParentSelectionSet : List Selection :=
+  [
+    .field "hero" "hero" [] [.include (.variable "leftBranch")]
+      [.field "leftName" "name" [] [] []],
+    .field "hero" "hero" [] [.include (.variable "rightBranch")]
+      [.field "rightName" "name" [] [] []]
+  ]
+
+-- This is the performance-critical shape: independent guards share the parent
+-- response name but belong to different child response names. The symbolic rule
+-- carries each guard into its child boundary instead of enumerating their product.
+theorem guardedFieldGroup_symbolicIndependentChildrenSmoke
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          symbolicIndependentParentSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          symbolicIndependentParentSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+        left right (guardedFieldGroupTypeRegions ["Query"] left right)
+      = true := by
+  native_decide
+
+def guardedParentLeftSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [.field "name" "name" [] [] []]]
+
+def unconditionalParentRightSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [] [.field "name" "name" [] [] []]]
+
+def guardedParentLeftQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := guardedParentLeftSelectionSet
+  }
+
+def unconditionalParentRightQuery : Operation :=
+  { selectionSet := unconditionalParentRightSelectionSet }
+
+-- A conditional occurrence cannot cover the unconditional right occurrence. The
+-- symbolic witness declines, and the complete fallback reaches the same rejection.
+theorem guardedFieldGroup_symbolicRejectsGuardedCoverageGapSmoke
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          guardedParentLeftSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          unconditionalParentRightSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+          left right (guardedFieldGroupTypeRegions ["Query"] left right)
+        = false
+      ∧ includesBool sampleSchema guardedParentLeftQuery unconditionalParentRightQuery
+        = false := by
+  native_decide
+
+def contradictoryChildLeftSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [.field "name" "name" [] [] []]]
+
+def contradictoryChildRightSelectionSet : List Selection :=
+  [.field "hero" "hero" [] [.include (.variable "leftBranch")]
+    [
+      .field "name" "name" [] [] [],
+      .field "impossible" "name" [] [.skip (.variable "leftBranch")] []
+    ]]
+
+def contradictoryChildLeftQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := contradictoryChildLeftSelectionSet
+  }
+
+def contradictoryChildRightQuery : Operation :=
+  {
+    variableDefinitions := symbolicLeftBranchVariables
+    selectionSet := contradictoryChildRightSelectionSet
+  }
+
+-- The child's `@skip` contradicts the parent occurrence's `@include`. Seeding the
+-- child extraction with the parent condition removes that infeasible contribution.
+theorem guardedFieldGroup_symbolicDropsContradictoryChildSmoke
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          contradictoryChildLeftSelectionSet
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          contradictoryChildRightSelectionSet
+      guardedFieldGroupSymbolicallyIncludesWithFuel sampleSchema 2 (some "Query") []
+          left right (guardedFieldGroupTypeRegions ["Query"] left right)
+        = true
+      ∧ includesBool sampleSchema contradictoryChildLeftQuery contradictoryChildRightQuery
+        = true := by
+  native_decide
+
 -- One-pass grouping preserves first-response occurrence order and source order within
 -- the repeated `age` group.
 theorem guardedFieldGroups_onePassOrderSmoke
@@ -453,6 +550,12 @@ def covariantRegionalQuery : Operation :=
         [.field "companion" "companion" [] [] [.field "id" "id" [] [] []]]]
   }
 
+theorem syntacticFieldChildPossibleTypes_covariantSmoke
+    : syntacticFieldChildPossibleTypes covariantRegionalSchema ["Human", "Droid"]
+        "companion"
+      = ["Human", "Droid"] := by
+  native_decide
+
 def broaderCompositeTypeConditionLeftSelectionSet : List Selection :=
   [.inlineFragment (some "Character") []
     [.field "companion" "companion" [] []
@@ -496,7 +599,7 @@ theorem includesBool_broaderCompositeTypeConditionSmoke
       = true := by
   native_decide
 
--- Reflexive covariant syntax is handled by the recursive shortcut. The following
+-- Reflexive covariant syntax is handled by the syntactic shortcut. The following
 -- negative case forces the general checker to retain the full child type union.
 theorem includesBool_covariantReflexiveShortcutSmoke
     : includesBool covariantRegionalSchema covariantRegionalQuery covariantRegionalQuery
@@ -557,23 +660,179 @@ def syntacticShortcutRight : List Selection :=
 -- Exact right syntax is a directional witness even when the left has extra response
 -- fields. Two units of fuel are required for the `hero.id` response path.
 theorem syntacticInclusionShortcutSmoke
-    : selectionSetSyntacticInclusionShortcutBool 2 syntacticShortcutLeft
-        syntacticShortcutRight
+    : selectionSetSyntacticInclusionShortcutBool sampleSchema 2 ["Query"]
+        syntacticShortcutLeft syntacticShortcutRight
       = true := by
   native_decide
 
 theorem syntacticInclusionShortcutRespectsFuelSmoke
-    : selectionSetSyntacticInclusionShortcutBool 1 syntacticShortcutLeft
-        syntacticShortcutRight
+    : selectionSetSyntacticInclusionShortcutBool sampleSchema 1 ["Query"]
+        syntacticShortcutLeft syntacticShortcutRight
       = false := by
   native_decide
 
 -- Repeated right syntax is harmless because GraphQL merges fields by response name.
 theorem syntacticInclusionShortcutDuplicateRightSmoke
-    : selectionSetSyntacticInclusionShortcutBool 1
-        [.field "id" "id" [] [] []]
-        [.field "id" "id" [] [] [], .field "id" "id" [] [] []]
+    : selectionSetSyntacticInclusionShortcutBool sampleSchema 2 ["Query"]
+        [.field "hero" "hero" [] [] [.field "id" "id" [] [] []]]
+        [
+          .field "hero" "hero" [] [] [.field "id" "id" [] [] []],
+          .field "hero" "hero" [] [] [.field "id" "id" [] [] []]
+        ]
       = true := by
+  native_decide
+
+def bareCharacterName : List Selection :=
+  [.field "name" "name" [] [] []]
+
+def wrappedCharacterName : List Selection :=
+  [.inlineFragment (some "Character") [] bareCharacterName]
+
+-- The type condition is vacuous at Character, whichever side carries it.
+theorem boundarySyntacticShortcut_bareIncludesWrappedSmoke
+    : selectionSetBoundarySyntacticInclusionShortcutBool sampleSchema 1
+        ["Character"] bareCharacterName wrappedCharacterName
+      = true := by
+  native_decide
+
+theorem boundarySyntacticShortcut_wrappedIncludesBareSmoke
+    : selectionSetBoundarySyntacticInclusionShortcutBool sampleSchema 1
+        ["Character"] wrappedCharacterName bareCharacterName
+      = true := by
+  native_decide
+
+-- An empty possibleTypes list does not justify dropping a typed fragment.
+theorem boundarySyntacticShortcut_unknownTypesDeclinesSmoke
+    : selectionSetBoundarySyntacticInclusionShortcutBool sampleSchema 1
+        [] wrappedCharacterName bareCharacterName
+      = false := by
+  native_decide
+
+theorem guardedCompositeField_transparentFragmentSmoke
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          [.field "hero" "hero" [] [] wrappedCharacterName]
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          [.field "hero" "hero" [] [] bareCharacterName]
+      guardedCompositeFieldIncludesBool sampleSchema 2 none left right
+        (guardedFieldGroupTypeRegions ["Query"] left right)
+      = true := by
+  native_decide
+
+def bareFriendsName : List Selection :=
+  [.field "friends" "friends" [] [] bareCharacterName]
+
+def wrappedFriendsName : List Selection :=
+  [.field "friends" "friends" [] [] wrappedCharacterName]
+
+-- The boundary-only witness cannot see through the wrapper inside `friends`;
+-- the recursive witness descends using the field's possible return types.
+theorem recursiveSyntacticShortcut_nestedFragmentSmoke
+    : selectionSetBoundarySyntacticInclusionShortcutBool sampleSchema 2
+          ["Character"] wrappedFriendsName bareFriendsName
+        = false
+      ∧ selectionSetRecursiveSyntacticInclusionShortcutBool sampleSchema 2
+          ["Character"] wrappedFriendsName bareFriendsName
+        = true
+      ∧ selectionSetSyntacticInclusionShortcutBool sampleSchema 2
+          ["Character"] bareFriendsName wrappedFriendsName
+        = true := by
+  native_decide
+
+theorem guardedCompositeField_recursiveFragmentSmoke
+    : let left :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          [.field "hero" "hero" [] [] wrappedFriendsName]
+      let right :=
+        guardedGroupForSelectionSet sampleSchema "Query" "hero"
+          [.field "hero" "hero" [] [] bareFriendsName]
+      guardedCompositeFieldIncludesBool sampleSchema 3 none left right
+        (guardedFieldGroupTypeRegions ["Query"] left right)
+      = true := by
+  native_decide
+
+def differentlyWrappedNestedCharacterLeft : List Selection :=
+  [.field "character" "character" [] []
+    [.inlineFragment (some "Human") []
+      [.inlineFragment (some "Character") [] [.field "id" "id" [] [] []]]]]
+
+def differentlyWrappedNestedCharacterRight : List Selection :=
+  [.field "character" "character" [] []
+    [.inlineFragment (some "Human") []
+      [.inlineFragment (some "Human") [] [.field "id" "id" [] [] []]]]]
+
+-- Both inner conditions are transparent after the common Human fragment narrows
+-- the position. The boundary-only witness misses them, but recursive syntax does not.
+theorem recursiveSyntacticShortcut_differentTransparentWrappersSmoke
+    : selectionSetBoundarySyntacticInclusionShortcutBool regionalSchema 3
+          ["Query"] differentlyWrappedNestedCharacterLeft
+          differentlyWrappedNestedCharacterRight
+        = false
+      ∧ selectionSetsMayNeedRecursiveSyntaxBool
+          differentlyWrappedNestedCharacterLeft differentlyWrappedNestedCharacterRight
+        = true
+      ∧ selectionSetRecursiveSyntacticInclusionShortcutBool regionalSchema 3 ["Query"]
+          differentlyWrappedNestedCharacterLeft differentlyWrappedNestedCharacterRight
+        = true
+      ∧ selectionSetSyntacticInclusionShortcutBool regionalSchema 3 ["Query"]
+          differentlyWrappedNestedCharacterLeft differentlyWrappedNestedCharacterRight
+        = true
+      ∧ includesBool regionalSchema
+          { selectionSet := differentlyWrappedNestedCharacterLeft }
+          { selectionSet := differentlyWrappedNestedCharacterRight }
+        = true := by
+  native_decide
+
+theorem guardedCompositeField_differentTransparentWrappersSmoke
+    : let left :=
+        guardedGroupForSelectionSet regionalSchema "Query" "character"
+          differentlyWrappedNestedCharacterLeft
+      let right :=
+        guardedGroupForSelectionSet regionalSchema "Query" "character"
+          differentlyWrappedNestedCharacterRight
+      guardedCompositeFieldIncludesBool regionalSchema 3 none left right
+        (guardedFieldGroupTypeRegions ["Query"] left right)
+      = true := by
+  native_decide
+
+theorem recursiveSyntacticShortcut_narrowedFragmentSmoke
+    : let left : List Selection :=
+        [.inlineFragment (some "Human") []
+          [.inlineFragment (some "Human") [] [.field "id" "id" [] [] []]]]
+      let right : List Selection :=
+        [.inlineFragment (some "Human") [] [.field "id" "id" [] [] []]]
+      selectionSetBoundarySyntacticInclusionShortcutBool regionalSchema 1
+          ["Human", "Droid"] left right
+        = false
+      ∧ selectionSetRecursiveSyntacticInclusionShortcutBool regionalSchema 1
+          ["Human", "Droid"] left right
+        = true
+      ∧ selectionSetSyntacticInclusionShortcutBool regionalSchema 1
+          ["Human", "Droid"] left right
+        = true := by
+  native_decide
+
+-- A missing fragment field does not justify trying recursive syntax matching.
+theorem recursiveSyntaxTrigger_missingFieldDeclinesSmoke
+    : selectionSetsMayNeedRecursiveSyntaxBool
+        [
+          .field "id" "id" [] [] [],
+          .inlineFragment (some "Human") [] [.field "home" "home" [] [] []]
+        ]
+        [
+          .field "id" "id" [] [] [],
+          .inlineFragment (some "Human") [] [.field "home" "home" [] [] []],
+          .inlineFragment (some "Droid") [] [.field "primary" "primary" [] [] []]
+        ]
+      = false := by
+  native_decide
+
+theorem recursiveSyntaxTrigger_unrelatedWrappedFieldsDeclineSmoke
+    : selectionSetsMayNeedRecursiveSyntaxBool
+        [.inlineFragment (some "Character") [] [.field "id" "id" [] [] []]]
+        [.inlineFragment (some "Human") [] [.field "home" "home" [] [] []]]
+      = false := by
   native_decide
 
 def sameAliasDifferentResolverQuery : Operation :=
