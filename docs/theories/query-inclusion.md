@@ -123,11 +123,18 @@ name, and retains each cumulative condition. Resolver lookup remains sensitive t
 concrete parent type, which preserves covariant return types and field-call provenance.
 
 Before starting a recursive child search, the checker accepts a conservative directional
-syntax witness: every right selection must have an exact left match for response name,
-field name, arguments, directives, and inline-fragment type, with child selections checked
-recursively. Extra left selections are allowed. This bypasses type-region and Boolean
-splitting for syntactically included child scopes; a response-depth guard preserves the
-reference checker’s explicit fuel semantics.
+syntax witness. For the child’s possible runtime types, it first flattens directive-free
+inline fragments whose type condition admits every type in that list, on either side. A
+typed fragment is never flattened when the possible-types list is empty. Every remaining right
+selection must have an exact left match for response name, field name, arguments,
+directives, and inline-fragment type, with child selections checked recursively by the
+exact syntax matcher. Extra left selections are allowed. If this boundary-only
+witness fails and matched fields contain either bare/fragment packaging differences
+or differing directive-free fragment wrappers with corresponding fields, a recursive
+witness retries inside matched fields and fragments. It unions possible
+return types across concrete parent definitions, then narrows them under matched
+fragment conditions. Both witnesses retain the response-depth guard and have
+soundness proofs; the complete response-local search remains the fallback.
 
 Scalar response groups also have a symbolic condition shortcut. Cumulative
 `@include`/`@skip` conditions are conjunctions of Boolean literals; the checker subtracts
@@ -166,8 +173,9 @@ every reference-checker case.
 ## Benchmark
 
 The native benchmark includes explicit positive and negative pairs, a reflexive shortcut
-case, a deep missing-field case, symbolic Boolean-clause coverage, and a guarded-parent
-case with fourteen independent child guards:
+case, a deep missing-field case, symbolic Boolean-clause coverage, a guarded-parent
+case with fourteen independent child guards, and nested transparent-fragment cases
+for bare/wrapped and differently wrapped fields:
 
 ```sh
 lake exe query-inclusion-bench

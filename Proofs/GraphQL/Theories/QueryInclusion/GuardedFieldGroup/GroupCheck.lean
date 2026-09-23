@@ -14,8 +14,8 @@ def guardedFieldChildIncludesBool (schema : Schema) (responseFuel : Nat)
     (variableValues : VariableValues) (possibleTypes : List Name)
     (leftSelectionSet rightSelectionSet : List Selection)
     : Bool :=
-  selectionSetSyntacticInclusionShortcutBool responseFuel leftSelectionSet
-    rightSelectionSet
+  selectionSetSyntacticInclusionShortcutBool schema responseFuel
+    possibleTypes leftSelectionSet rightSelectionSet
   ||  let leftEntries :=
         SelectionConditions.ofTypeRegion schema possibleTypes leftSelectionSet
       let rightEntries :=

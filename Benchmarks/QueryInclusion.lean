@@ -222,12 +222,39 @@ def runSymbolicParentScenario (booleanCount iterations : Nat) : IO Unit := do
   timeChecker "seeded child boundaries" iterations true
     fun _ => includesBool schema left right
 
+def runNestedFragmentScenario (iterations : Nat) : IO Unit := do
+  let nameField : List Selection := [.field "name" "name" [] [] []]
+  let left : Operation :=
+    {
+      selectionSet :=
+        [.field "hero" "hero" [] []
+          [.field "friends" "friends" [] []
+            [.inlineFragment (some "Character") [] nameField]]]
+    }
+  let right : Operation :=
+    {
+      selectionSet :=
+        [.field "hero" "hero" [] [] [.field "friends" "friends" [] [] nameField]]
+    }
+  IO.println "\nnested transparent fragment"
+  timeChecker "wrapped vs bare child" iterations true
+    fun _ => includesBool sampleSchema left right
+  let pairedRight : Operation :=
+    {
+      selectionSet :=
+        [.field "hero" "hero" [] []
+          [.field "friends" "friends" [] [] [.inlineFragment none [] nameField]]]
+    }
+  timeChecker "different transparent wrappers" iterations true
+    fun _ => includesBool sampleSchema left pairedRight
+
 def run : IO Unit := do
   runScenario "wide type regions" 96 3 0 0 500
   runScenario "Boolean conditions" 48 3 7 0 200
   runScenario "nested response scopes" 12 2 2 2 100
   runClauseCoverageScenario 18 500
   runSymbolicParentScenario 14 500
+  runNestedFragmentScenario 500
 
 end GraphQL.Benchmarks.QueryInclusion
 

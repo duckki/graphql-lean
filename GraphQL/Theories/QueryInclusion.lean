@@ -192,7 +192,7 @@ def includesBoolReference (schema : Schema) (left right : Operation) : Bool :=
     false
 
 -----------------------------------------------------------------------------------------
--- Syntactic inclusion shortcut
+-- Syntactic inclusion witnesses
 -----------------------------------------------------------------------------------------
 
 mutual
@@ -226,14 +226,217 @@ mutual
         && selectionSetSyntacticallyIncludesBool left rest
 end
 
+-- A fragment with no directives is transparent for nonempty possibleTypes when its
+-- condition admits every runtime object type there. The nonempty check prevents
+-- an unknown set of possible types from making a condition vacuously transparent.
+def fragmentTransparentForPossibleTypesBool (schema : Schema) (possibleTypes : List Name)
+    (typeCondition : Option Name) (directives : List DirectiveApplication)
+    : Bool :=
+  directives.isEmpty
+  && match typeCondition with
+      | none => true
+      | some condition =>
+          !possibleTypes.isEmpty
+          && possibleTypes.all (schema.typeIncludesObjectBool condition)
+
+-- Flatten only fragments transparent at this selection-set boundary. Field
+-- children and narrowing fragments remain untouched; a later response boundary
+-- has its own possible runtime types and can be checked independently.
+def withoutTransparentFragments (schema : Schema) (possibleTypes : List Name)
+    : List Selection -> List Selection
+  | [] => []
+  | .inlineFragment typeCondition directives selectionSet :: rest =>
+      (if fragmentTransparentForPossibleTypesBool schema possibleTypes typeCondition
+            directives then
+          withoutTransparentFragments schema possibleTypes selectionSet
+        else
+          [.inlineFragment typeCondition directives selectionSet])
+      ++ withoutTransparentFragments schema possibleTypes rest
+  | selection :: rest =>
+      selection :: withoutTransparentFragments schema possibleTypes rest
+termination_by selectionSet => SelectionSet.size selectionSet
+decreasing_by
+  all_goals simp only [SelectionSet.size, Selection.size]
+  all_goals first | omega | (cases selection <;> simp [Selection.size] <;> omega)
+
+-- This witness normalizes only the current selection-set boundary. Nested field
+-- selection sets are still compared by the exact syntax matcher above.
+def selectionSetSyntacticallyIncludesAtBoundaryBool (schema : Schema)
+    (possibleTypes : List Name) (left right : List Selection)
+    : Bool :=
+  selectionSetSyntacticallyIncludesBool
+    (withoutTransparentFragments schema possibleTypes left)
+    (withoutTransparentFragments schema possibleTypes right)
+
 -- The semantic reference checker consumes one fuel unit at every nested response
--- boundary. The depth guard ensures that a successful syntax shortcut never bypasses
--- the reference check's explicit exhaustion behavior.
-def selectionSetSyntacticInclusionShortcutBool (responseFuel : Nat)
-    (left right : List Selection)
+-- boundary. Every successful syntax witness must respect its exhaustion behavior.
+def selectionSetBoundarySyntacticInclusionShortcutBool (schema : Schema)
+    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
     : Bool :=
   decide (selectionSetResponseDepth right ≤ responseFuel)
-  && selectionSetSyntacticallyIncludesBool left right
+  && selectionSetSyntacticallyIncludesAtBoundaryBool schema possibleTypes left right
+
+-- A field's child may have covariant return types across the possible concrete
+-- parents. Their union is a conservative context for recursive syntax matching.
+def syntacticFieldChildPossibleTypes (schema : Schema) (possibleTypes : List Name)
+    (fieldName : Name)
+    : List Name :=
+  possibleTypes.flatMap
+    fun parentType =>
+      match schema.lookupField parentType fieldName with
+      | none => []
+      | some definition => schema.getPossibleTypes definition.outputType.namedType
+
+def syntacticFragmentChildPossibleTypes (schema : Schema)
+    (possibleTypes : List Name) (typeCondition : Option Name)
+    : List Name :=
+  match typeCondition with
+  | none => possibleTypes
+  | some condition =>
+      possibleTypes.filter (schema.typeIncludesObjectBool condition)
+
+def syntacticSelectionIncludesWithChildCheckBool (schema : Schema)
+    (possibleTypes : List Name)
+    (childCheck : List Name -> List Selection -> List Selection -> Bool)
+    (left right : Selection)
+    : Bool :=
+  match left, right with
+  | .field leftResponseName leftFieldName leftArguments leftDirectives leftChild,
+    .field rightResponseName rightFieldName rightArguments rightDirectives rightChild =>
+      leftResponseName == rightResponseName
+      && leftFieldName == rightFieldName
+      && Argument.argumentsSyntacticallyEquivalentBool leftArguments rightArguments
+      && Algorithms.directiveListEqBool leftDirectives rightDirectives
+      && childCheck (syntacticFieldChildPossibleTypes schema possibleTypes rightFieldName)
+          leftChild rightChild
+  | .inlineFragment leftCondition leftDirectives leftChild,
+    .inlineFragment rightCondition rightDirectives rightChild =>
+      leftCondition == rightCondition
+      && Algorithms.directiveListEqBool leftDirectives rightDirectives
+      && childCheck
+          (syntacticFragmentChildPossibleTypes schema possibleTypes rightCondition)
+          leftChild rightChild
+  | _, _ => false
+
+-- This bounded syntax search descends through matched fields and fragments. The
+-- budget is structural, independent of response fuel: a recursive call always
+-- enters a proper right sub-selection, while transparent fragments are flattened
+-- at the current boundary before matching.
+def selectionSetSyntacticallyIncludesRecursivelyAux (schema : Schema)
+    : Nat -> List Name -> List Selection -> List Selection -> Bool
+  | 0, _possibleTypes, _left, _right => false
+  | budget + 1, possibleTypes, left, right =>
+      let left := withoutTransparentFragments schema possibleTypes left
+      let right := withoutTransparentFragments schema possibleTypes right
+      right.all
+        fun rightSelection =>
+          left.any
+            fun leftSelection =>
+              syntacticSelectionIncludesWithChildCheckBool schema possibleTypes
+                (selectionSetSyntacticallyIncludesRecursivelyAux schema budget)
+                leftSelection rightSelection
+
+def selectionSetSyntacticallyIncludesRecursivelyBool
+    (schema : Schema) (possibleTypes : List Name) (left right : List Selection)
+    : Bool :=
+  selectionSetSyntacticallyIncludesRecursivelyAux schema
+    (SelectionSet.size right + 1) possibleTypes left right
+
+def selectionSetRecursiveSyntacticInclusionShortcutBool (schema : Schema)
+    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
+    : Bool :=
+  decide (selectionSetResponseDepth right ≤ responseFuel)
+  && selectionSetSyntacticallyIncludesRecursivelyBool schema
+      possibleTypes left right
+
+private def syntacticFieldsShallowEqBool : Selection -> Selection -> Bool
+  | .field leftResponseName leftFieldName leftArguments leftDirectives _,
+    .field rightResponseName rightFieldName rightArguments rightDirectives _ =>
+      leftResponseName == rightResponseName
+      && leftFieldName == rightFieldName
+      && Argument.argumentsSyntacticallyEquivalentBool leftArguments rightArguments
+      && Algorithms.directiveListEqBool leftDirectives rightDirectives
+  | _, _ => false
+
+mutual
+  private def selectionHasFieldLikeBool (target : Selection) : Selection -> Bool
+    | .field responseName fieldName arguments directives childSelectionSet =>
+        syntacticFieldsShallowEqBool target
+          (.field responseName fieldName arguments directives childSelectionSet)
+    | .inlineFragment _ _ childSelectionSet =>
+        selectionSetHasFieldLikeBool target childSelectionSet
+
+  private def selectionSetHasFieldLikeBool (target : Selection) : List Selection -> Bool
+    | [] => false
+    | selection :: rest =>
+        selectionHasFieldLikeBool target selection
+        || selectionSetHasFieldLikeBool target rest
+end
+
+-- A pair of fragment bodies can be worth comparing even when both sides are
+-- wrapped: distinct type conditions may both become transparent after descent.
+private def selectionSetSharesFieldLikeAux : Nat -> List Selection -> List Selection -> Bool
+  | 0, _left, _right => false
+  | budget + 1, left, right =>
+      left.any
+        fun leftSelection =>
+          match leftSelection with
+          | .field _ _ _ _ _ =>
+              selectionSetHasFieldLikeBool leftSelection right
+          | .inlineFragment _ _ child =>
+              selectionSetSharesFieldLikeAux budget child right
+
+private def selectionSetsShareFieldLikeBool (left right : List Selection) : Bool :=
+  selectionSetSharesFieldLikeAux (SelectionSet.size left + 1) left right
+
+-- A cheap syntax-only trigger for the recursive witness. Follow matched
+-- fields and fragments until their packaging differs, but do not retry for
+-- unrelated fields under two different fragment wrappers. This is a heuristic
+-- for whether recursive matching is worth attempting, not an inclusion witness.
+def selectionSetsMayNeedRecursiveSyntaxAux
+    : Nat -> List Selection -> List Selection -> Bool
+  | 0, _left, _right => false
+  | budget + 1, left, right =>
+      left.any
+        fun leftSelection =>
+          right.any
+            fun rightSelection =>
+              match leftSelection, rightSelection with
+              | .field _ _ _ _ leftChild, .field _ _ _ _ rightChild =>
+                  syntacticFieldsShallowEqBool leftSelection rightSelection
+                  && selectionSetsMayNeedRecursiveSyntaxAux budget
+                      leftChild rightChild
+              | .inlineFragment leftCondition leftDirectives leftChild,
+                .inlineFragment rightCondition rightDirectives rightChild =>
+                  if leftCondition == rightCondition
+                      && Algorithms.directiveListEqBool leftDirectives
+                          rightDirectives then
+                    selectionSetsMayNeedRecursiveSyntaxAux budget
+                      leftChild rightChild
+                  else
+                    leftDirectives.isEmpty
+                    && rightDirectives.isEmpty
+                    && selectionSetsShareFieldLikeBool leftChild rightChild
+              | .field _ _ _ _ _, .inlineFragment _ rightDirectives rightChild =>
+                  rightDirectives.isEmpty
+                  && selectionSetHasFieldLikeBool leftSelection rightChild
+              | .inlineFragment _ leftDirectives leftChild, .field _ _ _ _ _ =>
+                  leftDirectives.isEmpty
+                  && selectionSetHasFieldLikeBool rightSelection leftChild
+
+def selectionSetsMayNeedRecursiveSyntaxBool (left right : List Selection) : Bool :=
+  selectionSetsMayNeedRecursiveSyntaxAux (SelectionSet.size right + 1) left right
+
+-- The checker first tries the boundary witness, then conditionally tries the
+-- recursive witness when nested fragment packaging could matter.
+def selectionSetSyntacticInclusionShortcutBool (schema : Schema)
+    (responseFuel : Nat) (possibleTypes : List Name) (left right : List Selection)
+    : Bool :=
+  selectionSetBoundarySyntacticInclusionShortcutBool schema responseFuel
+    possibleTypes left right
+  || (selectionSetsMayNeedRecursiveSyntaxBool left right
+      && selectionSetRecursiveSyntacticInclusionShortcutBool schema responseFuel
+          possibleTypes left right)
 
 -----------------------------------------------------------------------------------------
 -- Condition-region search infrastructure
@@ -510,7 +713,9 @@ def guardedCompositeFieldIncludesAtRuntimeTypeBool (schema : Schema)
                   | none => false
                   | some definition =>
                       definition.outputType.isCompositeBool schema
-                      && selectionSetSyntacticInclusionShortcutBool childFuel
+                      && selectionSetSyntacticInclusionShortcutBool schema
+                          childFuel
+                          (schema.getPossibleTypes definition.outputType.namedType)
                           leftEntry.field.selectionSet rightEntry.field.selectionSet
           | _ => false
       | _ => false
@@ -658,8 +863,9 @@ mutual
                 | some tasks =>
                     tasks.all
                       fun task =>
-                        selectionSetSyntacticInclusionShortcutBool responseFuel
-                          task.leftSelectionSet task.rightSelectionSet
+                        selectionSetSyntacticInclusionShortcutBool schema
+                          responseFuel task.possibleTypes task.leftSelectionSet
+                          task.rightSelectionSet
                         ||  let leftChildEntries :=
                               SelectionConditions.ofTypeRegion schema task.possibleTypes
                                 task.leftSelectionSet

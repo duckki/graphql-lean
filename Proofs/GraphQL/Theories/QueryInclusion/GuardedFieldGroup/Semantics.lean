@@ -1,5 +1,5 @@
 import Proofs.GraphQL.Theories.QueryInclusion.GuardedFieldGroup.GroupCheck
-import Proofs.GraphQL.Theories.QueryInclusion.SyntacticShortcut
+import Proofs.GraphQL.Theories.QueryInclusion.RecursiveSyntacticShortcut
 
 /-! Semantic correctness of guarded field-group query inclusion. -/
 
@@ -223,8 +223,9 @@ mutual
                     have hchildCheck := List.all_eq_true.mp hregionCheck task htask
                     unfold guardedFieldChildIncludesBool at hchildCheck ⊢
                     cases hshortcut
-                          : selectionSetSyntacticInclusionShortcutBool responseFuel
-                              task.leftSelectionSet task.rightSelectionSet with
+                          : selectionSetSyntacticInclusionShortcutBool
+                              schema responseFuel task.possibleTypes task.leftSelectionSet
+                              task.rightSelectionSet with
                     | false =>
                         simp only [hshortcut, Bool.false_or] at hchildCheck ⊢
                         exact guardedFieldGroupsIncludeWithFuel_specialize schema
@@ -930,8 +931,8 @@ mutual
           unfold childCheck
           unfold guardedFieldChildIncludesBool at hchildCheck ⊢
           cases hshortcut
-                : selectionSetSyntacticInclusionShortcutBool childFuel leftSelectionSet
-                    rightSelectionSet with
+                : selectionSetSyntacticInclusionShortcutBool schema
+                    childFuel possibleTypes leftSelectionSet rightSelectionSet with
           | false =>
               simp only [hshortcut, Bool.false_or] at hchildCheck ⊢
               exact guardedFieldGroupsIncludeWithFuel_specialize schema childFuel none
@@ -1414,9 +1415,10 @@ mutual
               selectionSetSyntacticInclusionShortcutBool_of_perm
                 hleftChildSelectionSet hrightChildSelectionSet hshortcut
             exact selectionSetSyntacticInclusionShortcutBool_sound schema hschema
-              childFuel childRuntimeType targetValues
+              childFuel possibleTypes childRuntimeType targetValues
               (executableFieldsMergedSelectionSet runtimeLeftFields)
-              (executableFieldsMergedSelectionSet runtimeRightFields) hchildObject
+              (executableFieldsMergedSelectionSet runtimeRightFields)
+              (by simpa [possibleTypes] using hchildRuntime) hchildObject
               (by simpa using hleftChildReady) (by simpa using hleftChildMerge)
               (by simpa using hrightChildReady) (by simpa using hrightChildMerge)
               hruntimeShortcut
