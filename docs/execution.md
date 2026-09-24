@@ -5,7 +5,8 @@ This guide documents the specification-facing
 response abstractions. The target is the
 [GraphQL September 2025 Edition](https://spec.graphql.org/September2025/).
 See the [conformance summary](spec-conformance.md) for coverage and exclusions,
-and [algorithms](algorithms.md) for alternative executors.
+[algorithms](algorithms.md) for alternative executors, and
+[incremental delivery](incremental-delivery.md) for the separate draft model.
 
 ## Resolver and response boundary
 

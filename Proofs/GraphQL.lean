@@ -5,6 +5,7 @@ import Proofs.GraphQL.Execution.InputCoercionFuel
 import Proofs.GraphQL.Execution.InputValues
 import Proofs.GraphQL.SchemaWellFormedness.InputInhabited
 import Proofs.GraphQL.Validation.InputCompatibility
+import Proofs.GraphQL.IncrementalDelivery.Semantics
 import Proofs.GraphQL.NamedFragment.Semantics.Inline
 import Proofs.GraphQL.NamedFragment.Semantics.Validation
 import Proofs.GraphQL.Theories.NormalForm

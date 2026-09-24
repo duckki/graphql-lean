@@ -1,0 +1,52 @@
+import Proofs.GraphQL.IncrementalDelivery.Semantics.AncestryContext
+import Proofs.GraphQL.IncrementalDelivery.Semantics.AncestryMetadata
+import Proofs.GraphQL.IncrementalDelivery.Semantics.AncestryPlanning
+import Proofs.GraphQL.IncrementalDelivery.Semantics.BasicErrors
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedAncestry
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedKeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedNonempty
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedPaths
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectedSupply
+import Proofs.GraphQL.IncrementalDelivery.Semantics.Collection
+import Proofs.GraphQL.IncrementalDelivery.Semantics.CollectionProperties
+import Proofs.GraphQL.IncrementalDelivery.Semantics.Completion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCollection
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ContextCompletion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DeferKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DeliveryPaths
+import Proofs.GraphQL.IncrementalDelivery.Semantics.DirectiveFree
+import Proofs.GraphQL.IncrementalDelivery.Semantics.Erasure
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedCursorSeeds
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedDeferContinuity
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedKeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedKeyRoles
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedMixedKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedMixedOwners
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedMixedPaths
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamAllocations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.ExecutedStreamOwnerKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRegionPromotion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRegions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.KeyRoles
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedCursorSeeds
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedDeferContinuity
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedListShape
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedOwnerMetadata
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedPathOwnership
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedPathSlices
+import Proofs.GraphQL.IncrementalDelivery.Semantics.MixedWorkKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.OwnerMetadata
+import Proofs.GraphQL.IncrementalDelivery.Semantics.PathOwnership
+import Proofs.GraphQL.IncrementalDelivery.Semantics.Planning
+import Proofs.GraphQL.IncrementalDelivery.Correctness
+import Proofs.GraphQL.IncrementalDelivery.Semantics.SeededPathOwnership
+import Proofs.GraphQL.IncrementalDelivery.Semantics.SingleStreamCompletion
+import Proofs.GraphQL.IncrementalDelivery.Semantics.StreamAllocations
+import Proofs.GraphQL.IncrementalDelivery.Semantics.StreamOwnerKeys
+import Proofs.GraphQL.IncrementalDelivery.Semantics.StreamPositions
+import Proofs.GraphQL.IncrementalDelivery.Semantics.WireLeafPositions
+
+/-! Scheduler-independent execution, collection, and path proofs, together with all
+current scheduler-quantified correctness witnesses. Retired program, graph-scheduler,
+enumeration, and defer-only wire proofs are recoverable from Git history.
+-/
