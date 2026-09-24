@@ -52,14 +52,14 @@ records and completes the scheduled work after it has run.
 ```lean
 structure ScheduleKey where
   parentType : Name
-  responseName : Name
   fieldName : Name
   arguments : List Argument
 ```
 
-It identifies one resolver-compatible field batch. The child selection set is
-not part of the key. That is deliberate: two cousin fields with the same
-resolver call can share a batch even when their child continuations differ.
+It identifies one resolver-compatible field batch. The response name and child
+selection set are not part of the key. That is deliberate: aliases and cousin
+fields with the same resolver call can share a batch even when their child
+continuations differ.
 
 The key retains executable argument syntax for collection and scheduling. It is
 not the resolver argument value: `executeScheduleItem` coerces it against the
@@ -74,13 +74,29 @@ key for queue coalescing.
 
 ```lean
 structure ScheduleSegment where
+  responseName : Name
   sources : List (ResolverValue ObjectRef)
   childSelectionSet : List Selection
 ```
 
 Segments preserve the decomposition of the batch. A `ScheduleItem` flattens all
-segment sources before calling the resolver, but `segmentLengths` later split the
-flat result list back into segment-aligned groups.
+segment sources before calling the resolver, but `segmentDescriptors` later split
+the flat result list back into segment-aligned groups and retain their response
+names. `responseName` routes each completed segment to its aliased response position.
+
+### `FieldBinding`
+
+`FieldBinding` combines response routing with resolver identity:
+
+```lean
+structure FieldBinding where
+  responseName : Name
+  key : ScheduleKey
+```
+
+`ScheduleKey` coalesces resolver calls and groups the outer completion store.
+`FieldBinding` adds the response name needed by reverse completion, so differently
+aliased segments from one resolver batch remain distinct.
 
 ### `ScheduleItem`
 
@@ -148,11 +164,11 @@ The trace has two instruction forms:
 inductive TraceFrame where
   | scope
       (segmentLengths : List Nat)
-      (fieldKeys : List ScheduleKey)
+      (fieldBindings : List FieldBinding)
   | field
       (key : ScheduleKey)
       (fieldType : TypeRef)
-      (segmentLengths : List Nat)
+      (segmentDescriptors : List (Name × Nat))
       (slots : List ValueSlot)
 ```
 
@@ -177,18 +193,19 @@ Pseudocode:
 ```text
 scheduleScope(parentType, sources, selectionSet, queue):
   groups = collectFieldsByKey(parentType, selectionSet)
-  fieldKeys = []
+  fieldBindings = []
 
   for (responseName, fields) in groups:
-    key = scheduleKeyForFields(parentType, responseName, fields)
+    key = scheduleKeyForFields(parentType, fields)
     segment = {
+      responseName,
       sources,
       childSelectionSet = childSelectionSetForFields(fields)
     }
     queue = enqueueSegment(key, segment, queue)
-    fieldKeys.push(key)
+    fieldBindings.push({ responseName, key })
 
-  frame = TraceFrame.scope([sources.length], fieldKeys)
+  frame = TraceFrame.scope([sources.length], fieldBindings)
   return (queue, frame)
 ```
 
@@ -219,7 +236,7 @@ executeScheduleItem(item):
 
   if fieldDefinition is missing:
     slots = one error slot per source
-    frame = TraceFrame.field(item.key, Named(""), item.segmentLengths, slots)
+    frame = TraceFrame.field(item.key, Named(""), item.segmentDescriptors, slots)
     return ([], [frame])
 
   arguments = coerceArgumentValues(schema,
@@ -234,7 +251,7 @@ executeScheduleItem(item):
   if resolved.length != sources.length:
     slots = one field-error slot per source
     frame = TraceFrame.field(item.key, fieldDefinition.outputType,
-                             item.segmentLengths, slots)
+                             item.segmentDescriptors, slots)
     return ([], [frame])
 
   (pendingChildWork, slots) =
@@ -244,7 +261,7 @@ executeScheduleItem(item):
     schedulePendingChildWork(pendingChildWork)
 
   frame = TraceFrame.field(item.key, fieldDefinition.outputType,
-                           item.segmentLengths, slots)
+                           item.segmentDescriptors, slots)
 
   return (childQueue, [frame] ++ childScopeFrames)
 ```
@@ -263,7 +280,7 @@ The field frame is deliberately small:
 TraceFrame.field(
   key = item.key,
   fieldType = fieldDefinition.outputType,
-  segmentLengths = item.segmentLengths,
+  segmentDescriptors = item.segmentDescriptors,
   slots = slots
 )
 ```
@@ -272,9 +289,9 @@ It does not contain resolved values directly. Resolved values have already been
 compiled into `ValueSlot`s. The frame keeps only the information the reverse VM
 needs to turn those slots into field results:
 
-- `key.responseName` says which response property to produce;
+- each descriptor's response name says which response property its segment produces;
 - `fieldType` says how to apply list and non-null completion;
-- `segmentLengths` says how to split the flat completed values back into the
+- descriptor lengths say how to split the flat completed values back into the
   original schedule segments;
 - `slots` says where each completed value comes from.
 
@@ -296,7 +313,8 @@ resolved[i] corresponds to slots[i]
 ```
 
 where `resolved` is the flat resolver output for `item.sources`. Segment
-boundaries are not lost, because the field frame keeps `item.segmentLengths`.
+boundaries and response names are not lost, because the field frame keeps
+`item.segmentDescriptors`.
 For example:
 
 ```text
@@ -313,8 +331,8 @@ resolver output:
 slots:
   [slot(ra1), slot(ra2), slot(rb1)]
 
-segmentLengths:
-  [2, 1]
+segmentDescriptors:
+  [(A.responseName, 2), (B.responseName, 1)]
 ```
 
 During reverse completion, the field frame first completes all three slots, then
@@ -409,52 +427,55 @@ The reverse VM state is:
 ```text
 CompletionState {
   valueStack : List (List (Result ResponseValue))
-  fieldStore : List (ScheduleKey × List (List (Result ResponseValue))))
+  fieldStore : List (
+    ScheduleKey × List (responseName × List (Result ResponseValue))
+  )
 }
 ```
 
 `valueStack` contains completed child object values. It is purely positional.
 `ValueSlot.child` always consumes the next value from the head of this stack.
 
-`fieldStore` contains completed field-value blocks keyed by `ScheduleKey`.
-`TraceFrame.scope` consumes these blocks by key. The response name is not stored
-in every value; it is recovered from the `ScheduleKey` when a scope frame pops
-the field block.
+`fieldStore` mirrors the scheduler's two levels. Each outer item is keyed by
+`ScheduleKey`; its inner segments retain the response name alongside the completed
+values. `TraceFrame.scope` consumes a segment by `FieldBinding`, matching its
+schedule key at the outer level and its response name at the inner level.
 
-Both components store `segments : List (List result)`. The outer list
-represents segment groups. The inner lists preserve source order within a
-segment. The reverse pass uses destructive-pop behavior functionally:
+Both components preserve source order within each result segment. The reverse
+pass uses destructive-pop behavior functionally:
 
 - `popValueResult` pops from `valueStack`,
-- `popFieldResultByKey` pops from the matching `fieldStore` entry,
+- `popFieldResultByBinding` pops from the matching `fieldStore` entry,
 - everything else in the state is preserved.
 
 ### Executing A Field Frame
 
-`completeFieldFrame key fieldType segmentLengths slots stack`:
+`completeFieldFrame key fieldType segmentDescriptors slots stack`:
 
 1. Run `completeSlotList fieldType slots stack`.
-2. Split the flat completed-value list by `segmentLengths`.
-3. Push a keyed field block into `fieldStore`.
+2. Split the flat completed-value list by the descriptor lengths.
+3. Pair every segment with its response name, reverse those inner entries, and
+   push one `(key, entries)` item into `fieldStore`.
 
 Conceptually:
 
 ```text
 field frame:
   completedValues = complete slots, possibly popping child values
-  segments = splitBy(segmentLengths, completedValues).reverse
-  state.fieldStore = (key, segments) :: state.fieldStore
+  segments = splitBy(descriptorLengths, completedValues)
+  entries = zip(descriptorResponseNames, segments).reverse
+  state.fieldStore = (key, entries) :: state.fieldStore
 ```
 
-The reverse of `segments` is important because frames are executed from newest
-to oldest while stack popping consumes from the front.
+The reversal of the inner entries is important because frames are executed from
+newest to oldest while stack popping consumes from the front.
 
 ### Executing A Scope Frame
 
-`completeScopeFrame segmentLengths fieldKeys stack`:
+`completeScopeFrame segmentLengths fieldBindings stack`:
 
-1. Pop field-value segments for each collected field key.
-2. Wrap each value with its field key's response name.
+1. Pop field-value segments for each collected field binding.
+2. Wrap each value with its binding's response name.
 3. Combine field results in collected-field order.
 4. Split the flat object-result list by `segmentLengths`.
 5. Push positional object values into `valueStack`.
@@ -463,8 +484,8 @@ Conceptually:
 
 ```text
 scope frame:
-  fieldBlocks = fieldKeys.map(key =>
-    pop fields by ScheduleKey and map(singleFieldResult(key.responseName)))
+  fieldBlocks = fieldBindings.map(binding =>
+    pop fields by FieldBinding and map(singleFieldResult(binding.responseName)))
   objectResults = combineScopeFieldResults(sourceCount, fieldBlocks)
   segments = splitBy(segmentLengths, objectResults).reverse
   push values(segments)
@@ -531,9 +552,9 @@ scope(User friend[1])            -- field: name
 field(User.name)                 -- scalar slots, segments [bestFriend, friend[0], friend[1]]
 ```
 
-The VM executes the reverse. The state shown below is top-first. Field frames
-push their segment lists reversed into `fieldStore`, so the newest scope frame
-can consume the first segment at the head of the stored block.
+The VM executes the reverse. The state shown below is top-first. Field frames push
+one outer item per resolver batch, with its response-name segments in reverse order,
+so the newest scope frame can consume the first matching inner entry.
 
 ```text
 start
@@ -541,33 +562,36 @@ start
   fieldStore = []
 
 field(User.name)
-  push fieldStore entry (User.name, [
-    [name(friend[1])],
-    [name(friend[0])],
-    [name(bestFriend)]
-  ])
+  push one fieldStore item with inner segments in reverse order
 
   valueStack = []
   fieldStore = [
-    (User.name, [[name(friend[1])], [name(friend[0])], [name(bestFriend)]])
+    (User.name, [
+      (name, [name(friend[1])]),
+      (name, [name(friend[0])]),
+      (name, [name(bestFriend)])
+    ])
   ]
 
 scope(User friend[1])
-  pop fields by key User.name, taking the first segment [name(friend[1])]
+  pop fields by binding name @ User.name, taking [name(friend[1])]
   prepend [[object(friend[1])]] to valueStack
 
   valueStack = [[object(friend[1])]]
   fieldStore = [
-    (User.name, [[name(friend[0])], [name(bestFriend)]])
+    (User.name, [
+      (name, [name(friend[0])]),
+      (name, [name(bestFriend)])
+    ])
   ]
 
 scope(User friend[0])
-  pop fields by key User.name, taking the first remaining segment [name(friend[0])]
+  pop fields by binding name @ User.name, taking [name(friend[0])]
   prepend [[object(friend[0])]] to valueStack
 
   valueStack = [[object(friend[0])], [object(friend[1])]]
   fieldStore = [
-    (User.name, [[name(bestFriend)]])
+    (User.name, [(name, [name(bestFriend)])])
   ]
 
 field(User.friends)
@@ -575,36 +599,37 @@ field(User.friends)
   child pop #1 takes `object(friend[0])` from the first segment in valueStack
   child pop #2 takes `object(friend[1])` from the next segment in valueStack
   push fieldStore entry
-    (User.friends, [[friends([object(friend[0]), object(friend[1])])]])
+    (User.friends, [(friends, [friends([object(friend[0]), object(friend[1])])])])
 
   valueStack = []
   fieldStore = [
-    (User.friends, [[friends([object(friend[0]), object(friend[1])])]]),
-    (User.name, [[name(bestFriend)]])
+    (User.friends, [(friends, [friends([object(friend[0]), object(friend[1])])])]),
+    (User.name, [(name, [name(bestFriend)])])
   ]
 
 scope(User bestFriend)
-  pop fields by key User.name, taking [name(bestFriend)]
+  pop fields by binding name @ User.name, taking [name(bestFriend)]
   prepend [[object(bestFriend)]] to valueStack
 
   valueStack = [[object(bestFriend)]]
   fieldStore = [
-    (User.friends, [[friends([object(friend[0]), object(friend[1])])]])
+    (User.friends, [(friends, [friends([object(friend[0]), object(friend[1])])])])
   ]
 
 field(User.bestFriend)
   child pop takes `object(bestFriend)` from the first valueStack segment
-  push fieldStore entry (User.bestFriend, [[bestFriend(object(bestFriend))]])
+  push fieldStore entry
+    (User.bestFriend, [(bestFriend, [bestFriend(object(bestFriend))])])
 
   valueStack = []
   fieldStore = [
-    (User.bestFriend, [[bestFriend(object(bestFriend))]]),
-    (User.friends, [[friends([object(friend[0]), object(friend[1])])]])
+    (User.bestFriend, [(bestFriend, [bestFriend(object(bestFriend))])]),
+    (User.friends, [(friends, [friends([object(friend[0]), object(friend[1])])])])
   ]
 
 scope(User me)
-  pop fields by key User.bestFriend, taking [bestFriend(object(bestFriend))]
-  pop fields by key User.friends, taking [friends([object(friend[0]), object(friend[1])])]
+  pop binding bestFriend @ User.bestFriend, taking [bestFriend(object(bestFriend))]
+  pop binding friends @ User.friends, taking [friends([object(friend[0]), object(friend[1])])]
   prepend [[object(me)]] to valueStack
 
   valueStack = [[object(me)]]
@@ -612,15 +637,15 @@ scope(User me)
 
 field(Query.me)
   child pop takes `object(me)` from the first valueStack segment
-  push fieldStore entry (Query.me, [[me(object(me))]])
+  push fieldStore entry (Query.me, [(me, [me(object(me))])])
 
   valueStack = []
   fieldStore = [
-    (Query.me, [[me(object(me))]])
+    (Query.me, [(me, [me(object(me))])])
   ]
 
 scope(root)
-  pop fields by key Query.me, taking [me(object(me))]
+  pop binding me @ Query.me, taking [me(object(me))]
   prepend [[object(root)]] to valueStack
 
   valueStack = [[object(root)]]
@@ -638,9 +663,10 @@ There are two different pop modes:
 - `ValueSlot.child` uses positional popping. It scans from the top for the next
   `valueStack` segment, takes the first value from the first segment, and drops
   the segment when no values remain.
-- `TraceFrame.scope` uses keyed popping. For each collected `ScheduleKey`, it
-  scans `fieldStore` for a matching `(key, segments)` entry, takes the first
-  segment, and leaves any remaining segments under the same key.
+- `TraceFrame.scope` uses keyed popping. For each collected `FieldBinding`, it
+  scans `fieldStore` for a matching outer `ScheduleKey`, then takes the first
+  inner segment with the binding's response name. Empty outer items are pruned
+  after the scope has consumed all of its bindings.
 
 That keyed field pop is not how a conventional bytecode VM would usually address
 its stack; a normal VM would more likely use offsets or a fixed frame layout.
@@ -651,14 +677,15 @@ explicit and proof-friendly while the forward queue coalesces work by
 This is the same dependency order a recursive executor would follow, but it is
 derived from a breadth-first trace rather than recursive calls.
 
-## Segment Lengths
+## Segment Descriptors And Scope Lengths
 
-`segmentLengths` are the runtime shape metadata that make batching reversible.
+Field `segmentDescriptors` pair each response name with its segment length. Scope
+`segmentLengths` retain only positional shape. Together they make batching reversible.
 
 They are used in two places:
 
-- A field frame splits a flat resolver result list back into the original
-  schedule segments.
+- A field frame uses descriptor lengths to split a flat resolver result list back
+  into the original schedule segments.
 - A scope frame splits a flat object-result list back into the original parent
   scope segments.
 
@@ -692,19 +719,20 @@ Anything else is treated as an execution error in this proof-facing model.
 For a Rust implementation, the direct translation is:
 
 - `ScheduleKey` as a hashable struct for forward field batching.
+- `FieldBinding` as the response name paired with a schedule key for completion routing.
 - `PendingChildWork` as an ordered work item, not a hash key.
 - `ScheduleQueue` as a `VecDeque<ScheduleItem>` or `Vec<ScheduleItem>` with
   stable append and linear coalescing, depending on expected queue sizes.
 - `TraceFrame` and `ValueSlot` as enums.
 - `CompletionState` as a struct with `valueStack` and `fieldStore`.
-- `segmentLengths` as `Vec<usize>`.
+- segment descriptors as `(response_name, length)` pairs, plus scope segment lengths.
 - `ResolverMap.resolve` as a batch function returning `Vec<Option<Value>>`.
 
 Important implementation details:
 
 - Preserve source order within every segment.
 - Preserve segment order within every schedule item.
-- Store child selection sets on segments, not on `ScheduleKey`.
+- Store response names and child selection sets on segments, not on `ScheduleKey`.
 - Preserve pending child work order exactly; do not pre-group pending child work
   before emitting scope frames.
 - Let the forward queue regroup the field work by `ScheduleKey`.
@@ -749,8 +777,8 @@ When the result shape is wrong, check these in order:
 5. Did `buildValueSlot` emit `ValueSlot.child` only for valid composite object
    values?
 6. Did `schedulePendingChildWork` preserve pending child work order?
-7. Did field frames use the same `segmentLengths` as the source segments?
-8. Did scope frames pop field keys in collected-field order?
+7. Did field frames use the right response names and lengths in `segmentDescriptors`?
+8. Did scope frames pop field bindings in collected-field order?
 9. Did reverse completion run on `trace.reverse`, not the forward trace?
 
 Most bugs in ports are routing bugs: a value is resolved correctly but routed to

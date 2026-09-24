@@ -169,17 +169,18 @@ after runtime type resolution.
 The Lean model uses a two-phase algorithm instead of JavaScript-style mutable
 result objects. `drainLoop` starts at the root queue and emits a forward
 breadth-first trace. Queue items are grouped by `ScheduleKey`: concrete resolver
-parent type, response name, field name, and arguments. The child selection set is
-kept on each `ScheduleSegment`, so cousin fields with the same resolver call can
-share a batch even when their continuations differ. Composite results become
-`PendingChildWork`, which is later scheduled by runtime object type and child
-selection continuation.
+parent type, field name, and arguments. The response name and child selection set
+are kept on each `ScheduleSegment`, so aliases and cousin fields with the same
+resolver call can share a batch even when their continuations differ. Composite
+results become `PendingChildWork`, which is later scheduled by runtime object type
+and child selection continuation.
 
 The reverse completion pass, `completeExecutionTrace`, consumes `TraceFrame`s
 from the end of the trace. Field frames complete value slots and push
-segment-aligned field-result blocks keyed by `ScheduleKey`; scope frames consume
-those field blocks from the field store and push completed object values onto
-the positional value stack.
+segment-aligned field-result blocks into a two-level store: the outer level is keyed
+by `ScheduleKey`, and each inner segment retains its response name. Scope frames use
+`FieldBinding`, which pairs those two identifiers, to recover the right block and push
+completed object values onto the positional value stack.
 
 `ScheduleKey.arguments` retains executable syntax for queue grouping. Immediately
 before a batch resolver call, `executeScheduleItem` looks up the field definition

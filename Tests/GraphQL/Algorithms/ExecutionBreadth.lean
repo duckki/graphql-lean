@@ -273,6 +273,73 @@ def expectedDistinctRuntimeResponse : GraphQL.Execution.ResponseValue :=
       .list [.object [("alpha", .scalar "alpha-a")], .object [("beta", .scalar "beta-b")]]
     )]
 
+def aliasedBatchSchema : Schema :=
+  {
+    queryType := "Query"
+    types :=
+      [
+        .object
+          {
+            name := "Query"
+            fields := [testObjectFieldDefinition "widget" "Widget"]
+            interfaces := []
+          },
+        .object
+          {
+            name := "Widget"
+            fields :=
+              [
+                testObjectFieldDefinition "friend" "Widget",
+                testStringFieldDefinition "id",
+                testStringFieldDefinition "label"
+              ]
+            interfaces := []
+          }
+      ]
+  }
+
+def aliasedBatchQuery : Operation :=
+  {
+    name := some "AliasedBatch"
+    selectionSet :=
+      [.field "widget" "widget" [] []
+        [
+          .field "first" "friend" [] [] [.field "id" "id" [] [] []],
+          .field "second" "friend" [] [] [.field "label" "label" [] [] []]
+        ]]
+  }
+
+def aliasedBatchResolvers : GraphQL.Execution.Resolvers String :=
+  {
+    resolve :=
+      fun parentType fieldName _arguments source =>
+        match parentType, fieldName, source with
+        | "Query", "widget", _ =>
+            some (.object "Widget" "root-widget")
+        | "Widget", "friend", .object _ ref =>
+            some (.object "Widget" s!"friend-{ref}")
+        | "Widget", "id", .object _ ref =>
+            some (.scalar s!"id-{ref}")
+        | "Widget", "label", .object _ ref =>
+            some (.scalar s!"label-{ref}")
+        | _, _, _ =>
+            some .null
+    resolve_argumentsEquivalent := by
+      intros
+      rfl
+  }
+
+def expectedAliasedBatchResponse : GraphQL.Execution.ResponseValue :=
+  .object
+    [(
+      "widget",
+      .object
+        [
+          ("first", .object [("id", .scalar "id-friend-root-widget")]),
+          ("second", .object [("label", .scalar "label-friend-root-widget")])
+        ]
+    )]
+
 def rootExecutionTrace
     (schema : Schema)
     (resolvers : GraphQL.Algorithms.ExecutionBreadth.ResolverMap ObjectRef)
@@ -288,12 +355,18 @@ def rootExecutionTrace
 
 def fieldKeyMatches
     (key : GraphQL.Algorithms.ExecutionBreadth.ScheduleKey)
-    (parentType responseName fieldName : Name)
+    (parentType fieldName : Name)
     : Bool :=
   (key.parentType == parentType)
-  && (key.responseName == responseName)
   && (key.fieldName == fieldName)
   && GraphQL.Algorithms.argumentListEqBool key.arguments []
+
+def fieldBindingMatches
+    (binding : GraphQL.Algorithms.ExecutionBreadth.FieldBinding)
+    (parentType responseName fieldName : Name)
+    : Bool :=
+  (binding.responseName == responseName)
+  && fieldKeyMatches binding.key parentType fieldName
 
 theorem breadthListQueryMatchesSpecSmoke
     : let spec :=
@@ -331,20 +404,20 @@ def siblingTraceCoalescesCousinSegmentsBool : Bool :=
       (GraphQL.Execution.ResolverValue.object "Query" "root")
   match trace with
   | [
-    .scope [1] [rootLeftKey, rootRightKey],
-    .field leftKey _ [1] [.child],
-    .scope [1] [leftIdKey],
-    .field rightKey _ [1] [.child],
-    .scope [1] [rightIdKey],
-    .field idKey _ [1, 1] _
+    .scope [1] [rootLeftBinding, rootRightBinding],
+    .field leftKey _ [("left", 1)] [.child],
+    .scope [1] [leftIdBinding],
+    .field rightKey _ [("right", 1)] [.child],
+    .scope [1] [rightIdBinding],
+    .field idKey _ [("id", 1), ("id", 1)] _
   ] =>
-      fieldKeyMatches rootLeftKey "Query" "left" "left"
-      && fieldKeyMatches rootRightKey "Query" "right" "right"
-      && fieldKeyMatches leftKey "Query" "left" "left"
-      && fieldKeyMatches rightKey "Query" "right" "right"
-      && fieldKeyMatches leftIdKey "Widget" "id" "id"
-      && fieldKeyMatches rightIdKey "Widget" "id" "id"
-      && fieldKeyMatches idKey "Widget" "id" "id"
+      fieldBindingMatches rootLeftBinding "Query" "left" "left"
+      && fieldBindingMatches rootRightBinding "Query" "right" "right"
+      && fieldKeyMatches leftKey "Query" "left"
+      && fieldKeyMatches rightKey "Query" "right"
+      && fieldBindingMatches leftIdBinding "Widget" "id" "id"
+      && fieldBindingMatches rightIdBinding "Widget" "id" "id"
+      && fieldKeyMatches idKey "Widget" "id"
   | _ => false
 
 theorem siblingTraceCoalescesCousinSegmentsSmoke
@@ -375,27 +448,75 @@ def listTraceCoalescesCousinSegmentsBool : Bool :=
       (GraphQL.Execution.ResolverValue.object "Query" "root")
   match trace with
   | [
-    .scope [1] [parentsRootKey],
-    .field parentsKey _ [1] [.list [.child, .child]],
-    .scope [1] [childScopeKey],
-    .scope [1] [childScopeKey'],
-    .field childKey _ [1, 1] [.child, .child],
-    .scope [1] [idScopeKey],
-    .scope [1] [idScopeKey'],
-    .field idKey _ [1, 1] _
+    .scope [1] [parentsRootBinding],
+    .field parentsKey _ [("parents", 1)] [.list [.child, .child]],
+    .scope [1] [childScopeBinding],
+    .scope [1] [childScopeBinding'],
+    .field childKey _ [("child", 1), ("child", 1)] [.child, .child],
+    .scope [1] [idScopeBinding],
+    .scope [1] [idScopeBinding'],
+    .field idKey _ [("id", 1), ("id", 1)] _
   ] =>
-      fieldKeyMatches parentsRootKey "Query" "parents" "parents"
-      && fieldKeyMatches parentsKey "Query" "parents" "parents"
-      && fieldKeyMatches childScopeKey "Parent" "child" "child"
-      && fieldKeyMatches childScopeKey' "Parent" "child" "child"
-      && fieldKeyMatches childKey "Parent" "child" "child"
-      && fieldKeyMatches idScopeKey "Widget" "id" "id"
-      && fieldKeyMatches idScopeKey' "Widget" "id" "id"
-      && fieldKeyMatches idKey "Widget" "id" "id"
+      fieldBindingMatches parentsRootBinding "Query" "parents" "parents"
+      && fieldKeyMatches parentsKey "Query" "parents"
+      && fieldBindingMatches childScopeBinding "Parent" "child" "child"
+      && fieldBindingMatches childScopeBinding' "Parent" "child" "child"
+      && fieldKeyMatches childKey "Parent" "child"
+      && fieldBindingMatches idScopeBinding "Widget" "id" "id"
+      && fieldBindingMatches idScopeBinding' "Widget" "id" "id"
+      && fieldKeyMatches idKey "Widget" "id"
   | _ => false
 
 theorem listTraceCoalescesCousinSegmentsSmoke
     : listTraceCoalescesCousinSegmentsBool = true := by
+  native_decide
+
+def aliasedTraceCoalescesResponseNamesBool : Bool :=
+  let trace :=
+    rootExecutionTrace aliasedBatchSchema
+      (GraphQL.Algorithms.ExecutionBreadth.ResolverMap.fromSpecResolvers
+        aliasedBatchResolvers)
+      ([] : GraphQL.Execution.VariableValues) 10 aliasedBatchQuery
+      (GraphQL.Execution.ResolverValue.object "Query" "root")
+  match trace with
+  | [
+    .scope [1] [widgetBinding],
+    .field widgetKey _ [("widget", 1)] [.child],
+    .scope [1] [firstBinding, secondBinding],
+    .field friendKey _ [("first", 1), ("second", 1)] [.child, .child],
+    .scope [1] [idBinding],
+    .scope [1] [labelBinding],
+    .field idKey _ [("id", 1)] _,
+    .field labelKey _ [("label", 1)] _
+  ] =>
+      fieldBindingMatches widgetBinding "Query" "widget" "widget"
+      && fieldKeyMatches widgetKey "Query" "widget"
+      && fieldBindingMatches firstBinding "Widget" "first" "friend"
+      && fieldBindingMatches secondBinding "Widget" "second" "friend"
+      && fieldKeyMatches friendKey "Widget" "friend"
+      && fieldBindingMatches idBinding "Widget" "id" "id"
+      && fieldBindingMatches labelBinding "Widget" "label" "label"
+      && fieldKeyMatches idKey "Widget" "id"
+      && fieldKeyMatches labelKey "Widget" "label"
+  | _ => false
+
+theorem aliasedTraceCoalescesResponseNamesSmoke
+    : aliasedTraceCoalescesResponseNamesBool = true := by
+  native_decide
+
+theorem breadthAliasedBatchMatchesSpecSmoke
+    : let source := GraphQL.Execution.ResolverValue.object "Query" "root"
+      let spec :=
+        GraphQL.Execution.executeQuery aliasedBatchSchema aliasedBatchResolvers []
+          aliasedBatchQuery source
+      let breadth :=
+        GraphQL.Algorithms.ExecutionBreadth.executeQuery aliasedBatchSchema
+          (GraphQL.Algorithms.ExecutionBreadth.ResolverMap.fromSpecResolvers
+            aliasedBatchResolvers)
+          [] aliasedBatchQuery source
+      spec.errors = breadth.errors
+      ∧ responseEqBool spec.data breadth.data = true
+      ∧ responseEqBool breadth.data expectedAliasedBatchResponse = true := by
   native_decide
 
 theorem breadthDistinctRuntimeChildrenMatchSpecSmoke

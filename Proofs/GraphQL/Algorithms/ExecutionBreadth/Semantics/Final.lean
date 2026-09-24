@@ -704,19 +704,19 @@ theorem expectedScheduleQueueFuelsAllEq_scheduleExpectedScope_root
           ([] : ExpectedScheduleQueue ObjectRef)).fst := by
   let groups := collectFieldsByKey schema variableValues (operation.rootType schema)
     operation.selectionSet
-  let keyedGroups :=
-    groups.map (fun group =>
-      (scheduleKeyForFields (operation.rootType schema) group.fst group.snd, group.snd))
+  let boundGroups :=
+    groups.map (bindCollectedGroup (operation.rootType schema))
   have hfold :
-      ∀ (groups0 : List (ScheduleKey × List ExecutableField))
+      ∀ (groups0 : List (FieldBinding × List ExecutableField))
         (queue : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueFuelsAllEq fuel queue ->
           expectedScheduleQueueFuelsAllEq fuel
             (groups0.foldl
               (fun queue group =>
-                enqueueExpectedSegment group.fst
+                enqueueExpectedSegment group.fst.key
                   { segment :=
-                      { sources := [source]
+                      { responseName := group.fst.responseName
+                        sources := [source]
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := [fuel] }
                   queue)
@@ -730,10 +730,11 @@ theorem expectedScheduleQueueFuelsAllEq_scheduleExpectedScope_root
         intro queue hqueue
         apply ih
         exact expectedScheduleQueueFuelsAllEq_enqueueExpectedSegment
-          (ObjectRef := ObjectRef) fuel group.fst
+          (ObjectRef := ObjectRef) fuel group.fst.key
           {
             segment :=
               {
+                responseName := group.fst.responseName
                 sources := [source]
                 childSelectionSet := childSelectionSetForFields group.snd
               }
@@ -745,8 +746,8 @@ theorem expectedScheduleQueueFuelsAllEq_scheduleExpectedScope_root
             simp at hfuel
             exact hfuel)
           hqueue
-  simpa [scheduleExpectedScope, groups, keyedGroups]
-    using hfold keyedGroups ([] : ExpectedScheduleQueue ObjectRef) (by
+  simpa [scheduleExpectedScope, groups, boundGroups]
+    using hfold boundGroups ([] : ExpectedScheduleQueue ObjectRef) (by
       intro item hitem
       simp at hitem)
 

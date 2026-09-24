@@ -1168,7 +1168,7 @@ theorem slots_expectedPendingChildWorkForSegments_append
 theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues)
-    (key : ScheduleKey) (fieldDefinition : FieldDefinition)
+    (responseName : Name) (key : ScheduleKey) (fieldDefinition : FieldDefinition)
     (selectionSet : List Selection)
     (source : ResolverValue ObjectRef) (fuel : Nat)
     (stack : CompletionStack)
@@ -1191,9 +1191,9 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
               fieldStore := stack.fieldStore
             }
           = (
-            singleFieldResultValue key.responseName
+            singleFieldResultValue responseName
               (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                key.parentType source key.responseName
+                key.parentType source responseName
                 [key.executableField selectionSet]),
             stack
           ) := by
@@ -1212,7 +1212,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
           omega
       | succ fuel =>
           rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
-            schema resolvers variableValues fuel key.parentType source key.responseName
+            schema resolvers variableValues fuel key.parentType source responseName
             (key.executableField selectionSet) [] fieldDefinition
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
@@ -1243,7 +1243,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
               (ObjectRef := ObjectRef) schema resolvers variableValues selectionSet key
               fuel fieldDefinition.outputType value stack hpos hfuel
           rw [GraphQL.Execution.executeField_succ_eq_coerceAndResolveFieldValue
-            schema resolvers variableValues fuel key.parentType source key.responseName
+            schema resolvers variableValues fuel key.parentType source responseName
             (key.executableField selectionSet) [] fieldDefinition
             (by simpa [ScheduleKey.executableField] using hlookup)]
           simpa [buildFieldSlotForResolved, expectedPendingChildWorkForResolved,
@@ -1255,7 +1255,7 @@ theorem slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
 theorem
     slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
-    (variableValues : VariableValues) (key : ScheduleKey)
+    (variableValues : VariableValues) (responseName : Name) (key : ScheduleKey)
     (fieldDefinition : FieldDefinition) (selectionSet : List Selection)
     : ∀ (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
         (stack : CompletionStack),
@@ -1283,7 +1283,7 @@ theorem
               }
             = (
               expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
-                variableValues key selectionSet sources specFuels,
+                variableValues responseName key selectionSet sources specFuels,
               stack
             ) := by
   intro sources
@@ -1358,7 +1358,7 @@ theorem
               slots_expectedPendingChildWorkCompletionStack_append, List.append_assoc]
           have hhead :=
             slots_completeSlot_buildFieldSlotForResolved_eq_expectedScheduleResult
-              (ObjectRef := ObjectRef) schema resolvers variableValues key
+              (ObjectRef := ObjectRef) schema resolvers variableValues responseName key
               fieldDefinition selectionSet source fuel tailStack hlookup hfuelReady
           have htail :=
             ih specFuels stack hlookup htailLength htailReady
@@ -1372,7 +1372,7 @@ theorem
                         key.parentType key.fieldName key.arguments source))).snd
                   tailStack =
                 ( expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
-                    variableValues key selectionSet sources specFuels
+                    variableValues responseName key selectionSet sources specFuels
                 , stack ) := by
             simpa [buildFieldSlotsForResolved, tailStack] using htail
           have hslots :
@@ -1412,7 +1412,8 @@ theorem
                       key.parentType key.fieldName key.arguments source))).snd
               currentStack =
             ( expectedScheduleSegmentSpecFieldResultsWithFuels schema resolvers
-                variableValues key selectionSet (source :: sources) (fuel :: specFuels)
+                variableValues responseName key selectionSet
+                  (source :: sources) (fuel :: specFuels)
             , stack )
           rw [hstack]
           rw [slots_mapAccumList_cons
@@ -1430,9 +1431,9 @@ theorem
             simpa [expectedScheduleSegmentSpecFieldResultsWithFuels]
               using congrArg
                 (fun tail =>
-                  singleFieldResultValue key.responseName
+                  singleFieldResultValue responseName
                     (GraphQL.Execution.executeField schema resolvers variableValues fuel
-                      key.parentType source key.responseName
+                      key.parentType source responseName
                       [key.executableField selectionSet])
                   :: tail)
                 htailF
@@ -1475,9 +1476,10 @@ theorem
   simpa [expectedScheduleSegmentSpecFieldResults, expectedPendingChildWorkForSegment]
     using
       slots_completeSlotList_buildFieldSlotsForResolved_eq_expectedScheduleSegmentSpecFieldResultsWithFuels
-        (ObjectRef := ObjectRef) schema resolvers variableValues key fieldDefinition
-        segment.segment.childSelectionSet segment.segment.sources segment.specFuels stack
-        hlookup (by simpa [expectedQueueSegmentFuelsAligned] using haligned) hready
+        (ObjectRef := ObjectRef) schema resolvers variableValues
+        segment.segment.responseName key fieldDefinition segment.segment.childSelectionSet
+        segment.segment.sources segment.specFuels stack hlookup
+        (by simpa [expectedQueueSegmentFuelsAligned] using haligned) hready
 
 theorem
     slots_completeSlotList_buildFieldSlotsForResolvedSegments_eq_expectedScheduleSegmentResultsFlatten

@@ -14,10 +14,11 @@ It first resolves pending field batches from a forward queue, schedules any comp
 children as later queue work, and records a trace that can rebuild response objects
 after the children have completed.
 
-The forward queue is keyed by `ScheduleKey`: parent type, response name, field name,
-and arguments. Child selections are not part of the key; they stay on queue segments.
-That means one queue item can contain the same field requested from many parent
-objects, while still remembering each response position's child continuation.
+The forward queue is keyed by `ScheduleKey`: parent type, field name, and arguments.
+Response names and child selections are not part of the key; they stay on queue
+segments. That means one queue item can contain the same field requested under
+different aliases and from many parent objects, while still remembering each response
+position's name and child continuation.
 
 The model keeps the spec executor's `Response` and `Result` domain. It changes only
 the control flow:
@@ -115,39 +116,49 @@ def zipResultWith {α β γ : Type} (combine : α -> β -> γ)
 -----------------------------------------------------------------------------------------
 
 /-!
-Invariant: `ScheduleKey` identifies one resolver-compatible field batch. Child selection
-continuations are intentionally excluded and stay on `ScheduleSegment`s.
+Invariant: `ScheduleKey` identifies one resolver-compatible field batch. Response names
+and child selection continuations are intentionally excluded and stay on
+`ScheduleSegment`s.
 -/
 
 structure ScheduleKey where
   parentType : Name
-  responseName : Name
   fieldName : Name
   arguments : List Argument
 deriving Repr
 
 def scheduleKeyEqBool (left right : ScheduleKey) : Bool :=
   (left.parentType == right.parentType)
-  && (left.responseName == right.responseName)
   && (left.fieldName == right.fieldName)
   && argumentListEqBool left.arguments right.arguments
 
-def scheduleKeyForFields (parentType responseName : Name)
-    : List ExecutableField -> ScheduleKey
+def scheduleKeyForFields (parentType : Name) : List ExecutableField -> ScheduleKey
   | [] =>
       {
         parentType := parentType
-        responseName := responseName
         fieldName := ""
         arguments := []
       }
   | field :: _fields =>
       {
         parentType := parentType
-        responseName := responseName
         fieldName := field.fieldName
         arguments := field.arguments
       }
+
+/-!
+`FieldBinding` is the reverse-completion identity of one response field. Unlike
+`ScheduleKey`, it retains the response name because aliases that share one resolver
+batch still occupy distinct response positions.
+-/
+
+structure FieldBinding where
+  responseName : Name
+  key : ScheduleKey
+deriving Repr
+
+def fieldBindingEqBool (left right : FieldBinding) : Bool :=
+  (left.responseName == right.responseName) && scheduleKeyEqBool left.key right.key
 
 def ScheduleKey.executableField (key : ScheduleKey) (selectionSet : List Selection)
     : ExecutableField :=
@@ -168,6 +179,7 @@ flattens segments in that same order for the batch resolver call.
 -/
 
 structure ScheduleSegment (ObjectRef : Type) where
+  responseName : Name
   sources : List (ResolverValue ObjectRef)
   childSelectionSet : List Selection
 deriving Repr
@@ -185,6 +197,9 @@ def ScheduleSegment.length (segment : ScheduleSegment ObjectRef) : Nat :=
 
 def ScheduleItem.segmentLengths (item : ScheduleItem ObjectRef) : List Nat :=
   item.segments.map ScheduleSegment.length
+
+def ScheduleItem.segmentDescriptors (item : ScheduleItem ObjectRef) : List (Name × Nat) :=
+  item.segments.map (fun segment => (segment.responseName, segment.length))
 
 def ScheduleItem.sources (item : ScheduleItem ObjectRef)
     : List (ResolverValue ObjectRef) :=
@@ -219,10 +234,11 @@ def enqueueScheduleItems
 -----------------------------------------------------------------------------------------
 
 /-!
-Invariant: trace frames are positional on the value side and keyed only on the field side.
-`ScheduleKey` still routes completed field-value blocks into object scopes, but child
-object values are consumed by the next `ValueSlot.child` in trace order. This keeps the
-completion VM closer to a stack machine and avoids a second child-completion namespace.
+Invariant: trace frames are positional on the value side and use `FieldBinding` on the
+field side. `ScheduleKey` identifies resolver batches, while `FieldBinding` routes each
+completed segment into its aliased response position. Child object values are consumed
+by the next `ValueSlot.child` in trace order. This keeps the completion VM closer to a
+stack machine and avoids a second child-completion namespace.
 -/
 
 inductive ValueSlot where
@@ -232,11 +248,11 @@ inductive ValueSlot where
 deriving Repr
 
 inductive TraceFrame where
-  | scope (segmentLengths : List Nat) (fieldKeys : List ScheduleKey)
+  | scope (segmentLengths : List Nat) (fieldBindings : List FieldBinding)
   | field
     (key : ScheduleKey)
     (fieldType : TypeRef)
-    (segmentLengths : List Nat)
+    (segmentDescriptors : List (Name × Nat))
     (slots : List ValueSlot)
 deriving Repr
 
@@ -426,22 +442,24 @@ def scheduleScope
     (selectionSet : List Selection) (queue : ScheduleQueue ObjectRef)
     : ScheduleQueue ObjectRef × TraceFrame :=
   let groups := collectFieldsByKey schema variableValues parentType selectionSet
-  let keyedGroups :=
+  let boundGroups :=
     groups.map
       (fun group =>
-        (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+        let key := scheduleKeyForFields parentType group.snd
+        ({ responseName := group.fst, key := key }, group.snd))
   let queue :=
-    keyedGroups.foldl
+    boundGroups.foldl
       (fun queue group =>
         let segment :=
           {
+            responseName := group.fst.responseName
             sources := sources
             childSelectionSet := childSelectionSetForFields group.snd
           }
-        enqueueSegment group.fst segment queue)
+        enqueueSegment group.fst.key segment queue)
       queue
-  let fieldKeys := keyedGroups.map Prod.fst
-  (queue, .scope [sources.length] fieldKeys)
+  let fieldBindings := boundGroups.map Prod.fst
+  (queue, .scope [sources.length] fieldBindings)
 
 def schedulePendingChildWork (schema : Schema) (variableValues : VariableValues)
     : PendingChildWorkList ObjectRef -> ScheduleQueue ObjectRef
@@ -464,7 +482,7 @@ def executeScheduleItem
   | none =>
       (
         [],
-        [.field item.key (.named "") item.segmentLengths
+        [.field item.key (.named "") item.segmentDescriptors
           (List.replicate sources.length (.completed (.error 1)))]
       )
   | some fieldDefinition =>
@@ -473,7 +491,7 @@ def executeScheduleItem
       | .error =>
           (
             [],
-            [.field item.key fieldDefinition.outputType item.segmentLengths
+            [.field item.key fieldDefinition.outputType item.segmentDescriptors
               (List.replicate sources.length
                 (.completed (handleFieldError fieldDefinition.outputType)))]
           )
@@ -484,7 +502,7 @@ def executeScheduleItem
           if !(resolved.length == sources.length) then
             (
               [],
-              [.field item.key fieldDefinition.outputType item.segmentLengths
+              [.field item.key fieldDefinition.outputType item.segmentDescriptors
                 (List.replicate sources.length
                   (.completed (handleFieldError fieldDefinition.outputType)))]
             )
@@ -495,7 +513,7 @@ def executeScheduleItem
               schedulePendingChildWork schema variableValues pendingChildWork []
             (
               queue,
-              .field item.key fieldDefinition.outputType item.segmentLengths slots
+              .field item.key fieldDefinition.outputType item.segmentDescriptors slots
               :: scopeFrames
             )
 
@@ -514,7 +532,7 @@ def outOfFuelScheduleTrace (schema : Schema) (item : ScheduleItem ObjectRef)
     match schema.lookupField item.key.parentType item.key.fieldName with
     | some fieldDefinition => fieldDefinition.outputType
     | none => .named ""
-  [.field item.key fieldType item.segmentLengths
+  [.field item.key fieldType item.segmentDescriptors
     (List.replicate item.sources.length (.completed outOfFuel))]
 
 def outOfFuelQueueTrace (schema : Schema) : ScheduleQueue ObjectRef -> ExecutionTrace
@@ -531,18 +549,18 @@ Invariant: the drain loop processes scheduled field batches in queue order. Newl
 discovered child batches are merged back into the remaining queue by `ScheduleKey`, so
 matching cousin fields can share a later resolver call.
 
-* `ScheduleKey` is the forward scheduling key: concrete resolver parent type, response
-  name, field name, and syntactic arguments.  The child selection set is deliberately
-  stored on each segment, so cousins with the same resolver call but different
-  continuations can still share one batch.
+* `ScheduleKey` is the forward scheduling key: concrete resolver parent type, field name,
+  and syntactic arguments. Response names and child selection sets are deliberately
+  stored on each segment, so aliases and cousins with the same resolver call but
+  different continuations can still share one batch.
 * `ScheduleItem` is one batched resolver call; `ScheduleSegment` records each
   parent-scope contribution to that batch.
 * `PendingChildWork` is emitted by field completion for one resolved composite response
   position. Scheduling reads its runtime type and selection-set continuation, preserving
   the original slot order.
-* `TraceFrame.scope` lists the field schedule keys an object scope will consume during
-  reverse completion. Field completions are keyed by `ScheduleKey`; object completions
-  are positional stack values consumed by `ValueSlot.child`.
+* `TraceFrame.scope` lists the field bindings an object scope will consume during reverse
+  completion. The field store is grouped first by `ScheduleKey`, then by response name;
+  object completions are positional stack values consumed by `ValueSlot.child`.
 -/
 
 def drainLoop
@@ -563,8 +581,9 @@ def drainLoop
 
 /-!
 Invariant: reverse completion consumes trace frames from newest to oldest. Field frames
-push field-value blocks keyed by `ScheduleKey`; scope frames pop those blocks and push
-object results onto a positional value stack. Child value slots consume the next completed
+push field-value blocks grouped by `ScheduleKey`, with response names retained on the
+inner segments. Scope frames use `FieldBinding` to pop those segments and push object
+results onto a positional value stack. Child value slots consume the next completed
 object value in this stack-machine order.
 -/
 
@@ -577,7 +596,9 @@ abbrev ObjectFieldSegments :=
 
 abbrev ValueStack := ResponseValueSegments
 
-abbrev FieldStore := List (ScheduleKey × ResponseValueSegments)
+abbrev BoundFieldSegments := List (Name × List (Result ResponseValue))
+
+abbrev FieldStore := List (ScheduleKey × BoundFieldSegments)
 
 structure CompletionState where
   valueStack : ValueStack
@@ -613,46 +634,59 @@ def popValueResult : CompletionStack -> Result ResponseValue × CompletionStack
       let (popped, valueStack') := popValueResultFromSegments state.valueStack
       (popped, { state with valueStack := valueStack' })
 
-def popFieldResultFromSegments
-    : ResponseValueSegments -> List (Result ResponseValue) × ResponseValueSegments
-  | [] => ([], [])
-  | segment :: segments => (segment, segments)
+def popBoundFieldSegment (responseName : Name)
+    : BoundFieldSegments -> Option (List (Result ResponseValue) × BoundFieldSegments)
+  | [] => none
+  | (itemResponseName, values) :: segments =>
+      if responseName == itemResponseName then
+        some (values, segments)
+      else
+        match popBoundFieldSegment responseName segments with
+        | none => none
+        | some (popped, segments') =>
+            some (popped, (itemResponseName, values) :: segments')
 
-def popFieldResultByKeyFromStore (key : ScheduleKey)
+def popFieldResultByBindingFromStore (binding : FieldBinding)
     : FieldStore -> List (Result ResponseValue) × FieldStore
   | [] => ([], [])
   | (itemKey, segments) :: store =>
-      if scheduleKeyEqBool key itemKey then
-        let (popped, segments') := popFieldResultFromSegments segments
-        let store' :=
-          match segments' with
-          | [] => store
-          | _ => (itemKey, segments') :: store
-        (popped, store')
+      if scheduleKeyEqBool binding.key itemKey then
+        match popBoundFieldSegment binding.responseName segments with
+        | none => ([], (itemKey, segments) :: store)
+        | some (popped, segments') =>
+            (popped, (itemKey, segments') :: store)
       else
-        let (popped, store') := popFieldResultByKeyFromStore key store
+        let (popped, store') := popFieldResultByBindingFromStore binding store
         (popped, (itemKey, segments) :: store')
 
-def popFieldResultByKey (key : ScheduleKey)
+def popFieldResultByBinding (binding : FieldBinding)
     : CompletionStack -> List (Result ResponseValue) × CompletionStack
   | state =>
-      let popped := popFieldResultByKeyFromStore key state.fieldStore
+      let popped := popFieldResultByBindingFromStore binding state.fieldStore
       (popped.fst, { state with fieldStore := popped.snd })
 
-def popFieldValuesByKeys
-    : List ScheduleKey -> CompletionStack
-      -> List (ScheduleKey × List (Result ResponseValue)) × CompletionStack
-  | [], stack => ([], stack)
-  | key :: keys, stack =>
-      let head := popFieldResultByKey key stack
-      let tail := popFieldValuesByKeys keys head.snd
-      ((key, head.fst) :: tail.fst, tail.snd)
+def pruneEmptyFieldItems : FieldStore -> FieldStore
+  | [] => []
+  | (_key, []) :: store => pruneEmptyFieldItems store
+  | item :: store => item :: pruneEmptyFieldItems store
 
-def nameFieldValues (key : ScheduleKey) (values : List (Result ResponseValue))
+def normalizeCompletionState (state : CompletionState) : CompletionState :=
+  { state with fieldStore := pruneEmptyFieldItems state.fieldStore }
+
+def popFieldValuesByBindings
+    : List FieldBinding -> CompletionStack
+      -> List (FieldBinding × List (Result ResponseValue)) × CompletionStack
+  | [], stack => ([], normalizeCompletionState stack)
+  | binding :: bindings, stack =>
+      let head := popFieldResultByBinding binding stack
+      let tail := popFieldValuesByBindings bindings head.snd
+      ((binding, head.fst) :: tail.fst, tail.snd)
+
+def nameFieldValues (binding : FieldBinding) (values : List (Result ResponseValue))
     : List (Result (List (Name × ResponseValue))) :=
-  values.map (singleFieldResult key.responseName)
+  values.map (singleFieldResult binding.responseName)
 
-def nameFieldValueBlocks (blocks : List (ScheduleKey × List (Result ResponseValue)))
+def nameFieldValueBlocks (blocks : List (FieldBinding × List (Result ResponseValue)))
     : ObjectFieldSegments :=
   blocks.map (fun block => nameFieldValues block.fst block.snd)
 
@@ -692,16 +726,24 @@ def splitResultsByLengths {α : Type} : List Nat -> List α -> Segments α
   | length :: lengths, results =>
       results.take length :: splitResultsByLengths lengths (results.drop length)
 
+def bindFieldSegments : List (Name × Nat) -> ResponseValueSegments -> BoundFieldSegments
+  | [], _segments => []
+  | _descriptor :: _descriptors, [] => []
+  | (responseName, _length) :: descriptors, segment :: segments =>
+      (responseName, segment) :: bindFieldSegments descriptors segments
+
 -- A field frame completes the value slots for one resolver batch and pushes
 -- segment-aligned values for later scope completion.
 def completeFieldFrame
     (key : ScheduleKey) (fieldType : TypeRef)
-    (segmentLengths : List Nat) (slots : List ValueSlot)
+    (segmentDescriptors : List (Name × Nat)) (slots : List ValueSlot)
     (stack : CompletionStack)
     : CompletionStack :=
   let completed := completeSlotList fieldType slots stack
+  let segmentLengths := segmentDescriptors.map Prod.snd
   let segments := splitResultsByLengths segmentLengths completed.fst
-  { completed.snd with fieldStore := (key, segments.reverse) :: completed.snd.fieldStore }
+  let entries := bindFieldSegments segmentDescriptors segments
+  { completed.snd with fieldStore := (key, entries.reverse) :: completed.snd.fieldStore }
 
 def combineScopeFieldResults (sourceCount : Nat) (fieldResults : ObjectFieldSegments)
     : List (Result ResponseValue) :=
@@ -721,21 +763,26 @@ def combineScopeFieldResults (sourceCount : Nat) (fieldResults : ObjectFieldSegm
 -- A scope frame consumes field-value blocks in its collected field order and pushes the
 -- completed object values expected by its parent value slots.
 def completeScopeFrame
-    (segmentLengths : List Nat) (fieldKeys : List ScheduleKey)
+    (segmentLengths : List Nat) (fieldBindings : List FieldBinding)
     (stack : CompletionStack)
     : CompletionStack :=
-  let popped := popFieldValuesByKeys fieldKeys stack
+  let popped := popFieldValuesByBindings fieldBindings stack
   let fieldResults := nameFieldValueBlocks popped.fst
   let objectResults := combineScopeFieldResults segmentLengths.sum fieldResults
   let segments := splitResultsByLengths segmentLengths objectResults
-  { popped.snd with valueStack := segments.reverse ++ popped.snd.valueStack }
+  {
+    popped.snd with
+      valueStack := segments.reverse ++ popped.snd.valueStack
+      fieldStore := popped.snd.fieldStore
+  }
 
 def completeFrames : ExecutionTrace -> CompletionStack -> CompletionStack
   | [], stack => stack
-  | .field key fieldType segmentLengths slots :: frames, stack =>
-      completeFrames frames (completeFieldFrame key fieldType segmentLengths slots stack)
-  | .scope segmentLengths fieldKeys :: frames, stack =>
-      completeFrames frames (completeScopeFrame segmentLengths fieldKeys stack)
+  | .field key fieldType segmentDescriptors slots :: frames, stack =>
+      completeFrames frames
+        (completeFieldFrame key fieldType segmentDescriptors slots stack)
+  | .scope segmentLengths fieldBindings :: frames, stack =>
+      completeFrames frames (completeScopeFrame segmentLengths fieldBindings stack)
 
 def completeExecutionTrace (trace : ExecutionTrace)
     : Result (List (Name × ResponseValue)) :=

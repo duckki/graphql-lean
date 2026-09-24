@@ -972,7 +972,7 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
     (field : ExecutableField) (fields : List ExecutableField)
     : GraphQL.Execution.executeField schema resolvers variableValues fuel parentType
         source responseName
-        [(scheduleKeyForFields parentType responseName (field :: fields)).executableField
+        [(scheduleKeyForFields parentType (field :: fields)).executableField
           (childSelectionSetForFields (field :: fields))]
       = GraphQL.Execution.executeField schema resolvers variableValues fuel parentType
           source responseName (field :: fields) := by
@@ -1010,8 +1010,7 @@ theorem executeField_singleton_scheduleKeyForFields_childSelectionSetForFields_e
                     (completeValue_singleton_executableField_childSelectionSetForFields_eq
                       (ObjectRef := ObjectRef) schema resolvers variableValues fuel
                       fieldDefinition.outputType
-                      (scheduleKeyForFields parentType responseName
-                        (field :: fields))
+                      (scheduleKeyForFields parentType (field :: fields))
                       (field :: fields) resolved)
 
 theorem collectFields_empty_of_childSelectionSetForFields_empty

@@ -58,15 +58,15 @@ theorem queue_completeFrames_empty (stack : CompletionStack)
   rfl
 
 theorem queue_completeScopeFrame_eq_of_pop
-    (segmentLengths : List Nat) (fieldKeys : List ScheduleKey)
+    (segmentLengths : List Nat) (fieldBindings : List FieldBinding)
     (stack stack' : CompletionStack)
-    (entries : List (ScheduleKey × List (Result ResponseValue)))
+    (entries : List (FieldBinding × List (Result ResponseValue)))
     (fieldResults : ObjectFieldSegments)
     (objectResults : List (Result ResponseValue))
-    : popFieldValuesByKeys fieldKeys stack = (entries, stack')
+    : popFieldValuesByBindings fieldBindings stack = (entries, stack')
       -> nameFieldValueBlocks entries = fieldResults
       -> combineScopeFieldResults segmentLengths.sum fieldResults = objectResults
-      -> completeScopeFrame segmentLengths fieldKeys stack
+      -> completeScopeFrame segmentLengths fieldBindings stack
           = {
             stack' with
               valueStack :=
@@ -107,6 +107,23 @@ theorem queue_splitResultsByLengths_replicate {α : Type} (lengths : List Nat) (
       rfl
   | cons length lengths ih =>
       simp [splitResultsByLengths, ih]
+
+theorem queue_bindFieldSegments_expectedMap
+    (segments : List (ExpectedQueueSegment ObjectRef))
+    (results : ExpectedQueueSegment ObjectRef -> List (Result ResponseValue))
+    : bindFieldSegments
+        (segments.map
+          (fun segment =>
+            (segment.segment.responseName, segment.segment.sources.length)))
+        (segments.map results)
+      = segments.map
+          (fun segment =>
+            (segment.segment.responseName, results segment)) := by
+  induction segments with
+  | nil =>
+      rfl
+  | cons segment segments ih =>
+      simp [bindFieldSegments, ih]
 
 theorem queue_singleFieldResultValue_singleFieldResult
     (responseName : Name) (completed : Result ResponseValue)
@@ -158,23 +175,17 @@ theorem queue_singleFieldResult_executeField_roundtrip
                   simp [hlookup, hresolve,
                     queue_singleFieldResultValue_singleFieldResult]
 
-theorem queue_scheduleKeyEqBool_false_of_responseName_ne {left right : ScheduleKey}
-    : left.responseName ≠ right.responseName -> scheduleKeyEqBool left right = false := by
+theorem queue_fieldBindingEqBool_false_of_responseName_ne {left right : FieldBinding}
+    : left.responseName ≠ right.responseName
+      -> fieldBindingEqBool left right = false := by
   intro hne
-  cases h : scheduleKeyEqBool left right with
+  cases h : fieldBindingEqBool left right with
   | false =>
       rfl
   | true =>
       have heq : left = right :=
-        scheduleKeyEqBool_eq h
+        fieldBindingEqBool_eq h
       exact False.elim (hne (by simp [heq]))
-
-@[simp]
-theorem queue_scheduleKeyForFields_responseName
-    (parentType responseName : Name) (fields : List ExecutableField)
-    : (scheduleKeyForFields parentType responseName fields).responseName
-      = responseName := by
-  cases fields <;> rfl
 
 theorem queue_foldr_zipResultWith_singleton
     (blocks : List (Result (List (Name × ResponseValue))))
@@ -345,7 +356,8 @@ theorem queue_expectedScheduleSegmentSpecFieldResults_lookup_none
               cases fuel with
               | zero =>
                   have hout :
-                      singleFieldResultValue key.responseName GraphQL.Execution.outOfFuel =
+                      singleFieldResultValue segment.responseName
+                          GraphQL.Execution.outOfFuel =
                         (.error 1 : Result ResponseValue) := by
                     rfl
                   simp [expectedScheduleSegmentSpecFieldResultsWithFuels,
@@ -494,26 +506,31 @@ theorem queue_expectedDrainStepMatchesSpec_lookup_none
               (fun segment => List.replicate segment.segment.sources.length (.error 1)) := by
       exact queue_expectedScheduleSegmentSpecFieldResults_lookup_none_map
         schema resolvers variableValues item.key item.segments hlookup haligned
+    have hdescriptors :
+        item.toScheduleItem.segmentDescriptors =
+          item.segments.map (fun segment =>
+            (segment.segment.responseName, segment.segment.sources.length)) := by
+      simp [ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentDescriptors,
+        ScheduleSegment.length, Function.comp_def]
+    have hdescriptorLengths :
+        item.toScheduleItem.segmentDescriptors.map Prod.snd =
+          item.toScheduleItem.segmentLengths := by
+      simp [ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentDescriptors,
+        ScheduleItem.segmentLengths, ScheduleSegment.length, Function.comp_def]
+    simp [enqueueExpectedScheduleItems, ExpectedQueueItem.toScheduleItem,
+      expectedScheduleQueueCompletionStack] at hstack
     simp [expectedChildQueueForItem, executeScheduleItem, hlookup,
       ExpectedQueueItem.toScheduleItem,
       completeFrames, completeFieldFrame, expectedScheduleQueueCompletionStack,
-      expectedQueueItemCompletion]
-    constructor
-    · simpa [expectedScheduleQueueCompletionStack, enqueueExpectedScheduleItems,
-        ExpectedQueueItem.toScheduleItem, ScheduleItem.sources] using
-        congrArg (fun completed => completed.snd.valueStack) hstack
-    · constructor
-      · have hfstack := congrArg Prod.fst hstack
-        simp [ExpectedQueueItem.toScheduleItem] at hfstack ⊢
-        exact
-          Eq.trans
-            (congrArg
-              (splitResultsByLengths item.toScheduleItem.segmentLengths)
-              hfstack)
-            (hsegments.trans hexpected.symm)
-      · simpa [expectedScheduleQueueCompletionStack, enqueueExpectedScheduleItems,
-          ExpectedQueueItem.toScheduleItem, ScheduleItem.sources] using
-          congrArg (fun completed => completed.snd.fieldStore) hstack
+      expectedQueueItemCompletion, ScheduleItem.segmentDescriptors,
+      enqueueExpectedScheduleItems]
+    rw [hstack]
+    simp only [true_and]
+    simp [ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentDescriptors,
+      ScheduleItem.segmentLengths, ScheduleItem.sources, ScheduleSegment.length,
+      Function.comp_def] at hsegments hdescriptors hdescriptorLengths ⊢
+    rw [hsegments, ← hexpected]
+    rw [queue_bindFieldSegments_expectedMap]
 
 theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -525,7 +542,8 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
       -> expectedQueueItemFuelsAligned item
       -> expectedQueueItemFieldFuelReadyFor fieldDefinition.outputType item
       -> completeFrames
-            [.field item.key fieldDefinition.outputType item.toScheduleItem.segmentLengths
+            [.field item.key fieldDefinition.outputType
+              item.toScheduleItem.segmentDescriptors
               (buildFieldSlots schema fieldDefinition.outputType
                 item.toScheduleItem.segments
                 (item.toScheduleItem.sources.map
@@ -602,9 +620,20 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
         blocks := by
     rw [hlengths]
     exact slots_splitResultsByLengths_map_length_flatten blocks
+  have hdescriptors :
+      item.toScheduleItem.segmentDescriptors =
+        item.segments.map (fun segment =>
+          (segment.segment.responseName, segment.segment.sources.length)) := by
+    simp [ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentDescriptors,
+      ScheduleSegment.length, Function.comp_def]
+  have hdescriptorLengths :
+      item.toScheduleItem.segmentDescriptors.map Prod.snd =
+        item.toScheduleItem.segmentLengths := by
+    simp [ExpectedQueueItem.toScheduleItem, ScheduleItem.segmentDescriptors,
+      ScheduleItem.segmentLengths, ScheduleSegment.length, Function.comp_def]
   change
     completeFieldFrame item.key fieldDefinition.outputType
-        item.toScheduleItem.segmentLengths
+        item.toScheduleItem.segmentDescriptors
         (buildFieldSlots schema fieldDefinition.outputType
           item.toScheduleItem.segments
           (item.toScheduleItem.sources.map (fun source =>
@@ -622,8 +651,10 @@ theorem queue_completeFrames_fieldFrame_expectedItem_lookup_some
         (item :: rest)
   unfold completeFieldFrame
   rw [hcomplete']
-  simp [hsplit, expectedScheduleQueueCompletionStack, expectedQueueItemCompletion,
-    blocks]
+  dsimp
+  rw [hdescriptorLengths, hsplit, hdescriptors]
+  rw [queue_bindFieldSegments_expectedMap]
+  simp [expectedScheduleQueueCompletionStack, expectedQueueItemCompletion]
 
 theorem queue_drainLoopMatchesExpectedSpec_cons_of_expected_step
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -733,7 +764,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_pus
     (queue : ExpectedScheduleQueue ObjectRef)
     : expectedScheduleQueueCompletionStack schema resolvers variableValues
         (enqueueExpectedSegment key segment queue)
-      = pushExpectedFieldSegment key
+      = pushExpectedFieldSegment
+          { responseName := segment.segment.responseName, key := key }
           (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
             key segment)
           (expectedScheduleQueueCompletionStack schema resolvers variableValues
@@ -750,7 +782,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_pus
         cases hkeyEq
         simp [enqueueExpectedSegment, expectedScheduleQueueCompletionStack,
           expectedQueueItemCompletion, pushExpectedFieldSegment,
-          pushExpectedFieldSegmentInStore, hkey, List.map_append, List.reverse_append]
+          pushExpectedFieldSegmentInStore, hkey, List.map_append,
+          List.reverse_append]
       · have hkeyFalse : scheduleKeyEqBool key item.key = false := by
           cases h : scheduleKeyEqBool key item.key with
           | false => rfl
@@ -770,7 +803,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
         (enqueueExpectedSegments key segments queue)
       = segments.foldl
           (fun stack segment =>
-            pushExpectedFieldSegment key
+            pushExpectedFieldSegment
+              { responseName := segment.segment.responseName, key := key }
               (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                 key segment)
               stack)
@@ -786,7 +820,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
                 (enqueueExpectedSegment key segment queue))
             = rest.foldl
                 (fun stack segment =>
-                  pushExpectedFieldSegment key
+                  pushExpectedFieldSegment
+                    { responseName := segment.segment.responseName, key := key }
                     (expectedScheduleSegmentSpecFieldResults schema resolvers
                       variableValues key segment)
                     stack)
@@ -795,11 +830,13 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
           ih _
         _ = rest.foldl
               (fun stack segment =>
-                pushExpectedFieldSegment key
+                pushExpectedFieldSegment
+                  { responseName := segment.segment.responseName, key := key }
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                     key segment)
                   stack)
-              (pushExpectedFieldSegment key
+              (pushExpectedFieldSegment
+                { responseName := segment.segment.responseName, key := key }
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                   key segment)
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
@@ -807,7 +844,8 @@ theorem queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegments_eq_fo
           rw [queue_expectedScheduleQueueCompletionStack_enqueueExpectedSegment_eq_push]
         _ = (segment :: rest).foldl
               (fun stack segment =>
-                pushExpectedFieldSegment key
+                pushExpectedFieldSegment
+                  { responseName := segment.segment.responseName, key := key }
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
                     key segment)
                   stack)
@@ -825,7 +863,8 @@ theorem
           (fun stack item =>
             item.segments.foldl
               (fun stack segment =>
-                pushExpectedFieldSegment item.key
+                pushExpectedFieldSegment
+                  { responseName := segment.segment.responseName, key := item.key }
                   (expectedScheduleSegmentSpecFieldResults schema resolvers
                     variableValues item.key segment)
                   stack)
@@ -845,7 +884,8 @@ theorem
                 (fun stack item =>
                   item.segments.foldl
                     (fun stack segment =>
-                      pushExpectedFieldSegment item.key
+                      pushExpectedFieldSegment
+                        { responseName := segment.segment.responseName, key := item.key }
                         (expectedScheduleSegmentSpecFieldResults schema resolvers
                           variableValues item.key segment)
                         stack)
@@ -857,14 +897,16 @@ theorem
               (fun stack item =>
                 item.segments.foldl
                   (fun stack segment =>
-                    pushExpectedFieldSegment item.key
+                    pushExpectedFieldSegment
+                      { responseName := segment.segment.responseName, key := item.key }
                       (expectedScheduleSegmentSpecFieldResults schema resolvers
                         variableValues item.key segment)
                       stack)
                   stack)
               (item.segments.foldl
                 (fun stack segment =>
-                  pushExpectedFieldSegment item.key
+                  pushExpectedFieldSegment
+                    { responseName := segment.segment.responseName, key := item.key }
                     (expectedScheduleSegmentSpecFieldResults schema resolvers
                       variableValues item.key segment)
                     stack)
@@ -875,7 +917,8 @@ theorem
               (fun stack item =>
                 item.segments.foldl
                   (fun stack segment =>
-                    pushExpectedFieldSegment item.key
+                    pushExpectedFieldSegment
+                      { responseName := segment.segment.responseName, key := item.key }
                       (expectedScheduleSegmentSpecFieldResults schema resolvers
                         variableValues item.key segment)
                       stack)
@@ -888,15 +931,16 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues)
     (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-    (groups : List (ScheduleKey × List ExecutableField))
+    (groups : List (FieldBinding × List ExecutableField))
     (queue : ExpectedScheduleQueue ObjectRef)
     : expectedScheduleQueueCompletionStack schema resolvers variableValues
         (groups.foldl
           (fun queue group =>
-            enqueueExpectedSegment group.fst
+            enqueueExpectedSegment group.fst.key
               {
                 segment :=
                   {
+                    responseName := group.fst.responseName
                     sources := sources
                     childSelectionSet := childSelectionSetForFields group.snd
                   }
@@ -908,10 +952,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
           (fun stack group =>
             pushExpectedFieldSegment group.fst
               (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                group.fst
+                group.fst.key
                 {
                   segment :=
                     {
+                      responseName := group.fst.responseName
                       sources := sources
                       childSelectionSet := childSelectionSetForFields group.snd
                     }
@@ -924,24 +969,32 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
   | nil =>
       rfl
   | cons group groups ih =>
+      let segment : ExpectedQueueSegment ObjectRef :=
+        { segment :=
+            { responseName := group.fst.responseName
+              sources := sources
+              childSelectionSet := childSelectionSetForFields group.snd }
+          specFuels := specFuels }
       calc
         expectedScheduleQueueCompletionStack schema resolvers variableValues
               (groups.foldl
                 (fun queue group =>
-                  enqueueExpectedSegment group.fst
+                  enqueueExpectedSegment group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := sources
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
                       specFuels := specFuels
                     }
                     queue)
-                (enqueueExpectedSegment group.fst
+                (enqueueExpectedSegment group.fst.key
                   {
                     segment :=
                       {
+                        responseName := group.fst.responseName
                         sources := sources
                         childSelectionSet := childSelectionSetForFields group.snd
                       }
@@ -952,10 +1005,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
                 (fun stack group =>
                   pushExpectedFieldSegment group.fst
                     (expectedScheduleSegmentSpecFieldResults schema resolvers
-                      variableValues group.fst
+                      variableValues group.fst.key
                       {
                         segment :=
                           {
+                            responseName := group.fst.responseName
                             sources := sources
                             childSelectionSet := childSelectionSetForFields group.snd
                           }
@@ -963,10 +1017,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
                       })
                     stack)
                 (expectedScheduleQueueCompletionStack schema resolvers variableValues
-                  (enqueueExpectedSegment group.fst
+                  (enqueueExpectedSegment group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := sources
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -978,10 +1033,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
               (fun stack group =>
                 pushExpectedFieldSegment group.fst
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := sources
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -990,10 +1046,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
                   stack)
               (pushExpectedFieldSegment group.fst
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
+                  group.fst.key
                   {
                     segment :=
                       {
+                        responseName := group.fst.responseName
                         sources := sources
                         childSelectionSet := childSelectionSetForFields group.snd
                       }
@@ -1006,10 +1063,11 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScopeGroups
               (fun stack group =>
                 pushExpectedFieldSegment group.fst
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := sources
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -1047,198 +1105,6 @@ theorem queue_foldl_enqueueExpectedSegment_cons_of_absent
       simp only [List.foldl_cons]
       simp [enqueueExpectedSegment, hhead,
         ih (enqueueExpectedSegment entry.fst entry.snd queue) htail]
-
-theorem queue_foldl_enqueueExpectedSegment_nil_eq_map_singletons
-    (entries : List (ScheduleKey × ExpectedQueueSegment ObjectRef))
-    : (entries.map (fun entry => entry.fst.responseName)).Nodup
-      -> entries.foldl
-            (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-            ([] : ExpectedScheduleQueue ObjectRef)
-          = entries.map
-              (fun entry =>
-                ({ key := entry.fst, segments := [entry.snd] }
-                  : ExpectedQueueItem ObjectRef)) := by
-  intro hnodup
-  induction entries with
-  | nil =>
-      rfl
-  | cons entry entries ih =>
-      have hnodup' :
-          entry.fst.responseName ∉
-              entries.map (fun entry => entry.fst.responseName) ∧
-            (entries.map (fun entry => entry.fst.responseName)).Nodup := by
-        simpa using hnodup
-      have hheadNotMem :
-          entry.fst.responseName ∉
-            entries.map (fun entry => entry.fst.responseName) :=
-        hnodup'.1
-      have htailNodup :
-          (entries.map (fun entry => entry.fst.responseName)).Nodup :=
-        hnodup'.2
-      have habsent :
-          ∀ later, later ∈ entries ->
-            scheduleKeyEqBool later.fst entry.fst = false := by
-        intro later hlater
-        have hne : later.fst.responseName ≠ entry.fst.responseName := by
-          intro heq
-          apply hheadNotMem
-          exact List.mem_map.mpr ⟨later, hlater, heq⟩
-        exact queue_scheduleKeyEqBool_false_of_responseName_ne hne
-      have hcons :=
-        queue_foldl_enqueueExpectedSegment_cons_of_absent
-          (ObjectRef := ObjectRef) entries
-          ({ key := entry.fst, segments := [entry.snd] } :
-            ExpectedQueueItem ObjectRef)
-          ([] : ExpectedScheduleQueue ObjectRef) habsent
-      simp only [List.foldl_cons, List.map_cons]
-      rw [show enqueueExpectedSegment entry.fst entry.snd
-            ([] : ExpectedScheduleQueue ObjectRef) =
-          [({ key := entry.fst, segments := [entry.snd] } :
-            ExpectedQueueItem ObjectRef)] by rfl]
-      rw [hcons]
-      rw [ih htailNodup]
-
-theorem queue_enqueueExpectedScheduleItems_map_singletons
-    (entries : List (ScheduleKey × ExpectedQueueSegment ObjectRef))
-    (queue : ExpectedScheduleQueue ObjectRef)
-    : enqueueExpectedScheduleItems queue
-        (entries.map
-          (fun entry =>
-            ({ key := entry.fst, segments := [entry.snd] }
-              : ExpectedQueueItem ObjectRef)))
-      = entries.foldl
-          (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-          queue := by
-  induction entries generalizing queue with
-  | nil =>
-      rfl
-  | cons entry entries ih =>
-      simp [enqueueExpectedScheduleItems, enqueueExpectedSegments]
-      exact ih (enqueueExpectedSegment entry.fst entry.snd queue)
-
-theorem queue_enqueueExpectedScheduleItems_foldl_enqueueExpectedSegment_nil_of_nodup
-    (entries : List (ScheduleKey × ExpectedQueueSegment ObjectRef))
-    (queue : ExpectedScheduleQueue ObjectRef)
-    : (entries.map (fun entry => entry.fst.responseName)).Nodup
-      -> enqueueExpectedScheduleItems queue
-            (entries.foldl
-              (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-              [])
-          = entries.foldl
-              (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-              queue := by
-  intro hnodup
-  rw [queue_foldl_enqueueExpectedSegment_nil_eq_map_singletons
-    (ObjectRef := ObjectRef) entries hnodup]
-  exact queue_enqueueExpectedScheduleItems_map_singletons
-    (ObjectRef := ObjectRef) entries queue
-
-theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope_empty
-    (schema : Schema) (variableValues : VariableValues)
-    (parentType : Name)
-    (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
-    (selectionSet : List Selection)
-    (queue : ExpectedScheduleQueue ObjectRef)
-    : enqueueExpectedScheduleItems queue
-        (scheduleExpectedScope schema variableValues parentType sources
-          specFuels selectionSet []).fst
-      = (scheduleExpectedScope schema variableValues parentType sources
-          specFuels selectionSet queue).fst := by
-  let groups := collectFieldsByKey schema variableValues parentType selectionSet
-  let entries : List (ScheduleKey × ExpectedQueueSegment ObjectRef) :=
-    groups.map (fun group =>
-      ( scheduleKeyForFields parentType group.fst group.snd
-      , { segment :=
-            { sources := sources
-              childSelectionSet := childSelectionSetForFields group.snd }
-          specFuels := specFuels } ))
-  have hnodup :
-      (entries.map (fun entry => entry.fst.responseName)).Nodup := by
-    have hmap :
-        groups.map
-            (fun group =>
-              (scheduleKeyForFields parentType group.fst group.snd).responseName) =
-          groups.map Prod.fst := by
-      induction groups with
-      | nil =>
-          rfl
-      | cons group groups ih =>
-          rcases group with ⟨responseName, fields⟩
-          have hhead :
-              (scheduleKeyForFields parentType responseName fields).responseName =
-                responseName := by
-            exact queue_scheduleKeyForFields_responseName parentType responseName fields
-          simp
-    have hentriesMap :
-        entries.map (fun entry => entry.fst.responseName) =
-          groups.map
-            (fun group =>
-              (scheduleKeyForFields parentType group.fst group.snd).responseName) := by
-      simp [entries]
-    rw [hentriesMap, hmap]
-    simpa [groups, pairKeysNodup]
-      using collectFieldsByKey_pairKeysNodup schema variableValues parentType selectionSet
-  have hreplay :=
-    queue_enqueueExpectedScheduleItems_foldl_enqueueExpectedSegment_nil_of_nodup
-      (ObjectRef := ObjectRef) entries queue hnodup
-  have hfold :
-      ∀ init,
-        entries.foldl
-            (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-            init =
-          ((groups.map fun group =>
-              (scheduleKeyForFields parentType group.fst group.snd, group.snd)).foldl
-            (fun queue group =>
-              enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)
-            init) := by
-    intro init
-    have hfoldRaw :
-        (groups.map (fun group =>
-            ( scheduleKeyForFields parentType group.fst group.snd
-            , ExpectedQueueSegment.mk
-                (ScheduleSegment.mk sources
-                  (childSelectionSetForFields group.snd))
-                specFuels))).foldl
-            (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-            init =
-          ((groups.map fun group =>
-              (scheduleKeyForFields parentType group.fst group.snd, group.snd)).foldl
-            (fun queue group =>
-              enqueueExpectedSegment group.fst
-                { segment :=
-                    { sources := sources
-                      childSelectionSet := childSelectionSetForFields group.snd }
-                  specFuels := specFuels }
-                queue)
-            init) := by
-      induction groups generalizing init with
-      | nil =>
-          rfl
-      | cons group groups ih =>
-          rcases group with ⟨responseName, fields⟩
-          simp [ih]
-    simpa [entries] using hfoldRaw
-  calc
-    enqueueExpectedScheduleItems queue
-          (scheduleExpectedScope schema variableValues parentType sources
-            specFuels selectionSet []).fst
-        = enqueueExpectedScheduleItems queue
-            (entries.foldl
-              (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-              []) := by
-      exact congrArg (enqueueExpectedScheduleItems queue) (hfold []).symm
-    _ = entries.foldl
-          (fun queue entry => enqueueExpectedSegment entry.fst entry.snd queue)
-          queue :=
-      hreplay
-    _ = (scheduleExpectedScope schema variableValues parentType sources
-          specFuels selectionSet queue).fst := by
-      exact hfold queue
 
 def expectedQueueContainsKey (key : ScheduleKey) : ExpectedScheduleQueue ObjectRef -> Prop
   | [] => False
@@ -1477,29 +1343,29 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope
               (enqueueExpectedScheduleItems queue base)).fst := by
   intro hbaseNonempty hbaseDistinct
   let groups := collectFieldsByKey schema variableValues parentType selectionSet
-  let keyedGroups :=
-    groups.map (fun group =>
-      (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+  let boundGroups := groups.map (bindCollectedGroup parentType)
   have hfold :
-      ∀ (groups0 : List (ScheduleKey × List ExecutableField))
+      ∀ (groups0 : List (FieldBinding × List ExecutableField))
         (base0 : ExpectedScheduleQueue ObjectRef),
         expectedScheduleQueueItemsNonempty base0 ->
         expectedScheduleQueueKeysDistinct base0 ->
           enqueueExpectedScheduleItems queue
               (groups0.foldl
                 (fun queue group =>
-                  enqueueExpectedSegment group.fst
+                  enqueueExpectedSegment group.fst.key
                     { segment :=
-                        { sources := sources
+                        { responseName := group.fst.responseName
+                          sources := sources
                           childSelectionSet := childSelectionSetForFields group.snd }
                       specFuels := specFuels }
                     queue)
                 base0) =
             groups0.foldl
               (fun queue group =>
-                enqueueExpectedSegment group.fst
+                enqueueExpectedSegment group.fst.key
                   { segment :=
-                      { sources := sources
+                      { responseName := group.fst.responseName
+                        sources := sources
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := specFuels }
                   queue)
@@ -1513,40 +1379,58 @@ theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope
         intro base0 hbase0Nonempty hbase0Distinct
         let segment : ExpectedQueueSegment ObjectRef :=
           { segment :=
-              { sources := sources
+              { responseName := group.fst.responseName
+                sources := sources
                 childSelectionSet := childSelectionSetForFields group.snd }
             specFuels := specFuels }
         have hnextNonempty :
             expectedScheduleQueueItemsNonempty
-              (enqueueExpectedSegment group.fst segment base0) :=
-          enqueueExpectedSegment_itemsNonempty group.fst segment base0
+              (enqueueExpectedSegment group.fst.key segment base0) :=
+          enqueueExpectedSegment_itemsNonempty group.fst.key segment base0
             hbase0Nonempty
         have hnextDistinct :
             expectedScheduleQueueKeysDistinct
-              (enqueueExpectedSegment group.fst segment base0) :=
-          enqueueExpectedSegment_keysDistinct group.fst segment base0
+              (enqueueExpectedSegment group.fst.key segment base0) :=
+          enqueueExpectedSegment_keysDistinct group.fst.key segment base0
             hbase0Distinct
         have htail :=
-          ih (enqueueExpectedSegment group.fst segment base0)
+          ih (enqueueExpectedSegment group.fst.key segment base0)
             hnextNonempty hnextDistinct
         have hhead :=
           queue_enqueueExpectedScheduleItems_enqueueExpectedSegment
-            (ObjectRef := ObjectRef) group.fst segment base0 queue
+            (ObjectRef := ObjectRef) group.fst.key segment base0 queue
             hbase0Nonempty hbase0Distinct
         simpa [segment] using htail.trans (congrArg
           (fun q =>
             rest.foldl
               (fun queue group =>
-                enqueueExpectedSegment group.fst
+                enqueueExpectedSegment group.fst.key
                   { segment :=
-                      { sources := sources
+                      { responseName := group.fst.responseName
+                        sources := sources
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := specFuels }
                   queue)
               q)
           hhead)
-  simpa [scheduleExpectedScope, groups, keyedGroups]
-    using hfold keyedGroups base hbaseNonempty hbaseDistinct
+  simpa [scheduleExpectedScope, groups, boundGroups]
+    using hfold boundGroups base hbaseNonempty hbaseDistinct
+
+theorem queue_enqueueExpectedScheduleItems_scheduleExpectedScope_empty
+    (schema : Schema) (variableValues : VariableValues)
+    (parentType : Name)
+    (sources : List (ResolverValue ObjectRef)) (specFuels : List Nat)
+    (selectionSet : List Selection)
+    (queue : ExpectedScheduleQueue ObjectRef)
+    : enqueueExpectedScheduleItems queue
+        (scheduleExpectedScope schema variableValues parentType sources
+          specFuels selectionSet []).fst
+      = (scheduleExpectedScope schema variableValues parentType sources
+          specFuels selectionSet queue).fst := by
+  exact queue_enqueueExpectedScheduleItems_scheduleExpectedScope
+    (ObjectRef := ObjectRef) schema variableValues parentType sources specFuels
+    selectionSet [] queue (by simp [expectedScheduleQueueItemsNonempty])
+    (by simp [expectedScheduleQueueKeysDistinct])
 
 theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScope_enqueue_empty
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1569,6 +1453,53 @@ theorem queue_expectedScheduleQueueCompletionStack_scheduleExpectedScope_enqueue
   rw [queue_enqueueExpectedScheduleItems_scheduleExpectedScope_empty]
   simp [expectedScheduleQueueCompletionStack]
 
+theorem queue_fieldStoreSegmentsNonempty_append (left right : FieldStore)
+    : fieldStoreSegmentsNonempty left
+      -> fieldStoreSegmentsNonempty right
+      -> fieldStoreSegmentsNonempty (left ++ right) := by
+  intro hleft hright
+  induction left with
+  | nil =>
+      simpa using hright
+  | cons entry left ih =>
+      rcases entry with ⟨binding, segments⟩
+      exact ⟨hleft.1, ih hleft.2⟩
+
+theorem queue_pruneEmptyFieldItems_eq_of_segmentsNonempty (store : FieldStore)
+    : fieldStoreSegmentsNonempty store -> pruneEmptyFieldItems store = store := by
+  intro hstore
+  induction store with
+  | nil =>
+      rfl
+  | cons entry store ih =>
+      rcases entry with ⟨key, segments⟩
+      rcases hstore with ⟨hsegments, hstore⟩
+      cases segments with
+      | nil =>
+          exact False.elim (hsegments rfl)
+      | cons segment segments =>
+          simp [pruneEmptyFieldItems, ih hstore]
+
+theorem queue_normalizeCompletionState_eq_of_fieldSegmentsNonempty
+    (stack : CompletionStack)
+    : completionStackFieldSegmentsNonempty stack
+      -> normalizeCompletionState stack = stack := by
+  intro hstack
+  cases stack with
+  | mk valueStack fieldStore =>
+      simp only [completionStackFieldSegmentsNonempty] at hstack
+      simp [normalizeCompletionState,
+        queue_pruneEmptyFieldItems_eq_of_segmentsNonempty fieldStore hstack]
+
+theorem queue_expectedQueueItemCompletion_fieldSegmentsNonempty
+    (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
+    (variableValues : VariableValues) (item : ExpectedQueueItem ObjectRef)
+    : item.segments ≠ []
+      -> fieldStoreSegmentsNonempty
+          [expectedQueueItemCompletion schema resolvers variableValues item] := by
+  intro hsegments
+  simp [expectedQueueItemCompletion, fieldStoreSegmentsNonempty, hsegments]
+
 theorem queue_expectedScheduleQueueCompletionStack_fieldSegmentsNonempty
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues)
@@ -1583,27 +1514,23 @@ theorem queue_expectedScheduleQueueCompletionStack_fieldSegmentsNonempty
       simp [expectedScheduleQueueCompletionStack, completionStackFieldSegmentsNonempty,
         fieldStoreSegmentsNonempty]
   | cons queueItem rest ih =>
-      have hitemNonempty : queueItem.segments ≠ [] :=
-        hqueue queueItem (by simp)
+      have hitem : queueItem.segments ≠ [] := hqueue queueItem (by simp)
       have hrest :
           expectedScheduleQueueItemsNonempty rest := by
         intro restItem hrestItem
         exact hqueue restItem (by simp [hrestItem])
       have htail := ih hrest
-      simp [expectedScheduleQueueCompletionStack, expectedQueueItemCompletion,
-        completionStackFieldSegmentsNonempty]
-      constructor
-      · intro hsegments
-        apply hitemNonempty
-        cases hqueueSegments : queueItem.segments with
-        | nil =>
-            rfl
-        | cons _head _tail =>
-            simp [hqueueSegments] at hsegments
-      · exact htail
+      simpa [completionStackFieldSegmentsNonempty, expectedScheduleQueueCompletionStack]
+        using queue_fieldStoreSegmentsNonempty_append
+          [expectedQueueItemCompletion schema resolvers variableValues queueItem]
+          (expectedScheduleQueueCompletionStack schema resolvers variableValues
+            rest).fieldStore
+          (queue_expectedQueueItemCompletion_fieldSegmentsNonempty
+            schema resolvers variableValues queueItem hitem)
+          (by simpa [completionStackFieldSegmentsNonempty] using htail)
 
 theorem queue_pushExpectedFieldSegment_fieldSegmentsNonempty
-    (key : ScheduleKey)
+    (key : FieldBinding)
     (segmentResults : List (Result ResponseValue))
     (stack : CompletionStack)
     : completionStackFieldSegmentsNonempty stack
@@ -1618,105 +1545,193 @@ theorem queue_pushExpectedFieldSegment_fieldSegmentsNonempty
           simp [pushExpectedFieldSegmentInStore, fieldStoreSegmentsNonempty]
       | cons entry fieldStore ih =>
           rcases entry with ⟨fieldKey, fieldSegments⟩
-          by_cases hkey : scheduleKeyEqBool key fieldKey = true
-          · simp [pushExpectedFieldSegmentInStore, hkey, fieldStoreSegmentsNonempty,
-              hstore.2]
-          · have hkeyFalse : scheduleKeyEqBool key fieldKey = false := by
-              cases h : scheduleKeyEqBool key fieldKey with
+          by_cases hkey : scheduleKeyEqBool key.key fieldKey = true
+          · simp [pushExpectedFieldSegmentInStore, hkey,
+              fieldStoreSegmentsNonempty, hstore.2]
+          · have hkeyFalse : scheduleKeyEqBool key.key fieldKey = false := by
+              cases h : scheduleKeyEqBool key.key fieldKey with
               | false => rfl
               | true => exact False.elim (hkey h)
             have htail : fieldStoreSegmentsNonempty fieldStore := hstore.2
-            simp [pushExpectedFieldSegmentInStore, hkeyFalse, fieldStoreSegmentsNonempty,
-              hstore.1, ih htail]
+            simp [pushExpectedFieldSegmentInStore, hkeyFalse,
+              fieldStoreSegmentsNonempty, hstore.1, ih htail]
 
-theorem queue_popFieldResultByKey_pushExpectedFieldSegment_self
-    (key : ScheduleKey)
+theorem queue_popFieldResultByBinding_pushExpectedFieldSegment_self
+    (key : FieldBinding)
     (segmentResults : List (Result ResponseValue))
     (stack : CompletionStack)
-    : completionStackFieldSegmentsNonempty stack
-      -> popFieldResultByKey key (pushExpectedFieldSegment key segmentResults stack)
-          = (segmentResults, stack) := by
+    : let popped :=
+        popFieldResultByBinding key (pushExpectedFieldSegment key segmentResults stack)
+      popped.fst = segmentResults
+      ∧ normalizeCompletionState popped.snd = normalizeCompletionState stack := by
   cases stack with
   | mk valueStack fieldStore =>
-      simp [completionStackFieldSegmentsNonempty, pushExpectedFieldSegment,
-        popFieldResultByKey]
-      intro hstore
       induction fieldStore with
       | nil =>
-          simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore,
-            popFieldResultFromSegments, scheduleKeyEqBool_self]
+          simp [pushExpectedFieldSegmentInStore,
+            popFieldResultByBindingFromStore, popBoundFieldSegment,
+            popFieldResultByBinding, pushExpectedFieldSegment,
+            normalizeCompletionState, pruneEmptyFieldItems,
+            scheduleKeyEqBool_self]
       | cons entry fieldStore ih =>
           rcases entry with ⟨fieldKey, fieldSegments⟩
-          by_cases hkey : scheduleKeyEqBool key fieldKey = true
-          · have hkeyEq : key = fieldKey := scheduleKeyEqBool_eq hkey
-            subst fieldKey
-            cases fieldSegments with
-            | nil =>
-                exact False.elim (hstore.1 rfl)
-            | cons head tail =>
-                simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore,
-                  popFieldResultFromSegments, scheduleKeyEqBool_self]
-          · have hkeyFalse : scheduleKeyEqBool key fieldKey = false := by
-              cases h : scheduleKeyEqBool key fieldKey with
+          by_cases hkey : scheduleKeyEqBool key.key fieldKey = true
+          · simp [pushExpectedFieldSegmentInStore,
+              popFieldResultByBindingFromStore, popBoundFieldSegment,
+              popFieldResultByBinding, pushExpectedFieldSegment,
+              normalizeCompletionState, hkey]
+          · have hkeyFalse : scheduleKeyEqBool key.key fieldKey = false := by
+              cases h : scheduleKeyEqBool key.key fieldKey with
               | false => rfl
               | true => exact False.elim (hkey h)
-            have htail : fieldStoreSegmentsNonempty fieldStore := hstore.2
-            simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore, hkeyFalse,
-              ih htail]
+            cases fieldSegments with
+            | nil =>
+                simpa [pushExpectedFieldSegmentInStore,
+                  popFieldResultByBindingFromStore, popFieldResultByBinding,
+                  pushExpectedFieldSegment, normalizeCompletionState,
+                  pruneEmptyFieldItems, hkeyFalse] using ih
+            | cons fieldSegment fieldSegments =>
+                simpa [pushExpectedFieldSegmentInStore,
+                  popFieldResultByBindingFromStore, popFieldResultByBinding,
+                  pushExpectedFieldSegment, normalizeCompletionState,
+                  pruneEmptyFieldItems, hkeyFalse] using ih
 
-theorem queue_popFieldResultByKey_pushExpectedFieldSegment_commute
-    (key pushedKey : ScheduleKey)
+theorem queue_popBoundFieldSegment_cons_of_ne
+    (responseName pushedResponseName : Name)
+    (segmentResults : List (Result ResponseValue))
+    (segments : BoundFieldSegments)
+    : responseName ≠ pushedResponseName
+      -> popBoundFieldSegment responseName
+            ((pushedResponseName, segmentResults) :: segments)
+          = match popBoundFieldSegment responseName segments with
+            | none => none
+            | some (popped, segments') =>
+                some (popped, (pushedResponseName, segmentResults) :: segments') := by
+  intro hne
+  simp only [popBoundFieldSegment]
+  simp [hne]
+  cases hpop : popBoundFieldSegment responseName segments with
+  | none => rfl
+  | some popped => rfl
+
+theorem queue_responseName_ne_of_fieldBinding_false_scheduleKey_true
+    {left right : FieldBinding}
+    : fieldBindingEqBool left right = false
+      -> scheduleKeyEqBool left.key right.key = true
+      -> left.responseName ≠ right.responseName := by
+  intro hbinding hkey hresponse
+  have hkeyEq : left.key = right.key := scheduleKeyEqBool_eq hkey
+  cases left with
+  | mk leftResponse leftKey =>
+      cases right with
+      | mk rightResponse rightKey =>
+          change leftResponse = rightResponse at hresponse
+          change leftKey = rightKey at hkeyEq
+          subst rightResponse
+          subst rightKey
+          simp [fieldBindingEqBool_self] at hbinding
+
+theorem queue_popFieldResultByBindingFromStore_pushExpectedFieldSegmentInStore_commute
+    (key pushedKey : FieldBinding)
+    (segmentResults : List (Result ResponseValue))
+    (store : FieldStore)
+    : fieldBindingEqBool key pushedKey = false
+      -> popFieldResultByBindingFromStore key
+            (pushExpectedFieldSegmentInStore pushedKey segmentResults store)
+          = let popped := popFieldResultByBindingFromStore key store
+            (
+              popped.fst,
+              pushExpectedFieldSegmentInStore pushedKey segmentResults popped.snd
+            ) := by
+  intro hneq
+  induction store with
+  | nil =>
+      by_cases hkey : scheduleKeyEqBool key.key pushedKey.key = true
+      · have hresponse :=
+          queue_responseName_ne_of_fieldBinding_false_scheduleKey_true hneq hkey
+        simp [pushExpectedFieldSegmentInStore,
+          popFieldResultByBindingFromStore, popBoundFieldSegment, hkey, hresponse]
+      · have hkeyFalse : scheduleKeyEqBool key.key pushedKey.key = false := by
+          cases h : scheduleKeyEqBool key.key pushedKey.key with
+          | false => rfl
+          | true => exact False.elim (hkey h)
+        simp [pushExpectedFieldSegmentInStore,
+          popFieldResultByBindingFromStore, hkeyFalse]
+  | cons entry store ih =>
+      rcases entry with ⟨fieldKey, fieldSegments⟩
+      by_cases hpushed : scheduleKeyEqBool pushedKey.key fieldKey = true
+      · have hpushedEq : pushedKey.key = fieldKey :=
+          scheduleKeyEqBool_eq hpushed
+        by_cases hkey : scheduleKeyEqBool key.key fieldKey = true
+        · have hkeyPushed : scheduleKeyEqBool key.key pushedKey.key = true := by
+            simpa [hpushedEq] using hkey
+          have hresponse :=
+            queue_responseName_ne_of_fieldBinding_false_scheduleKey_true
+              hneq hkeyPushed
+          cases hpop : popBoundFieldSegment key.responseName fieldSegments with
+          | none =>
+              simp [pushExpectedFieldSegmentInStore,
+                popFieldResultByBindingFromStore, hpushed, hkey,
+                queue_popBoundFieldSegment_cons_of_ne, hresponse, hpop]
+          | some popped =>
+              rcases popped with ⟨values, remaining⟩
+              simp [pushExpectedFieldSegmentInStore,
+                popFieldResultByBindingFromStore, hpushed, hkey,
+                queue_popBoundFieldSegment_cons_of_ne, hresponse, hpop]
+        · have hkeyFalse : scheduleKeyEqBool key.key fieldKey = false := by
+            cases h : scheduleKeyEqBool key.key fieldKey with
+            | false => rfl
+            | true => exact False.elim (hkey h)
+          simp [pushExpectedFieldSegmentInStore,
+            popFieldResultByBindingFromStore, hpushed, hkeyFalse]
+      · have hpushedFalse : scheduleKeyEqBool pushedKey.key fieldKey = false := by
+          cases h : scheduleKeyEqBool pushedKey.key fieldKey with
+          | false => rfl
+          | true => exact False.elim (hpushed h)
+        by_cases hkey : scheduleKeyEqBool key.key fieldKey = true
+        · cases hpop : popBoundFieldSegment key.responseName fieldSegments with
+          | none =>
+              simp [pushExpectedFieldSegmentInStore,
+                popFieldResultByBindingFromStore, hpushedFalse, hkey, hpop]
+          | some popped =>
+              rcases popped with ⟨values, remaining⟩
+              simp [pushExpectedFieldSegmentInStore,
+                popFieldResultByBindingFromStore, hpushedFalse, hkey, hpop]
+        · have hkeyFalse : scheduleKeyEqBool key.key fieldKey = false := by
+            cases h : scheduleKeyEqBool key.key fieldKey with
+            | false => rfl
+            | true => exact False.elim (hkey h)
+          simp [pushExpectedFieldSegmentInStore,
+            popFieldResultByBindingFromStore, hpushedFalse, hkeyFalse, ih]
+
+theorem queue_popFieldResultByBinding_pushExpectedFieldSegment_commute
+    (key pushedKey : FieldBinding)
     (segmentResults : List (Result ResponseValue))
     (stack : CompletionStack)
-    : scheduleKeyEqBool key pushedKey = false
-      -> popFieldResultByKey key (pushExpectedFieldSegment pushedKey segmentResults stack)
-          = let popped := popFieldResultByKey key stack
+    : fieldBindingEqBool key pushedKey = false
+      -> popFieldResultByBinding key
+            (pushExpectedFieldSegment pushedKey segmentResults stack)
+          = let popped := popFieldResultByBinding key stack
             (
               popped.fst,
               pushExpectedFieldSegment pushedKey segmentResults popped.snd
             ) := by
-  cases stack with
-  | mk valueStack fieldStore =>
-      simp [pushExpectedFieldSegment, popFieldResultByKey]
-      intro hneq
-      induction fieldStore with
-      | nil =>
-          simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore, hneq]
-      | cons entry fieldStore ih =>
-          rcases entry with ⟨fieldKey, fieldSegments⟩
-          by_cases hpushed : scheduleKeyEqBool pushedKey fieldKey = true
-          · have hfieldEq : pushedKey = fieldKey := scheduleKeyEqBool_eq hpushed
-            subst fieldKey
-            have hkeyPushed : scheduleKeyEqBool key pushedKey = false := hneq
-            simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore, hpushed,
-              hkeyPushed]
-          · have hpushedFalse : scheduleKeyEqBool pushedKey fieldKey = false := by
-              cases h : scheduleKeyEqBool pushedKey fieldKey with
-              | false => rfl
-              | true => exact False.elim (hpushed h)
-            by_cases hkeyField : scheduleKeyEqBool key fieldKey = true
-            · cases hpop : popFieldResultFromSegments fieldSegments with
-              | mk _popped remaining =>
-                  cases remaining <;>
-                    simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore,
-                      hpushedFalse, hkeyField, hpop]
-            · have hkeyFieldFalse : scheduleKeyEqBool key fieldKey = false := by
-                cases h : scheduleKeyEqBool key fieldKey with
-                | false => rfl
-                | true => exact False.elim (hkeyField h)
-              simp [pushExpectedFieldSegmentInStore, popFieldResultByKeyFromStore,
-                hpushedFalse, hkeyFieldFalse, ih]
+  intro hneq
+  cases stack
+  simp [pushExpectedFieldSegment, popFieldResultByBinding,
+    queue_popFieldResultByBindingFromStore_pushExpectedFieldSegmentInStore_commute,
+    hneq]
 
-theorem queue_popFieldResultByKey_foldl_pushExpectedFieldSegments_commute
-    (key : ScheduleKey)
-    (entries : List (ScheduleKey × List (Result ResponseValue)))
+theorem queue_popFieldResultByBinding_foldl_pushExpectedFieldSegments_commute
+    (key : FieldBinding)
+    (entries : List (FieldBinding × List (Result ResponseValue)))
     (stack : CompletionStack)
-    : (∀ entry, entry ∈ entries -> key.responseName ≠ entry.fst.responseName)
-      -> popFieldResultByKey key
+    : (∀ entry, entry ∈ entries -> fieldBindingEqBool key entry.fst = false)
+      -> popFieldResultByBinding key
             (entries.foldl
               (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
               stack)
-          = let popped := popFieldResultByKey key stack
+          = let popped := popFieldResultByBinding key stack
             (
               popped.fst,
               entries.foldl
@@ -1728,33 +1743,31 @@ theorem queue_popFieldResultByKey_foldl_pushExpectedFieldSegments_commute
   | nil =>
       rfl
   | cons entry entries ih =>
-      have hheadNe : key.responseName ≠ entry.fst.responseName :=
+      have hkeyFalse : fieldBindingEqBool key entry.fst = false :=
         hneq entry (by simp)
-      have hkeyFalse : scheduleKeyEqBool key entry.fst = false :=
-        queue_scheduleKeyEqBool_false_of_responseName_ne hheadNe
       have htailNe :
-          ∀ later, later ∈ entries -> key.responseName ≠ later.fst.responseName := by
+          ∀ later, later ∈ entries ->
+            fieldBindingEqBool key later.fst = false := by
         intro later hlater
         exact hneq later (by simp [hlater])
       rw [List.foldl_cons]
       rw [ih (pushExpectedFieldSegment entry.fst entry.snd stack) htailNe]
-      simp [queue_popFieldResultByKey_pushExpectedFieldSegment_commute,
+      simp [queue_popFieldResultByBinding_pushExpectedFieldSegment_commute,
         hkeyFalse]
 
-theorem queue_popFieldValuesByKeys_foldl_pushExpectedFieldSegments
-    (entries : List (ScheduleKey × List (Result ResponseValue)))
+theorem queue_popFieldValuesByBindings_foldl_pushExpectedFieldSegments_normalized
+    (entries : List (FieldBinding × List (Result ResponseValue)))
     (stack : CompletionStack)
     : pairKeysNodup (entries.map (fun entry => (entry.fst.responseName, entry.snd)))
-      -> completionStackFieldSegmentsNonempty stack
-      -> popFieldValuesByKeys (entries.map Prod.fst)
+      -> popFieldValuesByBindings (entries.map Prod.fst)
             (entries.foldl
               (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
               stack)
-          = (entries, stack) := by
-  intro hnodup hstack
+          = (entries, normalizeCompletionState stack) := by
+  intro hnodup
   induction entries generalizing stack with
   | nil =>
-      simp [popFieldValuesByKeys]
+      simp [popFieldValuesByBindings]
   | cons entry entries ih =>
       have hnodup' :
           entry.fst.responseName ∉ entries.map (fun entry => entry.fst.responseName) ∧
@@ -1773,20 +1786,55 @@ theorem queue_popFieldValuesByKeys_foldl_pushExpectedFieldSegments
         apply hheadAbsent
         exact List.mem_map.mpr ⟨later, hlater, by simp [heq]⟩
       have hheadPop :=
-        queue_popFieldResultByKey_foldl_pushExpectedFieldSegments_commute
+        queue_popFieldResultByBinding_foldl_pushExpectedFieldSegments_commute
           entry.fst entries
-          (pushExpectedFieldSegment entry.fst entry.snd stack) hheadNe
-      have htail :=
-        ih stack hrestNodup hstack
-      simp [popFieldValuesByKeys, List.foldl_cons]
+          (pushExpectedFieldSegment entry.fst entry.snd stack)
+          (fun later hlater =>
+            queue_fieldBindingEqBool_false_of_responseName_ne
+              (hheadNe later hlater))
+      have hself :=
+        queue_popFieldResultByBinding_pushExpectedFieldSegment_self
+          entry.fst entry.snd stack
+      simp only [List.map_cons, List.foldl_cons, popFieldValuesByBindings]
       rw [hheadPop]
-      rw [queue_popFieldResultByKey_pushExpectedFieldSegment_self
-        entry.fst entry.snd stack hstack]
-      constructor
-      · constructor
-        · rfl
-        · exact congrArg Prod.fst htail
-      · exact congrArg Prod.snd htail
+      let popped :=
+        popFieldResultByBinding entry.fst
+          (pushExpectedFieldSegment entry.fst entry.snd stack)
+      have hpoppedResults : popped.fst = entry.snd := hself.1
+      have hpoppedNormalized :
+          normalizeCompletionState popped.snd = normalizeCompletionState stack := hself.2
+      have htail :=
+        ih popped.snd hrestNodup
+      change (
+        (entry.fst, popped.fst)
+        :: (popFieldValuesByBindings (entries.map Prod.fst)
+              (entries.foldl
+                (fun stack entry =>
+                  pushExpectedFieldSegment entry.fst entry.snd stack)
+                popped.snd)).fst,
+        (popFieldValuesByBindings (entries.map Prod.fst)
+          (entries.foldl
+            (fun stack entry =>
+              pushExpectedFieldSegment entry.fst entry.snd stack)
+            popped.snd)).snd
+      )
+      = (entry :: entries, normalizeCompletionState stack)
+      rw [htail, hpoppedResults, hpoppedNormalized]
+
+theorem queue_popFieldValuesByBindings_foldl_pushExpectedFieldSegments
+    (entries : List (FieldBinding × List (Result ResponseValue)))
+    (stack : CompletionStack)
+    : pairKeysNodup (entries.map (fun entry => (entry.fst.responseName, entry.snd)))
+      -> completionStackFieldSegmentsNonempty stack
+      -> popFieldValuesByBindings (entries.map Prod.fst)
+            (entries.foldl
+              (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
+              stack)
+          = (entries, stack) := by
+  intro hnodup hstack
+  rw [queue_popFieldValuesByBindings_foldl_pushExpectedFieldSegments_normalized
+    entries stack hnodup]
+  rw [queue_normalizeCompletionState_eq_of_fieldSegmentsNonempty stack hstack]
 
 theorem queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singleton
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1796,10 +1844,11 @@ theorem queue_expectedScheduleSegmentSpecFieldResults_scheduleKeyForFields_singl
     (source : ResolverValue ObjectRef) (fuel : Nat)
     : fields ≠ []
       -> expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-            (scheduleKeyForFields parentType responseName fields)
+            (scheduleKeyForFields parentType fields)
             {
               segment :=
                 {
+                  responseName := responseName
                   sources := [source]
                   childSelectionSet := childSelectionSetForFields fields
                 }
@@ -1830,12 +1879,13 @@ theorem queue_expectedScheduleScopeEntries_eq_spec
       -> groups.map
             (fun group =>
               (
-                scheduleKeyForFields parentType group.fst group.snd,
+                bindCollectedGroup parentType group |>.fst,
                 expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  (scheduleKeyForFields parentType group.fst group.snd)
+                  (scheduleKeyForFields parentType group.snd)
                   {
                     segment :=
                       {
+                        responseName := group.fst
                         sources := [source]
                         childSelectionSet := childSelectionSetForFields group.snd
                       }
@@ -1845,7 +1895,7 @@ theorem queue_expectedScheduleScopeEntries_eq_spec
           = groups.map
               (fun group =>
                 (
-                  scheduleKeyForFields parentType group.fst group.snd,
+                  bindCollectedGroup parentType group |>.fst,
                   [singleFieldResultValue group.fst
                     (GraphQL.Execution.executeField schema resolvers variableValues
                       fuel parentType source group.fst group.snd)]
@@ -1871,7 +1921,7 @@ theorem queue_nameFieldValueBlocks_specEntries
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
     (variableValues : VariableValues)
     (source : ResolverValue ObjectRef) (fuel : Nat)
-    (groups : List (ScheduleKey × List ExecutableField))
+    (groups : List (FieldBinding × List ExecutableField))
     : nameFieldValueBlocks
         (groups.map
           (fun group =>
@@ -1879,12 +1929,12 @@ theorem queue_nameFieldValueBlocks_specEntries
               group.fst,
               [singleFieldResultValue group.fst.responseName
                 (GraphQL.Execution.executeField schema resolvers variableValues
-                  fuel group.fst.parentType source group.fst.responseName group.snd)]
+                  fuel group.fst.key.parentType source group.fst.responseName group.snd)]
             )))
       = groups.map
           (fun group =>
-            [GraphQL.Execution.executeField schema resolvers variableValues
-              fuel group.fst.parentType source group.fst.responseName group.snd]) := by
+            [GraphQL.Execution.executeField schema resolvers variableValues fuel
+              group.fst.key.parentType source group.fst.responseName group.snd]) := by
   induction groups with
   | nil =>
       rfl
@@ -1894,11 +1944,11 @@ theorem queue_nameFieldValueBlocks_specEntries
       constructor
       · exact queue_singleFieldResult_executeField_roundtrip
           (ObjectRef := ObjectRef) schema resolvers variableValues
-          fuel key.parentType source key.responseName fields
+          fuel key.key.parentType source key.responseName fields
       · intro a b hmem
         exact queue_singleFieldResult_executeField_roundtrip
           (ObjectRef := ObjectRef) schema resolvers variableValues
-          fuel a.parentType source a.responseName b
+          fuel a.key.parentType source a.responseName b
 
 theorem queue_keyedGroups_executeField_results_eq_groups
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -1906,12 +1956,10 @@ theorem queue_keyedGroups_executeField_results_eq_groups
     (parentType : Name) (source : ResolverValue ObjectRef) (fuel : Nat)
     (groups : List (Name × List ExecutableField))
     : collectedGroupsNonempty groups
-      -> (groups.map
-            (fun group =>
-              (scheduleKeyForFields parentType group.fst group.snd, group.snd))).map
+      -> (groups.map (bindCollectedGroup parentType)).map
             (fun group =>
               [GraphQL.Execution.executeField schema resolvers variableValues
-                fuel group.fst.parentType source group.fst.responseName group.snd])
+                fuel group.fst.key.parentType source group.fst.responseName group.snd])
           = groups.map
               (fun group =>
                 [GraphQL.Execution.executeField schema resolvers variableValues
@@ -1931,7 +1979,7 @@ theorem queue_keyedGroups_executeField_results_eq_groups
       | nil =>
           contradiction
       | cons field rest =>
-          simp [scheduleKeyForFields]
+          simp [bindCollectedGroup, scheduleKeyForFields]
           intro a b hmem
           have hb : b ≠ [] := htail a b hmem
           cases b with
@@ -1946,20 +1994,18 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
     (parentType : Name) (source : ResolverValue ObjectRef) (fuel : Nat)
     (groups : List (Name × List ExecutableField))
     : collectedGroupsNonempty groups
-      ->  let keyedGroups :=
-            groups.map
-              (fun group =>
-                (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+      ->  let keyedGroups := groups.map (bindCollectedGroup parentType)
           let expectedEntries :=
             keyedGroups.map
               (fun group =>
                 (
                   group.fst,
                   expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := [source]
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -1973,7 +2019,8 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
                   group.fst,
                   [singleFieldResultValue group.fst.responseName
                     (GraphQL.Execution.executeField schema resolvers variableValues
-                      fuel group.fst.parentType source group.fst.responseName group.snd)]
+                      fuel group.fst.key.parentType source group.fst.responseName
+                      group.snd)]
                 ))
           expectedEntries = specEntries := by
   intro hnonempty
@@ -1994,16 +2041,17 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
       | cons field rest =>
           have hhead :
               expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  (scheduleKeyForFields parentType responseName (field :: rest))
+                  (scheduleKeyForFields parentType (field :: rest))
                   { segment :=
-                      { sources := [source]
+                      { responseName := responseName
+                        sources := [source]
                         childSelectionSet := childSelectionSetForFields (field :: rest) }
                     specFuels := [fuel] } =
                 [singleFieldResultValue
-                  (scheduleKeyForFields parentType responseName (field :: rest)).responseName
+                  responseName
                   (GraphQL.Execution.executeField schema resolvers variableValues
                     fuel parentType source
-                    (scheduleKeyForFields parentType responseName (field :: rest)).responseName
+                    responseName
                     (field :: rest))] := by
             simpa [scheduleKeyForFields]
               using
@@ -2012,16 +2060,17 @@ theorem queue_keyedGroups_expectedEntries_eq_spec
                   parentType responseName (field :: rest) source fuel hfields
           have hhead' :
               expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  (scheduleKeyForFields parentType responseName (field :: rest))
+                  (scheduleKeyForFields parentType (field :: rest))
                   { segment :=
-                      { sources := [source]
+                      { responseName := responseName
+                        sources := [source]
                         childSelectionSet := childSelectionSetForFields (field :: rest) }
                     specFuels := [fuel] } =
                 [singleFieldResultValue responseName
                   (GraphQL.Execution.executeField schema resolvers variableValues
                     fuel parentType source responseName (field :: rest))] := by
             simpa [scheduleKeyForFields] using hhead
-          simp only [List.map]
+          simp only [List.map_cons, bindCollectedGroup]
           rw [hhead', ih htail]
           simp [scheduleKeyForFields]
 
@@ -2031,20 +2080,18 @@ theorem queue_expectedEntries_pairKeysNodup
     (parentType : Name) (source : ResolverValue ObjectRef) (fuel : Nat)
     (groups : List (Name × List ExecutableField))
     : pairKeysNodup groups
-      ->  let keyedGroups :=
-            groups.map
-              (fun group =>
-                (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+      ->  let keyedGroups := groups.map (bindCollectedGroup parentType)
           let expectedEntries :=
             keyedGroups.map
               (fun group =>
                 (
                   group.fst,
                   expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := [source]
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -2062,13 +2109,13 @@ theorem queue_expectedEntries_pairKeysNodup
               (fun group =>
                 ( group.fst
                 , expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     { segment :=
-                        { sources := [source]
+                        { responseName := group.fst.responseName
+                          sources := [source]
                           childSelectionSet := childSelectionSetForFields group.snd }
                       specFuels := [fuel] } )) ∘
-                fun group =>
-                  (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+                bindCollectedGroup parentType)
           groups =
         groups.map Prod.fst := by
     induction groups with
@@ -2078,13 +2125,9 @@ theorem queue_expectedEntries_pairKeysNodup
         rcases group with ⟨responseName, fields⟩
         cases fields with
         | nil =>
-            simp [Function.comp, scheduleKeyForFields]
-            intro a b hmem
-            cases b <;> rfl
+            simp [Function.comp, bindCollectedGroup, scheduleKeyForFields]
         | cons head tail =>
-            simp [Function.comp, scheduleKeyForFields]
-            intro a b hmem
-            cases b <;> rfl
+            simp [Function.comp, bindCollectedGroup, scheduleKeyForFields]
   unfold pairKeysNodup
   simp
   rw [hmap]
@@ -2100,7 +2143,7 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
       let keyedGroups :=
         groups.map
           (fun group =>
-            (scheduleKeyForFields work.work.runtimeType group.fst group.snd, group.snd))
+            bindCollectedGroup work.work.runtimeType group)
       let specEntries :=
         keyedGroups.map
           (fun group =>
@@ -2108,7 +2151,7 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
               group.fst,
               [singleFieldResultValue group.fst.responseName
                 (GraphQL.Execution.executeField schema resolvers variableValues
-                  work.specFuel group.fst.parentType work.work.source
+                  work.specFuel group.fst.key.parentType work.work.source
                   group.fst.responseName group.snd)]
             ))
       combineScopeFieldResults 1 (nameFieldValueBlocks specEntries)
@@ -2117,15 +2160,14 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
     collectFieldsByKey schema variableValues
       work.work.runtimeType work.work.selectionSet
   let keyedGroups :=
-    groups.map (fun group =>
-      (scheduleKeyForFields work.work.runtimeType group.fst group.snd, group.snd))
+    groups.map (bindCollectedGroup work.work.runtimeType)
   let specEntries :=
     keyedGroups.map
       (fun group =>
         ( group.fst
         , [singleFieldResultValue group.fst.responseName
             (GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel group.fst.parentType work.work.source
+              work.specFuel group.fst.key.parentType work.work.source
               group.fst.responseName group.snd)] ))
   have hnonempty :
       collectedGroupsNonempty groups := by
@@ -2137,7 +2179,7 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
         keyedGroups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel group.fst.parentType work.work.source
+              work.specFuel group.fst.key.parentType work.work.source
               group.fst.responseName group.snd]) := by
     simpa [specEntries, keyedGroups]
       using queue_nameFieldValueBlocks_specEntries
@@ -2147,7 +2189,7 @@ theorem queue_combineScopeFieldResults_scheduleExpectedScope_singleton
       keyedGroups.map
           (fun group =>
             [GraphQL.Execution.executeField schema resolvers variableValues
-              work.specFuel group.fst.parentType work.work.source
+              work.specFuel group.fst.key.parentType work.work.source
               group.fst.responseName group.snd]) =
         groups.map
           (fun group =>
@@ -2175,30 +2217,25 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
       ->  let groups :=
             collectFieldsByKey schema variableValues
               work.work.runtimeType work.work.selectionSet
-          let keyedGroups :=
-            groups.map
-              (fun group =>
-                (
-                  scheduleKeyForFields work.work.runtimeType group.fst group.snd,
-                  group.snd
-                ))
+          let boundGroups := groups.map (bindCollectedGroup work.work.runtimeType)
           let expectedEntries :=
-            keyedGroups.map
+            boundGroups.map
               (fun group =>
                 (
                   group.fst,
                   expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := [work.work.source]
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
                       specFuels := [work.specFuel]
                     }
                 ))
-          completeScopeFrame [1] (keyedGroups.map Prod.fst)
+          completeScopeFrame [1] (boundGroups.map Prod.fst)
             (expectedEntries.foldl
               (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
               stack)
@@ -2213,17 +2250,16 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
   let groups :=
     collectFieldsByKey schema variableValues
       work.work.runtimeType work.work.selectionSet
-  let keyedGroups :=
-    groups.map (fun group =>
-      (scheduleKeyForFields work.work.runtimeType group.fst group.snd, group.snd))
+  let boundGroups := groups.map (bindCollectedGroup work.work.runtimeType)
   let expectedEntries :=
-    keyedGroups.map
+    boundGroups.map
       (fun group =>
         ( group.fst
         , expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-            group.fst
+            group.fst.key
             { segment :=
-                { sources := [work.work.source]
+                { responseName := group.fst.responseName
+                  sources := [work.work.source]
                   childSelectionSet := childSelectionSetForFields group.snd }
               specFuels := [work.specFuel] } ))
   have hnodupGroups :
@@ -2234,29 +2270,29 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
   have hnodupEntries :
       pairKeysNodup
         (expectedEntries.map (fun entry => (entry.fst.responseName, entry.snd))) := by
-    simpa [groups, keyedGroups, expectedEntries]
+    simpa [groups, boundGroups, expectedEntries]
       using queue_expectedEntries_pairKeysNodup
         (ObjectRef := ObjectRef) schema resolvers variableValues
         work.work.runtimeType work.work.source work.specFuel groups hnodupGroups
   have hpop :
-      popFieldValuesByKeys (keyedGroups.map Prod.fst)
+      popFieldValuesByBindings (boundGroups.map Prod.fst)
           (expectedEntries.foldl
             (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
             stack) =
         (expectedEntries, stack) := by
     simpa [expectedEntries, List.map_map, Function.comp_def]
-      using queue_popFieldValuesByKeys_foldl_pushExpectedFieldSegments
+      using queue_popFieldValuesByBindings_foldl_pushExpectedFieldSegments
         expectedEntries stack hnodupEntries hstack
   have hcombine :
       combineScopeFieldResults 1 (nameFieldValueBlocks expectedEntries) =
         [expectedPendingChildWorkSpecResult schema resolvers variableValues work] := by
     let specEntries :=
-      keyedGroups.map
+      boundGroups.map
         (fun group =>
           ( group.fst
           , [singleFieldResultValue group.fst.responseName
               (GraphQL.Execution.executeField schema resolvers variableValues
-                work.specFuel group.fst.parentType work.work.source
+                work.specFuel group.fst.key.parentType work.work.source
                 group.fst.responseName group.snd)] ))
     have hentriesSpec : expectedEntries = specEntries := by
       have hnonempty :
@@ -2264,24 +2300,24 @@ theorem queue_completeScopeFrame_scheduleExpectedScope_singleton
         simpa [groups]
           using collectFieldsByKey_collectedGroupsNonempty schema variableValues
             work.work.runtimeType work.work.selectionSet
-      simpa [groups, keyedGroups, expectedEntries, specEntries]
+      simpa [groups, boundGroups, expectedEntries, specEntries]
         using queue_keyedGroups_expectedEntries_eq_spec
           (ObjectRef := ObjectRef) schema resolvers variableValues
           work.work.runtimeType work.work.source work.specFuel groups hnonempty
     rw [hentriesSpec]
-    simpa [groups, keyedGroups, specEntries]
+    simpa [groups, boundGroups, specEntries]
       using queue_combineScopeFieldResults_scheduleExpectedScope_singleton
         (ObjectRef := ObjectRef) schema resolvers variableValues work
   have hframe :=
     queue_completeScopeFrame_eq_of_pop
-      [1] (keyedGroups.map Prod.fst)
+      [1] (boundGroups.map Prod.fst)
       (expectedEntries.foldl
         (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
         stack)
       stack expectedEntries (nameFieldValueBlocks expectedEntries)
       [expectedPendingChildWorkSpecResult schema resolvers variableValues work]
       hpop rfl hcombine
-  simpa [groups, keyedGroups, expectedEntries, splitResultsByLengths] using hframe
+  simpa [groups, boundGroups, expectedEntries, splitResultsByLengths] using hframe
 
 theorem queue_completeFrames_scheduleExpectedScope_singleton
     (schema : Schema) (resolvers : GraphQL.Execution.Resolvers ObjectRef)
@@ -2314,17 +2350,16 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
   let groups :=
     collectFieldsByKey schema variableValues
       work.work.runtimeType work.work.selectionSet
-  let keyedGroups :=
-    groups.map (fun group =>
-      (scheduleKeyForFields work.work.runtimeType group.fst group.snd, group.snd))
+  let keyedGroups := groups.map (bindCollectedGroup work.work.runtimeType)
   let expectedEntries :=
     keyedGroups.map
       (fun group =>
         ( group.fst
         , expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-            group.fst
+            group.fst.key
             { segment :=
-                { sources := [work.work.source]
+                { responseName := group.fst.responseName
+                  sources := [work.work.source]
                   childSelectionSet := childSelectionSetForFields group.snd }
               specFuels := [work.specFuel] } ))
   let baseStack : CompletionStack :=
@@ -2338,9 +2373,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
             (fun stack group =>
               pushExpectedFieldSegment group.fst
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
+                  group.fst.key
                   { segment :=
-                      { sources := [work.work.source]
+                      { responseName := group.fst.responseName
+                        sources := [work.work.source]
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := [work.specFuel] })
                 stack)
@@ -2356,15 +2392,16 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
     | cons group keyedGroups ih =>
         simp [ih]
   have hfieldStoreFoldIndependent :
-      ∀ (groups0 : List (ScheduleKey × List ExecutableField))
+      ∀ (groups0 : List (FieldBinding × List ExecutableField))
         (stack0 : CompletionStack),
         (groups0.foldl
           (fun stack group =>
             pushExpectedFieldSegment group.fst
               (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                group.fst
+                group.fst.key
                 { segment :=
-                    { sources := [work.work.source]
+                    { responseName := group.fst.responseName
+                      sources := [work.work.source]
                       childSelectionSet := childSelectionSetForFields group.snd }
                   specFuels := [work.specFuel] })
               stack)
@@ -2373,9 +2410,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
           (fun stack group =>
             pushExpectedFieldSegment group.fst
               (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                group.fst
+                group.fst.key
                 { segment :=
-                    { sources := [work.work.source]
+                    { responseName := group.fst.responseName
+                      sources := [work.work.source]
                       childSelectionSet := childSelectionSetForFields group.snd }
                   specFuels := [work.specFuel] })
               stack)
@@ -2395,10 +2433,11 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
               fieldStore :=
                 pushExpectedFieldSegmentInStore group.fst
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     {
                       segment :=
                         {
+                          responseName := group.fst.responseName
                           sources := [work.work.source]
                           childSelectionSet := childSelectionSetForFields group.snd
                         }
@@ -2415,9 +2454,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
           (fun stack group =>
             pushExpectedFieldSegment group.fst
               (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                group.fst
+                group.fst.key
                 { segment :=
-                    { sources := [work.work.source]
+                    { responseName := group.fst.responseName
+                      sources := [work.work.source]
                       childSelectionSet := childSelectionSetForFields group.snd }
                   specFuels := [work.specFuel] })
               stack)
@@ -2434,9 +2474,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
             (fun stack group =>
               pushExpectedFieldSegment group.fst
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
+                  group.fst.key
                   { segment :=
-                      { sources := [work.work.source]
+                      { responseName := group.fst.responseName
+                        sources := [work.work.source]
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := [work.specFuel] })
                 stack)
@@ -2461,15 +2502,16 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
           (fun stack entry => pushExpectedFieldSegment entry.fst entry.snd stack)
           baseStack := by
     have hnormalizeGeneral :
-        ∀ (groups0 : List (ScheduleKey × List ExecutableField))
+        ∀ (groups0 : List (FieldBinding × List ExecutableField))
           (stack0 : CompletionStack),
           groups0.foldl
               (fun stack group =>
                 pushExpectedFieldSegment group.fst
                   (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                    group.fst
+                    group.fst.key
                     { segment :=
-                        { sources := [work.work.source]
+                        { responseName := group.fst.responseName
+                          sources := [work.work.source]
                           childSelectionSet := childSelectionSetForFields group.snd }
                       specFuels := [work.specFuel] })
                   stack)
@@ -2480,9 +2522,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
                   (fun stack group =>
                     pushExpectedFieldSegment group.fst
                       (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                        group.fst
+                        group.fst.key
                         { segment :=
-                            { sources := [work.work.source]
+                            { responseName := group.fst.responseName
+                              sources := [work.work.source]
                               childSelectionSet := childSelectionSetForFields group.snd }
                           specFuels := [work.specFuel] })
                       stack)
@@ -2502,10 +2545,11 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
                 fieldStore :=
                   pushExpectedFieldSegmentInStore group.fst
                     (expectedScheduleSegmentSpecFieldResults schema resolvers
-                      variableValues group.fst
+                      variableValues group.fst.key
                       {
                         segment :=
                           {
+                            responseName := group.fst.responseName
                             sources := [work.work.source]
                             childSelectionSet := childSelectionSetForFields group.snd
                           }
@@ -2525,9 +2569,10 @@ theorem queue_completeFrames_scheduleExpectedScope_singleton
             (fun stack group =>
               pushExpectedFieldSegment group.fst
                 (expectedScheduleSegmentSpecFieldResults schema resolvers variableValues
-                  group.fst
+                  group.fst.key
                   { segment :=
-                      { sources := [work.work.source]
+                      { responseName := group.fst.responseName
+                        sources := [work.work.source]
                         childSelectionSet := childSelectionSetForFields group.snd }
                     specFuels := [work.specFuel] })
                 stack)

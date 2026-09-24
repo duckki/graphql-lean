@@ -6,7 +6,7 @@ Scope scheduling and one-step execution facts for the breadth executor.
 
 `scheduleScope` handles one concrete object scope. It collects field groups, enqueues one
 segment per collected group, and emits a `TraceFrame.scope` that records only the field
-keys needed during reverse completion.
+bindings needed during reverse completion.
 -/
 
 namespace GraphQL
@@ -26,22 +26,24 @@ theorem scope_scheduleScope_eq_of_collectFieldsByKey
     (queue : ScheduleQueue ObjectRef)
     : collectFieldsByKey schema variableValues parentType selectionSet = groups
       -> scheduleScope schema variableValues parentType sources selectionSet queue
-          = let keyedGroups :=
+          = let boundGroups :=
               groups.map
                 (fun group =>
-                  (scheduleKeyForFields parentType group.fst group.snd, group.snd))
+                  let key := scheduleKeyForFields parentType group.snd
+                  ({ responseName := group.fst, key := key }, group.snd))
             let queue :=
-              keyedGroups.foldl
+              boundGroups.foldl
                 (fun queue group =>
                   let segment :=
                     {
+                      responseName := group.fst.responseName
                       sources := sources
                       childSelectionSet := childSelectionSetForFields group.snd
                     }
-                  enqueueSegment group.fst segment queue)
+                  enqueueSegment group.fst.key segment queue)
                 queue
-            let fieldKeys := keyedGroups.map Prod.fst
-            (queue, .scope [sources.length] fieldKeys) := by
+            let fieldBindings := boundGroups.map Prod.fst
+            (queue, .scope [sources.length] fieldBindings) := by
   intro hgroups
   simp [scheduleScope, hgroups]
 
@@ -84,7 +86,7 @@ theorem scope_executeScheduleItem_lookup_none
       -> executeScheduleItem schema resolvers variableValues item
           = (
             [],
-            [.field item.key (.named "") item.segmentLengths
+            [.field item.key (.named "") item.segmentDescriptors
               (List.replicate item.sources.length (.completed (.error 1)))]
           ) := by
   intro hlookup
@@ -105,7 +107,7 @@ theorem scope_executeScheduleItem_result_count_mismatch
       -> executeScheduleItem schema resolvers variableValues item
           = (
             [],
-            [.field item.key fieldDefinition.outputType item.segmentLengths
+            [.field item.key fieldDefinition.outputType item.segmentDescriptors
               (List.replicate item.sources.length
                 (.completed (handleFieldError fieldDefinition.outputType)))]
           ) := by
@@ -138,7 +140,7 @@ theorem scope_executeScheduleItem_fromSpecResolvers_lookup_some
             let scheduled := schedulePendingChildWork schema variableValues built.fst []
             (
               scheduled.fst,
-              .field item.key fieldDefinition.outputType item.segmentLengths built.snd
+              .field item.key fieldDefinition.outputType item.segmentDescriptors built.snd
               :: scheduled.snd
             ) := by
   intro hlookup
