@@ -8,7 +8,8 @@ and streams. The host supplies batches of `GraphEvent` values instead of promise
 async iterators. Work is integrated when a task or stream item succeeds, not precompiled
 at initialization. `handleGraphEvents` updates explicit root/group/task bookkeeping and
 emits raw queue events. `IncrementalPublisher` then selects shared-value owners and maps
-those events to the spec-facing response format.
+those events to the spec-facing response format. Initial-envelope construction and
+subsequent entry mapping reuse Execution's helpers; the queue does not allocate wire IDs.
 
 Queue `Task` and `Stream` records retain only bookkeeping descriptors. The original
 execution work remains the source of fixed outcomes and expected child work in the event
@@ -739,23 +740,13 @@ def State.handleGraphEvents (state : State) (graphEvents : List GraphEvent)
 -- IncrementalPublisher: GraphQL.js publisher boundary
 -----------------------------------------------------------------------------------------
 
-/-- Publisher-owned wire IDs and live notices. Closed IDs remain in the finite ID map,
-but only live nodes participate in shared-value owner selection.
+/-- Stored mapper IDs and live notices. Execution's shared response helpers allocate IDs;
+closed IDs remain in the finite map, but only live nodes participate in owner selection.
 -/
 structure IncrementalPublisher where
   ids : Execution.IDState := {}
   active : List Execution.DeliveryNode := []
 deriving Repr
-
-/-- GraphQL.js `_toPendingResults`, delegated to the spec-facing entry constructor. -/
-def IncrementalPublisher.toPendingResults (publisher : IncrementalPublisher)
-    (newGroups newStreams : List Execution.DeliveryNode)
-    : List Execution.IncrementalPendingNotice × IncrementalPublisher :=
-  let (pending, ids) :=
-    (Execution.getPendingEntry (m := StateM Execution.IDState)
-      newGroups newStreams Execution.ensureID).run
-      publisher.ids
-  (pending, { ids, active := publisher.active ++ newGroups ++ newStreams })
 
 /-- GraphQL.js `_getBestIdAndSubPath`: select the deepest live contributor. The
 spec-facing mapper computes the actual ID and subPath from this selected node.
@@ -835,7 +826,7 @@ def IncrementalPublisher.normalizeBatch (publisher : IncrementalPublisher)
     (publisher, [])
 
 /-- GraphQL.js `_handleBatch`, reusing the spec-facing entry mapper after owner
-normalization. The queue never allocates or serializes wire IDs.
+normalization for subsequent updates. The queue never allocates or serializes wire IDs.
 -/
 def IncrementalPublisher.handleBatch (publisher : IncrementalPublisher)
     (batch : List WorkQueueEvent)
@@ -843,16 +834,6 @@ def IncrementalPublisher.handleBatch (publisher : IncrementalPublisher)
   let (normalized, events) := publisher.normalizeBatch batch
   let (update, ids) := (Execution.mapWorkEventBatch events).run publisher.ids
   (update, { normalized with ids })
-
-/-- GraphQL.js `buildResponse` initialization, projected to an initial result and an
-online publisher cursor. The queue already determined its initial root notices.
--/
-def IncrementalPublisher.buildResponse (publisher : IncrementalPublisher)
-    (response : Execution.Response) (queue : State)
-    : Execution.InitialIncrementalStreamResult × IncrementalPublisher :=
-  let (pending, next) :=
-    publisher.toPendingResults queue.initialGroups queue.initialStreams
-  ({ toResponse := response, pending, hasNext := true }, next)
 
 -----------------------------------------------------------------------------------------
 -- `createWorkQueueForSchedule` interface
@@ -914,18 +895,25 @@ def createWorkQueueForSchedule (work : Execution.Work)
 -----------------------------------------------------------------------------------------
 
 /-- Initialize the incremental response, concrete queue, and publisher together.
-This shared composition of work lowering, queue initialization, and `buildResponse`
-serves both finite response execution and the optional resumable cursor.
+This models the initial-envelope part of GraphQL.js `buildResponse`, delegating pending
+notices, root data/errors, and ID allocation to `Execution.initializeIncrementalResponse`.
+This composition adds concrete queue and live-owner state; finite replay and the
+optional cursor both use it.
 -/
 def initializeIncrementalResponse (response : Execution.Response) (work : Execution.Work)
     : Execution.InitialIncrementalStreamResult × State × IncrementalPublisher :=
   let queue := State.initialize (Work.fromExecution work)
-  let (initial, publisher) := ({} : IncrementalPublisher).buildResponse response queue
+  let (initial, ids) :=
+    Execution.initializeIncrementalResponse response queue.initialGroups
+      queue.initialStreams
+  let publisher : IncrementalPublisher :=
+    { ids, active := queue.initialGroups ++ queue.initialStreams }
   (initial, queue, publisher)
 
 /-- Replay supplied inputs and map their normalized batches to response updates.
-The residual queue and publisher retain all state needed for resumption. This is the
-shared wire-mapping layer over `runWithPublisher`, not another queue-processing loop.
+`Execution.mapWorkEventBatch` maps each emitted batch using the publisher's ID state.
+The residual queue and publisher retain all state needed for resumption. Queue processing
+is shared with `runWithPublisher`.
 -/
 def State.run (queue : State) (publisher : IncrementalPublisher)
     (inputs : List (List GraphEvent))

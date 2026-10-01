@@ -20,6 +20,22 @@ example (result : TaskResult) : Execution.ExecutionGroupValue := result.value
 /-- Stream payloads require no representation conversion. -/
 example (item : StreamItem) : Execution.StreamItemValue := item.value
 
+/-- Reference initialization uses exactly the spec initializer's envelope and ID state.
+Witness: definitional equality, with concrete queue and live-owner state added around it.
+-/
+example (response : Execution.Response) (work : Execution.Work)
+    : initializeIncrementalResponse response work
+      = let queue := State.initialize (Work.fromExecution work)
+        let (initial, ids) :=
+          Execution.initializeIncrementalResponse response queue.initialGroups
+            queue.initialStreams
+        (
+          initial,
+          queue,
+          { ids, active := queue.initialGroups ++ queue.initialStreams }
+        ) :=
+  rfl
+
 /-- Public conformance derives node coherence and initialization from executed work. -/
 example (sources : Execution.Work → EventSource (List GraphEvent))
     (work : Execution.Work) (generated : ExecutedWork work)

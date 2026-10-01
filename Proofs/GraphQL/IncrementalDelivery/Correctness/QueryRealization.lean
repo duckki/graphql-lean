@@ -29,7 +29,7 @@ theorem executionFromWork_observes_replay (createWorkQueue : Work → WorkQueue)
       have replay := (createWorkQueue work).observes_inputs work ids groups conforms
         nonemptyGroups admitted
       simp only [executionFromWork, nonempty, beq_iff_eq, ↓reduceIte,
-        yieldIncrementalResults, replayResponse, allocated]
+        yieldIncrementalResults, initializeIncrementalResponse, replayResponse, allocated]
       exact ⟨rfl, _, replay.1, fun done => replay.2.mpr (finished done)⟩
 
 /-- Every independent work observation is an actual observation for a conforming
@@ -60,7 +60,7 @@ theorem WorkObservation.realizes {response work complete result}
       | mk pending ids =>
           have realized := WorkQueueSemantics.specificationSource_observes ids groups batches admitted
           simp only [executionFromWork, nonempty, beq_iff_eq, ↓reduceIte,
-            yieldIncrementalResults, scheduler,
+            yieldIncrementalResults, initializeIncrementalResponse, scheduler,
             WorkQueueSemantics.specificationSource, replayResponse, allocated]
           exact ⟨rfl, _, realized.1, fun done => realized.2.mpr (finished done)⟩
 

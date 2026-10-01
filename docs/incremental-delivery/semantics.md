@@ -346,7 +346,7 @@ and `Quot.sound`, with no proof holes or added axioms.
 
 Reference-queue conformance and the implementation-to-query bridge are also proved.
 Their detailed status is maintained in the
-[implementation guide](implementation.md#conformance).
+[implementation guide](implementation.md#work-queue-conformance).
 The [incremental-delivery proof map](README.md#proof-status-and-verification)
 lists the public witnesses. These finite results do not imply host fairness, completion
 of every admitted prefix, or refinement of the actual GraphQL.js implementation.

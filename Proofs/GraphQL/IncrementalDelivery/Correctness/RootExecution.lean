@@ -58,9 +58,7 @@ theorem executionFromWork_initialResponse
   simp only [executionFromWork]
   split
   · rfl
-  · simp only [yieldIncrementalResults]
-    split
-    rfl
+  · rfl
 
 /-- The root's initial envelope comes from pure completion, by the packaging witness
 above.

@@ -88,7 +88,7 @@ theorem executionFromWork_observes_workHistory
               {} with
     | mk pending ids =>
         simp only [executionFromWork, empty, beq_iff_eq, ↓reduceIte,
-          yieldIncrementalResults, allocated] at observed
+          yieldIncrementalResults, initializeIncrementalResponse, allocated] at observed
         cases result with
         | single value => cases observed
         | incremental initial updates =>

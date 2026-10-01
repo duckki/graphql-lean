@@ -94,6 +94,10 @@ impose no law on an unused queue constructor.
 
 The reference implementation's `State.initialize` constructs concrete state;
 `createWorkQueueForSchedule work schedule` projects its replay to Execution.WorkQueue.
+`Execution.initializeIncrementalResponse` shares initial-envelope construction and ID
+allocation between spec `yieldIncrementalResults` and the reference initializer of the
+same name. The reference initializer adds concrete queue and live-owner state. Subsequent
+updates use `Execution.mapWorkEventBatch`; initial notices are not synthetic work events.
 `ExecutedWork` means work produced by root completion. `schedule.ValidFor work`
 packages source and executable-start premises. `ExecutedWork.initializes` derives initial
 notice validity; callers of `createWorkQueueForScheduleConforms` need only executed work,

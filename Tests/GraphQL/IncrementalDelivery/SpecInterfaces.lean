@@ -124,6 +124,23 @@ def stream : DeliveryNode := { key := 20, path := [.field "values"] }
   && reused.nextID == 2
   && same reused state
 
+/-! Shared initialization preserves root data/errors and seeds subsequent ID reuse. -/
+
+#guard
+  let response : Response := { data := .object [("x", .null)], errors := 2 }
+  let (initial, ids) := initializeIncrementalResponse response [group] [stream]
+  let (update, final) := (mapWorkEventBatch [.groupSuccess group [] []]).run ids
+  same initial.toResponse response
+  && initial.hasNext
+  && same initial.pending
+      [
+        { id := "0", path := group.path, label := group.label },
+        { id := "1", path := stream.path }
+      ]
+  && same update.completed [{ id := "0" }]
+  && final.nextID == 2
+  && same final ids
+
 #guard
   let initial : StateM IDState (List IncrementalPendingNotice) :=
     getPendingEntry [group] [stream] ensureID

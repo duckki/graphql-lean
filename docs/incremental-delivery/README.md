@@ -98,6 +98,12 @@ The draft gives these helper algorithms implicit access to `idMap` and `nextID`.
 Lean makes that context explicit: `IDState` stores both values, and the entry
 constructors receive `idFor` so the stateful mapper remains the only ID authority.
 
+`Execution.initializeIncrementalResponse` constructs the initial root data/errors
+envelope and pending notices, returning the ID state that seeds subsequent mapping.
+Both `yieldIncrementalResults` and the reference implementation use this helper. Initial
+notices come directly from queue initialization; `mapWorkEventBatch` only maps subsequent
+updates, so no synthetic initial work event is needed.
+
 The executable draft mapper also separates `GROUP_VALUES` from
 `GROUP_SUCCESS`/`GROUP_FAILURE`. The model consequently permits a payload and its
 completion notice in different batches, so a notice may follow an earlier data patch.
@@ -150,7 +156,7 @@ be read as claiming the omitted spec features are implemented.
 | `completeListValue` / CompleteListValue | Complete each item at its indexed path and accumulate values/work. An explicit index carries the loop counter, normally starting at zero. This algorithm itself does not initiate streaming. |
 | `executeRootSelectionSet` / ExecuteRootSelectionSet | The model-only core performs CollectFields, BuildExecutionPlan, ExecuteExecutionPlan. The root then extracts data/errors, checks for work, calls YieldIncrementalResults, and batches the subsequent stream. The ordinary/incremental branch is inline. |
 | `executeQuery` / ExecuteQuery | Query-only entry point calling root execution. The explicit-fuel variant also materializes variable defaults and checks root-source applicability, inherited model entry-point conventions. Default-fuel calculation and arbitrary-invalid-root errors are not spec steps. |
-| `yieldIncrementalResults` / YieldIncrementalResults | Call the supplied CreateWorkQueue function, create initial pending notices, return the initial result plus the resumable work-event mapper. Waiting for initialization is abstracted; no future batch is selected or consumed. |
+| `yieldIncrementalResults` / YieldIncrementalResults | Call the supplied CreateWorkQueue function, use initializeIncrementalResponse for the initial envelope and IDs, return that result plus the resumable work-event mapper. Waiting for initialization is abstracted; no future batch is selected or consumed. |
 | `mapIncrementalWorkEventsToResponseEvent` / MapIncrementalWorkEventsToResponseEvent | Install a lazy mapper over admitted batches, threading the ID map when an observation is accepted; the seven-case per-batch loop is factored as mapWorkEventBatch. Initial and later notices share IDs despite the draft's allocation-scope ambiguity. |
 | `ensureID` / EnsureID | Reuse the node ID or allocate the next decimal string and increment the supply. |
 | `getPendingEntry` / GetPendingEntry | Ensure IDs and build notices, groups before streams; one map over concatenated lists represents the two spec loops. |
@@ -218,6 +224,9 @@ ExecuteField returns a value, and CompleteListValue does not install a stream ta
   selection. The reference source checks it; abstract admission and wire mapping ignore
   it. Raw and normalized events share representation, not owner semantics.
 - `IDState`: the mapper's idMap and nextID, separate from scheduling.
+- `Execution.initializeIncrementalResponse`: factors initial notice allocation and root
+  response packaging from YieldIncrementalResults. The reference implementation reuses
+  it, adding concrete queue and live-owner state without duplicating response construction.
 - `mapWorkEventBatch`: factors the spec's per-batch loop from its surrounding stream map.
 - `ResponseEventStream`, `ResponseEventStream.Accepts`, `ResponseEventStream.next`:
   the mapper's responseEventStream, represented by a source input type, partial source
@@ -452,7 +461,7 @@ failure immediately after a child notice preserves the carrier's admission and t
 explained history. The generic `Explains.record_failure` preservation theorem is checked
 as well. Reference-implementation conformance, derived initialization, and the
 implementation-to-query bridge are proved; their details and proof structure are in the
-[implementation guide](implementation.md#conformance).
+[implementation guide](implementation.md#work-queue-conformance).
 
 | Public statement | Witness module (theorem name is the statement plus `_holds`) |
 | --- | --- |

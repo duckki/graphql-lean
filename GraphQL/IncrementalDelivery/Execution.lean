@@ -828,7 +828,8 @@ inductive WorkQueueEvent where
   | workQueueTermination
 deriving Repr
 
-/-- The deterministic part of the spec: translate one work-event batch. -/
+/-- Translate one work-event batch to a subsequent response update, threading existing
+mapper IDs. -/
 def mapWorkEventBatch (events : List WorkQueueEvent)
     : StateM IDState IncrementalStreamUpdateResult := do
   let mut update : IncrementalStreamUpdateResult := { hasNext := true }
@@ -932,24 +933,33 @@ def mapIncrementalWorkEventsToResponseEvent
     : ResponseEventStream :=
   { Input := List WorkQueueEvent, source, ids, mapEvent := mapWorkEventBatch }
 
+/-- Shared initial-response construction: allocate pending notices from a fresh ID supply
+and package the root data/errors with hasNext=true. This model-only factoring of
+YieldIncrementalResults is also used by the reference implementation. The returned ID
+state seeds subsequent response mapping. Initial notices come from queue initialization,
+not synthetic work events.
+-/
+def initializeIncrementalResponse (response : Response)
+    (initialGroups initialStreams : List DeliveryNode)
+    : InitialIncrementalStreamResult × IDState :=
+  let (pending, ids) :=
+    (getPendingEntry (m := StateM IDState) initialGroups initialStreams ensureID).run {}
+  ({ toResponse := response, pending, hasNext := true }, ids)
+
 /-- Spec YieldIncrementalResults projected to its first result and resumable remainder.
 `createWorkQueue` supplies the draft's otherwise unspecified CreateWorkQueue implementation.
 Initialization abstracts waiting for that first result; no future batch is consumed.
-Initial notices and subsequent events share one ID map. Only initialization, not future
-completion order, determines initial notice identities and order.
+`initializeIncrementalResponse` supplies the initial envelope and the subsequent mapper's
+ID state. Only initialization, not future completion order, determines initial notice
+identities and order.
 -/
 def yieldIncrementalResults (createWorkQueue : Work → WorkQueue) (response : Response)
     (work : Work)
     : InitialIncrementalStreamResult × ResponseEventStream :=
   let result := createWorkQueue work
-  let (pending, ids) :=
-    (getPendingEntry (m := StateM IDState)
-      result.initialGroups result.initialStreams ensureID).run
-      {}
-  (
-    { toResponse := response, pending, hasNext := true },
-    mapIncrementalWorkEventsToResponseEvent result.workEventStream ids
-  )
+  let (initial, ids) :=
+    initializeIncrementalResponse response result.initialGroups result.initialStreams
+  (initial, mapIncrementalWorkEventsToResponseEvent result.workEventStream ids)
 
 -----------------------------------------------------------------------------------------
 -- Query execution

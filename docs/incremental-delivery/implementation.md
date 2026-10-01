@@ -124,19 +124,34 @@ earlier accepted outcomes until normal release or ancestor cancellation.
 
 ### Publisher and shared replay
 
-`IncrementalPublisher` separates live notices from wire-ID allocation. Closed IDs remain
-allocated, but only open contributors participate in `getBestIdAndSubPath`.
-The publisher normalizes ownership; the spec mapper allocates IDs and constructs entries.
+`IncrementalPublisher` stores the mapper's ID state separately from live notices. Closed
+IDs remain allocated, but only open contributors participate in `getBestIdAndSubPath`.
+The publisher normalizes ownership; Execution's shared helpers allocate IDs and construct
+entries. `IncrementalPublisher.handleBatch` delegates subsequent entry mapping to
+`Execution.mapWorkEventBatch` after normalizing owners.
 Normalization preserves values, errors, order, and lifecycle events; it cannot repair
 invalid accounting.
 
-All executable views share `State.runWithPublisher`, the queue/publisher processing loop:
+Initial response construction is shared with spec execution:
+
+- `Execution.initializeIncrementalResponse response initialGroups initialStreams`
+  constructs the root data/errors envelope and pending notices, returning the initial
+  result and ID state. `yieldIncrementalResults` uses this state for later updates.
+- `ReferenceWorkQueue.initializeIncrementalResponse response work` initializes concrete
+  queue state, passes its initial notices to that same helper, and creates the publisher
+  with the returned IDs and live nodes. It returns the initial result, queue, and publisher.
+
+Initial notices are not synthetic work events: `mapWorkEventBatch` constructs subsequent
+updates and has no root-response argument. There is no separate implementation of pending
+serialization or initial-envelope construction in `IncrementalPublisher`.
+
+All executable replay views share `State.runWithPublisher`, the queue/publisher loop:
 
 | Entry point | Result |
 | --- | --- |
 | `State.runNormalized` | Residual queue and normalized work-event batches for supplied host inputs. |
 | `createWorkQueueForSchedule work schedule` | Observable `Execution.WorkQueue`, constructed from one initialized state and the source's admitted input histories. |
-| `initializeIncrementalResponse` | Initial response, concrete queue, and publisher. |
+| `ReferenceWorkQueue.initializeIncrementalResponse` | Initial response, concrete queue, and publisher, using Execution's shared initializer. |
 | `State.run` | Response updates plus residual queue/publisher, including updated mapper IDs. |
 | `replayIncrementalResponse completed inputs` | Initial result, updates, and concrete termination flag. |
 | `ResponseStreamCursor.initialize`, `run`, `step` | Optional resumable packaging of the same initialization and replay. |
@@ -144,12 +159,15 @@ All executable views share `State.runWithPublisher`, the queue/publisher process
 A silent input produces no response update. `replayIncrementalResponse_eq_cursor` in
 [CursorReplay](../../Proofs/GraphQL/IncrementalDelivery/WorkQueueImplementation/CursorReplay.lean)
 proves that the finite runner and cursor have identical initial results, updates, and
-termination flags.
+termination flags. `ResponseStreamCursor.initialize_eq` identifies their shared initial
+envelope and ID state by definitional equality.
 
 The queue adapter admits normalized outputs realized by some source-admitted input
 prefix. This existential describes a language of observations, not a selected future.
 Completion is determined by the queue's terminal flag, not the host source's `finished`
-predicate. Spec execution independently supplies response batching.
+predicate. Host batches and the one-update-per-work-batch mapping are unchanged; spec
+execution supplies the outer `batchIncrementalResults` response aggregation. Sharing the
+initializer adds no event consumption, buffering policy, or second ID allocator.
 
 ## Host event source assumptions
 
@@ -293,7 +311,9 @@ The draft remains authoritative.
 | `GroupNode`, `TaskNode`, root/node collections | Same node names with explicit finite-list `State` fields. |
 | `createWorkQueue` | `State.initialize` is the initialization core; `createWorkQueueForSchedule` additionally lowers work and exposes normalized outputs. |
 | Integration, pruning, activation, and event handlers | Corresponding `maybeIntegrateWork`, `addGroups`, `pruneEmptyGroups`, `startNewWork`, task/stream handlers, and removal functions. |
-| Publisher `buildResponse`, `_handleBatch`, `_getBestIdAndSubPath` | `buildResponse`, `handleBatch`, `getBestIdAndSubPath`, with spec-facing response constructors. |
+| Publisher `buildResponse` (initial envelope) | `ReferenceWorkQueue.initializeIncrementalResponse`, composed with the shared `Execution.initializeIncrementalResponse`. |
+| Publisher `_toPendingResults` | `Execution.getPendingEntry` with `ensureID`, called by the shared initializer and subsequent mapper. |
+| Publisher `_handleBatch`, `_getBestIdAndSubPath` | `IncrementalPublisher.handleBatch`, `getBestIdAndSubPath`; owner normalization precedes shared `Execution.mapWorkEventBatch`. |
 
 Modeling adapters:
 
@@ -418,6 +438,11 @@ interleaving.
 Whole-project `lake build` and `lake lint` pass. Public conformance, the implementation
 bridge, and all 12 query-correctness witnesses have audited dependencies limited to
 `propext`, `Classical.choice`, and `Quot.sound`, with no added axioms or proof holes.
+
+Shared-initializer regressions check preservation of root data/errors, initial notice
+ordering, reuse of initial IDs by subsequent mapping, and definitional agreement between
+the reference and Execution initialization paths. The source assumptions and public
+conformance/correctness propositions require no additional premises for this factoring.
 
 Focused checks:
 

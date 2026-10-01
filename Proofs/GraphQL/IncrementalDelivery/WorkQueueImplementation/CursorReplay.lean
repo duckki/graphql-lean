@@ -183,7 +183,8 @@ theorem ResponseStreamCursor.run_cons (cursor : ResponseStreamCursor)
   rw [show batch :: rest = [batch] ++ rest from rfl, run_append, run_singleton]
 
 /-- Starting the executable cursor allocates exactly the spec's initial notices.
-Witness: both initialization paths use getPendingEntry with the same empty ID supply.
+Witness: definitional equality through the shared Execution initializer, which uses
+getPendingEntry with an empty ID supply.
 -/
 theorem ResponseStreamCursor.initialize_eq (response : Execution.Response)
     (work : Execution.Work)
@@ -197,11 +198,6 @@ theorem ResponseStreamCursor.initialize_eq (response : Execution.Response)
           { toResponse := response, pending, hasNext := true },
           ⟨queue, { ids, active := queue.initialGroups ++ queue.initialStreams }⟩
         ) := by
-  simp only [ResponseStreamCursor.initialize, initializeIncrementalResponse,
-    IncrementalPublisher.buildResponse, IncrementalPublisher.toPendingResults, List.nil_append]
-  cases (Execution.getPendingEntry (m := StateM Execution.IDState)
-    (State.initialize (Work.fromExecution work)).initialGroups
-    (State.initialize (Work.fromExecution work)).initialStreams Execution.ensureID).run {}
   rfl
 
 /-- Direct finite cursor execution maps exactly the adapter's normalized batches.
