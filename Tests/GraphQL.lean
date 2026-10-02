@@ -10,6 +10,7 @@ import Tests.GraphQL.Theories.TreeSummary
 import Tests.GraphQL.Theories.QueryInclusion
 import Tests.GraphQL.Theories.QueryInclusionSemantics
 import Tests.GraphQL.Execution
+import Tests.GraphQL.IncrementalDelivery
 import Tests.GraphQL.Algorithms.ExecutionCancelingSiblings
 import Tests.GraphQL.Algorithms.ExecutionBreadth
 import Tests.GraphQL.Algorithms.ExecutionUngrouped

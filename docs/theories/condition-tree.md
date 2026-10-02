@@ -311,7 +311,7 @@ response equivalence.
 - collected response names are `Nodup` at every node.
 
 Field groups are nonempty and stored fields are condition-free by type, so
-`Tree.WellFormed` no longer restates or recursively proves those structural
+`Tree.WellFormed` does not restate or recursively prove those structural
 facts.
 
 `Proofs.GraphQL.Theories.ConditionTree.ExtractionCoherence` proves preservation

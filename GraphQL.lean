@@ -3,6 +3,7 @@ import GraphQL.Operation
 import GraphQL.Validation
 import GraphQL.SchemaWellFormedness
 import GraphQL.Execution
+import GraphQL.IncrementalDelivery
 import GraphQL.NamedFragment.Operation
 import GraphQL.NamedFragment.Validation
 import GraphQL.NamedFragment.Execution
