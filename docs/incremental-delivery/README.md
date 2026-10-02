@@ -446,7 +446,7 @@ witnesses instead of duplicating these statements. See the [implementation bridg
 
 All 12 public query-correctness witnesses are proved against the current contract:
 directive-free equivalence, finite outcome existence, safety, lifecycle, disjointness,
-coverage, and reconstruction. Whole-project `lake build` and `lake lint` pass, including
+coverage, and reconstruction. The build, tests, and lint checks pass, including
 `PublicStatements`, the auxiliary and specialized proofs, and the broader regressions.
 The public-witness axiom audit reports only `propext`, `Classical.choice`, and
 `Quot.sound`, with no `sorryAx` or added axioms.
@@ -525,41 +525,7 @@ empty streams, nonzero cursors, decoder composition, and actual wire realization
 roots; `MixedNoticeCoverage` checks both the notice-coverage boundary and a complete-run
 witness.
 
-### Focused checks
-
-The following focused regression command also checks work-queue contract proofs:
-
-```sh
-lake build GraphQL.IncrementalDelivery \
-  Tests.GraphQL.IncrementalDelivery.Execution \
-  Tests.GraphQL.IncrementalDelivery.SpecInterfaces \
-  Tests.GraphQL.IncrementalDelivery.Sources \
-  Tests.GraphQL.IncrementalDelivery.Correctness \
-  Tests.GraphQL.IncrementalDelivery.PositionDecoding \
-  Tests.GraphQL.IncrementalDelivery.WorkQueueSemantics
-```
-
-The correctness proofs and their proof-interface regressions can be checked with:
-
-```sh
-lake build Proofs.GraphQL.IncrementalDelivery.Correctness \
-  Tests.GraphQL.IncrementalDelivery.Query \
-  Tests.GraphQL.IncrementalDelivery.WireProperties \
-  Tests.GraphQL.IncrementalDelivery.SourceObservation \
-  Tests.GraphQL.IncrementalDelivery.QueryObservation \
-  Tests.GraphQL.IncrementalDelivery.WorkLifecycle \
-  Tests.GraphQL.IncrementalDelivery.HistoryScheduling \
-  Tests.GraphQL.IncrementalDelivery.QueryDisjointness \
-  Tests.GraphQL.IncrementalDelivery.QueryCoverage \
-  Tests.GraphQL.IncrementalDelivery.QueryReconstruction \
-  Tests.GraphQL.IncrementalDelivery.PositionComposition \
-  Tests.GraphQL.IncrementalDelivery.Realization \
-  Tests.GraphQL.IncrementalDelivery.QueryOutcomeExistence \
-  Tests.GraphQL.IncrementalDelivery.PublicStatements
-```
-
-The broader proof/test aggregates and whole-project lint also pass.
-See [development](../development.md) for commands.
+See the [development guide](../development.md) for the verification workflow.
 
 ## Implementation boundary: shared publication owners
 

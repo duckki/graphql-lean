@@ -1,6 +1,6 @@
 name = "graphql-lean"
 version = "0.1.0"
-defaultTargets = ["GraphQL", "Proofs", "Tests"]
+defaultTargets = ["GraphQL", "Proofs"]
 lintDriver = "lint"
 
 [[require]]

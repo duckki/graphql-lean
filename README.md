@@ -85,9 +85,15 @@ tests are under [Tests/Conformance/](Tests/Conformance/).
 
 ## Build
 
+Build definitions and proofs:
+
 ```sh
 lake build
 ```
+
+Run all tests separately with `lake build Tests`, or use `make all` for build, tests,
+lint, and changed-file formatting checks. See [the developer guide](docs/development.md)
+for workflow details.
 
 ## Documentation
 

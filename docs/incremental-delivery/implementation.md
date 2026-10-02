@@ -435,26 +435,16 @@ interleaving.
 
 ## Verification and limits
 
-Whole-project `lake build` and `lake lint` pass. Public conformance, the implementation
-bridge, and all 12 query-correctness witnesses have audited dependencies limited to
-`propext`, `Classical.choice`, and `Quot.sound`, with no added axioms or proof holes.
+The build, tests, and lint checks pass. Public conformance, the implementation bridge,
+and all 12 query-correctness witnesses have audited dependencies limited to `propext`,
+`Classical.choice`, and `Quot.sound`, with no added axioms or proof holes.
 
 Shared-initializer regressions check preservation of root data/errors, initial notice
 ordering, reuse of initial IDs by subsequent mapping, and definitional agreement between
 the reference and Execution initialization paths. The source assumptions and public
 conformance/correctness propositions require no additional premises for this factoring.
 
-Focused checks:
-
-```sh
-lake build Proofs.GraphQL.IncrementalDelivery.WorkQueueImplementation \
-  Tests.GraphQL.IncrementalDelivery.WorkQueueImplementation \
-  Tests.GraphQL.IncrementalDelivery.ReferenceCorrectness \
-  Tests.GraphQL.IncrementalDelivery.WorkQueueInitialization \
-  Tests.GraphQL.IncrementalDelivery.PublicStatements
-```
-
-See [development](../development.md) for full build, lint, and formatting commands.
+See the [development guide](../development.md) for the verification workflow.
 
 The proof is restricted to finite execution-generated work and valid host sources.
 It does not establish completion from every admitted prefix, host fairness, eventual

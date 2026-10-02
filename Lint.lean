@@ -219,7 +219,8 @@ def checkLeanLinters (files : List FilePath) : IO UInt32 := do
     pure 1
 
 def buildProject : IO UInt32 := do
-  let output ← IO.Process.output { cmd := "lake", args := #["build"] }
+  let output ←
+    IO.Process.output { cmd := "lake", args := #["build", "GraphQL", "Proofs"] }
   if output.stdout != "" then
     IO.print output.stdout
   if output.stderr != "" then

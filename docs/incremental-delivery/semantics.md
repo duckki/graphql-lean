@@ -340,9 +340,9 @@ reconstruction success, response disjointness, or equality to basic execution.
 All 12 public query-correctness witnesses are checked against the current contract,
 including finite progress (`queryOutcomeExists`). History-prefix preservation,
 publication-matching changes, query realization, general mixed-work continuation,
-research and specialized proofs, and broader regressions pass whole-project `lake build`
-and `lake lint`. Public-witness axiom audits report only `propext`, `Classical.choice`,
-and `Quot.sound`, with no proof holes or added axioms.
+research and specialized proofs, and broader regressions are covered by the passing
+build, tests, and lint checks. Public-witness axiom audits report only `propext`,
+`Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
 
 Reference-queue conformance and the implementation-to-query bridge are also proved.
 Their detailed status is maintained in the
@@ -539,8 +539,8 @@ the completion-entry order inside a coalesced response. Any future partial-order
 must therefore specify its observational quotient explicitly; exact wire equality is
 too strong.
 
-Whole-project `lake build` and `lake lint` pass. The principal research theorems use only
-Lean's standard axioms
+The build, tests, and lint checks pass. The principal research theorems use only Lean's
+standard axioms
 (`propext`, `Classical.choice`, and `Quot.sound` as needed), with no proof holes or added
 axioms.
 

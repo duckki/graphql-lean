@@ -5,11 +5,33 @@ the Lean workspace.
 
 ## Build
 
-Build all Lean targets:
+Build the public definitions and proofs (the default Lake targets):
 
 ```sh
 lake build
 ```
+
+Tests are separate from the default build. Run all ordinary and conformance tests:
+
+```sh
+lake build Tests
+```
+
+These tests are checked during Lean compilation; there is no separate runtime test
+runner. CI builds both the default targets and `Tests`.
+
+The Makefile provides the same separation:
+
+| Command | Checks |
+| --- | --- |
+| `make build` | Definitions and proofs |
+| `make test` | All tests and their dependencies |
+| `make check` | Lint and formatting of changed Lean files |
+| `make all` | Build, tests, and checks, in order |
+
+`make fmt` formats changed Lean files, then builds and lints definitions and proofs;
+it does not run tests. Makefile targets run sequentially even when invoked with `-j`,
+so Lake processes do not build shared artifacts concurrently.
 
 ## Lint
 
@@ -19,8 +41,9 @@ Run linting:
 lake lint
 ```
 
-The lint target runs Lean's built-in linters with documentation warnings
-disabled on the root modules and immediate Lean files under `GraphQL/`,
+The lint target first builds definitions and proofs, not tests. It runs Lean's built-in
+linters with documentation warnings disabled on the root modules and immediate Lean
+files under `GraphQL/`,
 `Proofs/`, and `Lint/`. The same files receive project-local community-style
 checks inspired by common Mathlib/CSLib practice: lines at 100 columns except
 URLs, no trailing whitespace or tabs, no unscoped diagnostic/resource
@@ -111,5 +134,5 @@ introduce a new root only for a durable major test family.
 Fixture generation and graphql-js oracle commands are documented in the
 [conformance fixture guide](../conformance/graphql-js/README.md). The
 [conformance summary](spec-conformance.md) records coverage; the
-[incremental-delivery guide](incremental-delivery/README.md#focused-checks) records its
-focused verification commands.
+[incremental-delivery guide](incremental-delivery/README.md#proof-status-and-verification)
+records its proof status and regression coverage.

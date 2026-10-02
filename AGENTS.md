@@ -146,12 +146,14 @@ Repo organization is:
 
 ## Verification
 
-Run `lake build` and `lake lint` for whole-project verification. Both pass for the
-current definitions, proofs, and regressions. Public-witness axiom audits contain only
+Run `lake build`, `lake build Tests`, and `lake lint` for whole-project verification,
+or `make all` to include changed-file formatting checks. The default build and lint
+exclude tests; CI builds `Tests` explicitly. These checks pass for the current
+definitions, proofs, and regressions. Public-witness axiom audits contain only
 `propext`, `Classical.choice`, and `Quot.sound`, with no proof holes or added axioms.
 
-Focused commands are in `docs/incremental-delivery/README.md#focused-checks` and
-`docs/incremental-delivery/implementation.md#verification-and-limits`.
+Verification commands are in `docs/development.md`. Topic guides record proof status,
+witnesses, and regression coverage without duplicating build or test commands.
 
 ## Where To Look
 

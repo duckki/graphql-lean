@@ -587,17 +587,6 @@ reified by the syntax produced through Lean computation.
 
 ## 5. Verification Status
 
-The public normal-form definitions, equality propositions, binary
-variable-definition relation, and proof witnesses compile together. The commands below
-are the focused and full verification suite.
-
-Run:
-
-```sh
-lake env lean Proofs/GraphQL/Theories/NormalForm/GroundTypeNormalization/Uniqueness.lean
-lake env lean Tests/GraphQL/Theories/NormalForm/GroundTypeNormalization.lean
-lake env lean Proofs/GraphQL/Theories/NormalForm/CompleteNormalization/Uniqueness.lean
-lake env lean Tests/GraphQL/Theories/NormalForm/CompleteNormalization.lean
-lake build
-lake lint
-```
+The public normal-form definitions, equality propositions, binary variable-definition
+relation, and proof witnesses compile together. The build, tests, and lint checks pass.
+See the [development guide](../development.md) for the verification workflow.
